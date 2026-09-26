@@ -1132,10 +1132,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_fk(
-        cls,
-        env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
-        articulation_ids: wp.array | None = None,
+        cls, env_mask: wp.array | None = None, env_ids: wp.array | None = None, articulation_ids: wp.array | None = None
     ) -> None:
         """Mark environments as needing FK recomputation and solver reset.
 
@@ -1181,9 +1178,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_body_state(
-        cls,
-        env_ids: wp.array(dtype=wp.int32) | None = None,
-        env_mask: wp.array(dtype=wp.bool) | None = None,
+        cls, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
     ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
@@ -2480,44 +2475,37 @@ class NewtonManager(PhysicsManager):
         coordinate the sync explicitly.
         """
 
-        if scene_data_provider is None:
-            scene_data_provider = cls.get_scene_data_provider()
+        provider = cls.get_scene_data_provider() if scene_data_provider is None else scene_data_provider
+        assert provider is not None
 
-        assert scene_data_provider is not None
-
-        if cls._backend_is_newton(scene_data_provider):
+        if cls._backend_is_newton(provider):
             return
 
         if cls.backend is None:
             return
 
         if cls.backend.state_0.body_q is not None:
+            model = cls.backend.model
             cached = cls._visualization_transforms
             if cached.data is None:
-                body_labels = list(cls.backend.model.body_label)
-                body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
-                if len(set(body_paths)) != cls.backend.model.body_count or not set(body_paths).issubset(
-                    scene_data_provider.backend.transform_paths
-                ):
+                body_paths = cls._resolve_scene_data_body_paths(list(model.body_label), provider.usd_stage)
+                unique_paths = set(body_paths)
+                if len(unique_paths) != model.body_count or not unique_paths.issubset(provider.backend.transform_paths):
                     raise ValueError("Every Newton render body must have one unique SDP transform path.")
-                cls._transform_mapping = scene_data_provider.create_mapping(body_paths)
+                cls._transform_mapping = provider.create_mapping(body_paths)
                 cached.data = SceneDataFormat.Transform()
 
-            if scene_data_provider.get_transforms(
-                cached.data, mapping=cls._transform_mapping, count=cls.backend.model.body_count
-            ):
+            if provider.get_transforms(cached.data, mapping=cls._transform_mapping, count=model.body_count):
                 if cls.backend.state_0.body_q is not cached.data.transforms:
                     cls.backend.state_0.body_q = cached.data.transforms
                     cls._invalidate_sensor_graph()
-                if cached.timestamp != scene_data_provider.backend.transforms_timestamp:
+                if cached.timestamp != provider.backend.transforms_timestamp:
                     cls._mark_sensor_state_dirty()
-                cached.timestamp = scene_data_provider.backend.transforms_timestamp
+                cached.timestamp = provider.backend.transforms_timestamp
 
         if cls._geometry_offsets:
-            scene_data_provider.get_geometry_points(
-                output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets
-            )
-            timestamp = scene_data_provider.backend.geometry_timestamp
+            provider.get_geometry_points(output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets)
+            timestamp = provider.backend.geometry_timestamp
             if cls._geometry_timestamp != timestamp:
                 cls._mark_sensor_state_dirty()
                 cls._geometry_timestamp = timestamp

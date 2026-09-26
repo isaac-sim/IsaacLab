@@ -466,9 +466,7 @@ class PhysxManager(PhysicsManager):
 
         _sim = PhysicsManager._sim
         _sim.add_render_callback(
-            "physx_headless_video_pump",
-            lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim),
-            order=-10,
+            "physx_headless_video_pump", lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim), order=-10
         )
 
     @classmethod

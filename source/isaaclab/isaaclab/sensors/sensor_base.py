@@ -206,13 +206,7 @@ class SensorBase(ABC):
         wp.launch(
             update_timestamp_kernel,
             dim=self._num_envs,
-            inputs=[
-                self._is_outdated,
-                self._timestamp,
-                self._timestamp_last_update,
-                dt,
-                self.cfg.update_period,
-            ],
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, dt, self.cfg.update_period],
             device=self._device,
         )
         # Update the buffers

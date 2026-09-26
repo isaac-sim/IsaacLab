@@ -19,6 +19,8 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+from ..kernels import vec13f
+
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
 
@@ -743,9 +745,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
+        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
 
         # -- Default state
         self._default_body_pose = wp.zeros(body_shape, dtype=wp.transformf, device=device)
@@ -893,21 +895,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._default_body_state is None:
-            self._default_body_state = wp.zeros(
-                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
             self._default_body_state_ta = ProxyArray(self._default_body_state)
         self._read_launch_cache.launch(
             "default_body_state",
             shared_kernels.concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
-            inputs=[
-                self._default_body_pose,
-                self._default_body_vel,
-            ],
-            outputs=[
-                self._default_body_state,
-            ],
+            inputs=[self._default_body_pose, self._default_body_vel],
+            outputs=[self._default_body_state],
         )
         return self._default_body_state_ta
 

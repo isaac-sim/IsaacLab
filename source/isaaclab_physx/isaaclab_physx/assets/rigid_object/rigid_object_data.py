@@ -20,6 +20,8 @@ from isaaclab.utils.warp import ProxyArray
 from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
+from ..kernels import vec13f
+
 if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
@@ -848,9 +850,9 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_com_vel_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device))
         self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
-        self._root_link_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
-        self._root_com_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
+        self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
+        self._root_link_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
+        self._root_com_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
         # -- derived properties (these are cached to avoid repeated memory allocations)
         self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
@@ -1000,18 +1002,13 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
+            inputs=[self._default_root_pose, self._default_root_vel],
+            outputs=[self._default_root_state],
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state)

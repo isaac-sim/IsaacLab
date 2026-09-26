@@ -178,8 +178,7 @@ class FabricBackend:
             ]
             selection = self.stage.SelectPrims(require_attrs=attrs, device=device)
             write_selection = self.stage.SelectPrims(
-                require_attrs=[(*attrs[0][:2], usdrt.Usd.Access.ReadWrite), attrs[1]],
-                device=device,
+                require_attrs=[(*attrs[0][:2], usdrt.Usd.Access.ReadWrite), attrs[1]], device=device
             )
             offsets = dict.fromkeys(group_paths, 0)
             self._geometry_bindings.append(

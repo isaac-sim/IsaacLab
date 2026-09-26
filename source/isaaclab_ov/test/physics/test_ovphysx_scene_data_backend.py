@@ -327,11 +327,7 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     monkeypatch.setattr(OvPhysxManager, "_warmup_done", False)
     OvPhysxManager.backend.stage = object()
     monkeypatch.setattr(OvPhysxManager, "_warmup_and_load", lambda: calls.append("warmup"))
-    monkeypatch.setattr(
-        OvPhysxManager,
-        "dispatch_event",
-        lambda event, payload=None: calls.append(event),
-    )
+    monkeypatch.setattr(OvPhysxManager, "dispatch_event", lambda event, payload=None: calls.append(event))
 
     version = OvPhysxManager._scene_data_backend.transforms_timestamp
     OvPhysxManager.reset()

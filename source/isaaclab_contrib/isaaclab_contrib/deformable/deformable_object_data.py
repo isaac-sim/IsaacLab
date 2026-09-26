@@ -25,13 +25,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     The data is lazily updated, meaning that the data is only updated when it is accessed.
     """
 
-    def __init__(
-        self,
-        particle_offsets: wp.array,
-        particles_per_body: int,
-        num_instances: int,
-        device: str,
-    ):
+    def __init__(self, particle_offsets: wp.array, particles_per_body: int, num_instances: int, device: str):
         """Initialize the Newton deformable object data.
 
         Args:

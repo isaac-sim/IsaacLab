@@ -540,11 +540,7 @@ class Articulation(BaseArticulation):
         OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_link_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root link pose over selected environment mask into the simulation.
 
@@ -626,11 +622,7 @@ class Articulation(BaseArticulation):
         OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_root_com_pose_to_sim_mask(
-        self,
-        *,
-        root_pose: torch.Tensor | wp.array,
-        env_mask: wp.array | None = None,
-        skip_forward: bool = False,
+        self, *, root_pose: torch.Tensor | wp.array, env_mask: wp.array | None = None, skip_forward: bool = False
     ) -> None:
         """Set the root center of mass pose over selected environment mask into the simulation.
 
@@ -4623,9 +4615,7 @@ class Articulation(BaseArticulation):
     ) -> None:
         """Push a public-order joint property through backend and CPU staging."""
         property_backend = self._get_backend_ordered_joint_buffer(
-            user_buffer,
-            backend_buffer,
-            component_count=component_count,
+            user_buffer, backend_buffer, component_count=component_count
         )
         if cpu_buffer is None:
             cpu_buffer = self._data._stage_to_pinned_cpu(tensor_type, "write", property_backend)
@@ -4633,11 +4623,7 @@ class Articulation(BaseArticulation):
             source = property_backend
             if source.dtype != wp.float32:
                 source = wp.array(
-                    ptr=source.ptr,
-                    shape=cpu_buffer.shape,
-                    dtype=wp.float32,
-                    device=str(source.device),
-                    copy=False,
+                    ptr=source.ptr, shape=cpu_buffer.shape, dtype=wp.float32, device=str(source.device), copy=False
                 )
             wp.copy(cpu_buffer, source)
             # The device-to-host copy into pinned memory is asynchronous; the CPU-only

@@ -1005,8 +1005,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     if ordering_mode == "reversed":
         articulation_cfg = articulation_cfg.replace(
-            joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
-            body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
+            joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)), body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
         )
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
 
@@ -1033,11 +1032,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         wp.array(primed_joint_vel_values, dtype=wp.float32, device=data._sim_bind_joint_vel.device)
     )
     data._sim_bind_body_com_vel_w.assign(
-        wp.array(
-            primed_body_com_vel_values,
-            dtype=wp.spatial_vectorf,
-            device=data._sim_bind_body_com_vel_w.device,
-        )
+        wp.array(primed_body_com_vel_values, dtype=wp.spatial_vectorf, device=data._sim_bind_body_com_vel_w.device)
     )
     # The raw sim-bind writes above simulate the solver advancing state; in the
     # real pipeline the post-step callback republishes the passthrough shadows in
@@ -1165,8 +1160,7 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     body_com_acc_w = data.body_com_acc_w.warp.numpy()
     np.testing.assert_array_equal(joint_acc, np.zeros_like(expected_previous_joint_vel))
     np.testing.assert_array_equal(
-        body_com_acc_w,
-        np.zeros_like(expected_previous_body_com_vel[:, body_user_to_backend]),
+        body_com_acc_w, np.zeros_like(expected_previous_body_com_vel[:, body_user_to_backend])
     )
     assert data._joint_acc.timestamp == data._sim_timestamp
     assert data._body_com_acc_w.timestamp == data._sim_timestamp

@@ -20,6 +20,8 @@ from isaaclab.utils.warp.utils import capture_unsafe
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+from ..kernels import vec13f
+
 if TYPE_CHECKING:
     import torch
     from newton.selection import ArticulationView
@@ -1080,7 +1082,7 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1104,9 +1106,7 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1130,9 +1130,7 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1160,19 +1158,14 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
+            inputs=[self._default_root_pose, self._default_root_vel],
+            outputs=[self._default_root_state],
         )
         return self._default_root_state_ta
 
@@ -1187,7 +1180,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1213,9 +1206,7 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -1240,9 +1231,7 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(

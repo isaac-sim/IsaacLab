@@ -1198,10 +1198,7 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
     monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=object()))
     monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
     monkeypatch.setattr(
-        NewtonManager,
-        "_reset_solver_internals_delegate",
-        NewtonManager._reset_solver_internals,
-        raising=False,
+        NewtonManager, "_reset_solver_internals_delegate", NewtonManager._reset_solver_internals, raising=False
     )
 
     NewtonManager.forward()
@@ -1228,10 +1225,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
     monkeypatch.setattr(NewtonManager, "_eval_fk", lambda worlds, articulations: None, raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", _RejectingSolver(), raising=False)
     monkeypatch.setattr(
-        NewtonManager,
-        "_reset_solver_internals_delegate",
-        NewtonMPMManager._reset_solver_internals,
-        raising=False,
+        NewtonManager, "_reset_solver_internals_delegate", NewtonMPMManager._reset_solver_internals, raising=False
     )
 
     NewtonManager.forward()

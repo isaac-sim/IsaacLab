@@ -402,9 +402,7 @@ class OVRTXRenderer(BaseRenderer):
         self._use_ovstage = ovrtx_use_ovstage_enabled()
         self.backend: OVRTXBackend = SimulationContext.instance().get_or_create_backend(
             OVRTXBackendCfg(
-                renderer_cfg=cfg,
-                use_ovstage=self._use_ovstage,
-                read_gpu_transforms=_read_gpu_transforms_enabled(),
+                renderer_cfg=cfg, use_ovstage=self._use_ovstage, read_gpu_transforms=_read_gpu_transforms_enabled()
             )
         )
         """Native engine and detached stage borrowed from the simulation registry, which owns their lifetime."""

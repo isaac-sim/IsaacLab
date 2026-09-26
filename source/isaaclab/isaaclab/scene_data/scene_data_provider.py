@@ -298,10 +298,7 @@ class SceneDataProvider:
         return None
 
     def get_geometry_points(
-        self,
-        *,
-        output: wp.array | SceneDataFormat.FabricPoints | None = None,
-        offsets: dict[str, int] | None = None,
+        self, *, output: wp.array | SceneDataFormat.FabricPoints | None = None, offsets: dict[str, int] | None = None
     ) -> dict[str, wp.array] | wp.array | SceneDataFormat.FabricPoints:
         """Borrow visual point views or convert directly into the requested native destination.
 

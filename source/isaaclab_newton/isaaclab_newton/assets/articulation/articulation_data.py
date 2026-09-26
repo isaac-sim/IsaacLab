@@ -27,6 +27,8 @@ from isaaclab_newton.assets.articulation.joint_coordinates import (
 )
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
+from ..kernels import vec13f
+
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
 
@@ -912,9 +914,7 @@ class ArticulationData(BaseArticulationData):
         # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
         # matching the PhysX layout and the cross-library industry convention.
         self._root_view.eval_jacobian(
-            SimulationManager.get_state_0(),
-            J=self._jacobian_buf_flat,
-            joint_S_s=self._joint_S_s_buf,
+            SimulationManager.get_state_0(), J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf
         )
         joint_ordering = self.joint_ordering
         self._read_launch_cache.launch(
@@ -992,11 +992,7 @@ class ArticulationData(BaseArticulationData):
         # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. Buffers are
         # allocated on first use and reused on subsequent calls, including graph replay.
         state = SimulationManager.get_state_0()
-        self._root_view.eval_jacobian(
-            state,
-            J=self._jacobian_buf_flat,
-            joint_S_s=self._joint_S_s_buf,
-        )
+        self._root_view.eval_jacobian(state, J=self._jacobian_buf_flat, joint_S_s=self._joint_S_s_buf)
         self._root_view.eval_mass_matrix(
             state,
             H=self._mass_matrix_full_buf,
@@ -1047,8 +1043,7 @@ class ArticulationData(BaseArticulationData):
         # enabled (validated by Newton's own graph-capture test) — so only the output
         # and gather buffers are retained here.
         self._root_view.eval_inverse_dynamics_passive(
-            SimulationManager.get_state_0(),
-            gravity_force=self._gravity_force_full_buf,
+            SimulationManager.get_state_0(), gravity_force=self._gravity_force_full_buf
         )
         # Topology arrays come from the same Model object the eval above computed
         # against (the view's), so the gather can never mix models across a rebuild.
@@ -1993,9 +1988,7 @@ class ArticulationData(BaseArticulationData):
             if self._body_mass_user is None:
                 self._body_mass_user = wp.zeros(shape, dtype=wp.float32, device=self.device)
             if self._body_inertia_user is None:
-                self._body_inertia_user = wp.zeros(
-                    (self._num_instances, self._num_bodies, 9), dtype=wp.float32, device=self.device
-                )
+                self._body_inertia_user = wp.zeros((*shape, 9), dtype=wp.float32, device=self.device)
             if self._body_com_pos_b_user is None:
                 self._body_com_pos_b_user = wp.zeros(shape, dtype=wp.vec3f, device=self.device)
             self._validate_body_ordering_buffers()
@@ -2406,7 +2399,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, shared_kernels.vec13f, self.device))
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -2430,9 +2423,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -2456,9 +2447,7 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(
-                wp.empty(self._num_instances, shared_kernels.vec13f, self.device)
-            )
+            self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -2489,19 +2478,14 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
+            inputs=[self._default_root_pose, self._default_root_vel],
+            outputs=[self._default_root_state],
         )
         return self._default_root_state_ta
 
@@ -2521,7 +2505,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_state_w is None:
             self._body_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
+                wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_state_w_ta = ProxyArray(self._body_state_w.data)
         if self._body_state_w.timestamp < self._sim_timestamp:
@@ -2551,7 +2535,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_link_state_w is None:
             self._body_link_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
+                wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_link_state_w_ta = ProxyArray(self._body_link_state_w.data)
         if self._body_link_state_w.timestamp < self._sim_timestamp:
@@ -2583,7 +2567,7 @@ class ArticulationData(BaseArticulationData):
         )
         if self._body_com_state_w is None:
             self._body_com_state_w = TimestampedBuffer(
-                wp.empty((self._num_instances, self._num_bodies), shared_kernels.vec13f, self.device)
+                wp.empty((self._num_instances, self._num_bodies), vec13f, self.device)
             )
             self._body_com_state_w_ta = ProxyArray(self._body_com_state_w.data)
         if self._body_com_state_w.timestamp < self._sim_timestamp:

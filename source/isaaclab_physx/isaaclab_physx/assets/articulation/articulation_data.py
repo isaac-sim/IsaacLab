@@ -23,6 +23,8 @@ from isaaclab_physx.assets import kernels as shared_kernels
 from isaaclab_physx.assets.articulation import kernels as articulation_kernels
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
+from ..kernels import vec13f
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -1026,10 +1028,7 @@ class ArticulationData(BaseArticulationData):
         return self._body_link_jacobian_w_ta
 
     def _refresh_generalized_joint_buffer(
-        self,
-        buf: TimestampedBuffer,
-        view_getter: Callable[[], wp.array],
-        reorder_kernel: wp.Kernel,
+        self, buf: TimestampedBuffer, view_getter: Callable[[], wp.array], reorder_kernel: wp.Kernel
     ) -> None:
         """Refresh a timestamp-lazy generalized joint-axis buffer from its backend view.
 
@@ -1661,12 +1660,12 @@ class ArticulationData(BaseArticulationData):
         self._body_com_vel_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
-        self._root_link_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
-        self._root_com_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
-        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
-        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=shared_kernels.vec13f, device=device))
+        self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
+        self._root_link_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
+        self._root_com_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=vec13f, device=device))
+        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
         # -- joint state
         self._joint_pos = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_vel = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
@@ -2151,18 +2150,13 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
         self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
+            inputs=[self._default_root_pose, self._default_root_vel],
+            outputs=[self._default_root_state],
         )
         if self._default_root_state_ta is None:
             self._default_root_state_ta = ProxyArray(self._default_root_state)
