@@ -5,18 +5,18 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .cloner_cfg import DEFAULT_ENV_TEMPLATE
-from .path import get_world_prototypes, match, rebase, split, under
+from .path import get_instance_paths, iter_subtree_copies, split
 
 if TYPE_CHECKING:
     from pxr import Usd
 
+    from ..sim import SimulationContext
     from .clone_plan import ClonePlan
 
 
@@ -100,75 +100,23 @@ class UsdReplicateContext:
     # USD destinations must exist before native physics contexts consume them.
     replicate_priority = -100
 
-    def __init__(
-        self,
-        stage: Usd.Stage,
-        plan: ClonePlan,
-        *,
-        env_template: str = DEFAULT_ENV_TEMPLATE,
-    ):
-        """Bind USD names to the plan's asset instances."""
-        self.stage = stage
-        self.plan = plan
-        self.env_template = env_template
-        topology = plan.topology
-        targets = {}
-        sorted_world_ids = np.argsort(topology.world_prototype_layout, kind="stable")
-        counts = np.bincount(topology.world_prototype_layout, minlength=len(topology.world_prototype_starts) - 2)
-        offsets = np.r_[0, np.cumsum(counts)]
-        for world_prototype_id in get_world_prototypes(topology):
-            start, end = topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-            world_ids = (
-                np.array([-1])
-                if world_prototype_id == -1
-                else sorted_world_ids[offsets[world_prototype_id] : offsets[world_prototype_id + 1]]
-            )
-            names = set()
-            for asset_prototype_id in topology.world_prototypes[start:end]:
-                cfg = topology.asset_prototypes[asset_prototype_id]
-                matched = match(cfg.prim_path, self.env_template)
-                template = self.env_template + matched.suffix if matched is not None else cfg.prim_path
-                if world_prototype_id == -1:
-                    template = template.format("shared")
-                elif matched is None:
-                    template = self.env_template + "/" + cfg.prim_path.rsplit("/", 1)[-1]
-                name, occurrence = template, 0
-                while template in names:
-                    occurrence += 1
-                    template = f"{name}_{occurrence}"
-                names.add(template)
-                targets.setdefault((int(asset_prototype_id), template), []).append(world_ids)
-        targets = [(index, template, np.concatenate(groups)) for (index, template), groups in targets.items()]
-        source_paths = {}
-        for asset_prototype_id, template, world_ids in targets:
-            if len(world_ids) and asset_prototype_id not in source_paths:
-                spawn = getattr(topology.asset_prototypes[asset_prototype_id], "spawn", None)
-                path = getattr(spawn, "spawn_path", None)
-                source_paths[asset_prototype_id] = path if path is not None else template.format(int(world_ids[0]))
-        self.instances = tuple(
-            (asset_prototype_id, source_paths.get(asset_prototype_id), template, world_ids)
-            for asset_prototype_id, template, world_ids in targets
-        )
-
-    @property
-    def global_paths(self) -> tuple[str, ...]:
-        """USD roots instantiated in the shared world, not inferred from their namespace."""
-        paths = tuple(template for _, _, template, world_ids in self.instances if len(world_ids) and world_ids[0] == -1)
-        return tuple(path for path in paths if not any(path != root and under(path, root) for root in paths))
+    def __init__(self, sim: SimulationContext):
+        self.stage = sim.stage
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
+        instances = (instance for instance in get_instance_paths(plan) if instance[0] in asset_prototype_ids)
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for _, source, template, targets in self.iter_clones(asset_prototype_ids):
+            for _, source, template, targets in iter_subtree_copies(instances):
                 usd_replicate(self.stage, (source,), (template,), targets)
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()
                 for env_id, position in zip(env_ids, plan.positions, strict=True):
-                    path = self.env_template.format(int(env_id))
+                    path = plan.env_template.format(int(env_id))
                     spec = Sdf.CreatePrimInLayer(layer, path)
                     spec.specifier = Sdf.SpecifierDef
                     if not spec.typeName:
@@ -181,35 +129,3 @@ class UsdReplicateContext:
                         spec, "xformOpOrder", Sdf.ValueTypeNames.TokenArray
                     )
                     order.default = Vt.TokenArray(["xformOp:translate"])
-
-    def iter_clones(
-        self, asset_prototype_ids: Sequence[int] | None = None
-    ) -> Iterator[tuple[int, str, str, np.ndarray]]:
-        """Yield parent-first subtree copies, keeping independently sourced child overrides.
-
-        Args:
-            asset_prototype_ids: Routed asset prototypes; None includes every declared instance.
-
-        Yields:
-            Asset-prototype ID, source path, destination template, and world IDs requiring a copy.
-        """
-        instances = sorted(
-            (
-                instance
-                for instance in self.instances
-                if len(instance[3]) and (asset_prototype_ids is None or instance[0] in asset_prototype_ids)
-            ),
-            key=lambda item: item[2].count("/"),
-        )
-        for index, (asset_prototype_id, source, destination, world_ids) in enumerate(instances):
-            covered = np.zeros(len(world_ids), dtype=np.bool_)
-            redundant = covered.copy()
-            for _, parent_source, parent_destination, parent_world_ids in reversed(instances[:index]):
-                if destination == parent_destination or not under(destination, parent_destination):
-                    continue
-                inherited = np.isin(world_ids, parent_world_ids) & ~covered
-                if rebase(source, parent_source, parent_destination) == destination:
-                    redundant |= inherited
-                covered |= inherited
-            if not redundant.all():
-                yield asset_prototype_id, source, destination, world_ids[~redundant]

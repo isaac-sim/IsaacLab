@@ -175,10 +175,12 @@ class NewtonInverseKinematicsAction(ActionTerm):
             raise ValueError("NewtonInverseKinematicsAction requires at least one pose objective.")
 
         # Finalize the controlled asset's retained prototype builder.
-        usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        asset_ids = cloner.path.get_asset_prototypes(usd.plan.topology, self._asset.cfg.prim_path)
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
         self._source_path = next(
-            source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds)
+            source
+            for index, source, _, worlds in cloner.path.get_instance_paths(plan)
+            if index in asset_ids and len(worlds)
         )
         prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
         prototype_view = ArticulationView(

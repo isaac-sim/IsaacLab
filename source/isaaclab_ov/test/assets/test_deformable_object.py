@@ -31,7 +31,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
-from isaaclab.cloner import UsdReplicateContext, path, query
+from isaaclab.cloner import path, query
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
@@ -536,10 +536,10 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
                 lazy_sensor_update=False,
             )
         )
-        usd = sim.clone_contexts[UsdReplicateContext]
-        source_paths = {index: path for index, path, _, world_ids in usd.instances if len(world_ids)}
-        shape_ids = path.get_asset_prototypes(usd.plan.topology, scene.cfg.shape.prim_path)
-        worlds, starts = query.get_asset_prototype_unique_world_index(usd.plan.topology, shape_ids)
+        plan = sim.get_clone_plan()
+        source_paths = {index: path for index, path, _, world_ids in path.get_instance_paths(plan) if len(world_ids)}
+        shape_ids = path.get_asset_prototypes(plan, scene.cfg.shape.prim_path)
+        worlds, starts = query.get_asset_prototype_unique_world_index(plan.topology, shape_ids)
         assert (starts[:, -1] - starts[:, 0]).tolist() == [2, 2]
         assert sorted(worlds) == list(range(num_envs))
 
@@ -555,7 +555,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
         deformable_source_paths = {
             f"{source_paths[index]}/simulation"
-            for index in path.get_asset_prototypes(usd.plan.topology, scene.cfg.deformable.prim_path)
+            for index in path.get_asset_prototypes(plan, scene.cfg.deformable.prim_path)
         }
         assert {
             path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()

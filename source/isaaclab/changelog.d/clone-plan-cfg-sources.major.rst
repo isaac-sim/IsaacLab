@@ -2,18 +2,19 @@ Changed
 ^^^^^^^
 
 * **Breaking:** Replaced the clone-plan source/environment matrix with ``plan.topology``,
-  a ``PrototypeWorldTopology`` holding reusable ``asset_prototypes``, packed
+  a ``PrototypeWorldTopology`` holding the asset-prototype count, packed
   ``world_prototypes`` and ``world_prototype_starts``, and
   one world-prototype index per ``world_prototype_layout`` entry. Repeated memberships now represented
   repeated asset instances. Shared assets occupied the leading world ``-1`` slice.
-  Use ``make_clone_plan(asset_prototypes, world_prototypes, num_worlds, shared_assets=...)``
+  Use ``make_clone_plan(asset_cfgs, world_prototypes, num_worlds, shared_assets=...)``
   to construct a plan, or let ``InteractiveScene`` manage planning and replication.
-  Kept world origins on ``plan.positions``, separate from topology; pass ``positions=...``
-  when constructing a plan instead of storing placement on ``UsdReplicateContext``.
-* **Breaking:** Moved USD names out of ``ClonePlan``. Native bindings remained
-  in ``sim.clone_contexts[UsdReplicateContext].instances``;
-  ``cloner.path.get_asset_prototypes(plan.topology, path_expr=None)`` and
-  ``cloner.path.get_world_prototypes(plan.topology, path_expr=None)``
+  Kept host declarations, naming, and placement on ``plan.asset_cfgs``, ``plan.env_template``,
+  and ``plan.positions``, outside numeric topology. Pass ``env_template=...`` and
+  ``positions=...`` when constructing a plan.
+* **Breaking:** Removed consumer access to USD clone contexts. Derive native instance paths
+  with ``cloner.path.get_instance_paths(plan)``;
+  ``cloner.path.get_asset_prototypes(plan, path_expr=None)`` and
+  ``cloner.path.get_world_prototypes(plan, path_expr=None)``
   returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
   Read cfgs and world memberships from the plan instead of unpacking topology-query results.
   Added ``get_asset_prototype_world_index(plan.topology, asset_prototype)`` returning
@@ -24,14 +25,14 @@ Changed
   boundaries shaped ``[num_queries, num_worlds + 2]``. Resolve expressions with ``cloner.path``
   before querying. Repeated input IDs retained separate results; a scalar formed a one-query batch.
   Removed ``iter_sources``, ``path_env_ids``, ``path_to_clone``, and ``path_to_source`` from ``cloner.query``;
-  compose topology queries and ``cloner.path`` primitives with existing native bindings
-  for authored paths and destination names. Subtree-copy selection belonged to USD replication,
-  not the topology query API.
+  compose topology queries and ``cloner.path`` primitives for authored paths and destination
+  names. ``cloner.path.iter_subtree_copies(instances)`` selected non-redundant copies for USD
+  and OVRTX without adding native naming to the topology query API.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.
   Clone contexts consumed destination world IDs directly without allocating dense masks.
 * Added explicit ``cloner.to_warp(plan.topology, device)`` materialization of ``PrototypeWorldTopology``.
-  Retained asset cfg references on the host and materialized only the three numeric arrays.
+  Kept asset cfg references on the host plan and materialized only the three numeric arrays.
   NumPy planning remained on the host; Warp queries used preallocated outputs and supported
   CUDA graph replay without implicit uploads or readbacks. Materialize once during initialization
   and share the returned topology; no automatic device cache or mutable mirror was introduced.

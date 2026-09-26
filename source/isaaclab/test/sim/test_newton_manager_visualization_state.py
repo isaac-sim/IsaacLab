@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import SpawnerCfg
 
 pytestmark = pytest.mark.integration
@@ -77,12 +77,12 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
         (AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source")),),
         ((0,),),
         2,
+        env_template="/Scene/Copy_{}",
     )
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
     sim.stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
-    sim.clone_contexts = {UsdReplicateContext: UsdReplicateContext(sim.stage, plan, env_template="/Scene/Copy_{}")}
     sim.physics_manager = ForeignPhysicsManager
     sim._backend_registry = []
     body_paths = [f"/Scene/Body_{index}" for index in range(body_count)]
@@ -357,12 +357,12 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
         ((0, 1),),
         2,
         shared_assets=(2,),
+        env_template="/Copies/env_{}",
     )
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object()),
         device="cpu",
         stage=stage,
-        clone_contexts={UsdReplicateContext: UsdReplicateContext(stage, plan, env_template="/Copies/env_{}")},
         physics_manager=SimpleNamespace(register_callback=Mock()),
     )
     usd_imports = []

@@ -135,9 +135,9 @@ Empty PhysX simulations and tools that supply a native Newton builder need no du
 ClonePlan
 ~~~~~~~~~
 
-``ClonePlan`` holds a ``topology`` component and optional world ``positions`` [m].
-All four prototype fields belong to :class:`~isaaclab.cloner.PrototypeWorldTopology`.
-Asset prototypes are reusable cfg definitions; each world
+``ClonePlan`` holds numeric ``topology``, host ``asset_cfgs``, an ``env_template``, and
+optional world ``positions`` [m]. :class:`~isaaclab.cloner.PrototypeWorldTopology`
+contains only the prototype count and numeric relationships below. Each world
 prototype lists the asset-prototype indices it contains. Repeating an index creates
 another instance with the prototype's default pose. Backends assign native names.
 
@@ -147,8 +147,8 @@ another instance with the prototype's default pose. Backends assign native names
 
    * - Topology field
      - Meaning
-   * - ``asset_prototypes``
-     - Concrete asset cfg references, one per reusable prototype.
+   * - ``num_asset_prototypes``
+     - Number of reusable asset definitions, including unused prototypes.
    * - ``world_prototypes``
      - Flat array of asset-prototype indices, including repeated instances.
    * - ``world_prototype_starts``
@@ -170,13 +170,13 @@ For two reusable assets, four compositions, and sixteen destination worlds:
 
 .. code-block:: text
 
-    asset_prototypes       = (banana_cfg, franka_cfg)
+    num_asset_prototypes   = 2
     world_prototypes       = [0,1, 0,1,1, 0,0,1, 1]
     world_prototype_starts = [0,0,2,5,8,9]
     world_prototype_layout = [0,0,0,0, 1,1,1,1, 2,2,2,2, 3,3,3,3]
 
 The leading ``[0, 0]`` describes an empty shared world. To include a shared ground,
-append its cfg to ``asset_prototypes`` and pass ``shared_assets=(2,)``.
+append its cfg to the input ``asset_cfgs`` and pass ``shared_assets=(2,)``.
 The shared slice then contains index ``2``; its membership is never sampled.
 
 Optional ``weights`` assign relative probabilities to world prototypes. The default
@@ -186,10 +186,12 @@ duplicates prototype definitions to represent weights.
 
 ``make_clone_plan`` does not mutate cfgs or construct a stage. In the normal workflow,
 ``InteractiveScene`` resolves spawner variants into concrete asset prototypes and owns
-authoring and replication. Environment origins stay on ``plan.positions``; topology
-queries do not need them. Its USD context holds native source paths and destination
-templates. Other backends import those declared prototypes
-and realize the same topology. Clone contexts do not own native runtime resources.
+authoring and replication. The plan holds four fields: ``topology``, ``asset_cfgs``,
+``env_template``, and ``positions``. Numeric topology indexes the host cfg table;
+it contains neither cfg objects nor naming or placement. Path utilities derive source
+paths and destination names from the plan. Consumers use these utilities without
+accessing clone contexts. Clone contexts execute replication; they own neither plan
+metadata nor native runtime resources.
 
 Only declared subtrees are cloned. Declaring ``env_0/Robot`` does not authorize cloning
 an undeclared sibling camera. Newton composes each selected world prototype once
@@ -202,10 +204,10 @@ Path matching runs on the host and returns NumPy ``int32`` prototype IDs:
 
 .. code-block:: python
 
-    cloner.path.get_asset_prototypes(plan.topology, banana_cfg.prim_path)  # array([0])
-    cloner.path.get_world_prototypes(plan.topology, banana_cfg.prim_path)  # array([0, 1, 2])
+    cloner.path.get_asset_prototypes(plan, banana_cfg.prim_path)  # array([0])
+    cloner.path.get_world_prototypes(plan, banana_cfg.prim_path)  # array([0, 1, 2])
 
-    cfg = plan.topology.asset_prototypes[asset_id]
+    cfg = plan.asset_cfgs[asset_id]
     start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
     asset_ids = plan.topology.world_prototypes[start:end]
 
@@ -251,7 +253,7 @@ Explicit Warp materialization
 
 Planning and initialization queries stay in NumPy. When runtime code needs device-side
 queries, explicitly materialize the topology's three numeric arrays. The returned
-:class:`~isaaclab.cloner.PrototypeWorldTopology` keeps the same host asset cfg references:
+:class:`~isaaclab.cloner.PrototypeWorldTopology` contains only the prototype count and numeric arrays:
 
 .. code-block:: python
 
@@ -272,8 +274,8 @@ queries, explicitly materialize the topology's three numeric arrays. The returne
 ``to_warp`` has no device cache: the lifecycle owner calls it once and shares the
 returned topology. Matching contiguous NumPy storage is borrowed on CPU; CUDA
 materialization copies it. Both keep their arrays alive after the host plan is released.
-Treat topology as read-only after planning. Cfgs stay on the host within the topology;
-positions and native names are not part of this materialization, and
+Treat topology as read-only after planning. Cfgs stay on the host in ``plan.asset_cfgs``;
+the naming template and positions are not part of this materialization, and
 there is no host/device synchronization of later edits.
 
 Warp queries require resident ``int32`` IDs and preallocated output arrays. Warm the query
@@ -293,10 +295,9 @@ when a consumer starts with a concrete destination path rather than an asset cfg
 
 .. code-block:: python
 
-    usd = sim.clone_contexts[cloner.UsdReplicateContext]
-    plan = usd.plan
+    plan = sim.get_clone_plan()
     path = "/World/envs/env_2/Robot/hand"
-    world, _ = cloner.path.match(path, usd.env_template)
+    world, _ = cloner.path.match(path, plan.env_template)
     world_id = int(world)
     world_prototype_id = plan.topology.world_prototype_layout[world_id]
     start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
@@ -304,14 +305,14 @@ when a consumer starts with a concrete destination path rather than an asset cfg
 
     # Names distinguish repeated occurrences of the same asset prototype.
     matches = []
-    for asset_id, source, destination, worlds in usd.instances:
+    for asset_id, source, destination, worlds in cloner.path.get_instance_paths(plan):
         if asset_id in asset_ids and world_id in worlds:
             suffix = cloner.path.relative_to(path, destination.format(world_id))
             if suffix is not None:
                 matches.append((source, suffix))
     # A separately declared child owns its descendants instead of its parent.
     source, suffix = min(matches, key=lambda item: len(item[1]))
-    hand = usd.stage.GetPrimAtPath(source + suffix)
+    hand = sim.stage.GetPrimAtPath(source + suffix)
 
 Segment primitives such as ``match``, ``relative_to``, and ``rebase`` do not inspect a plan or choose a world.
 For a world expression, select the matching world IDs and process each relevant world
@@ -385,13 +386,12 @@ heterogeneous scenes.
 Under the Hood
 --------------
 
-Planning retains cfgs in ``asset_prototypes``. Dispatch derives each backend's
-participating asset indices from those declarations. The active physics manager
-registers its clone context during simulation initialization. Assets use that context by default;
-:attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` can select an explicitly
-registered context instead. Renderer and visualizer cfgs declare their required
-representations through ``cloning_contexts``. They are registered before planning,
-so spawned assets also route to those contexts and to
+Planning retains cfgs in ``plan.asset_cfgs``. Dispatch derives each backend's
+participating asset indices from those declarations and constructs the required clone
+contexts. The active physics manager declares the default context type;
+:attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` can override it per asset.
+Renderer and visualizer cfgs declare their required representations before planning.
+Spawned assets also route to those contexts and to
 :class:`~isaaclab.cloner.UsdReplicateContext` when Kit is available.
 
 The backend packages expose different context implementations behind one

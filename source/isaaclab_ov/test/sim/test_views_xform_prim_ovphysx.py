@@ -72,7 +72,6 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
             weights=(10, 2),
             positions=positions,
         )
-        sim.clone_contexts[cloner.UsdReplicateContext] = cloner.UsdReplicateContext(sim.stage, plan)
         sim.set_clone_plan(plan)
         stage = sim_utils.get_current_stage()
         for env_id, offset in ((0, 0.25), (10, 0.5)):

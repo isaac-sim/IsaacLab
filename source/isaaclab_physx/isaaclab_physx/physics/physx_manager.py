@@ -35,7 +35,7 @@ import usdrt
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import UsdReplicateContext
+from isaaclab.cloner.path import get_instance_paths, get_shared_paths
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -442,7 +442,6 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
-        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
@@ -970,10 +969,11 @@ class PhysxManager(PhysicsManager):
 
         sim = PhysicsManager._sim
         entries = None
-        if (usd := sim.clone_contexts.get(UsdReplicateContext)) is not None:
-            prototypes = deformable_prototypes(sim.stage, usd.instances, usd.global_paths)
+        if (plan := sim.get_clone_plan()) is not None:
+            instances = get_instance_paths(plan)
+            prototypes = deformable_prototypes(sim.stage, instances, get_shared_paths(instances))
             entries = expand_deformable_entries(
-                prototypes, usd.instances, np.arange(len(usd.plan.topology.world_prototype_layout)), usd.plan.positions
+                prototypes, instances, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
             )
 
         is_gpu = "cuda" in PhysicsManager.get_device()

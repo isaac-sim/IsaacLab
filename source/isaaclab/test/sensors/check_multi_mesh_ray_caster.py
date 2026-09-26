@@ -113,7 +113,6 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         positions=env_origins,
     )
     sim.set_clone_plan(plan)
-    sim.clone_contexts[lab_cloner.UsdReplicateContext] = lab_cloner.UsdReplicateContext(sim.stage, plan)
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
     # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
     physics_scene_path = next(

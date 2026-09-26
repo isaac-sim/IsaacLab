@@ -291,7 +291,6 @@ def replicate_builder_mapping(
     quaternions: np.ndarray,
     source_builders: dict[str, ModelBuilder],
     *,
-    env_template: str,
     env_ids: np.ndarray,
     reference_instances: Sequence[tuple[int, str | None, str, np.ndarray]] = (),
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
@@ -304,6 +303,7 @@ def replicate_builder_mapping(
     Additional ``reference_instances`` supply path bindings, not geometry to import.
     """
     topology = plan.topology
+    env_template = plan.env_template
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = len(topology.world_prototype_layout)

@@ -17,8 +17,8 @@ from newton import ModelBuilder
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext
-from isaaclab.cloner.path import match, rebase
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
+from isaaclab.cloner.path import get_instance_paths, get_shared_paths, match, rebase
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 
@@ -97,7 +97,6 @@ def _replicate_newton(
     *,
     plan: ClonePlan,
     instances: tuple,
-    env_template: str,
     reference_instances: tuple,
     positions: np.ndarray | None = None,
     global_paths: Sequence[str] = (),
@@ -211,7 +210,6 @@ def _replicate_newton(
         positions=positions,
         quaternions=quaternions,
         source_builders=source_builders,
-        env_template=env_template,
         env_ids=env_ids,
         reference_instances=reference_instances,
         source_site_indices=source_sites,
@@ -263,20 +261,19 @@ class NewtonReplicateContext:
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
-        usd = self._sim.clone_contexts[UsdReplicateContext]
+        instances = get_instance_paths(plan)
         return _replicate_newton(
             self._sim.stage,
             np.arange(len(plan.topology.world_prototype_layout)),
             self._sim,
             plan=plan,
-            instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
-            env_template=usd.env_template,
-            reference_instances=usd.instances,
+            instances=tuple(instance for instance in instances if instance[0] in asset_prototype_ids),
+            reference_instances=instances,
             positions=plan.positions,
-            global_paths=usd.global_paths,
+            global_paths=get_shared_paths(instances),
             exclude_paths=tuple(
                 source
-                for index, source, _, world_ids in usd.instances
+                for index, source, _, world_ids in instances
                 if index not in asset_prototype_ids and len(world_ids) and world_ids[0] != -1
             ),
             up_axis=self.up_axis,
@@ -313,20 +310,22 @@ def newton_physics_replicate(
     world_masks, selected = np.unique(mapping.T, axis=0, return_inverse=True)
     members = [np.flatnonzero(mask) for mask in world_masks]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
+    prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
     plan = ClonePlan(
         PrototypeWorldTopology(
-            (*sources, *global_paths),
+            len(sources) + len(global_paths),
             np.concatenate((shared, *members)).astype(np.int32),
             np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
             selected.astype(np.int32),
         ),
+        asset_cfgs=(*sources, *global_paths),
+        env_template=prefix + "{}" + suffix.split("/", 1)[0],
         positions=positions,
     )
     instances = tuple(
         (index, source, destination, np.flatnonzero(mapping[index]))
         for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
     ) + tuple((int(index), path, path, np.array([-1])) for index, path in zip(shared, global_paths, strict=True))
-    prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
     builder, stage_info, _ = _replicate_newton(
         stage,
         env_ids,
@@ -334,7 +333,6 @@ def newton_physics_replicate(
         plan=plan,
         instances=instances,
         reference_instances=instances,
-        env_template=prefix + "{}" + suffix.split("/", 1)[0],
         positions=positions,
         global_paths=global_paths,
         up_axis=up_axis,

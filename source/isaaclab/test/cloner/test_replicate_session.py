@@ -15,6 +15,7 @@ from pxr import Usd, UsdGeom
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
+from isaaclab.cloner.path import get_instance_paths, get_shared_paths
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
@@ -80,8 +81,7 @@ def test_empty_and_shared_only_worlds(simulation, shared):
     simulation.render_context.clone_contexts.add(_RenderContext)
     assets = (AssetBaseCfg(prim_path="/World/Ground"),) if shared else ()
     with ReplicateSession(assets, 3, 2.0) as session:
-        usd = simulation.clone_contexts[UsdReplicateContext]
-        assert usd.global_paths == (("/World/Ground",) if shared else ())
+        assert get_shared_paths(get_instance_paths(session.plan)) == (("/World/Ground",) if shared else ())
         np.testing.assert_array_equal(session.plan.topology.world_prototype_layout, [0, 0, 0])
         np.testing.assert_array_equal(session.plan.topology.world_prototype_starts, [0, int(shared), int(shared)])
     assert {context for context, _, _ in simulation.calls} == (
@@ -110,8 +110,9 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     assert constructed == [camera.renderer_cfg]
     simulation.get_or_create_backend(camera.renderer_cfg)
     assert len(constructed) == 1
-    assert plan.topology.asset_prototypes[0] is camera and plan.topology.asset_prototypes[1] is ground
+    assert plan.asset_cfgs[0] is camera and plan.asset_cfgs[1] is ground
     assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
+    assert plan.env_template == "/Lab/Cell{}"
     assert ground.spawn.spawn_path == "/Lab/Ground"
     np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 0])
     assert {context for context, _, _ in simulation.calls} == {_Context, _RenderContext}
@@ -133,10 +134,10 @@ def test_dispatch_order_and_usd_scope(simulation):
         cloning_contexts=(UsdReplicateContext, Late, Early),
     )
     with ReplicateSession((cfg,), 2, 1.0) as session:
-        assert not hasattr(simulation.clone_contexts[UsdReplicateContext], "positions")
         UsdGeom.Xform.Define(simulation.stage, cfg.spawn.spawn_path)
         UsdGeom.Camera.Define(simulation.stage, "/World/envs/env_0/UndeclaredCamera")
     assert simulation.calls == [(Early, session.plan, (0,)), (Late, session.plan, (0,))]
+    assert set(vars(simulation.clone_contexts[UsdReplicateContext])) == {"stage"}
     assert simulation.stage.GetPrimAtPath("/World/envs/env_1/Robot")
     assert not simulation.stage.GetPrimAtPath("/World/envs/env_1/UndeclaredCamera")
     np.testing.assert_array_equal(session.plan.positions, grid_transforms(2, 1.0)[0])
@@ -161,8 +162,8 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
     ground = AssetBaseCfg(prim_path="/World/Ground")
     with ReplicateSession((object_cfg, ground), 4, 2.0) as session:
         plan = session.plan
-        assert len(plan.topology.asset_prototypes) == 3
-        for cfg, shape in zip(plan.topology.asset_prototypes[:2], object_cfg.spawn.assets_cfg, strict=True):
+        assert len(plan.asset_cfgs) == 3
+        for cfg, shape in zip(plan.asset_cfgs[:2], object_cfg.spawn.assets_cfg, strict=True):
             assert cfg.spawn.assets_cfg[0] is shape
         assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
         np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0, 1])

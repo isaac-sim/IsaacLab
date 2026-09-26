@@ -203,7 +203,7 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
     with build_simulation_context(device="cpu", auto_add_lighting=False, add_ground_plane=False) as sim:
         sim._app_control_on_stop_handle = None
         InteractiveScene(MySceneCfg(num_envs=4, env_spacing=1.0))
-        instances = sim.clone_contexts[cloner.UsdReplicateContext].instances
+        instances = cloner.path.get_instance_paths(sim.get_clone_plan())
 
     assert len(captured) == 1
     plan, replicate_physics, published = captured[0]
@@ -240,12 +240,12 @@ def test_scene_constructs_plan_owned_markers():
         assert isinstance(scene["goal"], VisualizationMarkers)
         plan = sim.get_clone_plan()
         shared = plan.topology.world_prototypes[: plan.topology.world_prototype_starts[1]]
-        assert tuple(plan.topology.asset_prototypes[index].prim_path for index in shared) == (
+        assert tuple(plan.asset_cfgs[index].prim_path for index in shared) == (
             "/Visuals/Goal",
             "/World/Prop",
             "/Visuals/Deferred",
         )
-        np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan.topology, "/Visuals/Goal"), [-1])
+        np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan, "/Visuals/Goal"), [-1])
 
 
 def test_empty_scene_leaves_clone_lifecycle_to_caller():

@@ -16,7 +16,7 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 from pxr import Gf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import make_clone_plan
 from isaaclab.physics import PhysicsManager
 
 
@@ -97,8 +97,7 @@ def test_ovphysx_context_consumes_plan():
         2,
         positions=np.array([[2, 0, 0], [5, 2, 3]], dtype=np.float32),
     )
-    usd = UsdReplicateContext(stage, plan)
-    simulation = SimpleNamespace(stage=stage, physics_manager=manager, clone_contexts={UsdReplicateContext: usd})
+    simulation = SimpleNamespace(stage=stage, physics_manager=manager)
 
     OvPhysxReplicateContext(simulation).replicate(plan, (0,))
 

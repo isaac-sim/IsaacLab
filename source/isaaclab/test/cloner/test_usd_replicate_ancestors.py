@@ -5,6 +5,8 @@
 
 """Tests for ancestor authoring in :func:`~isaaclab.cloner.usd_replicate`."""
 
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
 
@@ -60,7 +62,7 @@ def test_context_clones_nested_declarations_parent_first(independent_child):
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
     )
     plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2)
-    UsdReplicateContext(stage, plan).replicate(plan, (0, 1))
+    UsdReplicateContext(SimpleNamespace(stage=stage)).replicate(plan, (0, 1))
     for world in range(2):
         camera = stage.GetPrimAtPath(f"/World/envs/env_{world}/Robot/Camera")
         assert camera.GetAttribute("marker").Get() == (2 if independent_child else 1)

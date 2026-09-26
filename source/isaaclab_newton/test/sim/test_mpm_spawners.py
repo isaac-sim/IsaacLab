@@ -24,7 +24,8 @@ from newton.solvers import SolverImplicitMPM
 from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import UsdReplicateContext, make_clone_plan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan, path
 
 pytestmark = pytest.mark.unit
 
@@ -96,21 +97,26 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     )
     shared_cfg = cfg.copy()
     shared_cfg.func("/World/Shared", shared_cfg, translation=(-2.0, 0.0, 0.0))
-    usd = SimpleNamespace(
-        instances=(
-            (0, "/World/Media", "/Scene/copy_{}/Media", np.array([12, 7])),
-            (1, "/World/Other", "/Scene/copy_{}/Media", np.array([99])),
-            (2, "/World/Shared", "/World/Shared", np.array([-1])),
+    layout = np.zeros(100, dtype=np.int32)
+    layout[[7, 12]], layout[99] = 1, 2
+    cfg.spawn_path, shared_cfg.spawn_path = "/World/Media", "/World/Shared"
+    plan = make_clone_plan(
+        (
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Media", spawn=sim_utils.SpawnerCfg(spawn_path="/World/Other")),
+            AssetBaseCfg(prim_path="/World/Shared", spawn=shared_cfg),
         ),
-        global_paths=("/World/Shared",),
+        ((), (0,), (1,)),
+        100,
+        shared_assets=(2,),
+        clone_strategy=lambda _weights, _num_worlds: layout,
+        env_template="/Scene/copy_{}",
     )
-    monkeypatch.setattr(
-        sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(clone_contexts={UsdReplicateContext: usd})
-    )
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
     state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
     monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
     backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(make_clone_plan((), ((),), 0), usd.instances)
+    backend.initialize_geometry(plan, path.get_instance_paths(plan))
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     asset = SimpleNamespace(
         cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
@@ -126,8 +132,8 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     [(publication, ranges)] = backend.get_geometry_batches()
     assert publication.points is state.particle_q
     assert ranges == {
-        "/Scene/copy_12/Media/Particles": (4, 2),
-        "/Scene/copy_7/Media/Particles": (10, 2),
+        "/Scene/copy_7/Media/Particles": (4, 2),
+        "/Scene/copy_12/Media/Particles": (10, 2),
         "/World/Shared/Particles": (0, 2),
     }
     assert visual_points.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() == cfg.visual_update_frequency

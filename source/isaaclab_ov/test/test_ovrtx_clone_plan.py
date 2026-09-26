@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import PinholeCameraCfg, SpawnerCfg
@@ -68,8 +68,8 @@ def _make_multi_env_stage(num_envs: int) -> Usd.Stage:
     return stage
 
 
-def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, usd: UsdReplicateContext) -> None:
-    mock_ctx = SimpleNamespace(clone_contexts={UsdReplicateContext: usd})
+def _patch_simulation_context(monkeypatch: pytest.MonkeyPatch, plan: ClonePlan) -> None:
+    mock_ctx = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
         "isaaclab_ov.renderers.ovrtx_renderer.SimulationContext",
         SimpleNamespace(instance=lambda: mock_ctx),
@@ -87,11 +87,10 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
         write_array_attribute=lambda *args, **kwargs: None,
         write_attribute=lambda *args, **kwargs: None,
     )
-    renderer._usd = None
+    renderer._clone_plan = None
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer._camera_prim_path = "/World/envs/env_0/Camera"
     renderer._render_product_paths = []
     renderer._camera_render_data = []
     renderer._next_camera_id = 0
@@ -131,18 +130,15 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def test_clone_sources_in_ovrtx_uses_world_compositions():
     """Each asset clones directly to the worlds that contain it, excluding its authored source."""
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._usd = UsdReplicateContext(
-        None,
-        make_clone_plan(
-            tuple(
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name)
-                for name in ("Robot", "Object", "Light", "Robot/Camera")
-            ),
-            ((3, 0, 2), (3, 0, 1)),
-            4,
-            weights=(1, 3),
-            positions=np.zeros((4, 3), dtype=np.float32),
+    renderer._clone_plan = make_clone_plan(
+        tuple(
+            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name)
+            for name in ("Robot", "Object", "Light", "Robot/Camera")
         ),
+        ((3, 0, 2), (3, 0, 1)),
+        4,
+        weights=(1, 3),
+        positions=np.zeros((4, 3), dtype=np.float32),
     )
     clone_calls: list[tuple[str, list[str]]] = []
 
@@ -151,7 +147,7 @@ def test_clone_sources_in_ovrtx_uses_world_compositions():
 
     renderer.backend.renderer.clone_usd = _clone_usd
 
-    renderer._clone_sources_in_ovrtx()
+    renderer._clone_sources()
 
     assert clone_calls == [
         (
@@ -166,9 +162,8 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     """Legacy OVRTX cloning writes the authored world origins after copying assets."""
     renderer = _make_ovrtx_renderer_without_backend()
     positions = np.array([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]], dtype=np.float32)
-    renderer._usd = UsdReplicateContext(
-        None,
-        make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 3, positions=positions),
+    renderer._clone_plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 3, positions=positions
     )
     call_order: list[str] = []
     clone_calls: list[tuple[str, list[str]]] = []
@@ -186,7 +181,7 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
 
     renderer.backend.renderer.write_attribute = _write_attribute
 
-    renderer._clone_sources_in_ovrtx()
+    renderer._clone_sources()
 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
     expected[:, 3, :3] = positions
@@ -203,17 +198,12 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
     """Ovstage copies each active asset and then applies the authored world origins."""
     renderer = _make_ovrtx_renderer_without_backend()
     positions = np.array([[0.0, 0.0, 0.0], [1.5, -2.0, 0.25], [3.0, 4.0, 0.5]], dtype=np.float32)
-    renderer._usd = UsdReplicateContext(
-        None,
-        make_clone_plan(
-            tuple(
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Robot", "Object", "Object/Camera")
-            ),
-            ((0,), (2, 1)),
-            3,
-            weights=(1, 2),
-            positions=positions,
-        ),
+    renderer._clone_plan = make_clone_plan(
+        tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Robot", "Object", "Object/Camera")),
+        ((0,), (2, 1)),
+        3,
+        weights=(1, 2),
+        positions=positions,
     )
     events: list[tuple[str, str, object]] = []
     xforms: list[np.ndarray] = []
@@ -245,6 +235,7 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
         destroy_path_list=lambda _paths: None,
     )
     renderer._current_ordinal = 3
+    renderer._use_ovstage = True
 
     def _record_xforms(value: np.ndarray) -> str:
         xforms.append(value.copy())
@@ -252,7 +243,7 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
 
     monkeypatch.setattr("isaaclab_ov.renderers.ovrtx_renderer.xform_tensor_from_numpy", _record_xforms)
 
-    renderer._clone_sources_ovstage()
+    renderer._clone_sources()
 
     expected = np.tile(np.eye(4, dtype=np.float64), (3, 1, 1))
     expected[:, 3, :3] = positions
@@ -276,23 +267,21 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
     UsdGeom.Xform.Define(stage, "/World/envs/Unplanned").AddScaleOp().Set(Gf.Vec3d(5, 6, 7))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cpu"
-    renderer._usd = UsdReplicateContext(
-        stage,
-        ClonePlan(
-            PrototypeWorldTopology(
-                tuple(
-                    AssetBaseCfg(
-                        prim_path=env_template.format("[^/]+") + "/Object",
-                        spawn=SpawnerCfg(spawn_path=env_template.format(i) + "/Object"),
-                    )
-                    for i in range(2)
-                )
-                + (AssetBaseCfg(prim_path="/World/Shared"),),
-                np.asarray([2, 0, 0, 1]),
-                np.asarray([0, 1, 3, 4]),
-                np.asarray([0, 1, 0]),
-            ),
+    renderer._clone_plan = ClonePlan(
+        PrototypeWorldTopology(
+            3,
+            np.asarray([2, 0, 0, 1]),
+            np.asarray([0, 1, 3, 4]),
+            np.asarray([0, 1, 0]),
         ),
+        asset_cfgs=tuple(
+            AssetBaseCfg(
+                prim_path=env_template.format("[^/]+") + "/Object",
+                spawn=SpawnerCfg(spawn_path=env_template.format(i) + "/Object"),
+            )
+            for i in range(2)
+        )
+        + (AssetBaseCfg(prim_path="/World/Shared"),),
         env_template=env_template,
     )
 
@@ -312,14 +301,11 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
     """The optional dump preserves the raw stage; default preparation performs no file writes."""
     _patch_simulation_context(
         monkeypatch,
-        UsdReplicateContext(
-            None,
-            make_clone_plan(
-                (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
-                ((0,),),
-                2,
-                positions=np.zeros((2, 3), dtype=np.float32),
-            ),
+        make_clone_plan(
+            (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+            ((0,),),
+            2,
+            positions=np.zeros((2, 3), dtype=np.float32),
         ),
     )
 
@@ -415,7 +401,7 @@ def test_initialize_camera_render_data_from_spec_refreshes_camera_relationship_a
     write_array_calls: list[tuple[list[str], str, list[list[str]]]] = []
 
     renderer.backend.renderer.open_usd_from_string = lambda _usd_string: call_order.append("open")
-    renderer._clone_sources_in_ovrtx = lambda: call_order.append("clone")
+    renderer._clone_sources = lambda: call_order.append("clone")
     renderer._update_scene_partitions_after_clone = lambda _num_envs: call_order.append("partitions")
 
     def _write_array_attribute(prim_paths: list[str], attribute_name: str, tensors: list[list[str]]) -> None:
@@ -457,7 +443,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         3,
         positions=np.zeros((3, 3), dtype=np.float32),
     )
-    _patch_simulation_context(monkeypatch, UsdReplicateContext(stage, plan))
+    _patch_simulation_context(monkeypatch, plan)
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.prepare_stage(stage, 3)
     exported = Usd.Stage.CreateInMemory()

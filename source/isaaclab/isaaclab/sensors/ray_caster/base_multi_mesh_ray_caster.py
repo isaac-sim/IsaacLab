@@ -147,7 +147,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _initialize_warp_meshes(self):
         """Initialize mesh buffers from the ClonePlan when env-scoped, else from the stage."""
         sim = SimulationContext.instance()
-        usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
+        plan = sim.get_clone_plan() if sim is not None else None
+        instances = cloner.path.get_instance_paths(plan) if plan is not None else ()
         target_records_by_expr = {}
         dummy_mesh_id: int | None = None
         self._mesh_views = []
@@ -155,7 +156,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         # Build one per-env mesh list for each configured raycast target.
         for target_cfg in self._raycast_targets_cfg:
             records_per_env, dummy_mesh_id, tracked_target_exprs = self._build_mesh_records(
-                target_cfg, () if usd is None else usd.instances, dummy_mesh_id
+                target_cfg, instances, dummy_mesh_id
             )
             self._num_meshes_per_env[target_cfg.prim_expr] = max(len(records) for records in records_per_env)
             target_records_by_expr[target_cfg.prim_expr] = records_per_env

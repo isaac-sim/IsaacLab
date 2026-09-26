@@ -25,7 +25,6 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    UsdReplicateContext,
     _fabric_notices,
     disabled_fabric_change_notifies,
     make_clone_plan,
@@ -124,16 +123,14 @@ def test_physx_replicate_context_consumes_plan(sim):
     """PhysxReplicateContext reads its mapping from the shared clone plan."""
     from unittest.mock import patch
 
-    stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(3):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
-        ctx = PhysxReplicateContext(stage)
+        ctx = PhysxReplicateContext(sim)
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), ((0,),), 3)
-        sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         ctx.replicate(plan, (0,))
 
     assert replicate_calls == [2]
