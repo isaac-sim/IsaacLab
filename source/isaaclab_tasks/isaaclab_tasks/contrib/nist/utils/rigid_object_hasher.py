@@ -40,10 +40,10 @@ class RigidObjectHasher:
             )
 
         # Read each authored variant once, including descendants such as articulation links.
-        usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
+        plan = SimulationContext.instance().get_clone_plan()
         matches = [
             (instance, matched)
-            for instance in (usd.instances if usd is not None else ())
+            for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
             if len(instance[3]) and instance[3][0] != -1
             if (matched := cloner.path.match(prim_path_pattern, instance[2])) is not None
         ]

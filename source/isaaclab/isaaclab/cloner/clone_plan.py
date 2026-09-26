@@ -15,20 +15,21 @@ from typing import Any
 import numpy as np
 import warp as wp
 
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
 
 
 @dataclass(frozen=True, eq=False)
 class PrototypeWorldTopology:
-    """Asset definitions, world compositions, and their destination-world membership.
+    """Numeric asset-prototype and world relationships.
 
     Arrays use NumPy storage for planning or Warp storage on one device for runtime queries.
-    Asset cfgs stay on the host. Treat the topology as read-only after planning;
-    :func:`to_warp` explicitly materializes its numeric arrays on a device.
+    Treat the topology as read-only after planning; :func:`to_warp` explicitly materializes
+    its numeric arrays on a device. Host declarations and naming belong to :class:`ClonePlan`.
     """
 
-    asset_prototypes: tuple[Any, ...]
-    """Asset prototype configurations. Repeated memberships refer to the same definition."""
+    num_asset_prototypes: int
+    """Number of asset definitions, including unused prototypes."""
 
     world_prototypes: np.ndarray | wp.array
     """Flat int32 asset-prototype indices. Repeated indices represent distinct instances."""
@@ -50,7 +51,13 @@ class ClonePlan:
     """Prototype topology and placement used to instantiate a scene."""
 
     topology: PrototypeWorldTopology
-    """Asset definitions and world membership, independent of placement and native resources."""
+    """Numeric asset-prototype and world membership, independent of naming and placement."""
+
+    asset_cfgs: tuple[Any, ...]
+    """Host declarations indexed by asset-prototype ID, retained once by reference."""
+
+    env_template: str = DEFAULT_ENV_TEMPLATE
+    """Destination-world path template, with one ``{}`` slot for the world ID."""
 
     positions: np.ndarray | None = None
     """Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement."""
@@ -66,11 +73,10 @@ def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopo
     Returns:
         A new topology holding its arrays alive independently of the host topology. Call once during
         initialization and share the result; this function does not cache, synchronize later
-        host edits, or transfer cfgs. The asset definitions are retained by reference.
-        Queries never call it implicitly.
+        host edits, or transfer cfgs. Queries never call it implicitly.
     """
     return PrototypeWorldTopology(
-        asset_prototypes=topology.asset_prototypes,
+        num_asset_prototypes=topology.num_asset_prototypes,
         world_prototypes=wp.array(topology.world_prototypes, dtype=wp.int32, device=device, copy=False),
         world_prototype_starts=wp.array(topology.world_prototype_starts, dtype=wp.int64, device=device, copy=False),
         world_prototype_layout=wp.array(topology.world_prototype_layout, dtype=wp.int32, device=device, copy=False),
@@ -78,38 +84,40 @@ def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopo
 
 
 def make_clone_plan(
-    asset_prototypes: Sequence[Any],
+    asset_cfgs: Sequence[Any],
     world_prototypes: Sequence[Sequence[int]],
     num_worlds: int,
     *,
     weights: Sequence[float] | None = None,
     shared_assets: Sequence[int] = (),
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    env_template: str = DEFAULT_ENV_TEMPLATE,
     positions: np.ndarray | None = None,
 ) -> ClonePlan:
     """Select world compositions and retain their optional placement without creating native resources.
 
     Args:
-        asset_prototypes: Asset prototype definitions, retained by reference.
+        asset_cfgs: Asset prototype definitions, retained by reference.
         world_prototypes: Asset indices in each world prototype, including repeated instances.
         num_worlds: Number of destination worlds.
         weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
         shared_assets: Asset indices instantiated once in the shared world ``-1``.
         clone_strategy: Function selecting world-prototype indices from weights.
+        env_template: Destination-world path template with one ``{}`` slot for the world ID.
         positions: Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement.
 
     Returns:
         A plan holding the topology and placement. Topology starts with a shared-world slice.
     """
-    asset_prototypes = tuple(asset_prototypes)
+    asset_cfgs = tuple(asset_cfgs)
     compositions = (tuple(shared_assets), *(tuple(world) for world in world_prototypes))
     if len(compositions) == 1:
         raise ValueError("At least one world prototype is required; an empty world is ().")
     members = np.asarray([asset for world in compositions for asset in world])
     if members.size and (
-        not np.issubdtype(members.dtype, np.integer) or (members < 0).any() or (members >= len(asset_prototypes)).any()
+        not np.issubdtype(members.dtype, np.integer) or (members < 0).any() or (members >= len(asset_cfgs)).any()
     ):
-        raise ValueError("World members must be integer indices into asset_prototypes.")
+        raise ValueError("World members must be integer indices into asset_cfgs.")
     weights = np.ones(len(compositions) - 1) if weights is None else np.asarray(weights, dtype=np.float64)
     if weights.shape != (len(compositions) - 1,) or not np.isfinite(weights).all() or (weights < 0).any():
         raise ValueError("Each world prototype requires one finite, non-negative weight.")
@@ -125,11 +133,13 @@ def make_clone_plan(
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     return ClonePlan(
         topology=PrototypeWorldTopology(
-            asset_prototypes=asset_prototypes,
+            num_asset_prototypes=len(asset_cfgs),
             world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
             world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
             world_prototype_layout=np.ascontiguousarray(world_prototype_layout, dtype=np.int32),
         ),
+        asset_cfgs=asset_cfgs,
+        env_template=env_template,
         positions=positions,
     )
 

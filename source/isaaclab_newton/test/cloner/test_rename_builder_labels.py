@@ -21,7 +21,8 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
+from isaaclab.cloner.path import get_instance_paths
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     deformable_prototypes,
@@ -38,9 +39,9 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         plan = make_clone_plan(
             cfgs, ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, positions=np.zeros((16, 3), dtype=np.float32)
         )
-        usd = UsdReplicateContext(None, plan)
+        instances = get_instance_paths(plan)
         assets = {}
-        for _, source, _, world_ids in usd.instances:
+        for _, source, _, world_ids in instances:
             if not len(world_ids) or source in assets:
                 continue
             asset = assets[source] = newton.ModelBuilder()
@@ -50,11 +51,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             replicate_builder_mapping(
                 builder,
                 plan,
-                usd.instances,
-                usd.plan.positions,
+                instances,
+                plan.positions,
                 np.tile([0, 0, 0, 1], (16, 1)),
                 assets,
-                env_template=usd.env_template,
                 env_ids=np.arange(16),
             )
         self.assertEqual(replicate.call_count, 4)
@@ -98,7 +98,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
                 positions,
                 np.array([[0.0, 0.0, 0.0, 1.0]] * 3, dtype=np.float32),
                 {source_path: source, other_path: other},
-                env_template="/World/envs/env_{}",
                 env_ids=np.arange(3, dtype=np.int64),
                 source_site_indices={id(source): {"ee": [site_idx]}},
                 env_root_sites={"origin": wp.transform((0.1, 0.0, 0.0), wp.quat_identity())},
@@ -137,7 +136,6 @@ class TestReplicateBuilderMapping(unittest.TestCase):
             np.array([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]], dtype=np.float32),
             np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, 1.0]], dtype=np.float32),
             source_builders,
-            env_template="/World/envs/env_{}",
             env_ids=np.arange(2, dtype=np.int64),
         )
 
@@ -152,7 +150,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             cfg=SimpleNamespace(physics=object()),
             device="cpu",
             stage=None,
-            clone_contexts={},
             physics_manager=SimpleNamespace(register_callback=mock.Mock()),
         )
 
@@ -173,7 +170,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             UsdPhysics.CollisionAPI.Apply(body.GetPrim())
         cfgs = AssetBaseCfg(prim_path="/World/Declared"), AssetBaseCfg(prim_path="/World/Excluded", cloning_contexts=())
         plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, stage_info, site_index_map = NewtonReplicateContext(self.sim).replicate(plan, (0,))
 
         self.assertEqual(builder.body_label, ["/World/Declared"])
@@ -193,10 +189,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     2,
                     shared_assets=(1,),
                     positions=positions,
+                    env_template="/Copies/env_{}",
                 )
-                self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
-                    stage, plan, env_template="/Copies/env_{}"
-                )
+
                 builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
                 self.assertCountEqual(
                     builder.body_label,
@@ -210,7 +205,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
         # The same definition can also be shared and appear twice in each replicated world.
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((0, 0),), 2, shared_assets=(0,))
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         with mock.patch.object(
             newton.ModelBuilder, "add_usd", autospec=True, side_effect=newton.ModelBuilder.add_usd
         ) as add_usd:
@@ -248,8 +242,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
             ((0, 1),),
             2,
             shared_assets=range(2, len(shared) + 2),
+            env_template="/Scene/copy_{}",
         )
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan, env_template="/Scene/copy_{}")
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
         model = builder.finalize(device="cpu")
         with mock.patch(
@@ -293,7 +287,6 @@ class TestVisualizationClonePlan(unittest.TestCase):
             2,
             positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32),
         )
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
         model = builder.finalize(device="cpu")
 
@@ -318,20 +311,18 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
         plan = ClonePlan(
             PrototypeWorldTopology(
-                asset_prototypes=tuple(
-                    AssetBaseCfg(
-                        prim_path="/World/envs/env_[^/]+/Object", spawn=SpawnerCfg(spawn_path=path + "/Object")
-                    )
-                    for _, path in env_paths
-                )
-                + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
+                num_asset_prototypes=3,
                 world_prototypes=np.array([0, 2, 1, 2]),
                 world_prototype_starts=np.array([0, 0, 2, 4]),
                 world_prototype_layout=np.array([0, 1, 0]),
             ),
+            asset_cfgs=tuple(
+                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object", spawn=SpawnerCfg(spawn_path=path + "/Object"))
+                for _, path in env_paths
+            )
+            + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
             positions=np.asarray(((0, 0, 0), (3, 0, 0), (6, 0, 0)), dtype=np.float32),
         )
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
         self.assertEqual(builder.body_label, [f"/World/envs/env_{i}/Object" for i in range(3)])
         self.assertEqual(
@@ -490,7 +481,6 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             positions,
             quaternions,
             {self._SRC: source, sibling_material: newton.ModelBuilder()},
-            env_template=self._ENV,
             env_ids=env_ids,
         )
         for name, source_labels in original.items():
@@ -531,7 +521,6 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             np.zeros((2, 3), dtype=np.float32),
             np.array([[0.0, 0.0, 0.0, 1.0]] * 2, dtype=np.float32),
             {self._SRC: source},
-            env_template=self._ENV,
             env_ids=env_ids,
             per_world_builder_hooks=(hook,),
         )

@@ -305,8 +305,8 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
-        usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-        instances = usd.instances if usd is not None else ()
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        instances = cloner.path.get_instance_paths(plan) if plan is not None else ()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()

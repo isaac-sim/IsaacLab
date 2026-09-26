@@ -97,7 +97,7 @@ def test_usd_replicate_context_consumes_plan(sim):
         2,
         positions=np.asarray([[1, 2, 3], [4, 5, 6]], dtype=np.float32),
     )
-    ctx = UsdReplicateContext(stage, plan)
+    ctx = UsdReplicateContext(sim)
     ctx.replicate(plan, (0,))
 
     assert not stage.GetPrimAtPath("/World/envs/env_0").IsA(UsdGeom.Cube)
@@ -332,8 +332,8 @@ def test_clone_plan_from_env_0_uses_flat_cfg_manifest(sim):
     plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (robot, sensor, prop, light, light_reference), 4, 1.0)
 
     assert sim.get_clone_plan() is plan
-    assert plan.topology.asset_prototypes == (robot, sensor, prop, light, light_reference)
-    assert sim.clone_contexts[UsdReplicateContext].global_paths == ("/World/Light",)
+    assert plan.asset_cfgs == (robot, sensor, prop, light, light_reference)
+    assert cloner.path.get_shared_paths(cloner.path.get_instance_paths(plan)) == ("/World/Light",)
     np.testing.assert_array_equal(plan.topology.world_prototype_layout, np.zeros(4, dtype=np.int32))
     np.testing.assert_array_equal(plan.topology.world_prototypes, [3, 4, 0, 1, 2])
     assert robot.prim_path == "/World/envs/env_[^/]+/Robot"

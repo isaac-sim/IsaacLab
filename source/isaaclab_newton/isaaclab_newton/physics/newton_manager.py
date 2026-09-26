@@ -77,8 +77,8 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
-from isaaclab.cloner.path import get_asset_prototypes
+from isaaclab.cloner import ClonePlan, make_clone_plan
+from isaaclab.cloner.path import get_asset_prototypes, get_instance_paths
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -229,7 +229,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         indices, weights = [], []
         visual_offset = 0
         for entry in NewtonManager._deformable_registry:
-            asset_ids = get_asset_prototypes(plan.topology, entry.prim_path)
+            asset_ids = get_asset_prototypes(plan, entry.prim_path)
             suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
             paths = [
                 template.format(env_id) + suffix
@@ -514,7 +514,6 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         cls.clone_context_type = NewtonReplicateContext
-        sim_context.clone_contexts[NewtonReplicateContext] = NewtonReplicateContext(sim_context)
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -1353,11 +1352,9 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
-        instances = ()
-        if cls._deformable_registry:
-            usd = PhysicsManager._sim.clone_contexts[UsdReplicateContext]
-            instances = usd.instances
-        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan(), instances)
+        plan = PhysicsManager._sim.get_clone_plan()
+        instances = get_instance_paths(plan) if cls._deformable_registry else ()
+        cls._scene_data_backend.initialize_geometry(plan, instances)
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 
@@ -1590,8 +1587,10 @@ class NewtonManager(PhysicsManager):
 
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
-            plan = make_clone_plan((proto_path,), ((0,),), len(env_paths), positions=positions)
             env_template = proto_path.rsplit("_", 1)[0] + "_{}"
+            plan = make_clone_plan(
+                (proto_path,), ((0,),), len(env_paths), positions=positions, env_template=env_template
+            )
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
                 if source == proto_path:
@@ -1610,7 +1609,6 @@ class NewtonManager(PhysicsManager):
                 positions=positions,
                 quaternions=quaternions,
                 source_builders=source_builders,
-                env_template=env_template,
                 env_ids=np.asarray([index for index, _ in env_paths]),
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,

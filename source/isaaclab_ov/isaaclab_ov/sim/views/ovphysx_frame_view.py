@@ -315,11 +315,11 @@ class OvPhysxFrameView(BaseFrameView):
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._stage = stage
         sim = sim_utils.SimulationContext.instance()
-        usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
-        self._usd = usd
+        plan = sim.get_clone_plan() if sim is not None else None
+        self._clone_plan = plan
         matches = [
             (instance, matched)
-            for instance in (usd.instances if usd is not None else ())
+            for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
             if len(instance[3]) and instance[3][0] != -1
             if (matched := cloner.path.match(prim_path, instance[2])) is not None
         ]
@@ -535,7 +535,7 @@ class OvPhysxFrameView(BaseFrameView):
         """Return plan-ordered source prims and projected poses for source-only world sites."""
         if not self._source_sites:
             return []
-        usd = self._usd
+        plan = self._clone_plan
 
         sites: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
         for source_root, destination_template, source_prim, env_ids in self._source_sites:
@@ -545,10 +545,10 @@ class OvPhysxFrameView(BaseFrameView):
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
-            source_match = cloner.path.match(source_root, usd.env_template)
+            source_match = cloner.path.match(source_root, plan.env_template)
             source_anchor_world = Gf.Matrix4d(1.0)
             if source_match is not None:
-                source_anchor_path = usd.env_template.format(source_match.instance)
+                source_anchor_path = plan.env_template.format(source_match.instance)
                 source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
                 if not source_anchor.IsValid():
                     raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
@@ -559,8 +559,8 @@ class OvPhysxFrameView(BaseFrameView):
                 env_id = int(env_id)
                 destination_root = destination_template.format(env_id)
                 destination_world = Gf.Matrix4d(1.0)
-                if usd.plan.positions is not None:
-                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, usd.plan.positions[env_id])))
+                if plan.positions is not None:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[env_id])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 sites.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))

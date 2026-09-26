@@ -10,8 +10,10 @@ string/array operations over topology and path templates. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
 
+import ast
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -141,6 +143,15 @@ def test_cloner_imports_without_kit():
     assert result.returncode == 0, result.stderr
     assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
 
+    # Only cloning execution and its lifecycle owners may access context instances.
+    for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
+        if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
+            continue
+        assert not any(
+            isinstance(node, ast.Attribute) and node.attr == "clone_contexts"
+            for node in ast.walk(ast.parse(path.read_text()))
+        ), f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+
 
 @pytest.mark.parametrize("shared_assets", [(), (0,)])
 def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets):
@@ -149,8 +160,9 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
     worlds = ((0, 1), (0, 1, 1), (0, 0, 1), (1,))
     plan = make_clone_plan(assets, worlds, 16, shared_assets=shared_assets)
     assert isinstance(plan.topology, cloner.PrototypeWorldTopology)
+    assert set(vars(plan)) == {"topology", "asset_cfgs", "env_template", "positions"}
     assert not any(hasattr(plan, field) for field in vars(plan.topology))
-    assert all(actual is expected for actual, expected in zip(plan.topology.asset_prototypes, assets, strict=True))
+    assert all(actual is expected for actual, expected in zip(plan.asset_cfgs, assets, strict=True))
     np.testing.assert_array_equal(plan.topology.world_prototype_layout, np.repeat(np.arange(4), 4))
     np.testing.assert_array_equal(
         plan.topology.world_prototype_starts,
@@ -167,7 +179,7 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
             (cloner.path.get_asset_prototypes, asset_ids),
             (cloner.path.get_world_prototypes, world_ids),
         ):
-            actual = query(plan.topology, path_expr)
+            actual = query(plan, path_expr)
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
     for selector in (0, np.int32(1)):
@@ -197,18 +209,18 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
     assets = tuple(AssetBaseCfg(prim_path=f"/env_[^/]+/{name}") for name in ("Banana", "Franka"))
     plan = make_clone_plan(assets, ((0,), (), (1, 1), (0,)), 6, weights=(1, 0, 2, 0))
     np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 2, 2, 2, 2])
-    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan.topology), [-1, 0, 1, 2, 3])
-    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, assets[0].prim_path), [0])
-    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan.topology, assets[0].prim_path), [0, 3])
-    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, ".*/Banana"), [0])
-    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, "/env_0/Banana"), [])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan), [-1, 0, 1, 2, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, assets[0].prim_path), [0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan, assets[0].prim_path), [0, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, ".*/Banana"), [0])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, "/env_0/Banana"), [])
     empty = make_clone_plan((), ((),), 3)
     shared_only = make_clone_plan(assets, ((0,),), 0, shared_assets=(1, 1))
     np.testing.assert_array_equal(empty.topology.world_prototype_starts, [0, 0, 0])
     np.testing.assert_array_equal(empty.topology.world_prototype_layout, [0, 0, 0])
-    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(empty.topology), [])
-    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty.topology), [-1, 0])
-    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty.topology, ".*"), [])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(empty), [])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty), [-1, 0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty, ".*"), [])
     for topology, selector, indices, starts in (
         (empty.topology, 0, [], [[0, 0, 0, 0, 0]]),
         (shared_only.topology, 0, [], [[0, 0]]),
@@ -246,7 +258,13 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
     ids = np.asarray(selectors, dtype=np.int32)
     capacity = len(ids) * max(sum(map(len, compositions)), num_worlds + 1)
     topology = plan.topology if device == "numpy" else cloner.to_warp(plan.topology, device)
-    assert topology.asset_prototypes is plan.topology.asset_prototypes
+    assert topology.num_asset_prototypes == len(plan.asset_cfgs)
+    assert set(vars(topology)) == {
+        "num_asset_prototypes",
+        "world_prototypes",
+        "world_prototype_starts",
+        "world_prototype_layout",
+    }
     if device == "cpu":
         for name in ("world_prototypes", "world_prototype_starts", "world_prototype_layout"):
             assert getattr(topology, name).ptr == getattr(plan.topology, name).ctypes.data

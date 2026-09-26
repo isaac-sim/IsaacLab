@@ -408,10 +408,10 @@ def resolve_matching_prims_from_source(
     Raises:
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
-    usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
+    plan = SimulationContext.instance().get_clone_plan()
     matches = [
         (instance, matched)
-        for instance in (usd.instances if usd is not None else ())
+        for instance in (cloner.path.get_instance_paths(plan) if plan is not None else ())
         if len(instance[3]) and instance[3][0] != -1
         if (matched := cloner.path.match(path_expr, instance[2])) is not None
         if any(re.fullmatch(matched.instance, str(world_id)) for world_id in instance[3])

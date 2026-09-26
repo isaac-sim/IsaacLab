@@ -233,7 +233,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
-    from isaaclab.cloner import UsdReplicateContext, make_clone_plan
+    from isaaclab.cloner import make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
@@ -264,7 +264,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
-    renderer._usd = UsdReplicateContext(stage, plan)
+    renderer._clone_plan = plan
     cameras = []
 
     def camera_scope_exists(rd):

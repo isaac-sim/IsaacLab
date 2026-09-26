@@ -125,10 +125,11 @@ class OvPhysxReplicateContext:
         Raises:
             ValueError: If positions are malformed or an active source or source anchor prim is invalid.
         """
-        usd = self._sim.clone_contexts[cloner.UsdReplicateContext]
         recipes = _clone_recipes(
             stage=self.stage,
-            instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
+            instances=tuple(
+                instance for instance in cloner.path.get_instance_paths(plan) if instance[0] in asset_prototype_ids
+            ),
             env_ids=np.arange(len(plan.topology.world_prototype_layout)),
             positions=plan.positions,
             quaternions=None,

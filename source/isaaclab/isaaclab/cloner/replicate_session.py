@@ -22,7 +22,7 @@ from ..utils.version import has_kit
 from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
-from .path import match
+from .path import get_instance_paths, match
 from .usd import UsdReplicateContext
 
 
@@ -104,8 +104,8 @@ def clone_plan_from_env_0(
 ) -> ClonePlan:
     """Prepare one homogeneous topology, placement, and its USD authoring inputs.
 
-    The plan retains topology and environment origins. USD naming belongs to its clone
-    context; repeated instances inherit their source configuration's pose.
+    The plan retains numeric topology, host declarations, naming, and environment origins.
+    Repeated instances inherit their source configuration's pose.
 
     Args:
         clone_cfg: Clone policy and USD environment namespace.
@@ -219,10 +219,10 @@ def _prepare_cloning(
         weights=weights,
         shared_assets=shared,
         clone_strategy=clone_strategy,
+        env_template=env_template,
         positions=grid_transforms(num_clones, env_spacing)[0] if positions is None else positions,
     )
-    usd = UsdReplicateContext(sim.stage, plan, env_template=env_template)
-    source_paths = {index: path for index, path, _, world_ids in usd.instances if len(world_ids)}
+    source_paths = {index: path for index, path, _, world_ids in get_instance_paths(plan) if len(world_ids)}
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:
@@ -231,10 +231,9 @@ def _prepare_cloning(
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):
-                plan.topology.asset_prototypes[index].spawn.spawn_paths = [path]
+                plan.asset_cfgs[index].spawn.spawn_paths = [path]
         else:
             spawn.spawn_path = paths[0]
-    sim.clone_contexts[UsdReplicateContext] = usd
     sim.set_clone_plan(plan)
     return plan
 
@@ -258,7 +257,7 @@ def _context_asset_prototype_ids(plan: ClonePlan, sim) -> dict[type, tuple[int, 
         start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
         active.update(map(int, plan.topology.world_prototypes[start:end]))
     for index in sorted(active):
-        cfg = plan.topology.asset_prototypes[index]
+        cfg = plan.asset_cfgs[index]
         fields = vars(cfg)
         references = fields.get("cloning_contexts", ())
         contexts = (

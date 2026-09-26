@@ -28,7 +28,7 @@ from pxr import Gf
 import isaaclab.sim as sim_utils
 from isaaclab import cloner as lab_cloner
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.sim import PinholeCameraCfg, SpawnerCfg
@@ -336,22 +336,23 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
 
     plan = ClonePlan(
         PrototypeWorldTopology(
-            asset_prototypes=tuple(
-                AssetBaseCfg(
-                    prim_path=f"{env_fmt.format('[^/]+')}/{name}",
-                    spawn=SpawnerCfg(spawn_path=f"{env_fmt.format(i)}/{name}"),
-                )
-                for name in ("Robot", "Object")
-                for i in range(2)
-            ),
+            num_asset_prototypes=4,
             world_prototypes=np.array([0, 2, 0, 3, 1, 2, 1, 3]),
             world_prototype_starts=np.array([0, 0, 2, 4, 6, 8]),
             world_prototype_layout=robot_mask.argmax(axis=0) * 2 + object_mask.argmax(axis=0),
         ),
+        asset_cfgs=tuple(
+            AssetBaseCfg(
+                prim_path=f"{env_fmt.format('[^/]+')}/{name}",
+                spawn=SpawnerCfg(spawn_path=f"{env_fmt.format(i)}/{name}"),
+            )
+            for name in ("Robot", "Object")
+            for i in range(2)
+        ),
+        env_template=env_fmt,
         positions=env_origins,
     )
     sim.set_clone_plan(plan)
-    sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
     sim_utils.update_stage()
     return torch.as_tensor(env_origins, device=sim.device)
 

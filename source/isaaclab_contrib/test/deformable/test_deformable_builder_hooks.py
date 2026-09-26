@@ -127,11 +127,12 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
     world_layout[[7, 42]] = 1
     plan = ClonePlan(
         PrototypeWorldTopology(
-            asset_prototypes=(asset.cfg, SimpleNamespace(prim_path=surface.prim_path)),
+            num_asset_prototypes=2,
             world_prototypes=np.array([0, 1]),
             world_prototype_starts=np.array([0, 0, 0, 2]),
             world_prototype_layout=world_layout,
         ),
+        asset_cfgs=(asset.cfg, SimpleNamespace(prim_path=surface.prim_path)),
     )
     instances = tuple(
         (index, f"/Scene/copy_0/{name}", f"/Scene/copy_{{}}/{name}", np.array([7, 42]))

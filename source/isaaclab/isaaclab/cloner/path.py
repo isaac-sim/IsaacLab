@@ -19,18 +19,19 @@ against one. Reach them through the package, as ``cloner.path.rebase(...)``.
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Iterator
 from typing import NamedTuple
 
 import numpy as np
 
-from .clone_plan import PrototypeWorldTopology
+from .clone_plan import ClonePlan
 
 
-def get_asset_prototypes(topology: PrototypeWorldTopology, path_expr: str | None = None) -> np.ndarray:
+def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
     """Select asset-prototype IDs by their declared cfg paths, without expanding instances.
 
     Args:
-        topology: Host asset definitions and world membership.
+        plan: Host asset declarations and their numeric topology.
         path_expr: Exact cfg ``prim_path`` or a regular expression matching the complete declared
             path string. None selects all definitions, including unused prototypes.
 
@@ -39,19 +40,19 @@ def get_asset_prototypes(topology: PrototypeWorldTopology, path_expr: str | None
         Generated native paths are not matched.
     """
     if path_expr is None:
-        return np.arange(len(topology.asset_prototypes), dtype=np.int32)
+        return np.arange(len(plan.asset_cfgs), dtype=np.int32)
     pattern = re.compile(path_expr)
-    paths = (cfg.prim_path for cfg in topology.asset_prototypes)
+    paths = (cfg.prim_path for cfg in plan.asset_cfgs)
     return np.fromiter(
         (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path)), dtype=np.int32
     )
 
 
-def get_world_prototypes(topology: PrototypeWorldTopology, path_expr: str | None = None) -> np.ndarray:
+def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
     """Select world-prototype IDs containing assets matched by their declared cfg paths.
 
     Args:
-        topology: Host asset definitions and world membership.
+        plan: Host asset declarations and their numeric topology.
         path_expr: Asset-path filter interpreted by :func:`get_asset_prototypes`. None selects
             all world definitions, including empty and unused prototypes and shared world -1.
 
@@ -59,12 +60,99 @@ def get_world_prototypes(topology: PrototypeWorldTopology, path_expr: str | None
         Ascending world-prototype IDs, shape [num_matches], dtype int32, not destination world IDs.
         Filtering selects complete compositions; repeated asset memberships remain in the topology.
     """
+    topology = plan.topology
     prototype_ids = np.arange(-1, len(topology.world_prototype_starts) - 2, dtype=np.int32)
     if path_expr is None:
         return prototype_ids
-    matched_assets = np.isin(topology.world_prototypes, get_asset_prototypes(topology, path_expr))
+    matched_assets = np.isin(topology.world_prototypes, get_asset_prototypes(plan, path_expr))
     match_counts = np.r_[0, np.cumsum(matched_assets)]
     return prototype_ids[np.diff(match_counts[topology.world_prototype_starts]) > 0]
+
+
+def get_instance_paths(plan: ClonePlan) -> tuple[tuple[int, str | None, str, np.ndarray], ...]:
+    """Resolve native names for the plan's declared asset instances without accessing a stage.
+
+    Args:
+        plan: Host plan supplying declarations, membership, and the destination-world template.
+
+    Returns:
+        Asset-prototype ID, authored source path, destination template, and world IDs per named
+        occurrence. Shared instances use world -1; unused occurrences have no source path.
+        Repeated memberships inherit the prototype pose and receive distinct sibling names.
+    """
+    topology = plan.topology
+    targets = {}
+    sorted_world_ids = np.argsort(topology.world_prototype_layout, kind="stable")
+    counts = np.bincount(topology.world_prototype_layout, minlength=len(topology.world_prototype_starts) - 2)
+    offsets = np.r_[0, np.cumsum(counts)]
+    for world_prototype_id in get_world_prototypes(plan):
+        start, end = topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+        world_ids = (
+            np.array([-1])
+            if world_prototype_id == -1
+            else sorted_world_ids[offsets[world_prototype_id] : offsets[world_prototype_id + 1]]
+        )
+        names = set()
+        for asset_prototype_id in topology.world_prototypes[start:end]:
+            cfg = plan.asset_cfgs[asset_prototype_id]
+            matched = match(cfg.prim_path, plan.env_template)
+            template = plan.env_template + matched.suffix if matched is not None else cfg.prim_path
+            if world_prototype_id == -1:
+                template = template.format("shared")
+            elif matched is None:
+                template = plan.env_template + "/" + cfg.prim_path.rsplit("/", 1)[-1]
+            name, occurrence = template, 0
+            while template in names:
+                occurrence += 1
+                template = f"{name}_{occurrence}"
+            names.add(template)
+            targets.setdefault((int(asset_prototype_id), template), []).append(world_ids)
+    targets = [(index, template, np.concatenate(groups)) for (index, template), groups in targets.items()]
+    source_paths = {}
+    for asset_prototype_id, template, world_ids in targets:
+        if len(world_ids) and asset_prototype_id not in source_paths:
+            spawn = getattr(plan.asset_cfgs[asset_prototype_id], "spawn", None)
+            path = getattr(spawn, "spawn_path", None)
+            source_paths[asset_prototype_id] = path if path is not None else template.format(int(world_ids[0]))
+    return tuple(
+        (asset_prototype_id, source_paths.get(asset_prototype_id), template, world_ids)
+        for asset_prototype_id, template, world_ids in targets
+    )
+
+
+def get_shared_paths(instances: Iterable[tuple[int, str | None, str, np.ndarray]]) -> tuple[str, ...]:
+    """Return minimal shared roots from :func:`get_instance_paths`, without inferring membership from names."""
+    paths = tuple(template for _, _, template, world_ids in instances if len(world_ids) and world_ids[0] == -1)
+    return tuple(path for path in paths if not any(path != root and under(path, root) for root in paths))
+
+
+def iter_subtree_copies(
+    instances: Iterable[tuple[int, str | None, str, np.ndarray]],
+) -> Iterator[tuple[int, str, str, np.ndarray]]:
+    """Yield parent-first subtree copies, preserving independently sourced child overrides.
+
+    Args:
+        instances: Routed instance paths from :func:`get_instance_paths`.
+
+    Yields:
+        Asset-prototype ID, source path, destination template, and world IDs requiring a copy.
+    """
+    instances = sorted(
+        (instance for instance in instances if len(instance[3])),
+        key=lambda item: item[2].count("/"),
+    )
+    for index, (asset_prototype_id, source, destination, world_ids) in enumerate(instances):
+        covered = np.zeros(len(world_ids), dtype=np.bool_)
+        redundant = covered.copy()
+        for _, parent_source, parent_destination, parent_world_ids in reversed(instances[:index]):
+            if destination == parent_destination or not under(destination, parent_destination):
+                continue
+            inherited = np.isin(world_ids, parent_world_ids) & ~covered
+            if rebase(source, parent_source, parent_destination) == destination:
+                redundant |= inherited
+            covered |= inherited
+        if not redundant.all():
+            yield asset_prototype_id, source, destination, world_ids[~redundant]
 
 
 class TemplateMatch(NamedTuple):

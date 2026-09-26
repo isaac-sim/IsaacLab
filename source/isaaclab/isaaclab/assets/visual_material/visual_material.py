@@ -135,10 +135,10 @@ class VisualMaterial(AssetBase):
 
     def _initialize_impl(self) -> None:
         if self._is_per_env:
-            usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-            material_paths = [""] * len(usd.plan.topology.world_prototype_layout)
+            plan = SimulationContext.instance().get_clone_plan()
+            material_paths = [""] * len(plan.topology.world_prototype_layout)
             # Nested materials inherit their owner's copies without becoming separate prototypes.
-            for _, _, destination, env_ids in usd.instances:
+            for _, _, destination, env_ids in cloner.path.get_instance_paths(plan):
                 if not len(env_ids) or env_ids[0] == -1:
                     continue
                 matched = cloner.path.match(self.cfg.prim_path, destination)

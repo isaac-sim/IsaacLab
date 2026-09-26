@@ -18,7 +18,7 @@ import warp as wp
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.visual_material.visual_material import VisualMaterial
-from isaaclab.cloner import UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import make_clone_plan
 from isaaclab.renderers.render_context import RenderContext
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sim import SpawnerCfg
@@ -247,8 +247,7 @@ def test_material_initialization_orders_paths_by_destination_world(monkeypatch: 
         3,
         weights=(2, 1),
     )
-    usd = UsdReplicateContext(None, plan)
-    simulation = SimpleNamespace(get_clone_plan=lambda: plan, clone_contexts={UsdReplicateContext: usd})
+    simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",
         SimpleNamespace(instance=lambda: simulation),
@@ -280,8 +279,7 @@ def test_material_initialization_orders_paths_by_destination_world(monkeypatch: 
 
 def test_material_initialization_rejects_assets_missing_from_some_worlds(monkeypatch: pytest.MonkeyPatch) -> None:
     plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0,), ()), 4)
-    usd = UsdReplicateContext(None, plan)
-    simulation = SimpleNamespace(get_clone_plan=lambda: plan, clone_contexts={UsdReplicateContext: usd})
+    simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",
         SimpleNamespace(instance=lambda: simulation),

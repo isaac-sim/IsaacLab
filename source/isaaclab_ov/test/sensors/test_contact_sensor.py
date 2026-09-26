@@ -612,13 +612,12 @@ def test_nested_rigid_body_hierarchy(device):
         )
         asset_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot")
         plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
-        usd = sim.clone_contexts[cloner.UsdReplicateContext]
-        env_positions = usd.plan.positions
+        env_positions = plan.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        sim.clone_contexts[OvPhysxReplicateContext].replicate(plan, (0,))
+        OvPhysxReplicateContext(sim).replicate(plan, (0,))
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 

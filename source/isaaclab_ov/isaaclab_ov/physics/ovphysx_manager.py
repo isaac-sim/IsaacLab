@@ -27,7 +27,7 @@ import warp as wp
 
 from pxr import Sdf, UsdPhysics
 
-from isaaclab.cloner import UsdReplicateContext
+from isaaclab.cloner.path import get_instance_paths, get_shared_paths
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -471,7 +471,6 @@ class OvPhysxManager(PhysicsManager):
         ``cls._locked_device`` carries the process-wide first-device policy.
         """
         super().initialize(sim_context)
-        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
@@ -871,10 +870,11 @@ class OvPhysxManager(PhysicsManager):
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
 
         entries = None
-        if (usd := sim.clone_contexts.get(UsdReplicateContext)) is not None:
-            prototypes = deformable_prototypes(sim.stage, usd.instances, usd.global_paths)
+        if (plan := sim.get_clone_plan()) is not None:
+            instances = get_instance_paths(plan)
+            prototypes = deformable_prototypes(sim.stage, instances, get_shared_paths(instances))
             entries = expand_deformable_entries(
-                prototypes, usd.instances, np.arange(len(usd.plan.topology.world_prototype_layout)), usd.plan.positions
+                prototypes, instances, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
             )
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
