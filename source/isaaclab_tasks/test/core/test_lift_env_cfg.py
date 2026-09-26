@@ -39,14 +39,15 @@ def test_so101_lift_selects_matching_robot_physics_variant(backend: str, physics
     assert cfg.scene.robot.spawn.variants["Physics"] == physics_variant
 
 
-def test_so101_lift_object_starts_inside_termination_bounds() -> None:
-    """The SO101 tabletop spawn must survive the first step's out-of-bounds check."""
+def test_so101_lift_bounds_cover_spawn_and_curriculum_start() -> None:
+    """The SO101 tabletop spawn must stay in bounds when ADR first adjusts the cutoff."""
     cfg = SO101LiftEnvCfg()
     bounds = cfg.terminations.object_out_of_bound.params["in_bound_range"]
 
     assert all(
         bounds[axis][0] < position < bounds[axis][1] for axis, position in zip("xyz", cfg.scene.object.init_state.pos)
     )
+    assert cfg.curriculum.oob_adr.params["modify_params"]["initial_value"] == bounds["z"]
 
 
 class _MarkerSpy:

@@ -134,8 +134,8 @@ class SO101LiftRewardCfg(lift.RewardsCfg):
 
 
 @configclass
-class SO101MixinCfg:
-    """SO-101 scene and MDP settings for the lift task."""
+class SO101LiftEnvCfg(lift.LiftEnvCfg):
+    """SO-101 object lifting environment."""
 
     scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
     rewards: SO101LiftRewardCfg = SO101LiftRewardCfg()
@@ -190,6 +190,8 @@ class SO101MixinCfg:
         )
         # The tabletop starts at z=0.255 m, below the shared task's z=0.3 m cutoff.
         self.terminations.object_out_of_bound.params["in_bound_range"]["z"] = (0.20, 2.0)
+        if self.curriculum is not None:
+            self.curriculum.oob_adr.params["modify_params"]["initial_value"] = (0.20, 2.0)
         # Keep generic gain randomization off the USD-calibrated jaw drive.
         self.events.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg(
             "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
@@ -198,8 +200,3 @@ class SO101MixinCfg:
         # 0.01 kg*m^2, three orders of magnitude above these objects' natural inertia, which
         # gyroscopically freezes their rotation and fights reorienting a held object
         self.events.object_physics_inertia.params["inertia_distribution_params"] = (0.0002, 0.0002)
-
-
-@configclass
-class SO101LiftEnvCfg(SO101MixinCfg, lift.LiftEnvCfg):
-    """SO-101 object lifting environment."""
