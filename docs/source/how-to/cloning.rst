@@ -193,16 +193,25 @@ before batched native replication; this does not expand its USD import scope.
 Querying topology and native paths
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Topology queries depend only on the plan and return a list of prototype groups:
+Topology queries depend only on the plan and return lists of prototype IDs:
 
 .. code-block:: python
 
-    for world_prototype_id, asset_prototype_ids, world_ids in cloner.query.get_world_prototypes(plan):
-        # Shared assets have world_prototype_id == -1 and world_ids == [-1].
-        # Repeated asset_prototype_ids remain repeated.
-        ...
+    cloner.query.get_asset_prototypes(plan, banana_cfg.prim_path)  # [0]
+    cloner.query.get_world_prototypes(plan, banana_cfg.prim_path)  # [0, 1, 2]
 
-Path queries take plain native mapping data, not a clone context. For example,
+    cfg = plan.asset_prototypes[asset_id]
+    start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+    asset_ids = plan.world_prototypes[start:end]
+
+Omitting ``path_expr`` selects all definitions, including unused prototypes; world-prototype IDs
+include ``-1`` for the shared world, even when empty. A filter is either the exact declared
+cfg ``prim_path`` or a regular expression matched against that complete path string.
+World filtering selects compositions containing matching assets, without removing their
+other members or repeated instances. These IDs identify prototypes, not destination worlds.
+
+Native-path queries instead resolve backend-assigned instance names and descendants.
+They take plain native mapping data, not a clone context or a plan. For example,
 a USD-backed consumer gets its source/destination mappings from the USD context:
 
 .. code-block:: python

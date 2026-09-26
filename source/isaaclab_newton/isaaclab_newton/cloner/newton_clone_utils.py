@@ -17,7 +17,6 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
-from isaaclab.cloner.query import get_world_prototypes
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -322,18 +321,19 @@ def replicate_builder_mapping(
                 else _invert_xform(xforms_np[world_ids[0]])
             )
     world_builders = {}
-    for world_prototype_id, members, world_ids in get_world_prototypes(plan):
-        if not len(world_ids):
-            continue
+    prototype_ids, first_world_ids = np.unique(plan.world_prototype_layout, return_index=True)
+    for world_prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
+        start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+        members = plan.world_prototypes[start:end]
         # Native names belong to the importer. The plan supplies composition and cardinality.
         by_asset = {}
         for asset_prototype_id, source, destination, targets in instances:
-            if world_ids[0] in targets:
+            if first_world in targets:
                 by_asset.setdefault(asset_prototype_id, []).append((source, destination))
         by_asset = {index: iter(targets) for index, targets in by_asset.items()}
         components = [next(by_asset[int(index)]) for index in members if int(index) in by_asset]
         reference_paths = components + [
-            (source, destination) for _, source, destination, targets in reference_instances if world_ids[0] in targets
+            (source, destination) for _, source, destination, targets in reference_instances if first_world in targets
         ]
         prototype = ModelBuilder(up_axis=builder.up_axis)
         sites, particle_offsets = {}, []

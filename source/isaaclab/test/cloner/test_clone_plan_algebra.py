@@ -442,31 +442,35 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         plan.world_prototype_starts,
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
     )
-    per_asset = [[], []]
-    for world_prototype_id, members, world_ids in cloner.query.get_world_prototypes(plan):
-        expected = shared_assets if world_prototype_id == -1 else worlds[world_prototype_id]
-        np.testing.assert_array_equal(members, expected)
-        for world_id in world_ids:
-            for asset_prototype_id in members:
-                per_asset[asset_prototype_id].append(int(world_id))
-    assert sum(world >= 0 for world in per_asset[0]) == 16
-    assert sum(world >= 0 for world in per_asset[1]) == 20
-    assert per_asset[0].count(-1) == len(shared_assets)
-    assert per_asset[0].count(8) == 2
-    assert per_asset[1].count(4) == 2
+    np.testing.assert_array_equal(plan.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
+    assert cloner.query.get_asset_prototypes(plan) == [0, 1]
+    assert cloner.query.get_world_prototypes(plan) == [-1, 0, 1, 2, 3]
+    assert cloner.query.get_asset_prototypes(plan, "/Banana") == [0]
+    assert cloner.query.get_world_prototypes(plan, "/Banana") == ([-1] if shared_assets else []) + [0, 1, 2]
+    assert cloner.query.get_asset_prototypes(plan, "/(Banana|Franka)") == [0, 1]
+    assert cloner.query.get_world_prototypes(plan, "/(Banana|Franka)") == ([-1] if shared_assets else []) + [0, 1, 2, 3]
+    assert cloner.query.get_asset_prototypes(plan, "/Missing") == []
+    assert cloner.query.get_world_prototypes(plan, "/Missing") == []
     # Pure planning does not modify USD names or source poses.
     assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
     assert all(cfg.spawn.spawn_path is None for cfg in assets)
 
 
 def test_world_topology_weights_empty_worlds_and_invalid_membership():
-    assets = object(), object()
-    plan = make_clone_plan(assets, ((0,), (), (1, 1)), 6, weights=(1, 0, 2))
+    assets = tuple(AssetBaseCfg(prim_path=f"/env_[^/]+/{name}") for name in ("Banana", "Franka"))
+    plan = make_clone_plan(assets, ((0,), (), (1, 1), (0,)), 6, weights=(1, 0, 2, 0))
     np.testing.assert_array_equal(plan.world_prototype_layout, [0, 0, 2, 2, 2, 2])
-    assert len(cloner.query.get_world_prototypes(plan)[2][2]) == 0
+    assert cloner.query.get_world_prototypes(plan) == [-1, 0, 1, 2, 3]
+    assert cloner.query.get_asset_prototypes(plan, assets[0].prim_path) == [0]
+    assert cloner.query.get_world_prototypes(plan, assets[0].prim_path) == [0, 3]
+    assert cloner.query.get_asset_prototypes(plan, ".*/Banana") == [0]
+    assert cloner.query.get_asset_prototypes(plan, "/env_0/Banana") == []
     empty = make_clone_plan((), ((),), 3)
     np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
     np.testing.assert_array_equal(empty.world_prototype_layout, [0, 0, 0])
+    assert cloner.query.get_asset_prototypes(empty) == []
+    assert cloner.query.get_world_prototypes(empty) == [-1, 0]
+    assert cloner.query.get_world_prototypes(empty, ".*") == []
     for members in ((2,), (-1,), (0.5,), ("0",)):
         with pytest.raises(ValueError, match="integer indices"):
             make_clone_plan(assets, (members,), 1)
