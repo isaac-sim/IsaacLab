@@ -7,8 +7,8 @@ Changed
   repeated asset instances. Shared assets occupied the leading world ``-1`` slice.
   Use ``make_clone_plan(asset_prototypes, world_prototypes, num_worlds, shared_assets=...)``
   for pure topology, or let ``InteractiveScene`` manage planning and replication.
-* **Breaking:** Moved USD names and placement out of ``ClonePlan``. Path queries now accepted
-  the native mapping tuples in ``sim.clone_contexts[UsdReplicateContext].instances``;
+* **Breaking:** Moved USD names and placement out of ``ClonePlan``. Native bindings remained
+  in ``sim.clone_contexts[UsdReplicateContext].instances``;
   ``get_asset_prototypes(plan, path_expr=None)`` and ``get_world_prototypes(plan, path_expr=None)``
   returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
   Read cfgs and world memberships from the plan instead of unpacking topology-query results.
@@ -17,8 +17,10 @@ Changed
   Use ``get_asset_prototype_unique_world_index(plan, asset_prototype)`` or
   ``get_world_prototype_world_index(plan, world_prototype)`` for unique destination world indices.
   All three accepted an index or declared-path expression.
-  Removed ``iter_sources``; use topology queries for prototype/world membership and
-  existing native bindings for authored paths and destination names.
+  Removed ``iter_sources``, ``path_env_ids``, ``path_to_clone``, and ``path_to_source`` from ``cloner.query``;
+  compose topology queries and ``cloner.path`` primitives with existing native bindings
+  for authored paths and destination names. Subtree-copy selection belonged to USD replication,
+  not the topology query API.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.
   Clone contexts consumed destination world IDs directly without allocating dense masks.

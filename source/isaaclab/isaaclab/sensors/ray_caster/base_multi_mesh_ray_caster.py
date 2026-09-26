@@ -19,6 +19,7 @@ from ... import cloner
 from ... import sim as sim_utils
 from ...sim.simulation_context import SimulationContext
 from ...utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+from ...utils.string import resolve_matching_names
 from ...utils.warp import ProxyArray, convert_to_warp_mesh
 from ...utils.warp import kernels as warp_kernels
 from .base_ray_caster import BaseRayCaster
@@ -208,12 +209,22 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if instances and target_cfg.track_mesh_transforms:
             plan_tracked_target_exprs: list[str] = []
-            instances = tuple(instance for instance in instances if len(instance[3]))
-            resolved = cloner.query.path_to_source(instances, target_cfg.prim_expr)
-            for _, source_root, destination_template, env_ids in instances:
-                if resolved is None or destination_template.format("[^/]+") != resolved[1]:
+            matches = [
+                (instance, matched)
+                for instance in instances
+                if len(instance[3]) and instance[3][0] != -1
+                if (matched := cloner.path.match(target_cfg.prim_expr, instance[2])) is not None
+            ]
+            suffix = min((matched.suffix for _, matched in matches), key=len, default=None)
+            for (_, source_root, destination_template, env_ids), matched in matches:
+                if matched.suffix != suffix:
                     continue
-                source_path = source_root + resolved[2]
+                env_ids = env_ids[
+                    resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                ]
+                if not len(env_ids):
+                    continue
+                source_path = source_root + suffix
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.

@@ -306,7 +306,7 @@ class NewtonSiteFrameView(BaseFrameView):
     def _resolve_site_specs(self, stage, validate_xform_ops: bool) -> list[_SiteSpec]:
         """Resolve source prims into Newton site registration specs."""
         usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
+        instances = usd.instances if usd is not None else ()
         model = NewtonManager.get_model()
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
@@ -332,11 +332,21 @@ class NewtonSiteFrameView(BaseFrameView):
                         f"FrameView prim '{path_expr}' matches a Newton collision shape. "
                         "FrameView should only be used for non-physics frames."
                     )
-            resolved = cloner.query.path_to_source(instances, path_expr)
-            if resolved is not None:
-                _, destination_expr, suffix = resolved
-                for _, source_root, destination_template, env_ids in instances:
-                    if destination_template.format("[^/]+") != destination_expr:
+            matches = [
+                (instance, matched)
+                for instance in instances
+                if len(instance[3]) and instance[3][0] != -1
+                if (matched := cloner.path.match(path_expr, instance[2])) is not None
+            ]
+            if matches:
+                suffix = min((matched.suffix for _, matched in matches), key=len)
+                for (_, source_root, destination_template, env_ids), matched in matches:
+                    if matched.suffix != suffix:
+                        continue
+                    env_ids = env_ids[
+                        resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                    ]
+                    if not len(env_ids):
                         continue
                     source_path = source_root + suffix
                     source_pattern = re.compile(source_path)

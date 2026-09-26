@@ -242,25 +242,38 @@ interpreted by ``get_world_prototypes`` and returns each matching destination wo
 an unused world prototype returns an empty array. Assets with no instances return empty
 world indices and all-zero starts; the unique query returns an empty array.
 
-Native-path queries instead resolve backend-assigned instance names and descendants.
-They take plain native mapping data, not a clone context or a plan. For example,
-a USD-backed consumer gets its source/destination mappings from the USD context:
+Native names are separate from topology. Compose path primitives with plan indexing
+when a consumer starts with a concrete destination path rather than an asset cfg:
 
 .. code-block:: python
 
     usd = sim.clone_contexts[cloner.UsdReplicateContext]
-    instances = usd.instances
-    # Each entry: asset-prototype ID, source path, destination template, world IDs.
-    source, destination_expr, suffix = cloner.query.path_to_source(instances, "/World/envs/env_2/Robot/hand")
-    # Read the authored hand at source + suffix, even when destination USD was not cloned.
+    plan = usd.plan
+    path = "/World/envs/env_2/Robot/hand"
+    world, _ = cloner.path.match(path, usd.env_template)
+    world_id = int(world)
+    world_prototype_id = plan.world_prototype_layout[world_id]
+    start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+    asset_ids = plan.world_prototypes[start:end]
+
+    # Names distinguish repeated occurrences of the same asset prototype.
+    matches = []
+    for asset_id, source, destination, worlds in usd.instances:
+        if asset_id in asset_ids and world_id in worlds:
+            suffix = cloner.path.relative_to(path, destination.format(world_id))
+            if suffix is not None:
+                matches.append((source, suffix))
+    # A separately declared child owns its descendants instead of its parent.
+    source, suffix = min(matches, key=lambda item: len(item[1]))
     hand = usd.stage.GetPrimAtPath(source + suffix)
 
-Use the topology queries above for prototype membership and world indices.
-:func:`~isaaclab.cloner.query.path_to_source` selects one representative
-prototype; a concrete path or explicit ``env_id`` selects its world.
-:func:`~isaaclab.cloner.query.path_to_clone` rejects ambiguous single-instance requests
-when a world contains the same asset more than once. The generic query module never
-imports a backend context.
+The path primitives do not inspect a plan or choose a representative world.
+For a world expression, select the matching world IDs and process each relevant world
+prototype. Preserve member positions when matching repeated assets; prototype IDs alone
+do not distinguish their native names. A consumer that already knows its asset cfg can
+select its prototype IDs directly and use their native bindings without parsing a path.
+Shared assets use the leading world ``-1`` slice, not a negative index into
+``world_prototype_layout``. No lookup requires walking cloned USD destinations.
 
 A plan is the *what*. Putting one together and handing it to the backends is
 the *how*. Both Manager-based and Direct environments normally declare their

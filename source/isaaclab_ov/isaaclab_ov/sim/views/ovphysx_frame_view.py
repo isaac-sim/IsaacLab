@@ -21,6 +21,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.physics import OvPhysxManager
@@ -316,14 +317,23 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
         self._usd = usd
-        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
-        resolved = cloner.query.path_to_source(instances, prim_path)
+        matches = [
+            (instance, matched)
+            for instance in (usd.instances if usd is not None else ())
+            if len(instance[3]) and instance[3][0] != -1
+            if (matched := cloner.path.match(prim_path, instance[2])) is not None
+        ]
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
-        if resolved is not None:
-            _, destination_expr, suffix = resolved
-            for _, source_root, destination_template, env_ids in instances:
-                if destination_template.format("[^/]+") != destination_expr:
+        if matches:
+            suffix = min((matched.suffix for _, matched in matches), key=len)
+            for (_, source_root, destination_template, env_ids), matched in matches:
+                if matched.suffix != suffix:
+                    continue
+                env_ids = env_ids[
+                    resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                ]
+                if not len(env_ids):
                     continue
                 source_pattern = re.compile(source_root + suffix)
                 source_prims = sim_utils.get_all_matching_child_prims(
@@ -523,11 +533,9 @@ class OvPhysxFrameView(BaseFrameView):
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
         """Return plan-ordered source prims and projected poses for source-only world sites."""
-        if sum(len(env_ids) for _, _, _, env_ids in self._source_sites) <= len(self._prims):
+        if not self._source_sites:
             return []
         usd = self._usd
-        if usd is None:
-            raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
 
         sites: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
         for source_root, destination_template, source_prim, env_ids in self._source_sites:

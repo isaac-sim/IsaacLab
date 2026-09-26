@@ -13,6 +13,8 @@ import warp as wp
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableMaterialCfg
 
+from isaaclab.cloner import ClonePlan
+
 from isaaclab_contrib.deformable import DeformableObject
 from isaaclab_contrib.deformable.deformable_object import (
     DeformableRegistryEntry,
@@ -121,14 +123,25 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
     surface.vis_mesh_prim_path = surface.prim_path + "/mesh"
     surface.particle_offsets, surface.particles_per_body = [31, 37], 3
     NewtonManager._deformable_registry.append(surface)
-    instances = ((0, "/Scene/copy_0", "/Scene/copy_{}", np.array([7, 42])),)
+    world_layout = np.zeros(43, dtype=np.int32)
+    world_layout[[7, 42]] = 1
+    plan = ClonePlan(
+        asset_prototypes=(asset.cfg, SimpleNamespace(prim_path=surface.prim_path)),
+        world_prototypes=np.array([0, 1]),
+        world_prototype_starts=np.array([0, 0, 0, 2]),
+        world_prototype_layout=world_layout,
+    )
+    instances = tuple(
+        (index, f"/Scene/copy_0/{name}", f"/Scene/copy_{{}}/{name}", np.array([7, 42]))
+        for index, name in enumerate(("Volume", "cloth"))
+    )
     nodes = np.zeros((40, 3), dtype=np.float32)
     nodes[7:11], nodes[19:23] = np.asarray(entry.vertices), np.asarray(entry.vertices) + [100, 0, 0]
     state = SimpleNamespace(particle_q=wp.array(nodes, dtype=wp.vec3f, device="cpu"), body_q=None)
     monkeypatch.setattr(NewtonManager, "_cable_bindings", {})
     monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
     backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(instances, ("/Scene",))
+    backend.initialize_geometry(plan, instances)
     stage.RemovePrim("/Scene")
     points = SceneDataProvider(backend).get_geometry_points()
     assert set(points) == {f"/Scene/copy_{index}/{mesh}" for index in (7, 42) for mesh in ("Volume/vis", "cloth/mesh")}

@@ -99,6 +99,12 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
         positions, _ = view.get_world_poses()
         expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
         expected_positions[10:, 0] += 0.25
+        for world_expr, indices in (("11", [11]), ("[19]", [1, 9]), ("1[01]", [10, 11])):
+            selected = FrameView(f"/World/envs/env_{world_expr}/{name}", device=device)
+            assert selected.count == len(indices)
+            assert selected.prim_paths == [f"/World/envs/env_{index}/{name}" for index in indices]
+            torch.testing.assert_close(selected.get_world_poses()[0].torch, expected_positions[indices])
+            selected.close()
     torch.testing.assert_close(positions.torch, expected_positions)
 
 

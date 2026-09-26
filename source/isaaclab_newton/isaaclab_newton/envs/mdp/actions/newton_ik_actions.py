@@ -174,15 +174,13 @@ class NewtonInverseKinematicsAction(ActionTerm):
         if not pose_cfgs:
             raise ValueError("NewtonInverseKinematicsAction requires at least one pose objective.")
 
-        # Resolve the controlled asset to its clone-plan source and finalize the
-        # single-env prototype builder the cloner already retained -- the same
-        # source resolution other Newton consumers use, no bespoke registry.
+        # Finalize the controlled asset's retained prototype builder.
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        source_path, _, asset_suffix = cloner.query.path_to_source(usd.instances, self._asset.cfg.prim_path)
-        # The proto builder is keyed by the bare clone source; the articulation
-        # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
-        self._source_path = source_path + asset_suffix
-        prototype_model = NewtonManager._cl_protos[source_path].finalize(device=NewtonManager.get_model().device)
+        asset_ids = cloner.query.get_asset_prototypes(usd.plan, self._asset.cfg.prim_path)
+        self._source_path = next(
+            source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds)
+        )
+        prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
         prototype_view = ArticulationView(
             prototype_model,
             self._source_path,

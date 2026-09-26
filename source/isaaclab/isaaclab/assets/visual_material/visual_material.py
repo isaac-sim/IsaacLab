@@ -137,13 +137,14 @@ class VisualMaterial(AssetBase):
         if self._is_per_env:
             usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
             material_paths = [""] * len(usd.plan.world_prototype_layout)
-            instances = tuple(instance for instance in usd.instances if len(instance[3]))
-            _, destination_expr, suffix = cloner.query.path_to_source(instances, self.cfg.prim_path)
-            for _, _, destination, env_ids in instances:
-                if destination.format("[^/]+") != destination_expr:
+            # Nested materials inherit their owner's copies without becoming separate prototypes.
+            for _, _, destination, env_ids in usd.instances:
+                if not len(env_ids) or env_ids[0] == -1:
                     continue
-                for env_id in env_ids:
-                    material_paths[env_id] = destination.format(env_id) + suffix
+                matched = cloner.path.match(self.cfg.prim_path, destination)
+                if matched is not None:
+                    for env_id in env_ids:
+                        material_paths[env_id] = destination.format(env_id) + matched.suffix
             if not all(material_paths):
                 raise ValueError(
                     f"Per-environment material {self._source_material_path!r} must populate every environment."
