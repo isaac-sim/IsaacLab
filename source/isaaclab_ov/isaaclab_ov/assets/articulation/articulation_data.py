@@ -1801,46 +1801,30 @@ class ArticulationData(BaseArticulationData):
         # functionally redundant but the buffer must still exist for the write
         # helpers, so we allocate unpinned and pay only the intra-CPU memcpy.
         pinned = device != "cpu"
-        self._cpu_body_mass = wp.zeros(body_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_body_coms = wp.zeros((*body_shape, 7), dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_body_inertia = wp.zeros((*body_shape, 9), dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_stiffness = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_damping = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_position_limit = wp.zeros((*joint_shape, 2), dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_velocity_limit = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_effort_limit = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_armature = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_friction_coeff = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_dynamic_friction_coeff = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-        self._cpu_joint_viscous_friction_coeff = wp.zeros(joint_shape, dtype=wp.float32, device="cpu", pinned=pinned)
+        self._cpu_body_mass = wp.zeros(body_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_body_coms = wp.zeros((*body_shape, 7), wp.float32, "cpu", pinned=pinned)
+        self._cpu_body_inertia = wp.zeros((*body_shape, 9), wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_stiffness = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_damping = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_position_limit = wp.zeros((*joint_shape, 2), wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_velocity_limit = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_effort_limit = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_armature = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_friction_coeff = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_dynamic_friction_coeff = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
+        self._cpu_joint_viscous_friction_coeff = wp.zeros(joint_shape, wp.float32, "cpu", pinned=pinned)
         if self._num_fixed_tendons > 0:
-            self._cpu_fixed_tendon_stiffness = wp.zeros(
-                fixed_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_fixed_tendon_damping = wp.zeros(fixed_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-            self._cpu_fixed_tendon_limit_stiffness = wp.zeros(
-                fixed_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_fixed_tendon_rest_length = wp.zeros(
-                fixed_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_fixed_tendon_offset = wp.zeros(fixed_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned)
-            self._cpu_fixed_tendon_pos_limits = wp.zeros(
-                (*fixed_tendon_shape, 2), dtype=wp.float32, device="cpu", pinned=pinned
-            )
+            self._cpu_fixed_tendon_stiffness = wp.zeros(fixed_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_fixed_tendon_damping = wp.zeros(fixed_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_fixed_tendon_limit_stiffness = wp.zeros(fixed_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_fixed_tendon_rest_length = wp.zeros(fixed_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_fixed_tendon_offset = wp.zeros(fixed_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_fixed_tendon_pos_limits = wp.zeros((*fixed_tendon_shape, 2), wp.float32, "cpu", pinned=pinned)
         if self._num_spatial_tendons > 0:
-            self._cpu_spatial_tendon_stiffness = wp.zeros(
-                spatial_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_spatial_tendon_damping = wp.zeros(
-                spatial_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_spatial_tendon_limit_stiffness = wp.zeros(
-                spatial_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
-            self._cpu_spatial_tendon_offset = wp.zeros(
-                spatial_tendon_shape, dtype=wp.float32, device="cpu", pinned=pinned
-            )
+            self._cpu_spatial_tendon_stiffness = wp.zeros(spatial_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_spatial_tendon_damping = wp.zeros(spatial_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_spatial_tendon_limit_stiffness = wp.zeros(spatial_tendon_shape, wp.float32, "cpu", pinned=pinned)
+            self._cpu_spatial_tendon_offset = wp.zeros(spatial_tendon_shape, wp.float32, "cpu", pinned=pinned)
 
         # Read initial joint/body properties from bindings (one-time CPU reads).
         self._read_initial_properties()
