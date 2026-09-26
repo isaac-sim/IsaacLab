@@ -275,7 +275,7 @@ def test_compute(setup_env):
     """Test the observation computation."""
 
     pos_scale_tuple = (2.0, 3.0, 1.0)
-    original_pos = env.data.pos_w.clone()
+    original_pos = torch.clone(env.data.pos_w)
 
     @configclass
     class MyObservationManagerCfg:
