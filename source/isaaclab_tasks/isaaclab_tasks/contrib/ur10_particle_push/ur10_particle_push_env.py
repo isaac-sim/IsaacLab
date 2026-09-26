@@ -365,11 +365,9 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
             raise ValueError(
                 f"Reset paddle quaternions have shape {tuple(paddle_quaternion.shape)}; expected {(pose_count, 4)}."
             )
-        usd = sim_utils.SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-        resolved = cloner.query.path_to_source(usd.instances, self._robot.cfg.prim_path) if usd is not None else None
-        if resolved is None:
-            raise RuntimeError(f"Could not resolve clone-plan source for {self._robot.cfg.prim_path!r}.")
-        source_path = resolved[0]
+        usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
+        asset_ids = cloner.query.get_asset_prototypes(usd.plan, self._robot.cfg.prim_path)
+        source_path = next(source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds))
         prototype_origin = -self.scene.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
 

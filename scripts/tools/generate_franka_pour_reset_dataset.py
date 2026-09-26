@@ -628,23 +628,22 @@ class _Generator:
         from isaaclab import cloner
 
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        resolved = cloner.query.path_to_source(usd.instances, self.env._robot.cfg.prim_path)
-        if resolved is None:
-            raise RuntimeError("Could not resolve the Franka clone-plan source.")
-        source_builder = copy_newton_clone_source(resolved[0])
+        asset_ids = cloner.query.get_asset_prototypes(usd.plan, self.env._robot.cfg.prim_path)
+        source_path = next(source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds))
+        source_builder = copy_newton_clone_source(source_path)
         prototype_origin = -self.env.env_origins[0]
         prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
         self.prototype = newton.ModelBuilder(up_axis=source_builder.up_axis)
         self.prototype.add_builder(source_builder, xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
-            table_path = self.env.scene["table"].cfg.prim_path
-            table_resolved = cloner.query.path_to_source(usd.instances, table_path)
-            if table_resolved is None:
-                raise RuntimeError("Could not resolve the SeattleLab table clone-plan source.")
-            self.prototype.add_builder(copy_newton_clone_source(table_resolved[0]), xform=prototype_xform)
+            asset_ids = cloner.query.get_asset_prototypes(usd.plan, self.env.scene["table"].cfg.prim_path)
+            table_source = next(
+                source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds)
+            )
+            self.prototype.add_builder(copy_newton_clone_source(table_source), xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
             raise RuntimeError("The reset generator requires the SeattleLab table collision geometry.")
-        self.support_lower, self.support_upper = _tabletop_bounds(self.env, resolved[0])
+        self.support_lower, self.support_upper = _tabletop_bounds(self.env, source_path)
         self.ik_model = self.prototype.finalize(device=str(self.device))
 
         body_names = [str(label).rsplit("/", 1)[-1] for label in self.ik_model.body_label]

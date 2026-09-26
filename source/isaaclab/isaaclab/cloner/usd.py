@@ -5,15 +5,15 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
-from .path import match, split, under
-from .query import get_world_prototypes, iter_clones
+from .path import match, rebase, split, under
+from .query import get_world_prototypes
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -140,12 +140,6 @@ class UsdReplicateContext:
                     template = f"{name}_{occurrence}"
                 names.add(template)
                 targets.setdefault((int(asset_prototype_id), template), []).append(world_ids)
-        # Unselected declarations still bound nearest-owner path queries, but are never imported.
-        declared = {asset_prototype_id for asset_prototype_id, _ in targets}
-        for asset_prototype_id, cfg in enumerate(plan.asset_prototypes):
-            matched = match(cfg.prim_path, self.env_template)
-            if asset_prototype_id not in declared and matched is not None and getattr(cfg, "spawn", None) is not None:
-                targets[asset_prototype_id, self.env_template + matched.suffix] = [np.empty(0, dtype=np.int64)]
         targets = [(index, template, np.concatenate(groups)) for (index, template), groups in targets.items()]
         source_paths = {}
         for asset_prototype_id, template, world_ids in targets:
@@ -170,9 +164,7 @@ class UsdReplicateContext:
 
         env_ids = np.arange(len(plan.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for _, source, template, targets in iter_clones(
-                instance for instance in self.instances if instance[0] in asset_prototype_ids
-            ):
+            for _, source, template, targets in self.iter_clones(asset_prototype_ids):
                 usd_replicate(self.stage, (source,), (template,), targets)
             if self.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
@@ -191,3 +183,35 @@ class UsdReplicateContext:
                         spec, "xformOpOrder", Sdf.ValueTypeNames.TokenArray
                     )
                     order.default = Vt.TokenArray(["xformOp:translate"])
+
+    def iter_clones(
+        self, asset_prototype_ids: Sequence[int] | None = None
+    ) -> Iterator[tuple[int, str, str, np.ndarray]]:
+        """Yield parent-first subtree copies, keeping independently sourced child overrides.
+
+        Args:
+            asset_prototype_ids: Routed asset prototypes; None includes every declared instance.
+
+        Yields:
+            Asset-prototype ID, source path, destination template, and world IDs requiring a copy.
+        """
+        instances = sorted(
+            (
+                instance
+                for instance in self.instances
+                if len(instance[3]) and (asset_prototype_ids is None or instance[0] in asset_prototype_ids)
+            ),
+            key=lambda item: item[2].count("/"),
+        )
+        for index, (asset_prototype_id, source, destination, world_ids) in enumerate(instances):
+            covered = np.zeros(len(world_ids), dtype=np.bool_)
+            redundant = covered.copy()
+            for _, parent_source, parent_destination, parent_world_ids in reversed(instances[:index]):
+                if destination == parent_destination or not under(destination, parent_destination):
+                    continue
+                inherited = np.isin(world_ids, parent_world_ids) & ~covered
+                if rebase(source, parent_source, parent_destination) == destination:
+                    redundant |= inherited
+                covered |= inherited
+            if not redundant.all():
+                yield asset_prototype_id, source, destination, world_ids[~redundant]

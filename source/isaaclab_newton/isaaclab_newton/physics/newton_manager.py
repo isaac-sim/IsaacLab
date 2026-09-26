@@ -78,8 +78,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan, UsdReplicateContext
-from isaaclab.cloner.path import under
-from isaaclab.cloner.query import path_to_source
+from isaaclab.cloner.query import get_asset_prototypes
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -224,25 +223,20 @@ class NewtonSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, instances: tuple, global_paths: tuple[str, ...]) -> None:
+    def initialize_geometry(self, plan: ClonePlan, instances: tuple) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
         visual_offset = 0
-        instances = tuple(instance for instance in instances if len(instance[3]))
         for entry in NewtonManager._deformable_registry:
-            resolved = path_to_source(instances, entry.vis_mesh_prim_path)
-            paths = []
-            if resolved is not None:
-                _, destination_expr, suffix = resolved
-                paths = [
-                    template.format(env_id) + suffix
-                    for _, _, template, env_ids in instances
-                    if template.format("[^/]+") == destination_expr
-                    for env_id in env_ids
-                ]
-            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in global_paths):
-                paths.append(entry.vis_mesh_prim_path)
+            asset_ids = get_asset_prototypes(plan, entry.prim_path)
+            suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
+            paths = [
+                template.format(env_id) + suffix
+                for asset_id, _, template, env_ids in instances
+                if asset_id in asset_ids
+                for env_id in env_ids
+            ]
             if entry.volume_vis_remap is None:
                 ranges.update(
                     (path, (offset, entry.particles_per_body))
@@ -502,7 +496,7 @@ class NewtonManager(PhysicsManager):
     _world_xforms: list[wp.transform] | None = None
     # Per-source builders retained from replication, keyed by clone-plan source
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
-    # model from these and resolve it via ``query.path_to_source``.
+    # model from these using the asset prototype's native source path.
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -1359,11 +1353,11 @@ class NewtonManager(PhysicsManager):
 
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
-        instances, global_paths = (), ()
+        instances = ()
         if cls._deformable_registry:
             usd = PhysicsManager._sim.clone_contexts[UsdReplicateContext]
-            instances, global_paths = usd.instances, usd.global_paths
-        cls._scene_data_backend.initialize_geometry(instances, global_paths)
+            instances = usd.instances
+        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan(), instances)
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
 

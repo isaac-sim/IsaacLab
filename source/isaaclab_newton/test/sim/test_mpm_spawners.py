@@ -24,7 +24,7 @@ from newton.solvers import SolverImplicitMPM
 from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner import UsdReplicateContext
+from isaaclab.cloner import UsdReplicateContext, make_clone_plan
 
 pytestmark = pytest.mark.unit
 
@@ -110,7 +110,7 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
     monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
     backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(usd.instances, usd.global_paths)
+    backend.initialize_geometry(make_clone_plan((), ((),), 0), usd.instances)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     asset = SimpleNamespace(
         cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),

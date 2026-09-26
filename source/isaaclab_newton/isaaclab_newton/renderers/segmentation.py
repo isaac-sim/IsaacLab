@@ -29,7 +29,6 @@ import warp as wp
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
 from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner import query as cloner_query
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.utils.timer import Timer
 
@@ -390,17 +389,20 @@ class NewtonSegmentationMapper:
             The prototype's ``(filtered_labels, matched_ancestor_path)`` with the ancestor rebased
             into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
             prototype itself is unlabelled.
-
-        Raises:
-            ValueError: When ``prim_path`` is owned by multiple distinct, equally near destination
-                templates — a malformed clone plan, not a state to resolve around.
         """
-        resolved = cloner_query.path_to_source(self._instances, prim_path)
-        if resolved is None:
+        matches = [
+            (source, matched)
+            for _, source, template, world_ids in self._instances
+            if len(world_ids) and world_ids[0] != -1
+            if (matched := cloner_path.match(prim_path, template)) is not None
+            if int(matched.instance) in world_ids
+        ]
+        if not matches:
             # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
             # other static prim) — nothing to fall back to, so it stays unlabelled.
             return None
-        source_root, _, asset_suffix = resolved
+        source_root, matched_path = min(matches, key=lambda item: len(item[1].suffix))
+        asset_suffix = matched_path.suffix
         prototype_path = source_root + asset_suffix
         # The prototype path is where the labels actually live, so a plain stage walk — not another
         # round of clone-plan resolution — is all that's needed here. When ``prim_path`` names the

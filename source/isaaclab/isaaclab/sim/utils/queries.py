@@ -409,10 +409,17 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-    resolved = cloner.query.path_to_source(usd.instances, path_expr) if usd is not None else None
-    if resolved is not None:
-        source_path, dest_expr, asset_suffix = resolved
-        source_expr = source_path + asset_suffix
+    matches = [
+        (instance, matched)
+        for instance in (usd.instances if usd is not None else ())
+        if len(instance[3]) and instance[3][0] != -1
+        if (matched := cloner.path.match(path_expr, instance[2])) is not None
+        if any(re.fullmatch(matched.instance, str(world_id)) for world_id in instance[3])
+    ]
+    if matches:
+        (_, source_path, destination, _), matched = min(matches, key=lambda item: len(item[1].suffix))
+        source_expr = source_path + matched.suffix
+        dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)
         results = [
             (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])

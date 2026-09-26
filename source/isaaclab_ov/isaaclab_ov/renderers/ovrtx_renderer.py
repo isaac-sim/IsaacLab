@@ -66,7 +66,6 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import UsdReplicateContext
-from isaaclab.cloner.query import iter_clones
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -617,7 +616,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
+        for asset_prototype_id, source, destination, world_ids in usd.iter_clones():
             target_paths = [
                 destination.format(int(world_id))
                 for world_id in world_ids
@@ -1665,7 +1664,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
+        for asset_prototype_id, source, destination, world_ids in usd.iter_clones():
             target_paths = [
                 destination.format(int(world_id))
                 for world_id in world_ids

@@ -14,6 +14,7 @@ from isaaclab import cloner
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import get_current_stage
 from isaaclab.sim.utils.queries import get_all_matching_child_prims, resolve_matching_prims_from_source
+from isaaclab.utils.string import resolve_matching_names
 
 
 class RigidObjectHasher:
@@ -40,15 +41,21 @@ class RigidObjectHasher:
 
         # Read each authored variant once, including descendants such as articulation links.
         usd = SimulationContext.instance().clone_contexts.get(cloner.UsdReplicateContext)
-        instances = tuple(instance for instance in usd.instances if len(instance[3])) if usd is not None else ()
-        resolved = cloner.query.path_to_source(instances, prim_path_pattern)
-        if resolved is not None:
-            _, destination_expr, suffix = resolved
-            sources = [
-                (source + suffix, env_ids)
-                for _, source, destination, env_ids in instances
-                if destination.format("[^/]+") == destination_expr
-            ]
+        matches = [
+            (instance, matched)
+            for instance in (usd.instances if usd is not None else ())
+            if len(instance[3]) and instance[3][0] != -1
+            if (matched := cloner.path.match(prim_path_pattern, instance[2])) is not None
+        ]
+        if matches:
+            suffix = min((matched.suffix for _, matched in matches), key=len)
+            sources = []
+            for (_, source, _, env_ids), matched in matches:
+                if matched.suffix != suffix:
+                    continue
+                selected, _ = resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)
+                if selected:
+                    sources.append((source + suffix, env_ids[selected]))
         else:
             # No clone plan (or pattern not owned by it): resolve a single source instance and
             # treat every env as a clone of it.
