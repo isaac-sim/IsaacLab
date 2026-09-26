@@ -12,12 +12,12 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Usd, UsdGeom
+from pxr import Gf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
-from isaaclab_ov._clone import CloneTransform
+from isaaclab_ov._clone import CloneRecipe, CloneTransform
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
@@ -41,6 +41,61 @@ def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
     )
 
 
+def _physics_topology(source_prim: Usd.Prim) -> tuple[tuple, ...]:
+    """Describe body/joint identities, connectivity and DOF axes, ignoring geometry."""
+    source_path = source_prim.GetPath()
+    topology = []
+    for prim in Usd.PrimRange(source_prim, Usd.TraverseInstanceProxies()):
+        relative_path = str(prim.GetPath().MakeRelativePath(source_path))
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            topology.append(("body", relative_path, UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()))
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            topology.append(("articulation", relative_path))
+        if prim.IsA(UsdPhysics.Joint):
+            joint = UsdPhysics.Joint(prim)
+            axes = ()
+            if prim.GetTypeName() == "PhysicsJoint":
+                # A D6 axis is locked iff its applied limit has low > high.
+                axes = tuple(
+                    axis
+                    for axis in ("transX", "transY", "transZ", "rotX", "rotY", "rotZ")
+                    if not prim.HasAPI(UsdPhysics.LimitAPI, axis)
+                    or UsdPhysics.LimitAPI(prim, axis).GetLowAttr().Get()
+                    <= UsdPhysics.LimitAPI(prim, axis).GetHighAttr().Get()
+                )
+            topology.append(
+                (
+                    "joint",
+                    relative_path,
+                    prim.GetTypeName(),
+                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody0Rel().GetTargets()),
+                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody1Rel().GetTargets()),
+                    joint.GetJointEnabledAttr().Get(),
+                    joint.GetExcludeFromArticulationAttr().Get(),
+                    prim.GetAttribute("physics:axis").Get(),
+                    axes,
+                )
+            )
+    return tuple(sorted(topology))
+
+
+def _validate_variant_topology(stage: Usd.Stage, sources: Sequence[str], destinations: Sequence[str]) -> None:
+    """Reject variant sources whose body/joint topology or DOF layout differs."""
+    reference_by_destination: dict[str, tuple[str, tuple[tuple, ...]]] = {}
+    for source, destination in zip(sources, destinations):
+        source_prim = stage.GetPrimAtPath(source)
+        if not source_prim.IsValid():
+            raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
+        topology = _physics_topology(source_prim)
+        reference = reference_by_destination.setdefault(destination, (source, topology))
+        if topology != reference[1]:
+            raise ValueError(
+                f"OvPhysX clone variants {reference[0]!r} and {source!r} for {destination!r} have incompatible "
+                "rigid-body or joint topology. Geometry may vary, but body counts and joint type/DOF structure "
+                "must match."
+            )
+
+
 def _clone_recipes(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -49,8 +104,15 @@ def _clone_recipes(
     mapping: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
-) -> list[tuple[str, list[str], list[CloneTransform]]]:
+) -> list[CloneRecipe]:
     """Build OvPhysX clone recipes from one flat mapping."""
+    if len(sources) != len(destinations):
+        raise ValueError(f"Expected one destination per source, got {len(sources)} and {len(destinations)}.")
+    if mapping.shape != (len(sources), len(env_ids)):
+        raise ValueError(
+            f"mapping must have shape [num_sources, num_envs], got {list(mapping.shape)} for "
+            f"{len(sources)} sources and {len(env_ids)} environments."
+        )
     if positions is not None and positions.shape != (len(env_ids), 3):
         raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
     if quaternions is not None and quaternions.shape != (len(env_ids), 4):
@@ -59,6 +121,12 @@ def _clone_recipes(
     columns_by_row = [[] for _ in range(mapping.shape[0])]
     for row, column in np.argwhere(mapping):
         columns_by_row[row].append(column)
+    active_rows = [row for row, columns in enumerate(columns_by_row) if columns]
+    _validate_variant_topology(
+        stage,
+        [sources[row] for row in active_rows],
+        [destinations[row] for row in active_rows],
+    )
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
     for row, source in enumerate(sources):
@@ -70,8 +138,6 @@ def _clone_recipes(
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
         source_prim = stage.GetPrimAtPath(source)
-        if not source_prim.IsValid():
-            raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
         source_world = xform_cache.GetLocalToWorldTransform(source_prim).RemoveScaleShear()
         if self_env_id is None:
             source_anchor_world = Gf.Matrix4d(1.0)
@@ -86,11 +152,13 @@ def _clone_recipes(
 
         targets = []
         target_transforms = []
+        target_env_ids = []
         for env_id, column in zip(active_env_ids, columns):
             env_id = int(env_id)
             if env_id == self_env_id:
                 continue
             targets.append(destinations[row].format(env_id))
+            target_env_ids.append(env_id)
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
                 target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
@@ -98,8 +166,10 @@ def _clone_recipes(
                 q = quaternions[column]
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
             target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
-        if targets:
-            recipes.append((source, targets, target_transforms))
+        # env_0 is retained by the serializer even without a clone call. Other source-only
+        # variants still need an empty recipe so their authored source environment survives.
+        if targets or self_env_id != 0:
+            recipes.append((source, targets, target_transforms, target_env_ids))
     return recipes
 
 
@@ -124,7 +194,9 @@ class OvPhysxReplicateContext:
             plan: Replication layout shared by every clone backend.
 
         Raises:
-            ValueError: If positions are malformed or an active source or source anchor prim is invalid.
+            ValueError: If environment IDs are missing, source/destination lengths or mapping/position
+                shapes are inconsistent, an active source or anchor is invalid, or variants for one
+                destination differ in body/joint topology or effective DOF axes.
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
@@ -138,8 +210,8 @@ class OvPhysxReplicateContext:
             positions=plan.positions,
             quaternions=None,
         )
-        for source, targets, transforms in recipes:
-            self._sim.physics_manager._register_clone_transforms(source, targets, transforms)
+        for source, targets, transforms, target_env_ids in recipes:
+            self._sim.physics_manager._register_clone_transforms(source, targets, transforms, target_env_ids)
 
 
 def ovphysx_replicate(
@@ -164,7 +236,9 @@ def ovphysx_replicate(
 
     Raises:
         RuntimeError: If no simulation context is active.
-        ValueError: If transforms are malformed or a source or source anchor is invalid.
+        ValueError: If source/destination lengths or mapping/transform shapes are inconsistent,
+            an active source or source anchor is invalid, or variants for one destination differ
+            in body/joint topology or effective DOF axes.
     """
     recipes = _clone_recipes(
         stage=stage,
@@ -178,5 +252,5 @@ def ovphysx_replicate(
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    for source, targets, transforms in recipes:
-        sim.physics_manager._register_clone_transforms(source, targets, transforms)
+    for source, targets, transforms, target_env_ids in recipes:
+        sim.physics_manager._register_clone_transforms(source, targets, transforms, target_env_ids)

@@ -88,6 +88,8 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
+from isaaclab.managers import SceneEntityCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
@@ -295,6 +297,67 @@ def _ovphysx_sim_context(device: str, **kwargs):
         use_newton_actuators=use_newton_actuators,
     )
     return build_simulation_context(device=device, sim_cfg=sim_cfg, **kwargs)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_heterogeneous_articulation_clone_indexed_state(device, tmp_path):
+    """Different link geometries retain identical DOFs and environment-indexed state."""
+    variants = []
+    for shape in (UsdGeom.Cube, UsdGeom.Sphere):
+        stage = Usd.Stage.CreateInMemory()
+        robot = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+        stage.SetDefaultPrim(robot)
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        for name in ("Base", "Tip"):
+            body = UsdGeom.Xform.Define(stage, f"/Robot/{name}")
+            body.AddTranslateOp().Set((0.0, 0.0, 0.4 if name == "Tip" else 0.0))
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+            geometry = shape.Define(stage, f"/Robot/{name}/Geometry")
+            geometry.AddScaleOp().Set((0.1, 0.1, 0.1))
+            UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
+        fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed")
+        fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
+        joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Joint")
+        joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+        joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
+        joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+        path = str(tmp_path / f"{shape.__name__}.usda")
+        stage.Export(path)
+        variants.append(sim_utils.UsdFileCfg(usd_path=path))
+
+    with _ovphysx_sim_context(device=device, gravity_enabled=False) as sim:
+        cfg = InteractiveSceneCfg(num_envs=6, env_spacing=2.0)
+        cfg.robot = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=variants),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint"], stiffness=0.0, damping=0.0)},
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        robot = scene["robot"]
+        assert robot.num_joints == 1
+        assert robot.num_bodies == 2
+        assert robot.root_view.prim_paths == [f"/World/envs/env_{i}/Robot" for i in range(scene.num_envs)]
+        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins)
+        selected = torch.tensor([5, 3], device=device)
+        positions = torch.tensor([[0.25], [-0.4]], device=device)
+        robot.write_joint_state_to_sim(positions, torch.zeros_like(positions), env_ids=selected)
+        sim.step()
+        scene.update(sim.get_physics_dt())
+        expected = torch.zeros((scene.num_envs, 1), device=device)
+        expected[selected] = positions
+        torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
+        for env_id in range(scene.num_envs):
+            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+                pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
+            )
+            try:
+                actual = torch.empty(binding.shape, device=device)
+                binding.read(actual)
+                torch.testing.assert_close(actual, expected[env_id : env_id + 1], atol=1e-4, rtol=0.0)
+            finally:
+                binding.destroy()
 
 
 def generate_articulation_cfg(
@@ -563,7 +626,7 @@ def test_ovphysx_effort_binding_excludes_implicit_pd(device, use_newton_actuator
 def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(device):
     """Reset and randomize only the selected OVPhysX native-controller environment."""
     from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
-    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
+    from isaaclab.managers import EventTermCfg  # noqa: PLC0415
 
     class Env:
         def __init__(self, asset):

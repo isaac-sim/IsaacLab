@@ -97,7 +97,6 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
-    ovphysx = cube
 
 
 ##

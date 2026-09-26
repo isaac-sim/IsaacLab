@@ -84,6 +84,58 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
+def test_clone_recipes_resolve_heterogeneous_asset_paths_without_stage_matching(monkeypatch, manager_module):
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.physics import PhysicsManager
+
+    stage = Usd.Stage.CreateInMemory()
+    for env_id in (0, 1):
+        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object")
+    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: SimpleNamespace(env_ids=(0, 1, 2, 3)))
+    monkeypatch.setattr(PhysicsManager, "_sim", sim)
+    manager = manager_module.OvPhysxManager
+    manager._active_clone_recipes = [
+        ("/World/envs/env_0/Object", ["/World/envs/env_2/Object"], [], [2]),
+        ("/World/envs/env_1/Object", ["/World/envs/env_3/Object"], [], [3]),
+    ]
+
+    assert manager._resolved_clone_paths("/World/envs/env_*/Object", "/World/envs/env_0/Object") == [
+        f"/World/envs/env_{env_id}/Object" for env_id in range(4)
+    ]
+
+
+def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch, manager_module):
+    manager = manager_module.OvPhysxManager
+    env_ids = list(range(1, 514))
+    targets = [f"/World/envs/env_{env_id}/Robot" for env_id in env_ids]
+    transforms = [(float(env_id), 0.0, 0.0, 0.0, 0.0, 0.0, 1.0) for env_id in env_ids]
+    manager._pending_clones = [
+        ("/World/envs/env_0/Robot", targets, transforms, env_ids),
+        ("/World/envs/env_0/table", ["/World/envs/env_1/table"], [], [1]),
+    ]
+    clone_calls = []
+    waits = []
+    physx = SimpleNamespace(wait_op=waits.append)
+
+    def record_clone(physx_arg, source, target_paths, target_transforms, target_env_ids):
+        assert physx_arg is physx
+        clone_calls.append((source, target_paths, target_transforms, target_env_ids))
+        return len(clone_calls)
+
+    monkeypatch.setattr(manager_module, "clone_physics", record_clone)
+
+    manager._replay_pending_clones(physx, requires_full_stage=False)
+
+    assert [len(call[1]) for call in clone_calls] == [512, 1, 1]
+    assert [path for call in clone_calls[:2] for path in call[1]] == targets
+    assert [pose for call in clone_calls[:2] for pose in call[2]] == transforms
+    assert [env_id for call in clone_calls[:2] for env_id in call[3]] == env_ids
+    assert clone_calls[-1] == ("/World/envs/env_0/table", ["/World/envs/env_1/table"], None, [1])
+    assert waits == [1, 2, 3]
+    assert manager._pending_clones == []
+
+
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
     from isaaclab.physics import PhysicsManager
 
@@ -156,11 +208,18 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    newton_schema_root = "/schemas/newton"
+    monkeypatch.setattr(manager_module, "_newton_schema_root", lambda: newton_schema_root, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    expected_ovstage_registrations = []
+    if has_registration_api:
+        if schema_root is not None:
+            expected_ovstage_registrations.append(schema_root)
+        expected_ovstage_registrations.append(newton_schema_root)
+    assert ovstage_registrations == expected_ovstage_registrations
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 

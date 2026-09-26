@@ -38,6 +38,13 @@ class OvPhysxBackendCfg(BackendCfg):
     cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
     """Cooked-collider cache location, fixed by the first runtime created in the process."""
 
+    use_env_ids: bool = True
+    """Enable runtime environment-ID collision filtering on GPU. This setting is process-wide.
+
+    The manager disables it for retained sources in nonzero environments and uses USD collision
+    groups for isolation instead.
+    """
+
 
 @configclass
 class OvPhysxCfg(PhysicsCfg):

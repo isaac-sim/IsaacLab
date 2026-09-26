@@ -83,6 +83,26 @@ def _fake_rigid_body_prim(path: str):
     )
 
 
+def test_manager_full_stage_requirement_preserves_authored_environments():
+    """A full-stage request keeps every authored environment in memory."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = _make_two_environment_stage()
+    previous = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = True
+        usda = OvPhysxManager._serialize_selected_stage(stage)
+        layer = Sdf.Layer.CreateAnonymous("full.usda")
+        assert layer.ImportFromString(usda)
+        exported = Usd.Stage.Open(layer)
+        assert exported.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
+        assert exported.GetPrimAtPath("/World/envs/env_1/Cube").IsValid()
+    finally:
+        OvPhysxManager._requires_full_stage = previous
+
+
 def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
     """A full-stage export copies missing heterogeneous targets without replacing authored ones."""
     from isaaclab_ov.physics import OvPhysxManager
@@ -104,6 +124,7 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -138,11 +159,13 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
             (
                 "/World/envs/env_0/Groceries",
                 ["/World/envs/env_1/Groceries"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -177,6 +200,7 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -212,7 +236,12 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+            (
+                "/World/envs/env_0/Robot",
+                ["/World/envs/env_1/Robot"],
+                [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
+            )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
@@ -274,6 +303,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
@@ -293,8 +323,8 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(r
         def __init__(self):
             self.calls = []
 
-        def clone(self, source, targets, transforms):
-            self.calls.append(("clone", source, targets, transforms))
+        def clone(self, source, targets, transforms, *, env_ids):
+            self.calls.append(("clone", source, targets, transforms, env_ids))
             return 19
 
         def wait_op(self, operation):
@@ -303,13 +333,13 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(r
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [7])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=requires_full_stage)
         if requires_full_stage:
             assert fake.calls == []
         else:
             assert fake.calls == [
-                ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+                ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [7]),
                 ("wait_op", 19),
             ]
         assert OvPhysxManager._pending_clones == []
@@ -345,8 +375,9 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
     [("cpu", True, None), ("cuda:2", False, "2")],
 )
+@pytest.mark.parametrize("use_env_ids", [True, False])
 def test_manager_supports_pinned_runtime_api(
-    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus
+    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus, use_env_ids
 ):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     import isaaclab_ov.physics.ovphysx_manager as module
@@ -391,7 +422,9 @@ def test_manager_supports_pinned_runtime_api(
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
     monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
 
-    backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
+    backend = module.OvPhysxBackend(
+        OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir, use_env_ids=use_env_ids)
+    )
     physx = backend.physx
     OvPhysxManager.backend.physx = physx
     monkeypatch.setattr(OvPhysxManager, "get_physics_dt", lambda: 0.02)
@@ -404,6 +437,7 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
+    assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is use_env_ids
     assert physx.calls == [("step_sync", 0.02), ("update_articulations_kinematic",), ("reset_stage",), ("wait_op", 23)]
     assert PhysicsManager._sim_time == 0.02
     assert OvPhysxManager._scene_data_backend.transforms_version > version
@@ -462,7 +496,51 @@ def test_manager_serializes_env0_only_stage_in_memory(caplog):
     assert filtered.GetPrimAtPath("/World/Ground").IsValid()
     assert filtered.GetPrimAtPath("/World/envs/env_0/Cube").IsValid()
     assert not filtered.GetPrimAtPath("/World/envs/env_1").IsValid()
-    assert "stripped 1 env_<i!=0> subtrees from in-memory USD" in caplog.text
+    assert "stripped 1 non-source env_<i> subtrees from in-memory USD" in caplog.text
+
+
+def test_manager_serializes_every_heterogeneous_source_environment():
+    """Runtime cloning keeps each authored variant source while stripping clone targets."""
+    from isaaclab_ov.physics import OvPhysxManager
+
+    from pxr import Sdf, Usd
+
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, variant in ((0, "cube"), (1, "sphere"), (2, "target"), (3, "target")):
+        stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+        source = stage.DefinePrim(f"/World/envs/env_{env_id}/Object", "Xform")
+        source.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
+
+    previous_pending = OvPhysxManager._pending_clones
+    previous_full_stage = OvPhysxManager._requires_full_stage
+    try:
+        OvPhysxManager._requires_full_stage = False
+        OvPhysxManager._pending_clones = [
+            (
+                "/World/envs/env_0/Object",
+                ["/World/envs/env_2/Object"],
+                [(2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [2],
+            ),
+            (
+                "/World/envs/env_1/Object",
+                ["/World/envs/env_3/Object"],
+                [(3.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [3],
+            ),
+        ]
+        usda = OvPhysxManager._serialize_selected_stage(stage)
+    finally:
+        OvPhysxManager._pending_clones = previous_pending
+        OvPhysxManager._requires_full_stage = previous_full_stage
+
+    layer = Sdf.Layer.CreateAnonymous("heterogeneous-sources.usda")
+    assert layer.ImportFromString(usda)
+    exported = Usd.Stage.Open(layer)
+    assert exported.GetPrimAtPath("/World/envs/env_0/Object").GetAttribute("test:variant").Get() == "cube"
+    assert exported.GetPrimAtPath("/World/envs/env_1/Object").GetAttribute("test:variant").Get() == "sphere"
+    assert not exported.GetPrimAtPath("/World/envs/env_2").IsValid()
+    assert not exported.GetPrimAtPath("/World/envs/env_3").IsValid()
 
 
 def test_manager_serializes_stage_without_envs_as_is():
@@ -782,6 +860,23 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
 
     assert events == ["ovphysx", "stage"]
     assert SimulationContext.instance() is None
+
+
+def test_scene_data_binding_is_deferred_until_requested(monkeypatch):
+    """Headless simulations should not create renderer-only tensor bindings at reset."""
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxSceneDataBackend
+
+    backend = OvPhysxSceneDataBackend()
+    calls = []
+    monkeypatch.setattr(backend, "setup", lambda *args: calls.append(args))
+    physx, stage = object(), object()
+
+    backend._defer_setup(physx, stage, "cpu", ())
+    assert calls == []
+    assert backend.transform_count == 0
+    assert calls == [(physx, stage, "cpu", ())]
+    assert backend.transform_count == 0
+    assert len(calls) == 1
 
 
 def test_transforms_read_native_slices_only_when_dirty(monkeypatch):

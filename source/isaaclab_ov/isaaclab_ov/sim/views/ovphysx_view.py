@@ -50,6 +50,7 @@ from typing import Any, ClassVar, Protocol
 
 import warp as wp
 
+from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.tensor_types import _CPU_ONLY_TYPES
 
@@ -563,6 +564,12 @@ class OvPhysxView:
         """USD paths of the prims matched by this view."""
         return list(self._sample().prim_paths)
 
+    def _use_resolved_prim_paths(self) -> None:
+        """Reuse the first binding's ordered prims instead of repeating a stage-wide glob."""
+        if self._pattern is not None:
+            self._prim_paths = self.prim_paths
+            self._pattern = None
+
     @property
     def dof_names(self) -> list[str]:
         """Per-articulation DOF names (articulation views only)."""
@@ -658,6 +665,15 @@ class OvPhysxView:
                 f"Attribute {tensor_type_name(tensor_type)!r} is not available for {self._target_repr()} "
                 "(no matching prims)."
             )
+        # Variant batches are discovered in clone order, not environment order.
+        # Rebind only when needed; explicit path lists also preserve collection body order.
+        patterns = self._prim_paths if self._prim_paths is not None else [self._pattern]
+        paths = list(binding.prim_paths) if create_type.name.startswith(("RIGID_BODY_", "ARTICULATION_")) else []
+
+        ordered_paths = ordered_clone_paths(paths, patterns)
+        if ordered_paths != paths:
+            binding.destroy()
+            binding = self._physx.create_tensor_binding(prim_paths=ordered_paths, tensor_type=create_type)
         self._bindings[tensor_type] = binding
         self._live_views.add(self)
         return binding

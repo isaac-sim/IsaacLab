@@ -21,6 +21,7 @@ from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims
 from isaaclab.utils.warp import ProxyArray
 
 import isaaclab_ov.tensor_types as TT
+from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
@@ -220,6 +221,7 @@ class ContactSensor(BaseContactSensor):
         # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
         # Articulation does.
         sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
+        pose_pattern = sensor_patterns[0]
 
         # Build filter patterns (flat: len = n_sensors * filters_per_sensor).
         filter_globs = [
@@ -230,6 +232,36 @@ class ContactSensor(BaseContactSensor):
             filter_patterns: list[str] | None = filter_globs * self._num_sensors
         else:
             filter_patterns = None
+
+        # Resolve complete clone sets to exact paths. Broad env globs make the native
+        # contact binding compare every sensor with every filter across environments.
+        clone_sensor_paths = [
+            OvPhysxManager._resolved_clone_paths(pattern, prim.GetPath().pathString)
+            for (prim, _), pattern in zip(body_matches, sensor_patterns, strict=True)
+        ]
+        filter_sources = [
+            resolve_matching_prims_from_source(expr, **resolve_kwargs) for expr in self.cfg.filter_prim_paths_expr
+        ]
+        clone_filter_paths = [
+            OvPhysxManager._resolved_clone_paths(pattern, sources[0][0].GetPath().pathString)
+            if len(sources) == 1
+            else None
+            for sources, pattern in zip(filter_sources, filter_globs, strict=True)
+        ]
+        resolved_sensor_paths = [paths for paths in clone_sensor_paths if paths is not None]
+        resolved_filter_paths = [paths for paths in clone_filter_paths if paths is not None]
+        if len(resolved_sensor_paths) == len(clone_sensor_paths) and len(resolved_filter_paths) == len(
+            clone_filter_paths
+        ):
+            num_envs = len(resolved_sensor_paths[0])
+            if all(len(paths) == num_envs for paths in (*resolved_sensor_paths, *resolved_filter_paths)):
+                sensor_patterns = [path for paths in resolved_sensor_paths for path in paths]
+                filter_patterns = [
+                    resolved_filter_paths[filter_id][env_id]
+                    for _ in resolved_sensor_paths
+                    for env_id in range(num_envs)
+                    for filter_id in range(filters_per_sensor)
+                ] or None
 
         # Create the contact binding (must happen BEFORE the next step()).
         # OVPhysX's ``InteractiveScene`` runs in ``clone_usd=False`` mode:
@@ -246,6 +278,19 @@ class ContactSensor(BaseContactSensor):
             filters_per_sensor=filters_per_sensor,
             max_contact_data_count=max_count,
         )
+        # Contact discovery is lexical; keep the same body-major, numeric env order as asset views.
+        paths = list(getattr(self._contact_binding, "sensor_paths", []))
+        ordered_paths = ordered_clone_paths(paths, sensor_patterns)
+        if ordered_paths != paths:
+            filters_by_path = dict(zip(paths, self._contact_binding.filter_paths))
+            filters_per_sensor = self._contact_binding.filter_count
+            self._contact_binding.destroy()
+            self._contact_binding = physx_instance.create_contact_binding(
+                sensor_patterns=ordered_paths,
+                filter_patterns=[f for path in ordered_paths for f in filters_by_path[path]] or None,
+                filters_per_sensor=filters_per_sensor,
+                max_contact_data_count=max_count,
+            )
 
         # Validate: sensor_count must be a non-zero multiple of num_sensors.
         if self._contact_binding.sensor_count == 0 or self._contact_binding.sensor_count % self._num_sensors != 0:
@@ -285,7 +330,7 @@ class ContactSensor(BaseContactSensor):
                     f"under '{self.cfg.prim_path}').  Workaround: create one ContactSensor "
                     "per body."
                 )
-            single_pose_pattern = sensor_patterns[0]
+            single_pose_pattern = pose_pattern
             self._root_view = OvPhysxView(physx_instance, pattern=single_pose_pattern, device=self._device)
             self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             if self._pose_binding.count != self._contact_binding.sensor_count:

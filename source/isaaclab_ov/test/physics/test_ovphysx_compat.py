@@ -93,3 +93,28 @@ def test_published_entry_points_are_read_only():
 )
 def test_reversed_joint_sign_correction_version_boundary(version: Version | None, expected: bool):
     assert requires_legacy_joint_sign_correction(version) is expected
+
+
+@pytest.mark.parametrize("version", [None, Version("0.5.11"), Version("0.6.2"), Version("0.6.3"), Version("0.7.0")])
+def test_clone_dispatch_uses_supported_signature(monkeypatch, version):
+    """Legacy homogeneous clones keep working without the new env_ids keyword."""
+    from isaaclab_ov.physics import ovphysx_compat
+
+    calls = []
+
+    class LegacyPhysX:
+        def clone(self, source, targets, transforms):
+            calls.append((source, targets, transforms))
+            return 7
+
+    class CurrentPhysX:
+        def clone(self, source, targets, transforms, *, env_ids):
+            calls.append((source, targets, transforms, env_ids))
+            return 7
+
+    monkeypatch.setattr(ovphysx_compat, "OVPHYSX_VERSION", version)
+    current = version is not None and version >= Version("0.6.3")
+    physx = CurrentPhysX() if current else LegacyPhysX()
+    assert ovphysx_compat.clone_physics(physx, "/env0", ["/env1"], None, [1]) == 7
+    expected = ("/env0", ["/env1"], None, [1]) if current else ("/env0", ["/env1"], None)
+    assert calls == [expected]
