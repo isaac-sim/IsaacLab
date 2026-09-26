@@ -179,16 +179,19 @@ class reset_accumulator(ManagerTermBase):
             self.success_monitor = monitor_cfg.class_type(monitor_cfg, 1, n_slots, env.device)
             self.monitor_success_rate = self.success_monitor.success_rate
 
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         progress = env.termination_manager.get_term_cfg("progress_context").func
         monitor_ids = env_ids
-        if env_ids.numel() > 0 and monitor_exclude_terms:
+        if num_envs > 0 and monitor_exclude_terms:
             exclude_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
             for term_name in monitor_exclude_terms:
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
                     exclude_mask |= env.termination_manager._last_episode_dones[:, term_idx]
-            monitor_ids = env_ids[~exclude_mask[env_ids]]
-        if monitor_ids.numel() > 0:
+            monitor_ids = env.scene._ALL_INDICES[env_ids]
+            monitor_ids = monitor_ids[~exclude_mask[monitor_ids]]
+        num_monitored = num_envs if isinstance(monitor_ids, slice) else len(monitor_ids)
+        if num_monitored > 0:
             self.success_monitor.success_update(self.sampled_slots[monitor_ids], progress.is_success[monitor_ids])
 
         log: dict[str, float] = {}
@@ -203,11 +206,11 @@ class reset_accumulator(ManagerTermBase):
                     mask = tags == i
                     log[f"Metrics/MonitorSuccessRate/{name}"] = monitor_rates[mask].mean().item() if mask.any() else 0.0
 
-        if env_ids.numel() > 0:
+        if num_envs > 0:
             if self._sampler is None:
                 self._sampler = self._sampling_cfg.class_type(self._sampling_cfg, self.monitor_success_rate)
 
-            probs, slot_idx = self._sampler.probabilities_and_sample(len(env_ids))
+            probs, slot_idx = self._sampler.probabilities_and_sample(num_envs)
             self.sampled_slots[env_ids] = slot_idx
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             if report and self.state_tag_names:
@@ -287,6 +290,7 @@ class TermChoice(ManagerTermBase):
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
             self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
 
+        env_ids = env.scene._ALL_INDICES[env_ids]
         probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
         self.term_samples[env_ids] = choices
         if report:
@@ -315,9 +319,10 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
-        keep = torch.rand(env_ids.size(0), device=env_ids.device) < probability
-        if not keep.any():
-            return
-        env_ids_to_reset = env_ids[keep]
+        if probability < 1.0:
+            env_ids = env.scene._ALL_INDICES[env_ids]
+            env_ids = env_ids[torch.rand(env_ids.shape[0], device=env.device) < probability]
+            if env_ids.shape[0] == 0:
+                return
         for _, term in terms.items():
-            term.func(env, env_ids_to_reset, **term.params)  # type: ignore
+            term.func(env, env_ids, **term.params)  # type: ignore

@@ -112,9 +112,10 @@ class UniformPose2dCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         # obtain env origins for the environments
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         self.pos_command_w[env_ids] = self._env.scene.env_origins[env_ids]
         # offset the position command by the current root position
-        r = torch.empty(len(env_ids), device=self.device)
+        r = torch.empty(num_envs, device=self.device)
         self.pos_command_w[env_ids, 0] += r.uniform_(*self.cfg.ranges.pos_x)
         self.pos_command_w[env_ids, 1] += r.uniform_(*self.cfg.ranges.pos_y)
         self.pos_command_w[env_ids, 2] += self.robot.data.default_root_pose.torch[env_ids, 2]
@@ -202,7 +203,8 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new position targets from the terrain
-        ids = torch.randint(0, self.valid_targets.shape[2], size=(len(env_ids),), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        ids = torch.randint(0, self.valid_targets.shape[2], size=(num_envs,), device=self.device)
         self.pos_command_w[env_ids] = self.valid_targets[
             self.terrain.terrain_levels[env_ids], self.terrain.terrain_types[env_ids], ids
         ]
@@ -230,5 +232,5 @@ class TerrainBasedPose2dCommand(UniformPose2dCommand):
             )
         else:
             # random heading command
-            r = torch.empty(len(env_ids), device=self.device)
+            r = torch.empty(num_envs, device=self.device)
             self.heading_command_w[env_ids] = r.uniform_(*self.cfg.ranges.heading)

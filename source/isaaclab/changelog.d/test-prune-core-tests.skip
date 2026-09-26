@@ -1,3 +1,0 @@
-Pruned redundant core tests (sim, scene, cloner, renderer, sensor, asset, env, manager, controller, actuator, utility, and CLI) and strengthened the kept assertions.
-Preserved backend ownership guards, camera calibration batch rejection, and custom lidar field-of-view coverage in retained test files.
-Checked batched quaternion rotation against SciPy and verified benchmark factory signatures without the optional OvPhysX runtime.

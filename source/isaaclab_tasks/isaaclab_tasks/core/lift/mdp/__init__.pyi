@@ -55,6 +55,7 @@ __all__ = [
     "set_reset_state",
     "slab_clearance",
     "success_reward",
+    "vision_camera",
 ]
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -80,6 +81,7 @@ from .observations import (
     fingers_contact_force_b,
     object_point_cloud_b,
     object_quat_b,
+    vision_camera,
 )
 from .rewards import (
     CableSegmentGoalDistance,

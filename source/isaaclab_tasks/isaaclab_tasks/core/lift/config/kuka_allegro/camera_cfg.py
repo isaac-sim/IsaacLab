@@ -223,13 +223,14 @@ class SingleCameraObservationsCfg(StateObservationCfg):
         """Camera observations for policy group."""
 
         object_observation_b = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("base_camera"),
-                "data_type": None,
+                "data_type": "rgb",
                 "normalize": False,
-                "permute": True,
+                "channel_first": True,
             },
+            clone_output=False,
         )
 
     # image groups keep the group default of no history: a stack of frames per step costs more
@@ -246,13 +247,14 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
         """Camera observations for the wrist image group."""
 
         wrist_observation = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("wrist_camera"),
-                "data_type": None,
+                "data_type": "rgb",
                 "normalize": False,
-                "permute": True,
+                "channel_first": True,
             },
+            clone_output=False,
         )
 
     wrist_image: WristImageObsCfg = WristImageObsCfg()
