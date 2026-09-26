@@ -322,12 +322,15 @@ def test_make_clone_plan_homogeneous_returns_env_root_plan(sim):
     assert cube.spawn.spawn_path == "/World/envs/env_0/Robot"
 
 
-def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
-    """Clone-aware regex discovery traverses its plan source, never cloned destinations."""
+@pytest.mark.parametrize("with_clone_plan", [True, False])
+def test_resolve_matching_prims_from_source(sim, with_clone_plan):
+    """Discovery returns unique source prims, preserving order and multi-instance expressions."""
     stage = sim_utils.get_current_stage()
     for path in (
         "/World/envs/env_0/Robot/foo",
         "/World/envs/env_0/Robot/foo/bar",
+        "/World/envs/env_0/Robot/other",
+        "/World/envs/env_0/Robot/other/bar",
         "/World/envs/env_1/Robot/clone_only",
     ):
         stage.DefinePrim(path, "Xform")
@@ -338,7 +341,8 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
         env_ids=np.arange(2, dtype=np.int64),
         positions=np.zeros((2, 3), dtype=np.float32),
     )
-    sim.set_clone_plan(plan)
+    if with_clone_plan:
+        sim.set_clone_plan(plan)
 
     matches = queries.resolve_matching_prims_from_source(r"/World/envs/env_[^/]+/Robot/[^A]+")
 
@@ -346,10 +350,27 @@ def test_resolve_matching_prims_from_source_searches_only_plan_source(sim):
     assert [prim.GetPath().pathString for prim, _ in matches] == [
         "/World/envs/env_0/Robot/foo",
         "/World/envs/env_0/Robot/foo/bar",
+        "/World/envs/env_0/Robot/other",
+        "/World/envs/env_0/Robot/other/bar",
     ]
     assert [path_expr for _, path_expr in matches] == [
         "/World/envs/env_[^/]+/Robot/foo",
         "/World/envs/env_[^/]+/Robot/foo/bar",
+        "/World/envs/env_[^/]+/Robot/other",
+        "/World/envs/env_[^/]+/Robot/other/bar",
+    ]
+
+    # Each bar is reachable through two matching roots; distinct paths with the same name remain distinct.
+    matches = queries.resolve_matching_prims_from_source(
+        r"/World/envs/env_[^/]+/Robot/.*", predicate=lambda prim: prim.GetName() == "bar", expected_num_matches=2
+    )
+    assert [prim.GetPath().pathString for prim, _ in matches] == [
+        "/World/envs/env_0/Robot/foo/bar",
+        "/World/envs/env_0/Robot/other/bar",
+    ]
+    assert [path_expr for _, path_expr in matches] == [
+        "/World/envs/env_[^/]+/Robot/foo/bar",
+        "/World/envs/env_[^/]+/Robot/other/bar",
     ]
 
 

@@ -588,8 +588,16 @@ def _author_nested_chain(prim_path: str) -> None:
     schemas.activate_contact_sensors(prim_path)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_nested_rigid_body_hierarchy(device):
+@pytest.mark.parametrize(
+    "device, body_pattern, num_envs, body_names",
+    [
+        ("cpu", "[^/]*", 3, ["pelvis", "left_hip", "left_knee"]),
+        ("cuda:0", "[^/]*", 3, ["pelvis", "left_hip", "left_knee"]),
+        ("cpu", ".*/left_knee", 1, ["left_knee"]),
+        ("cuda:0", ".*/left_knee", 3, ["left_knee"]),
+    ],
+)
+def test_nested_rigid_body_hierarchy(device, body_pattern, num_envs, body_names):
     """Checks contact binding creation and body resolution on nested rigid-body hierarchies.
 
     Regression test for the sensor-pattern construction: patterns were built from the
@@ -599,13 +607,13 @@ def test_nested_rigid_body_hierarchy(device):
 
     The source chain is authored under ``env_0`` and replicated through the OVPhysX
     clone path so the test covers both nested body resolution and multi-environment
-    contact binding behavior.
+    contact binding behavior. Mid-path wildcards must bind each leaf only once, even
+    when several of its ancestors match.
     """
-    num_envs = 3
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
         contact_sensor_cfg = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
+            prim_path="{ENV_REGEX_NS}/Robot/" + body_pattern,
             track_pose=False,
             debug_vis=False,
             update_period=0.0,
@@ -628,16 +636,15 @@ def test_nested_rigid_body_hierarchy(device):
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 
-        # all three nested bodies must be resolved into the binding (pre-fix: init raised)
-        assert contact_sensor.num_sensors == 3
-        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
+        assert contact_sensor.num_sensors == len(body_names)
+        assert contact_sensor.body_names == body_names
 
         # step to fill the sensor buffers; kinematic bodies generate no contact forces
         for _ in range(2):
             sim.step()
             contact_sensor.update(_SIM_DT, force_recompute=True)
         net_forces = contact_sensor.data.net_normal_forces_w.torch
-        assert net_forces.shape == (num_envs, 3, 3)
+        assert net_forces.shape == (num_envs, len(body_names), 3)
 
 
 # Only USD authoring and the device-independent __str__ are checked, so one device covers them.
