@@ -1,6 +1,96 @@
 Changelog
 ---------
 
+22.1.0 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab.terrains.MeshFileTerrainCfg` to load a sub-terrain from a mesh file in any
+  format supported by ``trimesh``, such as OBJ, STL, or PLY.
+* Added ``output_channel_dim`` to :func:`~isaaclab.utils.images.normalize_camera_image` and
+  :func:`~isaaclab.utils.warp.ops.normalize_image_uint8` to convert between BHWC and BCHW while
+  normalizing.
+
+Changed
+^^^^^^^
+
+* Changed :func:`~isaaclab.utils.warp.ops.normalize_image_uint8` to accept strided input, such as
+  the RGB view of an RGBA camera buffer, and to write its output in coalesced order, so camera
+  images use the fused normalization kernel instead of a multi-pass PyTorch fallback.
+* Changed :func:`~isaaclab.envs.mdp.observations.image` and the Cartpole camera observations to
+  permute normalized images to channel-first inside the normalization kernel.
+
+Fixed
+^^^^^
+
+* Fixed the body-offset Jacobian correction in :class:`~isaaclab.envs.mdp.actions.DifferentialInverseKinematicsAction`
+  and :class:`~isaaclab.envs.mdp.actions.OperationalSpaceControllerAction`. The offset is now rotated into the root
+  frame by the body orientation before shifting the translational rows, and the angular rows are no longer rotated by
+  the offset rotation, matching the offset frame's pose and velocity. Tasks that set ``body_offset`` (for example, the
+  Franka IK tasks) now receive the Jacobian of the offset frame instead of an approximation.
+* Resolved deformable geometry from declared prototypes during backend import, preserving
+  custom namespaces and partial environment coverage without storing geometry on ``ClonePlan``.
+* Added versioned SDP geometry publications for deformables, particles, and cables, with native
+  point views or one fused interpolation and layout conversion. Replaced internal flat-node queries
+  with ``get_geometry_points`` using visual prim paths.
+* Removed the renderer's geometry step gate so native position writes between renders remain visible.
+* Released cached destination bindings with their consumer-owned buffers instead of retaining them
+  for the simulation's lifetime.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_joint_parameters` choosing the friction write path by the
+  physics manager name. It now randomizes dynamic friction whenever the asset exposes it, which also covers
+  OVPhysX explicitly, and its invalid-operation error names the right term.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_rigid_body_com` choosing the center of mass layout by the
+  physics manager name; it passes poses to every backend.
+* Fixed :func:`~isaaclab.envs.mdp.events.randomize_rigid_body_scale` detecting articulations by class name
+  instead of :class:`~isaaclab.assets.BaseArticulation`.
+* Fixed concurrent Pink IK controller initialization corrupting shared USD-to-URDF exports by locking
+  the output directory through conversion and model loading.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters` raising ``NotImplementedError``
+  for limit stiffness, rest length, and offset on the PhysX and OVPhysX backends. The term
+  no longer checks the physics backend; it calls the asset setters, and a backend that does not support a
+  property raises ``NotImplementedError`` itself.
+* Fixed :class:`~isaaclab.envs.mdp.events.randomize_fixed_tendon_parameters` passing tensors with an extra
+  dimension to the fixed tendon setters when all tendons are selected.
+* Fixed :class:`~isaaclab.envs.mdp.curriculums.modify_env_param` failing on addresses that index into a
+  dictionary value, such as ``"params.ranges[1].high"``.
+* Fixed :class:`~isaaclab.managers.EventManager` not calling :meth:`~isaaclab.managers.ManagerTermBase.reset`
+  on class-based event terms when the manager is created while the simulation is playing. Class-based
+  ``"prestartup"`` terms are now also reset with the manager.
+* Extended the default visual ground plane 50 m beyond the outermost environment
+  origins so locomotion robots did not immediately leave the visible floor in
+  large batches. Preserved metric texture tiling and the infinite collision plane.
+* Fixed :class:`~isaaclab.actuators.ActuatorNetLSTM` clipping its output with a zero joint velocity. The DC-motor
+  torque-speed limits now use the current joint velocity, as :class:`~isaaclab.actuators.ActuatorNetMLP` does.
+* Passed measured joint velocity directly into DC-motor clipping, removing the cached velocity and its redundant
+  copies. The base ``_clip_effort`` accepts ``(effort, *args, **kwargs)``; custom overrides used by explicit PD and
+  neural-network actuators must accept ``(effort, joint_vel)``. Implicit actuator clipping still takes only effort.
+* Fixed :func:`~isaaclab.utils.math.quat_apply` and :func:`~isaaclab.utils.math.quat_apply_inverse` to broadcast
+  leading dimensions following NumPy rules. This fixed :func:`~isaaclab.envs.mdp.observations.body_projected_gravity_b`
+  for multiple selected bodies. **Breaking change:** results retain the broadcast batch shape, including singleton
+  dimensions. Use a quaternion of shape ``(4,)`` for an unbatched vector result of shape ``(3,)``. Incompatible batch
+  shapes now raise an error even when their element counts match; callers relying on flattened pairing must explicitly
+  reshape their inputs to matching batch shapes. Outputs may be noncontiguous for transposed inputs; use ``reshape``
+  instead of ``view`` when flattening these results.
+* Fixed :meth:`~isaaclab.benchmark.measurements.TestPhase.from_json` raising ``TypeError`` for phases
+  serialized with :class:`~isaaclab.benchmark.measurements.TestPhaseEncoder` that have measurements, and
+  dropping the metadata of phases without measurements. This also affected
+  :meth:`~isaaclab.benchmark.measurements.TestPhase.aggregate_json_files`.
+* Fixed :meth:`~isaaclab.benchmark.recorders.record_cpu_info.CPUInfoRecorder.get_data` raising ``KeyError``
+  when called before the first :meth:`~isaaclab.benchmark.recorders.record_cpu_info.CPUInfoRecorder.update`.
+* Fixed :func:`~isaaclab.utils.warp.math_ops.transform_to_vec_quat` raising a Warp ``RuntimeError`` instead of its
+  documented ``ValueError`` for 4D transform arrays.
+* Fixed :func:`~isaaclab.envs.mdp.observations.image` passing the sensor's ``ProxyArray`` to the
+  image normalization, which left colorized semantic segmentation unscaled in ``[0, 255]`` and
+  skipped the fused normalization kernel.
+* **Breaking:** Fixed height-field terrain origins to use the location chosen by each generator. Inverted pyramid
+  slopes now place the origin on the center platform for any platform width. Height-field generator
+  functions wrapped with :func:`~isaaclab.terrains.height_field.utils.height_field_to_mesh` now return
+  ``(height_field, origin)``; custom generators must return their local origin [m] as a three-element
+  array alongside the discretized height field.
+
+
 22.0.0 (2026-09-25)
 ~~~~~~~~~~~~~~~~~~~
 

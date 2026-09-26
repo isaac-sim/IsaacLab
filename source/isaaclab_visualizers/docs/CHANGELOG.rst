@@ -1,6 +1,21 @@
 Changelog
 ---------
 
+1.11.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Routed Kit deformable, particle, and cable updates through the shared Fabric resource and SDP
+  geometry publications, removing dependence on physics-manager render callbacks.
+* Fixed the Kit, ``newton_gl``, and ``newton_rtx`` visualizer windows showing a generic icon in
+  Linux docks. Opening a visualizer window now writes a hidden desktop entry to
+  ``$XDG_DATA_HOME/applications`` (default ``~/.local/share/applications``) that matches the
+  window to its icon.
+* Fixed the ``newton_rtx`` visualizer window not setting Newton's icon.
+
+
 1.11.0 (2026-09-25)
 ~~~~~~~~~~~~~~~~~~~
 

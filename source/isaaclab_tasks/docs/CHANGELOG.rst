@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+19.1.2 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Cartpole camera observations to use shared fused image normalization, including direct
+  channel-first output conversion where needed.
+
+Fixed
+^^^^^
+
+* Removed the redundant backend-specific Jacobian refresh from the NIST
+  ``reset_end_effector_around_asset`` event. Articulation data refreshes forward kinematics on demand
+  after joint writes, avoiding access to ``root_physx_view`` on OVPhysX.
+* Fixed the Cartpole camera observations reading the sensor's ``ProxyArray`` directly, which left
+  colorized semantic segmentation unscaled.
+* Corrected the SO101 Keyboard task's initial pose for the SysID asset: rotated
+  the robot base toward the keyboard and restored the task's zero joint-position
+  reset-IK seed. Shared SO101 defaults, actuator parameters, and reset IK budgets
+  remained unchanged. Removed the need for a manual task-specific base rotation.
+
+
 19.1.1 (2026-09-25)
 ~~~~~~~~~~~~~~~~~~~
 
