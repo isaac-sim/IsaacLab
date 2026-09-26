@@ -29,23 +29,14 @@ if TYPE_CHECKING:
 
 
 class randomize_rigid_body_material(ManagerTermBase):
-    """OVPhysX backend implementation for material randomization.
+    """Assign sampled material buckets to collision shapes.
 
-    OVPhysX runs the PhysX solver, so PhysX's 64000 unique-material limit applies and this
-    mirrors the PhysX bucket approach: ``num_buckets`` materials are pre-sampled once and
-    randomly assigned to shapes. Materials are written through the asset's
-    :class:`~isaaclab_ov.sim.views.OvPhysxView` on the per-collision-shape
-    ``shape_friction_and_restitution`` binding (shape ``[N, S, 3]`` = static friction,
-    dynamic friction, restitution).
-
-    Whole-articulation randomization uses the articulation material binding. For a
-    body subset, individual articulation links are addressed through a rigid-body
-    material binding, whose rows expose the exact link prim paths and per-link shape
-    storage.
+    Buckets are sampled once to respect PhysX's 64000-material limit. Whole articulations
+    use the articulation binding; body subsets use rigid-body bindings for the selected links.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
-        """Bind this term to the active simulation and capture term-local state.
+        """Sample material buckets and bind the asset shapes.
 
         Args:
             cfg: Event configuration.
@@ -55,7 +46,6 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         asset: RigidObject | Articulation = env.scene[asset_cfg.name]
 
-        # sample material buckets once (PhysX-style; the 64000 unique-material limit applies)
         static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
         dynamic_friction_range = cfg.params.get("dynamic_friction_range", (1.0, 1.0))
         restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
@@ -88,10 +78,8 @@ class randomize_rigid_body_material(ManagerTermBase):
                         f"expected {asset.num_instances} articulation roots, got {len(articulation_root_paths)}."
                     )
 
-                # With replicated physics, only the source asset may exist as a concrete
-                # USD prim even though the tensor binding contains every environment. Find
-                # the articulation-root suffix in that source asset, then strip the same
-                # suffix from every binding row to recover its concrete asset root.
+                # Replicated environments may have no USD prims. Recover their asset roots
+                # from the binding paths using the source articulation's relative path.
                 source_pairs = [
                     (asset_root_path, articulation_root_path)
                     for asset_root_path in asset_root_paths
@@ -179,7 +167,7 @@ class randomize_rigid_body_material(ManagerTermBase):
         asset_cfg: SceneEntityCfg,
         make_consistent: bool = False,
     ) -> None:
-        """Apply the configured randomization.
+        """Assign material buckets to the selected shapes.
 
         Args:
             env: Environment owning this term.
@@ -195,12 +183,10 @@ class randomize_rigid_body_material(ManagerTermBase):
             return
 
         view = self._material_view
-        # read the current per-shape material [N, S, 3] on the binding's native CPU device
         materials = wp.to_torch(view.get_attribute(self._material_type))
         num_shapes = materials.shape[1]
 
-        # Resolve environment ids to rows of the active material binding. A subset
-        # articulation view contains one row per selected body and environment.
+        # A body-subset binding has one row per selected body and environment.
         if env_ids is None:
             material_rows = self._material_rows_by_env.flatten()
         else:
@@ -211,12 +197,11 @@ class randomize_rigid_body_material(ManagerTermBase):
             return
         material_rows_device = material_rows.to(materials.device)
 
-        # randomly assign pre-sampled bucket materials to every shape of the selected envs
         bucket_ids = torch.randint(0, num_buckets, (len(material_rows), num_shapes), device="cpu")
         material_samples = self.material_buckets[bucket_ids].to(materials.device)
         materials[material_rows_device] = material_samples
 
-        # The wheel requires a full-shaped source buffer even for indexed writes.
+        # OVPhysX requires the full source buffer for indexed writes.
         indices = wp.from_torch(material_rows_device.to(dtype=torch.int32))
         view.set_attribute(
             self._material_type,
@@ -226,17 +211,14 @@ class randomize_rigid_body_material(ManagerTermBase):
 
 
 class randomize_rigid_body_collider_offsets(ManagerTermBase):
-    """OVPhysX backend implementation for collider offset randomization.
+    """Randomize rest and contact offsets through the asset's OVPhysX bindings.
 
-    OVPhysX runs the PhysX solver, so rest and contact offsets are written directly, per collision
-    shape, through the asset's :class:`~isaaclab_ov.sim.views.OvPhysxView`. Articulations use the
-    articulation offset bindings and rigid objects the rigid-body ones; both are CPU-resident
-    ``[N, S]`` buffers, so the full tensor is read-modify-written on the host with the selected
-    environments as write indices.
+    Offset buffers have shape ``[N, S]`` and reside on the CPU. Indexed writes require
+    the full buffer, including unselected environments.
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
-        """Bind this term to the active simulation and capture term-local state.
+        """Cache the asset's collider offsets.
 
         Args:
             cfg: Event configuration.
@@ -265,7 +247,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         contact_offset_distribution_params: tuple[float, float] | None = None,
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ) -> None:
-        """Apply the configured randomization.
+        """Set collider offsets for the selected environments.
 
         Args:
             env: Environment owning this term.
@@ -293,7 +275,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
                 operation="abs",
                 distribution=distribution,
             )
-            # the wheel requires a full-shaped source buffer even for indexed writes
+            # OVPhysX requires the full source buffer for indexed writes.
             self.asset.root_view.set_attribute(
                 self._rest_offset_type, wp.from_torch(rest_offset.contiguous(), dtype=wp.float32), indices=wp_env_ids
             )
@@ -324,7 +306,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
     """
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv) -> None:
-        """Bind this term to the active simulation and capture term-local state.
+        """Initialize gravity sampling for the active simulation.
 
         Args:
             cfg: Event configuration.
@@ -341,7 +323,7 @@ class randomize_physics_scene_gravity(_GravityRandomization):
         operation: Literal["add", "scale", "abs"],
         distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
     ) -> None:
-        """Apply the configured randomization.
+        """Sample and set gravity.
 
         Args:
             env: Environment owning this term.

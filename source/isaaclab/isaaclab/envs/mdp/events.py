@@ -161,8 +161,7 @@ class randomize_rigid_body_material(ManagerTermBase):
     For articulations, :attr:`SceneEntityCfg.body_ids` selects bodies in public articulation order. The backend
     implementations convert those IDs to backend shape ranges; callers must not pre-swizzle body IDs.
 
-    Automatically detects the active physics backend (PhysX, Newton, or OVPhysX) and delegates
-    to the appropriate backend-specific implementation:
+    The active backend determines how materials are sampled and assigned:
 
     - **PhysX**: Uses the 3-tuple material format (static_friction, dynamic_friction, restitution)
       with bucket-based assignment (limited to 64000 unique materials). Applied via the PhysX
@@ -555,8 +554,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
     This function allows randomizing the collider parameters of the asset, such as rest and contact offsets.
     These correspond to the physics engine collider properties that affect collision checking.
 
-    Automatically detects the active physics backend (PhysX, OVPhysX or Newton) and delegates to
-    the appropriate backend-specific implementation:
+    The active backend determines how offsets are written:
 
     - **PhysX**: Uses rest offset and contact offset directly via the PhysX tensor API
       (``root_view.set_rest_offsets`` / ``root_view.set_contact_offsets``).
@@ -618,8 +616,7 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
 class randomize_physics_scene_gravity(ManagerTermBase):
     """Randomize gravity by adding, scaling, or setting random values.
 
-    Automatically detects the active physics backend (PhysX, OvPhysX, or Newton) and applies
-    the appropriate gravity randomization strategy:
+    The active backend determines whether gravity is shared across environments:
 
     - **PhysX**: samples a single gravity vector and sets it scene-wide via the PhysX
       simulation view.  All environments share the same gravity.
@@ -2248,7 +2245,7 @@ def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
 
 
 class _GravityRandomization(ManagerTermBase):
-    """Shared distribution state; native terms own gravity scope and writes."""
+    """Cache distribution bounds and sample gravity values."""
 
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv, device: str) -> None:
         super().__init__(cfg, env)

@@ -215,18 +215,10 @@ Configure physics randomization through the shared ``isaaclab.envs.mdp`` terms:
         },
     )
 
-The same term configuration works with Newton, Isaac Sim PhysX, and OVPhysX.
-Material, collider-offset, and gravity terms select their implementation once at
-construction from the simulation's resolved physics configuration. This also
-handles the ``physx`` auto selector: the simulation resolves it before events are
-constructed. Tasks do not select backend event classes or translate parameters.
+Material, collider-offset, and gravity terms select the backend at construction from
+the simulation's resolved physics configuration, including the ``physx`` auto selector.
+Use the same terms for Newton, Isaac Sim PhysX, and OVPhysX; parameter translation is
+handled internally.
 
-Native implementations live in each backend package's ``envs/mdp/events.py``.
-They borrow existing asset bindings and the active physics manager; native resource
-ownership remains with ``SimulationContext`` and ``BackendCfg``. Shared asset
-randomization (mass, inertia, center of mass, joints, and actuators) remains in core.
-
-Backend limitations are documented on the shared terms. Global versus per-world
-gravity, PhysX material buckets, Newton's single friction coefficient, and Kamino's
-shared materials retain their existing behavior. Collider offset translation stays
-inside the Newton implementation. No public terms are deprecated by this refactor.
+See the shared terms for backend limits: scene-wide versus per-environment gravity,
+PhysX material buckets, Newton's single friction coefficient, and Kamino's shared materials.
