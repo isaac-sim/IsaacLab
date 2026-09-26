@@ -925,6 +925,8 @@ class RigidObjectData(BaseRigidObjectData):
         """Create buffers for the root data."""
         super()._create_buffers()
         self._num_instances = self._root_view.count
+        num_instances, device = self._num_instances, self.device
+        body_shape = (num_instances, 1)
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
@@ -932,15 +934,11 @@ class RigidObjectData(BaseRigidObjectData):
                 "Failed to get root com velocity. If the rigid object is fixed, this is expected. "
                 "Setting root com velocity to zeros."
             )
-            self._sim_bind_root_com_vel_w = wp.zeros(
-                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-            )
-            self._sim_bind_body_com_vel_w = wp.zeros(
-                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-            )
+            self._sim_bind_root_com_vel_w = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
+            self._sim_bind_body_com_vel_w = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         # -- default root pose and velocity
-        self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_pose = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
+        self._default_root_vel = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         self._default_root_state = None  # lazily allocated by deprecated default_root_state property
 
         # Initialize history for finite differencing
@@ -950,21 +948,13 @@ class RigidObjectData(BaseRigidObjectData):
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
+        self._root_link_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.spatial_vectorf, device=device))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._body_com_acc_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._body_com_pose_b = TimestampedBuffer(
-            wp.empty((self._num_instances, 1), dtype=wp.transformf, device=self.device)
-        )
+        self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         # Empty memory pre-allocations
         self._root_state_w = None
         self._root_link_state_w = None

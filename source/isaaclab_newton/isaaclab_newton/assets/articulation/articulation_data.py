@@ -1763,6 +1763,9 @@ class ArticulationData(BaseArticulationData):
     def _create_buffers(self) -> None:
         """Create buffers for the root data."""
         super()._create_buffers()
+        num_instances, device = self._num_instances, self.device
+        body_shape = (num_instances, self._num_bodies)
+        joint_shape = (num_instances, self._num_joints)
 
         # Initialize history for finite differencing. If the articulation is fixed, the root com velocity is not
         # available, so we use zeros.
@@ -1771,50 +1774,36 @@ class ArticulationData(BaseArticulationData):
                 "Failed to get root com velocity. If the articulation is fixed, this is expected. "
                 "Setting root com velocity to zeros."
             )
-            self._sim_bind_root_com_vel_w = wp.zeros(
-                (self._num_instances), dtype=wp.spatial_vectorf, device=self.device
-            )
+            self._sim_bind_root_com_vel_w = wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device)
         # Body velocities are well-defined regardless of the base type (fixed-base articulations
         # still report link velocities); fall back to zeros only when the view genuinely cannot
         # provide them. Zeroing this binding together with the root velocity silently zeroes
         # every body-velocity read for fixed-base robots.
         if self._root_view.get_link_velocities(SimulationManager.get_state_0()) is None:
             logger.warning("Failed to get body com velocities. Setting body com velocities to zeros.")
-            self._sim_bind_body_com_vel_w = wp.zeros(
-                (self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device
-            )
+            self._sim_bind_body_com_vel_w = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
         # -- default root pose and velocity
-        self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_pose = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
+        self._default_root_vel = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         # -- default joint positions and velocities
-        self._default_joint_pos = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
-        self._default_joint_vel = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        self._default_joint_pos = wp.zeros(joint_shape, dtype=wp.float32, device=device)
+        self._default_joint_vel = wp.zeros(joint_shape, dtype=wp.float32, device=device)
         # -- computed joint efforts from the actuator models
-        self._computed_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        self._applied_torque = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+        self._computed_torque = wp.zeros(joint_shape, dtype=wp.float32, device=device)
+        self._applied_torque = wp.zeros(joint_shape, dtype=wp.float32, device=device)
         # -- joint properties for the actuator models
         if self._num_joints > 0:
             self._actuator_stiffness = wp.clone(self._sim_bind_joint_stiffness_sim)
             self._actuator_damping = wp.clone(self._sim_bind_joint_damping_sim)
         else:
-            self._actuator_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
-            self._actuator_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._actuator_stiffness = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
+            self._actuator_damping = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
         # -- other data that are filled based on explicit actuator models
-        self._joint_dynamic_friction = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        self._joint_dynamic_friction = wp.zeros(joint_shape, dtype=wp.float32, device=device)
         # Newton stores passive damping in the live ``joint_damping`` model field.
-        self._soft_joint_vel_limits = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
-        )
+        self._soft_joint_vel_limits = wp.zeros(joint_shape, dtype=wp.float32, device=device)
         # -- update the soft joint position limits
-        self._soft_joint_pos_limits = wp.zeros(
-            (self._num_instances, self._num_joints), dtype=wp.vec2f, device=self.device
-        )
+        self._soft_joint_pos_limits = wp.zeros(joint_shape, dtype=wp.vec2f, device=device)
 
         # Initialize history for finite differencing
         if self._num_joints > 0:
@@ -1822,7 +1811,7 @@ class ArticulationData(BaseArticulationData):
                 self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             )
         else:
-            self._previous_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._previous_joint_vel = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
 
         # staging buffers to write all tendon params to sim at once
@@ -1831,49 +1820,35 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_damping = wp.clone(self._sim_bind_fixed_tendon_damping)
             self._fixed_tendon_pos_limits = wp.clone(self._sim_bind_fixed_tendon_pos_limits)
         else:
-            self._fixed_tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
-            self._fixed_tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
-            self._fixed_tendon_pos_limits = wp.zeros((self._num_instances, 0), dtype=wp.vec2f, device=self.device)
+            self._fixed_tendon_stiffness = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
+            self._fixed_tendon_damping = wp.zeros((num_instances, 0), dtype=wp.float32, device=device)
+            self._fixed_tendon_pos_limits = wp.zeros((num_instances, 0), dtype=wp.vec2f, device=device)
         # Unlike the properties above this is a per-step command, so it starts at zero rather than
         # cloning a sim binding: MuJoCo holds the tendon's control in its own array, not on the tendon.
         self._fixed_tendon_position_target = wp.zeros(
-            (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+            (num_instances, self._num_fixed_tendons), dtype=wp.float32, device=device
         )
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._body_link_vel_w = TimestampedBuffer(
-            wp.empty((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
-        )
+        self._root_link_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.spatial_vectorf, device=device))
+        self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         self._body_link_pose_w_user: wp.array | None = None
         self._body_com_vel_w_user: wp.array | None = None
         self._body_mass_user: wp.array | None = None
         self._body_inertia_user: wp.array | None = None
         self._body_com_pos_b_user: wp.array | None = None
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(
-            wp.empty((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
-        )
+        self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._body_com_pose_w = TimestampedBuffer(
-            wp.empty((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)
-        )
-        self._body_com_acc_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
-        )
+        self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
+        self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
         # -- joint state
-        self._joint_acc = TimestampedBuffer(
-            wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
-        )
+        self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_pos_user: wp.array | None = None
         self._joint_vel_user: wp.array | None = None
         self._joint_stiffness_user: wp.array | None = None

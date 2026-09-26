@@ -864,49 +864,33 @@ class RigidObjectData(BaseRigidObjectData):
 
     def _create_buffers(self) -> None:
         super()._create_buffers()
+        num_instances, device = self._num_instances, self.device
+        body_shape = (num_instances, 1)
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._root_link_vel_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
+        self._root_link_pose_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.transformf, device=device))
+        self._root_link_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.spatial_vectorf, device=device))
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(
-            wp.zeros((self._num_instances, 1), dtype=wp.transformf, device=self.device)
-        )
+        self._body_com_pose_b = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.transformf, device=device))
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._root_com_vel_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._body_com_acc_w = TimestampedBuffer(
-            wp.zeros((self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device)
-        )
+        self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
+        self._root_com_vel_w = TimestampedBuffer(wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-        )
-        self._root_link_state_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-        )
-        self._root_com_state_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
-        )
+        self._root_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
+        self._root_link_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
+        self._root_com_state_w = TimestampedBuffer(wp.empty(num_instances, dtype=shared_kernels.vec13f, device=device))
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
-        self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
-        self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
+        self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
 
         # -- Default state
-        self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((self._num_instances), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_pose = wp.zeros(num_instances, dtype=wp.transformf, device=device)
+        self._default_root_vel = wp.zeros(num_instances, dtype=wp.spatial_vectorf, device=device)
         self._default_root_state = None
 
         # -- Previous body com velocity
@@ -922,12 +906,12 @@ class RigidObjectData(BaseRigidObjectData):
         # read into a flat buffer and reshape (zero-copy) after the read.
         mass_binding = self._view.binding_for(TT.RIGID_BODY_MASS)
         inertia_binding = self._view.binding_for(TT.RIGID_BODY_INERTIA)
-        self._body_mass = wp.zeros(mass_binding.shape, dtype=wp.float32, device=self.device)
-        self._body_inertia = wp.zeros(inertia_binding.shape, dtype=wp.float32, device=self.device)
+        self._body_mass = wp.zeros(mass_binding.shape, dtype=wp.float32, device=device)
+        self._body_inertia = wp.zeros(inertia_binding.shape, dtype=wp.float32, device=device)
         self._read_binding_into(TT.RIGID_BODY_MASS, self._body_mass)
         self._read_binding_into(TT.RIGID_BODY_INERTIA, self._body_inertia)
-        self._body_mass = self._body_mass.reshape((self._num_instances, 1))
-        self._body_inertia = self._body_inertia.reshape((self._num_instances, 1, 9))
+        self._body_mass = self._body_mass.reshape(body_shape)
+        self._body_inertia = self._body_inertia.reshape((*body_shape, 9))
 
         # Initialize ProxyArray wrappers
         self._pin_proxy_arrays()
