@@ -219,7 +219,7 @@ class RenderContext:
         self._consumers_finalized = True
 
     def write_visual_materials(
-        self, materials: list[Any], channels: dict[str, torch.Tensor], env_ids: torch.Tensor | None = None
+        self, materials: list[Any], channels: dict[str, torch.Tensor], env_ids: torch.Tensor | slice | None = None
     ) -> None:
         """Update selected rows and dispatch the already-compiled backend writers."""
         if not materials or not channels:
@@ -232,13 +232,16 @@ class RenderContext:
 
         device = next(iter(self._visual_material_batches_by_channel.values())).values.device
         count = materials[0].num_instances if per_env else 1
-        if env_ids is None:
+        if env_ids is None or isinstance(env_ids, slice):
             env_key = (device, count)
             selected = self._visual_material_env_ids.get(env_key)
             if selected is None:
                 env_tensor = torch.arange(count, dtype=torch.int32, device=device)
                 selected = (env_tensor, wp.from_torch(env_tensor, dtype=wp.int32))
                 self._visual_material_env_ids[env_key] = selected
+            if isinstance(env_ids, slice):
+                env_tensor = selected[0][env_ids]
+                selected = (env_tensor, wp.from_torch(env_tensor, dtype=wp.int32))
         else:
             env_tensor = env_ids.to(device=device, dtype=torch.int32)
             selected = (env_tensor, wp.from_torch(env_tensor, dtype=wp.int32))

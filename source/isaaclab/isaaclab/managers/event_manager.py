@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
@@ -122,17 +121,19 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: torch.Tensor | slice | None = slice(None)) -> dict[str, float]:
+        """Reset event state for device indices or a slice, defaulting to all environments.
+
+        None is also accepted and normalized to ``slice(None)``. The selector is passed directly to stateful terms.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
 
-        # resolve number of environments
-        if env_ids is None:
-            num_envs = self._env.num_envs
-        else:
-            num_envs = len(env_ids)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # if we are doing interval based events then we need to reset the time left
         # when the episode starts. otherwise the counter will start from the last time
         # for that environment
@@ -154,7 +155,7 @@ class EventManager(ManagerBase):
     def apply(
         self,
         mode: str,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -175,6 +176,8 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
+                Reset mode accepts a slice or one-dimensional int32/int64 indices on the environment device.
+                Slices pass through to callbacks unless cooldown filtering selects an irregular subset.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -208,6 +211,8 @@ class EventManager(ManagerBase):
             )
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
+        if mode == "reset" and env_ids is None:
+            env_ids = slice(None)
 
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # initialize class-based terms if not already initialized (for non-prestartup modes)
@@ -239,10 +244,6 @@ class EventManager(ManagerBase):
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
                 min_step_count = term_cfg.min_step_count_between_reset
-                # resolve the environment indices
-                if env_ids is None:
-                    env_ids = slice(None)
-
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
@@ -262,8 +263,9 @@ class EventManager(ManagerBase):
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
 
                     # select the valid environment indices based on the trigger
-                    if env_ids == slice(None):
-                        valid_env_ids = valid_trigger.nonzero().flatten()
+                    if isinstance(env_ids, slice):
+                        start, _, step = env_ids.indices(self.num_envs)
+                        valid_env_ids = valid_trigger.nonzero().flatten() * step + start
                     else:
                         valid_env_ids = env_ids[valid_trigger]
 
