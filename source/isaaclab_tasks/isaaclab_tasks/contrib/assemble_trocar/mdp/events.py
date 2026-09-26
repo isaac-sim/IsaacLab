@@ -64,7 +64,8 @@ def reset_task_stage(
     s.last_debug_print_step = -1
 
     if print_log:
-        logger.debug("Reset task stage for %d environment(s)", len(env_ids))
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        logger.debug("Reset task stage for %d environment(s)", num_envs)
 
 
 def reset_tray_with_random_rotation(
@@ -95,7 +96,8 @@ def reset_tray_with_random_rotation(
             - float value: Random rotation between -value and +value degrees
             Examples: (0, 10), (-5, 15), 5.0 (equivalent to (-5, 5))
     """
-    if len(env_ids) == 0:
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    if num_envs == 0:
         return
 
     # Parse rotation_range parameter
@@ -142,13 +144,13 @@ def reset_tray_with_random_rotation(
             deterministic_seed = int(torch.initial_seed())
         u = _deterministic_uniform_0_1_from_ids(env, env_ids, deterministic_seed)  # (num_envs,)
     else:
-        u = torch.rand(len(env_ids), device=env.device)
+        u = torch.rand(num_envs, device=env.device)
     random_yaw = u * (max_angle_rad - min_angle_rad) + min_angle_rad  # (num_envs,)
 
     # Create rotation quaternion for yaw (rotation around Z-axis)
     # XYZW: quat = [x, y, z, w] = [0, 0, sin(θ/2), cos(θ/2)]
     half_angle = random_yaw / 2.0
-    delta_quat = torch.zeros(len(env_ids), 4, device=env.device)
+    delta_quat = torch.zeros(num_envs, 4, device=env.device)
     delta_quat[:, 2] = torch.sin(half_angle)  # z
     delta_quat[:, 3] = torch.cos(half_angle)  # w
 
@@ -178,7 +180,7 @@ def reset_tray_with_random_rotation(
     trocar_1_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_1_default_pose[:, 3:7])
     trocar_2_new_pose[:, 3:7] = quat_mul(delta_quat, trocar_2_default_pose[:, 3:7])
 
-    zero_velocity = torch.zeros(len(env_ids), 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
+    zero_velocity = torch.zeros(num_envs, 6, device=env.device)  # [lin_vel(3), ang_vel(3)]
 
     tray.write_root_pose_to_sim_index(root_pose=tray_new_pose, env_ids=env_ids)
     trocar_1.write_root_pose_to_sim_index(root_pose=trocar_1_new_pose, env_ids=env_ids)
@@ -232,7 +234,8 @@ def reset_robot_to_default_joint_positions(
         env_ids: The environment indices to reset.
         robot_cfg: Scene entity config for the robot.
     """
-    if len(env_ids) == 0:
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    if num_envs == 0:
         return
 
     # Get robot asset

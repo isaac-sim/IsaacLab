@@ -104,9 +104,9 @@ class BaseRayCaster(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
-        # resolve to indices for torch indexing
+        # determine the selected batch size
         if env_ids is not None:
-            num_envs_ids = len(env_ids)
+            num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         elif env_mask is not None:
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             num_envs_ids = len(env_ids)
