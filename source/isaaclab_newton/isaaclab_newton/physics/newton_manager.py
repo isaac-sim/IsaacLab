@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import ctypes
 import gc
 import inspect
 import logging
@@ -20,15 +19,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import torch
 import warp as wp
-
-# Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
-# cudaStreamCaptureModeRelaxed (2) allows the RTX compositor's background
-# CUDA stream to keep running during capture without invalidating it.
-# Match the CUDA runtime already loaded by PyTorch.
-try:
-    _cudart = ctypes.CDLL(f"libcudart.so.{torch.version.cuda.split('.')[0]}") if torch.version.cuda else None
-except OSError:
-    _cudart = None
 
 
 @contextlib.contextmanager
@@ -72,7 +62,7 @@ from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverKamino, SolverMuJoCo
+from newton.solvers import SolverBase, SolverMuJoCo
 from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
@@ -362,7 +352,6 @@ class NewtonManager(PhysicsManager):
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
-    :meth:`_requires_initial_reset_before_graph_capture`,
     :meth:`_reset_solver_internals`,
     :meth:`_solver_specific_clear`, :meth:`_check_solver_status`, and
     :meth:`_log_solver_debug`.
@@ -718,41 +707,15 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
 
-        # Lazy CUDA graph capture
+        # Reset-authored state and persistent solver resources must be ready before capture.
+        cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        capture_pending = cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
-        state_reconciled = False
-        if capture_pending and cls._usdrt_stage is None:
-            # Reconcile reset-authored solver resources before standard capture.
-            cls.forward()
-            state_reconciled = True
-
-        if capture_pending:
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
+            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                NewtonManager._graph = cls._capture_graph(simulate)
             NewtonManager._graph_capture_pending = False
-            if cls._usdrt_stage is None:
-                simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                    with _paused_gc(), wp.ScopedCapture(device=device, force_module_load=False) as capture:
-                        simulate()
-                NewtonManager._graph = capture.graph
-                logger.info("Newton CUDA graph captured (deferred standard mode)")
-            else:
-                NewtonManager._graph = cls._capture_relaxed_graph(device)
-                if cls._graph is not None:
-                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                    # first step() inside graph capture. Replay once to pin those
-                    # memory-pool addresses before any eager solver.reset() call.
-                    if isinstance(cls._solver, SolverKamino):
-                        wp.capture_launch(cls._graph)
-                    logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
-                else:
-                    logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
-
-        # Reconcile authored state after any mutating graph warmup and before the requested physics step.
-        if not state_reconciled:
-            cls.forward()
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -1862,18 +1825,9 @@ class NewtonManager(PhysicsManager):
     def initialize_solver(cls) -> None:
         """Initialize the solver and collision pipeline.
 
-        Thin orchestrator: delegates solver construction to
-        :meth:`_build_solver` (overridden by each solver subclass), allocates
-        the collision pipeline (when applicable) via
-        :meth:`_initialize_contacts`, then either captures the CUDA graph
-        immediately or defers capture until the first :meth:`step` call
-        (RTX-active path).
-
-        .. warning::
-            When using a CUDA-enabled device, the simulation is graphed.
-            This means the function steps the simulation once to capture the
-            graph, so it should only be called after everything else in the
-            simulation is initialized.
+        Construct the solver and contacts, establish the initial body state, and schedule
+        graph capture for the first step after the environment has authored its initial state.
+        Initialization and capture do not advance physics.
         """
         cfg = PhysicsManager._cfg
         if cfg is None:
@@ -1913,74 +1867,27 @@ class NewtonManager(PhysicsManager):
 
         # Establish the initial kinematically-consistent body state through the
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
-        # Runs before graph capture below so the capture warmup sees a valid body_q.
         cls._eval_fk(None, None)
         cls._mark_transforms_changed()
 
-        # Fully graphable Newton actuators defer capture until ``set_decimation``
-        # provides the environment's final decimation value. Other paths capture
-        # the solver here; non-graphable actuators otherwise leave it eager.
-        if not cls._is_all_graphable():
-            cls._capture_or_defer_graph()
+        cls._invalidate_graph()
 
     @classmethod
-    def _capture_or_defer_graph(cls) -> None:
-        """Capture (or schedule deferred capture of) the CUDA graph.
-
-        Called by :meth:`start_simulation` and :meth:`set_decimation`
-        whenever the graph needs to be (re-)captured.
-
-        * **No USDRT / headless**: captures immediately via
-          ``wp.ScopedCapture`` unless the solver requires reset-dependent setup.
-        * **RTX active**: defers capture to the first :meth:`step` call
-          via :meth:`_capture_relaxed_graph`, because RTX background
-          streams are not yet idle during initialisation.
-        * **CUDA graphs disabled**: clears the graph reference.
-        """
+    def _invalidate_graph(cls) -> None:
+        """Schedule capture after reset and decimation setup, without advancing physics."""
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cfg is None or device is None:
+        if cfg is None or device is None or not cfg.use_cuda_graph or "cuda" not in device:
             return
-
-        use_cuda_graph = cfg.use_cuda_graph and "cuda" in device
-        if use_cuda_graph and not cls._supports_cuda_graph_capture():
-            NewtonManager._graph = None
-            NewtonManager._graph_capture_pending = False
+        if not cls._supports_cuda_graph_capture():
             logger.warning(
                 "%s does not support CUDA graph capture for the current solver configuration; using eager execution.",
                 cls.__name__,
             )
             return
-
-        if use_cuda_graph:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:", activity="Capturing CUDA graph"):
-                if cls._usdrt_stage is None and not cls._requires_initial_reset_before_graph_capture():
-                    simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-                    with _paused_gc(), wp.ScopedCapture(device=device) as capture:
-                        simulate()
-                    NewtonManager._graph = capture.graph
-                    logger.info("Newton CUDA graph captured (standard Warp mode)")
-
-                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                    # first step() inside graph capture. Replay once to pin those
-                    # memory-pool addresses before any eager solver.reset() call.
-                    if isinstance(cls._solver, SolverKamino):
-                        wp.capture_launch(cls._graph)
-                else:
-                    # RTX capture and reset-dependent headless capture both wait until
-                    # the first step. RTX retains its existing relaxed capture path.
-                    NewtonManager._graph = None
-                    NewtonManager._graph_capture_pending = True
-                    reason = "initial environment reset" if cls._usdrt_stage is None else "RTX active"
-                    logger.info("Newton CUDA graph capture deferred until first step() (%s)", reason)
-        else:
-            NewtonManager._graph = None
-
-    @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Return whether graph capture must wait until the initial environment reset."""
-        return False
+        NewtonManager._graph_capture_pending = True
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
@@ -1988,133 +1895,19 @@ class NewtonManager(PhysicsManager):
         return True
 
     @classmethod
-    def _capture_relaxed_graph(cls, device: str, capture_target: Callable[[], None] | None = None):
-        """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
-
-        Uses a hybrid approach to work around two conflicting requirements:
-
-        1. RTX background threads use CUDA's legacy stream (stream 0) for async operations
-           like ``cudaImportExternalMemory``.  A standard ``wp.ScopedCapture()`` uses
-           ``cudaStreamCaptureModeThreadLocal`` on Warp's default stream (a blocking stream).
-           A blocking stream synchronises implicitly with legacy stream 0, so RTX ops inside
-           the capture window fail with error 906.
-
-        2. ``mujoco_warp`` calls ``wp.capture_while`` inside ``solver.solve()``.
-           ``wp.capture_while`` checks ``device.captures`` (populated by ``wp.capture_begin``)
-           to decide whether to insert a conditional graph node (graph-capture path) or to run
-           eagerly with ``wp.synchronize_stream`` (non-capture path).  Without an entry in
-           ``device.captures``, it synchronises the capturing stream — which raises "Cannot
-           synchronize stream while graph capture is active".
-
-        Solution:
-
-        - Create a **non-blocking** stream (``cudaStreamNonBlocking = 0x01``): no implicit sync
-          with legacy stream 0, so RTX background threads are unaffected (avoids error 906).
-        - Start the capture externally via ``cudaStreamBeginCapture`` with
-          ``cudaStreamCaptureModeRelaxed`` so no other CUDA activity is disrupted.
-        - Call ``wp.capture_begin(external=True, stream=fresh_stream)``:
-          this registers the capture in Warp's ``device.captures`` *without* calling
-          ``cudaStreamBeginCapture`` (already done) and *without* changing device-wide memory
-          pool attributes (avoids error 900 in RTX's ``cudaMallocAsync``).
-        - Run the simulate function inside ``ScopedStream(fresh_stream)``:
-          kernels dispatch to ``fresh_stream`` and are captured; ``wp.capture_while`` finds the
-          active capture and inserts a conditional graph node instead of synchronising.
-        - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
-        - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
-
-        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is
-        excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
-
-        When ``capture_target`` is provided it is captured instead of the physics simulate
-        function (used for secondary graphs such as the sensor manager graph).
-
-        Returns a ``wp.Graph`` on success, or ``None`` on failure.
-        """
-        if _cudart is None:
-            logger.warning("libcudart not available; cannot use relaxed graph capture")
-            return None
-
-        # Warmup: pre-allocate all solver scratch buffers so the capture window has
-        # no new cudaMalloc calls (which are forbidden inside graph capture).
-        if capture_target is not None:
-            simulate = capture_target
-        else:
-            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-        with wp.ScopedDevice(device):
-            simulate()
-        wp.synchronize_stream(wp.get_stream(device))
-
-        # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
-        raw_handle = ctypes.c_void_p()
-        ret = _cudart.cudaStreamCreateWithFlags(ctypes.byref(raw_handle), ctypes.c_uint(0x01))
-        if ret != 0:
-            logger.warning("cudaStreamCreateWithFlags(NonBlocking) failed (code %d)", ret)
-            return None
-        fresh_handle = raw_handle.value
-        fresh_stream = wp.Stream(device, cuda_stream=fresh_handle, owner=False)
-
-        with _paused_gc():
-            # Start capture in relaxed mode BEFORE entering ScopedStream.
-            ret = _cudart.cudaStreamBeginCapture(ctypes.c_void_p(fresh_handle), ctypes.c_int(2))
-            if ret != 0:
-                _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-                logger.warning("cudaStreamBeginCapture(relaxed) failed (code %d)", ret)
-                return None
-
-            try:
-                wp.capture_begin(stream=fresh_stream, external=True)
-            except Exception as exc:
-                raw_graph = ctypes.c_void_p()
-                _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
-                if raw_graph.value:
-                    _cudart.cudaGraphDestroy(raw_graph)
-                _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-                logger.warning("wp.capture_begin(external=True) failed: %s", exc)
-                return None
-
-            err_during_capture = None
-            with wp.ScopedStream(fresh_stream, sync_enter=False):
-                try:
-                    simulate()
-                except Exception as exc:
-                    err_during_capture = exc
-
-            if err_during_capture is None:
-                try:
-                    graph = wp.capture_end(stream=fresh_stream)
-                except Exception as exc:
-                    err_during_capture = exc
-                    graph = None
-            else:
-                with contextlib.suppress(Exception):
-                    wp.capture_end(stream=fresh_stream)
-                graph = None
-
-            raw_graph = ctypes.c_void_p()
-            end_ret = _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
-            _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-
-        if err_during_capture is not None:
-            if raw_graph.value:
-                _cudart.cudaGraphDestroy(raw_graph)
-            logger.warning("Newton graph capture aborted during simulate: %s", err_during_capture)
-            return None
-
-        if end_ret != 0 or not raw_graph.value:
-            logger.warning("cudaStreamEndCapture failed (code %d)", end_ret)
-            return None
-
-        # Patch the Warp Graph object with the raw CUDA graph handle obtained
-        # from our external cudaStreamEndCapture.  wp.capture_end(external=True)
-        # returns a Graph with a stale handle; we overwrite it so that
-        # wp.capture_launch() replays the correct graph.
-        # NOTE: This relies on Warp internals (Graph.graph / Graph.graph_exec).
-        # Setting graph_exec = None triggers lazy cudaGraphInstantiate on
-        # the next capture_launch.  Replace with public API when available.
-        graph.graph = raw_graph
-        graph.graph_exec = None
-        return graph
+    def _capture_graph(cls, capture_target: Callable[[], None]) -> wp.Graph:
+        """Record physics or scene queries without an eager warmup or graph replay."""
+        device = PhysicsManager._device
+        stream = wp.get_stream(device)
+        mode = wp.CaptureMode.THREAD_LOCAL
+        if cls._usdrt_stage is not None:
+            # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
+            stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
+            mode = wp.CaptureMode.RELAXED
+        with _paused_gc(), wp.ScopedStream(stream):
+            with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+                capture_target()
+        return capture.graph
 
     # ------------------------------------------------------------------
     # Building blocks — used by _simulate_full / _simulate_physics_only
@@ -2179,12 +1972,17 @@ class NewtonManager(PhysicsManager):
         physics_dt = cls._solver_dt * cls._num_substeps
         contacts = cls._contacts if cls._needs_collision_pipeline else None
 
-        for _ in range(cls._decimation):
+        for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
 
             if cls._adapter is not None:
-                cls._adapter.step(cls.backend.state_0, cls.backend.control, physics_dt)
+                cls._adapter.step(
+                    cls.backend.state_0,
+                    cls.backend.control,
+                    physics_dt,
+                    swap_state=cls._decimation % 2 == 0 or i < cls._decimation - 1,
+                )
             for cb in cls._post_actuator_callbacks:
                 cb()
 
@@ -2397,11 +2195,6 @@ class NewtonManager(PhysicsManager):
         graph_tasks = tuple(
             update_fn for name, update_fn in cls._sensor_tasks.items() if name not in cls._sensor_eager_tasks
         )
-        with wp.ScopedDevice(PhysicsManager._device):
-            cls._refit_sensor_bvh()
-            for update_fn in graph_tasks:
-                update_fn()
-
         cls._sensor_flags = wp.zeros(1 + len(graph_tasks), dtype=wp.int32, device=PhysicsManager._device)
         cls._sensor_flags_host = np.zeros(1 + len(graph_tasks), dtype=np.int32)
 
@@ -2411,17 +2204,11 @@ class NewtonManager(PhysicsManager):
             for index, update_fn in enumerate(graph_tasks):
                 wp.capture_if(cls._sensor_flags[index + 1 : index + 2], update_fn)
 
-        device = PhysicsManager._device
-        if cls._usdrt_stage is not None:
-            cls._sensor_graph = cls._capture_relaxed_graph(device, capture_target=pipeline)
-        else:
-            try:
-                with wp.ScopedCapture(device=device) as capture:
-                    pipeline()
-                cls._sensor_graph = capture.graph
-            except Exception:
-                logger.exception("[NewtonManager] sensor CUDA graph capture failed")
-                cls._sensor_graph = None
+        try:
+            cls._sensor_graph = cls._capture_graph(pipeline)
+        except Exception:
+            logger.exception("[NewtonManager] sensor CUDA graph capture failed")
+            cls._sensor_graph = None
         if cls._sensor_graph is None:
             cls._sensor_flags = None
             cls._sensor_flags_host = None
@@ -2716,15 +2503,12 @@ class NewtonManager(PhysicsManager):
         (actuators + solver substeps, repeated *decimation* times)
         is captured as a single CUDA graph.
 
-        If a CUDA graph was previously captured, it is automatically
-        re-captured with the new decimation count using the same strategy as
-        :meth:`start_simulation`: standard ``wp.ScopedCapture`` when no USDRT
-        stage is active, or deferred relaxed capture when RTX is running.
-        Solvers with reset-dependent topology may also defer standard capture.
+        Invalidate the existing graph when the loop changes. Its replacement is captured
+        immediately before the next requested step, after authored state is reconciled.
         """
         cls._decimation = max(1, decimation)
         if cls._is_all_graphable():
-            cls._capture_or_defer_graph()
+            cls._invalidate_graph()
 
     @classmethod
     def handles_decimation(cls) -> bool:

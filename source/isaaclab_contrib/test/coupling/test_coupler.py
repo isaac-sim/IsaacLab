@@ -461,7 +461,8 @@ def test_mpm_entry_forwards_config_and_execution_policy():
 @pytest.mark.parametrize(
     ("grid_type", "max_active_cell_count", "expected"),
     [
-        pytest.param("fixed", -1, True, id="fixed"),
+        pytest.param("fixed", 1024, True, id="bounded_fixed"),
+        pytest.param("fixed", -1, False, id="unbounded_fixed"),
         pytest.param("sparse", 1024, True, id="bounded_sparse"),
         pytest.param("sparse", -1, False, id="unbounded_sparse"),
         pytest.param("dense", -1, False, id="dense"),
@@ -484,7 +485,6 @@ def test_mpm_grid_controls_coupled_cuda_graph_support(monkeypatch, grid_type, ma
     )
 
     assert NewtonCouplerManager._supports_cuda_graph_capture() is expected
-    assert NewtonCouplerManager._requires_initial_reset_before_graph_capture() is True
 
 
 def test_coupler_clear_releases_nested_manager_state(monkeypatch):
