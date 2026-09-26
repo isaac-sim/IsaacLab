@@ -135,7 +135,9 @@ Empty PhysX simulations and tools that supply a native Newton builder need no du
 ClonePlan
 ~~~~~~~~~
 
-A plan stores topology only. Asset prototypes are reusable cfg definitions; each world
+``ClonePlan`` holds a ``topology`` component and optional world ``positions`` [m].
+All four prototype fields belong to :class:`~isaaclab.cloner.PrototypeWorldTopology`.
+Asset prototypes are reusable cfg definitions; each world
 prototype lists the asset-prototype indices it contains. Repeating an index creates
 another instance with the prototype's default pose. Backends assign native names.
 
@@ -143,7 +145,7 @@ another instance with the prototype's default pose. Backends assign native names
    :header-rows: 1
    :widths: 25 75
 
-   * - Field
+   * - Topology field
      - Meaning
    * - ``asset_prototypes``
      - Concrete asset cfg references, one per reusable prototype.
@@ -162,7 +164,9 @@ For two reusable assets, four compositions, and sixteen destination worlds:
         (banana_cfg, franka_cfg),
         ((0, 1), (0, 1, 1), (0, 0, 1), (1,)),
         16,
+        positions=cloner.grid_transforms(16, spacing=2.0)[0],
     )
+    topology = plan.topology
 
 .. code-block:: text
 
@@ -182,8 +186,9 @@ duplicates prototype definitions to represent weights.
 
 ``make_clone_plan`` does not mutate cfgs or construct a stage. In the normal workflow,
 ``InteractiveScene`` resolves spawner variants into concrete asset prototypes and owns
-authoring and replication. Its USD context holds native source paths, destination
-templates, and environment origins. Other backends import those declared prototypes
+authoring and replication. Environment origins stay on ``plan.positions``; topology
+queries do not need them. Its USD context holds native source paths and destination
+templates. Other backends import those declared prototypes
 and realize the same topology. Clone contexts do not own native runtime resources.
 
 Only declared subtrees are cloned. Declaring ``env_0/Robot`` does not authorize cloning
@@ -193,54 +198,95 @@ before batched native replication; this does not expand its USD import scope.
 Querying topology and native paths
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Topology queries depend only on the plan and return 1-D NumPy arrays of prototype IDs with dtype ``int32``:
+Path matching runs on the host and returns NumPy ``int32`` prototype IDs:
 
 .. code-block:: python
 
-    cloner.query.get_asset_prototypes(plan, banana_cfg.prim_path)  # array([0], dtype=int32)
-    cloner.query.get_world_prototypes(plan, banana_cfg.prim_path)  # array([0, 1, 2], dtype=int32)
+    cloner.path.get_asset_prototypes(plan.topology, banana_cfg.prim_path)  # array([0])
+    cloner.path.get_world_prototypes(plan.topology, banana_cfg.prim_path)  # array([0, 1, 2])
 
-    cfg = plan.asset_prototypes[asset_id]
-    start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-    asset_ids = plan.world_prototypes[start:end]
+    cfg = plan.topology.asset_prototypes[asset_id]
+    start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+    asset_ids = plan.topology.world_prototypes[start:end]
 
-Omitting ``path_expr`` selects all definitions, including unused prototypes; world-prototype IDs
-include ``-1`` for the shared world, even when empty. A filter is either the exact declared
-cfg ``prim_path`` or a regular expression matched against that complete path string.
-World filtering selects compositions containing matching assets, without removing their
-other members or repeated instances. These IDs identify prototypes, not destination worlds.
+Omitting ``path_expr`` selects all definitions, including unused prototypes and shared
+world prototype ``-1``. A filter matches the exact declared cfg ``prim_path`` or a regular
+expression against that complete string. Generated native paths are not matched.
 
-The complementary queries map prototypes to actual world indices:
+Numeric queries accept prototype IDs, not strings. All three return
+``(world_indices, world_starts)``, with one independent result per input ID:
+
+* ``get_asset_prototype_world_index``: one world index per asset instance.
+* ``get_asset_prototype_unique_world_index``: each containing world once per queried asset.
+* ``get_world_prototype_world_index``: worlds using each queried world prototype.
+
+For a compact version of the Banana/Franka example, select one of each world prototype:
 
 .. code-block:: python
 
-    # World prototype 1 occupies worlds 4 through 7 in the sixteen-world example above.
-    cloner.query.get_world_prototype_world_index(plan, 1)  # array([4, 5, 6, 7], dtype=int32)
-    cloner.query.get_world_prototype_world_index(plan, banana_cfg.prim_path)
-    # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11], dtype=int32)
+    plan = cloner.make_clone_plan(
+        (banana_cfg, franka_cfg), ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), num_worlds=4
+    )
+    worlds, starts = cloner.query.get_asset_prototype_world_index(plan.topology, np.array([0, 1, 0]))
+    # worlds = [0, 1, 2, 2,   0, 1, 1, 2, 3,   0, 1, 2, 2]
+    # starts = [[0, 0, 1, 2, 4, 4],
+    #           [4, 4, 5, 7, 8, 9],
+    #           [9, 9, 10, 11, 13, 13]]
+    begin, end = starts[1, 2:4]  # Query 1, world 1: worlds[5:7] == [1, 1].
 
-    # Franka is asset prototype 1 and occurs twice in each of those worlds.
-    world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan, 1)
-    # world_indices:
-    # array([0, 1, 2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
-    # world_starts (empty shared world first):
-    # array([0, 0, 1, 2, 3, 4, 6, 8, 10, 12, 13, 14, 15, 16, 17, 18, 19, 20], dtype=int32)
-    start, end = world_starts[5:7]  # World 4 contains selected instances [4:6].
-    worlds = cloner.query.get_asset_prototype_unique_world_index(plan, franka_cfg.prim_path)
-    # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
+``world_indices`` is flat ``int32``; ``world_starts`` is ``int64`` with shape
+``[num_queries, num_worlds + 2]``. Query ``q``, world ``w`` uses
+``world_starts[q, w + 1 : w + 3]``. The leading slice belongs to shared world ``-1``;
+empty worlds have equal start/end offsets. A row's first and last offsets delimit the
+whole query, so no additional query-offset array is needed. Repeated query IDs retain
+separate results. A scalar integer is a batch of length one. These offsets address
+selected plan instances, not native body or particle buffers.
 
-``get_asset_prototype_world_index`` accepts an integer prototype index or the same declared-path
-expression as ``get_asset_prototypes``. It returns ``(world_indices, world_starts)``:
-one world index per selected asset instance and offsets for each world's instances.
-``world_starts[w + 1 : w + 3]`` gives world ``w``'s start/end offsets, with shared world ``-1``
-first. Empty worlds have equal start/end offsets. These offsets address selected plan instances,
-not native body or particle buffers. ``get_asset_prototype_unique_world_index`` returns only the
-array of containing worlds, each included once. All arrays are 1-D NumPy ``int32`` arrays.
-``get_world_prototype_world_index`` accepts a world-prototype index or a declared-path expression
-interpreted by ``get_world_prototypes`` and returns each matching destination world once.
-``get_world_prototype_world_index(plan, -1)`` returns ``[-1]``, even for an empty shared world;
-an unused world prototype returns an empty array. Assets with no instances return empty
-world indices and all-zero starts; the unique query returns an empty array.
+Unused IDs produce empty slices. Querying world prototype ``-1`` returns the shared
+world even when it contains no assets. Resolve multiple path matches first with
+``cloner.path``, then pass the resulting integer array to a numeric query.
+
+Explicit Warp materialization
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Planning and initialization queries stay in NumPy. When runtime code needs device-side
+queries, explicitly materialize the topology's three numeric arrays. The returned
+:class:`~isaaclab.cloner.PrototypeWorldTopology` keeps the same host asset cfg references:
+
+.. code-block:: python
+
+    import warp as wp
+
+    topology = cloner.to_warp(plan.topology, device="cuda:0")
+    query_ids = wp.array([0, 1, 0], dtype=wp.int32, device="cuda:0")
+
+    # A safe capacity for any IDs: each query can select at most every instance.
+    counts = np.diff(plan.topology.world_prototype_starts)
+    num_instances = counts[0] + counts[plan.topology.world_prototype_layout + 1].sum()
+    out = (
+        wp.empty(len(query_ids) * int(num_instances), dtype=wp.int32, device="cuda:0"),
+        wp.empty((len(query_ids), len(plan.topology.world_prototype_layout) + 2), dtype=wp.int64, device="cuda:0"),
+    )
+    cloner.query.get_asset_prototype_world_index(topology, query_ids, out=out)
+
+``to_warp`` has no device cache: the lifecycle owner calls it once and shares the
+returned topology. Matching contiguous NumPy storage is borrowed on CPU; CUDA
+materialization copies it. Both keep their arrays alive after the host plan is released.
+Treat topology as read-only after planning. Cfgs stay on the host within the topology;
+positions and native names are not part of this materialization, and
+there is no host/device synchronization of later edits.
+
+Warp queries require resident ``int32`` IDs and preallocated output arrays. Warm the query
+once before CUDA graph capture, then replay with changed ID contents and the same buffers.
+No query converts the plan, allocates result buffers, or reads results back to the CPU.
+The output prefix ends at ``world_starts[-1, -1]``; device consumers use the offsets
+directly. Allocate for every selection allowed during replay. If capacity is insufficient,
+the query reports the required offsets but leaves indices untouched, never a partial result.
+For the world-prototype query, ``num_queries * (num_worlds + 1)`` is a safe capacity.
+An empty batch returns empty indices and zero rows of boundaries.
+
+When both topology and selection are fixed, compute the result once in NumPy and upload
+that result instead of repeating the query during training.
 
 Native names are separate from topology. Compose path primitives with plan indexing
 when a consumer starts with a concrete destination path rather than an asset cfg:
@@ -252,9 +298,9 @@ when a consumer starts with a concrete destination path rather than an asset cfg
     path = "/World/envs/env_2/Robot/hand"
     world, _ = cloner.path.match(path, usd.env_template)
     world_id = int(world)
-    world_prototype_id = plan.world_prototype_layout[world_id]
-    start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-    asset_ids = plan.world_prototypes[start:end]
+    world_prototype_id = plan.topology.world_prototype_layout[world_id]
+    start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+    asset_ids = plan.topology.world_prototypes[start:end]
 
     # Names distinguish repeated occurrences of the same asset prototype.
     matches = []
@@ -267,7 +313,7 @@ when a consumer starts with a concrete destination path rather than an asset cfg
     source, suffix = min(matches, key=lambda item: len(item[1]))
     hand = usd.stage.GetPrimAtPath(source + suffix)
 
-The path primitives do not inspect a plan or choose a representative world.
+Segment primitives such as ``match``, ``relative_to``, and ``rebase`` do not inspect a plan or choose a world.
 For a world expression, select the matching world IDs and process each relevant world
 prototype. Preserve member positions when matching repeated assets; prototype IDs alone
 do not distinguish their native names. A consumer that already knows its asset cfg can

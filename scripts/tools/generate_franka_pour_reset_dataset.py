@@ -628,7 +628,7 @@ class _Generator:
         from isaaclab import cloner
 
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        asset_ids = cloner.query.get_asset_prototypes(usd.plan, self.env._robot.cfg.prim_path)
+        asset_ids = cloner.path.get_asset_prototypes(usd.plan.topology, self.env._robot.cfg.prim_path)
         source_path = next(source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds))
         source_builder = copy_newton_clone_source(source_path)
         prototype_origin = -self.env.env_origins[0]
@@ -636,7 +636,7 @@ class _Generator:
         self.prototype = newton.ModelBuilder(up_axis=source_builder.up_axis)
         self.prototype.add_builder(source_builder, xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
-            asset_ids = cloner.query.get_asset_prototypes(usd.plan, self.env.scene["table"].cfg.prim_path)
+            asset_ids = cloner.path.get_asset_prototypes(usd.plan.topology, self.env.scene["table"].cfg.prim_path)
             table_source = next(
                 source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds)
             )

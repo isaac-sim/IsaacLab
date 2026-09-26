@@ -110,13 +110,10 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         (AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0))),),
         ((0,),),
         num_envs,
-    )
-    sim.set_clone_plan(plan)
-    sim.clone_contexts[lab_cloner.UsdReplicateContext] = lab_cloner.UsdReplicateContext(
-        sim.stage,
-        plan,
         positions=env_origins,
     )
+    sim.set_clone_plan(plan)
+    sim.clone_contexts[lab_cloner.UsdReplicateContext] = lab_cloner.UsdReplicateContext(sim.stage, plan)
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
     # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
     physics_scene_path = next(

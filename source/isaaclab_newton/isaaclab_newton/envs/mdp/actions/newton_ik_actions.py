@@ -176,7 +176,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
 
         # Finalize the controlled asset's retained prototype builder.
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        asset_ids = cloner.query.get_asset_prototypes(usd.plan, self._asset.cfg.prim_path)
+        asset_ids = cloner.path.get_asset_prototypes(usd.plan.topology, self._asset.cfg.prim_path)
         self._source_path = next(
             source for index, source, _, worlds in usd.instances if index in asset_ids and len(worlds)
         )

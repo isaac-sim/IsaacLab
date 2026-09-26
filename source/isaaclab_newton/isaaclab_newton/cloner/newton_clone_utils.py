@@ -303,9 +303,10 @@ def replicate_builder_mapping(
 
     Additional ``reference_instances`` supply path bindings, not geometry to import.
     """
+    topology = plan.topology
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
-    num_worlds = len(plan.world_prototype_layout)
+    num_worlds = len(topology.world_prototype_layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
     local_site_map = {
@@ -321,10 +322,10 @@ def replicate_builder_mapping(
                 else _invert_xform(xforms_np[world_ids[0]])
             )
     world_builders = {}
-    prototype_ids, first_world_ids = np.unique(plan.world_prototype_layout, return_index=True)
+    prototype_ids, first_world_ids = np.unique(topology.world_prototype_layout, return_index=True)
     for world_prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
-        start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-        members = plan.world_prototypes[start:end]
+        start, end = topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+        members = topology.world_prototypes[start:end]
         # Native names belong to the importer. The plan supplies composition and cardinality.
         by_asset = {}
         for asset_prototype_id, source, destination, targets in instances:
@@ -362,11 +363,11 @@ def replicate_builder_mapping(
         world_builders[world_prototype_id] = prototype, sites, components, particle_offsets
 
     # Preserve destination order, batching each contiguous run of an identical world prototype.
-    boundaries = np.r_[0, np.flatnonzero(np.diff(plan.world_prototype_layout)) + 1, num_worlds]
+    boundaries = np.r_[0, np.flatnonzero(np.diff(topology.world_prototype_layout)) + 1, num_worlds]
     for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True):
         if start == stop:
             continue
-        prototype, sites, components, particle_offsets = world_builders[int(plan.world_prototype_layout[start])]
+        prototype, sites, components, particle_offsets = world_builders[int(topology.world_prototype_layout[start])]
         base_shape, base_particle = builder.shape_count, builder.particle_count
         shape_offsets = base_shape + np.arange(stop - start) * prototype.shape_count
         particle_bases = base_particle + np.arange(stop - start) * prototype.particle_count

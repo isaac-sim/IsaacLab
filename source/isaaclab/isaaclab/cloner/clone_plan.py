@@ -3,11 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""World topology shared by every clone backend.
-
-Asset definitions, world membership, and destination selections are the only stored facts.
-Native names and placement belong to the backends that realize this topology.
-"""
+"""Prototype topology and placement shared by every clone backend."""
 
 from __future__ import annotations
 
@@ -17,30 +13,68 @@ from dataclasses import dataclass
 from typing import Any
 
 import numpy as np
+import warp as wp
 
 from .cloner_strategies import sequential
 
 
 @dataclass(frozen=True, eq=False)
-class ClonePlan:
-    """Asset prototypes and the world compositions instantiated from them."""
+class PrototypeWorldTopology:
+    """Asset definitions, world compositions, and their destination-world membership.
+
+    Arrays use NumPy storage for planning or Warp storage on one device for runtime queries.
+    Asset cfgs stay on the host. Treat the topology as read-only after planning;
+    :func:`to_warp` explicitly materializes its numeric arrays on a device.
+    """
 
     asset_prototypes: tuple[Any, ...]
     """Asset prototype configurations. Repeated memberships refer to the same definition."""
 
-    world_prototypes: np.ndarray
-    """Flat asset-prototype indices. Repeated indices represent distinct instances."""
+    world_prototypes: np.ndarray | wp.array
+    """Flat int32 asset-prototype indices. Repeated indices represent distinct instances."""
 
-    world_prototype_starts: np.ndarray
+    world_prototype_starts: np.ndarray | wp.array
     """Offsets into :attr:`world_prototypes`, starting with the shared world `-1`.
 
     Shared assets occupy ``world_prototypes[world_prototype_starts[0]:world_prototype_starts[1]]``.
     World prototype ``i`` occupies ``world_prototypes[world_prototype_starts[i + 1]:world_prototype_starts[i + 2]]``.
-    An empty shared world starts with ``[0, 0]``.
+    An empty shared world starts with ``[0, 0]``. Offsets have dtype int64.
     """
 
-    world_prototype_layout: np.ndarray
-    """World-prototype index per world, indexed by world ID; shared assets are not sampled."""
+    world_prototype_layout: np.ndarray | wp.array
+    """Int32 world-prototype index per world, indexed by world ID; shared assets are not sampled."""
+
+
+@dataclass(frozen=True, eq=False)
+class ClonePlan:
+    """Prototype topology and placement used to instantiate a scene."""
+
+    topology: PrototypeWorldTopology
+    """Asset definitions and world membership, independent of placement and native resources."""
+
+    positions: np.ndarray | None = None
+    """Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement."""
+
+
+def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopology:
+    """Materialize numeric topology on an explicitly selected device.
+
+    Args:
+        topology: Host topology. Contiguous arrays with matching dtypes are borrowed on CPU and copied on CUDA.
+        device: Warp device, such as ``"cpu"`` or ``"cuda:0"``.
+
+    Returns:
+        A new topology holding its arrays alive independently of the host topology. Call once during
+        initialization and share the result; this function does not cache, synchronize later
+        host edits, or transfer cfgs. The asset definitions are retained by reference.
+        Queries never call it implicitly.
+    """
+    return PrototypeWorldTopology(
+        asset_prototypes=topology.asset_prototypes,
+        world_prototypes=wp.array(topology.world_prototypes, dtype=wp.int32, device=device, copy=False),
+        world_prototype_starts=wp.array(topology.world_prototype_starts, dtype=wp.int64, device=device, copy=False),
+        world_prototype_layout=wp.array(topology.world_prototype_layout, dtype=wp.int32, device=device, copy=False),
+    )
 
 
 def make_clone_plan(
@@ -51,8 +85,9 @@ def make_clone_plan(
     weights: Sequence[float] | None = None,
     shared_assets: Sequence[int] = (),
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    positions: np.ndarray | None = None,
 ) -> ClonePlan:
-    """Select world compositions without assigning names, transforms, or native resources.
+    """Select world compositions and retain their optional placement without creating native resources.
 
     Args:
         asset_prototypes: Asset prototype definitions, retained by reference.
@@ -61,9 +96,10 @@ def make_clone_plan(
         weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
         shared_assets: Asset indices instantiated once in the shared world ``-1``.
         clone_strategy: Function selecting world-prototype indices from weights.
+        positions: Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement.
 
     Returns:
-        Flat topology with one leading shared-world slice and one selection per destination.
+        A plan holding the topology and placement. Topology starts with a shared-world slice.
     """
     asset_prototypes = tuple(asset_prototypes)
     compositions = (tuple(shared_assets), *(tuple(world) for world in world_prototypes))
@@ -88,10 +124,13 @@ def make_clone_plan(
     ):
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     return ClonePlan(
-        asset_prototypes=asset_prototypes,
-        world_prototypes=members.astype(np.int32, copy=False),
-        world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
-        world_prototype_layout=world_prototype_layout.astype(np.int32, copy=False),
+        topology=PrototypeWorldTopology(
+            asset_prototypes=asset_prototypes,
+            world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
+            world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
+            world_prototype_layout=np.ascontiguousarray(world_prototype_layout, dtype=np.int32),
+        ),
+        positions=positions,
     )
 
 

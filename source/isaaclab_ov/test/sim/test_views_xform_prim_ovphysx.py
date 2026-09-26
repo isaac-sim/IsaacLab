@@ -59,6 +59,8 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
         scene = InteractiveScene(InteractiveSceneCfg(num_envs=12, env_spacing=2.0))
         target_env_ids = tuple(range(scene.num_envs))
         path = "/World/envs/env_[^/]+/WorldCamera"
+        positions = np.zeros((scene.num_envs, 3), dtype=np.float32)
+        positions[:, 0] = np.arange(scene.num_envs) * 3 + 2
         plan = cloner.make_clone_plan(
             (
                 AssetBaseCfg(prim_path=path),
@@ -68,12 +70,9 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
             ((0, 0), (1, 1)) if repeated else ((0,), (1,)),
             scene.num_envs,
             weights=(10, 2),
+            positions=positions,
         )
-        positions = np.zeros((scene.num_envs, 3), dtype=np.float32)
-        positions[:, 0] = np.arange(scene.num_envs) * 3 + 2
-        sim.clone_contexts[cloner.UsdReplicateContext] = cloner.UsdReplicateContext(
-            sim.stage, plan, positions=positions
-        )
+        sim.clone_contexts[cloner.UsdReplicateContext] = cloner.UsdReplicateContext(sim.stage, plan)
         sim.set_clone_plan(plan)
         stage = sim_utils.get_current_stage()
         for env_id, offset in ((0, 0.25), (10, 0.5)):

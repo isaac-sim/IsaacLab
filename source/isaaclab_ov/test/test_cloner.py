@@ -91,8 +91,13 @@ def test_ovphysx_context_consumes_plan():
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
-    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),), ((0, 0),), 2)
-    usd = UsdReplicateContext(stage, plan, positions=np.array([[2, 0, 0], [5, 2, 3]], dtype=np.float32))
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
+        ((0, 0),),
+        2,
+        positions=np.array([[2, 0, 0], [5, 2, 3]], dtype=np.float32),
+    )
+    usd = UsdReplicateContext(stage, plan)
     simulation = SimpleNamespace(stage=stage, physics_manager=manager, clone_contexts={UsdReplicateContext: usd})
 
     OvPhysxReplicateContext(simulation).replicate(plan, (0,))

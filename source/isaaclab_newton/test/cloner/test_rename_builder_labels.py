@@ -21,7 +21,7 @@ from isaaclab_newton.physics import visualization_deformables as visualization_d
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext, make_clone_plan
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     deformable_prototypes,
@@ -35,8 +35,10 @@ class TestReplicateBuilderMapping(unittest.TestCase):
     def test_world_prototypes_preserve_repeated_instances_and_default_poses(self):
         """Two reusable assets compose four world prototypes and 36 distinct native instances."""
         cfgs = tuple(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/" + name) for name in ("Banana", "Franka"))
-        plan = make_clone_plan(cfgs, ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16)
-        usd = UsdReplicateContext(None, plan, positions=np.zeros((16, 3), dtype=np.float32))
+        plan = make_clone_plan(
+            cfgs, ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, positions=np.zeros((16, 3), dtype=np.float32)
+        )
+        usd = UsdReplicateContext(None, plan)
         assets = {}
         for _, source, _, world_ids in usd.instances:
             if not len(world_ids) or source in assets:
@@ -49,7 +51,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
                 builder,
                 plan,
                 usd.instances,
-                usd.positions,
+                usd.plan.positions,
                 np.tile([0, 0, 0, 1], (16, 1)),
                 assets,
                 env_template=usd.env_template,
@@ -178,22 +180,22 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertIsNone(stage_info)
         self.assertEqual(site_index_map, {})
 
-        plan = make_clone_plan(
-            (
-                AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),
-                AssetBaseCfg(prim_path="/World"),
-            ),
-            ((0,),),
-            2,
-            shared_assets=(1,),
-        )
         for positions in (np.array([[3, 0, 0], [5, 0, 0]], dtype=np.float32), None):
             with self.subTest(positions=positions):
-                self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
-                    stage,
-                    plan,
-                    env_template="/Copies/env_{}",
+                plan = make_clone_plan(
+                    (
+                        AssetBaseCfg(
+                            prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")
+                        ),
+                        AssetBaseCfg(prim_path="/World"),
+                    ),
+                    ((0,),),
+                    2,
+                    shared_assets=(1,),
                     positions=positions,
+                )
+                self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
+                    stage, plan, env_template="/Copies/env_{}"
                 )
                 builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
                 self.assertCountEqual(
@@ -289,12 +291,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
             (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=robot_path)),),
             ((0,),),
             2,
-        )
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
-            stage,
-            plan,
             positions=np.asarray(((0, 0, 0), (2, 0, 0)), dtype=np.float32),
         )
+        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
         model = builder.finalize(device="cpu")
 
@@ -318,20 +317,21 @@ class TestVisualizationClonePlan(unittest.TestCase):
             UsdGeom.Cube.Define(stage, f"{env_path}/Object/source_{env_id}_visual").CreateSizeAttr(0.2)
 
         plan = ClonePlan(
-            asset_prototypes=tuple(
-                AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object", spawn=SpawnerCfg(spawn_path=path + "/Object"))
-                for _, path in env_paths
-            )
-            + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
-            world_prototypes=np.array([0, 2, 1, 2]),
-            world_prototype_starts=np.array([0, 0, 2, 4]),
-            world_prototype_layout=np.array([0, 1, 0]),
-        )
-        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(
-            stage,
-            plan,
+            PrototypeWorldTopology(
+                asset_prototypes=tuple(
+                    AssetBaseCfg(
+                        prim_path="/World/envs/env_[^/]+/Object", spawn=SpawnerCfg(spawn_path=path + "/Object")
+                    )
+                    for _, path in env_paths
+                )
+                + (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Material", cloning_contexts=()),),
+                world_prototypes=np.array([0, 2, 1, 2]),
+                world_prototype_starts=np.array([0, 0, 2, 4]),
+                world_prototype_layout=np.array([0, 1, 0]),
+            ),
             positions=np.asarray(((0, 0, 0), (3, 0, 0), (6, 0, 0)), dtype=np.float32),
         )
+        self.sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(stage, plan)
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, 1))
         self.assertEqual(builder.body_label, [f"/World/envs/env_{i}/Object" for i in range(3)])
         self.assertEqual(

@@ -249,7 +249,7 @@ class conditional_reset(ManagerTermBase):
 
         if not self._prefilled:
             # The plan already identifies the world prototype selected by each environment.
-            _, group = np.unique(env.scene.clone_plan.world_prototype_layout, return_inverse=True)
+            _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
             self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
@@ -638,8 +638,8 @@ class mesh_clearance(ManagerTermBase):
         mesh_by_path: dict[str, int] = {}
         usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
         source_paths = {index: path for index, path, _, world_ids in usd.instances if len(world_ids)}
-        for index in cloner.query.get_asset_prototypes(usd.plan, self._object.cfg.prim_path):
-            env_ids = cloner.query.get_asset_prototype_unique_world_index(usd.plan, index)
+        for index in cloner.path.get_asset_prototypes(usd.plan.topology, self._object.cfg.prim_path):
+            env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(usd.plan.topology, index)
             if not len(env_ids):
                 continue
             source_path = source_paths[index]

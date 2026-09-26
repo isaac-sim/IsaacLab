@@ -15,6 +15,7 @@ import sys
 
 import numpy as np
 import pytest
+import warp as wp
 
 from isaaclab import cloner
 from isaaclab.assets import AssetBaseCfg
@@ -147,13 +148,15 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
     assets = tuple(AssetBaseCfg(prim_path=path, spawn=CuboidCfg(size=(1, 1, 1))) for path in ("/Banana", "/Franka"))
     worlds = ((0, 1), (0, 1, 1), (0, 0, 1), (1,))
     plan = make_clone_plan(assets, worlds, 16, shared_assets=shared_assets)
-    assert all(actual is expected for actual, expected in zip(plan.asset_prototypes, assets, strict=True))
-    np.testing.assert_array_equal(plan.world_prototype_layout, np.repeat(np.arange(4), 4))
+    assert isinstance(plan.topology, cloner.PrototypeWorldTopology)
+    assert not any(hasattr(plan, field) for field in vars(plan.topology))
+    assert all(actual is expected for actual, expected in zip(plan.topology.asset_prototypes, assets, strict=True))
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, np.repeat(np.arange(4), 4))
     np.testing.assert_array_equal(
-        plan.world_prototype_starts,
+        plan.topology.world_prototype_starts,
         [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
     )
-    np.testing.assert_array_equal(plan.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
+    np.testing.assert_array_equal(plan.topology.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
     for path_expr, asset_ids, world_ids in (
         (None, [0, 1], [-1, 0, 1, 2, 3]),
         ("/Banana", [0], ([-1] if shared_assets else []) + [0, 1, 2]),
@@ -161,79 +164,153 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
         ("/Missing", [], []),
     ):
         for query, expected in (
-            (cloner.query.get_asset_prototypes, asset_ids),
-            (cloner.query.get_world_prototypes, world_ids),
+            (cloner.path.get_asset_prototypes, asset_ids),
+            (cloner.path.get_world_prototypes, world_ids),
         ):
-            actual = query(plan, path_expr)
+            actual = query(plan.topology, path_expr)
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
-    for selector, asset_ids in ((0, {0}), (np.int32(1), {1}), ("/Banana", {0}), (".*", {0, 1}), ("/Missing", set())):
-        expected = [-1 for asset in shared_assets if asset in asset_ids]
-        expected += [world for world in range(16) for asset in worlds[world // 4] if asset in asset_ids]
-        world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan, selector)
-        for actual, values in (
-            (world_indices, expected),
-            (world_starts, [sum(index < world for index in expected) for world in range(-1, 17)]),
-            (cloner.query.get_asset_prototype_unique_world_index(plan, selector), sorted(set(expected))),
-        ):
-            assert actual.dtype == np.int32 and actual.ndim == 1
-            np.testing.assert_array_equal(actual, values)
-        if isinstance(selector, str):
-            actual = cloner.query.get_world_prototype_world_index(plan, selector)
-            assert actual.dtype == np.int32 and actual.ndim == 1
-            np.testing.assert_array_equal(actual, sorted(set(expected)))
+    for selector in (0, np.int32(1)):
+        expected = [-1 for asset in shared_assets if asset == selector]
+        expected += [world for world in range(16) for asset in worlds[world // 4] if asset == selector]
+        world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan.topology, selector)
+        assert world_indices.dtype == np.int32 and world_starts.dtype == np.int64
+        np.testing.assert_array_equal(world_indices, expected)
+        np.testing.assert_array_equal(
+            world_starts, [[sum(index < world for index in expected) for world in range(-1, 17)]]
+        )
+        indices, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, selector)
+        np.testing.assert_array_equal(indices, sorted(set(expected)))
     for prototype in range(-1, len(worlds)):
-        actual = cloner.query.get_world_prototype_world_index(plan, prototype)
-        assert actual.dtype == np.int32 and actual.ndim == 1
+        actual, _ = cloner.query.get_world_prototype_world_index(plan.topology, prototype)
         np.testing.assert_array_equal(actual, [-1] if prototype == -1 else range(4 * prototype, 4 * (prototype + 1)))
     # Pure planning does not modify USD names or source poses.
     assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
     assert all(cfg.spawn.spawn_path is None for cfg in assets)
     # Reverse selection is indexing: retain occurrences rather than deduplicating asset IDs.
-    for world_id, prototype_id in enumerate(plan.world_prototype_layout):
-        start, end = plan.world_prototype_starts[prototype_id + 1 : prototype_id + 3]
-        np.testing.assert_array_equal(plan.world_prototypes[start:end], worlds[world_id // 4])
+    for world_id, prototype_id in enumerate(plan.topology.world_prototype_layout):
+        start, end = plan.topology.world_prototype_starts[prototype_id + 1 : prototype_id + 3]
+        np.testing.assert_array_equal(plan.topology.world_prototypes[start:end], worlds[world_id // 4])
 
 
 def test_world_topology_weights_empty_worlds_and_invalid_membership():
     assets = tuple(AssetBaseCfg(prim_path=f"/env_[^/]+/{name}") for name in ("Banana", "Franka"))
     plan = make_clone_plan(assets, ((0,), (), (1, 1), (0,)), 6, weights=(1, 0, 2, 0))
-    np.testing.assert_array_equal(plan.world_prototype_layout, [0, 0, 2, 2, 2, 2])
-    np.testing.assert_array_equal(cloner.query.get_world_prototypes(plan), [-1, 0, 1, 2, 3])
-    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, assets[0].prim_path), [0])
-    np.testing.assert_array_equal(cloner.query.get_world_prototypes(plan, assets[0].prim_path), [0, 3])
-    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, ".*/Banana"), [0])
-    np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, "/env_0/Banana"), [])
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 2, 2, 2, 2])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan.topology), [-1, 0, 1, 2, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, assets[0].prim_path), [0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan.topology, assets[0].prim_path), [0, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, ".*/Banana"), [0])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan.topology, "/env_0/Banana"), [])
     empty = make_clone_plan((), ((),), 3)
     shared_only = make_clone_plan(assets, ((0,),), 0, shared_assets=(1, 1))
-    np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
-    np.testing.assert_array_equal(empty.world_prototype_layout, [0, 0, 0])
-    for actual, expected in (
-        (cloner.query.get_asset_prototypes(empty), []),
-        (cloner.query.get_world_prototypes(empty), [-1, 0]),
-        (cloner.query.get_world_prototypes(empty, ".*"), []),
-        (cloner.query.get_asset_prototype_unique_world_index(empty, 0), []),
-        (cloner.query.get_world_prototype_world_index(empty, 0), [0, 1, 2]),
-        (cloner.query.get_world_prototype_world_index(empty, ".*"), []),
-        (cloner.query.get_world_prototype_world_index(empty, -1), [-1]),
-        (cloner.query.get_world_prototype_world_index(plan, 1), []),
-        (cloner.query.get_world_prototype_world_index(plan, 3), []),
-        (cloner.query.get_world_prototype_world_index(plan, assets[0].prim_path), [0, 1]),
-        (cloner.query.get_asset_prototype_unique_world_index(shared_only, assets[1].prim_path), [-1]),
-        (cloner.query.get_world_prototype_world_index(shared_only, assets[0].prim_path), []),
-        (cloner.query.get_world_prototype_world_index(shared_only, assets[1].prim_path), [-1]),
-    ):
-        assert actual.dtype == np.int32 and actual.ndim == 1
-        np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_array_equal(empty.topology.world_prototype_starts, [0, 0, 0])
+    np.testing.assert_array_equal(empty.topology.world_prototype_layout, [0, 0, 0])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(empty.topology), [])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty.topology), [-1, 0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty.topology, ".*"), [])
     for topology, selector, indices, starts in (
-        (empty, ".*", [], [0, 0, 0, 0, 0]),
-        (shared_only, 0, [], [0, 0]),
-        (shared_only, 1, [-1, -1], [0, 2]),
+        (empty.topology, 0, [], [[0, 0, 0, 0, 0]]),
+        (shared_only.topology, 0, [], [[0, 0]]),
+        (shared_only.topology, 1, [-1, -1], [[0, 2]]),
     ):
         result = cloner.query.get_asset_prototype_world_index(topology, selector)
         for actual, expected in zip(result, (indices, starts), strict=True):
-            assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
     for members in ((2,), (-1,), (0.5,), ("0",)):
         with pytest.raises(ValueError, match="integer indices"):
             make_clone_plan(assets, (members,), 1)
+    for selector in ("/Banana", np.array([0.5]), np.array([[0]])):
+        with pytest.raises(TypeError, match="integer IDs"):
+            cloner.query.get_asset_prototype_world_index(plan.topology, selector)
+
+
+@pytest.mark.parametrize("device", ["numpy", "cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    "worlds, num_worlds, shared, selectors",
+    [
+        (((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, (0, 0), [0, 1, 0, 2, -1]),
+        (((0,), (), (1, 1)), 6, (), [0, 1, 0, 2, -1]),
+        (((),), 0, (1, 1), [1, 0, 1, -1, 2]),
+        (((),), 3, (), [0, -1, 0, 2]),
+        (((),), 3, (), []),
+    ],
+)
+def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
+    """NumPy, Warp, and graph replay agree with direct enumeration, including empty/repeated queries."""
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA graph validation requires CUDA")
+    plan = make_clone_plan((0, 1, 2), worlds, num_worlds, shared_assets=shared)
+    compositions = (shared, *(worlds[index] for index in plan.topology.world_prototype_layout))
+    layout = (-1, *plan.topology.world_prototype_layout)
+    ids = np.asarray(selectors, dtype=np.int32)
+    capacity = len(ids) * max(sum(map(len, compositions)), num_worlds + 1)
+    topology = plan.topology if device == "numpy" else cloner.to_warp(plan.topology, device)
+    assert topology.asset_prototypes is plan.topology.asset_prototypes
+    if device == "cpu":
+        for name in ("world_prototypes", "world_prototype_starts", "world_prototype_layout"):
+            assert getattr(topology, name).ptr == getattr(plan.topology, name).ctypes.data
+    if device != "numpy":
+        with pytest.raises(TypeError, match="do not transfer"):
+            cloner.query.get_asset_prototype_world_index(plan.topology, wp.empty(0, dtype=wp.int32, device=device))
+    del plan  # The Warp topology must retain borrowed host storage after its construction inputs are gone.
+
+    for query, by_asset, unique in (
+        (cloner.query.get_asset_prototype_world_index, True, False),
+        (cloner.query.get_asset_prototype_unique_world_index, True, True),
+        (cloner.query.get_world_prototype_world_index, False, True),
+    ):
+        query_ids = ids if device == "numpy" else wp.array(ids, dtype=wp.int32, device=device)
+        out = (
+            (np.empty(capacity, dtype=np.int32), np.empty((len(ids), num_worlds + 2), dtype=np.int64))
+            if device == "numpy"
+            else (
+                wp.empty(capacity, dtype=wp.int32, device=device),
+                wp.empty((len(ids), num_worlds + 2), dtype=wp.int64, device=device),
+            )
+        )
+        # Warm the kernels and scan before capture. Replay must use changed device query IDs.
+        query(topology, query_ids, out=out)
+        graph = None
+        if device.startswith("cuda"):
+            with wp.ScopedCapture(device=device) as capture:
+                query(topology, query_ids, out=out)
+            graph = capture.graph
+
+        for selected in (ids, ids[::-1].copy(), np.zeros_like(ids)):
+            expected, boundaries = [], []
+            for prototype in selected:
+                starts = [len(expected)]
+                for world_id, (composition, world_prototype) in enumerate(zip(compositions, layout, strict=True), -1):
+                    count = composition.count(prototype) if by_asset else int(world_prototype == prototype)
+                    expected.extend([world_id] * (min(count, 1) if unique else count))
+                    starts.append(len(expected))
+                boundaries.append(starts)
+            expected_starts = np.asarray(boundaries, dtype=np.int64).reshape(len(ids), num_worlds + 2)
+            if device == "numpy":
+                query(topology, selected, out=out)
+                indices, starts = out
+                exact = query(topology, selected)
+                np.testing.assert_array_equal(exact[0], expected)
+                np.testing.assert_array_equal(exact[1], expected_starts)
+            else:
+                query_ids.assign(selected)
+                if graph is None:
+                    query(topology, query_ids, out=out)
+                else:
+                    wp.capture_launch(graph)
+                indices, starts = (array.numpy() for array in out)
+            np.testing.assert_array_equal(indices[: len(expected)], expected)
+            np.testing.assert_array_equal(starts, expected_starts)
+
+        # Insufficient capacity must report the required size without writing a partial result.
+        if len(expected) > 1:
+            if device == "numpy":
+                short = (np.full(1, -99, dtype=np.int32), out[1])
+            else:
+                short = (wp.full(1, -99, dtype=wp.int32, device=device), out[1])
+            query(topology, selected if device == "numpy" else query_ids, out=short)
+            values = short[0] if device == "numpy" else short[0].numpy()
+            starts = short[1] if device == "numpy" else short[1].numpy()
+            np.testing.assert_array_equal(values, [-99])
+            assert starts[-1, -1] == len(expected)

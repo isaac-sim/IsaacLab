@@ -16,7 +16,7 @@ import numpy as np
 import pytest
 
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext, make_clone_plan
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sim import PinholeCameraCfg, SpawnerCfg
@@ -141,8 +141,8 @@ def test_clone_sources_in_ovrtx_uses_world_compositions():
             ((3, 0, 2), (3, 0, 1)),
             4,
             weights=(1, 3),
+            positions=np.zeros((4, 3), dtype=np.float32),
         ),
-        positions=np.zeros((4, 3), dtype=np.float32),
     )
     clone_calls: list[tuple[str, list[str]]] = []
 
@@ -168,8 +168,7 @@ def test_clone_sources_in_ovrtx_writes_plan_positions_after_cloning():
     positions = np.array([[0.0, 0.0, 0.0], [2.0, -1.0, 0.5], [-3.0, 4.0, 1.5]], dtype=np.float32)
     renderer._usd = UsdReplicateContext(
         None,
-        make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 3),
-        positions=positions,
+        make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 3, positions=positions),
     )
     call_order: list[str] = []
     clone_calls: list[tuple[str, list[str]]] = []
@@ -213,8 +212,8 @@ def test_clone_sources_ovstage_writes_plan_positions_after_cloning(monkeypatch: 
             ((0,), (2, 1)),
             3,
             weights=(1, 2),
+            positions=positions,
         ),
-        positions=positions,
     )
     events: list[tuple[str, str, object]] = []
     xforms: list[np.ndarray] = []
@@ -280,17 +279,19 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
     renderer._usd = UsdReplicateContext(
         stage,
         ClonePlan(
-            tuple(
-                AssetBaseCfg(
-                    prim_path=env_template.format("[^/]+") + "/Object",
-                    spawn=SpawnerCfg(spawn_path=env_template.format(i) + "/Object"),
+            PrototypeWorldTopology(
+                tuple(
+                    AssetBaseCfg(
+                        prim_path=env_template.format("[^/]+") + "/Object",
+                        spawn=SpawnerCfg(spawn_path=env_template.format(i) + "/Object"),
+                    )
+                    for i in range(2)
                 )
-                for i in range(2)
-            )
-            + (AssetBaseCfg(prim_path="/World/Shared"),),
-            np.asarray([2, 0, 0, 1]),
-            np.asarray([0, 1, 3, 4]),
-            np.asarray([0, 1, 0]),
+                + (AssetBaseCfg(prim_path="/World/Shared"),),
+                np.asarray([2, 0, 0, 1]),
+                np.asarray([0, 1, 3, 4]),
+                np.asarray([0, 1, 0]),
+            ),
         ),
         env_template=env_template,
     )
@@ -313,8 +314,12 @@ def test_prepare_stage_writes_debug_dump_only_when_requested(tmp_path, monkeypat
         monkeypatch,
         UsdReplicateContext(
             None,
-            make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2),
-            positions=np.zeros((2, 3), dtype=np.float32),
+            make_clone_plan(
+                (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),),
+                ((0,),),
+                2,
+                positions=np.zeros((2, 3), dtype=np.float32),
+            ),
         ),
     )
 
@@ -450,10 +455,9 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         (AssetBaseCfg(prim_path=f"/World/envs/env_{{}}{suffix}".format("[^/]+"), spawn=SpawnerCfg(spawn_path=source)),),
         ((0,),),
         3,
+        positions=np.zeros((3, 3), dtype=np.float32),
     )
-    _patch_simulation_context(
-        monkeypatch, UsdReplicateContext(stage, plan, positions=np.zeros((3, 3), dtype=np.float32))
-    )
+    _patch_simulation_context(monkeypatch, UsdReplicateContext(stage, plan))
     renderer = _make_ovrtx_renderer_without_backend()
     renderer.prepare_stage(stage, 3)
     exported = Usd.Stage.CreateInMemory()

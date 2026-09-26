@@ -77,8 +77,8 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan, UsdReplicateContext
-from isaaclab.cloner.query import get_asset_prototypes
+from isaaclab.cloner import ClonePlan, UsdReplicateContext, make_clone_plan
+from isaaclab.cloner.path import get_asset_prototypes
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -229,7 +229,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         indices, weights = [], []
         visual_offset = 0
         for entry in NewtonManager._deformable_registry:
-            asset_ids = get_asset_prototypes(plan, entry.prim_path)
+            asset_ids = get_asset_prototypes(plan.topology, entry.prim_path)
             suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
             paths = [
                 template.format(env_id) + suffix
@@ -1590,9 +1590,7 @@ class NewtonManager(PhysicsManager):
 
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
-            plan = ClonePlan(
-                (proto_path,), np.asarray([0]), np.asarray([0, 0, 1]), np.zeros(len(env_paths), dtype=np.int32)
-            )
+            plan = make_clone_plan((proto_path,), ((0,),), len(env_paths), positions=positions)
             env_template = proto_path.rsplit("_", 1)[0] + "_{}"
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:

@@ -46,7 +46,7 @@ class PhysxReplicateContext:
         usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
         self._replicate_instances(
             instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
-            env_ids=np.arange(len(plan.world_prototype_layout)),
+            env_ids=np.arange(len(plan.topology.world_prototype_layout)),
             has_usd_only_sources=any(
                 index not in asset_prototype_ids for index, _, _, world_ids in usd.instances if len(world_ids)
             ),
