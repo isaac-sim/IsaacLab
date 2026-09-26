@@ -15,14 +15,12 @@ import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.cloner import queue_usd_replication
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ... import sim as sim_utils
+from ...markers import VisualizationMarkers
+from ...terrains.trimesh.utils import make_plane
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray, convert_to_warp_mesh
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels
 from .ray_caster_data import RayCasterData
@@ -70,7 +68,6 @@ class BaseRayCaster(SensorBase):
         """
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
-        queue_usd_replication(self._source_cfg)
         self._data = RayCasterData()
 
     def __str__(self) -> str:

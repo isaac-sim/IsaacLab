@@ -189,7 +189,7 @@ class ImageLatentObservation(ManagerTermBase):
             already stored during initialization. They are included in the signature only
             to satisfy the observation manager's parameter validation.
         """
-        images = self.camera_sensor.data.output[self.data_type].clone()
+        images = self.camera_sensor.data.output[self.data_type].torch.clone()
 
         if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
             images = math_utils.orthogonalize_perspective_depth(images, self.camera_sensor.data.intrinsic_matrices)

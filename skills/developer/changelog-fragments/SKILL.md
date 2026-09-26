@@ -33,13 +33,13 @@ Do not use this skill for pure docs, CI, tools, or skills changes unless they al
 Run the changelog gate:
 
 ```bash
-./isaaclab.sh -p tools/changelog/cli.py check develop
+uv run python tools/changelog/cli.py check develop
 ```
 
 Then run the normal formatting gate:
 
 ```bash
-./isaaclab.sh -f
+uv run isaaclab -f
 ```
 
 ## Maintenance

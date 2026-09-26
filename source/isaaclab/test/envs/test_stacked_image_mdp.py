@@ -16,10 +16,12 @@ from unittest import mock
 
 import pytest
 import torch
+import warp as wp
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.unit
 
-from isaaclab.envs.mdp.observations import stacked_image
+from isaaclab.envs.mdp.observations import image_features, stacked_image
+from isaaclab.utils.warp import ProxyArray
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -45,24 +47,6 @@ def _frame(value: int) -> torch.Tensor:
 class TestStackedImage:
     """Tests for the ``stacked_image`` observation term."""
 
-    def test_output_shape_channel_stacked(self):
-        """Output shape is ``(N, H, W, K * C)``."""
-        env = _make_env()
-        term = stacked_image(_make_cfg(frame_stack=3), env)
-        with mock.patch("isaaclab.envs.mdp.observations.image", return_value=_frame(1)):
-            out = term(env)
-        assert out.shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
-
-    def test_warmup_fills_all_slots_with_first_frame(self):
-        """First call after construction fills all ``K`` slots with that one frame."""
-        env = _make_env()
-        term = stacked_image(_make_cfg(frame_stack=2), env)
-        with mock.patch("isaaclab.envs.mdp.observations.image", return_value=_frame(7)):
-            out = term(env, normalize=False)
-        f7 = _frame(7)
-        assert torch.equal(out[..., :CHANNELS], f7)
-        assert torch.equal(out[..., CHANNELS:], f7)
-
     def test_oldest_to_newest_channel_order(self):
         """K=3 with three distinct frames produces oldest→newest along the channel dim."""
         env = _make_env()
@@ -74,6 +58,7 @@ class TestStackedImage:
             term(env, normalize=False)  # slots: [10, 10, 20]
             patched.return_value = _frame(30)
             out = term(env, normalize=False)  # slots: [10, 20, 30]
+        assert out.shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
         assert torch.equal(out[..., :CHANNELS], _frame(10))
         assert torch.equal(out[..., CHANNELS : 2 * CHANNELS], _frame(20))
         assert torch.equal(out[..., 2 * CHANNELS :], _frame(30))
@@ -212,9 +197,9 @@ class TestStackedImage:
         )
 
 
-def _make_image_env_with_sensor(camera_buf: torch.Tensor) -> SimpleNamespace:
-    """Mock env exposing ``env.scene.sensors[name].data.output[type]`` = ``camera_buf``."""
-    sensor = SimpleNamespace(data=SimpleNamespace(output={"rgb": camera_buf}))
+def _make_image_env_with_sensor(camera_buf: torch.Tensor, data_type: str = "rgb") -> SimpleNamespace:
+    """Mock env exposing ``env.scene.sensors[name].data.output[type]`` as a ProxyArray over ``camera_buf``."""
+    sensor = SimpleNamespace(data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(camera_buf))}))
     scene = SimpleNamespace(sensors={"tiled_camera": sensor})
     return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device="cpu")
 
@@ -241,3 +226,28 @@ class TestImageFunctionCloneKwarg:
         cfg = SimpleNamespace(name="tiled_camera")
         out = image(env, sensor_cfg=cfg, data_type="rgb", normalize=False, clone=True)
         assert out.data_ptr() != camera_buf.data_ptr()
+
+    def test_colorized_segmentation_is_scaled(self):
+        """Colorized segmentation from a sensor ProxyArray is scaled like RGB, not only cast to float."""
+        from isaaclab.envs.mdp.observations import image
+
+        camera_buf = torch.full((NUM_ENVS, HEIGHT, WIDTH, 4), 255, dtype=torch.uint8)
+        camera_buf[:, 0, 0] = 0
+        env = _make_image_env_with_sensor(camera_buf, "semantic_segmentation")
+        cfg = SimpleNamespace(name="tiled_camera")
+        out = image(env, sensor_cfg=cfg, data_type="semantic_segmentation")
+        assert out.max() <= 1.0
+
+
+def test_image_features_flattens_encoder_output():
+    """Feature extractors return a flat observation after the environment batch dimension."""
+    env = _make_env()
+    term = image_features.__new__(image_features)
+    term._model = object()
+    term._inference_fn = lambda *_args, **_kwargs: torch.arange(NUM_ENVS * 6 * 8).reshape(NUM_ENVS, 6, 8)
+    image_data = torch.zeros((NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8)
+
+    with mock.patch("isaaclab.envs.mdp.observations.image", return_value=image_data):
+        out = term(env)
+
+    assert out.shape == (NUM_ENVS, 48)

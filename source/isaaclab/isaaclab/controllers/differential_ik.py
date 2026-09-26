@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.math import apply_delta_pose, compute_pose_error
+from ..utils.math import apply_delta_pose, compute_pose_error
 
 if TYPE_CHECKING:
     from .differential_ik_cfg import DifferentialIKControllerCfg
@@ -60,16 +60,19 @@ class DifferentialIKController:
             num_envs: The number of environments.
             device: The device to use for computations.
         """
-        # store inputs
+
         self.cfg = cfg
         self.num_envs = num_envs
         self._device = device
-        # create buffers
+
+        # desired pose
         self.ee_pos_des = torch.zeros(self.num_envs, 3, device=self._device)
         self.ee_quat_des = torch.zeros(self.num_envs, 4, device=self._device)
-        # -- input command
+
+        # input command
         self._command = torch.zeros(self.num_envs, self.action_dim, device=self._device)
-        # -- optional per-axis orientation task weights (used for "pose" command types only)
+
+        # optional per-axis orientation task weights (used for "pose" command types only)
         if self.cfg.orientation_weight is None:
             self._orientation_weight = None
         else:
@@ -80,9 +83,12 @@ class DifferentialIKController:
                 else tuple(float(value) for value in ori_weight)
             )
             self._orientation_weight = torch.tensor(weight_tuple, device=self._device)
-        # -- optional joint position limits for null-space joint-limit avoidance (set externally)
+
+        # optional joint position limits for null-space joint-limit avoidance (set externally)
         self._joint_pos_lower = None
         self._joint_pos_upper = None
+        # identity quaternion (x, y, z, w), the last-resort fallback for a degenerate command
+        self._identity_quat = torch.tensor([0.0, 0.0, 0.0, 1.0], device=self._device).repeat(self.num_envs, 1)
 
     """
     Properties.
@@ -119,12 +125,17 @@ class DifferentialIKController:
         It is up to the user to ensure that the command is given in the correct frame. The method only
         applies the relative mode if the command type is ``position_rel`` or ``pose_rel``.
 
+        Absolute ``pose`` commands normalize finite quaternions; unnormalizable entries use
+        :paramref:`ee_quat`, or identity when :paramref:`ee_quat` is omitted.
+
         Args:
             command: The input command in shape (N, 3) or (N, 6) or (N, 7).
             ee_pos: The current end-effector position in shape (N, 3).
                 This is only needed if the command type is ``position_rel`` or ``pose_rel``.
             ee_quat: The current end-effector orientation (x, y, z, w) in shape (N, 4).
-                This is only needed if the command type is ``position_*`` or ``pose_rel``.
+                This is needed if the command type is ``position_*`` or ``pose_rel``. For absolute
+                ``pose`` commands it is optional and used only as the fallback orientation for an
+                unnormalizable commanded quaternion.
 
         Raises:
             ValueError: If the command type is ``position_*`` and :attr:`ee_quat` is None.
@@ -139,7 +150,6 @@ class DifferentialIKController:
             # this is only needed for display purposes
             if ee_quat is None:
                 raise ValueError("End-effector orientation can not be None for `position_*` command type!")
-            # compute targets
             if self.cfg.use_relative_mode:
                 if ee_pos is None:
                     raise ValueError("End-effector position can not be None for `position_rel` command type!")
@@ -155,12 +165,15 @@ class DifferentialIKController:
                     raise ValueError(
                         "Neither end-effector position nor orientation can be None for `pose_rel` command type!"
                     )
-                self.ee_pos_des, self.ee_quat_des = apply_delta_pose(ee_pos, ee_quat, self._command)
+                self.ee_pos_des[:], self.ee_quat_des[:] = apply_delta_pose(ee_pos, ee_quat, self._command)
             else:
-                self.ee_pos_des = self._command[:, 0:3]
-                # renormalize the commanded quaternion (callers may pass a slightly non-unit quat)
+                self.ee_pos_des[:] = self._command[:, 0:3]
+                # normalize valid quaternions and use the fallback for non-finite results
                 quat = self._command[:, 3:7]
-                self.ee_quat_des = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                normalized_quat = quat / torch.linalg.norm(quat, dim=-1, keepdim=True)
+                is_valid = torch.isfinite(normalized_quat).all(dim=-1, keepdim=True)
+                fallback_quat = self._identity_quat if ee_quat is None else ee_quat
+                self.ee_quat_des[:] = torch.where(is_valid, normalized_quat, fallback_quat)
 
     def set_joint_pos_limits(self, lower: torch.Tensor, upper: torch.Tensor) -> None:
         """Provide the controlled joints' position limits for null-space joint-limit avoidance.
@@ -171,11 +184,11 @@ class DifferentialIKController:
         manually only when using the controller standalone.
 
         Args:
-            lower: Lower joint-position limits in shape (num_joints,).
-            upper: Upper joint-position limits in shape (num_joints,).
+            lower: Lower joint-position limits [m or rad, depending on joint type] in shape (num_joints,).
+            upper: Upper joint-position limits [m or rad, depending on joint type] in shape (num_joints,).
         """
-        self._joint_pos_lower = lower.to(self._device)
-        self._joint_pos_upper = upper.to(self._device)
+        self._joint_pos_lower = lower.to(self._device, torch.float32)
+        self._joint_pos_upper = upper.to(self._device, torch.float32)
 
     def compute(
         self, ee_pos: torch.Tensor, ee_quat: torch.Tensor, jacobian: torch.Tensor, joint_pos: torch.Tensor
@@ -237,14 +250,11 @@ class DifferentialIKController:
             k_val = self.cfg.ik_params["k_val"]
             min_singular_value = self.cfg.ik_params["min_singular_value"]
             # computation
-            # U: 6xd, S: dxd, V: d x num-joint
-            U, S, Vh = torch.linalg.svd(jacobian)
+            U, S, Vh = torch.linalg.svd(jacobian, full_matrices=False)
             S_inv = 1.0 / S
             S_inv = torch.where(min_singular_value < S, S_inv, torch.zeros_like(S_inv))
             jacobian_pinv = (
-                torch.transpose(Vh, dim0=1, dim1=2)[:, :, :6]
-                @ torch.diag_embed(S_inv)
-                @ torch.transpose(U, dim0=1, dim1=2)
+                torch.transpose(Vh, dim0=1, dim1=2) @ torch.diag_embed(S_inv) @ torch.transpose(U, dim0=1, dim1=2)
             )
             delta_joint_pos = k_val * jacobian_pinv @ delta_pose.unsqueeze(-1)
             delta_joint_pos = delta_joint_pos.squeeze(-1)

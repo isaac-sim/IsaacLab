@@ -16,7 +16,7 @@ Expected workflow:
 2. Use specific type hints and Google-style docstrings.
 3. Add SI units in public docstrings for physical quantities.
 4. Preserve deprecation policy for renamed or removed APIs.
-5. Run `./isaaclab.sh -f` and focused tests.
+5. Run `uv run isaaclab -f` and focused tests.
 
 ## Package Export Change
 

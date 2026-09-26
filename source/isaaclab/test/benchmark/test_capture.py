@@ -6,27 +6,25 @@
 """Tests for benchmark capture helpers (Isaac-Sim-free, fake recorders)."""
 
 from types import SimpleNamespace
-from typing import Literal
 
 import pytest
 
-import isaaclab.test.benchmark.capture as capture
-from isaaclab.test.benchmark.capture import (
+from isaaclab.benchmark.capture import (
     capture_hardware,
     capture_resources,
     capture_versions,
-    run_config_from_presets,
+    run_config_from_env_cfg,
     synth_run_id,
 )
-from isaaclab.test.benchmark.interfaces import MeasurementData
-from isaaclab.test.benchmark.measurements import (
+from isaaclab.benchmark.interfaces import MeasurementData
+from isaaclab.benchmark.measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
     SingleMeasurement,
     StringMetadata,
 )
-from isaaclab.test.benchmark.schema import Hardware, Resources, Versions
+from isaaclab.benchmark.schema import Hardware, Resources, Versions
 
 
 class _Rec:
@@ -49,19 +47,6 @@ def test_capture_versions_renames_and_defaults():
         StringMetadata(name="mujoco_warp_version", data="0.0.4"),
         StringMetadata(name="stable_baselines3_version", data="2.3.0"),
         DictMetadata(name="dev", data={"commit_hash": "abc123", "branch": "develop", "dirty": True}),
-    ]
-    bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
-    v = capture_versions(bm)
-    assert isinstance(v, Versions)
-    assert v.isaaclab == "4.6.8" and v.torch == "2.5.1"
-    assert v.mjwarp == "0.0.4"
-    assert v.sb3 == "2.3.0"
-    assert v.git_commit == "abc123" and v.git_branch == "develop" and v.git_dirty is True
-    assert v.isaacsim is None
-
-
-def test_capture_versions_preserves_runtime_packages():
-    md = [
         StringMetadata(name="numpy_version", data="2.4.4"),
         StringMetadata(name="isaaclab_newton_version", data="1.0.2"),
         StringMetadata(name="isaaclab_physx_version", data="2.0.1"),
@@ -76,21 +61,25 @@ def test_capture_versions_preserves_runtime_packages():
         StringMetadata(name="isaaclab_release_version", data="3.0.0"),
     ]
     bm = _Bm({"VersionInfo": _Rec(MeasurementData(measurements=[], metadata=md, artefacts=[]))})
-
-    versions = capture_versions(bm)
-
-    assert versions.numpy == "2.4.4"
-    assert versions.isaaclab_newton == "1.0.2"
-    assert versions.isaaclab_physx == "2.0.1"
-    assert versions.isaaclab_ov == "0.4.6"
-    assert versions.isaaclab_tasks == "8.0.1"
-    assert versions.isaaclab_rl == "0.6.1"
-    assert versions.ovrtx is None
-    assert versions.ovphysx == "3.0.5"
-    assert versions.mujoco == "3.8.1"
-    assert versions.cuda_bindings == "12.9.4"
-    assert versions.usd_core == "25.11"
-    assert versions.isaaclab_release == "3.0.0"
+    v = capture_versions(bm)
+    assert isinstance(v, Versions)
+    assert v.isaaclab == "4.6.8" and v.torch == "2.5.1"
+    assert v.mjwarp == "0.0.4"
+    assert v.sb3 == "2.3.0"
+    assert v.git_commit == "abc123" and v.git_branch == "develop" and v.git_dirty is True
+    assert v.isaacsim is None
+    assert v.numpy == "2.4.4"
+    assert v.isaaclab_newton == "1.0.2"
+    assert v.isaaclab_physx == "2.0.1"
+    assert v.isaaclab_ov == "0.4.6"
+    assert v.isaaclab_tasks == "8.0.1"
+    assert v.isaaclab_rl == "0.6.1"
+    assert v.ovrtx is None
+    assert v.ovphysx == "3.0.5"
+    assert v.mujoco == "3.8.1"
+    assert v.cuda_bindings == "12.9.4"
+    assert v.usd_core == "25.11"
+    assert v.isaaclab_release == "3.0.0"
 
 
 def test_capture_resources_peaks():
@@ -166,7 +155,12 @@ def test_capture_hardware():
             metadata=[
                 DictMetadata(
                     name="gpu_devices",
-                    data={"0": {"name": "H100", "total_memory_gb": 80.0, "compute_capability": "9.0"}},
+                    # Numeric keys must be ordered 0, 2, 10, not lexically.
+                    data={
+                        "10": {"name": "H100-10", "total_memory_gb": 80.0, "compute_capability": "9.0"},
+                        "2": {"name": "H100-2", "total_memory_gb": 80.0, "compute_capability": "9.0"},
+                        "0": {"name": "H100", "total_memory_gb": 80.0, "compute_capability": "9.0"},
+                    },
                 ),
             ],
             artefacts=[],
@@ -191,7 +185,8 @@ def test_capture_hardware():
     )
     h = capture_hardware(_Bm({"GPUInfo": gpu, "CPUInfo": cpu, "MemoryInfo": mem}))
     assert isinstance(h, Hardware)
-    assert h.gpu_devices[0].name == "H100" and h.gpu_devices[0].mem_gb == pytest.approx(80.0)
+    assert [d.name for d in h.gpu_devices] == ["H100", "H100-2", "H100-10"]
+    assert h.gpu_devices[0].mem_gb == pytest.approx(80.0)
     assert h.gpu_devices[0].compute_cap == "9.0"
     assert h.cpu_name == "EPYC" and h.cpu_count == 64 and h.ram_gb == pytest.approx(512.0)
     assert isinstance(h.hostname, str) and h.hostname
@@ -199,49 +194,43 @@ def test_capture_hardware():
 
 def test_capture_handles_missing_recorders():
     bm = _Bm(None)
-    assert isinstance(capture_versions(bm), Versions)
-    assert isinstance(capture_hardware(bm), Hardware)
-    assert isinstance(capture_resources(bm), Resources)
+    versions = capture_versions(bm)
+    assert versions.isaaclab == "unknown"
+    assert versions.torch == "unknown"
+    assert versions.git_commit is None and versions.git_dirty is False
+    hardware = capture_hardware(bm)
+    assert hardware.gpu_devices == []
+    assert hardware.cpu_name == "unknown" and hardware.cpu_count == 0 and hardware.ram_gb == 0.0
+    resources = capture_resources(bm)
+    assert resources.devices == {}
+    assert resources.ram_gb.mean == 0.0 and resources.gpu_mem_gb.mean == 0.0
 
 
 def test_synth_run_id():
     rid = synth_run_id("rsl_rl", "physx", "Isaac-Ant-Direct-v0", 42, "20260612-150000")
-    assert "rsl_rl" in rid and "physx" in rid and "42" in rid
+    assert rid == "rsl_rl_physx_Isaac-Ant-Direct-v0_20260612-150000_seed42"
+    assert synth_run_id(None, "physx", "Isaac-Ant-Direct-v0", 42, "20260612-150000").startswith("runtime_")
 
 
-def test_run_config_from_presets_resolves_backend_configuration(monkeypatch):
-    cases = [
-        ([], "physx", "none", []),
-        (
-            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
-            "newton_mjwarp",
-            "ovrtx",
-            ["newton_mjwarp", "ovrtx_renderer", "rgb"],
-        ),
-        (["newton"], "newton_mjwarp", "none", ["newton"]),
-        (
-            ["physics=newton_mjwarp", "renderer=ovrtx_renderer", "presets=rgb,depth"],
-            "newton_mjwarp",
-            "ovrtx",
-            ["newton_mjwarp", "ovrtx_renderer", "rgb", "depth"],
-        ),
-    ]
-    for tokens, physics, rendering, presets in cases:
-        cfg = run_config_from_presets(tokens)
-        assert cfg.physics_backend == physics
-        assert cfg.rendering_backend == rendering
-        assert cfg.presets == presets
-
-    monkeypatch.setattr(capture, "PhysicsBackend", Literal["physx", "newton_mjwarp_vbd"], raising=False)
-    assert run_config_from_presets(["newton_mjwarp_vbd"]).physics_backend == "newton_mjwarp_vbd"
-
+def test_run_config_uses_concrete_backend_configuration():
     env_cfg = SimpleNamespace(
         sim=SimpleNamespace(physics=SimpleNamespace(class_type="isaaclab_newton.physics:NewtonMJWarpManager")),
         camera=SimpleNamespace(renderer_cfg=SimpleNamespace(renderer_type="isaac_rtx")),
     )
-    cfg = run_config_from_presets([], env_cfg=env_cfg)
+    cfg = run_config_from_env_cfg(env_cfg)
     assert cfg.physics_backend == "newton_mjwarp"
     assert cfg.rendering_backend == "isaacsim_rtx"
+    assert cfg.presets == []
+
+    physx_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=SimpleNamespace(class_type="PhysXManager")))
+    cfg = run_config_from_env_cfg(physx_env_cfg)
+    assert cfg.physics_backend == "physx"
+
+    default_env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
+    assert run_config_from_env_cfg(default_env_cfg).physics_backend == "physx"
+
+    with pytest.raises(ValueError, match="Unsupported concrete physics config"):
+        run_config_from_env_cfg(SimpleNamespace(sim=SimpleNamespace(physics=object())))
 
 
 def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
@@ -286,27 +275,3 @@ def test_capture_resources_peak_clamped_to_mean_when_peak_row_absent():
     r = capture_resources(_Bm({"GPUInfo": gpu, "CPUInfo": cpu, "MemoryInfo": mem}))
     assert r.gpu_mem_gb.peak == pytest.approx(10.0)
     assert r.ram_gb.peak == pytest.approx(10.0)
-
-
-def test_capture_hardware_gpu_devices_sorted_by_numeric_index():
-    # Keys "10", "2", "0" should be returned in numeric order 0, 2, 10 — not lexical "0","10","2".
-    gpu = _Rec(
-        MeasurementData(
-            measurements=[],
-            metadata=[
-                DictMetadata(
-                    name="gpu_devices",
-                    data={
-                        "10": {"name": "H100-10", "total_memory_gb": 80.0, "compute_capability": "9.0"},
-                        "2": {"name": "H100-2", "total_memory_gb": 80.0, "compute_capability": "9.0"},
-                        "0": {"name": "H100-0", "total_memory_gb": 80.0, "compute_capability": "9.0"},
-                    },
-                ),
-            ],
-            artefacts=[],
-        )
-    )
-    bm = _Bm({"GPUInfo": gpu})
-    h = capture_hardware(bm)
-    names = [d.name for d in h.gpu_devices]
-    assert names == ["H100-0", "H100-2", "H100-10"]

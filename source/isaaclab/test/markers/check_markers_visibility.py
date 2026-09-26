@@ -13,7 +13,7 @@ please check: https://www.youtube.com/watch?v=vLk-f9LWj48&ab_channel=NVIDIAOmniv
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/markers/check_markers_visibility.py
+    uv run python source/isaaclab/test/markers/check_markers_visibility.py
 
 """
 
@@ -42,7 +42,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

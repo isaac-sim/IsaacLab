@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Robot-neutral event functions shared by the cube-stacking tasks.
-
-These were previously defined in ``franka_stack_events.py``; they are robot-agnostic and are used
-by every stack robot config, so they live here and ``franka_stack_events`` re-exports them for
-backward compatibility.
-"""
+"""Robot-neutral event terms shared by the cube-stacking tasks."""
 
 from __future__ import annotations
 
@@ -23,7 +18,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import Articulation, AssetBase
+    from isaaclab.assets import Articulation
     from isaaclab.envs import ManagerBasedEnv
 
 
@@ -138,8 +133,7 @@ def randomize_scene_lighting_domelight(
     default_texture: str = "",
     asset_cfg: SceneEntityCfg = SceneEntityCfg("light"),
 ):
-    asset: AssetBase = env.scene[asset_cfg.name]
-    light_prim = asset.prims[0]
+    light_prim = env.scene[asset_cfg.name].prim
 
     intensity_attr = light_prim.GetAttribute("inputs:intensity")
     intensity_attr.Set(default_intensity)
@@ -318,10 +312,9 @@ def randomize_visual_texture_material(
         not env.cfg.eval_mode or env.cfg.eval_type not in [f"{asset_cfg.name}_texture", "all"]
     ):
         return
-        # textures = [default_texture]
 
     # enable replicator extension if not already enabled
-    from isaacsim.core.experimental.utils.app import enable_extension
+    from isaaclab.sim.utils import enable_extension
 
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
@@ -353,7 +346,12 @@ def randomize_visual_texture_material(
         body_names_regex = ".*"
 
     if not hasattr(asset, "cfg"):
-        prims_group = rep.get.prims(path_pattern=f"{asset.prim_paths[0]}/visuals")
+        # Static assets carry no runtime view; 'asset' is the spawned cfg. Resolve the prim from
+        # the stage by its spawned path. Local import: keep USD out of module load for pure cfg loading.
+        from isaaclab.sim.utils import find_matching_prims
+
+        asset_prim_path = find_matching_prims(asset.prim_path)[0].GetPath().pathString
+        prims_group = rep.get.prims(path_pattern=f"{asset_prim_path}/visuals")
     else:
         prims_group = rep.get.prims(path_pattern=f"{asset.cfg.prim_path}/{body_names_regex}/visuals")
 

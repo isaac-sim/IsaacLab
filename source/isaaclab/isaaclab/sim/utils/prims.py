@@ -16,11 +16,15 @@ from typing import TYPE_CHECKING, Any, ParamSpec, overload
 
 import torch
 
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
-from isaaclab.utils.string import to_camel_case
-from isaaclab.utils.version import has_kit
-
-from .queries import find_matching_prim_paths, has_deformable_body_api
+from ...utils.assets import retrieve_file_path
+from ...utils.string import to_camel_case
+from .queries import (
+    find_matching_prim_paths,
+    has_deformable_body_api,
+    has_deformable_curve_api,
+    path_expr_to_glob,
+    split_path_expr,
+)
 from .semantics import add_labels
 from .stage import get_current_stage, resolve_paths
 from .transforms import convert_world_pose_to_local, standardize_xform_ops
@@ -28,9 +32,8 @@ from .transforms import convert_world_pose_to_local, standardize_xform_ops
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade, UsdUtils  # noqa: F401
 
-    from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
+    from ..spawners.spawner_cfg import SpawnerCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -133,33 +136,24 @@ def create_prim(
     """
     from pxr import UsdGeom  # noqa: PLC0415
 
-    # Ensure that user doesn't provide both position and translation
     if position is not None and translation is not None:
         raise ValueError("Cannot provide both position and translation. Please provide only one.")
 
-    # obtain stage handle
     stage = get_current_stage() if stage is None else stage
-
-    # check if prim already exists
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    # create prim in stage
     prim = stage.DefinePrim(prim_path, prim_type)
     if not prim.IsValid():
         raise ValueError(f"Failed to create prim at path: '{prim_path}' of type: '{prim_type}'.")
-    # apply attributes into prim
     if attributes is not None:
         for k, v in attributes.items():
             prim.GetAttribute(k).Set(v)
-    # add reference to USD file
     if usd_path is not None:
         add_usd_reference(prim_path=prim_path, usd_path=usd_path, stage=stage)
-    # add semantic label to prim
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
-    # check if prim type is Xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.debug(
             f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
@@ -168,7 +162,6 @@ def create_prim(
         )
         return prim
 
-    # convert input arguments to tuples
     position = _to_tuple(position) if position is not None else None
     translation = _to_tuple(translation) if translation is not None else None
     orientation = _to_tuple(orientation) if orientation is not None else None
@@ -179,8 +172,6 @@ def create_prim(
     if position is not None:
         # this means that user provided pose in the world frame
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
-
-    # standardize the xform ops
     standardize_xform_ops(prim, translation, orientation, scale)
 
     return prim
@@ -207,7 +198,6 @@ def delete_prim(prim_path: str | Sequence[str], stage: Usd.Stage | None = None) 
     # convert prim_path to list if it is a string
     if isinstance(prim_path, str):
         prim_path = [prim_path]
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
     # FIXME: We should not need to cache the stage here. It should
     # happen at the creation of the stage.
@@ -319,10 +309,8 @@ def safe_set_attribute_on_usd_schema(schema_api: Usd.APISchemaBase, name: str, v
     Raises:
         TypeError: When the input attribute name does not exist on the provided schema API.
     """
-    # if value is None, do nothing
     if value is None:
         return
-    # convert attribute name to camel case
     if camel_case:
         attr_name = to_camel_case(name, to="CC")
     else:
@@ -355,13 +343,11 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
     """
     from pxr import Sdf  # noqa: PLC0415
 
-    # if value is None, do nothing
     if value is None:
         return
     # convert attribute name to camel case
     if camel_case:
         attr_name = to_camel_case(attr_name, to="cC")
-    # resolve sdf type based on value
     if isinstance(value, bool):
         sdf_type = Sdf.ValueTypeNames.Bool
     elif isinstance(value, int):
@@ -379,7 +365,6 @@ def safe_set_attribute_on_usd_prim(prim: Usd.Prim, attr_name: str, value: Any, c
             f"Cannot set attribute '{attr_name}' with value '{value}'. Please modify the code to support this type."
         )
 
-    # change property using the change_prim_property function
     change_prim_property(
         prop_path=f"{prim.GetPath()}.{attr_name}",
         value=value,
@@ -443,7 +428,6 @@ def change_prim_property(
     """
     from pxr import Sdf, Usd  # noqa: PLC0415
 
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
 
     # convert to Sdf.Path if needed
@@ -455,7 +439,6 @@ def change_prim_property(
     if not prim or not prim.IsValid():
         raise ValueError(f"Prim does not exist at path: '{prim_path}'")
 
-    # get or create the property
     prop = stage.GetPropertyAtPath(prop_path)
 
     if not prop:
@@ -698,7 +681,10 @@ def clone(func: Callable) -> Callable:
             raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
         # resolve: {SPAWN_NS}/AssetName
         # note: this assumes that the spawn namespace already exists in the stage
-        root_path, asset_path = prim_path.rsplit("/", 1)
+        # split on separators only: a segment wildcard is written as a character class whose
+        # text contains a '/' that is not a separator.
+        *root_segments, asset_path = split_path_expr(prim_path)
+        root_path = "/".join(root_segments)
         # check if input is a regex expression
         # note: a valid prim path can only contain alphanumeric characters, underscores, and forward slashes
         is_regex_expression = re.match(r"^[a-zA-Z0-9/_]+$", root_path) is None
@@ -731,7 +717,6 @@ def clone(func: Callable) -> Callable:
         prim_spawn_path = f"{source_prim_paths[0]}/{asset_path.replace('.*', '0')}"
         # spawn single instance
         prim = func(prim_spawn_path, cfg, *args, **kwargs)
-        # set the prim visibility
         if hasattr(cfg, "visible"):
             imageable = UsdGeom.Imageable(prim)
             if cfg.visible:
@@ -755,7 +740,9 @@ def clone(func: Callable) -> Callable:
             _schemas.activate_contact_sensors(prim_spawn_path)
         # clone asset using cloner API
         if len(source_prim_paths) > 1:
-            sanitized_asset = asset_path.replace(".*", "0")
+            # the leaf may carry an index slot as a segment wildcard; normalizing to glob
+            # collapses its spellings to the single '*' that the index replaces.
+            sanitized_asset = path_expr_to_glob(asset_path).replace("*", "0")
             rl = stage.GetRootLayer()
             with Sdf.ChangeBlock():
                 for src_parent in source_prim_paths[1:]:
@@ -782,13 +769,11 @@ def bind_visual_material(
 ):
     """Bind a visual material to a prim.
 
-    This function is a wrapper around the USD command `BindMaterialCommand`_.
+    The binding is authored using the standard OpenUSD :class:`UsdShade.MaterialBindingAPI`.
 
     .. note::
         The function is decorated with :meth:`apply_nested` to allow applying the function to a prim path
         and all its descendants.
-
-    .. _BindMaterialCommand: https://docs.omniverse.nvidia.com/kit/docs/omni.usd/latest/omni.usd.commands/omni.usd.commands.BindMaterialCommand.html
 
     Args:
         prim_path: The prim path where to apply the material.
@@ -801,37 +786,26 @@ def bind_visual_material(
     Raises:
         ValueError: If the provided prim paths do not exist on stage.
     """
-    if not has_kit():
-        return False
-    # get stage handle
+    from pxr import UsdShade  # noqa: PLC0415
+
     if stage is None:
         stage = get_current_stage()
 
-    # check if prim and material exists
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        raise ValueError(f"Target prim '{material_path}' does not exist.")
-    if not stage.GetPrimAtPath(material_path).IsValid():
+    prim = stage.GetPrimAtPath(prim_path)
+    if not prim.IsValid():
+        raise ValueError(f"Target prim '{prim_path}' does not exist.")
+    material_prim = stage.GetPrimAtPath(material_path)
+    if not material_prim.IsValid():
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     # resolve token for weaker than descendants
-    # bind material command expects a string token
     if stronger_than_descendants:
-        binding_strength = "strongerThanDescendants"
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
     else:
-        binding_strength = "weakerThanDescendants"
-    # obtain material binding API
-    # note: we prefer using the command here as it is more robust than the USD API
-    import omni.kit.commands
-
-    success, _ = omni.kit.commands.execute(
-        "BindMaterialCommand",
-        prim_path=prim_path,
-        material_path=material_path,
-        strength=binding_strength,
-        stage=stage,
-    )
-    # return success
-    return bool(success)
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
+    material = UsdShade.Material(material_prim)
+    return binding_api.Bind(material, bindingStrength=binding_strength)
 
 
 @apply_nested
@@ -843,8 +817,8 @@ def bind_physics_material(
 ):
     """Bind a physics material to a prim.
 
-    `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes having
-    collision APIs, or deformable body APIs, or being a particle system. In case the prim does not have
+    `Physics material`_ can be applied only to a prim with physics-enabled on them. This includes collision APIs,
+    deformable APIs, and particle systems. In case the prim does not have
     any of these APIs, the function will not apply the material and return False.
 
     .. note::
@@ -866,7 +840,6 @@ def bind_physics_material(
     """
     from pxr import UsdPhysics, UsdShade  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
@@ -882,11 +855,14 @@ def bind_physics_material(
     has_physics_scene_api = "PhysxSceneAPI" in applied
     has_collider = prim.HasAPI(UsdPhysics.CollisionAPI)
     has_deformable_body = has_deformable_body_api(prim)
+    has_deformable_curve = has_deformable_curve_api(prim)
     has_particle_system = prim.GetTypeName() == "PhysxParticleSystem"
-    if not (has_physics_scene_api or has_collider or has_deformable_body or has_particle_system):
+    if not (
+        has_physics_scene_api or has_collider or has_deformable_body or has_deformable_curve or has_particle_system
+    ):
         logger.debug(
             f"Cannot apply physics material '{material_path}' on prim '{prim_path}'. It is neither a"
-            " PhysX scene, collider, a deformable body, nor a particle system."
+            " PhysX scene, collider, deformable, or particle system."
         )
         return False
 
@@ -936,20 +912,11 @@ def add_usd_reference(
 
     Raises:
         FileNotFoundError: When the input USD file is not found at the specified path.
+        RuntimeError: When retrieving the file or adding the USD reference fails.
     """
-    # resolve remote USD paths to local (same as Newton / add_reference_to_stage)
-    file_status = check_file_path(usd_path)
-    if file_status == 0:
-        raise FileNotFoundError(f"Unable to open the usd file at path: {usd_path}")
-    if file_status == 2:
-        try:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
-        except Exception as e:
-            raise FileNotFoundError(f"Failed to retrieve USD file from {usd_path}") from e
+    usd_path = retrieve_file_path(usd_path)
 
-    # get current stage
     stage = get_current_stage() if stage is None else stage
-    # get prim at path
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
@@ -979,9 +946,7 @@ def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[s
     Raises:
         ValueError: If the prim at the specified path is not valid.
     """
-    # get stage handle
     stage = get_current_stage() if stage is None else stage
-    # get prim at path
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
@@ -1035,8 +1000,14 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
         variants: A dictionary or config class mapping variant set names to variant selections.
         stage: The USD stage. Defaults to None, in which case, the current stage is used.
 
+    A variant set the prim does not have is skipped with a warning, so one configuration can spawn
+    assets that expose different options. A set that exists but does not offer the requested variant
+    is an error: USD accepts the selection and composes the prim as if nothing were selected, so the
+    asset would silently spawn without the description the variant carries.
+
     Raises:
-        ValueError: If the prim at the specified path is not valid.
+        ValueError: If the prim at the specified path is not valid, or if a variant set on the prim
+            does not offer the requested variant.
 
     .. _USD Variants: https://graphics.pixar.com/usd/docs/USD-Glossary.html#USDGlossary-Variant
     """
@@ -1060,6 +1031,15 @@ def select_usd_variants(prim_path: str, variants: object | dict[str, str], stage
             continue
 
         variant_set = existing_variant_sets.GetVariantSet(variant_set_name)
+        # USD accepts a selection naming a variant the set does not offer, and the prim then
+        # composes as if nothing were selected, so reject it instead of spawning a silently
+        # incomplete asset.
+        available = variant_set.GetVariantNames()
+        if variant_selection not in available:
+            raise ValueError(
+                f"Variant set '{variant_set_name}' on prim '{prim_path}' does not offer variant"
+                f" '{variant_selection}'. Available variants: {available}."
+            )
         # Only set the variant selection if it is different from the current selection.
         if variant_set.GetVariantSelection() != variant_selection:
             variant_set.SetVariantSelection(variant_selection)
@@ -1117,7 +1097,6 @@ def _to_tuple(value: Any) -> tuple[float, ...]:
     # This is common when batched operations produce single-item batches
     if value.ndim != 1:
         value = value.squeeze()
-    # Validate that the result is one-dimensional
     if value.ndim != 1:
         raise ValueError(f"Input value is not one dimensional: {value.shape}")
 

@@ -26,13 +26,19 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
+from isaaclab.envs.mdp.events import randomize_rigid_body_mass as _StableRandomizeRigidBodyMass
+from isaaclab.envs.mdp.events import randomize_rigid_body_material as _StableRandomizeRigidBodyMaterial
+
+from isaaclab_experimental.managers import ManagerTermBase as _WarpManagerTermBase
 from isaaclab_experimental.managers import SceneEntityCfg
 from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
+    from isaaclab.envs import ManagerBasedEnv
 
 # ---------------------------------------------------------------------------
 # Randomize rigid body center of mass
@@ -585,3 +591,90 @@ def reset_joints_by_scale(
     # Sync derived buffers (_previous_joint_vel, joint_acc) for reset envs.
     asset.write_joint_position_to_sim_mask(position=asset.data.joint_pos.warp, env_mask=env_mask)
     asset.write_joint_velocity_to_sim_mask(velocity=asset.data.joint_vel.warp, env_mask=env_mask)
+
+
+# ---------------------------------------------------------------------------
+# Startup-mode randomization (mask-signature adapters)
+# ---------------------------------------------------------------------------
+#
+# The stable material/mass randomization terms already dispatch to the active
+# physics backend (Newton included); only their calling convention differs —
+# the warp EventManager invokes terms with a Warp env-mask while the stable
+# class terms expect torch env indices. Both terms run in ``startup`` mode,
+# once at construction and outside any captured path, so a host-side
+# mask-to-ids conversion is acceptable.
+
+
+def _mask_to_env_ids(env_mask: wp.array) -> torch.Tensor:
+    """Convert a Warp boolean env-mask to the torch index tensor the stable terms expect."""
+    return torch.nonzero(wp.to_torch(env_mask), as_tuple=False).squeeze(-1)
+
+
+class randomize_rigid_body_material(_StableRandomizeRigidBodyMaterial, _WarpManagerTermBase):
+    """Warp adapter for the stable, backend-dispatched material randomization term.
+
+    Converts the warp event manager's env-mask calling convention to the stable
+    term's env-ids convention and delegates. Startup mode only. Inherits the
+    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    """
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array,
+        static_friction_range: tuple[float, float],
+        dynamic_friction_range: tuple[float, float],
+        restitution_range: tuple[float, float],
+        num_buckets: int,
+        asset_cfg: SceneEntityCfg,
+        make_consistent: bool = False,
+    ) -> None:
+        super().__call__(
+            env,
+            _mask_to_env_ids(env_mask),
+            static_friction_range,
+            dynamic_friction_range,
+            restitution_range,
+            num_buckets,
+            asset_cfg,
+            make_consistent,
+        )
+
+    def reset(self, env_mask: wp.array | None = None) -> None:
+        """Nothing to reset; materials are randomized once at startup."""
+        return
+
+
+class randomize_rigid_body_mass(_StableRandomizeRigidBodyMass, _WarpManagerTermBase):
+    """Warp adapter for the stable, backend-dispatched mass randomization term.
+
+    Converts the warp event manager's env-mask calling convention to the stable
+    term's env-ids convention and delegates. Startup mode only. Inherits the
+    warp :class:`ManagerTermBase` so the warp managers accept it as a class term.
+    """
+
+    def __call__(
+        self,
+        env: ManagerBasedEnv,
+        env_mask: wp.array,
+        asset_cfg: SceneEntityCfg,
+        mass_distribution_params: tuple[float, float],
+        operation: str,
+        distribution: str = "uniform",
+        recompute_inertia: bool = True,
+        min_mass: float = 1e-6,
+    ) -> None:
+        super().__call__(
+            env,
+            _mask_to_env_ids(env_mask),
+            asset_cfg,
+            mass_distribution_params,
+            operation,
+            distribution,
+            recompute_inertia,
+            min_mass,
+        )
+
+    def reset(self, env_mask: wp.array | None = None) -> None:
+        """Nothing to reset; masses are randomized once at startup."""
+        return

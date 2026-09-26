@@ -32,8 +32,6 @@ class CameraJobCfg(tuner.JobCfg):
         cfg = util.populate_isaac_ray_cfg_args(cfg)
 
         # Basic configuration
-        cfg["runner_args"]["headless_singleton"] = "--headless"
-        cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
         cfg["hydra_args"]["agent.params.config.max_epochs"] = 200
 
         if vary_env_count:  # Vary the env count, and horizon length, and select a compatible mini-batch size

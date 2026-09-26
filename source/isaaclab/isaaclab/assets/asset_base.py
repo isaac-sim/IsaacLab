@@ -8,24 +8,50 @@ from __future__ import annotations
 import inspect
 import weakref
 from abc import ABC, abstractmethod
+from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab.physics import PhysicsEvent, PhysicsManager
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.sim.utils.stage import get_current_stage
+from .. import sim as sim_utils
+from ..physics import PhysicsEvent, PhysicsManager
+from ..sim.simulation_context import SimulationContext
+from ..utils.warp import ProxyArray
+from .asset import Asset
 
 if TYPE_CHECKING:
-    from pxr import Usd
-
     from .asset_base_cfg import AssetBaseCfg
 
 
-class AssetBase(ABC):
+_SELECTOR_CACHE_CAPACITY = 128
+
+
+class _AssetSelectorCache:
+    """Per-asset LRU cache for device-local finder selectors."""
+
+    def __init__(self, capacity: int = _SELECTOR_CACHE_CAPACITY):
+        self._capacity = capacity
+        self._entries: OrderedDict[tuple[str, tuple[int, ...]], ProxyArray] = OrderedDict()
+
+    def get(self, domain: str, indices: Sequence[int], device: str) -> ProxyArray:
+        """Return the cached Warp ``int32`` selector for an ordered index sequence."""
+        key = (domain, tuple(int(index) for index in indices))
+        selector = self._entries.pop(key, None)
+        if selector is None:
+            selector = ProxyArray(wp.array(key[1], dtype=wp.int32, device=device))
+        self._entries[key] = selector
+        if len(self._entries) > self._capacity:
+            self._entries.popitem(last=False)
+        return selector
+
+    def clear(self) -> None:
+        """Release all cached selectors."""
+        self._entries.clear()
+
+
+class AssetBase(Asset, ABC):
     """The base interface class for assets.
 
     An asset corresponds to any physics-enabled object that can be spawned in the simulation. These include
@@ -35,13 +61,8 @@ class AssetBase(ABC):
     This allows a convenient way to perform post-processing operations on the buffers before writing them
     into the simulator and obtaining the corresponding simulation results.
 
-    The class handles both the spawning of the asset into the USD stage as well as initialization of necessary
-    physics handles to interact with the asset. Upon construction of the asset instance, the prim corresponding
-    to the asset is spawned into the USD stage if the spawn configuration is not None. The spawn configuration
-    is defined in the :attr:`AssetBaseCfg.spawn` attribute. In case the configured :attr:`AssetBaseCfg.prim_path`
-    is an expression, then the prim is spawned at all the matching paths. Otherwise, a single prim is spawned
-    at the configured path. For more information on the spawn configuration, see the
-    :mod:`isaaclab.sim.spawners` module.
+    The class extends :class:`Asset` with physics handles and runtime data buffers. Construction first authors
+    the asset and then registers callbacks that initialize its runtime view.
 
     Unlike backend-specific interfaces (e.g. Isaac Sim PhysX) where one usually needs to call
     initialize explicitly, the asset class automatically initializes and invalidates physics
@@ -63,13 +84,8 @@ class AssetBase(ABC):
         Args:
             cfg: The configuration class for the asset.
 
-        Raises:
-            RuntimeError: If no prims found at input prim path or prim path expression.
         """
-        # check that the config is valid
-        cfg.validate()
-        # store inputs
-        self.cfg = cfg.copy()
+        super().__init__(cfg)
         # Resolve shape-check flag once: True means checks are active.
         # cfg.disable_shape_checks: None -> follow __debug__
         # True -> force disable checks; False -> force enable checks.
@@ -77,43 +93,15 @@ class AssetBase(ABC):
             self._check_shapes = __debug__
         else:
             self._check_shapes = not self.cfg.disable_shape_checks
-        # flag for whether the asset is initialized
         self._is_initialized = False
-        # get stage handle
-        self.stage: Usd.Stage = get_current_stage()
-
-        # spawn the asset
-        # determine path where prims should exist after spawn
-        if self.cfg.spawn is not None:
-            # Use spawn_path if set (by InteractiveScene), otherwise fall back to prim_path
-            check_path = self.cfg.spawn.spawn_path if self.cfg.spawn.spawn_path is not None else self.cfg.prim_path
-            self.cfg.spawn.func(
-                check_path,
-                self.cfg.spawn,
-                translation=self.cfg.init_state.pos,
-                orientation=self.cfg.init_state.rot,
-            )
-            # check that prims exist
-            matching_prims = sim_utils.find_matching_prims(check_path)
-            if len(matching_prims) == 0:
-                raise RuntimeError(f"Could not find prim with path {check_path}.")
-            # schema-side post-spawn hook (e.g. ArticulationCfg authors NewtonActuator prims here)
-            self.cfg._post_spawn(self.stage)
-        else:
-            # asset should exist at run time
-            check_path = self.cfg.prim_path
-
-        # register various callback functions
         self._register_callbacks()
 
         # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
         self._debug_vis_handle = None
-        # set initial state of debug visualization
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self):
         """Unsubscribe from the callbacks."""
-        # clear events handles
         self._clear_callbacks()
 
     """
@@ -159,36 +147,6 @@ class AssetBase(ABC):
     Operations.
     """
 
-    def set_visibility(self, visible: bool, env_ids: Sequence[int] | None = None):
-        """Set the visibility of the prims corresponding to the asset.
-
-        This operation affects the visibility of the prims corresponding to the asset in the USD stage.
-        It is useful for toggling the visibility of the asset in the simulator. For instance, one can
-        hide the asset when it is not being used to reduce the rendering overhead.
-
-        .. note::
-            This operation uses the PXR API to set the visibility of the prims. Thus, the operation
-            may have an overhead if the number of prims is large.
-
-        Args:
-            visible: Whether to make the prims visible or not.
-            env_ids: The indices of the object to set visibility. Defaults to None (all instances).
-        """
-        # resolve the environment ids
-        if env_ids is None:
-            env_ids = range(len(self._prims))
-        elif isinstance(env_ids, torch.Tensor):
-            env_ids = env_ids.detach().cpu().tolist()
-
-        # obtain the prims corresponding to the asset
-        # note: we only want to find the prims once since this is a costly operation
-        if not hasattr(self, "_prims"):
-            self._prims = sim_utils.find_matching_prims(self.cfg.prim_path)
-
-        # iterate over the environment ids
-        for env_id in env_ids:
-            sim_utils.set_prim_visibility(self._prims[env_id], visible)
-
     def set_debug_vis(self, debug_vis: bool) -> bool:
         """Sets whether to visualize the asset data.
 
@@ -218,6 +176,38 @@ class AssetBase(ABC):
                 self._debug_vis_handle = None
         # return success
         return True
+
+    def _resolve_finder_indices(
+        self,
+        indices: Sequence[int],
+        *,
+        proxy_indices: Sequence[int] | None = None,
+        domain: str,
+        as_proxy: bool = False,
+        legacy_type: Literal["list", "tensor"],
+    ) -> list[int] | torch.Tensor | ProxyArray:
+        """Return cached proxy indices or the legacy container."""
+        if not isinstance(as_proxy, bool):
+            raise TypeError(f"as_proxy must be a bool, got {type(as_proxy).__name__}.")
+
+        normalized_indices = tuple(int(index) for index in indices)
+        if as_proxy:
+            normalized_proxy_indices = normalized_indices if proxy_indices is None else tuple(map(int, proxy_indices))
+            selector_cache = getattr(self, "_selector_cache", None)
+            if selector_cache is None:
+                selector_cache = _AssetSelectorCache()
+                self._selector_cache = selector_cache
+            return selector_cache.get(domain, normalized_proxy_indices, self.device)
+
+        if legacy_type == "list":
+            return list(normalized_indices)
+        return torch.tensor(normalized_indices, dtype=torch.int32, device=self.device)
+
+    def _clear_selector_cache(self) -> None:
+        """Release all cached finder selectors owned by this asset."""
+        selector_cache = getattr(self, "_selector_cache", None)
+        if selector_cache is not None:
+            selector_cache.clear()
 
     @abstractmethod
     def reset(self, env_ids: Sequence[int] | None = None):
@@ -261,9 +251,16 @@ class AssetBase(ABC):
         wp.transformf: (7,),
         wp.spatial_vectorf: (6,),
     }
+    _SHAPE_AXIS_LIMITS = (("env_ids", "num_instances"),)
 
     def assert_shape_and_dtype(
-        self, tensor: float | torch.Tensor | wp.array, shape: tuple[int, ...], dtype: type, name: str = ""
+        self,
+        tensor: float | torch.Tensor | wp.array,
+        shape: tuple[int, ...],
+        dtype: type,
+        name: str = "",
+        *,
+        axis_sizes: tuple[int, ...] | None = None,
     ) -> None:
         """Assert the shape and dtype of a tensor or warp array.
 
@@ -275,10 +272,14 @@ class AssetBase(ABC):
             shape: The expected leading dimensions (e.g. ``(num_envs, num_joints)``).
             dtype: The expected warp dtype.
             name: Optional parameter name for error messages.
+            axis_sizes: Optional selector sizes. Defaults to the expected leading dimensions.
         """
         if self._check_shapes:
             cls = type(self).__name__
             prefix = f"{cls}: '{name}' " if name else f"{cls}: "
+            for size, (axis_name, limit_name) in zip(axis_sizes or shape, self._SHAPE_AXIS_LIMITS):
+                limit = getattr(self, limit_name)
+                assert size <= limit, f"{prefix}{axis_name} size exceeds asset dimension: {size} > {limit}"
             if isinstance(tensor, (int, float)):
                 return
             elif isinstance(tensor, wp.array):
@@ -404,6 +405,7 @@ class AssetBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
+        self._clear_selector_cache()
         sim_ctx = SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
@@ -425,13 +427,13 @@ class AssetBase(ABC):
 
     def _clear_callbacks(self) -> None:
         """Clears all registered callbacks."""
-        if self._initialize_handle is not None:
+        if getattr(self, "_initialize_handle", None) is not None:
             self._initialize_handle.deregister()
             self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
+        if getattr(self, "_invalidate_initialize_handle", None) is not None:
             self._invalidate_initialize_handle.deregister()
             self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
+        if getattr(self, "_prim_deletion_handle", None) is not None:
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         sim_ctx = SimulationContext.instance()

@@ -21,36 +21,12 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 
 pytestmark = pytest.mark.integration
 
-# -------------------------------------------------------------------------------------
-# RigidBodyMaterialFragment marker + metadata
-# -------------------------------------------------------------------------------------
 
-
-def test_rigid_body_material_fragment_metadata_defaults():
-    from isaaclab.sim.schemas import SchemaFragment
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import (
-        RigidBodyMaterialFragment,
-        UsdPhysicsRigidBodyMaterialCfg,
-    )
-
-    cfg = UsdPhysicsRigidBodyMaterialCfg(static_friction=0.7)
-    assert isinstance(cfg, RigidBodyMaterialFragment) and isinstance(cfg, SchemaFragment)
-    assert type(cfg)._usd_namespace == "physics"
-    assert type(cfg)._usd_applied_schema is None  # MaterialAPI applied by the family writer
-    assert cfg.func == "isaaclab.sim.schemas:apply_namespaced"
-    assert cfg.static_friction == 0.7 and cfg.dynamic_friction is None
-
-
-def test_physx_material_fragment_metadata_defaults():
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
-
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialFragment
-
-    cfg = PhysxMaterialCfg(compliant_contact_stiffness=100.0)
-    assert isinstance(cfg, RigidBodyMaterialFragment)
-    assert type(cfg)._usd_namespace == "physxMaterial"
-    assert type(cfg)._usd_applied_schema == "PhysxMaterialAPI"
-    assert cfg.func == "isaaclab.sim.schemas:apply_namespaced"
+@pytest.fixture(autouse=True)
+def cleanup_simulation_context():
+    """Release the simulation context after each test."""
+    yield
+    SimulationContext.clear_instance()
 
 
 # -------------------------------------------------------------------------------------
@@ -70,8 +46,13 @@ def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
     prim = spawn_rigid_body_material_from_fragments(
         "/World/Mat",
         [
-            UsdPhysicsRigidBodyMaterialCfg(static_friction=0.7, dynamic_friction=0.6, restitution=0.1),
-            PhysxMaterialCfg(compliant_contact_stiffness=100.0, friction_combine_mode="max"),
+            UsdPhysicsRigidBodyMaterialCfg(static_friction=0.7, dynamic_friction=0.6, restitution=0.1, density=1200.0),
+            PhysxMaterialCfg(
+                compliant_contact_stiffness=100.0,
+                friction_combine_mode="max",
+                damping_combine_mode="min",
+                compliant_contact_acceleration_spring=True,
+            ),
         ],
         stage,
     )
@@ -80,10 +61,14 @@ def test_spawn_rigid_body_material_from_fragments_composes_namespaces():
     assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.7)
     assert prim.GetAttribute("physics:dynamicFriction").Get() == pytest.approx(0.6)
     assert prim.GetAttribute("physics:restitution").Get() == pytest.approx(0.1)
+    # density participates in mass computation via material binding
+    assert prim.GetAttribute("physics:density").Get() == pytest.approx(1200.0)
     # the PhysX fragment applied its own schema and namespace
     assert "PhysxMaterialAPI" in prim.GetAppliedSchemas()
     assert prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == pytest.approx(100.0)
     assert prim.GetAttribute("physxMaterial:frictionCombineMode").Get() == "max"
+    assert prim.GetAttribute("physxMaterial:dampingCombineMode").Get() == "min"
+    assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
 
 
 def test_spawn_rigid_body_material_from_fragments_accepts_single_fragment():
@@ -175,39 +160,9 @@ def test_fragment_writer_validates_inputs_before_authoring():
         assert not stage.GetPrimAtPath(f"/World/{path}").IsValid()
 
 
-def test_spawn_rigid_body_material_from_fragments_leaves_none_fields_unwritten():
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = spawn_rigid_body_material_from_fragments(
-        "/World/Mat3", [UsdPhysicsRigidBodyMaterialCfg(static_friction=0.5)], stage
-    )
-    # only the authored field is written; None fields are left unauthored (partial update)
-    assert prim.GetAttribute("physics:staticFriction").Get() == pytest.approx(0.5)
-    assert not prim.GetAttribute("physics:dynamicFriction").HasAuthoredValue()
-
-
 # -------------------------------------------------------------------------------------
-# UsdPhysicsRigidBodyMaterialCfg: density round-trip + physics:* schema parity
+# UsdPhysicsRigidBodyMaterialCfg: physics:* schema parity
 # -------------------------------------------------------------------------------------
-
-
-def test_usd_physics_rigid_body_material_density_round_trips():
-    """``physics:density`` participates in mass computation via material binding; it must author
-    the same as the other ``UsdPhysics.MaterialAPI`` friction/restitution fields."""
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-    from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = spawn_rigid_body_material_from_fragments(
-        "/World/MatDensity", [UsdPhysicsRigidBodyMaterialCfg(density=1200.0)], stage
-    )
-    assert prim.GetAttribute("physics:density").Get() == pytest.approx(1200.0)
 
 
 def test_usd_physics_rigid_body_material_fragment_matches_material_api_schema():
@@ -223,29 +178,6 @@ def test_usd_physics_rigid_body_material_fragment_matches_material_api_schema():
     schema_attr_names = {name.split(":", 1)[1] for name in UsdPhysics.MaterialAPI.GetSchemaAttributeNames()}
     fragment_attr_names = {to_camel_case(name, "cC") for name in fragment_fields}
     assert fragment_attr_names == schema_attr_names
-
-
-# -------------------------------------------------------------------------------------
-# PhysxMaterialCfg: damping-combine-mode + compliant-contact-acceleration-spring
-# -------------------------------------------------------------------------------------
-
-
-def test_physx_material_fragment_authors_damping_combine_mode_and_acceleration_spring():
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxMaterialCfg
-
-    from isaaclab.sim.spawners.materials.physics_materials import spawn_rigid_body_material_from_fragments
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    prim = spawn_rigid_body_material_from_fragments(
-        "/World/MatPhysxExtra",
-        [PhysxMaterialCfg(damping_combine_mode="min", compliant_contact_acceleration_spring=True)],
-        stage,
-    )
-    assert "PhysxMaterialAPI" in prim.GetAppliedSchemas()
-    assert prim.GetAttribute("physxMaterial:dampingCombineMode").Get() == "min"
-    assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
 
 
 # -------------------------------------------------------------------------------------
@@ -265,9 +197,9 @@ def test_spawn_mesh_with_rigid_props_accepts_fragment_list_physics_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
-        physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55)],
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55),
     )
     prim = cfg.func("/World/MeshCubeFrag", cfg, stage=stage)
     assert prim.IsValid()
@@ -293,7 +225,7 @@ def test_spawn_ground_plane_accepts_fragment_list_physics_material():
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
-    cfg = GroundPlaneCfg(physics_material=[UsdPhysicsRigidBodyMaterialCfg(static_friction=0.42)])
+    cfg = GroundPlaneCfg(physics_material=UsdPhysicsRigidBodyMaterialCfg(static_friction=0.42))
     prim = cfg.func("/World/groundPlane", cfg)
     assert prim.IsValid()
     material_prim = stage.GetPrimAtPath("/World/groundPlane/physicsMaterial")
@@ -332,8 +264,8 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_physx_rigid_body_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         physics_material=PhysxRigidBodyMaterialCfg(static_friction=0.65, dynamic_friction=0.55),
     )
     prim = cfg.func("/World/MeshCubeLegacyPhysx", cfg, stage=stage)
@@ -360,8 +292,8 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_newton_material():
     stage = sim_utils.get_current_stage()
     cfg = MeshCuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         physics_material=NewtonMaterialPropertiesCfg(torsional_friction=0.3, rolling_friction=0.001),
     )
     prim = cfg.func("/World/MeshCubeLegacyNewton", cfg, stage=stage)
@@ -374,29 +306,6 @@ def test_spawn_mesh_with_rigid_props_accepts_legacy_newton_material():
     binding_api = UsdShade.MaterialBindingAPI(stage.GetPrimAtPath("/World/MeshCubeLegacyNewton/geometry/mesh"))
     bound_material, _ = binding_api.ComputeBoundMaterial(materialPurpose="physics")
     assert bound_material.GetPath() == material_prim.GetPath()
-
-
-# -------------------------------------------------------------------------------------
-# PhysxRigidBodyMaterialCfg (legacy): damping-combine-mode + compliant-contact-acceleration-spring
-# -------------------------------------------------------------------------------------
-
-
-def test_legacy_physx_rigid_body_material_authors_damping_combine_mode_and_acceleration_spring():
-    """The legacy :class:`~isaaclab_physx.sim.spawners.materials.PhysxRigidBodyMaterialCfg` must
-    author the same two ``physxMaterial:*`` attributes as the
-    :class:`~isaaclab_physx.sim.spawners.materials.PhysxMaterialCfg` fragment, since the legacy
-    spawner is metadata-driven off the same ``physxMaterial`` namespace."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import PhysxRigidBodyMaterialCfg
-
-    from isaaclab.sim.spawners.materials import spawn_rigid_body_material
-
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    cfg = PhysxRigidBodyMaterialCfg(damping_combine_mode="min", compliant_contact_acceleration_spring=True)
-    prim = spawn_rigid_body_material("/World/MatLegacyPhysxExtra", cfg)
-    assert "PhysxMaterialAPI" in prim.GetAppliedSchemas()
-    assert prim.GetAttribute("physxMaterial:dampingCombineMode").Get() == "min"
-    assert prim.GetAttribute("physxMaterial:compliantContactAccelerationSpring").Get() is True
 
 
 # -------------------------------------------------------------------------------------
@@ -446,11 +355,10 @@ def test_legacy_base_cfg_authors_density():
     assert not prim2.GetAttribute("physics:density").HasAuthoredValue()
 
 
-def test_public_default_material_types_remain_backward_compatible():
-    """Fragment support must not silently replace the released default config objects."""
-    from isaaclab_physx.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-
+def test_public_default_material_types_remain_core_importable():
+    """Default rigid materials must not require importing a physics-backend package."""
     from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg
+    from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
     from isaaclab.terrains.terrain_importer_cfg import TerrainImporterCfg
 
     defaults = (
@@ -458,7 +366,7 @@ def test_public_default_material_types_remain_backward_compatible():
         GroundPlaneCfg().physics_material,
         TerrainImporterCfg(prim_path="/World/terrain").physics_material,
     )
-    assert all(type(material) is RigidBodyMaterialCfg for material in defaults)
+    assert all(type(material) is RigidBodyMaterialBaseCfg for material in defaults)
 
 
 def test_physx_fragment_and_legacy_cfg_match_material_api_schema():

@@ -15,6 +15,7 @@ import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
 
@@ -38,6 +39,7 @@ _RTX_FIELD_TO_SETTING = {
     "enable_cached_raytracing": "/rtx/raytracing/cached/enabled",
     "max_samples_per_launch": "/rtx/pathtracing/maxSamplesPerLaunch",
     "view_tile_limit": "/rtx/viewTile/limit",
+    "show_all_partitions_by_default": ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING,
     # RT2 path tracing settings
     "max_bounces": "/rtx/rtpt/maxBounces",
     "split_glass": "/rtx/rtpt/splitGlass",
@@ -156,21 +158,18 @@ def _wait_for_streaming_complete() -> None:
 def ensure_rtx_hydra_engine_attached() -> None:
     """Attach the RTX Hydra engine to the USD context if not already attached.
 
-    Headless app files such as ``isaaclab.python.headless.rendering.kit`` intentionally
-    omit ``omni.kit.viewport.window`` to avoid pulling in the ``omni.ui``-based viewport
-    stack. However, ``ViewportWindow`` is normally responsible for calling
-    :func:`omni.usd.create_hydra_engine` at startup; without it the RTX Hydra engine is
-    never bound to the :class:`omni.usd.UsdContext`, and the first Replicator tiled
+    ``ViewportWindow`` usually performs this during startup, but callers can also
+    reach this code path before a viewport has attached an RTX engine to the
+    :class:`omni.usd.UsdContext`. Without that attachment the first Replicator tiled
     render product runs against a cold pipeline. On some GPUs this manifests as
     ``cudaErrorIllegalAddress`` inside ``omni.rtx`` (CUDA ``freeAsync``) and/or all
     tiles rendering as black.
 
-    This helper replicates only the activation step ``ViewportWindow`` performs,
-    without creating a UI or a window. It is idempotent: when the engine is already
-    attached (e.g. GUI runs that do load ``omni.kit.viewport.window``, or a previous
-    call already attached it) the function is a no-op. Failures are logged as errors
-    and do not propagate, so non-RTX contexts (e.g. unit tests importing this module
-    without a running Kit app) continue to work.
+    This helper is idempotent: when the engine is already attached (e.g. app files
+    that load ``omni.kit.viewport.window``, or a previous call already attached it)
+    the function is a no-op. Failures are logged as errors and do not propagate, so
+    non-RTX contexts (e.g. unit tests importing this module without a running Kit
+    app) continue to work.
     """
     try:
         ctx = omni.usd.get_context()
@@ -220,32 +219,21 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if sim is None:
         return
 
-    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
-    key = (id(sim), sim._physics_step_count, render_generation)
+    key = (id(sim), sim.get_physics_step_count(), sim.render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
-    # If a visualizer already pumps the Kit app loop, mark as done and skip.
-    # However, on the very first call for a new SimulationContext, the visualizer
-    # has not had a chance to pump yet (sim.render() was never called), so we
-    # must perform the initial app.update() ourselves to populate annotator buffers.
+    # Prime annotators once; afterward the Kit visualizer owns its app updates.
     first_call_for_sim = _last_render_update_key[0] != id(sim)
     if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
         _last_render_update_key = key
         return
 
-    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
-    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
-    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
-    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
-    # when a frame is requested, without making every step pump.
+    # Headless offscreen capture requests a frame explicitly with force=True.
     if not force and not sim.is_rendering:
         return
 
-    # Sync physics results → Fabric so RTX sees updated positions.
-    # physics_manager.step() only runs simulate()/fetch_results() and does NOT
-    # call _update_fabric(), so without this the render would lag one frame behind.
-    sim.physics_manager.forward()
+    sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
 
     import omni.kit.app
 

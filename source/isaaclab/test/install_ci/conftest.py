@@ -42,6 +42,12 @@ def isaaclab_root() -> Path:
 
 
 @pytest.fixture(scope="session")
+def uv_overrides() -> Path:
+    """Path to the self-contained uv overrides used by wheel installation tests."""
+    return Path(__file__).resolve().parent / "uv_pip" / "uv-overrides.txt"
+
+
+@pytest.fixture(scope="session")
 def cartpole_smoke_script() -> Path:
     """Path to the shared Cartpole smoke probe executed inside installed environments."""
     return Path(__file__).resolve().parent / "misc" / "cartpole_training_smoke.py"
@@ -117,6 +123,9 @@ def pytest_configure(config: pytest.Config) -> None:
     config.addinivalue_line("markers", "install_path_cli: tests that exercise the ./isaaclab.sh -i install path")
     config.addinivalue_line(
         "markers", "install_path_uv_pip: tests that exercise the uv pip install <wheel> install path"
+    )
+    config.addinivalue_line(
+        "markers", "install_path_uv_run: tests that exercise the uv run (committed lockfile) install path"
     )
     config.addinivalue_line("markers", "timeout: per-test timeout in seconds")
 

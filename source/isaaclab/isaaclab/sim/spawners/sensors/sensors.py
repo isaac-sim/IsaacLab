@@ -8,15 +8,15 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-from pxr import Sdf, Usd
+from pxr import Gf, Sdf, Usd
 
-from isaaclab.sim.utils import change_prim_property, clone, create_prim, get_current_stage
 from isaaclab.utils import to_camel_case
+
+from ...utils import change_prim_property, clone, create_prim, get_current_stage
 
 if TYPE_CHECKING:
     from . import sensors_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 CUSTOM_PINHOLE_CAMERA_ATTRIBUTES = {
@@ -46,6 +46,65 @@ CUSTOM_FISHEYE_CAMERA_ATTRIBUTES = {
 
 The dictionary maps the attribute name in the configuration to the attribute name in the USD prim.
 """
+
+
+# OpenCV lens-distortion models authored as the ``omni:lensdistortion:*`` USD API. The RTX/OVRTX
+# renderer honors these attributes natively; they are read back into ``camera.data.intrinsic_matrices``
+# when :class:`~isaaclab.sensors.camera.Camera` imports its initial calibration.
+_OPENCV_DISTORTION_API_SCHEMAS = {
+    "opencvPinhole": "OmniLensDistortionOpenCvPinholeAPI",
+    "opencvFisheye": "OmniLensDistortionOpenCvFisheyeAPI",
+}
+"""Maps an OpenCV distortion model discriminator to its applied USD API schema name."""
+
+_OPENCV_DISTORTION_COEFFS = {
+    "opencvPinhole": ("k1", "k2", "k3", "k4", "k5", "k6", "p1", "p2", "s1", "s2", "s3", "s4"),
+    "opencvFisheye": ("k1", "k2", "k3", "k4"),
+}
+"""Maps an OpenCV distortion model discriminator to its distortion-coefficient field names."""
+
+
+def _author_opencv_distortion(prim: Usd.Prim, cfg: sensors_cfg.OpenCvDistortionCfg) -> None:
+    """Author an OpenCV lens-distortion model on a camera prim as the ``omni:lensdistortion:*`` API.
+
+    The attributes are authored explicitly (not through the generic camelCase loop of
+    :func:`spawn_camera`) because their names are namespaced (e.g. ``omni:lensdistortion:opencvPinhole:k1``)
+    and cannot be produced by :func:`~isaaclab.utils.to_camel_case`. Applying the schema only edits prim
+    metadata, so it survives ``stage.ExportToString()`` and does not require the schema to be registered.
+
+    Args:
+        prim: The camera prim to author the distortion model on.
+        cfg: The OpenCV distortion configuration.
+
+    Raises:
+        ValueError: If the distortion ``model`` is not a supported OpenCV model.
+    """
+    if cfg.model not in _OPENCV_DISTORTION_API_SCHEMAS:
+        raise ValueError(
+            f"Unsupported OpenCV distortion model: '{cfg.model}'. Supported models are:"
+            f" {list(_OPENCV_DISTORTION_API_SCHEMAS)}."
+        )
+    prefix = f"omni:lensdistortion:{cfg.model}"
+
+    # apply the schema and set the model discriminator token
+    prim.AddAppliedSchema(_OPENCV_DISTORTION_API_SCHEMAS[cfg.model])
+
+    def _set_attr(name: str, type_name: Sdf.ValueTypeName, value) -> None:
+        attr = prim.GetAttribute(name) or prim.CreateAttribute(name, type_name)
+        attr.Set(value)
+
+    _set_attr("omni:lensdistortion:model", Sdf.ValueTypeNames.Token, cfg.model)
+    _set_attr(
+        f"{prefix}:imageSize",
+        Sdf.ValueTypeNames.Int2,
+        Gf.Vec2i(int(cfg.image_size[0]), int(cfg.image_size[1])),
+    )
+    for name in ("fx", "fy", "cx", "cy"):
+        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(getattr(cfg, name)))
+    # coefficients are muted (authored as zero) unless apply_lens_distortion is set
+    for name in _OPENCV_DISTORTION_COEFFS[cfg.model]:
+        value = float(getattr(cfg, name)) if cfg.apply_lens_distortion else 0.0
+        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, value)
 
 
 @clone
@@ -82,7 +141,6 @@ def spawn_camera(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    # obtain stage handle
     stage = get_current_stage()
 
     # spawn camera if it doesn't exist.
@@ -119,31 +177,26 @@ def spawn_camera(
         "semantic_tags",
         "from_intrinsic_matrix",
         "spawn_path",
+        "distortion",
     ]
     # get camera prim
     prim = stage.GetPrimAtPath(prim_path)
     # create attributes for the fisheye camera model
     # note: for pinhole those are already part of the USD camera prim
     for attr_name, attr_type in attribute_types.values():
-        # check if attribute does not exist
         if prim.GetAttribute(attr_name).Get() is None:
-            # create attribute based on type
             prim.CreateAttribute(attr_name, attr_type)
-    # set attribute values
     for param_name, param_value in cfg.__dict__.items():
-        # check if value is valid
         if param_value is None or param_name in non_usd_cfg_param_names:
             continue
-        # obtain prim property name
         if param_name in attribute_types:
-            # check custom attributes
             prim_prop_name = attribute_types[param_name][0]
         else:
-            # convert attribute name in prim to cfg name
             prim_prop_name = to_camel_case(param_name, to="cC")
-        # get attribute from the class
         prim.GetAttribute(prim_prop_name).Set(param_value)
-    # return the prim
+    # author the OpenCV lens-distortion model (renderer-agnostic; RTX/OVRTX honors it natively)
+    if cfg.distortion is not None:
+        _author_opencv_distortion(prim, cfg.distortion)
     return prim
 
 

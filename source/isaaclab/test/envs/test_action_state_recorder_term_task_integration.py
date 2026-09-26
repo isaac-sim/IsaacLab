@@ -28,6 +28,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -90,11 +91,12 @@ def check_initial_state_recorder_term(env):
         assert are_states_equal, output_log
 
 
-@pytest.mark.parametrize("task_name", ["Isaac-Lift-Cube-Franka"])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("num_envs", [1, 2])
-def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
+@pytest.mark.parametrize("task_name", ["IsaacContrib-Lift-Cube-Franka"])
+# Two environments, so that resetting the last one is a partial reset; recorder bookkeeping is device independent.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_action_state_recorder_terms(task_name, device, temp_dir):
     """Check action state recorder terms through a registered task and Gym wrapper."""
+    num_envs = 2
     sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"

@@ -9,6 +9,7 @@ import collections.abc
 import hashlib
 import json
 from collections.abc import Iterable, Mapping, Sized
+from enum import Enum
 from typing import Any
 
 import torch
@@ -39,6 +40,12 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     # check that input data is class instance
     if not hasattr(obj, "__class__"):
         raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
+    # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
+    if isinstance(obj, ResolvableString):
+        return str(obj)
+    # Enum members carry a ``__dict__`` of internals, so serialize the value they stand for.
+    if isinstance(obj, Enum):
+        return obj.value
     # convert object to dictionary
     if isinstance(obj, dict):
         obj_dict = obj
@@ -53,7 +60,7 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         return obj
 
     # convert to dictionary
-    data = dict()
+    data = {}
     for key, value in obj_dict.items():
         # disregard builtin attributes
         if key.startswith("__"):
@@ -61,7 +68,6 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # Keep lazy callable references as strings; don't force callable introspection.
         if isinstance(value, ResolvableString):
             data[key] = str(value)
-        # check if attribute is callable -- function
         # check if attribute is callable -- function
         elif callable(value):
             data[key] = callable_to_string(value)
@@ -110,6 +116,13 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             if isinstance(value, Iterable) and not isinstance(value, str):
                 # ---- 2a) flat iterable → replace wholesale ----------
                 if all(not isinstance(el, Mapping) for el in value):
+                    # class_to_dict serialized enum members as their values, so rebuild them
+                    # from the member type the existing container holds.
+                    if isinstance(obj_mem, Iterable) and not isinstance(obj_mem, str):
+                        enum_types = {type(el) for el in obj_mem if isinstance(el, Enum)}
+                        if len(enum_types) == 1:
+                            enum_type = enum_types.pop()
+                            value = [el if isinstance(el, Enum) else enum_type(el) for el in value]
                     out_val = tuple(value) if isinstance(obj_mem, tuple) else value
                     if isinstance(obj, dict):
                         obj[key] = out_val
@@ -154,6 +167,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f"[Config]: Incorrect type under namespace: {key_ns}."
                         f" Expected callable or callable-string, Received: {type(value)}."
                     )
+
+            # -- 3b) enum attribute → rebuild the member from its value ------------
+            elif isinstance(obj_mem, Enum) and value is not None:
+                # class_to_dict serializes members as their value, so restore the member here
+                value = type(obj_mem)(value)
 
             # -- 4) simple scalar / explicit None ---------------------
             elif value is None or isinstance(value, type(obj_mem)):
@@ -244,7 +262,7 @@ def convert_dict_to_backend(
     tensor_type_conversions = TENSOR_TYPE_CONVERSIONS[backend]
 
     # Parse the array types and convert them to the corresponding types: "numpy" -> np.ndarray, etc.
-    parsed_types = list()
+    parsed_types = []
     for t in array_types:
         # Check type is valid.
         if t not in TENSOR_TYPES:
@@ -256,7 +274,7 @@ def convert_dict_to_backend(
         parsed_types.append(TENSOR_TYPES[t])
 
     # Convert the data to the desired backend.
-    output_dict = dict()
+    output_dict = {}
     for key, value in data.items():
         # Obtain the data type of the current value.
         data_type = type(value)
@@ -269,7 +287,7 @@ def convert_dict_to_backend(
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
         elif isinstance(data[key], dict):
-            output_dict[key] = convert_dict_to_backend(value)
+            output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:
             output_dict[key] = value

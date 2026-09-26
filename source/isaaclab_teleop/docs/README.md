@@ -19,6 +19,8 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
   modes for controlling how the anchor orientation tracks the reference prim.
 - **Retargeting tuning UI** -- optional ImGui window for real-time adjustment of retargeter
   parameters when `retargeters_to_tune` is provided.
+- **XR camera feedback** -- selected scene cameras can be shown through Kit Scene UI using a
+  feed-owned CUDA view of their existing RTX render product, with camera-buffer fallback.
 
 ## Architecture
 
@@ -37,7 +39,11 @@ XR anchor synchronization, retargeting pipelines, and action-tensor generation.
 Add an `isaac_teleop` attribute to your environment config:
 
 ```python
-from isaaclab_teleop import IsaacTeleopCfg, XrCfg
+from isaaclab_teleop import (
+    IsaacTeleopCfg,
+    XrCameraFeedCfg,
+    XrCfg,
+)
 
 @configclass
 class MyEnvCfg(ManagerBasedRLEnvCfg):
@@ -52,6 +58,9 @@ class MyEnvCfg(ManagerBasedRLEnvCfg):
             ),
             pipeline_builder=lambda: pipeline,
             retargeters_to_tune=lambda: retargeters,
+            xr_camera_feeds=[
+                XrCameraFeedCfg(camera_name="robot_pov_cam"),
+            ],
         )
 ```
 
@@ -85,9 +94,12 @@ def my_pipeline_builder():
 The existing teleop scripts automatically detect `isaac_teleop` in the environment config:
 
 ```bash
-./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-    --task My-IsaacTeleop-Env-v0
+uv run python scripts/environments/teleoperation/teleop_se3_agent.py \
+    --task My-IsaacTeleop-Env-v0 --xr
 ```
+
+See [XR Camera Feedback](../../../docs/source/features/isaac_teleop.rst#xr-camera-feedback) for
+reference tasks, camera selection, layout, placement, renderer, disable, and kitless behavior.
 
 ### 4. Programmatic Usage
 
@@ -116,6 +128,8 @@ rendering without blocking.
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `xr_cfg` | `XrCfg` | `XrCfg()` | XR anchor position, rotation, and dynamic-anchoring settings |
+| `xr_camera_feeds` | `list[XrCameraFeedCfg]` | `[]` | Existing task scene cameras shown as image panels |
+| `xr_camera_feed_layout` | `XrCameraFeedLayoutCfg` | viewer-start manual layout | Placement reference and ordered multi-feed packing |
 | `pipeline_builder` | `Callable[[], OutputCombiner]` | *required* | Builds the retargeting pipeline |
 | `retargeters_to_tune` | `Callable[[], list[BaseRetargeter]] \| None` | `None` | Retargeters to expose in the tuning UI |
 | `plugins` | `list[PluginConfig]` | `[]` | IsaacTeleop plugin configurations |
@@ -143,20 +157,19 @@ contend for the GIL at the start of the step.
 
 ## Utilities
 
-- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated observation
-  terms from an environment config. XR does not support additional cameras as they cause rendering
-  conflicts.
+- **`remove_camera_configs(env_cfg)`** -- strips camera sensors and their associated policy
+  observation terms.
 
 ## Run with Docker
 
 Teleoperation with Isaac Lab runs in a **single container**. Build the image yourself and run a single container. **Do not use Docker Compose** for this workflow (no multi-container setup). Everything runs inside one container with Isaac Lab.
 
-Inside the container: install Isaac Teleop once (`./isaaclab.sh -p -m pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
+Inside the container: install Isaac Teleop once (`uv pip install 'isaacteleop[retargeters,cloudxr]~=1.0.0' --extra-index-url https://pypi.nvidia.com`), then start the CloudXR runtime with `--accept-eula` so there is no interactive EULA prompt, and run your teleop script. Example:
 
 ```bash
-./isaaclab.sh -p -m isaacteleop.cloudxr --accept-eula &
+uv run python -m isaacteleop.cloudxr --accept-eula &
 source ~/.cloudxr/run/cloudxr.env
-./isaaclab.sh -p scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
+uv run python scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs --num_demos 5 --dataset_file ./datasets/dataset.hdf5 --xr --visualizer kit
 ```
 
 In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html).

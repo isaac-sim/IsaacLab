@@ -20,8 +20,6 @@ from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 from isaaclab.sim.utils.newton_model_utils import (
     _OMNIPBR_DEFAULTS,
     _UNBOUND_DEFAULT_FALLBACK_GRAY,
-    _get_omnipbr_albedo,
-    _resolve_shape_color,
     replace_newton_builder_shape_colors,
 )
 
@@ -146,96 +144,6 @@ def _reference_linear_to_srgb(rgb: tuple[float, float, float]) -> tuple[float, f
 
     r, g, b = rgb
     return (linear_to_srgb(r), linear_to_srgb(g), linear_to_srgb(b))
-
-
-@pytest.mark.parametrize(("diffuse_color_constant", "diffuse_tint"), _OMNIPBR_ALBEDO_INPUT_CASES)
-def test_get_omnipbr_albedo(
-    diffuse_color_constant: tuple[float, float, float] | None,
-    diffuse_tint: tuple[float, float, float] | None,
-):
-    """``_get_omnipbr_albedo`` is diffuse × tint per channel; ``None`` means that shader input is not authored.
-
-    Unauthored inputs use ``_OMNIPBR_DEFAULTS`` in ``newton_model_utils``.
-    """
-    stage = Usd.Stage.CreateInMemory()
-
-    shader = _make_omnipbr_test_shader(stage, "/World/Mat")
-    if diffuse_color_constant is not None:
-        diffuse_inp = shader.CreateInput("diffuse_color_constant", Sdf.ValueTypeNames.Color3f)
-        diffuse_inp.Set(Gf.Vec3f(*diffuse_color_constant))
-    if diffuse_tint is not None:
-        tint_inp = shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f)
-        tint_inp.Set(Gf.Vec3f(*diffuse_tint))
-
-    expected_albedo = _expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint)
-
-    shader_prim = shader.GetPrim()
-    assert shader_prim.IsValid()
-    assert _get_omnipbr_albedo(shader_prim) == pytest.approx(expected_albedo, rel=1e-5)
-
-
-def test_resolve_shape_color_invalid_prim():
-    """Invalid prim path yields ``None`` (no replacement)."""
-    stage = Usd.Stage.CreateInMemory()
-    assert _resolve_shape_color(stage, "/World/Missing", {}) is None
-
-
-def test_resolve_shape_color_guide_purpose():
-    """Guide-purpose geometry is left on Newton's palette (no resolved replacement)."""
-    stage = Usd.Stage.CreateInMemory()
-
-    mesh = UsdGeom.Mesh.Define(stage, "/World/GuideMesh")
-    assert mesh.GetPrim().IsValid()
-    purpose_attr = UsdGeom.Imageable(mesh).GetPurposeAttr()
-    assert purpose_attr.IsValid()
-    purpose_attr.Set(UsdGeom.Tokens.guide)
-
-    assert _resolve_shape_color(stage, "/World/GuideMesh", {}) is None
-
-
-def test_resolve_shape_color_no_material_binding():
-    """Unbound mesh without ``displayColor``: neutral linear gray fallback."""
-    stage = Usd.Stage.CreateInMemory()
-
-    mesh = UsdGeom.Mesh.Define(stage, "/World/Mesh")
-    assert mesh.GetPrim().IsValid()
-
-    # Default fallback gray should be returned when there is no material binding and no display color.
-    material_color_cache: dict[str, tuple[float, float, float] | None] = {}
-    out = _resolve_shape_color(stage, "/World/Mesh", material_color_cache)
-    assert out == pytest.approx(_UNBOUND_DEFAULT_FALLBACK_GRAY, rel=1e-5)
-
-    # Add display color primvar
-    pv = UsdGeom.PrimvarsAPI(mesh).CreatePrimvar(
-        "displayColor", Sdf.ValueTypeNames.Color3fArray, UsdGeom.Tokens.constant, 1
-    )
-
-    # Set an arbitrary color.
-    display_color = (0.11, 0.55, 0.9)
-    pv.Set([Gf.Vec3f(*display_color)])
-
-    # The display color should be returned instead of the fallback gray.
-    out = _resolve_shape_color(stage, "/World/Mesh", material_color_cache)
-    assert out == pytest.approx(display_color, rel=1e-5)
-
-
-@pytest.mark.parametrize(("diffuse_color_constant", "diffuse_tint"), _OMNIPBR_ALBEDO_INPUT_CASES)
-def test_resolve_shape_color_omnipbr_binding(
-    diffuse_color_constant: tuple[float, float, float] | None,
-    diffuse_tint: tuple[float, float, float] | None,
-):
-    """Bound OmniPBR mesh: :func:`_resolve_shape_color` matches diffuse × tint."""
-    stage, _shader, mesh_path = _make_mesh_bound_to_omnipbr_test_material(diffuse_color_constant, diffuse_tint)
-    expected_albedo = _expected_omnipbr_linear_albedo(diffuse_color_constant, diffuse_tint)
-
-    out = _resolve_shape_color(stage, mesh_path, {})
-    assert out == pytest.approx(expected_albedo, rel=1e-5)
-
-
-def test_resolve_shape_color_neutral_material_binding():
-    """Bound ``UsdPreviewSurface`` material: not OmniPBR, so resolution is ``None`` (Newton row unchanged)."""
-    stage, mesh_path = _make_preview_surface_bound_mesh_stage()
-    assert _resolve_shape_color(stage, mesh_path, {}) is None
 
 
 def test_replace_newton_builder_shape_colors_warning():

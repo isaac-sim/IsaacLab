@@ -30,7 +30,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.devices.retargeter_base import RetargeterBase, RetargeterCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 class NoOpRetargeter(RetargeterBase):
@@ -195,34 +195,12 @@ def test_xr_anchor(empty_env, mock_xrcore):
 
 
 @pytest.mark.isaacsim_ci
-def test_xr_anchor_default(empty_env, mock_xrcore):
-    """Test XR anchor creation with default configuration."""
-    env, _ = empty_env
-    # Create a proper config object with default values
-    device = OpenXRDevice(OpenXRDeviceCfg())
-
-    # Check that the xr anchor prim is created with the correct default pose
-    xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
-    assert xr_anchor_view.count == 1
-
-    position, orientation = xr_anchor_view.get_world_poses()
-    np.testing.assert_almost_equal(position.torch.numpy().tolist(), [[0, 0, 0]])
-    np.testing.assert_almost_equal(orientation.torch.numpy().tolist(), [[0, 0, 0, 1]])
-
-    # Check that xr anchor mode and custom anchor are set correctly
-    assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
-    assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
-
-    device.reset()
-
-
-@pytest.mark.isaacsim_ci
 def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
-    """Test XR anchor behavior with multiple devices."""
+    """Test XR anchor behavior with multiple devices and the raw tracking data format."""
     env, _ = empty_env
-    # Create proper config objects with default values
+    # Create proper config objects with default values; the no-op retargeter triggers data collection
     device_1 = OpenXRDevice(OpenXRDeviceCfg())
-    device_2 = OpenXRDevice(OpenXRDeviceCfg())
+    device_2 = OpenXRDevice(OpenXRDeviceCfg(), retargeters=[NoOpRetargeter(RetargeterCfg())])
 
     # Check that the xr anchor prim is created with the correct default pose
     xr_anchor_view = sim_utils.FrameView("/World/XRAnchor")
@@ -235,21 +213,9 @@ def test_xr_anchor_multiple_devices(empty_env, mock_xrcore):
     # Check that xr anchor mode and custom anchor are set correctly
     assert carb.settings.get_settings().get("/persistent/xr/anchorMode") == "custom anchor"
     assert carb.settings.get_settings().get("/xrstage/customAnchor") == "/World/XRAnchor"
-
-    device_1.reset()
-    device_2.reset()
-
-
-@pytest.mark.isaacsim_ci
-def test_get_raw_data(empty_env, mock_xrcore):
-    """Test the _get_raw_data method returns correctly formatted tracking data."""
-    env, _ = empty_env
-    # Create a proper config object with default values and a no-op retargeter to trigger data collection
-    retargeter = NoOpRetargeter(RetargeterCfg())
-    device = OpenXRDevice(OpenXRDeviceCfg(), retargeters=[retargeter])
 
     # Get raw tracking data
-    raw_data = device._get_raw_data()
+    raw_data = device_2._get_raw_data()
 
     # Check that the data structure is as expected
     from isaaclab.devices.device_base import DeviceBase
@@ -274,3 +240,6 @@ def test_get_raw_data(empty_env, mock_xrcore):
     assert len(head_pose) == 7  # [x, y, z, qx, qy, qz, qw]
     np.testing.assert_almost_equal(head_pose[:3], [0.1, 0.2, 0.3])  # Position
     np.testing.assert_almost_equal(head_pose[3:], [0.1, 0.2, 0.3, 0.9])  # Orientation
+
+    device_1.reset()
+    device_2.reset()

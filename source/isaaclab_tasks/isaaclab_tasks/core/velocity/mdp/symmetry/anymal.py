@@ -3,7 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-
 """Functions to specify the symmetry in the observation and action space for ANYmal."""
 
 from __future__ import annotations

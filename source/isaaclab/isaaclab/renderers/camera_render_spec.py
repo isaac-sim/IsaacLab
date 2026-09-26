@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
+from ..sensors.camera.camera_cfg import CameraCfg
 
 
 @dataclass(frozen=True)
@@ -23,10 +23,10 @@ class CameraRenderSpec:
         cfg: Camera configuration (data types, resolution, filters, etc.).
         device: Torch device string (e.g. ``"cuda:0"``) used by GPU annotators and Warp.
         num_instances: Number of tiled camera instances (environments).
-        camera_prim_paths: Absolute USD paths for each environment's camera prim.
-        view_count: Number of camera prims (must match ``len(camera_prim_paths)``).
-        camera_path_relative_to_env_0: Camera prim path with ``/World/envs/env_0/`` prefix
-            stripped; required by OVRTX. Empty string if the first camera is not under env 0.
+        camera_prim_paths: Absolute paths of the authored camera prims. When the renderer
+            clones environments internally, this may contain only the source camera path;
+            the renderer resolves its logical per-environment paths during registration.
+        view_count: Number of logical camera instances in the sensor view.
     """
 
     cfg: CameraCfg
@@ -34,4 +34,3 @@ class CameraRenderSpec:
     num_instances: int
     camera_prim_paths: tuple[str, ...]
     view_count: int
-    camera_path_relative_to_env_0: str

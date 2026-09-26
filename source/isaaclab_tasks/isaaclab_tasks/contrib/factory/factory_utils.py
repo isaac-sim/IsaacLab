@@ -40,13 +40,13 @@ def set_friction(asset, value, num_envs):
     )
 
 
-def set_body_inertias(robot, num_envs):
+def set_body_inertias(robot):
     """Note: this is to account for the asset_options.armature parameter in IGE."""
-    inertias = wp.to_torch(robot.root_view.get_inertias())
-    offset = torch.zeros_like(inertias)
-    offset[:, :, [0, 4, 8]] += 0.01
-    new_inertias = inertias + offset
-    robot.root_view.set_inertias(wp.from_torch(new_inertias), wp.from_torch(torch.arange(num_envs, dtype=torch.int32)))
+    # Apply the offset through the asset setter (instead of the raw tensor view) so
+    # ``data.body_inertia`` stays coherent and the update is ordering-safe by construction.
+    inertias = robot.data.body_inertia.torch.clone()
+    inertias[:, :, [0, 4, 8]] += 0.01
+    robot.set_inertias_index(inertias=inertias)
 
 
 def get_held_base_pos_local(task_name, fixed_asset_cfg, num_envs, device):

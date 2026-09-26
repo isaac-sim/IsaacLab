@@ -5,6 +5,7 @@
 
 
 from isaaclab_physx.assets import SurfaceGripperCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
@@ -15,16 +16,17 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
     ObservationsCfg,
     StackEnvCfg,
+    raise_if_surface_gripper_on_gpu,
     raise_if_surface_gripper_on_newton,
 )
 
@@ -245,9 +247,8 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         super().__post_init__()
         # MDP settings
 
-        # set viewer to see the robot and objects on the table
-        self.viewer.eye = [1.8, 0.0, 1.8]
-        self.viewer.lookat = [0.3, 0.0, 0.8]
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, 0.0, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set events
         self.events = EventCfg()
@@ -273,15 +274,17 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.gripper_threshold = 0.010
 
         # Rigid body properties of each cube
-        cube_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
-        cube_collision_properties = CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0)
+        cube_properties = [
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            )
+        ]
+        cube_collision_properties = [PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0)]
 
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
@@ -348,10 +351,14 @@ class GalbotRightArmCubeStackEnvCfg(GalbotLeftArmCubeStackEnvCfg):
     def validate_config(self):
         # The right-arm suction cup uses a PhysX-only surface gripper.
         raise_if_surface_gripper_on_newton(self)
+        raise_if_surface_gripper_on_gpu(self)
 
     def __post_init__(self):
         # post init of parent
         super().__post_init__()
+
+        # Surface grippers currently require CPU simulation.
+        self.sim.device = "cpu"
 
         # Move to area below right hand (invert y-axis)
         left, right = self.events.randomize_cube_positions.params["pose_range"]["y"]

@@ -11,12 +11,24 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.physics import PhysicsCfg
-from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialCfg
-from isaaclab.utils.configclass import configclass
-from isaaclab.visualizers import VisualizerCfg
+from ..physics import PhysicsCfg
+from ..utils import configclass
+from ..visualizers import VisualizerCfg
+from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
+
+
+@configclass
+class BackendCfg:
+    """Construction inputs and value identity for a simulation-owned resource.
+
+    Finalize all fields before registration and treat them as read-only afterward.
+    """
+
+    class_type: type = MISSING
+    """Resource class constructed as ``class_type(cfg)``; must implement ``close()``."""
 
 
 @configclass
@@ -46,8 +58,8 @@ class SimulationCfg:
     physics_prim_path: str = "/physicsScene"
     """The prim path where the USD PhysicsScene is created. Default is "/physicsScene"."""
 
-    physics_material: RigidBodyMaterialCfg = RigidBodyMaterialCfg()
-    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialCfg.
+    physics_material: RigidBodyMaterialBaseCfg = RigidBodyMaterialBaseCfg()
+    """Default physics material settings for rigid bodies. Default is RigidBodyMaterialBaseCfg.
 
     The physics engine defaults to this physics material for all the rigid body prims that do not have any
     physics material specified on them.
@@ -84,20 +96,18 @@ class SimulationCfg:
         with the GUI enabled. This is to allow certain GUI features to work properly.
     """
 
-    use_newton_actuators: bool = False
-    """Use Newton-native actuators instead of IsaacLab explicit actuator models.
+    use_newton_actuators: bool = True
+    """Use native actuators for supported explicit actuator configurations. Default is True.
 
-    When ``True``, explicit actuator configs (e.g. :class:`IdealPDActuatorCfg`,
-    :class:`DCMotorCfg`) are translated into ``NewtonActuator`` USD prims and
-    stepped by the physics engine.  The Lab config values (stiffness, damping,
-    effort_limit, etc.) take precedence: for every joint covered by a Lab
-    actuator config, any existing ``NewtonActuator`` prim targeting that joint
-    is replaced by one synthesised from the config.  Joints that are *not*
-    covered by a Lab config keep their USD-authored actuators (if any).
+    When ``True``, supported explicit configs, such as :class:`IdealPDActuatorCfg`
+    and :class:`DCMotorCfg`, author ``NewtonActuator`` USD prims. Newton executes
+    them in its solver. PhysX and OVPhysX execute them through a shared host
+    adapter during :meth:`~isaaclab.assets.Articulation.write_data_to_sim`.
 
-    :class:`ImplicitActuatorCfg` entries are still instantiated normally and
-    their gains are written to the simulation, so joints that use implicit
-    actuation continue to work as expected.
+    Config values take precedence over existing USD actuators for covered joints.
+    Joints without a config keep their USD-authored actuators. Implicit actuators
+    are unchanged: the solver applies their drive gains. Set this flag to ``False``
+    to use the deprecated Isaac Lab actuator execution path.
     """
 
     physics: PhysicsCfg | None = None
@@ -128,3 +138,12 @@ class SimulationCfg:
 
     visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
     """The visualizer configuration(s). Default is an empty list."""
+
+    default_visualizer_cfg: VisualizerCfg | None = None
+    """Default visualizer settings applied to any visualizer that is selected at runtime.
+
+    This is a hint only — it does **not** add a visualizer to :attr:`visualizer_cfgs`.
+    Fields such as :attr:`~isaaclab.visualizers.VisualizerCfg.eye` and
+    :attr:`~isaaclab.visualizers.VisualizerCfg.background_color` are forwarded to each resolved
+    visualizer unless that visualizer already has an explicitly customised value.
+    """
