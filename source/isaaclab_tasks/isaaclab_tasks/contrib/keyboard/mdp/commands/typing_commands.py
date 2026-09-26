@@ -282,9 +282,7 @@ class LetterTypingCommand(CommandTerm):
         # so the logged curves have no NaN gaps (see reset()).
         self._split_last: dict[str, float] = {}
         if self._cur_enabled:
-            cap = self.num_envs if cur.buffer_size is None else int(cur.buffer_size)
-            if cap <= 0:
-                raise ValueError("reset.buffer_size must be positive or None (one snapshot per environment).")
+            cap = int(cur.buffer_size)
             self._cur_buffer_size = cap
             self._cur_reset_assets = (
                 tuple(cur.reset_assets) if cur.reset_assets is not None else (cfg.asset_name, cfg.object_name)

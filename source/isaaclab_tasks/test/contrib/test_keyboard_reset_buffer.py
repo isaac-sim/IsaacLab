@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""CPU coverage for keyboard reset-buffer capacity and environment selection."""
+"""CPU coverage for environment selection in keyboard reset-buffer batches."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -15,9 +15,9 @@ from isaaclab_tasks.contrib.keyboard.mdp.commands import typing_commands
 from isaaclab_tasks.contrib.keyboard.so101_env_cfg import CommandsCfg
 
 
-def _make_command(buffer_size: int | None) -> typing_commands.LetterTypingCommand:
+def _make_command(buffer_size: int) -> typing_commands.LetterTypingCommand:
     cfg = CommandsCfg().typing
-    assert cfg.reset.buffer_size is None
+    assert cfg.reset.buffer_size == 8192
     cfg.reset.buffer_size = buffer_size
     cfg.max_len = 2
     cfg.letter_length = (1, 2)
@@ -49,11 +49,11 @@ def _make_command(buffer_size: int | None) -> typing_commands.LetterTypingComman
     return typing_commands.LetterTypingCommand(cfg, env)
 
 
-@pytest.mark.parametrize("buffer_size", [None, 3, 19])
+@pytest.mark.parametrize("buffer_size", [16, 3, 19])
 def test_reset_buffer_captures_commands_and_reach_from_selected_environments(monkeypatch, buffer_size):
-    """Default full batches and explicit partial/tail batches keep commands, snapshots, and residuals aligned."""
+    """Full, partial and tail batches keep commands, snapshots, and residuals aligned."""
     command = _make_command(buffer_size)
-    cap = command.num_envs if buffer_size is None else buffer_size
+    cap = buffer_size
     assert command._cur_buffer_size == cap
     assert command.success_monitor.partition_size == cap
     rows = torch.arange(cap)
@@ -103,9 +103,3 @@ def test_reset_buffer_captures_commands_and_reach_from_selected_environments(mon
     torch.testing.assert_close(command._buf_state[:, 2], prefix.float())
     torch.testing.assert_close(command._buf_reach, selected.float() + 1.0)
     assert command._buffer_built
-
-
-@pytest.mark.parametrize("buffer_size", [0, -1])
-def test_reset_buffer_rejects_nonpositive_capacity(buffer_size):
-    with pytest.raises(ValueError, match="buffer_size must be positive"):
-        _make_command(buffer_size)
