@@ -6,6 +6,7 @@
 """Shared Warp kernels for the Newton actuator fast path."""
 
 from collections.abc import Sequence
+from typing import Any
 
 import torch
 import warp as wp
@@ -25,8 +26,8 @@ def zero_at_indices_kernel(data: wp.array(dtype=wp.float32), indices: wp.array(d
 
 
 @wp.kernel(enable_backward=False)
-def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=wp.int32)):
-    """Set ``mask[indices[i]] = True`` for each ``i``. The mask must be pre-zeroed."""
+def set_mask_kernel(mask: wp.array(dtype=wp.bool), indices: wp.array(dtype=Any)):
+    """Set selected mask entries without converting or uploading the indices."""
     i = wp.tid()
     mask[indices[i]] = True
 

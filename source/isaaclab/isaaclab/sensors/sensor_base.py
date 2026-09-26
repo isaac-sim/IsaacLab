@@ -483,14 +483,17 @@ class SensorBase(ABC):
         self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None
     ) -> wp.array:
         """Resolve environment indices to a warp array and mask."""
-        if env_ids is None and env_mask is None:
+        if (env_ids is None or env_ids == slice(None)) and env_mask is None:
             return self._ALL_ENV_MASK
         elif env_mask is not None:
             return env_mask
         else:
             self._reset_mask.zero_()
             # device-side fill: a scalar index assignment synchronizes the stream on every call
-            self._reset_mask_torch.index_fill_(0, torch.as_tensor(env_ids, device=self._device).long(), True)
+            if isinstance(env_ids, slice):
+                self._reset_mask_torch[env_ids].fill_(True)
+            else:
+                self._reset_mask_torch.index_fill_(0, torch.as_tensor(env_ids, device=self._device).long(), True)
             return self._reset_mask
 
     def _resolve_rigid_body_ancestor_expr(

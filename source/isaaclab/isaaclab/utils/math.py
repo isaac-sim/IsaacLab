@@ -1282,7 +1282,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
     intrinsics_batch = intrinsics.clone()
 
     # check if inputs are batched
-    is_batched = points_batch.dim() == 2
+    is_batched = points_batch.dim() == 3
     # make sure inputs are batched
     if points_batch.dim() == 2:
         points_batch = points_batch[None]  # (P, 3) -> (1, P, 3)
@@ -1303,7 +1303,7 @@ def project_points(points: torch.Tensor, intrinsics: torch.Tensor) -> torch.Tens
 
     # return points in same shape as input
     if not is_batched:
-        points_2d = points_2d.squeeze(0)  # (1, 3, P) -> (3, P)
+        points_2d = points_2d.squeeze(0)  # (1, P, 3) -> (P, 3)
 
     return points_2d
 

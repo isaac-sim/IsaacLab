@@ -133,30 +133,34 @@ class CircularBuffer:
     Operations.
     """
 
-    def reset(self, batch_ids: Sequence[int] | None = None):
+    def reset(self, batch_ids: Sequence[int] | slice | None = None):
         """Reset the circular buffer at the specified batch indices.
 
         Args:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
-        # nothing to reset; arming the backfill would cost one full-buffer pass in append
-        if batch_ids is not None and len(batch_ids) == 0:
-            return
-        # ``index_fill_`` instead of ``x[ids] = scalar``: the scalar assignment uploads a host scalar
-        # on every call, which synchronizes the stream; the fill runs fully on the device.
         if batch_ids is None:
-            self._num_pushes.fill_(0)
+            batch_ids = slice(None)
+        # An empty reset must not arm a full-buffer backfill on the next append.
+        num_batches = len(range(self.batch_size)[batch_ids]) if isinstance(batch_ids, slice) else len(batch_ids)
+        if num_batches == 0:
+            return
+        # Fill views or index on device, avoiding a host scalar upload on every reset.
+        if isinstance(batch_ids, slice):
+            self._num_pushes[batch_ids].fill_(0)
         else:
             batch_ids_t = torch.as_tensor(batch_ids, device=self._device).long()
             self._num_pushes.index_fill_(0, batch_ids_t, 0)
         self._need_reset = True
         if self._buffer is not None:
-            # set buffer at batch_id reset indices to 0.0 so that the buffer() getter returns
-            # the cleared circular buffer after reset.
-            batch_dim = 1 if self._stack_dim_internal is None else 0
-            if batch_ids is None:
-                self._buffer.fill_(0.0)
+            # Keep buffer() consistent with the cleared reset counters.
+            if isinstance(batch_ids, slice):
+                if self._stack_dim_internal is None:
+                    self._buffer[:, batch_ids].fill_(0.0)
+                else:
+                    self._buffer[batch_ids].fill_(0.0)
             else:
+                batch_dim = 1 if self._stack_dim_internal is None else 0
                 self._buffer.index_fill_(batch_dim, batch_ids_t, 0.0)
 
     def append(self, data: torch.Tensor):

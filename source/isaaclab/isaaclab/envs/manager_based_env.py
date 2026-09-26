@@ -9,7 +9,6 @@ import builtins
 import logging
 import sys
 import warnings
-from collections.abc import Sequence
 from typing import Any
 
 import torch
@@ -401,7 +400,11 @@ class ManagerBasedEnv:
     """
 
     def reset(
-        self, seed: int | None = None, env_ids: Sequence[int] | None = None, options: dict[str, Any] | None = None
+        self,
+        env_ids: torch.Tensor | slice | None = slice(None),
+        *,
+        seed: int | None = None,
+        options: dict[str, Any] | None = None,
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
 
@@ -410,8 +413,9 @@ class ManagerBasedEnv:
         are not repeated.
 
         Args:
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
-            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
             options: Additional information to specify how the environment is reset. Defaults to None.
 
                 Note:
@@ -421,8 +425,7 @@ class ManagerBasedEnv:
             A tuple containing the observations and extras.
         """
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -459,7 +462,7 @@ class ManagerBasedEnv:
     def reset_to(
         self,
         state: dict[str, dict[str, dict[str, torch.Tensor]]],
-        env_ids: Sequence[int] | None,
+        env_ids: torch.Tensor | slice | None = slice(None),
         seed: int | None = None,
         is_relative: bool = False,
     ):
@@ -475,15 +478,14 @@ class ManagerBasedEnv:
         Args:
             state: The state to reset the specified environments to. Please refer to
                 :meth:`InteractiveScene.get_state` for the format.
-            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            env_ids: A one-dimensional int32/int64 tensor on the environment device or a positive-step slice.
+                Defaults to ``slice(None)`` (all environments). None is also accepted and normalized to ``slice(None)``.
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
-        # reset all envs in the scene if env_ids is None
         if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
-
+            env_ids = slice(None)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
 
@@ -546,33 +548,17 @@ class ManagerBasedEnv:
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             self.action_manager.apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self.action_manager.apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
@@ -642,11 +628,11 @@ class ManagerBasedEnv:
     Helper functions.
     """
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: A slice or environment indices on the environment device.
         """
         # reset the internal buffers of the scene elements
         self.scene.reset(env_ids)

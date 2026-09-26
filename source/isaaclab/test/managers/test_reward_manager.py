@@ -36,7 +36,9 @@ def env():
     # simulation double that has not started playing
     sim = MagicMock()
     sim.is_playing.return_value = False
-    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
+    return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "max_episode_length_s"])(
+        20, 0.1, "cpu", sim, 1.0
+    )
 
 
 def test_config_equivalence(env):
@@ -104,6 +106,14 @@ def test_compute(env):
     # check the reward for environment index 0
     assert float(rewards[0]) == expected_reward
     assert tuple(rewards.shape) == (env.num_envs,)
+
+    # Partial slice resets must preserve the other environments' episodic rewards.
+    selected = slice(1, None, 2)
+    extras = rew_man.reset(selected)
+    assert extras["Episode_Reward/term_1"] == expected_reward / env.max_episode_length_s
+    extras = rew_man.reset(slice(0, None, 2))
+    assert extras["Episode_Reward/term_1"] == expected_reward / env.max_episode_length_s
+    assert rew_man.reset()["Episode_Reward/term_1"] == 0
 
 
 def test_config_empty(env):

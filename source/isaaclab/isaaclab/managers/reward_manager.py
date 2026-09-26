@@ -119,7 +119,7 @@ class RewardManager(ManagerBase):
             # reset episodic sum
             # device-side fill: a scalar index assignment synchronizes the stream on every call
             if isinstance(env_ids, slice):
-                self._episode_sums[key].fill_(0.0)
+                self._episode_sums[key][env_ids].fill_(0.0)
             else:
                 self._episode_sums[key].index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0.0)
         # reset all the reward terms
