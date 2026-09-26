@@ -607,10 +607,11 @@ class CuroboPlanner(MotionPlannerBase):
         The method updates both the world model and the collision checker to ensure
         consistency across all cuRobo components.
         """
-        # Get cached object mappings and world model
+        # Get cached object mappings
         object_mappings = self._get_object_mappings()
-        world_model = self.motion_gen.world_coll_checker.world_model
         rigid_objects = self.env.scene.rigid_objects
+        robot_base_pos = self.robot.data.root_pos_w.torch[self.env_id]
+        robot_base_quat = self.robot.data.root_quat_w.torch[self.env_id]
 
         updated_count = 0
 
@@ -624,63 +625,21 @@ class CuroboPlanner(MotionPlannerBase):
                 self.logger.debug(f"SYNC: Skipping static object {object_name}")
                 continue
 
-            # Get current pose from Lab (may be on CPU or CUDA depending on --device flag)
+            # Convert the world pose to the frame used by cuRobo's static collision world.
             obj = rigid_objects[object_name]
-            env_origin = self.env.scene.env_origins[self.env_id]
-            current_pos_raw = obj.data.root_pos_w.torch[self.env_id] - env_origin
-            current_quat_raw = obj.data.root_quat_w.torch[self.env_id]  # (x, y, z, w)
+            current_pos, current_quat = PoseUtils.subtract_frame_transforms(
+                robot_base_pos,
+                robot_base_quat,
+                obj.data.root_pos_w.torch[self.env_id],
+                obj.data.root_quat_w.torch[self.env_id],
+            )
+            curobo_pose = self._make_pose(position=current_pos, quaternion=current_quat)
+            self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
+                object_path, curobo_pose, update_cpu_reference=True
+            )
+            updated_count += 1
 
-            # Convert to cuRobo device and extract float values for pose list
-            current_pos = self._to_curobo_device(current_pos_raw)
-            current_quat = self._to_curobo_device(current_quat_raw)
-
-            # Convert to cuRobo pose format [pos_x, pos_y, pos_z, qw, qx, qy, qz]
-            # Isaac Lab quaternion format: (x, y, z, w) -> cuRobo format: (w, x, y, z)
-            pose_list = [
-                float(current_pos[0].item()),
-                float(current_pos[1].item()),
-                float(current_pos[2].item()),
-                float(current_quat[3].item()),  # w
-                float(current_quat[0].item()),  # x
-                float(current_quat[1].item()),  # y
-                float(current_quat[2].item()),  # z
-            ]
-
-            # Update object pose in cuRobo's world model
-            if self._update_object_in_world_model(world_model, object_name, object_path, pose_list):
-                updated_count += 1
-
-        self.logger.debug(f"SYNC: Updated {updated_count} object poses in cuRobo world model")
-
-        # Sync object poses with collision checker
-        if updated_count > 0:
-            # Update individual obstacle poses in collision checker
-            # This preserves static mesh objects unlike load_collision_model which rebuilds everything
-            for object_name, object_path in object_mappings.items():
-                if object_name not in rigid_objects:
-                    continue
-
-                # Skip static mesh objects - they should not be dynamically updated
-                static_objects = getattr(self.config, "static_objects", [])
-                if any(static_name in object_name.lower() for static_name in static_objects):
-                    continue
-
-                # Get current pose and update in collision checker
-                obj = rigid_objects[object_name]
-                env_origin = self.env.scene.env_origins[self.env_id]
-                current_pos_raw = obj.data.root_pos_w.torch[self.env_id] - env_origin
-                current_quat_raw = obj.data.root_quat_w.torch[self.env_id]
-
-                current_pos = self._to_curobo_device(current_pos_raw)
-                current_quat = self._to_curobo_device(current_quat_raw)
-
-                # Create cuRobo pose and update collision checker directly
-                curobo_pose = self._make_pose(position=current_pos, quaternion=current_quat)
-                self.motion_gen.world_coll_checker.update_obstacle_pose(  # type: ignore
-                    object_path, curobo_pose, update_cpu_reference=True
-                )
-
-            self.logger.debug(f"Updated {updated_count} object poses in collision checker")
+        self.logger.debug(f"Updated {updated_count} object poses in cuRobo collision world")
 
     def _get_object_mappings(self) -> dict[str, str]:
         """Get object mappings with caching for performance optimization.
@@ -737,46 +696,6 @@ class CuroboPlanner(MotionPlannerBase):
                 self.logger.debug(f"WARNING: Could not find world path for {object_name}")
 
         return mappings
-
-    def _update_object_in_world_model(
-        self, world_model, object_name: str, object_path: str, pose_list: list[float]
-    ) -> bool:
-        """Update a single object's pose in cuRobo's collision world model.
-
-        Searches through all primitive types in the world model to find the specified object
-        and updates its pose. Uses flexible matching to handle variations in path naming
-        between Isaac Lab and cuRobo representations.
-
-        Args:
-            world_model: cuRobo's collision world model
-            object_name: Short object name from Isaac Lab (e.g., "cube_1")
-            object_path: Full USD path for the object in cuRobo world
-            pose_list: New pose as [x, y, z, w, x, y, z] list in cuRobo format
-
-        Returns:
-            True if object was found and successfully updated, False otherwise
-        """
-        # Handle case where world_model might be a list
-        if isinstance(world_model, list):
-            if len(world_model) > self.env_id:
-                world_model = world_model[self.env_id]
-            else:
-                return False
-
-        # Update all primitive types
-        for primitive_type in self.primitive_types:
-            primitive_list = getattr(world_model, primitive_type)
-            for primitive in primitive_list:
-                if primitive.name:
-                    primitive_name = str(primitive.name)
-                    # Use bidirectional matching for robust path matching
-                    if object_path == primitive_name or object_path in primitive_name or primitive_name in object_path:
-                        primitive.pose = pose_list
-                        self.logger.debug(f"Updated {primitive_type} {object_name} pose")
-                        return True
-
-        self.logger.debug(f"WARNING: Object {object_name} not found in world model")
-        return False
 
     def _attach_object(self, object_name: str, object_path: str, env_id: int) -> bool:
         """Attach an object to the robot for manipulation planning.

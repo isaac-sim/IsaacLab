@@ -66,8 +66,11 @@ def test_event_samples_selected_links_per_environment_and_rebinds(monkeypatch) -
     torch.testing.assert_close(env_ids, torch.tensor([3, 1], dtype=torch.int32))
     assert not torch.equal(colors[:, 0], colors[:, 1])
 
-    term(env, slice(None), **cfg.params)
-    torch.testing.assert_close(writer.calls[1][1], torch.arange(4, dtype=torch.int32))
+    for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+        term(env, selection, **cfg.params)
+        expected = torch.arange(4, dtype=torch.int32)[selection]
+        torch.testing.assert_close(writer.calls[-1][1], expected)
+        assert writer.calls[-1][0].shape == (len(expected), 2, 3)
 
 
 def test_shape_event_rejects_non_color_channels() -> None:

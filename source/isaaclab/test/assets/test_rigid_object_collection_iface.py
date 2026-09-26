@@ -216,16 +216,23 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 class TestCollectionIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
-    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
-        obj, _ = get_rigid_object_collection(backend, num_instances=4, device="cpu")
+    @_production_backends
+    @_devices
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
+        obj, _ = get_rigid_object_collection(backend, num_instances=4, device=device)
 
-        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        env_ids = torch.arange(4, dtype=torch.int32, device=device)
         resolved_full = obj._resolve_env_ids(env_ids)
         resolved_view = obj._resolve_env_ids(env_ids[:2])
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+        cached = wp.to_torch(obj._ALL_ENV_INDICES)
+        for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+            resolved = wp.to_torch(obj._resolve_env_ids(selection))
+            torch.testing.assert_close(resolved, cached[selection])
+            assert resolved.data_ptr() == cached[selection].data_ptr()
+            assert resolved.stride() == cached[selection].stride()
 
     @_index_resolution_backends
     def test_resolve_body_ids_handles_tensor_view_shape(self, backend):

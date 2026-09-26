@@ -53,7 +53,10 @@ class _Material:
         pytest.param("color", (3,), id="float3"),
     ],
 )
-def test_partial_gpu_write_updates_flat_material_rows(channel: str, trailing_shape: tuple[int, ...]) -> None:
+@pytest.mark.parametrize("use_slice", [False, True])
+def test_partial_gpu_write_updates_flat_material_rows(
+    channel: str, trailing_shape: tuple[int, ...], use_slice: bool
+) -> None:
     def initial_values(offset: float) -> torch.Tensor:
         count = 4 * math.prod(trailing_shape)
         shape = (4, *trailing_shape)
@@ -70,8 +73,9 @@ def test_partial_gpu_write_updates_flat_material_rows(channel: str, trailing_sha
     assert first.values.untyped_storage().data_ptr() == second.values.untyped_storage().data_ptr()
     first_before = first.values.clone()
     expected_second = second.values.clone()
-    env_ids = torch.tensor([3, 1], dtype=torch.int32, device="cuda:0")
-    update_shape = (1, len(env_ids), *trailing_shape)
+    expected_ids = torch.tensor([1, 3] if use_slice else [3, 1], dtype=torch.int32, device="cuda:0")
+    env_ids = slice(1, None, 2) if use_slice else expected_ids
+    update_shape = (1, 2, *trailing_shape)
     updates = torch.arange(math.prod(update_shape), dtype=torch.float32, device="cuda:0").reshape(update_shape) + 100
     expected_second[env_ids] = updates[0]
 
@@ -82,7 +86,7 @@ def test_partial_gpu_write_updates_flat_material_rows(channel: str, trailing_sha
     torch.testing.assert_close(second.values, expected_second)
     offsets, selected_env_ids = factory.writers[0].writes[-1]
     torch.testing.assert_close(wp.to_torch(offsets[channel]), torch.tensor([4], dtype=torch.int32, device="cuda:0"))
-    torch.testing.assert_close(wp.to_torch(selected_env_ids), env_ids)
+    torch.testing.assert_close(wp.to_torch(selected_env_ids), expected_ids)
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is required to exercise stream ordering.")

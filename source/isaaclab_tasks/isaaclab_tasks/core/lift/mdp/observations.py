@@ -266,13 +266,11 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
         self.reset()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
         """Resample observed deformable nodes for the selected environments."""
         if env_ids is None:
             env_ids = slice(None)
-            num_envs = self.num_envs
-        else:
-            num_envs = len(env_ids)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
 
         if self.num_points <= self.num_nodes:
             self.node_ids[env_ids] = (

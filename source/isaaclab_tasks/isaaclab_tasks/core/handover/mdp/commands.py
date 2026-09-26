@@ -78,7 +78,8 @@ class HandoverCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]) -> None:
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
-        self.quat_command_w[env_ids] = math_utils.random_orientation(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        self.quat_command_w[env_ids] = math_utils.random_orientation(num_envs, device=self.device)
 
     def _update_command(self) -> None:
         pass
