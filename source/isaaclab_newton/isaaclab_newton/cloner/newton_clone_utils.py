@@ -401,12 +401,7 @@ def replicate_builder_mapping(
                 local_indices = site_indices.setdefault(label, [[] for _ in range(num_worlds)])[world_index]
                 local_indices.extend(shape_offset + shape_idx for shape_idx in source_shape_indices)
         for hook in per_world_builder_hooks:
-            hook(
-                destination_builder,
-                world_index,
-                xforms_np[world_index, :3].copy(),
-                xforms_np[world_index, 3:].copy(),
-            )
+            hook(destination_builder, world_index, xforms_np[world_index, :3].copy(), xforms_np[world_index, 3:].copy())
         destination_builder.end_world()
 
     can_batch_runs = (
@@ -429,18 +424,13 @@ def replicate_builder_mapping(
         single_world_builder.gravity = builder.gravity
         single_world_site_indices: dict[str, list[list[int]]] = {}
         append_world(single_world_builder, run_start, single_world_site_indices)
-        single_world_builder.gravity = wp.vec3(single_world_builder.world_gravity[0])
+        # add_builder() updates world gravity; replicate() reads the builder default.
+        single_world_builder.gravity = single_world_builder.world_gravity[0]
         base_shape = builder.shape_count
         xforms = _compose_world_xforms(
             positions[run_start:run_end], quaternions[run_start:run_end], _invert_xform(xforms_np[run_start])
         )
         builder.replicate(single_world_builder, int(run_end - run_start), xforms=xforms)
-        # Root sites are authored per world on the serial path. Preserve their
-        # default display palette, which depends on the final shape index.
-        for world_index in range(run_start, run_end):
-            offset = base_shape + (world_index - run_start) * single_world_builder.shape_count
-            for local in range(len(env_root_sites)):
-                builder.shape_color[offset + local] = builder._shape_palette_color(offset + local)
         for label, site_indices_by_world in single_world_site_indices.items():
             sites = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
             for world_index in range(run_start, run_end):

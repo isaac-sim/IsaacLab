@@ -315,6 +315,9 @@ def _builder_snapshot(builder):
             value = getattr(builder, name)  # Read through deferred bulk-array storage on newer Newton versions.
             if isinstance(value, (list, np.ndarray)):
                 values[name] = copy.deepcopy(value)
+    # Hidden sites inherit their prototype's palette color when replicated.
+    visible = (np.asarray(builder.shape_flags) & int(newton.ShapeFlags.VISIBLE)) != 0
+    values["shape_color"] = np.asarray(builder.shape_color)[visible]
     values["filter_pairs"] = list(builder.shape_collision_filter_pairs)
     values["world_count"] = builder.world_count
     values["custom_values"] = {name: copy.deepcopy(attr.values) for name, attr in builder.custom_attributes.items()}

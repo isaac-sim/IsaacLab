@@ -25,21 +25,14 @@ def random(combinations: np.ndarray, num_clones: int) -> np.ndarray:
 
 
 def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
-    """Assign identical prototype combinations to consecutive environments.
-
-    Counts match :func:`round_robin` exactly, including duplicate rows used as weights
-    and an incomplete final cycle. Blocks follow each combination's first occurrence
-    in ``combinations``. For two equally weighted combinations and six environments,
-    the assignment is ``A A A B B B``.
+    """Group :func:`round_robin` assignments by first occurrence, preserving combination counts.
 
     Args:
-        combinations: Array of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations. Duplicate rows contribute additional weight.
-        num_clones: Number of environments to assign combinations to.
+        combinations: Prototype combinations, shape (num_combos, num_prototypes). Duplicates add weight.
+        num_clones: Number of environments.
 
     Returns:
-        Array of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment, with the input dtype preserved.
+        Chosen combinations, shape (num_clones, num_prototypes), with the input dtype.
     """
     if num_clones == 0:
         return combinations[:0].copy()

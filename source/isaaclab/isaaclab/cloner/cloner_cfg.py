@@ -56,12 +56,7 @@ class CloneCfg:
     """
 
     clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential
-    """Function used to build prototype-to-environment mapping. Default is :func:`~isaaclab.cloner.sequential`.
-
-    Identical combinations occupy consecutive environments. Counts match the previous
-    default, but environment IDs can change. Set :func:`~isaaclab.cloner.round_robin`
-    explicitly to retain the previous ordering.
-    """
+    """Prototype-to-env assignment function. Defaults to :func:`~isaaclab.cloner.sequential`."""
 
     clone_combinations: list[InclusionSet] = []
     """Legal scene-asset combinations for heterogeneous clone planning.

@@ -87,9 +87,7 @@ class ReplicateSession:
             num_clones: Number of target envs.
             env_spacing: Grid spacing between env origins [m].
             global_paths: Complete shared-asset roots declared by the composition root. Defaults to none.
-            clone_strategy: Prototype-to-env assignment function. Defaults to
-                :func:`~isaaclab.cloner.sequential`; use :func:`~isaaclab.cloner.round_robin`
-                to retain the previous env ordering with the same combination counts.
+            clone_strategy: Prototype-to-env assignment function. Defaults to :func:`~isaaclab.cloner.sequential`.
             valid_set: Optional ``[num_combos, num_groups]`` integer array of valid
                 prototype combinations; ``None`` uses the full cartesian product.
             replicate_physics: Whether physics replication clones each environment;
