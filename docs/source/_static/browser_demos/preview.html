@@ -1,0 +1,36 @@
+<!--
+Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+All rights reserved.
+
+SPDX-License-Identifier: BSD-3-Clause
+-->
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Isaac Lab browser demo preview</title>
+  <link rel="stylesheet" href="../css/browser-demo.css">
+  <script type="module" src="../css/browser-demo.js"></script>
+  <style>
+    body { margin: 0; padding: 2rem max(1rem, calc((100vw - 960px) / 2)); background: #f4f7f8; font: 16px/1.5 system-ui, sans-serif; color: #1a3039; }
+    h1 { font-size: 1.3rem; }
+    p { color: #536b74; }
+  </style>
+</head>
+<body>
+  <h1>Isaac Lab interactive demo</h1>
+  <p>This preview runs the compiled Newton simulation in your browser. The documentation places it beside its related guide.</p>
+  <script>
+    const demo = new URLSearchParams(location.search).get('demo');
+    const supported = new Set(['stiffness', 'cloth_bending', 'rigid_friction', 'joint_pd', 'cartpole', 'g1', 'anymal']);
+    if (supported.has(demo)) {
+      const widget = document.createElement('isaaclab-browser-demo');
+      widget.setAttribute('src', `./${demo}/manifest.json`);
+      document.body.append(widget);
+    } else {
+      document.body.append(document.createTextNode('Choose a supported demo in the URL.'));
+    }
+  </script>
+</body>
+</html>
