@@ -315,7 +315,7 @@ class NewtonSiteFrameView(BaseFrameView):
         body_labels = list(model.body_label) if model is not None else ()
         shape_labels = list(model.shape_label) if model is not None else ()
         shape_flags = None
-        use_clone_body_pattern = model is None
+        before_physics = model is None
         specs: list[_SiteSpec] = []
 
         for path_expr in self._prim_paths:
@@ -354,27 +354,19 @@ class NewtonSiteFrameView(BaseFrameView):
                     ]
                     if not len(env_ids):
                         continue
-                    source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
-                    source_path = source_root + suffix
-                    source_pattern = re.compile(source_path)
-                    source_prims = sim_utils.get_all_matching_child_prims(
-                        source_root,
+                    root, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                    source_pattern = re.compile(root + suffix)
+                    prims = sim_utils.get_all_matching_child_prims(
+                        root,
                         lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
                         stage=stage,
                     )
-                    if not source_prims:
-                        raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{source_path}'.")
+                    if not prims:
+                        raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{root + suffix}'.")
+                    ids = tuple(map(int, env_ids))
                     specs.extend(
-                        self._resolve_source_prim(
-                            source_prim,
-                            validate_xform_ops,
-                            source_root,
-                            destination_template,
-                            tuple(map(int, env_ids)),
-                            use_clone_body_pattern,
-                            stage,
-                        )
-                        for source_prim in source_prims
+                        self._resolve_source_prim(prim, validate_xform_ops, root, template, ids, before_physics, stage)
+                        for prim in prims
                     )
                 continue
 
@@ -382,7 +374,7 @@ class NewtonSiteFrameView(BaseFrameView):
             if not prims:
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
             specs.extend(
-                self._resolve_source_prim(prim, validate_xform_ops, None, None, None, use_clone_body_pattern, stage)
+                self._resolve_source_prim(prim, validate_xform_ops, None, None, None, before_physics, stage)
                 for prim in prims
             )
 

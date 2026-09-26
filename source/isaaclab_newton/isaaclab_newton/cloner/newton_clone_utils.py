@@ -141,7 +141,8 @@ def build_source_builders(
             source's USD import result.
     """
     builders = {}
-    for source in dict.fromkeys(sources):
+    sources = tuple(dict.fromkeys(sources))
+    for source in sources:
         builder = create_builder()
         import_result = builder.add_usd(
             stage,
@@ -212,7 +213,7 @@ def _compose_world_xforms(world_p: np.ndarray, world_q: np.ndarray, local: Seque
 def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
     """Inverse of a single xyzw transform, assuming a unit quaternion."""
     xform = np.asarray(xform, dtype=np.float32)
-    quat_inv = np.array([-xform[0 + 3], -xform[1 + 3], -xform[2 + 3], xform[6]], dtype=np.float32)
+    quat_inv = np.array([-xform[3], -xform[4], -xform[5], xform[6]], dtype=np.float32)
     return np.concatenate([-_quat_rotate(quat_inv, xform[:3]), quat_inv])
 
 
@@ -249,9 +250,9 @@ def _rebase_builder_paths(
     original_labels = {name: list(values) for name, values in labels.items()}
     original_paths = [attr.values.copy() for attr in paths]
     source, destination = source.rstrip("/") or "/", destination.rstrip("/") or "/"
-    reference_destinations = dict(reference_paths)
-    reference_destinations[source] = destination
-    reference_sources = sorted(reference_destinations, key=len, reverse=True)
+    destinations = dict(reference_paths)
+    destinations[source] = destination
+    sources = sorted(destinations, key=len, reverse=True)
     try:
         for values in labels.values():
             for index, label in enumerate(values):
@@ -269,11 +270,9 @@ def _rebase_builder_paths(
             for index in attr.values if isinstance(attr.values, dict) else range(len(attr.values)):
                 value = attr.values[index]
                 if isinstance(value, str):
-                    for reference_source in reference_sources:
-                        if clone_path.relative_to(value, reference_source) is not None:
-                            attr.values[index] = clone_path.rebase(
-                                value, reference_source, reference_destinations[reference_source]
-                            )
+                    for root in sources:
+                        if (suffix := clone_path.relative_to(value, root)) is not None:
+                            attr.values[index] = destinations[root].rstrip("/") + suffix or "/"
                             break
         yield
     finally:
@@ -299,9 +298,10 @@ def replicate_builder_mapping(
     """Compose routed source builders once per world prototype, then batch their selected worlds."""
     topology = plan.topology
     env_template = plan.env_template
+    layout = topology.world_prototype_layout
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
-    num_worlds = len(topology.world_prototype_layout)
+    num_worlds = len(layout)
     xforms_np = np.concatenate((positions, quaternions), axis=1).astype(np.float32, copy=False)
     world_xforms = [wp.transform(*xform) for xform in xforms_np]
     local_site_map = {
@@ -312,12 +312,12 @@ def replicate_builder_mapping(
     sources = clone_path.get_asset_prototype_paths(plan)
     templates, starts = clone_path.get_world_prototype_asset_templates(plan)
     world_builders = {}
-    prototype_ids, first_world_ids = np.unique(topology.world_prototype_layout, return_index=True)
-    for world_prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
-        start, end = starts[world_prototype_id + 1 : world_prototype_id + 3]
+    prototype_ids, first_world_ids = np.unique(layout, return_index=True)
+    for prototype_id, first_world in zip((-1, *prototype_ids), (-1, *first_world_ids), strict=True):
+        start, end = starts[prototype_id + 1 : prototype_id + 3]
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
         components = [(source, template) for source, template in reference_paths if source in source_builders]
-        prototype = ModelBuilder(up_axis=builder.up_axis)
+        prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
         sites, particle_offsets = {}, []
         for source, destination in components:
             if source not in source_inverse:
@@ -330,40 +330,33 @@ def replicate_builder_mapping(
             particle_offsets.append(prototype.particle_count)
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
-            with _rebase_builder_paths(
-                asset, source, destination, "" if world_prototype_id == -1 else env_template, reference_paths
-            ):
+            prefix = "" if prototype_id == -1 else env_template
+            with _rebase_builder_paths(asset, source, destination, prefix, reference_paths):
                 prototype.add_builder(asset, xform=source_inverse[source])
-        if world_prototype_id == -1:
-            base_shape, base_particle = builder.shape_count, builder.particle_count
-            builder.add_builder(prototype)
+        if prototype_id == -1:
             for label, indices in sites.items():
-                local_site_map[label] = np.tile(base_shape + np.asarray(indices), (num_worlds, 1)).tolist()
+                local_site_map[label] = np.tile(indices, (num_worlds, 1)).tolist()
             if source_builder_added is not None:
                 for (source, _), offset in zip(components, particle_offsets, strict=True):
-                    source_builder_added(
-                        source, base_particle + offset, source_builders[source], source_inverse[source]
-                    )
+                    source_builder_added(source, offset, source_builders[source], source_inverse[source])
             continue
         for label, xform in env_root_sites.items():
             sites.setdefault(label, []).append(prototype.add_site(body=-1, xform=xform, label=label))
-        world_builders[world_prototype_id] = prototype, sites, components, particle_offsets
+        world_builders[prototype_id] = prototype, sites, components, particle_offsets
 
     # Preserve destination order, batching each contiguous run of an identical world prototype.
-    boundaries = np.r_[0, np.flatnonzero(np.diff(topology.world_prototype_layout)) + 1, num_worlds]
+    boundaries = np.r_[0, np.flatnonzero(np.diff(layout)) + 1, num_worlds]
     for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True):
         if start == stop:
             continue
-        prototype, sites, components, particle_offsets = world_builders[int(topology.world_prototype_layout[start])]
+        prototype, sites, components, particle_offsets = world_builders[layout[start]]
         base_shape, base_particle = builder.shape_count, builder.particle_count
         shape_offsets = base_shape + np.arange(stop - start) * prototype.shape_count
         particle_bases = base_particle + np.arange(stop - start) * prototype.particle_count
         if per_world_builder_hooks:
             for world in range(start, stop):
-                shape_offsets[world - start], particle_bases[world - start] = (
-                    builder.shape_count,
-                    builder.particle_count,
-                )
+                shape_offsets[world - start] = builder.shape_count
+                particle_bases[world - start] = builder.particle_count
                 builder.begin_world()
                 builder.add_builder(prototype, xform=xforms_np[world], label_prefix=env_template.format(env_ids[world]))
                 labels = _label_groups(builder)

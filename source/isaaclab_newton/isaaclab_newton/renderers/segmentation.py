@@ -376,22 +376,10 @@ class NewtonSegmentationMapper:
     def _resolve_via_prototype(
         self, prim_path: str
     ) -> tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None:
-        """Resolve a replicated shape's labels through the prototype env it was cloned from.
+        """Read labels from the authored prototype when a native clone has no USD prim.
 
-        Newton replicates the *model*, rewriting each cloned shape's ``shape_label`` to its per-env
-        path (see ``isaaclab_newton.cloner.rename_builder_labels``), but a scene that spawns only
-        the prototype (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) authors USD prims —
-        and therefore :class:`UsdSemantics.LabelsAPI` labels — for that one env only. Those clones
-        would otherwise resolve to UNLABELLED, so their labels are read off the prototype instead.
-
-        The matched ancestor is rebased back onto the clone before being returned, because
-        ``instance_segmentation`` groups by that path: leaving it on the prototype side would
-        collapse every environment into a single instance id.
-
-        Returns:
-            The prototype's ``(filtered_labels, matched_ancestor_path)`` with the ancestor rebased
-            into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
-            prototype itself is unlabelled.
+        Rebase the labelled ancestor to keep instance IDs distinct across worlds. Labels above
+        the cloned subtree remain shared. Return None for unowned or unlabelled paths.
         """
         if self._plan is None or (world := cloner_path.match(prim_path, self._plan.env_template)) is None:
             return None
@@ -402,31 +390,19 @@ class NewtonSegmentationMapper:
         prototype = topology.world_prototype_layout[world_id]
         start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
         matches = [
-            (self._source_paths[topology.world_prototypes[index]], matched)
+            (index, matched.suffix)
             for index in range(start, end)
             if (matched := cloner_path.match(prim_path, self._templates[index])) is not None
         ]
         if not matches:
-            # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
-            # other static prim) — nothing to fall back to, so it stays unlabelled.
             return None
-        source_root, matched_path = min(matches, key=lambda item: len(item[1].suffix))
-        asset_suffix = matched_path.suffix
-        prototype_path = source_root + asset_suffix
-        # The prototype path is where the labels actually live, so a plain stage walk — not another
-        # round of clone-plan resolution — is all that's needed here. When ``prim_path`` names the
-        # prototype's own env, this re-walks the same path the caller already walked; the cache it
-        # left behind makes that a cheap no-op rather than a correctness concern.
-        match = self._walk_for_labels(prototype_path)
+        index, suffix = min(matches, key=lambda item: len(item[1]))
+        source = self._source_paths[topology.world_prototypes[index]]
+        match = self._walk_for_labels(source + suffix)
         if match is None:
             return None
-        matched, ancestor_path = match
-        # ``asset_suffix`` is the part of ``prim_path`` below the destination template, so trimming
-        # it yields this clone's counterpart of ``source_root``. An ancestor above ``source_root``
-        # (a label authored outside the cloned subtree) is genuinely shared and ``rebase`` leaves
-        # it alone, keeping such shapes in one instance group across envs.
-        clone_root = prim_path[: len(prim_path) - len(asset_suffix)] if asset_suffix else prim_path
-        return matched, cloner_path.rebase(ancestor_path, source_root, clone_root)
+        labels, ancestor = match
+        return labels, cloner_path.rebase(ancestor, source, self._templates[index].format(world.instance))
 
     def _apply_filter(self, labels: dict[SemanticType, SemanticLabels]) -> dict[SemanticType, SemanticLabels]:
         """Restrict ``labels`` (``{type: [labels]}``) to the types/labels passing the semantic filter.

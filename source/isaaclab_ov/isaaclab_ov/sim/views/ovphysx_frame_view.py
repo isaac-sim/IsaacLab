@@ -360,7 +360,7 @@ class OvPhysxFrameView(BaseFrameView):
         self._usd_view: UsdFrameView | None = None
 
         # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
-        physx = self._try_get_physx()
+        physx = OvPhysxManager.get_physx_instance()
         if physx is not None:
             self._initialize_impl(physx)
         else:
@@ -370,14 +370,9 @@ class OvPhysxFrameView(BaseFrameView):
                 name=f"ovphysx_frame_view_{prim_path}",
             )
 
-    @staticmethod
-    def _try_get_physx() -> Any | None:
-        """Return the active OVPhysX ``PhysX`` instance, or ``None`` if not yet created."""
-        return OvPhysxManager.get_physx_instance()
-
     def _on_physics_ready(self, _event) -> None:
         """Replace any prior root view when the OVPhysX ``PhysX`` instance becomes ready."""
-        physx = self._try_get_physx()
+        physx = OvPhysxManager.get_physx_instance()
         if physx is None:
             raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
         previous_root_view = getattr(self, "_root_view", None)

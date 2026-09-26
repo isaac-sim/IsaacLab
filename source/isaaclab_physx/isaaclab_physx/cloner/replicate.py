@@ -86,8 +86,7 @@ def physx_replicate(
     _replicate_instances(
         stage,
         copies=(
-            ((source, destination), np.flatnonzero(mapping[index]))
-            for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
+            (pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(zip(sources, destinations, strict=True))
         ),
         env_ids=env_ids,
         has_usd_only_sources=False,
@@ -140,7 +139,7 @@ def _replicate_instances(
     if physics_scene_prim.IsValid():
         physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
 
-    current_worlds: list[int] = []
+    current_worlds: tuple[int, ...] = ()
     current_template: str = ""
     prefixes = [destination.partition("{}")[0] for _, destination, _ in physx_queue]
     env_namespaces = [prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes]
@@ -157,20 +156,10 @@ def _replicate_instances(
         return current_template.format(current_worlds[i])
 
     def attach_end_fn(_stage_id: int):
-        nonlocal current_template
+        nonlocal current_template, current_worlds
         replicator = get_physx_replicator_interface()
-        for src, destination, target_envs in physx_queue:
-            current_template = destination
-            current_worlds[:] = target_envs
-            if not current_worlds:
-                continue
-            replicator.replicate(
-                _stage_id,
-                src,
-                len(current_worlds),
-                useEnvIds=False,
-                useFabricForReplication=False,
-            )
+        for src, current_template, current_worlds in physx_queue:
+            replicator.replicate(_stage_id, src, len(current_worlds), useEnvIds=False, useFabricForReplication=False)
         replicator.unregister_replicator(_stage_id)
 
     get_physx_replicator_interface().register_replicator(stage_id, attach_fn, attach_end_fn, rename_fn)

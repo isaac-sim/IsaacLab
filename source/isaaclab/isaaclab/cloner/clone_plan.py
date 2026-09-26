@@ -111,7 +111,7 @@ def make_clone_plan(
         A plan holding the topology and placement. Topology starts with a shared-world slice.
     """
     asset_cfgs = tuple(asset_cfgs)
-    compositions = (tuple(shared_assets), *(tuple(world) for world in world_prototypes))
+    compositions = (shared_assets, *world_prototypes)
     if len(compositions) == 1:
         raise ValueError("At least one world prototype is required; an empty world is ().")
     members = np.asarray([asset for world in compositions for asset in world])
@@ -124,12 +124,12 @@ def make_clone_plan(
         raise ValueError("Each world prototype requires one finite, non-negative weight.")
     if weights.sum() <= 0 or num_worlds < 0:
         raise ValueError("Weights must have positive total mass and num_worlds must be non-negative.")
-    world_prototype_layout = np.asarray(clone_strategy(weights, num_worlds))
+    layout = np.asarray(clone_strategy(weights, num_worlds))
     if (
-        world_prototype_layout.shape != (num_worlds,)
-        or not np.issubdtype(world_prototype_layout.dtype, np.integer)
-        or (world_prototype_layout < 0).any()
-        or (world_prototype_layout >= len(weights)).any()
+        layout.shape != (num_worlds,)
+        or not np.issubdtype(layout.dtype, np.integer)
+        or (layout < 0).any()
+        or (layout >= len(weights)).any()
     ):
         raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
     return ClonePlan(
@@ -137,7 +137,7 @@ def make_clone_plan(
             num_asset_prototypes=len(asset_cfgs),
             world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
             world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
-            world_prototype_layout=np.ascontiguousarray(world_prototype_layout, dtype=np.int32),
+            world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
         ),
         asset_cfgs=asset_cfgs,
         env_template=env_template,
@@ -159,10 +159,8 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[n
     num_rows = int(math.ceil(N / math.sqrt(N)))
     num_cols = int(math.ceil(N / num_rows))
     ii, jj = np.meshgrid(np.arange(num_rows, dtype=np.float32), np.arange(num_cols, dtype=np.float32), indexing="ij")
-    ii = ii.reshape(-1)[:N]
-    jj = jj.reshape(-1)[:N]
-    x = -(ii - (num_rows - 1) / 2) * spacing
-    y = (jj - (num_cols - 1) / 2) * spacing
+    x = -(ii.ravel()[:N] - (num_rows - 1) / 2) * spacing
+    y = (jj.ravel()[:N] - (num_cols - 1) / 2) * spacing
     zero = np.zeros(N, dtype=np.float32)
     if up_axis.lower() == "z":
         positions = np.stack((x, y, zero), axis=1)
@@ -407,9 +405,7 @@ class path:
             The rebased path, or ``path`` unchanged when it is not under ``src_root``.
         """
         suffix = cls.relative_to(path, src_root)
-        if suffix is None:
-            return path
-        return (dst_root.rstrip("/") + suffix) or "/"
+        return path if suffix is None else (dst_root.rstrip("/") + suffix) or "/"
 
 
 class query:

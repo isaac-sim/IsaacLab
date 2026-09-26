@@ -71,7 +71,7 @@ _PATH_ROOT_CASES = [
 @pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
 @pytest.mark.parametrize("dst_root", ["/World/other", "/World/other/", "/"])
 def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
-    """P2: rebase is the destination root plus the tail, and rebasing onto the same root is a no-op."""
+    """Rebasing changes only a complete root; stage roots and trailing slashes follow the same rules."""
     tail = cloner.path.relative_to(path, root)
     rebased = cloner.path.rebase(path, root, dst_root)
     if tail is None:
@@ -79,11 +79,6 @@ def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
     else:
         assert rebased == ((dst_root.rstrip("/") + tail) or "/")
         assert cloner.path.rebase(path, root, root) == path
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-def test_path_law_no_special_cases(path, root):
-    """P3: "/" is the root of every absolute path, and a trailing slash is insignificant."""
     assert cloner.path.relative_to(path, "/") is not None
     assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
     assert cloner.path.rebase(path, root, "/World/x") == cloner.path.rebase(path, root + "/", "/World/x")
@@ -199,20 +194,6 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
             actual = query(plan, path_expr)
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
-    for selector in (0, np.int32(1)):
-        expected = [-1 for asset in shared_assets if asset == selector]
-        expected += [world for world in range(16) for asset in worlds[world // 4] if asset == selector]
-        world_indices, world_starts = cloner.query.get_asset_prototype_world_index(plan.topology, selector)
-        assert world_indices.dtype == np.int32 and world_starts.dtype == np.int64
-        np.testing.assert_array_equal(world_indices, expected)
-        np.testing.assert_array_equal(
-            world_starts, [[sum(index < world for index in expected) for world in range(-1, 17)]]
-        )
-        indices, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, selector)
-        np.testing.assert_array_equal(indices, sorted(set(expected)))
-    for prototype in range(-1, len(worlds)):
-        actual, _ = cloner.query.get_world_prototype_world_index(plan.topology, prototype)
-        np.testing.assert_array_equal(actual, [-1] if prototype == -1 else range(4 * prototype, 4 * (prototype + 1)))
     # Pure planning does not modify USD names or source poses.
     assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
     assert all(cfg.spawn.spawn_path is None for cfg in assets)
@@ -258,7 +239,7 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
 @pytest.mark.parametrize(
     "worlds, num_worlds, shared, selectors",
     [
-        (((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, (0, 0), [0, 1, 0, 2, -1]),
+        (((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, (0, 0), [0, 1, 0, 2, 3, -1]),
         (((0,), (), (1, 1)), 6, (), [0, 1, 0, 2, -1]),
         (((),), 0, (1, 1), [1, 0, 1, -1, 2]),
         (((),), 3, (), [0, -1, 0, 2]),
@@ -326,8 +307,14 @@ def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
                 query(topology, selected, out=out)
                 indices, starts = out
                 exact = query(topology, selected)
+                assert exact[0].dtype == np.int32 and exact[1].dtype == np.int64
                 np.testing.assert_array_equal(exact[0], expected)
                 np.testing.assert_array_equal(exact[1], expected_starts)
+                if len(selected):
+                    for scalar in (int(selected[0]), selected[0]):
+                        scalar_indices, scalar_starts = query(topology, scalar)
+                        np.testing.assert_array_equal(scalar_indices, expected[: expected_starts[0, -1]])
+                        np.testing.assert_array_equal(scalar_starts, expected_starts[:1])
             else:
                 query_ids.assign(selected)
                 if graph is None:

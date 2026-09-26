@@ -24,23 +24,6 @@ if TYPE_CHECKING:
     from isaaclab.sim import SimulationContext
 
 
-def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
-    """Convert a USD pose matrix to an OvPhysX xyzw clone transform."""
-    matrix = matrix.RemoveScaleShear()
-    position = matrix.ExtractTranslation()
-    quaternion = matrix.ExtractRotationQuat()
-    imaginary = quaternion.GetImaginary()
-    return (
-        float(position[0]),
-        float(position[1]),
-        float(position[2]),
-        float(imaginary[0]),
-        float(imaginary[1]),
-        float(imaginary[2]),
-        float(quaternion.GetReal()),
-    )
-
-
 def _clone_recipes(
     stage: Usd.Stage,
     copies: Iterable[tuple[tuple[str, str], np.ndarray]],
@@ -59,7 +42,6 @@ def _clone_recipes(
     for (source, template), columns in copies:
         if not len(columns) or columns[0] == -1:
             continue
-        active_env_ids = env_ids[columns]
         prefix, _, suffix = template.partition("{}")
         env_template = prefix + "{}" + suffix.split("/", 1)[0]
         matched = cloner.path.match(source, env_template)
@@ -79,10 +61,8 @@ def _clone_recipes(
             source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor).RemoveScaleShear()
         source_relative = source_world * source_anchor_world.GetInverse()
 
-        targets = []
-        target_transforms = []
-        target_env_ids = []
-        for env_id, column in zip(active_env_ids, columns):
+        targets, target_transforms, target_env_ids = [], [], []
+        for env_id, column in zip(env_ids[columns], columns, strict=True):
             env_id = int(env_id)
             destination = template.format(env_id)
             if destination == source:
@@ -95,7 +75,9 @@ def _clone_recipes(
             if quaternions is not None:
                 q = quaternions[column]
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
-            target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
+            pose = (source_relative * target_env_world).RemoveScaleShear()
+            quat = pose.ExtractRotationQuat()
+            target_transforms.append((*pose.ExtractTranslation(), *quat.GetImaginary(), quat.GetReal()))
         if targets:
             recipes.append((source, targets, target_transforms, target_env_ids))
     return recipes
@@ -136,14 +118,9 @@ class OvPhysxReplicateContext:
                 for index in range(starts[group], starts[group + 1]):
                     if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
                         copies.setdefault((sources[asset], templates[index]), []).append(targets)
-        recipes = _clone_recipes(
-            stage=self.stage,
-            copies=((key, np.concatenate(groups)) for key, groups in copies.items()),
-            env_ids=np.arange(len(plan.topology.world_prototype_layout)),
-            positions=plan.positions,
-            quaternions=None,
-        )
-        for recipe in recipes:
+        copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        for recipe in _clone_recipes(self.stage, copies, env_ids, plan.positions, None):
             self._sim.physics_manager._register_clone_transforms(*recipe)
 
 
@@ -171,16 +148,10 @@ def ovphysx_replicate(
         RuntimeError: If no simulation context is active.
         ValueError: If transforms are malformed or a source or source anchor is invalid.
     """
-    recipes = _clone_recipes(
-        stage=stage,
-        copies=(
-            ((source, destination), np.flatnonzero(mapping[index]))
-            for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
-        ),
-        env_ids=env_ids,
-        positions=positions,
-        quaternions=quaternions,
+    copies = (
+        (pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(zip(sources, destinations, strict=True))
     )
+    recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
