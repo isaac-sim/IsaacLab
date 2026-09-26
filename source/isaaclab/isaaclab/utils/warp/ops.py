@@ -44,7 +44,7 @@ def _uint8_spatial_mean(src: torch.Tensor, scale: float, channel_dim: int = 3) -
 
     Args:
         src: Input image. Shape is ``(B, H, W, C)`` (BHWC) or ``(B, C, H, W)`` (BCHW),
-            dtype ``torch.uint8``, contiguous.
+            dtype ``torch.uint8``. May be a strided view.
         scale: Multiplier for the per-channel sum. Pass ``H * W * 255`` to get the mean
             of ``src / 255``.
         channel_dim: Resolved positive position of the channel axis -- ``1`` (BCHW) or
@@ -457,11 +457,13 @@ def normalize_image_uint8(
     src: torch.Tensor,
     channel_dim: int = -1,
     out: torch.Tensor | None = None,
+    output_channel_dim: int | None = None,
 ) -> torch.Tensor:
     """Compute ``(src / 255.0) - mean(src / 255.0, spatial_dims, keepdim=True)`` via a fused Warp kernel.
 
     Equivalent to the pure-PyTorch expression to within float32 precision. Pass an ``out``
-    tensor to reuse storage across steps.
+    tensor to reuse storage across steps. The kernel can also convert between BHWC and BCHW
+    while normalizing, avoiding a separate layout-conversion copy.
 
     Supports both image layouts via ``channel_dim``:
 
@@ -473,11 +475,11 @@ def normalize_image_uint8(
         which dispatches non-uint8 / non-RGB inputs to a PyTorch fallback.
 
     Args:
-        src: Input uint8 image tensor. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``.
-            Must be contiguous.
+        src: Input uint8 image tensor. Shape is ``(B, H, W, C)`` or ``(B, C, H, W)``. May be a
+            strided view, e.g. the RGB channels of an RGBA camera buffer.
         channel_dim: Position of the channel axis. Must resolve to ``1`` (BCHW) or ``3`` (BHWC).
             Negative values are supported (``-1`` == BHWC, ``-3`` == BCHW). Defaults to ``-1``.
-        out: Optional pre-allocated float32 output. Same shape as ``src``, contiguous, on the
+        out: Optional pre-allocated float32 output. Same shape as the result, contiguous, on the
             same device. If omitted, a fresh tensor is allocated. Defaults to None.
 
             .. warning::
@@ -490,48 +492,69 @@ def normalize_image_uint8(
                 buffers, or omit ``out`` entirely, when the result lifetime crosses
                 ``env.step()`` boundaries.
 
+        output_channel_dim: Position of the channel axis in the result. Supports the same values
+            as ``channel_dim``. Defaults to None, which keeps the input layout.
+
     Returns:
         The normalized float32 tensor. Same object as ``out`` when provided.
 
     Raises:
-        ValueError: If ``src`` is not 4D uint8, not contiguous, ``channel_dim`` does not
-            resolve to 1 or 3, or ``out``'s shape / dtype / device does not match.
+        ValueError: If ``src`` is not 4D uint8, ``channel_dim`` or
+            ``output_channel_dim`` does not resolve to 1 or 3, or ``out``'s shape / dtype /
+            device does not match.
     """
     if src.dtype != torch.uint8 or src.ndim != 4:
         raise ValueError(f"src must be a 4D uint8 tensor; got dtype={src.dtype}, ndim={src.ndim}")
-    if not src.is_contiguous():
-        raise ValueError("src must be contiguous (Warp kernel reads it as a 4D wp.array)")
-
-    # Resolve negative channel_dim to its positive index in [1, src.ndim - 1].
-    resolved_channel_dim = channel_dim + src.ndim if channel_dim < 0 else channel_dim
-    if resolved_channel_dim not in (1, 3):
-        raise ValueError(
-            f"channel_dim must resolve to 1 (BCHW) or 3 (BHWC) for 4D input;"
-            f" got channel_dim={channel_dim} -> {resolved_channel_dim}"
-        )
-
-    if out is None:
-        out = torch.empty(src.shape, dtype=torch.float32, device=src.device)
-    elif out.shape != src.shape or out.dtype != torch.float32 or out.device != src.device:
-        raise ValueError(
-            f"out shape/dtype/device mismatch: expected {tuple(src.shape)}/float32/{src.device},"
-            f" got {tuple(out.shape)}/{out.dtype}/{out.device}"
-        )
-    elif not out.is_contiguous():
-        raise ValueError("out must be contiguous")
+    resolved_channel_dim, resolved_output_channel_dim = _resolve_image_channel_dims(channel_dim, output_channel_dim)
+    out = _image_output(src, resolved_channel_dim, resolved_output_channel_dim, out)
 
     # Spatial dims = the two non-batch, non-channel axes; mean is shape (B, C) for both layouts.
     spatial_dims = tuple(d for d in (1, 2, 3) if d != resolved_channel_dim)
     spatial_size = src.shape[spatial_dims[0]] * src.shape[spatial_dims[1]]
     mean = _uint8_spatial_mean(src, spatial_size * 255.0, channel_dim=resolved_channel_dim)
 
-    src_wp = wp.from_torch(src, dtype=wp.uint8)
-    mean_wp = wp.from_torch(mean, dtype=wp.float32)
-    out_wp = wp.from_torch(out, dtype=wp.float32)
     wp.launch(
         kernel=kernels.normalize_image_uint8,
-        dim=src.shape,
-        inputs=[src_wp, mean_wp, out_wp, resolved_channel_dim],
+        dim=out.shape,
+        inputs=[
+            wp.from_torch(src, dtype=wp.uint8),
+            wp.from_torch(mean, dtype=wp.float32),
+            wp.from_torch(out, dtype=wp.float32),
+            resolved_channel_dim,
+            resolved_output_channel_dim,
+        ],
         device=str(src.device),
     )
+    return out
+
+
+def _resolve_image_channel_dims(channel_dim: int, output_channel_dim: int | None) -> tuple[int, int]:
+    """Resolve the input and output channel axes of a 4D image to ``1`` (BCHW) or ``3`` (BHWC)."""
+    if output_channel_dim is None:
+        output_channel_dim = channel_dim
+    resolved_channel_dim = channel_dim + 4 if channel_dim < 0 else channel_dim
+    resolved_output_channel_dim = output_channel_dim + 4 if output_channel_dim < 0 else output_channel_dim
+    if resolved_channel_dim not in (1, 3) or resolved_output_channel_dim not in (1, 3):
+        raise ValueError(
+            f"channel_dim and output_channel_dim must resolve to 1 (BCHW) or 3 (BHWC) for 4D input;"
+            f" got channel_dim={channel_dim} -> {resolved_channel_dim},"
+            f" output_channel_dim={output_channel_dim} -> {resolved_output_channel_dim}"
+        )
+    return resolved_channel_dim, resolved_output_channel_dim
+
+
+def _image_output(
+    src: torch.Tensor, channel_dim: int, output_channel_dim: int, out: torch.Tensor | None
+) -> torch.Tensor:
+    """Allocate, or validate, the contiguous float32 output of an image kernel."""
+    output_shape = src.movedim(channel_dim, output_channel_dim).shape
+    if out is None:
+        return torch.empty(output_shape, dtype=torch.float32, device=src.device)
+    if out.shape != output_shape or out.dtype != torch.float32 or out.device != src.device:
+        raise ValueError(
+            f"out shape/dtype/device mismatch: expected {tuple(output_shape)}/float32/{src.device},"
+            f" got {tuple(out.shape)}/{out.dtype}/{out.device}"
+        )
+    if not out.is_contiguous():
+        raise ValueError("out must be contiguous")
     return out

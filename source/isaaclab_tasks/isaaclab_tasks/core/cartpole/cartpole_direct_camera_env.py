@@ -68,13 +68,14 @@ class CartpoleCameraEnv(CartpoleEnv):
         if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
             camera_data = camera_data[..., :3]
-        if (rgb_like or segmentation) and not defer_normalize:
-            camera_data = normalize_camera_image(camera_data, data_type)
-        elif data_type == "depth":
-            camera_data[camera_data == float("inf")] = 0
-
         # convert to channel-first [B, C, H, W] expected by the CNN policies (rsl_rl, rl_games, skrl)
-        obs = camera_data.permute(0, 3, 1, 2).contiguous()
+        if (rgb_like or segmentation) and not defer_normalize:
+            # normalize straight into the channel-first layout
+            obs = normalize_camera_image(camera_data, data_type, output_channel_dim=1)
+        else:
+            if data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            obs = camera_data.permute(0, 3, 1, 2).contiguous()
 
         if self._stack is not None:
             self._stack.append(obs)
