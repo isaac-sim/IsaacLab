@@ -2829,7 +2829,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is CPU-native, so the
     buffer lives in host memory.
     """
-    from isaaclab.envs.mdp.events import _RandomizeRigidBodyMaterialOvPhysx  # noqa: PLC0415
+    from isaaclab_ov.envs.mdp.physics_events import RandomizeRigidBodyMaterial  # noqa: PLC0415
 
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
@@ -2852,7 +2852,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     }
     asset_cfg = SimpleNamespace(body_ids=slice(None))
     env = SimpleNamespace()  # unused by the OVPhysX implementation
-    randomize = _RandomizeRigidBodyMaterialOvPhysx(SimpleNamespace(params=params), env, articulation, asset_cfg)
+    randomize = RandomizeRigidBodyMaterial(SimpleNamespace(params=params), env, articulation, asset_cfg)
 
     # Randomize only the last environment; the others keep their materials.
     randomize(env, torch.tensor([num_articulations - 1], device=device), *params.values(), asset_cfg)

@@ -6,6 +6,7 @@
 """Tests for gravity randomization and observations."""
 
 import math
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,7 @@ import torch
 from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.observations import body_projected_gravity_b
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.sim import SimulationContext
 
 
 @pytest.mark.parametrize("backend", ["physx", "ovphysx"])
@@ -25,13 +27,16 @@ def test_scene_wide_backends_use_configured_distribution(monkeypatch: pytest.Mon
         (),
         {"set_gravity": staticmethod(lambda gravity: setattr(gravity_sink, "value", gravity))},
     )
-    monkeypatch.setattr(randomize_physics_scene_gravity, "_init_physx", lambda *_args: None)
+    sim = SimpleNamespace(
+        cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81)),
+        physics_manager=physics_manager,
+        physics_sim_view=physics_manager,
+    )
+    monkeypatch.setattr(SimulationContext, "instance", classmethod(lambda _cls: sim))
+    monkeypatch.setitem(sys.modules, "carb", SimpleNamespace(Float3=lambda *values: values))
     env = SimpleNamespace(
         device="cpu",
-        sim=SimpleNamespace(
-            cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81)),
-            physics_manager=physics_manager,
-        ),
+        sim=sim,
     )
     cfg = EventTermCfg(
         func=randomize_physics_scene_gravity,
@@ -42,8 +47,6 @@ def test_scene_wide_backends_use_configured_distribution(monkeypatch: pytest.Mon
         },
     )
     gravity_event = randomize_physics_scene_gravity(cfg, env)
-    gravity_event._carb = SimpleNamespace(Float3=lambda *values: values)
-    gravity_event._physics_sim_view = physics_manager
     torch.manual_seed(0)
     gravity_event(env, env_ids=None, **cfg.params)
     assert gravity_sink.value == pytest.approx((1.0, 2.0, 3.0))

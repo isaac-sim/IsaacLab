@@ -11,9 +11,11 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+from isaaclab_newton.envs.mdp import physics_events as newton_events_module
+from isaaclab_physx.envs.mdp import physics_events as physx_events_module
 
 from isaaclab.assets import BaseArticulation
-from isaaclab.envs.mdp import events as events_module
+from isaaclab.envs.mdp import physics_events as events_module
 
 _NUM_SHAPES_PER_BACKEND_BODY = (1, 2, 3)
 _NUM_ENVS = 2
@@ -153,8 +155,8 @@ def deterministic_material_sampling(monkeypatch):
 
     _ = assets_module.BaseArticulation
     monkeypatch.setattr(events_module.math_utils, "sample_uniform", _sample_lower_bound)
-    monkeypatch.setattr(events_module.wp, "from_torch", lambda tensor, dtype=None: tensor)
-    monkeypatch.setattr(events_module.wp, "to_torch", lambda tensor, requires_grad=None: tensor)
+    monkeypatch.setattr(newton_events_module.wp, "from_torch", lambda tensor, dtype=None: tensor)
+    monkeypatch.setattr(newton_events_module.wp, "to_torch", lambda tensor, requires_grad=None: tensor)
 
 
 @pytest.mark.parametrize(
@@ -182,7 +184,7 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
         }
     )
     env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialPhysx(cfg, env, asset, asset_cfg)
+    term = physx_events_module.RandomizeRigidBodyMaterial(cfg, env, asset, asset_cfg)
 
     term(
         env,
@@ -211,10 +213,9 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
 ):
     """Newton automatically converts public body selections to backend shape ranges."""
-    newton_assets_module = pytest.importorskip("isaaclab_newton.assets")
     newton_manager_module = pytest.importorskip("isaaclab_newton.physics.newton_manager")
 
-    monkeypatch.setattr(newton_assets_module, "Articulation", _FakeNewtonArticulation)
+    monkeypatch.setattr(newton_events_module, "NewtonArticulation", _FakeNewtonArticulation)
     monkeypatch.setattr(newton_manager_module, "NewtonManager", _FakeNewtonManager)
     _FakeNewtonManager.notifications.clear()
     asset = _FakeNewtonArticulation(body_ordering)
@@ -226,7 +227,7 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
         }
     )
     env = SimpleNamespace(scene=SimpleNamespace(num_envs=_NUM_ENVS), device="cpu")
-    term = events_module._RandomizeRigidBodyMaterialNewton(cfg, env, asset, asset_cfg)
+    term = newton_events_module.RandomizeRigidBodyMaterial(cfg, env, asset, asset_cfg)
 
     term(
         env,
