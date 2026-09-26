@@ -59,11 +59,10 @@ def _restore_visible_colliders_without_visual_shapes(
 ) -> None:
     """Show viewport-visible colliders on bodies without separate visual shapes.
 
-    Newton normally hides every collider when any visual-only shape exists in the
-    imported model. Isaac Lab procedural shapes use one default-purpose USD geometry
-    for both collision and visualization, so an unrelated visual asset must not hide
-    them. Imported collision meshes, guide-purpose collision geometry, and
-    colliders on bodies with separate visual shapes remain hidden.
+    Newton groups static colliders under the world body, where unrelated visual
+    geometry can hide them. Isaac Lab procedural shapes use one default-purpose USD
+    geometry for both collision and visualization. Imported collision meshes,
+    guide-purpose geometry, and colliders with separate visuals remain hidden.
 
     With ``load_visual_shapes=False`` the pass is skipped: Newton never hides a collider
     when the model holds no visual-only shapes, so every flag it would set is already set,
@@ -231,7 +230,9 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
 
 
 @contextmanager
-def _rebase_labels(builder: ModelBuilder, source: str, destination: str, prefix: str) -> Iterator[None]:
+def _rebase_builder_paths(
+    builder: ModelBuilder, source: str, destination: str, prefix: str, reference_paths: Sequence[tuple[str, str]]
+) -> Iterator[None]:
     """Borrow one prototype with instance-relative labels, restoring its names after the copy."""
     builder._resolve_custom_frequency_articulation_owners()
     labels = _label_groups(builder)
@@ -249,6 +250,9 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str, prefix:
     original_labels = {name: list(values) for name, values in labels.items()}
     original_paths = [attr.values.copy() for attr in paths]
     source, destination = source.rstrip("/") or "/", destination.rstrip("/") or "/"
+    reference_destinations = dict(reference_paths)
+    reference_destinations[source] = destination
+    reference_sources = sorted(reference_destinations, key=len, reverse=True)
     try:
         for values in labels.values():
             for index, label in enumerate(values):
@@ -265,8 +269,13 @@ def _rebase_labels(builder: ModelBuilder, source: str, destination: str, prefix:
         for attr in paths:
             for index in attr.values if isinstance(attr.values, dict) else range(len(attr.values)):
                 value = attr.values[index]
-                if isinstance(value, str) and clone_path.under(value, source):
-                    attr.values[index] = clone_path.rebase(value, source, destination)
+                if isinstance(value, str):
+                    for reference_source in reference_sources:
+                        if clone_path.under(value, reference_source):
+                            attr.values[index] = clone_path.rebase(
+                                value, reference_source, reference_destinations[reference_source]
+                            )
+                            break
         yield
     finally:
         for name, values in original_labels.items():
@@ -285,12 +294,16 @@ def replicate_builder_mapping(
     *,
     env_template: str,
     env_ids: np.ndarray,
+    reference_instances: Sequence[tuple[int, str | None, str, np.ndarray]] = (),
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
     source_builder_added: Callable[[str, int, ModelBuilder, Sequence[float]], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform], list[tuple[str, int]]]:
-    """Compose each declared world prototype once, then replicate its selected worlds."""
+    """Compose each declared world prototype once, then replicate its selected worlds.
+
+    Additional ``reference_instances`` supply path bindings, not geometry to import.
+    """
     source_site_indices = source_site_indices or {}
     env_root_sites = env_root_sites or {}
     num_worlds = len(plan.destinations)
@@ -319,6 +332,9 @@ def replicate_builder_mapping(
                 by_asset.setdefault(asset_prototype_id, []).append((source, destination))
         by_asset = {index: iter(targets) for index, targets in by_asset.items()}
         components = [next(by_asset[int(index)]) for index in members if int(index) in by_asset]
+        reference_paths = components + [
+            (source, destination) for _, source, destination, targets in reference_instances if world_ids[0] in targets
+        ]
         prototype = ModelBuilder(up_axis=builder.up_axis)
         sites, particle_offsets = {}, []
         for source, destination in components:
@@ -326,7 +342,9 @@ def replicate_builder_mapping(
             particle_offsets.append(prototype.particle_count)
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
-            with _rebase_labels(asset, source, destination, "" if world_prototype_id == -1 else env_template):
+            with _rebase_builder_paths(
+                asset, source, destination, "" if world_prototype_id == -1 else env_template, reference_paths
+            ):
                 prototype.add_builder(asset, xform=source_inverse[source])
         if world_prototype_id == -1:
             base_shape, base_particle = builder.shape_count, builder.particle_count

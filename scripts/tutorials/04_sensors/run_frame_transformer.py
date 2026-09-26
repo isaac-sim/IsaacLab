@@ -87,7 +87,7 @@ class FrameTransformerSceneCfg(InteractiveSceneCfg):
     )
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene_entities: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -95,8 +95,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: InteractiveS
     count = 0
 
     # extract entities for simplified notation
-    robot: Articulation = scene_entities["robot"]
-    frame_transformer: FrameTransformer = scene_entities["frame_transformer"]
+    robot: Articulation = scene["robot"]
+    frame_transformer: FrameTransformer = scene["frame_transformer"]
 
     # We only want one visualization at a time. This visualizer will be used
     # to step through each frame so the user can verify that the correct frame
@@ -162,13 +162,13 @@ def main():
     # Set main camera
     sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
     # Design scene
-    scene_entities = InteractiveScene(FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False))
+    scene = InteractiveScene(FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False))
     # Play the simulator
     sim.reset()
     # Now we are ready!
     print("[INFO]: Setup complete...")
     # Run the simulator
-    run_simulator(sim, scene_entities)
+    run_simulator(sim, scene)
 
 
 if __name__ == "__main__":

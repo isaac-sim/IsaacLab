@@ -66,6 +66,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import UsdReplicateContext
+from isaaclab.cloner.query import iter_clones
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -616,7 +617,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in usd.instances:
+        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
             target_paths = [
                 destination.format(int(world_id))
                 for world_id in world_ids
@@ -626,13 +627,8 @@ class OVRTXRenderer(BaseRenderer):
                 logger.debug(
                     "Cloning asset prototype %d: %s -> %d target(s)", asset_prototype_id, source, len(target_paths)
                 )
-                try:
-                    self.backend.renderer.clone_usd(source, target_paths)
-                    num_cloned_sources += 1
-                except Exception as e:
-                    error_msg = f"Failed to clone asset prototype {asset_prototype_id} from {source}: {e}"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                self.backend.renderer.clone_usd(source, target_paths)
+                num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
@@ -1669,7 +1665,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in usd.instances:
+        for asset_prototype_id, source, destination, world_ids in iter_clones(usd.instances):
             target_paths = [
                 destination.format(int(world_id))
                 for world_id in world_ids
@@ -1679,13 +1675,8 @@ class OVRTXRenderer(BaseRenderer):
                 logger.debug(
                     "Cloning asset prototype %d: %s -> %d target(s)", asset_prototype_id, source, len(target_paths)
                 )
-                try:
-                    self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-                    num_cloned_sources += 1
-                except Exception as e:
-                    error_msg = f"Failed to clone asset prototype {asset_prototype_id} from {source}: {e}"
-                    logger.error(error_msg)
-                    raise RuntimeError(error_msg)
+                self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
+                num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))

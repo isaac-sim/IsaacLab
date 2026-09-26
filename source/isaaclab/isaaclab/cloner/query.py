@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Sequence
+from collections.abc import Iterable, Iterator, Sequence
 
 import numpy as np
 
@@ -62,6 +62,34 @@ def replication_mapping(
     for index, (_, _, world_ids) in enumerate(selected):
         mapping[index, world_ids] = True
     return tuple(src for src, _, _ in selected), tuple(dst for _, dst, _ in selected), mapping
+
+
+def iter_clones(
+    instances: Iterable[tuple[int, str | None, str, np.ndarray]],
+) -> Iterator[tuple[int, str, str, np.ndarray]]:
+    """Yield parent-first subtree copies, omitting children already copied by the same ancestor.
+
+    Args:
+        instances: Native instance mapping, as described by :func:`replication_mapping`.
+
+    Yields:
+        Asset-prototype ID, source path, destination template, and world IDs requiring a copy.
+        Independently sourced children remain explicit overrides of their cloned parents.
+    """
+    instances = sorted((instance for instance in instances if len(instance[3])), key=lambda item: item[2].count("/"))
+    for index, (asset_prototype_id, source, destination, world_ids) in enumerate(instances):
+        covered = np.zeros(len(world_ids), dtype=np.bool_)
+        redundant = covered.copy()
+        # The nearest declared ancestor determines which source reaches each world.
+        for _, parent_source, parent_destination, parent_world_ids in reversed(instances[:index]):
+            if destination == parent_destination or not pth.under(destination, parent_destination):
+                continue
+            inherited = np.isin(world_ids, parent_world_ids) & ~covered
+            if pth.rebase(source, parent_source, parent_destination) == destination:
+                redundant |= inherited
+            covered |= inherited
+        if not redundant.all():
+            yield asset_prototype_id, source, destination, world_ids[~redundant]
 
 
 def path_env_ids(instances: Sequence[tuple[int, str | None, str, np.ndarray]], path: str) -> tuple[int, ...]:

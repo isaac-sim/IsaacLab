@@ -13,7 +13,7 @@ import numpy as np
 from ._fabric_notices import disabled_fabric_change_notifies
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .path import match, split, under
-from .query import iter_worlds
+from .query import iter_clones, iter_worlds
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -48,9 +48,9 @@ def usd_replicate(
 
     layer = stage.GetRootLayer()
     # Parents must be copied before independently declared descendants.
-    asset_prototype_ids = sorted(range(len(sources)), key=lambda index: destinations[index].count("/"))
+    source_indices = sorted(range(len(sources)), key=lambda index: destinations[index].count("/"))
     with disabled_fabric_change_notifies(stage), Sdf.ChangeBlock():
-        for source_index in asset_prototype_ids:
+        for source_index in source_indices:
             source, template = sources[source_index], destinations[source_index]
             columns = (
                 np.arange(len(env_ids))
@@ -161,9 +161,10 @@ class UsdReplicateContext:
 
         env_ids = np.arange(len(plan.destinations))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for asset_prototype_id, source, template, targets in self.instances:
-                if asset_prototype_id in asset_prototype_ids and len(targets):
-                    usd_replicate(self.stage, (source,), (template,), targets)
+            for _, source, template, targets in iter_clones(
+                instance for instance in self.instances if instance[0] in asset_prototype_ids
+            ):
+                usd_replicate(self.stage, (source,), (template,), targets)
             if self.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.
                 layer = self.stage.GetRootLayer()
