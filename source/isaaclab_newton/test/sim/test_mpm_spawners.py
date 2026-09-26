@@ -105,7 +105,7 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     )
     monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
     state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
-    monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state))
     backend = NewtonSceneDataBackend()
     backend.initialize_geometry(plan)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)

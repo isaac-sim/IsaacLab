@@ -26,20 +26,49 @@ tensor views, and the provider handles format conversion and re-mapping on top o
 Architecture
 ------------
 
+Lazy-read contract
+~~~~~~~~~~~~~~~~~~
+
+Use :class:`~isaaclab.utils.buffers.TimestampedBuffer` to pair cached data with its last successful
+update timestamp. Owners allocate storage; the container never allocates or converts it. Same-step
+writes invalidate affected asset caches with ``reset_timestamps`` and advance SDP's publication
+timestamp. Each consumer compares its own timestamp after requesting data, since resolving a native
+pointer can itself detect a change. Consumers tracking only an upload need a timestamp, not another
+copy of SDP's data reference.
+
+SDP readers cache buffers and mapping data with the same timestamp guard used by asset data, without
+binding factories or stored update callbacks. Matching native arrays bypass conversion. Caller-owned
+destinations are weakly referenced, so their cached mappings expire when the caller releases them.
+
+Pending work belongs to its executor. Newton's ``forward()`` and PhysX/OVPhysX's
+``update_kinematics()`` check ``kinematics_dirty`` internally and clear it after success; readers
+call the operation without inspecting its guard. Reordered articulation views still refresh their
+own derived arrays. Sensors and Newton's shared BVH similarly use dirty flags, while device masks
+select the environments requiring work. Keep eager contact reads to detect contact loss.
+
+Sampling periods and finite differences use simulation time [s]; Fabric geometry cadence uses render
+frames. Neither is a publication counter. Python guards do not execute during CUDA graph replay:
+captured work must remain in the graph or use device-side invalidation. Newton retains its selective
+reset masks and conservative reads after externally replayed writes.
+
+Data flow
+~~~~~~~~~
+
 The system has three layers:
 
 1. :class:`~isaaclab.scene_data.SceneDataBackend`: a small interface implemented by each physics
    manager. It exposes the backend's transform array directly as one of the
    :class:`~isaaclab.scene_data.SceneDataFormat` Warp structs, plus the per-transform prim paths
-   and total count. Producers increment ``transforms_version`` after native state writes or buffer swaps;
-   SDP calls ``get_transforms(output_format)`` before reading the version, since resolving the pointer
+   and total count. Producers increment ``transforms_timestamp`` after native state writes or buffer swaps;
+   SDP calls ``get_transforms(output_format)`` before reading the timestamp, since resolving the pointer
    can itself detect a swap. The default implementation returns the existing ``transforms`` property.
-   The version never resets, so independent readers cannot hide changes from one another.
+   This is a logical publication timestamp, not elapsed time. It never resets within the backend's
+   lifetime, so independent readers cannot hide changes from one another.
 
    - :attr:`SceneDataBackend.transforms`: the native data as a Warp struct (one of
      :class:`SceneDataFormat.Vec3_Quat`, :class:`SceneDataFormat.Transform`,
      :class:`SceneDataFormat.Matrix44`, :class:`SceneDataFormat.Vec3_Matrix33`).
-   - :attr:`SceneDataBackend.transforms_version`: monotonic version of the native transforms.
+   - :attr:`SceneDataBackend.transforms_timestamp`: logical update timestamp of the native transforms.
    - :attr:`SceneDataBackend.transform_count`: number of transforms.
    - :attr:`SceneDataBackend.transform_paths`: list of USD prim paths, one per transform.
    - :attr:`SceneDataBackend.native_transform_formats`: formats published without conversion.
@@ -57,7 +86,7 @@ The system has three layers:
    plus index re-mapping.
 
    - :meth:`SceneDataProvider.get_transforms`: binds native arrays when format and ordering match,
-     or SDP-owned buffers converted once per producer version and destination layout. These shared
+     or SDP-owned buffers converted once per producer timestamp and destination layout. These shared
      arrays are read-only, including when they replace preallocated output fields. Pass
      ``allow_passthrough=False`` to write directly into caller-owned arrays instead.
    - :meth:`SceneDataProvider.create_mapping`: builds a remap array from the backend's prim
@@ -173,6 +202,11 @@ ranges. Consumers bind to those completed resources, never rediscovering the com
 
 The internal flat-node queries and physics-owned geometry sync methods were removed. Rendering
 consumers use ``get_geometry_points``; physics managers no longer run geometry writers from ``pre_render``.
+
+Transform conversion caches use :class:`~isaaclab.utils.buffers.TimestampedBuffer`, the same
+data-and-timestamp container used by asset data. Storage is allocated only when conversion is needed;
+freshness is committed after conversion succeeds. Native matching formats still pass through without
+allocation. Fabric destination replacement invalidates the cached binding even if physics is unchanged.
 
 As in articulation and rigid-object data, the current timestamp and a cached buffer's timestamp
 serve different purposes: one identifies current state; the other identifies the state in that buffer.

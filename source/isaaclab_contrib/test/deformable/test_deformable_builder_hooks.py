@@ -134,7 +134,7 @@ def test_planned_geometry_aliases_surface_nodes_and_interpolates_volume_once(mon
     nodes[7:11], nodes[19:23] = np.asarray(entry.vertices), np.asarray(entry.vertices) + [100, 0, 0]
     state = SimpleNamespace(particle_q=wp.array(nodes, dtype=wp.vec3f, device="cpu"), body_q=None)
     monkeypatch.setattr(NewtonManager, "_cable_bindings", {})
-    monkeypatch.setattr(NewtonSceneDataBackend, "state", property(lambda self: state))
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state))
     backend = NewtonSceneDataBackend()
     backend.initialize_geometry(plan)
     stage.RemovePrim("/Scene")
