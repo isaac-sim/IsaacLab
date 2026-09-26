@@ -18,11 +18,13 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import sys
+from types import SimpleNamespace
 
 import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import RigidObjectCollection
+from isaaclab_physx.physics import IsaacEvents, PhysxManager
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg, RigidObjectCollectionCfg
@@ -132,6 +134,82 @@ def test_initialization(sim, num_envs, num_cubes, device):
     for _ in range(2):
         sim.step()
         object_collection.update(sim.cfg.dt)
+
+
+@pytest.mark.parametrize("event_as_dict", [False, True])
+@pytest.mark.parametrize("device", test_devices())
+def test_prim_deletion_event_invalidates_collection(sim, event_as_dict, device):
+    """A matching PhysX deletion event invalidates the collection and releases callbacks."""
+    object_collection, _ = generate_cubes_scene(num_envs=1, num_cubes=1, device=device)
+    sim.reset()
+
+    def make_event(prim_path):
+        payload = {"prim_path": prim_path}
+        return payload if event_as_dict else SimpleNamespace(payload=payload)
+
+    object_collection._on_prim_deletion(make_event("/World/Other"))
+    assert object_collection.is_initialized
+    assert object_collection.root_view is not None
+
+    object_collection._on_prim_deletion(make_event("/World/Table_0/Object_0"))
+
+    assert not object_collection.is_initialized
+    assert object_collection.root_view is None
+    assert object_collection._initialize_handle is None
+    assert object_collection._invalidate_initialize_handle is None
+    assert object_collection._prim_deletion_handle is None
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_prim_deletion_message_bus_invalidates_collection(sim, device):
+    """The PhysX message bus passes a deletion event that invalidates the collection."""
+    object_collection, _ = generate_cubes_scene(num_envs=1, num_cubes=1, device=device)
+    sim.reset()
+
+    PhysxManager._message_bus.dispatch_event(
+        IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/World/Table_0/Object_0"}
+    )
+    PhysxManager.raise_callback_exception_if_any()
+
+    assert not object_collection.is_initialized
+    assert object_collection.root_view is None
+    assert object_collection._initialize_handle is None
+    assert object_collection._invalidate_initialize_handle is None
+    assert object_collection._prim_deletion_handle is None
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_prim_deletion_dict_root_invalidates_collection(sim, device):
+    """A dictionary root-deletion payload invalidates the collection."""
+    object_collection, _ = generate_cubes_scene(num_envs=1, num_cubes=1, device=device)
+    sim.reset()
+
+    object_collection._on_prim_deletion({"prim_path": "/"})
+
+    assert not object_collection.is_initialized
+    assert object_collection.root_view is None
+    assert object_collection._initialize_handle is None
+    assert object_collection._invalidate_initialize_handle is None
+    assert object_collection._prim_deletion_handle is None
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_prim_deletion_clears_callbacks_when_invalidation_fails(sim, device, monkeypatch):
+    """A matching deletion releases callbacks when collection invalidation fails."""
+    object_collection, _ = generate_cubes_scene(num_envs=1, num_cubes=1, device=device)
+    sim.reset()
+
+    def raise_invalidation_error(_event):
+        raise RuntimeError("invalidation failed")
+
+    monkeypatch.setattr(object_collection, "_invalidate_initialize_callback", raise_invalidation_error)
+
+    with pytest.raises(RuntimeError, match="invalidation failed"):
+        object_collection._on_prim_deletion({"prim_path": "/World/Table_0/Object_0"})
+
+    assert object_collection._initialize_handle is None
+    assert object_collection._invalidate_initialize_handle is None
+    assert object_collection._prim_deletion_handle is None
 
 
 @pytest.mark.parametrize("device", test_devices())
