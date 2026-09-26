@@ -47,9 +47,9 @@ class randomize_visual_shape(ManagerTermBase):
         channels: dict[str, tuple | dict],
     ) -> None:
         del asset_cfg, channels
-        if isinstance(env_ids, slice):
-            env_ids = None
-        selected = self._all_env_ids if env_ids is None else env_ids.to(device=self._writer.device, dtype=torch.int32)
+        if env_ids is None:
+            env_ids = slice(None)
+        selected = self._all_env_ids[env_ids] if isinstance(env_ids, slice) else env_ids.to(dtype=torch.int32)
         model = NewtonManager.get_model()
         if self._writer.model is not model:
             self._writer.rebind(model)

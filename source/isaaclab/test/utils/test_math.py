@@ -515,6 +515,37 @@ def test_unproject_depth(device):
     torch.testing.assert_close(points, expected)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_project_points(device):
+    """Test project_points against the pinhole camera model for unbatched and batched inputs."""
+    fx, fy, cx, cy = 50.0, 40.0, 1.5, 1.0
+    intrinsics = torch.tensor([[fx, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device)
+    points = torch.tensor([[0.2, -0.1, 2.0], [-0.4, 0.3, 4.0]], device=device)
+    expected = torch.tensor(
+        [[fx * x / z + cx, fy * y / z + cy, z] for x, y, z in points.tolist()],
+        device=device,
+    )
+
+    # unbatched (P, 3) input returns (P, 3)
+    torch.testing.assert_close(math_utils.project_points(points, intrinsics), expected)
+    # a single-item batch (1, P, 3) keeps its batch dimension
+    torch.testing.assert_close(math_utils.project_points(points[None], intrinsics[None]), expected[None])
+    # a multi-item batch (N, P, 3) returns (N, P, 3), projecting each item with its own intrinsics
+    batch_fx = [50.0, 60.0, 70.0]
+    batch_intrinsics = torch.stack(
+        [torch.tensor([[f, 0.0, cx], [0.0, fy, cy], [0.0, 0.0, 1.0]], device=device) for f in batch_fx]
+    )
+    batch_points = torch.stack([points * (i + 1) for i in range(len(batch_fx))])
+    batch_expected = torch.tensor(
+        [
+            [[f * x / z + cx, fy * y / z + cy, z] for x, y, z in item.tolist()]
+            for f, item in zip(batch_fx, batch_points)
+        ],
+        device=device,
+    )
+    torch.testing.assert_close(math_utils.project_points(batch_points, batch_intrinsics), batch_expected)
+
+
 def test_interpolate_poses():
     """Test interpolate_poses function.
 

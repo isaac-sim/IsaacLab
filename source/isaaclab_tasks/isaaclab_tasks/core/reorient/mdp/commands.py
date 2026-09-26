@@ -135,7 +135,8 @@ class ReorientCommand(CommandTerm):
     def _resample_command(self, env_ids: Sequence[int]):
         self._success.record_goal_reached(env_ids)
         # sample uniformly over SO(3) rather than composing single-axis rotations, which only reaches a subset
-        quat = math_utils.random_orientation(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        quat = math_utils.random_orientation(num_envs, device=self.device)
         # make sure the quaternion real-part is always positive
         self.quat_command_w[env_ids] = math_utils.quat_unique(quat) if self.cfg.make_quat_unique else quat
 

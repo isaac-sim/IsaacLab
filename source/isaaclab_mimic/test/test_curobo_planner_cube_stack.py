@@ -177,6 +177,23 @@ class TestCubeStackPlanner:
         cube_1_pos = self._get_cube_pos("cube_1")
         cube_2_pos = self._get_cube_pos("cube_2")
         cube_3_pos = self._get_cube_pos("cube_3")
+
+        scene = self.env.scene
+        original_origin = scene.env_origins[0].clone()
+        robot_pos = self.robot.data.root_pos_w.torch[0].clone()
+        robot_quat = self.robot.data.root_quat_w.torch[0]
+        torch.testing.assert_close(robot_quat, torch.tensor([0.0, 0.0, 0.0, 1.0], device=robot_quat.device))
+        try:
+            scene.env_origins[0] = original_origin + torch.tensor([2.0, -3.0, 0.0], device=original_origin.device)
+            self.planner.update_world()
+            obstacle_pose = self.planner.get_object_pose("cube_2")
+            assert obstacle_pose is not None
+            expected_pos = cube_2_pos - robot_pos
+            torch.testing.assert_close(obstacle_pose.position.squeeze(), expected_pos.to(obstacle_pose.position.device))
+        finally:
+            scene.env_origins[0] = original_origin
+            self.planner.update_world()
+
         print(f"Cube 1 position: {cube_1_pos}")
         print(f"Cube 2 position: {cube_2_pos}")
         print(f"Cube 3 position: {cube_3_pos}")
