@@ -176,7 +176,6 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_link_vel_w if from_com else None,
-                self._body_link_vel_w,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
                 self._root_com_lin_vel_b,
@@ -386,8 +385,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
+        root_link_vel_w = self.root_link_vel_w
         if self._body_link_vel_w_ta is None:
-            self._body_link_vel_w_ta = ProxyArray(self.root_link_vel_w.warp.reshape((self._num_instances, 1)))
+            self._body_link_vel_w_ta = ProxyArray(root_link_vel_w.warp.reshape((self._num_instances, 1)))
         return self._body_link_vel_w_ta
 
     @property
@@ -967,23 +967,11 @@ class RigidObjectData(BaseRigidObjectData):
         self._root_link_vel_w = TimestampedBuffer(
             wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
-        self._root_link_vel_b = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
         self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
         self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
-        self._body_link_vel_w = TimestampedBuffer(
-            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(
             wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._root_com_vel_b = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._root_com_acc_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_acc_w = TimestampedBuffer(
             wp.zeros((self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device)

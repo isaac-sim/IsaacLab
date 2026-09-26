@@ -1859,9 +1859,6 @@ class ArticulationData(BaseArticulationData):
         self._root_link_vel_w = TimestampedBuffer(
             wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
-        self._root_link_vel_b = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
         self._body_link_vel_w = TimestampedBuffer(
             wp.empty((self._num_instances, self._num_bodies), dtype=wp.spatial_vectorf, device=self.device)
         )
@@ -1877,12 +1874,6 @@ class ArticulationData(BaseArticulationData):
         # -- com frame w.r.t. world frame
         self._root_com_pose_w = TimestampedBuffer(
             wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-        )
-        self._root_com_vel_b = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-        )
-        self._root_com_acc_w = TimestampedBuffer(
-            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
         )
         self._body_com_pose_w = TimestampedBuffer(
             wp.empty((self._num_instances, self._num_bodies), dtype=wp.transformf, device=self.device)

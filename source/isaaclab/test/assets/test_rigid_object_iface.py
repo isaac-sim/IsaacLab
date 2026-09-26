@@ -395,6 +395,7 @@ class TestRigidObjectCacheInvalidation:
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
         obj.data.update(dt=0.01)
+        body_velocity = obj.data.body_link_vel_w
         buffers = _prime_timestamped_properties(
             obj.data,
             [
@@ -407,6 +408,9 @@ class TestRigidObjectCacheInvalidation:
         root_velocity = _make_data_warp((obj.num_instances,), "cpu", wp.spatial_vectorf)
         obj.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
         _assert_buffers_stale(obj.data, buffers)
+        # Read the body alias first; zero angular velocity makes link and COM velocities equal.
+        _assert_reads_back(obj.data.body_link_vel_w, wp.to_torch(root_velocity).unsqueeze(1), "body_link_vel_w")
+        assert obj.data.body_link_vel_w is body_velocity
 
     @_production_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
