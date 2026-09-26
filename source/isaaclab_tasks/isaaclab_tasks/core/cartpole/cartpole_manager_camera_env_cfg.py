@@ -62,6 +62,7 @@ def image_observations_cfg(data_type: str):
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
                 func=image_term,
+                clone_output=False,
                 params={
                     "sensor_cfg": SceneEntityCfg("tiled_camera"),
                     "data_type": data_type,

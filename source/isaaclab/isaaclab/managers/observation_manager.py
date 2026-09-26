@@ -414,7 +414,9 @@ class ObservationManager(ManagerBase):
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params).clone()
+            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
+            if term_cfg.clone_output:
+                obs = obs.clone()
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
@@ -446,6 +448,7 @@ class ObservationManager(ManagerBase):
                         max_len=circular_buffer.max_length,
                         batch_size=circular_buffer.batch_size,
                         device=circular_buffer.device,
+                        stack_dim=1 if obs.ndim > 1 else None,
                     )
                     circular_buffer.append(obs)
 
@@ -458,6 +461,16 @@ class ObservationManager(ManagerBase):
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
+            # Post-processing and history may return persistent buffers instead of owned outputs.
+            if len(group_obs) == 1:
+                term_cfg = self._group_obs_term_cfgs[group_name][0]
+                if (
+                    term_cfg.history_length == 0
+                    and not term_cfg.modifiers
+                    and term_cfg.noise is None
+                    and term_cfg.delay_max_lag == 0
+                ):
+                    return next(iter(group_obs.values()))
             # set the concatenate dimension, account for the batch dimension if positive dimension is given
             return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
@@ -678,7 +691,10 @@ class ObservationManager(ManagerBase):
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                        max_len=term_cfg.history_length,
+                        batch_size=self._env.num_envs,
+                        device=self._env.device,
+                        stack_dim=1 if len(obs_dims) > 1 else None,
                     )
                     old_dims = list(obs_dims)
                     old_dims.insert(1, term_cfg.history_length)

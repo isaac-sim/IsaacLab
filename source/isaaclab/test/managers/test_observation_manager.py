@@ -516,6 +516,19 @@ def test_modifier_compute(setup_env):
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
 
+    # A concatenated observation must survive subsequent updates to a modifier's internal state.
+    cfg.policy.term_1 = None
+    cfg.policy.term_2 = None
+    cfg.policy.concatenate_terms = True
+    obs_man = ObservationManager(cfg, env)
+    first = obs_man.compute()["policy"]
+    expected = 0.5 * (env.data.pos_w + 1.0) * env.dt
+    torch.testing.assert_close(first, expected)
+    obs_man.compute()
+    torch.testing.assert_close(first, expected)
+    obs_man.reset()
+    torch.testing.assert_close(first, expected)
+
 
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
@@ -782,6 +795,7 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
     if history:
         assert torch.all(history.current_length == 0)
 
+    outputs = []
     for step in range(6):
         if step == 3:
             manager.reset([1])
@@ -794,11 +808,15 @@ def test_compute_updates_history_only_when_requested(lag, history_length, term_h
         if step >= 3:
             expected[1].clamp_(min=12.0)
         torch.testing.assert_close(output, expected)
+        outputs.append((output, expected))
         env.observation.fill_(-100.0)
         rng_state = torch.get_rng_state()
         torch.testing.assert_close(manager.compute()["policy"], expected)
         torch.testing.assert_close(manager.compute_group("policy"), expected)
         assert torch.equal(torch.get_rng_state(), rng_state)
+    # returned observations must not alias the manager's history or delay storage
+    for output, expected in outputs:
+        torch.testing.assert_close(output, expected)
 
 
 @pytest.mark.parametrize(
