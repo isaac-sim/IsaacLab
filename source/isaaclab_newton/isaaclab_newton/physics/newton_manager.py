@@ -2065,7 +2065,7 @@ class NewtonManager(PhysicsManager):
         # no new cudaMalloc calls (which are forbidden inside graph capture).
         # Warmup also advances Newton outside the normal IsaacLab step bookkeeping,
         # so snapshot/restore state to keep its writes out of the first real replay.
-        # LIMITATION: Only Newton State buffers are restored below. If this warmup
+        # LIMITATION: Only Newton State and solver history are restored below. If this warmup
         # mutates control, actuator, callback, or sensor state, that state needs its
         # own rollback or the warmup must run against isolated simulation inputs.
         # Secondary capture targets (sensor pipelines) do not advance state, and may run on a
@@ -2086,6 +2086,9 @@ class NewtonManager(PhysicsManager):
                 backend.state_0, backend.state_1 = states
                 for snapshot in snapshots:
                     cls._restore_state_arrays(snapshot)
+                # Solver-owned history (e.g. VBD previous poses, warm starts) also advanced;
+                # have the post-capture forward() rebaseline it from the restored state.
+                cls.invalidate_body_state()
             wp.synchronize_stream(wp.get_stream(device))
 
         # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
