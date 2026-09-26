@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import importlib
+import inspect
 from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
+from newton import ModelBuilder
+from newton.solvers import SolverVBD
 
 from isaaclab.sim import SimulationContext
 
@@ -205,6 +208,63 @@ def test_vbd_solver_force_input_capability(monkeypatch):
 
     assert NewtonManager._solver is solver
     assert NewtonManager._supports_rigid_body_force_input is False
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        pytest.param({}, id="newton-defaults"),
+        pytest.param(
+            {"rigid_compliant_alm": True, "rigid_body_contact_buffer_size": 256},
+            id="compliant-alm",
+        ),
+        pytest.param({"rigid_compliant_alm": False}, id="legacy-mode"),
+    ],
+)
+def test_vbd_rigid_solver_controls(overrides):
+    """Public VBD controls preserve Newton defaults and survive kwargs filtering."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    solver_cfg = physics.VBDSolverCfg(**overrides)
+    kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, solver_cfg)
+    parameters = inspect.signature(SolverVBD).parameters
+    for name in ("rigid_compliant_alm", "rigid_body_contact_buffer_size"):
+        assert kwargs[name] == overrides.get(name, parameters[name].default)
+
+
+def test_vbd_compliant_alm_cable_stiffness():
+    """The manager's ALM solver retains finite cable stiffness under gravity."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    gravity = 9.81
+    stretch_stiffness = 1.0e3
+    builder = ModelBuilder(gravity=(0.0, 0.0, -gravity))
+    body = builder.add_link()
+    builder.add_shape_capsule(body=body, radius=0.01, half_height=0.1)
+    mass = builder.body_mass[body]
+    joint = builder.add_joint_rod(
+        parent=-1,
+        child=body,
+        stretch_stiffness=stretch_stiffness,
+        stretch_damping=2.0 * (mass * stretch_stiffness) ** 0.5,
+        bend_stiffness=5.0,
+        bend_damping=1.0,
+    )
+    builder.add_articulation([joint])
+    builder.color()
+    model = builder.finalize(device="cpu")
+    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
+    solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
+    assert solver.rigid_compliant_alm is True
+
+    state_0, state_1 = model.state(), model.state()
+    control = model.control()
+    for _ in range(120):
+        state_0.clear_forces()
+        solver.step(state_0, state_1, control, None, 1.0 / 240.0)
+        state_0, state_1 = state_1, state_0
+
+    # At equilibrium the spring force balances the weight: k * extension = m * g.
+    expected_extension = mass * gravity / stretch_stiffness
+    assert state_0.body_q.numpy()[body, 2] == pytest.approx(-expected_extension, rel=0.01)
 
 
 def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):

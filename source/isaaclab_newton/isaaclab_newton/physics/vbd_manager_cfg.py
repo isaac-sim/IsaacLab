@@ -58,8 +58,23 @@ class VBDSolverCfg(NewtonSolverCfg):
     particle_rest_shape_contact_exclusion_radius: float = 0.0
     """Rest-shape separation threshold for filtering contacts [m]."""
 
+    rigid_compliant_alm: bool | None = None
+    """Whether to use compliant ALM for rigid joints and body-body contacts.
+
+    ``None`` preserves Newton's default, which selects deprecated legacy AVBD in Newton 1.6.
+    Set to ``True`` for new rigid-cable configurations and validate their finite material stiffnesses.
+    Newton's default C0 stabilization strength is ``0.0`` with compliant ALM and ``0.95`` with legacy AVBD.
+    """
+
     rigid_contact_k_start: float = 1.0e2
     """Initial stiffness seed for rigid-body contacts [N/m]."""
+
+    rigid_body_contact_buffer_size: int = 64
+    """Per-body capacity of the body-body contact list.
+
+    Increase this value when Newton reports a per-body body-body contact buffer overflow.
+    Only used when :attr:`integrate_with_external_rigid_solver` is ``False``.
+    """
 
     rigid_body_particle_contact_buffer_size: int = 256
     """Per-body capacity of the particle, edge, and face soft-contact list.
