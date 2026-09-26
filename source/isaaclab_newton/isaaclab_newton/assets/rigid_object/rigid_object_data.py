@@ -289,6 +289,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
+        if self._root_link_vel_w.data is None:
+            self._root_link_vel_w.data = wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             # read the CoM velocity and compute link velocity
             self._read_launch_cache.launch(
@@ -317,6 +320,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._root_com_pose_w.data is None:
+            self._root_com_pose_w.data = wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
+            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
             self._read_launch_cache.launch(
@@ -470,6 +476,9 @@ class RigidObjectData(BaseRigidObjectData):
             category=UserWarning,
             stacklevel=2,
         )
+        if self._body_com_pose_b.data is None:
+            self._body_com_pose_b.data = wp.empty((self._num_instances, 1), dtype=wp.transformf, device=self.device)
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
             self._read_launch_cache.launch(
@@ -497,6 +506,9 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
+        if self._projected_gravity_b.data is None:
+            self._projected_gravity_b.data = wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
@@ -519,6 +531,9 @@ class RigidObjectData(BaseRigidObjectData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
+        if self._heading_w.data is None:
+            self._heading_w.data = wp.empty(self._num_instances, dtype=wp.float32, device=self.device)
+            self._heading_w_ta = ProxyArray(self._heading_w.data)
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
@@ -942,13 +957,13 @@ class RigidObjectData(BaseRigidObjectData):
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.spatial_vectorf, device=device))
-        self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
-        self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
+        self._root_link_vel_w = TimestampedBuffer()
+        self._projected_gravity_b = TimestampedBuffer()
+        self._heading_w = TimestampedBuffer()
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
+        self._root_com_pose_w = TimestampedBuffer()
         self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
-        self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_pose_b = TimestampedBuffer()
         # Empty memory pre-allocations
         self._root_state_w = None
         self._root_link_state_w = None
@@ -985,12 +1000,12 @@ class RigidObjectData(BaseRigidObjectData):
             self._default_root_vel_ta = ProxyArray(self._default_root_vel)
 
             # Category 2: TimestampedBuffer properties
-            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
-            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
+            self._root_link_vel_w_ta: ProxyArray | None = None
+            self._root_com_pose_w_ta: ProxyArray | None = None
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
-            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
-            self._heading_w_ta = ProxyArray(self._heading_w.data)
+            self._body_com_pose_b_ta: ProxyArray | None = None
+            self._projected_gravity_b_ta: ProxyArray | None = None
+            self._heading_w_ta: ProxyArray | None = None
 
             # -- deprecated state properties (lazy); type annotations declared once here
             self._root_link_lin_vel_b_ta: ProxyArray | None = None

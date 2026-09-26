@@ -658,6 +658,9 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation root's actor frame
         relative to the world.
         """
+        if self._root_link_vel_w.data is None:
+            self._root_link_vel_w.data = wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
@@ -686,6 +689,9 @@ class ArticulationData(BaseArticulationData):
         This quantity is the pose of the articulation root's center of mass frame relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._root_com_pose_w.data is None:
+            self._root_com_pose_w.data = wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
+            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             # apply local transform to center of mass frame
             self._read_launch_cache.launch(
@@ -763,6 +769,10 @@ class ArticulationData(BaseArticulationData):
         This quantity contains the linear and angular velocities of the articulation links' actor frame
         relative to the world.
         """
+        if self._body_link_vel_w.data is None:
+            shape = (self._num_instances, self._num_bodies)
+            self._body_link_vel_w.data = wp.empty(shape, wp.spatial_vectorf, self.device)
+            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
@@ -793,6 +803,9 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         self._update_body_state()
+        if self._body_com_pose_w.data is None:
+            self._body_com_pose_w.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
+            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
@@ -872,6 +885,9 @@ class ArticulationData(BaseArticulationData):
             category=UserWarning,
             stacklevel=2,
         )
+        if self._body_com_pose_b.data is None:
+            self._body_com_pose_b.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
+            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             # set the buffer data and timestamp
             self._read_launch_cache.launch(
@@ -1124,6 +1140,9 @@ class ArticulationData(BaseArticulationData):
 
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
+        if self._projected_gravity_b.data is None:
+            self._projected_gravity_b.data = wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
+            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
@@ -1146,6 +1165,9 @@ class ArticulationData(BaseArticulationData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
+        if self._heading_w.data is None:
+            self._heading_w.data = wp.empty(self._num_instances, dtype=wp.float32, device=self.device)
+            self._heading_w_ta = ProxyArray(self._heading_w.data)
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
@@ -1808,22 +1830,22 @@ class ArticulationData(BaseArticulationData):
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.spatial_vectorf, device=device))
-        self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._root_link_vel_w = TimestampedBuffer()
+        self._body_link_vel_w = TimestampedBuffer()
         self._body_link_pose_w_user: wp.array | None = None
         self._body_com_vel_w_user: wp.array | None = None
         self._body_mass_user: wp.array | None = None
         self._body_inertia_user: wp.array | None = None
         self._body_com_pos_b_user: wp.array | None = None
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_pose_b = TimestampedBuffer()
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.transformf, device=device))
-        self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._root_com_pose_w = TimestampedBuffer()
+        self._body_com_pose_w = TimestampedBuffer()
         self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
-        self._heading_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.float32, device=device))
+        self._projected_gravity_b = TimestampedBuffer()
+        self._heading_w = TimestampedBuffer()
         # -- joint state
         self._joint_acc = TimestampedBuffer(wp.zeros(joint_shape, dtype=wp.float32, device=device))
         self._joint_pos_user: wp.array | None = None
@@ -2291,14 +2313,14 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
 
             # Category 2: TimestampedBuffer properties
-            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
-            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
-            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
-            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
+            self._root_link_vel_w_ta: ProxyArray | None = None
+            self._body_link_vel_w_ta: ProxyArray | None = None
+            self._root_com_pose_w_ta: ProxyArray | None = None
+            self._body_com_pose_w_ta: ProxyArray | None = None
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
-            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
-            self._heading_w_ta = ProxyArray(self._heading_w.data)
+            self._body_com_pose_b_ta: ProxyArray | None = None
+            self._projected_gravity_b_ta: ProxyArray | None = None
+            self._heading_w_ta: ProxyArray | None = None
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
             self._body_com_jacobian_w_ta: ProxyArray | None = None
             self._body_link_jacobian_w_ta: ProxyArray | None = None

@@ -407,7 +407,7 @@ class MockOvPhysxBindingSet:
             TT.LINK_POSE: MockTensorBinding(TT.LINK_POSE, (N, L, 7), **common),
             TT.LINK_VELOCITY: MockTensorBinding(TT.LINK_VELOCITY, (N, L, 6), **common),
             TT.LINK_ACCELERATION: MockTensorBinding(TT.LINK_ACCELERATION, (N, L, 6), **common),
-            TT.JACOBIAN: MockTensorBinding(TT.JACOBIAN, (N, num_jacobian_bodies, 6, num_generalized_dofs), **common),
+            TT.JACOBIAN: MockTensorBinding(TT.JACOBIAN, (N, num_jacobian_bodies * 6, num_generalized_dofs), **common),
             TT.MASS_MATRIX: MockTensorBinding(
                 TT.MASS_MATRIX, (N, num_generalized_dofs, num_generalized_dofs), **common
             ),

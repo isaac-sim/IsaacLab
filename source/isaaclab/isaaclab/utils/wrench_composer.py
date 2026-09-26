@@ -79,14 +79,6 @@ class WrenchComposer:
         self._has_local_wrench = False
         self._has_global_wrench = False
         self._has_global_positions = False
-        if hasattr(self._asset.data, "body_com_pos_w"):
-            self._get_com_pos_fn = lambda a=self._asset: a.data.body_com_pos_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
-        if hasattr(self._asset.data, "body_link_quat_w"):
-            self._get_link_quat_fn = lambda a=self._asset: a.data.body_link_quat_w.warp
-        else:
-            raise ValueError(f"Unsupported asset type: {self._asset.__class__.__name__}")
 
         # -- Input buffers (5 total) --
         self._global_force_w = wp.zeros((self.num_envs, self.num_bodies), dtype=wp.vec3f, device=self.device)
@@ -557,8 +549,8 @@ class WrenchComposer:
 
         The dirty flag is cleared after composition.
         """
-        com_pos_w = self._get_com_pos_fn()
-        link_quat_w = self._get_link_quat_fn()
+        com_pos_w = self._asset.data.body_com_pos_w.warp
+        link_quat_w = self._asset.data.body_link_quat_w.warp
 
         wp.launch(
             compose_wrench_to_body_frame,
