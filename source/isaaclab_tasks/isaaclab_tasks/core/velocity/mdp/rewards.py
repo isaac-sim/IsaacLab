@@ -7,12 +7,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 
 from isaaclab.envs import mdp
-from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
 from isaaclab.utils.math import quat_apply_inverse, yaw_quat
 
 if TYPE_CHECKING:
@@ -67,6 +68,51 @@ def feet_air_time_positive_biped(
     return reward
 
 
+class feet_air_time_variance(ManagerTermBase):
+    """Penalize variance across feet of completed swing and stance durations [s²].
+
+    Contact phases are measured at the control rate: a sensor's last completed timer
+    can be overwritten by short contacts within a control step. Initial partial
+    phases are ignored. Durations are clipped at ``max_time`` [s].
+    """
+
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        sensor_cfg = cfg.params["sensor_cfg"]
+        sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+        self._elapsed = torch.zeros_like(sensor.data.current_air_time.torch[:, sensor_cfg.body_ids])
+        self._air = torch.zeros_like(self._elapsed)
+        self._stance = torch.zeros_like(self._elapsed)
+        self._contact = torch.zeros_like(self._elapsed, dtype=torch.bool)
+        self._known = torch.zeros_like(self._contact)
+        self._initialized = torch.zeros(env.num_envs, 1, device=env.device, dtype=torch.bool)
+
+    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+        if env_ids is None:
+            env_ids = slice(None)
+        for buffer in (self._elapsed, self._air, self._stance, self._contact, self._known, self._initialized):
+            buffer[env_ids] = 0
+
+    def __call__(
+        self, env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, max_time: float = 0.5
+    ) -> torch.Tensor:
+        sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+        contact = sensor.data.current_air_time.torch[:, sensor_cfg.body_ids] <= 0.0
+        changed = (contact != self._contact) & self._initialized
+        complete = changed & self._known
+        self._air.copy_(torch.where(complete & contact, self._elapsed, self._air))
+        self._stance.copy_(torch.where(complete & ~contact, self._elapsed, self._stance))
+        self._elapsed.copy_(torch.where(changed, 0.0, self._elapsed) + env.step_dt)
+        self._known |= changed
+        self._contact.copy_(contact)
+        self._initialized.fill_(True)
+        penalty = torch.zeros(env.num_envs, device=env.device)
+        for duration in (self._air, self._stance):
+            penalty += duration.clamp(max=max_time).var(dim=1, correction=0) * (duration > 0.0).all(dim=1)
+        penalty *= torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+        return penalty
+
+
 def feet_slide(
     env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:
@@ -119,3 +165,46 @@ def stand_still_joint_deviation_l1(
     command = env.command_manager.get_command(command_name)
     # Penalize motion when command is nearly zero.
     return mdp.joint_deviation_l1(env, asset_cfg) * (torch.linalg.norm(command[:, :2], dim=1) < command_threshold)
+
+
+def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Penalize squared displacement of selected joints from their default angles [rad²]."""
+    asset = env.scene[asset_cfg.name]
+    return torch.sum(
+        torch.square(
+            asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+            - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+        ),
+        dim=1,
+    )
+
+
+def _pelvis_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return root height above the median of the nine nearest valid terrain hits [m]."""
+    hits = env.scene[sensor_cfg.name].data.ray_hits_w.torch
+    root_pos = env.scene[asset_cfg.name].data.root_pos_w.torch
+    valid = torch.isfinite(hits).all(dim=-1)
+    distance_sq = (hits[..., :2] - root_pos[:, None, :2]).square().sum(dim=-1)
+    nearest = distance_sq.masked_fill(~valid, float("inf")).topk(min(9, hits.shape[1]), largest=False).indices
+    heights = hits[..., 2].masked_fill(~valid, float("nan")).gather(1, nearest)
+    # Use zero ground height if every ray misses.
+    ground = torch.nan_to_num(heights.nanmedian(dim=1).values, nan=0.0)
+    return root_pos[:, 2] - ground
+
+
+def pelvis_height_deficit_l2(
+    env: ManagerBasedRLEnv, target_height: float, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
+    """Penalize squared local-terrain height shortfall below ``target_height`` [m].
+
+    Ground height is the median of the nine nearest valid hits in world XY,
+    approximating local terrain rather than foot contact height. Heights above
+    the target incur no penalty.
+    """
+    return torch.clamp(target_height - _pelvis_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
+
+
+def feet_flight(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+    """Return one when both selected feet are airborne, otherwise zero."""
+    air_time = env.scene.sensors[sensor_cfg.name].data.current_air_time.torch[:, sensor_cfg.body_ids]
+    return torch.all(air_time > 0.0, dim=-1).float()
