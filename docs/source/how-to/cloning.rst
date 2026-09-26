@@ -146,6 +146,8 @@ fields listed below are that table's columns:
      - Meaning
    * - ``sources``
      - Source prim paths, one per replication row.
+   * - ``cfgs``
+     - Original asset and sensor declarations, retained even when one row clones the whole environment.
    * - ``destinations``
      - Destination templates with ``"{}"`` for the env id, one per row.
    * - ``clone_mask``
@@ -156,10 +158,10 @@ fields listed below are that table's columns:
      - Optional per-env world positions [m], shape ``[num_envs, 3]``.
    * - ``global_paths``
      - Unique prim paths for scene assets shared by every env and therefore not replicated.
-   * - ``cfg_rows``
-     - Asset configuration identities mapped to the rows they own.
-   * - ``context_rows``
-     - Clone-context types mapped to the rows they consume.
+   * - ``cfg_source_indices``
+     - ``id(cfg)`` mapped to indices into ``sources`` for that configuration's prototypes.
+   * - ``context_source_indices``
+     - Clone-context classes mapped to indices into ``sources`` that they import and replicate.
 
 The plan describes replication and routing, not asset geometry or native state. Asset
 construction authors the prototypes. Each backend imports its declared roots and records
@@ -291,9 +293,9 @@ heterogeneous scenes.
 Under the Hood
 --------------
 
-Planning maps each cfg to rows in ``cfg_rows`` and each participating backend to
-its subset in ``context_rows``. The active physics manager registers its clone
-context during simulation initialization. Assets use that context by default;
+Planning maps each cfg identity to source indices in ``cfg_source_indices`` and each participating
+clone-context class to its source indices in ``context_source_indices``. The active physics manager
+registers its clone context during simulation initialization. Assets use that context by default;
 :attr:`~isaaclab.assets.AssetBaseCfg.cloning_contexts` can select an explicitly
 registered context instead. Renderer and visualizer cfgs declare their required
 representations through ``cloning_contexts``. They are registered before planning,
@@ -316,7 +318,7 @@ execution contract:
 .. code-block:: python
 
     plan = published_clone_plan
-    for context_type in plan.context_rows:
+    for context_type in plan.context_source_indices:
         sim.clone_contexts[context_type].replicate(plan)
 
 Every maintained lifecycle publishes its plan before asset construction. The

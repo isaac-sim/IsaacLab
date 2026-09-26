@@ -17,7 +17,7 @@ The deformable object API and schema define/modify functions are shared across b
 property and material configuration classes are backend-specific. PhysX simulates soft bodies using the Finite
 Element Method (FEM); the Newton experimental backend uses the core VBD solver from
 :mod:`isaaclab_newton.physics` with the deformable object integration from
-:mod:`isaaclab_contrib.deformable`.
+:mod:`isaaclab_newton.assets`.
 The volume deformable comprises of two tetrahedral meshes -- a simulation mesh and a collision mesh. The simulation
 mesh is used to simulate the deformations of the soft body, while the collision mesh is used to detect collisions
 with other objects in the scene. For PhysX-specific details, please check the `PhysX documentation`_.

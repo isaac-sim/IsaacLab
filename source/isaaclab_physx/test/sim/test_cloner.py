@@ -142,7 +142,7 @@ def test_physx_replicate_context_consumes_plan(sim):
             destinations=("/World/envs/env_{}/Object",),
             clone_mask=np.ones((1, 3), dtype=np.bool_),
             env_ids=np.arange(3, dtype=np.int64),
-            context_rows={PhysxReplicateContext: (0,)},
+            context_source_indices={PhysxReplicateContext: (0,)},
         )
         ctx.replicate(plan)
 

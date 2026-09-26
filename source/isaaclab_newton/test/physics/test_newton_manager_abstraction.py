@@ -28,7 +28,6 @@ import sys
 import textwrap
 from inspect import signature
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
@@ -722,7 +721,6 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     assert isinstance(solver, SolverImplicitMPM)
 
 
-@pytest.mark.parametrize("import_path", ["clone", "standalone"])
 @pytest.mark.parametrize(
     ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
     [
@@ -731,9 +729,9 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
-    monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
+    monkeypatch, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
-    """Only MJWarp imports MuJoCo joint properties through either production path."""
+    """Only MJWarp imports MuJoCo joint properties through clone-plan construction."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -742,7 +740,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     physics_prim_path = "/physicsScene"
     UsdPhysics.Scene.Define(stage, physics_prim_path)
 
-    root_path = "/Sources/robot" if import_path == "clone" else "/World/robot"
+    root_path = "/Sources/robot"
     root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(root)
     UsdPhysics.ArticulationRootAPI.Apply(root)
@@ -766,38 +764,29 @@ def test_production_imports_scope_mujoco_joint_properties(
         PhysicsManager,
         "_sim",
         SimpleNamespace(
-            physics_manager=manager_cls, cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path)
+            physics_manager=manager_cls,
+            device="cpu",
+            cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path),
         ),
     )
     monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", newton_manager_module.NewtonSceneDataBackend())
     monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_cl_fabric_body_bindings", [])
     monkeypatch.setattr(NewtonManager, "_cl_protos", {})
     monkeypatch.setattr(NewtonManager, "_num_envs", 0)
 
-    if import_path == "clone":
-        builder, _ = newton_physics_replicate(
-            stage=stage,
-            sources=(root_path,),
-            destinations=("/World/envs/env_{}/robot",),
-            env_ids=np.array([0], dtype=np.int64),
-            mapping=np.ones((1, 1), dtype=np.bool_),
-        )
-    else:
-        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
-        monkeypatch.setattr(
-            newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None
-        )
-        monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
-        monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
-        manager_cls.instantiate_builder_from_stage()
-        builder = NewtonManager._builder
+    builder, _ = newton_physics_replicate(
+        stage=stage,
+        sources=(root_path,),
+        destinations=("/World/envs/env_{}/robot",),
+        env_ids=np.array([0], dtype=np.int64),
+        mapping=np.ones((1, 1), dtype=np.bool_),
+    )
 
     model = builder.finalize(device="cpu")
 
@@ -989,7 +978,6 @@ def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False, raising=False)
 
@@ -1086,8 +1074,14 @@ def test_cuda_runtime_loaded_version_matches_torch():
     assert runtime_version.value // 1000 == int(torch.version.cuda.split(".")[0])
 
 
-def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
-    """CUDA graph capture should use the simulation device instead of Warp's default device."""
+@pytest.mark.parametrize(
+    "kit_active, has_gui, offscreen",
+    [(False, False, False), (True, False, False), (True, True, False), (True, False, True)],
+)
+def test_cuda_graph_capture_uses_simulation_device_and_defers_for_kit_rendering(
+    monkeypatch, kit_active, has_gui, offscreen
+):
+    """Only Kit rendering requires deferred capture; a headless physics session must not warm up extra steps."""
 
     captured_devices = []
     captured_graph = object()
@@ -1105,7 +1099,8 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(has_gui=has_gui, has_offscreen_render=offscreen))
+    monkeypatch.setattr(newton_manager_module, "has_kit", lambda: kit_active)
     monkeypatch.setattr(NewtonManager, "_solver", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_is_all_graphable", classmethod(lambda cls: False))
     monkeypatch.setattr(NewtonManager, "_simulate_physics_only", classmethod(lambda cls: None))
@@ -1113,8 +1108,10 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
 
     NewtonManager._capture_or_defer_graph()
 
-    assert captured_devices == ["cuda:1"]
-    assert NewtonManager._graph is captured_graph
+    deferred = kit_active and (has_gui or offscreen)
+    assert captured_devices == ([] if deferred else ["cuda:1"])
+    assert NewtonManager._graph is (None if deferred else captured_graph)
+    assert NewtonManager._graph_capture_pending is deferred
 
 
 # ---------------------------------------------------------------------------
@@ -1316,12 +1313,6 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         build_solver = NewtonMJWarpManager._build_solver
-        monkeypatch.setitem(sys.modules, "usdrt", Mock())
-        monkeypatch.setattr(NewtonMJWarpManager, "_clone_physics_only", False)
-        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda **kwargs: Mock())
-        monkeypatch.setattr(
-            NewtonManager, "_initialize_fabric_body_prims", staticmethod(lambda *args: events.append("body"))
-        )
 
         def on_physics_ready(_):
             events.append("ready")
@@ -1356,7 +1347,7 @@ def test_initialize_solver_prepares_picking_before_graph_capture(
         sim.reset()
         sim.reset()
 
-    assert events == ["body", "ready", *expected_events] * 2
+    assert events == ["ready", *expected_events] * 2
 
 
 # ---------------------------------------------------------------------------

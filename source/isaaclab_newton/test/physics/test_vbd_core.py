@@ -12,6 +12,7 @@ from types import SimpleNamespace
 
 import pytest
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
+from newton import ModelBuilder
 
 from isaaclab.sim import SimulationContext
 
@@ -50,7 +51,7 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
         def control(self):
             return object()
 
-    class Builder:
+    class Builder(ModelBuilder):
         def finalize(self, *, device):
             return model
 
@@ -72,101 +73,6 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
     assert (backend.control is not None) == simulation
     sim.close_backend(backend)
     assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
-
-
-@pytest.mark.parametrize("env_paths", [(), ("/World/Env_0", "/World/Env_1")], ids=["flat", "replicated"])
-def test_vbd_excludes_registered_deformable_meshes(monkeypatch, env_paths):
-    """VBD excludes registered simulation and visual meshes from USD import."""
-    physics = importlib.import_module("isaaclab_newton.physics")
-    pxr = importlib.import_module("pxr")
-    newton_module = importlib.import_module("isaaclab_newton.physics.newton_manager")
-    builders = []
-    hook_calls = []
-    replicate_calls = []
-
-    class Builder:
-        def __init__(self):
-            self.imports = []
-            self.color_calls = []
-
-        def add_usd(self, stage, *, root_path=None, ignore_paths=(), schema_resolvers=()):
-            self.imports.append((root_path, list(ignore_paths)))
-            return {"path_shape_map": {}}
-
-        def color(self, *, balance_colors):
-            self.color_calls.append(balance_colors)
-
-    children = [
-        SimpleNamespace(
-            GetName=lambda path=path: path.rsplit("/", 1)[-1],
-            GetPath=lambda path=path: SimpleNamespace(pathString=path),
-        )
-        for path in env_paths
-    ]
-    world_prim = SimpleNamespace(IsValid=lambda: True, GetChildren=lambda: children)
-    stage = SimpleNamespace(GetPrimAtPath=lambda path: world_prim if path == "/World" else path)
-    rotation = SimpleNamespace(GetImaginary=lambda: (0.0, 0.0, 0.0), GetReal=lambda: 1.0)
-    matrix = SimpleNamespace(ExtractTranslation=lambda: (0.0, 0.0, 0.0), ExtractRotationQuat=lambda: rotation)
-    usd_geom = SimpleNamespace(
-        GetStageUpAxis=lambda stage: "Z",
-        XformCache=lambda: SimpleNamespace(GetLocalToWorldTransform=lambda prim: matrix),
-    )
-
-    def create_builder(cls, *, up_axis):
-        builder = Builder()
-        builders.append(builder)
-        return builder
-
-    def replicate(*args, **kwargs):
-        replicate_calls.append(kwargs)
-        return {}, [object() for _ in env_paths], []
-
-    monkeypatch.setattr(newton_module, "get_current_stage", lambda: stage)
-    monkeypatch.setattr(pxr, "UsdGeom", usd_geom)
-    monkeypatch.setattr(newton_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None)
-    monkeypatch.setattr(newton_module, "import_builder_visual_material_paths", lambda *args: None)
-    monkeypatch.setattr(newton_module, "replace_newton_builder_shape_colors", lambda *args: None)
-    monkeypatch.setattr(newton_module, "replicate_builder_mapping", replicate)
-    monkeypatch.setattr(physics.NewtonVBDManager, "create_builder", classmethod(create_builder))
-    monkeypatch.setattr(
-        physics.NewtonVBDManager,
-        "_inject_terrain_heightfields",
-        classmethod(lambda cls, stage, builder, root_paths: ["/World/terrain"]),
-    )
-    monkeypatch.setattr(
-        physics.NewtonVBDManager,
-        "_cl_inject_sites",
-        classmethod(lambda cls, builder, source_builders: ({}, {}, {})),
-    )
-    monkeypatch.setattr(
-        physics.NewtonVBDManager, "set_builder", classmethod(lambda cls, builder: setattr(cls, "_builder", builder))
-    )
-
-    def hook(builder, world_idx, position, rotation):
-        hook_calls.append(world_idx)
-
-    monkeypatch.setattr(physics.NewtonVBDManager, "_per_world_builder_hooks", [hook])
-    monkeypatch.setattr(
-        physics.NewtonVBDManager,
-        "_deformable_registry",
-        [SimpleNamespace(sim_mesh_prim_path="/World/soft/sim", vis_mesh_prim_path="/World/soft/visual")],
-    )
-    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_world_xforms", [])
-    monkeypatch.setattr(NewtonManager, "_num_envs", 0)
-
-    physics.NewtonVBDManager.instantiate_builder_from_stage()
-
-    deformable_paths = ["/World/soft/sim", "/World/soft/visual"]
-    if env_paths:
-        assert builders[0].imports == [(None, [*env_paths, "/World/terrain", *deformable_paths])]
-        assert builders[1].imports == [("/World/Env_0", deformable_paths)]
-        assert replicate_calls[0]["per_world_builder_hooks"] == [hook]
-    else:
-        assert builders[0].imports == [(None, ["/World/terrain", *deformable_paths])]
-        assert hook_calls == [0]
-    assert builders[0].color_calls == [False]
 
 
 def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):

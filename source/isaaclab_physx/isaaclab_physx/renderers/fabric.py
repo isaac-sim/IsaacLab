@@ -64,11 +64,17 @@ class FabricBackend:
 
         stage = self.stage
         stage.SynchronizeToFabric()
+        for path in provider.backend.transform_paths:
+            prim = stage.GetPrimAtPath(path)
+            if prim:
+                usdrt.Rt.Xformable(prim).SetWorldXformFromUsd()
+            else:
+                prim = stage.DefinePrim(path, "Xform")
+                usdrt.Rt.Xformable(prim).CreateFabricHierarchyWorldMatrixAttr()
+            prim.AddAppliedSchema("PhysicsRigidBodyAPI")
         self.hierarchy.update_world_xforms()
         for index, path in enumerate(provider.backend.transform_paths):
             prim = stage.GetPrimAtPath(path)
-            if not prim or not prim.HasAPI("PhysicsRigidBodyAPI"):
-                continue
             prim.CreateAttribute("isaaclab:transformIndex", usdrt.Sdf.ValueTypeNames.Int, custom=True).Set(index)
             # Physics publishes absolute body poses; only visual descendants inherit them.
             self.hierarchy.set_reset_xform_stack(prim.GetPath().fabricPath, True)

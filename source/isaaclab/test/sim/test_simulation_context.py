@@ -25,6 +25,8 @@ import omni.physics.tensors
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -196,12 +198,17 @@ def test_timeline_play_stop(monkeypatch):
     sim = SimulationContext()
     scene_data = sim.physics_manager.get_scene_data_backend()
     publication = scene_data.transforms
-    cube_cfg = sim_utils.CuboidCfg(
-        size=(0.1, 0.1, 0.1),
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    cube_cfg = AssetBaseCfg(
+        prim_path="/World/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
     )
-    cube_cfg.func("/World/Cube", cube_cfg)
+    plan = clone_plan_from_env_0(CloneCfg(), (cube_cfg,), 1, 0.0)
+    cube_cfg.class_type(cube_cfg)
+    replicate(plan)
 
     # initially simulation should be stopped
     assert sim.is_stopped()

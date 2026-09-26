@@ -537,7 +537,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         )
         plan = scene.clone_plan
         assert plan is not None
-        shape_rows = plan.cfg_rows[id(scene.cfg.shape)]
+        shape_rows = plan.cfg_source_indices[id(scene.cfg.shape)]
         shape_mask = plan.clone_mask[list(shape_rows)]
         assert shape_mask.sum(axis=1).tolist() == [2, 2]
         assert shape_mask.sum(axis=0).tolist() == [1, 1, 1, 1]
@@ -552,7 +552,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
         assert authored_paths == source_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
-        deformable_rows = plan.cfg_rows[id(scene.cfg.deformable)]
+        deformable_rows = plan.cfg_source_indices[id(scene.cfg.deformable)]
         deformable_source_paths = {f"{plan.sources[row]}/simulation" for row in deformable_rows}
         assert {
             path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()

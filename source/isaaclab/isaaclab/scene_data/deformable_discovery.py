@@ -51,14 +51,14 @@ class DeformableStageEntry:
 
 
 def deformable_geometry_batches(
-    entries: Sequence[DeformableStageEntry], points: wp.array, offsets: Sequence[int]
+    entries: Sequence[DeformableStageEntry], offsets: Sequence[int], *, device: str
 ) -> list[tuple[SceneDataFormat.Points | SceneDataFormat.WeightedPoints, dict[str, tuple[int, int]]]]:
     """Bind visual mesh paths to native nodal ranges or static barycentric interpolation tables.
 
     Args:
         entries: Declared deformable instances in native body order.
-        points: Flat native nodal positions [m], including any body padding.
         offsets: Native point offset for each entry.
+        device: Device for static interpolation tables; native points are bound by the producer.
 
     Returns:
         Native-format publications and exact visual mesh paths with their output ranges.
@@ -88,16 +88,11 @@ def deformable_geometry_batches(
         weights.append(prototype_weights)
         weighted[entry.vis_mesh_path] = (output_offset, entry.vis_vertex_count)
         output_offset += entry.vis_vertex_count
-    batches = []
-    if direct:
-        publication = SceneDataFormat.Points()
-        publication.points = points
-        batches.append((publication, direct))
+    batches = [(SceneDataFormat.Points(), direct)]
     if weighted:
         publication = SceneDataFormat.WeightedPoints()
-        publication.points = points
-        publication.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=points.device)
-        publication.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=points.device)
+        publication.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=device)
+        publication.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=device)
         batches.append((publication, weighted))
     return batches
 

@@ -77,7 +77,7 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
         clone_mask=np.ones((1, 2), dtype=np.bool_),
         env_ids=np.arange(2),
         positions=np.zeros((2, 3), dtype=np.float32),
-        context_rows={NewtonReplicateContext: (0,)},
+        context_source_indices={NewtonReplicateContext: (0,)},
     )
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
@@ -355,7 +355,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
         clone_mask=np.ones((2, 2), dtype=np.bool_),
         positions=np.zeros((2, 3), dtype=np.float32),
         global_paths=(global_path,),
-        context_rows={NewtonReplicateContext: (0,)},
+        context_source_indices={NewtonReplicateContext: (0,)},
     )
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object()),

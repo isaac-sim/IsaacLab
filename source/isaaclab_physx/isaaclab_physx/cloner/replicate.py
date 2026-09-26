@@ -43,10 +43,10 @@ class PhysxReplicateContext:
         """
         if plan.env_ids is None:
             raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
+        rows = plan.context_source_indices[type(self)]
         native_rows = set(rows)
         other_rows = {
-            row for context, routed in plan.context_rows.items() if context is not type(self) for row in routed
+            row for context, routed in plan.context_source_indices.items() if context is not type(self) for row in routed
         }
         self._replicate_mapping(
             sources=tuple(plan.sources[row] for row in rows),

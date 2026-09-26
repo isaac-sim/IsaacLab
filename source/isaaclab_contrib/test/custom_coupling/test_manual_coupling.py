@@ -17,7 +17,7 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 import torch
-from isaaclab_newton.assets import RigidObject
+from isaaclab_newton.assets import DeformableObject, RigidObject
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import NewtonDeformableBodyMaterialCfg
@@ -29,7 +29,6 @@ from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 
 from isaaclab_contrib.custom_coupling import CoupledMJWarpVBDSolverCfg
-from isaaclab_contrib.deformable import DeformableObject
 
 
 def _make_coupled_cfg(coupling_mode: str) -> SimulationCfg:

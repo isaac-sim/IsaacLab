@@ -101,9 +101,9 @@ def Xform "Robot"
         assert scene.num_envs == 12
         assert len(scene.clone_plan.sources) == 3
         assert scene.clone_plan.destinations == ("/World/envs/env_{}/Robot",) * 3
-        assert scene.clone_plan.cfg_rows[id(cfg.robot)] == (0, 1, 2)
-        assert id(cfg.warm) not in scene.clone_plan.cfg_rows
-        assert id(cfg.cool) not in scene.clone_plan.cfg_rows
+        assert scene.clone_plan.cfg_source_indices[id(cfg.robot)] == (0, 1, 2)
+        assert id(cfg.warm) not in scene.clone_plan.cfg_source_indices
+        assert id(cfg.cool) not in scene.clone_plan.cfg_source_indices
         assert scene["warm"].num_instances == scene["cool"].num_instances == 12
         assert scene["shared"].num_instances == 1
         for env_id in range(scene.num_envs):

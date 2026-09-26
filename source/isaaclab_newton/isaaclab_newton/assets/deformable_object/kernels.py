@@ -5,24 +5,24 @@
 
 """Warp kernels for Newton deformable object gather/scatter operations."""
 
+from typing import Any
+
 import warp as wp
 
 vec6f = wp.types.vector(length=6, dtype=wp.float32)
 
 
 @wp.kernel
-def gather_particles_vec3f(
-    src: wp.array(dtype=wp.vec3f),
+def gather_particles(
+    src: wp.array(dtype=Any),
     offsets: wp.array(dtype=wp.int32),
-    num_particles: int,
-    dst: wp.array2d(dtype=wp.vec3f),
+    dst: wp.array2d(dtype=Any),
 ):
     """Gather particle data from a flat array into a per-instance 2D array.
 
     Args:
         src: Flat source particle array (all instances concatenated). Shape is (total_particles,).
         offsets: Per-instance start offset into the flat array. Shape is (num_instances,).
-        num_particles: Number of particles per instance.
         dst: Output 2D array. Shape is (num_instances, num_particles).
     """
     i, j = wp.tid()
@@ -182,67 +182,11 @@ def compute_mean_vec3f_over_vertices(
 
 
 @wp.kernel
-def scatter_zero_vel_index(
-    env_ids: wp.array(dtype=wp.int32),
-    offsets: wp.array(dtype=wp.int32),
-    num_particles: int,
-    dst: wp.array(dtype=wp.vec3f),
-):
-    """Zero the velocity of particles for selected environments.
-
-    Args:
-        env_ids: Environment indices to zero velocities for. Shape is (num_selected,).
-        offsets: Per-instance start offset into the flat array. Shape is (num_instances,).
-        num_particles: Number of particles per instance.
-        dst: Flat destination velocity array. Shape is (total_particles,).
-    """
-    i, j = wp.tid()
-    env_id = env_ids[i]
-    dst[offsets[env_id] + j] = wp.vec3f(0.0, 0.0, 0.0)
-
-
-@wp.kernel
-def scatter_default_pos_index(
-    default_pos: wp.array2d(dtype=wp.vec3f),
-    env_ids: wp.array(dtype=wp.int32),
-    offsets: wp.array(dtype=wp.int32),
-    dst: wp.array(dtype=wp.vec3f),
-):
-    """Scatter default positions for selected environments into the flat simulation array.
-
-    Args:
-        default_pos: Default positions per instance. Shape is (num_instances, num_particles).
-        env_ids: Environment indices to reset. Shape is (num_selected,).
-        offsets: Per-instance start offset into the flat array. Shape is (num_instances,).
-        dst: Flat destination particle array. Shape is (total_particles,).
-    """
-    i, j = wp.tid()
-    env_id = env_ids[i]
-    dst[offsets[env_id] + j] = default_pos[env_id, j]
-
-
-@wp.kernel
-def set_kinematic_flags_to_one(
-    data: wp.array(dtype=wp.vec4f),
-):
-    """Set the w-component (kinematic flag) of all vec4f entries to 1.0.
-
-    This is used to initialize all vertices as non-kinematic (free) nodes.
-
-    Args:
-        data: Input/output array of vec4f kinematic targets. Shape is (N*V,).
-    """
-    i = wp.tid()
-    v = data[i]
-    data[i] = wp.vec4f(v[0], v[1], v[2], 1.0)
-
-
-@wp.kernel
 def enforce_kinematic_targets(
     targets: wp.array2d(dtype=wp.vec4f),
     offsets: wp.array(dtype=wp.int32),
-    default_inv_mass: wp.array(dtype=wp.float32),
-    default_flags: wp.array(dtype=wp.int32),
+    default_inv_mass: wp.array2d(dtype=wp.float32),
+    default_flags: wp.array2d(dtype=wp.int32),
     particle_q: wp.array(dtype=wp.vec3f),
     particle_qd: wp.array(dtype=wp.vec3f),
     particle_inv_mass: wp.array(dtype=wp.float32),
@@ -258,8 +202,8 @@ def enforce_kinematic_targets(
         targets: Per-instance kinematic targets. Shape is (num_instances, particles_per_body).
             Each vec4f contains (target_x, target_y, target_z, flag).
         offsets: Per-instance start offset into the flat particle array.
-        default_inv_mass: Saved default inverse masses. Shape is (total_particles,).
-        default_flags: Saved default particle flags. Shape is (total_particles,).
+        default_inv_mass: Saved inverse masses [1/kg]. Shape is (num_instances, particles_per_body).
+        default_flags: Saved particle flags. Shape is (num_instances, particles_per_body).
         particle_q: Flat particle positions to write. Shape is (total_particles,).
         particle_qd: Flat particle velocities to write. Shape is (total_particles,).
         particle_inv_mass: Flat particle inverse masses to write. Shape is (total_particles,).
@@ -276,5 +220,5 @@ def enforce_kinematic_targets(
         particle_q[flat_idx] = wp.vec3f(t[0], t[1], t[2])
         particle_qd[flat_idx] = wp.vec3f(0.0, 0.0, 0.0)
     else:
-        particle_inv_mass[flat_idx] = default_inv_mass[flat_idx]
-        particle_flags[flat_idx] = default_flags[flat_idx]
+        particle_inv_mass[flat_idx] = default_inv_mass[i, j]
+        particle_flags[flat_idx] = default_flags[i, j]
