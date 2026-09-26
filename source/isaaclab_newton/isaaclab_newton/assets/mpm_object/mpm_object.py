@@ -15,7 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
-from isaaclab.cloner.path import get_instance_paths
+from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -420,7 +420,7 @@ class MPMObject(BaseDeformableObject):
         source = self.cfg.spawn.spawn_path
         asset_prim_paths = [
             template.format(env_id)
-            for _, root, template, env_ids in get_instance_paths(plan)
+            for _, root, template, env_ids in cloner_path.get_instance_paths(plan)
             if root == source
             for env_id in env_ids
         ]

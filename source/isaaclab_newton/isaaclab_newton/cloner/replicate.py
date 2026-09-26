@@ -18,7 +18,7 @@ from newton import ModelBuilder
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
-from isaaclab.cloner.path import get_instance_paths, get_shared_paths, match, rebase
+from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 
@@ -137,7 +137,7 @@ def _replicate_newton(
             for entry in NewtonManager._deformable_registry
             for _, source, destination, world_ids in instances
             if len(world_ids) and world_ids[0] != -1
-            if (matched := match(entry.prim_path, destination)) is not None
+            if (matched := cloner_path.match(entry.prim_path, destination)) is not None
         ]
         global_ignore_paths.extend(ignore_paths)
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
@@ -178,7 +178,7 @@ def _replicate_newton(
                 if prototype == source:
                     for world_id in world_ids:
                         target = destination.format(-1 if world_id == -1 else int(env_ids[world_id]))
-                        cable_counts[rebase(path, source, target)] = len(bodies)
+                        cable_counts[cloner_path.rebase(path, source, target)] = len(bodies)
 
     if simulation:
         global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
@@ -261,7 +261,7 @@ class NewtonReplicateContext:
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
-        instances = get_instance_paths(plan)
+        instances = cloner_path.get_instance_paths(plan)
         return _replicate_newton(
             self._sim.stage,
             np.arange(len(plan.topology.world_prototype_layout)),
@@ -270,7 +270,7 @@ class NewtonReplicateContext:
             instances=tuple(instance for instance in instances if instance[0] in asset_prototype_ids),
             reference_instances=instances,
             positions=plan.positions,
-            global_paths=get_shared_paths(instances),
+            global_paths=cloner_path.get_shared_paths(instances),
             exclude_paths=tuple(
                 source
                 for index, source, _, world_ids in instances

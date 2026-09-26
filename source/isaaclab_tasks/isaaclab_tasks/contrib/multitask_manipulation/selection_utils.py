@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.cloner.path import match
+from isaaclab.cloner import path as cloner_path
 from isaaclab.managers.scene_entity_cfg import SceneEntityCfg
 from isaaclab.utils import configclass
 
@@ -96,7 +96,7 @@ def _view_env_ids(
     """Read the global environment ID of every physics-view instance row."""
     env_ids = []
     for prim_path in entity.root_view.prim_paths[: entity.num_instances]:
-        matched = match(prim_path, env_template)
+        matched = cloner_path.match(prim_path, env_template)
         if matched is None:
             raise ValueError(f"Prim path '{prim_path}' is not under the environment template '{env_template}'.")
         env_ids.append(int(matched.instance))

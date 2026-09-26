@@ -27,7 +27,7 @@ import warp as wp
 
 from pxr import Sdf, UsdPhysics
 
-from isaaclab.cloner.path import get_instance_paths, get_shared_paths
+from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
@@ -871,8 +871,8 @@ class OvPhysxManager(PhysicsManager):
 
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            instances = get_instance_paths(plan)
-            prototypes = deformable_prototypes(sim.stage, instances, get_shared_paths(instances))
+            instances = cloner_path.get_instance_paths(plan)
+            prototypes = deformable_prototypes(sim.stage, instances, cloner_path.get_shared_paths(instances))
             entries = expand_deformable_entries(
                 prototypes, instances, np.arange(len(plan.topology.world_prototype_layout)), plan.positions
             )

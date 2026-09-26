@@ -18,7 +18,7 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
-from ..cloner.path import match, rebase
+from ..cloner import path as cloner_path
 from ..sim.utils.queries import has_deformable_body_api
 from .deformable_vis_remap import build_volume_vis_barycentric_remap
 from .scene_data_backend import SceneDataFormat
@@ -313,7 +313,7 @@ def deformable_prototypes(
                     prims.PruneChildren()
                 continue
             # Shared roots may contain a replicated namespace: never inspect its generated clones.
-            if owner not in sources and any(match(str(path), template) for template in destination_paths):
+            if owner not in sources and any(cloner_path.match(str(path), template) for template in destination_paths):
                 if not any(source.HasPrefix(path) for source in selected_sources):
                     prims.PruneChildren()
                     continue
@@ -360,9 +360,9 @@ def expand_deformable_entries(
                 offset = 0 if positions is None else positions[column] - positions[columns[0]]
                 cloned = replace(
                     entry,
-                    root_path=rebase(entry.root_path, source, target),
-                    sim_mesh_path=rebase(entry.sim_mesh_path, source, target),
-                    vis_mesh_path=rebase(entry.vis_mesh_path, source, target),
+                    root_path=cloner_path.rebase(entry.root_path, source, target),
+                    sim_mesh_path=cloner_path.rebase(entry.sim_mesh_path, source, target),
+                    vis_mesh_path=cloner_path.rebase(entry.vis_mesh_path, source, target),
                     init_pos=tuple(np.asarray(entry.init_pos) + offset),
                 )
                 if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):

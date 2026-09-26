@@ -15,7 +15,7 @@ from pxr import Usd, UsdGeom
 import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
-from isaaclab.cloner.path import get_instance_paths, get_shared_paths
+from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.sensors import CameraCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
@@ -81,7 +81,9 @@ def test_empty_and_shared_only_worlds(simulation, shared):
     simulation.render_context.clone_contexts.add(_RenderContext)
     assets = (AssetBaseCfg(prim_path="/World/Ground"),) if shared else ()
     with ReplicateSession(assets, 3, 2.0) as session:
-        assert get_shared_paths(get_instance_paths(session.plan)) == (("/World/Ground",) if shared else ())
+        assert cloner_path.get_shared_paths(cloner_path.get_instance_paths(session.plan)) == (
+            ("/World/Ground",) if shared else ()
+        )
         np.testing.assert_array_equal(session.plan.topology.world_prototype_layout, [0, 0, 0])
         np.testing.assert_array_equal(session.plan.topology.world_prototype_starts, [0, int(shared), int(shared)])
     assert {context for context, _, _ in simulation.calls} == (

@@ -66,7 +66,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from isaaclab.cloner import ClonePlan
-from isaaclab.cloner.path import get_instance_paths, iter_subtree_copies
+from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
@@ -469,7 +469,7 @@ class OVRTXRenderer(BaseRenderer):
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
         # asset-level clones need their parents' authored environment transforms.
-        instances = get_instance_paths(self._clone_plan)
+        instances = cloner_path.get_instance_paths(self._clone_plan)
         sources = tuple(dict.fromkeys(source for _, source, _, world_ids in instances if len(world_ids)))
         clones_env_roots = any(template == self._clone_plan.env_template for _, _, template, _ in instances)
         self._exported_usd_string = export_stage_to_string(
@@ -498,7 +498,7 @@ class OVRTXRenderer(BaseRenderer):
         from pxr import Gf, Usd, UsdGeom
 
         xform_cache = UsdGeom.XformCache()
-        instances = get_instance_paths(self._clone_plan)
+        instances = cloner_path.get_instance_paths(self._clone_plan)
         for root in dict.fromkeys(path for _, path, _, world_ids in instances if len(world_ids)):
             destinations = [(template, ids) for _, source, template, ids in instances if source == root]
             for prim in Usd.PrimRange(stage.GetPrimAtPath(root)):
@@ -611,7 +611,9 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         num_cloned_sources = 0
-        for asset_prototype_id, source, destination, world_ids in iter_subtree_copies(get_instance_paths(plan)):
+        for asset_prototype_id, source, destination, world_ids in cloner_path.iter_subtree_copies(
+            cloner_path.get_instance_paths(plan)
+        ):
             target_paths = [
                 destination.format(int(world_id))
                 for world_id in world_ids

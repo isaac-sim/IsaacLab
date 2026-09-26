@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 from ._fabric_notices import disabled_fabric_change_notifies
-from .path import get_instance_paths, iter_subtree_copies, split
+from .clone_plan import path as cloner_path
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -56,7 +56,7 @@ def usd_replicate(
                 if mask is None
                 else np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
             )
-            is_env_root = "{}" in template and split(template)[1] == ""
+            is_env_root = "{}" in template and cloner_path.split(template)[1] == ""
             for column in columns:
                 destination = template.format(int(env_ids[column]))
                 Sdf.CreatePrimInLayer(layer, destination)
@@ -107,10 +107,12 @@ class UsdReplicateContext:
         """Replicate this context's declared sources with the same low-level USD operation."""
         from pxr import Gf, Sdf, Vt  # noqa: PLC0415
 
-        instances = (instance for instance in get_instance_paths(plan) if instance[0] in asset_prototype_ids)
+        instances = (
+            instance for instance in cloner_path.get_instance_paths(plan) if instance[0] in asset_prototype_ids
+        )
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
-            for _, source, template, targets in iter_subtree_copies(instances):
+            for _, source, template, targets in cloner_path.iter_subtree_copies(instances):
                 usd_replicate(self.stage, (source,), (template,), targets)
             if plan.positions is not None:
                 # Environment frames come from the plan, not copies of an undeclared USD subtree.

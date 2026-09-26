@@ -20,9 +20,9 @@ from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
 from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
+from .clone_plan import path as cloner_path
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
-from .path import get_instance_paths, match
 from .usd import UsdReplicateContext
 
 
@@ -207,7 +207,7 @@ def _prepare_cloning(
             asset_prototypes.append(prototype)
         if isinstance(cfg, SensorBaseCfg) and spawn is None:
             continue
-        if match(cfg.prim_path, env_template) is None:
+        if cloner_path.match(cfg.prim_path, env_template) is None:
             shared.extend(indices)
         else:
             groups.append(indices)
@@ -222,7 +222,7 @@ def _prepare_cloning(
         env_template=env_template,
         positions=grid_transforms(num_clones, env_spacing)[0] if positions is None else positions,
     )
-    source_paths = {index: path for index, path, _, world_ids in get_instance_paths(plan) if len(world_ids)}
+    source_paths = {index: path for index, path, _, world_ids in cloner_path.get_instance_paths(plan) if len(world_ids)}
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
         if spawn is None:

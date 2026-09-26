@@ -22,7 +22,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
-from isaaclab.cloner.path import get_instance_paths
+from isaaclab.cloner import path as cloner_path
 from isaaclab.scene_data.deformable_discovery import (
     DeformableStageEntry,
     deformable_prototypes,
@@ -39,7 +39,7 @@ class TestReplicateBuilderMapping(unittest.TestCase):
         plan = make_clone_plan(
             cfgs, ((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, positions=np.zeros((16, 3), dtype=np.float32)
         )
-        instances = get_instance_paths(plan)
+        instances = cloner_path.get_instance_paths(plan)
         assets = {}
         for _, source, _, world_ids in instances:
             if not len(world_ids) or source in assets:

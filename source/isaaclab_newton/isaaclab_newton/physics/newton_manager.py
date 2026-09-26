@@ -78,7 +78,7 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan, make_clone_plan
-from isaaclab.cloner.path import get_asset_prototypes, get_instance_paths
+from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
@@ -229,7 +229,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         indices, weights = [], []
         visual_offset = 0
         for entry in NewtonManager._deformable_registry:
-            asset_ids = get_asset_prototypes(plan, entry.prim_path)
+            asset_ids = cloner_path.get_asset_prototypes(plan, entry.prim_path)
             suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
             paths = [
                 template.format(env_id) + suffix
@@ -1353,7 +1353,7 @@ class NewtonManager(PhysicsManager):
             NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
 
         plan = PhysicsManager._sim.get_clone_plan()
-        instances = get_instance_paths(plan) if cls._deformable_registry else ()
+        instances = cloner_path.get_instance_paths(plan) if cls._deformable_registry else ()
         cls._scene_data_backend.initialize_geometry(plan, instances)
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
