@@ -18,6 +18,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.utils.images import normalize_depth
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -183,26 +184,23 @@ class ImageLatentObservation(ManagerTermBase):
 
         Notes:
             - Images are converted to float16 before passing to the VAE for efficiency.
-            - Infinity values in depth images are clamped to 10.0 during normalization.
+            - Invalid (NaN or infinite) depth values are set to 10.0 during normalization.
             - Very small depth values (< 0.02) are set to -1.0 to indicate invalid regions.
             - The parameters (sensor_cfg, data_type, etc.) are ignored here as they are
             already stored during initialization. They are included in the signature only
             to satisfy the observation manager's parameter validation.
         """
-        images = self.camera_sensor.data.output[self.data_type].torch.clone()
+        images = self.camera_sensor.data.output[self.data_type].torch
 
         if (self.data_type == "distance_to_camera") and self.convert_perspective_to_orthogonal:
             images = math_utils.orthogonalize_perspective_depth(images, self.camera_sensor.data.intrinsic_matrices)
 
         if self.normalize:
-            if self.data_type == "distance_to_image_plane":
-                images[images == float("inf")] = 10.0
-                images[images == -float("inf")] = 10.0
-                images[images > 10.0] = 10.0
-                images = images / 10.0
-                images[images < 0.02] = -1.0
-            else:
+            if self.data_type != "distance_to_image_plane":
                 raise ValueError(f"Image data type: {self.data_type} not supported")
+            # the VAE was trained on depth scaled over 10 m, with pixels nearer than 0.2 m marked invalid
+            images = normalize_depth(images, invalid_value=10.0, max_depth=10.0)
+            images[images < 0.02] = -1.0
 
         vae_model = self._get_model(env.device)
         with torch.no_grad():

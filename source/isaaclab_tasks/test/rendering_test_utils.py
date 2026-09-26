@@ -1516,7 +1516,7 @@ def _motion_data_type(data_types: list[str]) -> str:
 
 def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
     """Create a Cartpole camera environment that exposes every configured test AOV."""
-    from isaaclab.utils.buffers import CircularBuffer
+    from isaaclab.utils.images import CameraFrameStack
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 
@@ -1533,11 +1533,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
             super(CartpoleCameraEnv, self).__init__(cfg)
 
             self._tiled_camera = self.scene["tiled_camera"]
-            self._stack = None
-            if frame_stack > 1:
-                self._stack = CircularBuffer(
-                    max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
-                )
+            self._frames = CameraFrameStack(self.num_envs, self.device, frame_stack, channel_first=True)
 
     return _CartpoleRenderingTestEnv(env_cfg)
 
