@@ -8,3 +8,5 @@ Changed
 * Removed redundant zero initialization from fully overwritten asset read caches.
 * Removed unused articulation/rigid-object caches and refreshed rigid body-velocity aliases through
   their root-velocity cache, preventing stale reads after same-step writes.
+* Replaced articulation and rigid-object component copies with strided views of their parent poses
+  and velocities, removing extraction buffers and kernels while retaining lazy refresh and reset rebinding.

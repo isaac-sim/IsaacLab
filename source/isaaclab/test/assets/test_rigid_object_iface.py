@@ -190,6 +190,15 @@ class TestRigidObjectDataProperties:
                 getattr(obj.data, name), expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name
             )
 
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(obj.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(obj.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
+
 
 # ---------------------------------------------------------------------------
 # Tests: Alias/shorthand properties

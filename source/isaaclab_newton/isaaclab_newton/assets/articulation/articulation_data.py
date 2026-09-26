@@ -1285,9 +1285,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        self._root_link_pos_w = self._get_pos_from_transform(self._root_link_pos_w, self.root_link_pose_w.warp)
+        root_link_pose_w = self.root_link_pose_w.warp
         if self._root_link_pos_w_ta is None:
-            self._root_link_pos_w_ta = ProxyArray(self._root_link_pos_w)
+            self._root_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(root_link_pose_w))
         return self._root_link_pos_w_ta
 
     @property
@@ -1298,9 +1298,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        self._root_link_quat_w = self._get_quat_from_transform(self._root_link_quat_w, self.root_link_pose_w.warp)
+        root_link_pose_w = self.root_link_pose_w.warp
         if self._root_link_quat_w_ta is None:
-            self._root_link_quat_w_ta = ProxyArray(self._root_link_quat_w)
+            self._root_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(root_link_pose_w))
         return self._root_link_quat_w_ta
 
     @property
@@ -1311,11 +1311,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        self._root_link_lin_vel_w = self._get_top_from_spatial_vector(
-            self._root_link_lin_vel_w, self.root_link_vel_w.warp
-        )
+        root_link_vel_w = self.root_link_vel_w.warp
         if self._root_link_lin_vel_w_ta is None:
-            self._root_link_lin_vel_w_ta = ProxyArray(self._root_link_lin_vel_w)
+            self._root_link_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(root_link_vel_w))
         return self._root_link_lin_vel_w_ta
 
     @property
@@ -1326,11 +1324,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        self._root_link_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._root_link_ang_vel_w, self.root_link_vel_w.warp
-        )
+        root_link_vel_w = self.root_link_vel_w.warp
         if self._root_link_ang_vel_w_ta is None:
-            self._root_link_ang_vel_w_ta = ProxyArray(self._root_link_ang_vel_w)
+            self._root_link_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(root_link_vel_w))
         return self._root_link_ang_vel_w_ta
 
     @property
@@ -1341,9 +1337,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the center of mass frame of the root rigid body relative to the world.
         """
-        self._root_com_pos_w = self._get_pos_from_transform(self._root_com_pos_w, self.root_com_pose_w.warp)
+        root_com_pose_w = self.root_com_pose_w.warp
         if self._root_com_pos_w_ta is None:
-            self._root_com_pos_w_ta = ProxyArray(self._root_com_pos_w)
+            self._root_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(root_com_pose_w))
         return self._root_com_pos_w_ta
 
     @property
@@ -1354,9 +1350,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
         """
-        self._root_com_quat_w = self._get_quat_from_transform(self._root_com_quat_w, self.root_com_pose_w.warp)
+        root_com_pose_w = self.root_com_pose_w.warp
         if self._root_com_quat_w_ta is None:
-            self._root_com_quat_w_ta = ProxyArray(self._root_com_quat_w)
+            self._root_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(root_com_pose_w))
         return self._root_com_quat_w_ta
 
     @property
@@ -1367,9 +1363,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        self._root_com_lin_vel_w = self._get_top_from_spatial_vector(self._root_com_lin_vel_w, self.root_com_vel_w.warp)
+        root_com_vel_w = self.root_com_vel_w.warp
         if self._root_com_lin_vel_w_ta is None:
-            self._root_com_lin_vel_w_ta = ProxyArray(self._root_com_lin_vel_w)
+            self._root_com_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(root_com_vel_w))
         return self._root_com_lin_vel_w_ta
 
     @property
@@ -1380,11 +1376,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        self._root_com_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._root_com_ang_vel_w, self.root_com_vel_w.warp
-        )
+        root_com_vel_w = self.root_com_vel_w.warp
         if self._root_com_ang_vel_w_ta is None:
-            self._root_com_ang_vel_w_ta = ProxyArray(self._root_com_ang_vel_w)
+            self._root_com_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(root_com_vel_w))
         return self._root_com_ang_vel_w_ta
 
     @property
@@ -1396,9 +1390,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' actor frame relative to the world.
         """
-        self._body_link_pos_w = self._get_pos_from_transform(self._body_link_pos_w, self.body_link_pose_w.warp)
+        body_link_pose_w = self.body_link_pose_w.warp
         if self._body_link_pos_w_ta is None:
-            self._body_link_pos_w_ta = ProxyArray(self._body_link_pos_w)
+            self._body_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(body_link_pose_w))
         return self._body_link_pos_w_ta
 
     @property
@@ -1410,9 +1404,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the articulation bodies' actor frame relative to the world.
         """
-        self._body_link_quat_w = self._get_quat_from_transform(self._body_link_quat_w, self.body_link_pose_w.warp)
+        body_link_pose_w = self.body_link_pose_w.warp
         if self._body_link_quat_w_ta is None:
-            self._body_link_quat_w_ta = ProxyArray(self._body_link_quat_w)
+            self._body_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(body_link_pose_w))
         return self._body_link_quat_w_ta
 
     @property
@@ -1424,11 +1418,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' actor frame relative to the world.
         """
-        self._body_link_lin_vel_w = self._get_top_from_spatial_vector(
-            self._body_link_lin_vel_w, self.body_link_vel_w.warp
-        )
+        body_link_vel_w = self.body_link_vel_w.warp
         if self._body_link_lin_vel_w_ta is None:
-            self._body_link_lin_vel_w_ta = ProxyArray(self._body_link_lin_vel_w)
+            self._body_link_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_link_vel_w))
         return self._body_link_lin_vel_w_ta
 
     @property
@@ -1440,11 +1432,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' actor frame relative to the world.
         """
-        self._body_link_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._body_link_ang_vel_w, self.body_link_vel_w.warp
-        )
+        body_link_vel_w = self.body_link_vel_w.warp
         if self._body_link_ang_vel_w_ta is None:
-            self._body_link_ang_vel_w_ta = ProxyArray(self._body_link_ang_vel_w)
+            self._body_link_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_link_vel_w))
         return self._body_link_ang_vel_w_ta
 
     @property
@@ -1456,9 +1446,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the position of the articulation bodies' center of mass frame.
         """
-        self._body_com_pos_w = self._get_pos_from_transform(self._body_com_pos_w, self.body_com_pose_w.warp)
+        body_com_pose_w = self.body_com_pose_w.warp
         if self._body_com_pos_w_ta is None:
-            self._body_com_pos_w_ta = ProxyArray(self._body_com_pos_w)
+            self._body_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(body_com_pose_w))
         return self._body_com_pos_w_ta
 
     @property
@@ -1470,9 +1460,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the principal axes of inertia of the articulation bodies.
         """
-        self._body_com_quat_w = self._get_quat_from_transform(self._body_com_quat_w, self.body_com_pose_w.warp)
+        body_com_pose_w = self.body_com_pose_w.warp
         if self._body_com_quat_w_ta is None:
-            self._body_com_quat_w_ta = ProxyArray(self._body_com_quat_w)
+            self._body_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(body_com_pose_w))
         return self._body_com_quat_w_ta
 
     @property
@@ -1484,9 +1474,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear velocity of the articulation bodies' center of mass frame.
         """
-        self._body_com_lin_vel_w = self._get_top_from_spatial_vector(self._body_com_lin_vel_w, self.body_com_vel_w.warp)
+        body_com_vel_w = self.body_com_vel_w.warp
         if self._body_com_lin_vel_w_ta is None:
-            self._body_com_lin_vel_w_ta = ProxyArray(self._body_com_lin_vel_w)
+            self._body_com_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_com_vel_w))
         return self._body_com_lin_vel_w_ta
 
     @property
@@ -1498,11 +1488,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular velocity of the articulation bodies' center of mass frame.
         """
-        self._body_com_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._body_com_ang_vel_w, self.body_com_vel_w.warp
-        )
+        body_com_vel_w = self.body_com_vel_w.warp
         if self._body_com_ang_vel_w_ta is None:
-            self._body_com_ang_vel_w_ta = ProxyArray(self._body_com_ang_vel_w)
+            self._body_com_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_com_vel_w))
         return self._body_com_ang_vel_w_ta
 
     @property
@@ -1514,9 +1502,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the linear acceleration of the articulation bodies' center of mass frame.
         """
-        self._body_com_lin_acc_w = self._get_top_from_spatial_vector(self._body_com_lin_acc_w, self.body_com_acc_w.warp)
+        body_com_acc_w = self.body_com_acc_w.warp
         if self._body_com_lin_acc_w_ta is None:
-            self._body_com_lin_acc_w_ta = ProxyArray(self._body_com_lin_acc_w)
+            self._body_com_lin_acc_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_com_acc_w))
         return self._body_com_lin_acc_w_ta
 
     @property
@@ -1528,11 +1516,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the angular acceleration of the articulation bodies' center of mass frame.
         """
-        self._body_com_ang_acc_w = self._get_bottom_from_spatial_vector(
-            self._body_com_ang_acc_w, self.body_com_acc_w.warp
-        )
+        body_com_acc_w = self.body_com_acc_w.warp
         if self._body_com_ang_acc_w_ta is None:
-            self._body_com_ang_acc_w_ta = ProxyArray(self._body_com_ang_acc_w)
+            self._body_com_ang_acc_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_com_acc_w))
         return self._body_com_ang_acc_w_ta
 
     @property
@@ -1545,9 +1531,9 @@ class ArticulationData(BaseArticulationData):
 
         This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
         """
-        self._body_com_quat_b = self._get_quat_from_transform(self._body_com_quat_b, self.body_com_pose_b.warp)
+        body_com_pose_b = self.body_com_pose_b.warp
         if self._body_com_quat_b_ta is None:
-            self._body_com_quat_b_ta = ProxyArray(self._body_com_quat_b)
+            self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(body_com_pose_b))
         return self._body_com_quat_b_ta
 
     def _create_simulation_bindings(self) -> None:
@@ -1917,28 +1903,9 @@ class ArticulationData(BaseArticulationData):
         self._root_state_w = None
         self._root_link_state_w = None
         self._root_com_state_w = None
-        self._body_com_quat_b = None
-        self._root_link_pos_w = None
-        self._root_link_quat_w = None
-        self._root_link_lin_vel_w = None
-        self._root_link_ang_vel_w = None
-        self._root_com_pos_w = None
-        self._root_com_quat_w = None
-        self._root_com_lin_vel_w = None
-        self._root_com_ang_vel_w = None
         self._body_state_w = None
         self._body_link_state_w = None
         self._body_com_state_w = None
-        self._body_link_pos_w = None
-        self._body_link_quat_w = None
-        self._body_link_lin_vel_w = None
-        self._body_link_ang_vel_w = None
-        self._body_com_pos_w = None
-        self._body_com_quat_w = None
-        self._body_com_lin_vel_w = None
-        self._body_com_ang_vel_w = None
-        self._body_com_lin_acc_w = None
-        self._body_com_ang_acc_w = None
         self._default_root_state = None
 
         # Pin all ProxyArray wrappers to current buffers.
@@ -2329,52 +2296,35 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_limits_user if self.has_joint_ordering else self._sim_bind_joint_effort_limits_sim
         )
 
-        if is_rebind:
-            # Rebind sim-bound ProxyArrays to new solver arrays
-            self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
-            self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            body_link_pose_w = (
-                self._body_link_pose_w_user if self.has_body_ordering else self._sim_bind_body_link_pose_w
-            )
-            body_com_vel_w = self._body_com_vel_w_user if self.has_body_ordering else self._sim_bind_body_com_vel_w
-            joint_pos = self._joint_pos_user if self.has_joint_ordering else self._sim_bind_joint_pos
-            joint_vel = self._joint_vel_user if self.has_joint_ordering else self._sim_bind_joint_vel
-            self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
-            self._joint_pos_ta = ProxyArray(joint_pos)
-            self._joint_vel_ta = ProxyArray(joint_vel)
-            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
-            self._joint_damping_ta = ProxyArray(joint_damping)
-            self._joint_armature_ta = ProxyArray(joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
-            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
-            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
-            body_mass = self._body_mass_user if self.has_body_ordering else self._sim_bind_body_mass
-            body_inertia = self._body_inertia_user if self.has_body_ordering else self._sim_bind_body_inertia
-            body_com_pos_b = self._body_com_pos_b_user if self.has_body_ordering else self._sim_bind_body_com_pos_b
-            self._body_mass_ta = ProxyArray(body_mass)
-            self._body_inertia_ta = ProxyArray(body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
-        else:
+        # Both initial binding and full reset borrow the current native arrays.
+        self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
+        self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
+        body_link_pose_w = self._body_link_pose_w_user if self.has_body_ordering else self._sim_bind_body_link_pose_w
+        body_com_vel_w = self._body_com_vel_w_user if self.has_body_ordering else self._sim_bind_body_com_vel_w
+        joint_pos = self._joint_pos_user if self.has_joint_ordering else self._sim_bind_joint_pos
+        joint_vel = self._joint_vel_user if self.has_joint_ordering else self._sim_bind_joint_vel
+        self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
+        self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
+        self._joint_pos_ta = ProxyArray(joint_pos)
+        self._joint_vel_ta = ProxyArray(joint_vel)
+        self._joint_stiffness_ta = ProxyArray(joint_stiffness)
+        self._joint_damping_ta = ProxyArray(joint_damping)
+        self._joint_armature_ta = ProxyArray(joint_armature)
+        self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
+        self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
+        self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
+        self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
+        self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
+        self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
+        body_mass = self._body_mass_user if self.has_body_ordering else self._sim_bind_body_mass
+        body_inertia = self._body_inertia_user if self.has_body_ordering else self._sim_bind_body_inertia
+        body_com_pos_b = self._body_com_pos_b_user if self.has_body_ordering else self._sim_bind_body_com_pos_b
+        self._body_mass_ta = ProxyArray(body_mass)
+        self._body_inertia_ta = ProxyArray(body_inertia)
+        self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
+
+        if not is_rebind:
             # First-time creation: pin ProxyArrays to current buffers
-            # Category 1: sim-bound and pre-allocated buffers
-            # Sim-bound pointers are re-created on full reset; _create_simulation_bindings()
-            # calls rebind() on each ProxyArray to keep them in sync.
-            self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
-            self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            body_link_pose_w = (
-                self._body_link_pose_w_user if self.has_body_ordering else self._sim_bind_body_link_pose_w
-            )
-            body_com_vel_w = self._body_com_vel_w_user if self.has_body_ordering else self._sim_bind_body_com_vel_w
-            joint_pos = self._joint_pos_user if self.has_joint_ordering else self._sim_bind_joint_pos
-            joint_vel = self._joint_vel_user if self.has_joint_ordering else self._sim_bind_joint_vel
-            self._body_link_pose_w_ta = ProxyArray(body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(body_com_vel_w)
-            self._joint_pos_ta = ProxyArray(joint_pos)
-            self._joint_vel_ta = ProxyArray(joint_vel)
             self._default_root_pose_ta = ProxyArray(self._default_root_pose)
             self._default_root_vel_ta = ProxyArray(self._default_root_vel)
             self._default_joint_pos_ta = ProxyArray(self._default_joint_pos)
@@ -2384,23 +2334,8 @@ class ArticulationData(BaseArticulationData):
             self._joint_effort_target_ta = None
             self._computed_torque_ta = ProxyArray(self._computed_torque)
             self._applied_torque_ta = ProxyArray(self._applied_torque)
-            self._joint_stiffness_ta = ProxyArray(joint_stiffness)
-            self._joint_damping_ta = ProxyArray(joint_damping)
-            self._joint_armature_ta = ProxyArray(joint_armature)
-            self._joint_friction_coeff_ta = ProxyArray(joint_friction_coeff)
-            self._joint_viscous_friction_coeff_ta = ProxyArray(joint_viscous_friction_coeff)
-            self._joint_pos_limits_lower_ta = ProxyArray(joint_pos_limits_lower)
-            self._joint_pos_limits_upper_ta = ProxyArray(joint_pos_limits_upper)
-            self._joint_vel_limits_ta = ProxyArray(joint_vel_limits)
-            self._joint_effort_limits_ta = ProxyArray(joint_effort_limits)
             self._soft_joint_pos_limits_ta = ProxyArray(self._soft_joint_pos_limits)
             self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
-            body_mass = self._body_mass_user if self.has_body_ordering else self._sim_bind_body_mass
-            body_inertia = self._body_inertia_user if self.has_body_ordering else self._sim_bind_body_inertia
-            body_com_pos_b = self._body_com_pos_b_user if self.has_body_ordering else self._sim_bind_body_com_pos_b
-            self._body_mass_ta = ProxyArray(body_mass)
-            self._body_inertia_ta = ProxyArray(body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
             self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
             self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
@@ -2429,49 +2364,26 @@ class ArticulationData(BaseArticulationData):
             self._body_link_state_w_ta: ProxyArray | None = None
             self._body_com_state_w_ta: ProxyArray | None = None
 
-        # Invalidate lazy sliced ProxyArrays AND their backing wp.arrays so they are
-        # re-created from fresh data on next access.  On first init the backing fields
-        # are already None (set by _create_buffers), so the assignments below are
-        # harmless no-ops.  On rebind they reset stale pointers into freed transform
-        # memory after a sim reset.
+        # Recreate component views after native arrays are rebound.
         self._root_link_pos_w_ta: ProxyArray | None = None
-        self._root_link_pos_w = None
         self._root_link_quat_w_ta: ProxyArray | None = None
-        self._root_link_quat_w = None
         self._root_link_lin_vel_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_w = None
         self._root_link_ang_vel_w_ta: ProxyArray | None = None
-        self._root_link_ang_vel_w = None
         self._root_com_pos_w_ta: ProxyArray | None = None
-        self._root_com_pos_w = None
         self._root_com_quat_w_ta: ProxyArray | None = None
-        self._root_com_quat_w = None
         self._root_com_lin_vel_w_ta: ProxyArray | None = None
-        self._root_com_lin_vel_w = None
         self._root_com_ang_vel_w_ta: ProxyArray | None = None
-        self._root_com_ang_vel_w = None
         self._body_link_pos_w_ta: ProxyArray | None = None
-        self._body_link_pos_w = None
         self._body_link_quat_w_ta: ProxyArray | None = None
-        self._body_link_quat_w = None
         self._body_link_lin_vel_w_ta: ProxyArray | None = None
-        self._body_link_lin_vel_w = None
         self._body_link_ang_vel_w_ta: ProxyArray | None = None
-        self._body_link_ang_vel_w = None
         self._body_com_pos_w_ta: ProxyArray | None = None
-        self._body_com_pos_w = None
         self._body_com_quat_w_ta: ProxyArray | None = None
-        self._body_com_quat_w = None
         self._body_com_lin_vel_w_ta: ProxyArray | None = None
-        self._body_com_lin_vel_w = None
         self._body_com_ang_vel_w_ta: ProxyArray | None = None
-        self._body_com_ang_vel_w = None
         self._body_com_lin_acc_w_ta: ProxyArray | None = None
-        self._body_com_lin_acc_w = None
         self._body_com_ang_acc_w_ta: ProxyArray | None = None
-        self._body_com_ang_acc_w = None
         self._body_com_quat_b_ta: ProxyArray | None = None
-        self._body_com_quat_b = None
         self._joint_pos_limits_ta: ProxyArray | None = None
         self._joint_pos_limits = None
         self._root_link_lin_vel_b_ta: ProxyArray | None = None
@@ -2487,200 +2399,45 @@ class ArticulationData(BaseArticulationData):
     Internal helpers.
     """
 
-    def _get_pos_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
-        """Generates a position array from a transform array.
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        """Return a strided position view without copying the parent array."""
+        return wp.array(
+            ptr=transform.ptr,
+            shape=transform.shape,
+            dtype=wp.vec3f,
+            strides=transform.strides,
+            device=self.device,
+        )
 
-        Args:
-            transform: The transform array. Shape is (N) dtype=wp.transformf.
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        """Return a strided quaternion view without copying the parent array."""
+        return wp.array(
+            ptr=transform.ptr + 3 * 4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self.device,
+        )
 
-        Returns:
-            The position array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if transform.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=transform.ptr,
-                    shape=transform.shape,
-                    dtype=wp.vec3f,
-                    strides=transform.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches transform.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(transform.shape, dtype=wp.vec3f, device=self.device)
+    def _get_top_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Return a strided linear view without copying the parent array."""
+        return wp.array(
+            ptr=spatial_vector.ptr,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )
 
-        # If the array is not contiguous, we need to launch the kernel to get the position part of the transform.
-        if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the transform array.
-            if len(transform.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_pos_2d", id(source)),
-                    shared_kernels.split_transform_to_pos_2d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_pos_1d", id(source)),
-                    shared_kernels.split_transform_to_pos_1d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-        return source
-
-    def _get_quat_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
-        """Generates a quaternion array from a transform array.
-
-        Args:
-            transform: The transform array. Shape is (N) dtype=wp.transformf.
-
-        Returns:
-            The quaternion array. Shape is (N) dtype=wp.quatf.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if transform.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=transform.ptr + 3 * 4,
-                    shape=transform.shape,
-                    dtype=wp.quatf,
-                    strides=transform.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches transform.shape since each element is quatf (already contains 4 floats)
-                source = wp.zeros(transform.shape, dtype=wp.quatf, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the quaternion part of the transform.
-        if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the transform array.
-            if len(transform.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_quat_2d", id(source)),
-                    shared_kernels.split_transform_to_quat_2d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_quat_1d", id(source)),
-                    shared_kernels.split_transform_to_quat_1d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
-
-    def _get_top_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
-        """Gets the top part of a spatial vector array.
-
-        For instance the linear velocity is the top part of a velocity vector.
-
-        Args:
-            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
-
-        Returns:
-            The top part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if spatial_vector.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=spatial_vector.ptr,
-                    shape=spatial_vector.shape,
-                    dtype=wp.vec3f,
-                    strides=spatial_vector.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the top part of the spatial vector.
-        if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the spatial_vector array.
-            if len(spatial_vector.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_top_2d", id(source)),
-                    shared_kernels.split_spatial_vector_to_top_2d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_top_1d", id(source)),
-                    shared_kernels.split_spatial_vector_to_top_1d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
-
-    def _get_bottom_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
-        """Gets the bottom part of a spatial vector array.
-
-        For instance the angular velocity is the bottom part of a velocity vector.
-
-        Args:
-            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
-
-        Returns:
-            The bottom part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if spatial_vector.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=spatial_vector.ptr + 3 * 4,
-                    shape=spatial_vector.shape,
-                    dtype=wp.vec3f,
-                    strides=spatial_vector.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the bottom part of the spatial vector.
-        if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the spatial_vector array.
-            if len(spatial_vector.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_bottom_2d", id(source)),
-                    shared_kernels.split_spatial_vector_to_bottom_2d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_bottom_1d", id(source)),
-                    shared_kernels.split_spatial_vector_to_bottom_1d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
+    def _get_bottom_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Return a strided angular view without copying the parent array."""
+        return wp.array(
+            ptr=spatial_vector.ptr + 3 * 4,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )
 
     """
     Deprecated properties.
