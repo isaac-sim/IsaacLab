@@ -190,7 +190,7 @@ an undeclared sibling camera. Newton composes each selected world prototype once
 before batched native replication; this does not expand its USD import scope.
 
 Querying topology and native paths
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Topology queries depend only on the plan:
 

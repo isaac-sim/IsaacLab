@@ -627,8 +627,8 @@ class _Generator:
         import isaaclab.sim as sim_utils
         from isaaclab import cloner
 
-        plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = cloner.query.path_to_source(plan, self.env._robot.cfg.prim_path) if plan is not None else None
+        usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
+        resolved = cloner.query.path_to_source(usd.instances, self.env._robot.cfg.prim_path)
         if resolved is None:
             raise RuntimeError("Could not resolve the Franka clone-plan source.")
         source_builder = copy_newton_clone_source(resolved[0])
@@ -638,7 +638,7 @@ class _Generator:
         self.prototype.add_builder(source_builder, xform=prototype_xform)
         if not any("/Table/" in str(label) or str(label).endswith("/Table") for label in self.prototype.shape_label):
             table_path = self.env.scene["table"].cfg.prim_path
-            table_resolved = cloner.query.path_to_source(plan, table_path)
+            table_resolved = cloner.query.path_to_source(usd.instances, table_path)
             if table_resolved is None:
                 raise RuntimeError("Could not resolve the SeattleLab table clone-plan source.")
             self.prototype.add_builder(copy_newton_clone_source(table_resolved[0]), xform=prototype_xform)

@@ -16,6 +16,7 @@ import numpy as np
 
 from .. import sim as sim_utils
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sensors.sensor_base_cfg import SensorBaseCfg
 from ..utils.string import string_to_callable
 from ..utils.version import has_kit
 from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
@@ -120,17 +121,11 @@ def clone_plan_from_env_0(
     asset_cfgs = tuple(asset_cfgs)
     if clone_cfg.clone_combinations or any(num_spawn_variants(getattr(cfg, "spawn", None)) != 1 for cfg in asset_cfgs):
         raise ValueError("clone_plan_from_env_0 requires homogeneous, single-variant declarations.")
-    members = tuple(
-        index
-        for index, cfg in enumerate(asset_cfgs)
-        if match(expand_env_regex_ns(cfg.prim_path, clone_cfg.clone_template), clone_cfg.clone_template) is not None
-    )
     return _prepare_cloning(
         asset_cfgs,
         num_envs,
         env_spacing,
         env_template=clone_cfg.clone_template,
-        world_prototypes=(members,),
         positions=positions,
     )
 
@@ -195,6 +190,9 @@ def _prepare_cloning(
         if isinstance(cfg, CameraCfg):
             sim.get_or_create_backend(cfg.renderer_cfg)
         spawn = getattr(cfg, "spawn", None)
+        if spawn is not None:
+            # These paths are planning outputs, including on reused configurations.
+            spawn.spawn_path = None
         count = num_spawn_variants(spawn)
         indices = tuple(range(len(asset_prototypes), len(asset_prototypes) + count))
         declarations.append((cfg, indices))
@@ -208,9 +206,11 @@ def _prepare_cloning(
                 else:
                     prototype.spawn.usd_path = spawn.usd_path[variant]
             asset_prototypes.append(prototype)
+        if isinstance(cfg, SensorBaseCfg) and spawn is None:
+            continue
         if match(cfg.prim_path, env_template) is None:
             shared.extend(indices)
-        elif spawn is not None:
+        else:
             groups.append(indices)
     worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     plan = make_clone_plan(
@@ -265,15 +265,13 @@ def _context_asset_prototype_ids(plan: ClonePlan, sim) -> dict[type, tuple[int, 
         )
         if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
             contexts += tuple(spawn_contexts)
-        if int(index) in shared:
+        if index in shared:
             contexts += tuple(context for context in (physics_context, *render_contexts) if context is not None)
         for context_type in contexts:
             if not isinstance(context_type, type):
                 raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
-            routing.setdefault(context_type, set()).add(int(index))
-            if context_type not in sim.clone_contexts:
-                sim.clone_contexts[context_type] = context_type(sim)
-    for context_type in render_contexts:
+            routing.setdefault(context_type, set()).add(index)
+    for context_type in routing:
         if context_type not in sim.clone_contexts:
             sim.clone_contexts[context_type] = context_type(sim)
     return {context: tuple(sorted(indices)) for context, indices in routing.items()}

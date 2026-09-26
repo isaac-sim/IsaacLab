@@ -104,6 +104,7 @@ def test_manager_full_stage_materializes_only_missing_heterogeneous_targets():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0), (4.0, 5.0, 6.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -138,11 +139,13 @@ def test_manager_full_stage_materializes_nested_targets_parent_before_child():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
             (
                 "/World/envs/env_0/Groceries",
                 ["/World/envs/env_1/Groceries"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             ),
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -177,6 +180,7 @@ def test_manager_full_stage_promotes_generated_nested_ancestors_to_def():
                 "/World/envs/env_0/Groceries/Object",
                 ["/World/envs/env_1/Groceries/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1],
             )
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
@@ -212,7 +216,7 @@ def test_manager_full_stage_overlays_existing_ancestor_without_removing_descenda
     previous = OvPhysxManager._pending_clones
     try:
         OvPhysxManager._pending_clones = [
-            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)])
+            ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot"], [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)], [1])
         ]
         materialized_usda = _serialize_full_stage_with_pending_clones(stage)
         layer = Sdf.Layer.CreateAnonymous("materialized.usda")
@@ -274,6 +278,7 @@ def test_manager_full_stage_materialization_is_atomic_on_invalid_target():
                 "/World/envs/env_0/Object",
                 ["/World/envs/env_1/Object", "/World/envs/env_2/Object"],
                 [(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0), (2.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0)],
+                [1, 2],
             )
         ]
         with pytest.raises(RuntimeError, match="clone target parent is absent"):
@@ -293,8 +298,8 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(r
         def __init__(self):
             self.calls = []
 
-        def clone(self, source, targets, transforms):
-            self.calls.append(("clone", source, targets, transforms))
+        def clone(self, source, targets, transforms, env_ids):
+            self.calls.append(("clone", source, targets, transforms, env_ids))
             return 19
 
         def wait_op(self, operation):
@@ -303,13 +308,13 @@ def test_manager_replays_pending_runtime_clones_without_full_stage_requirement(r
     fake = FakePhysX()
     previous = OvPhysxManager._pending_clones
     try:
-        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+        OvPhysxManager._pending_clones = [("/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [1])]
         OvPhysxManager._replay_pending_clones(fake, requires_full_stage=requires_full_stage)
         if requires_full_stage:
             assert fake.calls == []
         else:
             assert fake.calls == [
-                ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)]),
+                ("clone", "/env_0", ["/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], [1]),
                 ("wait_op", 19),
             ]
         assert OvPhysxManager._pending_clones == []

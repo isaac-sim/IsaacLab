@@ -24,6 +24,7 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import make_clone_plan
 from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
@@ -134,10 +135,13 @@ def create_dummy_sensor(request, device):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_sensor_init(create_dummy_sensor, device):
-    """Test that the sensor initializes, steps without update, and forces update."""
+@pytest.mark.parametrize("planned", [False, True], ids=["standalone", "planned"])
+def test_sensor_init(create_dummy_sensor, device, planned):
+    """Initialize from topology without a USD clone context, or from a standalone stage."""
 
     sensor_cfg, sim, dt = create_dummy_sensor
+    if planned:
+        sim.set_clone_plan(make_clone_plan((sensor_cfg,), ((0,),), 5))
     sensor = DummySensor(cfg=sensor_cfg)
 
     # Play sim

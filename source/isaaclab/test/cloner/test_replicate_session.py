@@ -16,7 +16,7 @@ import isaaclab.cloner.replicate_session as replicate_session
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, ReplicateSession, UsdReplicateContext, clone_plan_from_env_0, grid_transforms
 from isaaclab.renderers import RenderContext, RendererCfg
-from isaaclab.sensors import CameraCfg
+from isaaclab.sensors import CameraCfg, SensorBaseCfg
 from isaaclab.sim import CuboidCfg, MultiAssetSpawnerCfg, PinholeCameraCfg, SimulationContext, SphereCfg
 
 
@@ -62,6 +62,7 @@ def test_asset_routing_preserves_explicit_overrides(simulation, override, replic
     """Rendering requirements augment asset policy; disabling physics leaves rendering active."""
     simulation.render_context.clone_contexts.add(_RenderContext)
     cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=override)
+    cfg.spawn.spawn_path = "/Previous/Robot"
     with ReplicateSession((cfg,), 2, 1.0, replicate_physics=replicate_physics) as session:
         assert simulation.plan is session.plan
         assert cfg.spawn.spawn_path == "/World/envs/env_0/Robot"
@@ -99,11 +100,12 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     )
     camera = CameraCfg(prim_path="/Lab/Cell[^/]+/Camera", spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg)
     ground = AssetBaseCfg(prim_path="/Lab/Ground", spawn=CuboidCfg(size=(1, 1, 1)))
+    assets = camera, ground, SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
     if from_env_0:
-        plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), (camera, ground), 3, 2.0)
+        plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), assets, 3, 2.0)
         replicate_session.replicate(plan)
     else:
-        with ReplicateSession((camera, ground), 3, 2.0, env_template="/Lab/Cell{}") as session:
+        with ReplicateSession(assets, 3, 2.0, env_template="/Lab/Cell{}") as session:
             plan = session.plan
     assert constructed == [camera.renderer_cfg]
     simulation.get_or_create_backend(camera.renderer_cfg)
@@ -111,6 +113,7 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     assert plan.asset_prototypes[0] is camera and plan.asset_prototypes[1] is ground
     assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
     assert ground.spawn.spawn_path == "/Lab/Ground"
+    np.testing.assert_array_equal(plan.world_prototypes, [1, 0])
     assert {context for context, _, _ in simulation.calls} == {_Context, _RenderContext}
     assert all(received is plan for _, received, _ in simulation.calls)
 

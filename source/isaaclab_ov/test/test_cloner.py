@@ -72,9 +72,10 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
     assert len(OvPhysxManager._pending_clones) == 1
-    pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
+    pending_source, pending_targets, pending_transforms, pending_env_ids = OvPhysxManager._pending_clones[0]
     assert pending_source == "/World/envs/env_0/Robot"
     assert pending_targets == ["/World/envs/env_1/Robot"]
+    assert pending_env_ids == [1]
     assert len(pending_transforms) == 1
     assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
     orientation = np.asarray(pending_transforms[0][3:], dtype=np.float32)
@@ -100,6 +101,8 @@ def test_ovphysx_context_consumes_plan():
     assert recipes[0][2][0] == pytest.approx((5.25, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
     assert recipes[1][1] == ["/World/envs/env_0/Robot_1", "/World/envs/env_1/Robot_1"]
     np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
+    assert recipes[0][3] == [1]
+    assert recipes[1][3] == [0, 1]
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
@@ -109,7 +112,7 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
 
     OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
-    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None)]
     assert OvPhysxManager._active_clone_recipes == expected_recipes
     assert OvPhysxManager._pending_clones == expected_recipes
 
