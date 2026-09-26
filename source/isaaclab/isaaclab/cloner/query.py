@@ -3,106 +3,184 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Query asset prototypes, world compositions, and their destination world indices."""
+"""Batched numeric topology queries. Resolve declared paths separately in :mod:`.path`.
+
+All queries return ``(world_indices, world_starts)``. Indices are flat int32 values;
+starts are int64 offsets with shape [num_queries, num_worlds + 2], including shared world -1.
+For query q and world w, ``world_starts[q, w + 1 : w + 3]`` bounds its selected instances.
+Each row's first/last offset bounds the entire query. Repeated IDs retain separate results.
+
+NumPy queries allocate exact-sized results. Warp queries require resident int32 query IDs
+and preallocated ``out`` arrays on the topology's device; no upload or readback is implicit.
+Warm up before CUDA graph capture. For nonempty batches, the valid prefix ends at ``world_starts[-1, -1]``.
+If that required size exceeds capacity, starts are still reported but indices are left untouched:
+the caller must provide enough capacity for its selection domain, not consume a partial result.
+"""
 
 from __future__ import annotations
 
-import re
-
 import numpy as np
+import warp as wp
 
-from .clone_plan import ClonePlan
+from .clone_plan import PrototypeWorldTopology
 
 
-def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
-    """Return asset-prototype IDs selected by their declared cfg paths, without expanding instances.
+def get_asset_prototype_world_index(
+    topology: PrototypeWorldTopology,
+    asset_prototype: int | np.ndarray | wp.array,
+    *,
+    out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+    """Return one world index per asset instance, retaining repeated memberships.
 
     Args:
-        plan: Asset prototypes and world compositions.
-        path_expr: Exact cfg ``prim_path`` or a regular expression matching the complete declared
-            path string. None selects all definitions, including unused prototypes.
+        topology: Numeric topology with NumPy or Warp storage.
+        asset_prototype: One integer (NumPy only), or a 1-D integer array of asset-prototype IDs.
+        out: Optional NumPy outputs, required Warp outputs. See the module's result/capacity contract.
 
     Returns:
-        Ascending asset-prototype IDs, shape [num_matches], dtype int32, each included once.
-        Generated native paths are not matched.
+        Flat world indices and per-query world boundaries. A scalar is a batch of length one.
+        Missing or unused asset IDs produce empty slices; shared instances use world -1.
     """
-    if path_expr is None:
-        return np.arange(len(plan.asset_prototypes), dtype=np.int32)
-    pattern = re.compile(path_expr)
-    paths = (cfg.prim_path for cfg in plan.asset_prototypes)
-    return np.fromiter(
-        (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path)), dtype=np.int32
-    )
+    return _world_index(topology, asset_prototype, by_asset=True, unique=False, out=out)
 
 
-def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
-    """Return world-prototype IDs containing assets selected by their declared cfg paths.
+def get_asset_prototype_unique_world_index(
+    topology: PrototypeWorldTopology,
+    asset_prototype: int | np.ndarray | wp.array,
+    *,
+    out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+    """Return each world containing an asset once, independently for every requested asset.
 
     Args:
-        plan: Asset prototypes and world compositions.
-        path_expr: Asset-path filter interpreted by :func:`get_asset_prototypes`. None selects
-            all world definitions, including empty and unused prototypes and shared world -1.
+        topology: Numeric topology with NumPy or Warp storage.
+        asset_prototype: One integer (NumPy only), or a 1-D integer array of asset-prototype IDs.
+        out: Optional NumPy outputs, required Warp outputs. See the module's result/capacity contract.
 
     Returns:
-        Ascending world-prototype IDs, shape [num_matches], dtype int32, not destination world IDs.
-        Filtering selects complete compositions; repeated asset memberships remain in the plan.
+        Flat world indices and per-query world boundaries, as in :func:`get_asset_prototype_world_index`.
+        Every world slice has length zero or one. Separate queries are not deduplicated together.
     """
-    prototype_ids = np.arange(-1, len(plan.world_prototype_starts) - 2, dtype=np.int32)
-    if path_expr is None:
-        return prototype_ids
-    matched_assets = np.isin(plan.world_prototypes, get_asset_prototypes(plan, path_expr))
-    match_counts = np.r_[0, np.cumsum(matched_assets)]
-    return prototype_ids[np.diff(match_counts[plan.world_prototype_starts]) > 0]
+    return _world_index(topology, asset_prototype, by_asset=True, unique=True, out=out)
 
 
-def get_asset_prototype_world_index(plan: ClonePlan, asset_prototype: int | str) -> tuple[np.ndarray, np.ndarray]:
-    """Return destination world indices for selected asset-prototype instances.
+def get_world_prototype_world_index(
+    topology: PrototypeWorldTopology,
+    world_prototype: int | np.ndarray | wp.array,
+    *,
+    out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+    """Return the destination worlds using each requested world prototype.
 
     Args:
-        plan: Asset prototypes and world compositions.
-        asset_prototype: Prototype index or a declared-path expression accepted by :func:`get_asset_prototypes`.
-
-    Returns:
-        (world_indices, world_starts), with one world index per selected asset instance.
-        All arrays are 1-D with dtype int32. Shared instances use world -1 and occupy the first slice.
-        World w's start/end offsets are world_starts[w + 1 : w + 3]. Starts have length num_worlds + 2, including
-        empty worlds and the final end offset. These offsets address selected plan instances, not native buffers.
-    """
-    asset_ids = get_asset_prototypes(plan, asset_prototype) if isinstance(asset_prototype, str) else asset_prototype
-    match_counts = np.r_[0, np.cumsum(np.isin(plan.world_prototypes, asset_ids))]
-    counts = np.diff(match_counts[plan.world_prototype_starts])
-    counts = np.r_[counts[0], counts[plan.world_prototype_layout + 1]]
-    world_ids = np.arange(-1, len(plan.world_prototype_layout), dtype=np.int32)
-    return np.repeat(world_ids, counts), np.r_[0, counts].cumsum(dtype=np.int32)
-
-
-def get_asset_prototype_unique_world_index(plan: ClonePlan, asset_prototype: int | str) -> np.ndarray:
-    """Return each destination world containing selected asset prototypes once.
-
-    Args:
-        plan: Asset prototypes and world compositions.
-        asset_prototype: Prototype index or a declared-path expression accepted by :func:`get_asset_prototypes`.
-
-    Returns:
-        Ascending world indices, shape [num_matches], dtype int32. Shared instances use -1;
-        assets with no instances return an empty array.
-    """
-    asset_ids = get_asset_prototypes(plan, asset_prototype) if isinstance(asset_prototype, str) else asset_prototype
-    match_counts = np.r_[0, np.cumsum(np.isin(plan.world_prototypes, asset_ids))]
-    counts = np.diff(match_counts[plan.world_prototype_starts])
-    return np.flatnonzero(np.r_[counts[0], counts[plan.world_prototype_layout + 1]]).astype(np.int32) - 1
-
-
-def get_world_prototype_world_index(plan: ClonePlan, world_prototype: int | str) -> np.ndarray:
-    """Return the destination worlds using selected world prototypes.
-
-    Args:
-        plan: Asset prototypes and world compositions.
-        world_prototype: World-prototype index or an asset-path expression accepted by :func:`get_world_prototypes`.
+        topology: Numeric topology with NumPy or Warp storage.
+        world_prototype: One integer (NumPy only), or a 1-D integer array of world-prototype IDs.
             Index -1 selects the shared world, even when empty.
+        out: Optional NumPy outputs, required Warp outputs. See the module's result/capacity contract.
 
     Returns:
-        Ascending world indices, shape [num_matches], dtype int32, each included once.
+        Flat world indices and per-query world boundaries, as in :func:`get_asset_prototype_world_index`.
+        Unused world prototypes produce empty slices.
     """
-    prototype_ids = get_world_prototypes(plan, world_prototype) if isinstance(world_prototype, str) else world_prototype
-    return np.flatnonzero(np.isin(np.r_[-1, plan.world_prototype_layout], prototype_ids)).astype(np.int32) - 1
+    return _world_index(topology, world_prototype, by_asset=False, unique=True, out=out)
+
+
+def _world_index(
+    topology: PrototypeWorldTopology,
+    prototype_ids: int | np.ndarray | wp.array,
+    *,
+    by_asset: bool,
+    unique: bool,
+    out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None,
+) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+    num_worlds = len(topology.world_prototype_layout)
+    if isinstance(topology.world_prototypes, np.ndarray):
+        if isinstance(prototype_ids, wp.array):
+            raise TypeError("Warp query IDs require to_warp(topology, device); queries do not transfer arrays.")
+        prototype_ids = np.atleast_1d(prototype_ids)
+        if prototype_ids.ndim != 1 or prototype_ids.dtype.kind not in "iu":
+            raise TypeError("Topology queries require integer IDs; resolve expressions with cloner.path.")
+        layout = np.r_[-1, topology.world_prototype_layout]
+        if by_asset:
+            matches = prototype_ids[:, None] == topology.world_prototypes
+            prefix = np.zeros((len(prototype_ids), len(topology.world_prototypes) + 1), dtype=np.int64)
+            np.cumsum(matches, axis=1, out=prefix[:, 1:])
+            counts = np.diff(prefix[:, topology.world_prototype_starts], axis=1)[:, layout + 1]
+            if unique:
+                counts = counts > 0
+        else:
+            counts = prototype_ids[:, None] == layout
+        starts = np.zeros((len(prototype_ids), num_worlds + 2), dtype=np.int64)
+        starts[:, 1:] = counts
+        np.cumsum(starts.ravel(), out=starts.ravel())
+        indices = np.repeat(np.tile(np.arange(-1, num_worlds, dtype=np.int32), len(prototype_ids)), counts.ravel())
+        if out is None:
+            return indices, starts
+        out[1][:] = starts
+        if len(indices) <= len(out[0]):
+            out[0][: len(indices)] = indices
+    else:
+        if out is None:
+            raise ValueError("Warp queries require preallocated out=(world_indices, world_starts).")
+        indices, starts = out
+        if starts.shape != (len(prototype_ids), num_worlds + 2) or not starts.is_contiguous:
+            raise ValueError("world_starts must be contiguous with shape [num_queries, num_worlds + 2].")
+        wp.launch(
+            _count_world_instances,
+            dim=starts.shape,
+            inputs=[
+                topology.world_prototypes,
+                topology.world_prototype_starts,
+                topology.world_prototype_layout,
+                prototype_ids,
+                by_asset,
+                unique,
+            ],
+            outputs=[starts],
+            device=starts.device,
+        )
+        wp.utils.array_scan(starts.flatten(), starts.flatten())
+        wp.launch(_fill_world_indices, (len(prototype_ids), num_worlds + 1), [starts, indices], device=starts.device)
+    return out
+
+
+@wp.kernel
+def _count_world_instances(
+    world_prototypes: wp.array(dtype=wp.int32),
+    world_prototype_starts: wp.array(dtype=wp.int64),
+    world_prototype_layout: wp.array(dtype=wp.int32),
+    prototype_ids: wp.array(dtype=wp.int32),
+    by_asset: bool,
+    unique: bool,
+    starts: wp.array2d(dtype=wp.int64),
+):
+    query, column = wp.tid()
+    count = wp.int64(0)
+    if column > 0:
+        world_prototype = -1
+        if column > 1:
+            world_prototype = world_prototype_layout[column - 2]
+        if by_asset:
+            member = world_prototype_starts[world_prototype + 1]
+            end = world_prototype_starts[world_prototype + 2]
+            while member < end:
+                if world_prototypes[member] == prototype_ids[query]:
+                    count += wp.int64(1)
+                member += wp.int64(1)
+            if unique:
+                count = wp.min(count, wp.int64(1))
+        elif world_prototype == prototype_ids[query]:
+            count = wp.int64(1)
+    starts[query, column] = count
+
+
+@wp.kernel
+def _fill_world_indices(starts: wp.array2d(dtype=wp.int64), indices: wp.array(dtype=wp.int32)):
+    query, world = wp.tid()
+    # Never write a partial result or past capacity, including during graph replay.
+    if starts[starts.shape[0] - 1, starts.shape[1] - 1] <= wp.int64(indices.shape[0]):
+        index = starts[query, world]
+        while index < starts[query, world + 1]:
+            indices[index] = world - 1
+            index += wp.int64(1)

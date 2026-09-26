@@ -610,7 +610,7 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_in_ovrtx(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         usd = self._usd
-        num_envs = len(usd.plan.world_prototype_layout)
+        num_envs = len(usd.plan.topology.world_prototype_layout)
         env_ids = np.arange(num_envs)
         env_prim_paths = [usd.env_template.format(int(env_id)) for env_id in env_ids]
         logger.info("Cloning sources in OVRTX...")
@@ -631,7 +631,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = usd.positions
+        env_root_xforms[:, 3, :3] = usd.plan.positions
         self.backend.renderer.write_attribute(
             prim_paths=env_prim_paths,
             attribute_name="omni:xform",
@@ -1657,7 +1657,7 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources_ovstage(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan` (ovstage path)."""
         usd = self._usd
-        num_envs = len(usd.plan.world_prototype_layout)
+        num_envs = len(usd.plan.topology.world_prototype_layout)
         env_ids = np.arange(num_envs)
         env_prim_paths = [usd.env_template.format(int(env_id)) for env_id in env_ids]
 
@@ -1679,7 +1679,7 @@ class OVRTXRenderer(BaseRenderer):
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         env_root_xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        env_root_xforms[:, 3, :3] = usd.positions
+        env_root_xforms[:, 3, :3] = usd.plan.positions
         env_paths_list = self.backend.paths.create_path_list_from_strings(env_prim_paths)
         env_query = self.backend.stage.query_from_path_list(env_paths_list)
         self.backend.stage.write_attribute(

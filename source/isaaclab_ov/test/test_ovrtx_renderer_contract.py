@@ -261,8 +261,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer._exported_usd_string = stage.ExportToString()
-    plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2)
-    renderer._usd = UsdReplicateContext(stage, plan, positions=np.zeros((2, 3), dtype=np.float32))
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
+    )
+    renderer._usd = UsdReplicateContext(stage, plan)
     cameras = []
 
     def camera_scope_exists(rd):

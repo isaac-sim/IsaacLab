@@ -874,7 +874,7 @@ class OvPhysxManager(PhysicsManager):
         if (usd := sim.clone_contexts.get(UsdReplicateContext)) is not None:
             prototypes = deformable_prototypes(sim.stage, usd.instances, usd.global_paths)
             entries = expand_deformable_entries(
-                prototypes, usd.instances, np.arange(len(usd.plan.world_prototype_layout)), usd.positions
+                prototypes, usd.instances, np.arange(len(usd.plan.topology.world_prototype_layout)), usd.plan.positions
             )
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"

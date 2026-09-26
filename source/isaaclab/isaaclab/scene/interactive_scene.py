@@ -162,8 +162,8 @@ class InteractiveScene:
                 world_prototypes=world_prototypes,
                 weights=weights,
                 replicate_physics=self.cloner_cfg.replicate_physics,
-            ):
-                usd = self.sim.clone_contexts[cloner.UsdReplicateContext]
+            ) as session:
+                positions = session.plan.positions
                 self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
                 with cloner.disabled_fabric_change_notifies(self.stage, restore=False):
                     cloner.usd_replicate(
@@ -171,10 +171,9 @@ class InteractiveScene:
                         [self.env_prim_paths[0]],
                         [self._env_fmt],
                         np.arange(self.num_envs),
-                        positions=usd.positions,
+                        positions=positions,
                     )
                 self._add_entities_from_cfg()
-            positions = usd.positions
         else:
             positions = cloner.grid_transforms(self.num_envs, self.cfg.env_spacing)[0]
             env_0 = self.stage.DefinePrim(self.env_prim_paths[0], "Xform")
@@ -360,7 +359,7 @@ class InteractiveScene:
             return self._terrain.env_origins
         plan = self.sim.get_clone_plan()
         if plan is not None and plan is not self._env_origins_plan:
-            self._env_origins = self.sim.clone_contexts[cloner.UsdReplicateContext].positions
+            self._env_origins = plan.positions
             self._env_origins_plan = plan
         if not isinstance(self._env_origins, torch.Tensor):
             self._env_origins = torch.as_tensor(self._env_origins, device=self._ALL_INDICES.device)

@@ -102,10 +102,10 @@ def clone_plan_from_env_0(
     *,
     positions: np.ndarray | None = None,
 ) -> ClonePlan:
-    """Prepare one homogeneous topology and its USD authoring inputs.
+    """Prepare one homogeneous topology, placement, and its USD authoring inputs.
 
-    The plan retains only topology. Environment placement and prototype paths belong to
-    the USD clone context; repeated instances inherit their source configuration's pose.
+    The plan retains topology and environment origins. USD naming belongs to its clone
+    context; repeated instances inherit their source configuration's pose.
 
     Args:
         clone_cfg: Clone policy and USD environment namespace.
@@ -115,7 +115,7 @@ def clone_plan_from_env_0(
         positions: Optional world origins [m], shape [num_envs, 3].
 
     Returns:
-        The simulation's published topology, ready for asset construction and replication.
+        The simulation's published plan, ready for asset construction and replication.
     """
     asset_cfgs = tuple(asset_cfgs)
     if clone_cfg.clone_combinations or any(num_spawn_variants(getattr(cfg, "spawn", None)) != 1 for cfg in asset_cfgs):
@@ -213,14 +213,15 @@ def _prepare_cloning(
             groups.append(indices)
     worlds = tuple(itertools.product(*groups)) if world_prototypes is None else world_prototypes
     plan = make_clone_plan(
-        asset_prototypes, worlds, num_clones, weights=weights, shared_assets=shared, clone_strategy=clone_strategy
-    )
-    usd = UsdReplicateContext(
-        sim.stage,
-        plan,
-        env_template=env_template,
+        asset_prototypes,
+        worlds,
+        num_clones,
+        weights=weights,
+        shared_assets=shared,
+        clone_strategy=clone_strategy,
         positions=grid_transforms(num_clones, env_spacing)[0] if positions is None else positions,
     )
+    usd = UsdReplicateContext(sim.stage, plan, env_template=env_template)
     source_paths = {index: path for index, path, _, world_ids in usd.instances if len(world_ids)}
     for cfg, indices in declarations:
         spawn = getattr(cfg, "spawn", None)
@@ -230,7 +231,7 @@ def _prepare_cloning(
         if isinstance(spawn, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
             spawn.spawn_path, spawn.spawn_paths = None, paths
             for index, path in zip(indices, paths, strict=True):
-                plan.asset_prototypes[index].spawn.spawn_paths = [path]
+                plan.topology.asset_prototypes[index].spawn.spawn_paths = [path]
         else:
             spawn.spawn_path = paths[0]
     sim.clone_contexts[UsdReplicateContext] = usd
@@ -248,16 +249,16 @@ def _context_asset_prototype_ids(plan: ClonePlan, sim) -> dict[type, tuple[int, 
     spawn_contexts = render_contexts - {physics_context}
     if has_kit():
         spawn_contexts.add(UsdReplicateContext)
-    shared = set(map(int, plan.world_prototypes[: plan.world_prototype_starts[1]]))
+    shared = set(map(int, plan.topology.world_prototypes[: plan.topology.world_prototype_starts[1]]))
     routing = {context: set() for context in render_contexts}
     if shared and physics_context is not None:
         routing[physics_context] = set()
     active = shared.copy()
-    for world_prototype_id in np.unique(plan.world_prototype_layout):
-        start, end = plan.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
-        active.update(map(int, plan.world_prototypes[start:end]))
+    for world_prototype_id in np.unique(plan.topology.world_prototype_layout):
+        start, end = plan.topology.world_prototype_starts[world_prototype_id + 1 : world_prototype_id + 3]
+        active.update(map(int, plan.topology.world_prototypes[start:end]))
     for index in sorted(active):
-        cfg = plan.asset_prototypes[index]
+        cfg = plan.topology.asset_prototypes[index]
         fields = vars(cfg)
         references = fields.get("cloning_contexts", ())
         contexts = (

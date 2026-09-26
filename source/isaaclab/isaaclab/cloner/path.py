@@ -21,6 +21,51 @@ from __future__ import annotations
 import re
 from typing import NamedTuple
 
+import numpy as np
+
+from .clone_plan import PrototypeWorldTopology
+
+
+def get_asset_prototypes(topology: PrototypeWorldTopology, path_expr: str | None = None) -> np.ndarray:
+    """Select asset-prototype IDs by their declared cfg paths, without expanding instances.
+
+    Args:
+        topology: Host asset definitions and world membership.
+        path_expr: Exact cfg ``prim_path`` or a regular expression matching the complete declared
+            path string. None selects all definitions, including unused prototypes.
+
+    Returns:
+        Ascending asset-prototype IDs, shape [num_matches], dtype int32, each included once.
+        Generated native paths are not matched.
+    """
+    if path_expr is None:
+        return np.arange(len(topology.asset_prototypes), dtype=np.int32)
+    pattern = re.compile(path_expr)
+    paths = (cfg.prim_path for cfg in topology.asset_prototypes)
+    return np.fromiter(
+        (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path)), dtype=np.int32
+    )
+
+
+def get_world_prototypes(topology: PrototypeWorldTopology, path_expr: str | None = None) -> np.ndarray:
+    """Select world-prototype IDs containing assets matched by their declared cfg paths.
+
+    Args:
+        topology: Host asset definitions and world membership.
+        path_expr: Asset-path filter interpreted by :func:`get_asset_prototypes`. None selects
+            all world definitions, including empty and unused prototypes and shared world -1.
+
+    Returns:
+        Ascending world-prototype IDs, shape [num_matches], dtype int32, not destination world IDs.
+        Filtering selects complete compositions; repeated asset memberships remain in the topology.
+    """
+    prototype_ids = np.arange(-1, len(topology.world_prototype_starts) - 2, dtype=np.int32)
+    if path_expr is None:
+        return prototype_ids
+    matched_assets = np.isin(topology.world_prototypes, get_asset_prototypes(topology, path_expr))
+    match_counts = np.r_[0, np.cumsum(matched_assets)]
+    return prototype_ids[np.diff(match_counts[topology.world_prototype_starts]) > 0]
+
 
 class TemplateMatch(NamedTuple):
     """The ``"{}"`` text a template captured (``"3"``, or a wildcard ``".*"``), and the path below it."""

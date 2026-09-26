@@ -17,7 +17,7 @@ from newton import ModelBuilder
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan, UsdReplicateContext
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, UsdReplicateContext
 from isaaclab.cloner.path import match, rebase
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
@@ -266,13 +266,13 @@ class NewtonReplicateContext:
         usd = self._sim.clone_contexts[UsdReplicateContext]
         return _replicate_newton(
             self._sim.stage,
-            np.arange(len(plan.world_prototype_layout)),
+            np.arange(len(plan.topology.world_prototype_layout)),
             self._sim,
             plan=plan,
             instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
             env_template=usd.env_template,
             reference_instances=usd.instances,
-            positions=usd.positions,
+            positions=plan.positions,
             global_paths=usd.global_paths,
             exclude_paths=tuple(
                 source
@@ -314,10 +314,13 @@ def newton_physics_replicate(
     members = [np.flatnonzero(mask) for mask in world_masks]
     shared = np.arange(len(sources), len(sources) + len(global_paths))
     plan = ClonePlan(
-        (*sources, *global_paths),
-        np.concatenate((shared, *members)),
-        np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
-        selected,
+        PrototypeWorldTopology(
+            (*sources, *global_paths),
+            np.concatenate((shared, *members)).astype(np.int32),
+            np.r_[0, len(shared), len(shared) + np.cumsum([len(world) for world in members])],
+            selected.astype(np.int32),
+        ),
+        positions=positions,
     )
     instances = tuple(
         (index, source, destination, np.flatnonzero(mapping[index]))

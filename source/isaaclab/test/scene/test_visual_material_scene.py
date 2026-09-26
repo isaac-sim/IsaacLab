@@ -99,7 +99,9 @@ def Xform "Robot"
         sim.reset()
 
         assert scene.num_envs == 12
-        assert all(source is not cfg.warm and source is not cfg.cool for source in scene.clone_plan.asset_prototypes)
+        assert all(
+            source is not cfg.warm and source is not cfg.cool for source in scene.clone_plan.topology.asset_prototypes
+        )
         assert len(cfg.robot.spawn.spawn_paths) == 3
         assert scene["warm"].num_instances == scene["cool"].num_instances == 12
         assert scene["shared"].num_instances == 1

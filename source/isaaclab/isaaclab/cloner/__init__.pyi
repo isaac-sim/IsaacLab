@@ -17,18 +17,20 @@ __all__ = [
     "make_valid_clone_combinations",
     "num_spawn_variants",
     "path",
+    "PrototypeWorldTopology",
     "query",
     "random",
     "ReplicateSession",
     "replicate",
     "sequential",
+    "to_warp",
     "UsdReplicateContext",
     "usd_replicate",
 ]
 
 from . import path, query
 from ._fabric_notices import disabled_fabric_change_notifies
-from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
+from .clone_plan import ClonePlan, PrototypeWorldTopology, grid_transforms, make_clone_plan, to_warp
 from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions

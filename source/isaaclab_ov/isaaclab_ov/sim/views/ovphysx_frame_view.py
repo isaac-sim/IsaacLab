@@ -559,8 +559,8 @@ class OvPhysxFrameView(BaseFrameView):
                 env_id = int(env_id)
                 destination_root = destination_template.format(env_id)
                 destination_world = Gf.Matrix4d(1.0)
-                if usd.positions is not None:
-                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, usd.positions[env_id])))
+                if usd.plan.positions is not None:
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, usd.plan.positions[env_id])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
                 sites.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
