@@ -46,8 +46,6 @@ from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.managers import EventTermCfg, ManagerTermBase
     from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
 
     from .ovphysx_manager_cfg import OvPhysxCfg
@@ -1031,24 +1029,3 @@ class OvPhysxManager(PhysicsManager):
                     ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
                 ]:
                     scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
-
-    @classmethod
-    def _create_legacy_material_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core material event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import randomize_rigid_body_material
-
-        return randomize_rigid_body_material(cfg, env)
-
-    @classmethod
-    def _create_legacy_collider_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core collider event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import randomize_rigid_body_collider_offsets
-
-        return randomize_rigid_body_collider_offsets(cfg, env)
-
-    @classmethod
-    def _create_legacy_gravity_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core gravity event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import randomize_physics_scene_gravity
-
-        return randomize_physics_scene_gravity(cfg, env)

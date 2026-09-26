@@ -2829,7 +2829,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
     :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is CPU-native, so the
     buffer lives in host memory.
     """
-    from isaaclab_ov.envs.mdp import randomize_rigid_body_material  # noqa: PLC0415
+    from isaaclab.envs.mdp import randomize_rigid_body_material  # noqa: PLC0415
 
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
@@ -2851,7 +2851,7 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
         "num_buckets": 16,
     }
     asset_cfg = SimpleNamespace(name="robot", body_ids=slice(None))
-    env = SimpleNamespace(scene={"robot": articulation})
+    env = SimpleNamespace(scene={"robot": articulation}, sim=sim)
     randomize = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
 
     # Randomize only the last environment; the others keep their materials.

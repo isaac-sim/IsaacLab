@@ -43,9 +43,3 @@ The following classes are part of the public :mod:`isaaclab_newton.envs.mdp` API
 
 .. autoclass:: NewtonOperationalSpaceControllerActionCfg
    :show-inheritance:
-
-Physics events
---------------
-
-.. automodule:: isaaclab_newton.envs.mdp.physics_events
-    :members:

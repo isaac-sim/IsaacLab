@@ -27,7 +27,6 @@ import torch
 import warp as wp
 from flaky import flaky
 from isaaclab_newton.assets import RigidObject
-from isaaclab_newton.envs.mdp import randomize_world_gravity
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
@@ -36,6 +35,7 @@ from newton import ModelFlags
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
@@ -462,7 +462,7 @@ def test_gravity_vec_w_tracks_model_gravity(num_cubes, device):
         )
         env = SimpleNamespace(sim=sim, device=device, num_envs=num_cubes)
         params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
-        event = randomize_world_gravity(EventTermCfg(func=randomize_world_gravity, params=params), env)
+        event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
         for row, values in enumerate(new_gravity.tolist()):
             event(env, torch.tensor([row], device=device), (values, values), operation="abs")
 

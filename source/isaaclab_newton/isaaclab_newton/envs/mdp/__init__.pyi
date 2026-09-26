@@ -5,9 +5,8 @@
 
 __all__ = [
     "randomize_rigid_body_material",
-    "randomize_rigid_body_collider_parameters",
-    "randomize_world_gravity",
-
+    "randomize_rigid_body_collider_offsets",
+    "randomize_physics_scene_gravity",
     "NewtonDifferentialInverseKinematicsAction",
     "NewtonDifferentialInverseKinematicsActionCfg",
     "NewtonInverseKinematicsAction",
@@ -25,10 +24,9 @@ from .actions import (
     NewtonOperationalSpaceControllerAction,
     NewtonOperationalSpaceControllerActionCfg,
 )
-from .events import randomize_visual_shape
-
-from .physics_events import (
+from .events import (
+    randomize_physics_scene_gravity,
+    randomize_rigid_body_collider_offsets,
     randomize_rigid_body_material,
-    randomize_rigid_body_collider_parameters,
-    randomize_world_gravity,
+    randomize_visual_shape,
 )

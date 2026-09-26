@@ -1,5 +1,8 @@
 isaaclab_ov.envs.mdp
 ====================
 
-.. automodule:: isaaclab_ov.envs.mdp.physics_events
+Backend implementations used by the shared ``isaaclab.envs.mdp`` event terms.
+Configure tasks through the shared terms.
+
+.. automodule:: isaaclab_ov.envs.mdp.events
     :members:

@@ -108,8 +108,6 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.cloner import ClonePlan
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.managers import EventTermCfg, ManagerTermBase
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -2853,24 +2851,3 @@ class NewtonManager(PhysicsManager):
         cls._newton_imu_sensors.append(sensor)
         logger.info(f"Added IMU sensor (index={idx}, sites={len(sites)})")
         return idx
-
-    @classmethod
-    def _create_legacy_material_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core material event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import _legacy_randomize_rigid_body_material
-
-        return _legacy_randomize_rigid_body_material(cfg, env)
-
-    @classmethod
-    def _create_legacy_collider_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core collider event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import _legacy_randomize_rigid_body_collider_offsets
-
-        return _legacy_randomize_rigid_body_collider_offsets(cfg, env)
-
-    @classmethod
-    def _create_legacy_gravity_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core gravity event; new tasks select terms directly."""
-        from ..envs.mdp.physics_events import randomize_world_gravity
-
-        return randomize_world_gravity(cfg, env)

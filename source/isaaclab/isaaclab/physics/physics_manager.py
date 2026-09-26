@@ -17,8 +17,6 @@ from typing import TYPE_CHECKING, Any, ClassVar
 from ..sim.utils.stage import get_current_stage
 
 if TYPE_CHECKING:
-    from ..envs import ManagerBasedEnv
-    from ..managers import EventTermCfg, ManagerTermBase
     from ..scene_data import SceneDataBackend
     from ..sim.simulation_context import SimulationContext
 
@@ -612,18 +610,3 @@ class PhysicsManager(ABC):
                 store_fn(e)
             else:
                 raise
-
-    @classmethod
-    def _create_legacy_material_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core material event; new tasks select terms directly."""
-        raise NotImplementedError("Select a backend event explicitly with EventTermCfg.func.")
-
-    @classmethod
-    def _create_legacy_collider_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core collider event; new tasks select terms directly."""
-        raise NotImplementedError("Select a backend event explicitly with EventTermCfg.func.")
-
-    @classmethod
-    def _create_legacy_gravity_randomizer(cls, cfg: EventTermCfg, env: ManagerBasedEnv) -> ManagerTermBase:
-        """Compatibility for the deprecated core gravity event; new tasks select terms directly."""
-        raise NotImplementedError("Select a backend event explicitly with EventTermCfg.func.")

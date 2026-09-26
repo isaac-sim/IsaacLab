@@ -196,78 +196,37 @@ The following classes are part of the public :mod:`isaaclab.envs.mdp` API.
 .. autoclass:: UniformVelocityCommand
    :show-inheritance:
 
-Explicit physics event selection
---------------------------------
+Physics event backend selection
+-------------------------------
 
-Physics randomization with backend-specific semantics is configured through
-``EventTermCfg.func``. Mass, inertia, center-of-mass, joint, and actuator terms
-remain in ``isaaclab.envs.mdp`` because they use the shared asset APIs.
-
-Select the complete event configuration with the same concrete preset name used
-for physics. For example, a task whose physics presets are ``newton_mjwarp`` and
-``ovphysx`` can define:
+Configure physics randomization through the shared ``isaaclab.envs.mdp`` terms:
 
 .. code-block:: python
 
+    import isaaclab.envs.mdp as mdp
     from isaaclab.managers import EventTermCfg
-    from isaaclab.utils import configclass
-    from isaaclab_tasks.utils import PresetCfg
 
+    gravity = EventTermCfg(
+        func=mdp.randomize_physics_scene_gravity,
+        mode="startup",
+        params={
+            "gravity_distribution_params": ((0.0, 0.0, -10.0), (0.0, 0.0, -9.0)),
+            "operation": "abs",
+        },
+    )
 
-    @configclass
-    class GravityEventCfg(PresetCfg):
-        newton_mjwarp = EventTermCfg(
-            func="isaaclab_newton.envs.mdp:randomize_world_gravity",
-            mode="startup",
-            params={
-                "gravity_distribution_params": ((0.0, 0.0, -10.0), (0.0, 0.0, -9.0)),
-                "operation": "abs",
-            },
-        )
-        ovphysx = newton_mjwarp.replace(
-            func="isaaclab_ov.envs.mdp:randomize_physics_scene_gravity",
-        )
-        default = newton_mjwarp
+The same term configuration works with Newton, Isaac Sim PhysX, and OVPhysX.
+Material, collider-offset, and gravity terms select their implementation once at
+construction from the simulation's resolved physics configuration. This also
+handles the ``physx`` auto selector: the simulation resolves it before events are
+constructed. Tasks do not select backend event classes or translate parameters.
 
+Native implementations live in each backend package's ``envs/mdp/events.py``.
+They borrow existing asset bindings and the active physics manager; native resource
+ownership remains with ``SimulationContext`` and ``BackendCfg``. Shared asset
+randomization (mass, inertia, center of mass, joints, and actuators) remains in core.
 
-    @configclass
-    class EventsCfg:
-        gravity: GravityEventCfg = GravityEventCfg()
-
-The existing preset resolver selects matching fields throughout the task config.
-Select callable and parameters together when the backend signatures differ.
-Use concrete physics selectors when composing these events; the ``physx`` auto
-selector can resolve to either Isaac Sim PhysX or OVPhysX only at launch. Existing
-configurations using that auto selector can retain the deprecated core terms
-during migration.
-
-The contracts are deliberately explicit:
-
-* ``isaaclab_physx.envs.mdp.randomize_physics_scene_gravity`` and its
-  ``isaaclab_ov`` counterpart sample one global vector from configured gravity.
-  Environment selectors cannot restrict a global change.
-* ``isaaclab_newton.envs.mdp.randomize_world_gravity`` samples selected environment
-  worlds and leaves the trailing global world unchanged. ``add`` and ``scale``
-  operate on current values and therefore accumulate across calls.
-* PhysX and OVPhysX material terms accept static/dynamic friction, restitution,
-  and material buckets. Newton's material term accepts ``friction_range`` and
-  ``restitution_range``. Kamino shares materials across worlds; its material
-  randomization changes every environment even when a subset is supplied.
-* Newton's ``randomize_rigid_body_collider_parameters`` samples native margin
-  and gap independently, in meters. The PhysX/OVPhysX collider terms accept rest
-  and contact offsets. Collider terms operate on every shape of the selected
-  asset environments, without body filtering.
-
-The three original core entry points remain available and emit
-``DeprecationWarning`` at construction. They preserve the old signatures and
-backend behavior, including Newton's ignored PhysX material parameters, cached
-material ranges, and the conversion ``gap = max(contact_offset - margin, 0)``.
-For that conversion, migrate both distributions together; independently sampling
-a gap does not reproduce a distribution of contact offsets minus sampled margins.
-
-Event instances own their buckets, defaults, and selections. They borrow native
-bindings from assets and the active physics manager. ``BackendCfg`` continues to
-configure simulation-owned native resources; event terms neither register a new
-resource nor allocate a second physics model. Solver notifications stay with the
-active manager. Custom manager subclasses inherit the compatibility hooks without
-class-name matching; new task configurations select the event directly.
+Backend limitations are documented on the shared terms. Global versus per-world
+gravity, PhysX material buckets, Newton's single friction coefficient, and Kamino's
+shared materials retain their existing behavior. Collider offset translation stays
+inside the Newton implementation. No public terms are deprecated by this refactor.

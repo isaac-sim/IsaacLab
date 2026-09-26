@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Explicit physics randomization terms for OvPhysx."""
+"""Backend implementations of MDP event terms for ov."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ import torch
 import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.mdp._randomization import _GravityRandomization, _randomize_prop_by_op
+from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 

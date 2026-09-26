@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Explicit physics randomization terms for Physx."""
+"""Backend implementations of MDP event terms for physx."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 import torch
 import warp as wp
 
-from isaaclab.envs.mdp._randomization import _GravityRandomization, _randomize_prop_by_op
+from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
 
