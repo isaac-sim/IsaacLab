@@ -13,6 +13,8 @@ from isaaclab_newton.physics.vbd_manager import NewtonVBDManager
 from newton import Contacts, Control, Model, State
 from newton.solvers import SolverBase, SolverMuJoCo, SolverVBD
 
+from isaaclab.physics import PhysicsManager
+
 from .kernels import _kernel_body_particle_reaction
 from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
@@ -27,12 +29,11 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     _rigid_solver: SolverMuJoCo | None = None
     _soft_solver: SolverVBD | None = None
     _coupling_mode: str | None = None
+    _builder_attribute_solvers = (SolverMuJoCo,)
 
     @classmethod
     def step(cls) -> None:
         """Step the physics simulation."""
-        from isaaclab.physics import PhysicsManager
-
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return
@@ -98,8 +99,8 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             return
         if cls._rigid_solver.use_mujoco_cpu and not world_mask.numpy().any():
             return
-        cls._rigid_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
-        cls._soft_solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._rigid_solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        cls._soft_solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _solver_specific_clear(cls) -> None:
@@ -113,7 +114,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
     def _simulate_physics_only(cls) -> None:
         # Rebuild the BVH before stepping solvers that require it, such as VBD cloth.
         if hasattr(cls._soft_solver, "rebuild_bvh"):
-            cls._soft_solver.rebuild_bvh(cls._state_0)
+            cls._soft_solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()
 
     @classmethod
@@ -166,7 +167,6 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
             state_prev: Inactive state buffer providing reference poses for friction velocity estimation.
             dt: Substep timestep [s].
         """
-        model = cls._model
         contacts = cls._contacts
         if contacts is None:
             return
@@ -175,6 +175,7 @@ class NewtonCoupledMJWarpVBDManager(NewtonVBDManager):
         if contact_capacity == 0:
             return
 
+        model = cls.backend.model
         # VBD mutates particle_q in place, so the kernel reconstructs prior positions from particle_qd.
         wp.launch(
             _kernel_body_particle_reaction,

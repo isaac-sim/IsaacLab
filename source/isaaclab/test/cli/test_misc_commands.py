@@ -14,8 +14,22 @@ import isaaclab.cli.commands.misc as misc
 pytestmark = pytest.mark.unit
 
 
-def test_build_docs_runs_sphinx_with_the_uv_test_extra():
-    """The docs command must build through UV instead of an unpinned pip install."""
+def test_python_subcommands_propagate_failures():
+    """Python-based CLI subcommands must propagate failures from their child process."""
+    with mock.patch.object(misc, "run_python_command") as run_python_command:
+        misc.command_new(["--help"])
+        misc.command_test(["-q"])
+        misc.command_run_docker(["--help"])
+
+    assert run_python_command.call_args_list == [
+        mock.call(misc.ISAACLAB_ROOT / "tools" / "template" / "cli.py", ["--help"], check=True),
+        mock.call("-m", ["pytest", str(misc.ISAACLAB_ROOT / "tools"), "-q"], check=True),
+        mock.call(misc.ISAACLAB_ROOT / "docker" / "container.py", ["--help"], check=True),
+    ]
+
+
+def test_build_docs_runs_sphinx_with_the_uv_dev_extra():
+    """The docs command must use the UV extra that provides Sphinx."""
     docs_dir = misc.ISAACLAB_ROOT / "docs"
     output_dir = docs_dir / "_build" / "current"
 
@@ -31,7 +45,7 @@ def test_build_docs_runs_sphinx_with_the_uv_test_extra():
             "run",
             "--isolated",
             "--extra",
-            "test",
+            "dev",
             "--",
             "python",
             "-m",
@@ -91,12 +105,13 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     run_command.assert_called_once_with([str(build_script)], cwd=isaacsim_root)
     repoint_prebundles.assert_called_once_with()
     assert (workspace / "_isaac_sim").resolve() == release_dir
+    assert (release_dir / ".isaaclab_source_build").is_file()
 
 
 @pytest.mark.parametrize(
     ("sys_platform", "machine", "target"),
     [
-        ("linux", "x86_64", "linux-x86_64"),
+        # linux-x86_64 is covered end to end by test_build_isaacsim_links_incremental_build_without_packaging.
         ("linux", "aarch64", "linux-aarch64"),
         ("win32", "AMD64", "windows-x86_64"),
     ],

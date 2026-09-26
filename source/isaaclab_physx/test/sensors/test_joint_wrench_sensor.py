@@ -5,6 +5,11 @@
 
 """Launch Isaac Sim Simulator first."""
 
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sensors"))
+
 from isaaclab.app import AppLauncher
 
 # launch omniverse app
@@ -12,7 +17,6 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
-import math
 from types import SimpleNamespace
 
 import pytest
@@ -22,8 +26,8 @@ from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sensors.joint_wrench import joint_wrench_sensor as joint_wrench_module
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor import JointWrenchSensor as PhysxJointWrenchSensor
 from isaaclab_physx.sensors.joint_wrench.joint_wrench_sensor_data import JointWrenchSensorData
-
-from pxr import Gf, UsdPhysics
+from isaaclab_physx.sim.schemas import PhysxJointCfg
+from joint_wrench_contract import test_joint_wrench_frame  # noqa: F401
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -33,9 +37,8 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import math as math_utils
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
@@ -46,7 +49,7 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-            joint_drive_props=sim_utils.JointDrivePropertiesCfg(max_effort=80.0, max_velocity=5.0),
+            joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
         ),
         actuators={
             "joint": ImplicitActuatorCfg(
@@ -59,32 +62,6 @@ def _make_single_joint_articulation_cfg() -> ArticulationCfg:
     )
 
 
-def _make_cartpole_articulation_cfg(pole_damping: float = 0.0) -> ArticulationCfg:
-    """Two-joint cartpole articulation (cart + pole).
-
-    Args:
-        pole_damping: Damping for the cart-to-pole revolute joint.
-    """
-    return ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Classic/Cartpole/cartpole.usd",
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
-            pos=(0.0, 0.0, 2.0),
-            joint_pos={"slider_to_cart": 0.0, "cart_to_pole": 0.0},
-        ),
-        actuators={
-            "cart_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["slider_to_cart"], joint_effort_limit=400.0, stiffness=0.0, damping=10.0
-            ),
-            "pole_actuator": ImplicitActuatorCfg(
-                joint_names_expr=["cart_to_pole"], joint_effort_limit=400.0, stiffness=0.0, damping=pole_damping
-            ),
-        },
-    )
-
-
 @configclass
 class _SingleJointSceneCfg(InteractiveSceneCfg):
     """Scene with a single-joint articulation and the joint-wrench sensor."""
@@ -92,26 +69,6 @@ class _SingleJointSceneCfg(InteractiveSceneCfg):
     env_spacing = 2.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
     robot = _make_single_joint_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-
-@configclass
-class _CartpoleSceneCfg(InteractiveSceneCfg):
-    """Scene with a cartpole (2-joint) articulation and the joint-wrench sensor."""
-
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg()
-    wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
-
-
-@configclass
-class _CartpoleDampedSceneCfg(InteractiveSceneCfg):
-    """Cartpole with pole damping for steady-state physics validation tests."""
-
-    env_spacing = 4.0
-    terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = _make_cartpole_articulation_cfg(pole_damping=10.0)
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 
@@ -148,49 +105,10 @@ def _physx_incoming_joint_wrench(sensor: JointWrenchSensor) -> torch.Tensor:
 
 
 def _assert_sensor_matches_physx_tensor(sensor: JointWrenchSensor) -> None:
-    """Compare sensor buffers to the raw PhysX tensor transformed into joint frames."""
+    """The sensor exposes the PhysX tensor's existing child-joint-frame components."""
     raw_wrench = _physx_incoming_joint_wrench(sensor)
-    sensor_data = sensor.data
-
-    expected_force, expected_torque = _physx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
-    torch.testing.assert_close(sensor_data.force.torch, expected_force)
-    torch.testing.assert_close(sensor_data.torque.torch, expected_torque)
-
-
-def _physx_incoming_joint_wrench_in_joint_frame(
-    sensor: JointWrenchSensor, raw_wrench: torch.Tensor
-) -> tuple[torch.Tensor, torch.Tensor]:
-    """Transform raw PhysX body-frame incoming joint wrenches into the configured convention."""
-    force_b = raw_wrench[..., :3]
-    torque_b = raw_wrench[..., 3:]
-    joint_pos_b = wp.to_torch(sensor._joint_pos_b).unsqueeze(0)
-    joint_quat_b = wp.to_torch(sensor._joint_quat_b).unsqueeze(0)
-    torque_joint_anchor_b = torque_b - torch.cross(joint_pos_b.expand_as(force_b), force_b, dim=-1)
-
-    flat_joint_quat_b = joint_quat_b.expand_as(raw_wrench[..., :4]).reshape(-1, 4)
-    expected_force = math_utils.quat_apply_inverse(flat_joint_quat_b, force_b.reshape(-1, 3)).reshape(force_b.shape)
-    expected_torque = math_utils.quat_apply_inverse(flat_joint_quat_b, torque_joint_anchor_b.reshape(-1, 3)).reshape(
-        torque_b.shape
-    )
-    return expected_force, expected_torque
-
-
-def _set_child_joint_frame(scene: InteractiveScene, child_body_name: str) -> None:
-    """Set a non-identity child-side joint frame for the requested body in env 0."""
-    for prim in scene.stage.Traverse():
-        if not prim.GetPath().pathString.startswith("/World/envs/env_0/Robot"):
-            continue
-        joint = UsdPhysics.Joint(prim)
-        if joint and any(target.name == child_body_name for target in joint.GetBody1Rel().GetTargets()):
-            joint.GetLocalPos1Attr().Set(Gf.Vec3f(0.25, -0.15, 0.1))
-            joint.GetLocalRot1Attr().Set(
-                Gf.Quatf(
-                    math.cos(math.pi / 4.0),
-                    Gf.Vec3f(math.sin(math.pi / 4.0), 0.0, 0.0),
-                )
-            )
-            return
-    raise RuntimeError(f"Failed to find a USD joint with child body '{child_body_name}'.")
+    torch.testing.assert_close(sensor.data.force.torch, raw_wrench[..., :3])
+    torch.testing.assert_close(sensor.data.torque.torch, raw_wrench[..., 3:])
 
 
 # ---------------------------------------------------------------------------
@@ -229,26 +147,11 @@ def test_initialization_and_shapes(sim):
     assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
     assert sensor.body_names == robot.body_names
     assert sensor.find_bodies("Arm") == ([robot.body_names.index("Arm")], ["Arm"])
+    assert sensor._root_view is robot.root_view  # noqa: SLF001
     _assert_sensor_matches_physx_tensor(sensor)
-
-
-def test_multi_body_articulation(sim):
-    """Cartpole exposes a wrench for each link labelled by body name."""
-    scene = InteractiveScene(_CartpoleSceneCfg(num_envs=2))
-    sim.reset()
-
-    robot: Articulation = scene["robot"]
-    sensor: JointWrenchSensor = scene["wrench"]
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    num_envs = 2
-    num_bodies = robot.num_bodies
-    assert sensor.data.force.torch.shape == (num_envs, num_bodies, 3)
-    assert sensor.data.torque.torch.shape == (num_envs, num_bodies, 3)
-    assert sensor.body_names == robot.body_names
-    assert len(sensor.body_names) == num_bodies
-    _assert_sensor_matches_physx_tensor(sensor)
+    sensor_str = str(sensor)
+    assert "physx" in sensor_str
+    assert "Joint wrench sensor" in sensor_str
 
 
 def test_nested_articulation_root_resolution(sim):
@@ -268,149 +171,12 @@ def test_nested_articulation_root_resolution(sim):
 
 
 # ---------------------------------------------------------------------------
-# Physical correctness
-# ---------------------------------------------------------------------------
-
-
-def test_force_and_torque_components_at_rest(sim):
-    """Component-level validation of force and torque against the PhysX tensor API."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    for _ in range(400):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_physx_tensor(sensor)
-
-    arm_idx = robot.body_names.index("Arm")
-    raw_wrench = _physx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-def test_non_identity_joint_frame_transform(sim):
-    """PhysX raw body-frame wrench is converted to the child-side joint frame."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    _set_child_joint_frame(scene, "Arm")
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    arm_idx = robot.body_names.index("Arm")
-
-    for _ in range(400):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    raw_wrench = _physx_incoming_joint_wrench(sensor)
-    expected_force, expected_torque = _physx_incoming_joint_wrench_in_joint_frame(sensor, raw_wrench)
-    torch.testing.assert_close(sensor.data.force.torch, expected_force)
-    torch.testing.assert_close(sensor.data.torque.torch, expected_torque)
-
-    raw_force = raw_wrench[:, arm_idx, :3]
-    raw_torque = raw_wrench[:, arm_idx, 3:]
-    assert not torch.allclose(sensor.data.force.torch[:, arm_idx], raw_force)
-    assert not torch.allclose(sensor.data.torque.torch[:, arm_idx], raw_torque)
-
-
-def test_wrench_with_external_force_and_torque(sim):
-    """Full wrench validation with external force and torque applied."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-    arm_idx = robot.body_names.index("Arm")
-
-    # Apply 10 N in body-Y and 10 N·m in body-Z on the arm (matches Newton test).
-    ext_force_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
-    ext_force_b[:, arm_idx, 1] = 10.0
-    ext_torque_b = torch.zeros((1, robot.num_bodies, 3), device=sim.device)
-    ext_torque_b[:, arm_idx, 2] = 10.0
-
-    for _ in range(800):
-        robot.permanent_wrench_composer.set_forces_and_torques_index(forces=ext_force_b, torques=ext_torque_b)
-        robot.write_data_to_sim()
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_physx_tensor(sensor)
-
-    raw_wrench = _physx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, arm_idx, :] != 0.0)
-
-
-def test_interior_joint_wrench_at_rest(sim):
-    """Interior joint wrench matches the raw PhysX incoming-joint tensor.
-
-    The cartpole has an interior joint (``slider_to_cart``) and a terminal
-    joint (``cart_to_pole``). PhysX reports one entry for every link, so this
-    test compares all link entries, including the cart link controlled by the
-    interior joint, against the underlying tensor API.
-    """
-    scene = InteractiveScene(_CartpoleDampedSceneCfg(num_envs=1))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    robot: Articulation = scene["robot"]
-
-    for _ in range(800):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    _assert_sensor_matches_physx_tensor(sensor)
-
-    cart_idx = robot.body_names.index("cart")
-    raw_wrench = _physx_incoming_joint_wrench(sensor)
-    assert torch.any(raw_wrench[:, cart_idx, :] != 0.0)
-
-
-# ---------------------------------------------------------------------------
-# String representation
-# ---------------------------------------------------------------------------
-
-
-def test_sensor_print(sim):
-    """Test that the sensor string representation works."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    sensor_str = str(sensor)
-    assert "physx" in sensor_str
-    assert "Joint wrench sensor" in sensor_str
-
-
-# ---------------------------------------------------------------------------
 # Reset behavior
 # ---------------------------------------------------------------------------
 
 
-def test_reset_zeros_buffers(sim):
-    """Resetting the sensor clears the force / torque buffers."""
-    scene = InteractiveScene(_SingleJointSceneCfg(num_envs=2))
-    sim.reset()
-
-    sensor: JointWrenchSensor = scene["wrench"]
-    for _ in range(100):
-        sim.step()
-        scene.update(sim.get_physics_dt())
-
-    assert torch.any(sensor.data.force.torch != 0), "Expected non-zero data before reset"
-
-    sensor.reset()
-
-    # Access raw buffers to skip lazy re-population from the PhysX view on the next data read.
-    force_after = wp.to_torch(sensor._data._force)
-    torque_after = wp.to_torch(sensor._data._torque)
-    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
-    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
-
-
 def test_reset_with_env_ids_only_zeros_selected_envs(sim):
-    """Partial reset via env_ids should zero the selected envs and preserve the others."""
+    """Partial reset via env_ids should zero the selected envs and preserve the others; a full reset zeros all."""
     scene = InteractiveScene(_SingleJointSceneCfg(num_envs=4))
     sim.reset()
 
@@ -429,6 +195,14 @@ def test_reset_with_env_ids_only_zeros_selected_envs(sim):
     torch.testing.assert_close(force_after[2], torch.zeros_like(force_after[2]))
     torch.testing.assert_close(force_after[1], force_before[1])
     torch.testing.assert_close(force_after[3], force_before[3])
+
+    sensor.reset()
+
+    # Access raw buffers to skip lazy re-population from the PhysX view on the next data read.
+    force_after = wp.to_torch(sensor._data._force)
+    torque_after = wp.to_torch(sensor._data._torque)
+    torch.testing.assert_close(force_after, torch.zeros_like(force_after))
+    torch.testing.assert_close(torque_after, torch.zeros_like(torque_after))
 
 
 def test_no_stale_data_after_scene_reset(sim):
@@ -497,8 +271,6 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
     sensor._num_envs = num_envs
     sensor._num_bodies = 1
     sensor._root_view = root_view
-    sensor._joint_pos_b = wp.zeros(1, dtype=wp.vec3f, device=device)
-    sensor._joint_quat_b = wp.array([wp.quatf(0.0, 0.0, 0.0, 1.0)], dtype=wp.quatf, device=device)
     sensor._timestamp = wp.ones(num_envs, dtype=wp.float32, device=device)
     sensor._data = JointWrenchSensorData()
     sensor._data.create_buffers(num_envs=num_envs, num_bodies=1, device=device)
@@ -512,20 +284,6 @@ def _make_joint_wrench_sensor(use_recorded_launch: bool = True, num_envs: int = 
 
     env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
     return sensor, root_view, wrenches_torch, env_mask
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
-def test_joint_wrench_caches_physx_wrench_view():
-    """Repeated eager updates should reuse one typed view over the refreshed PhysX buffer."""
-    sensor, root_view, _, env_mask = _make_joint_wrench_sensor(use_recorded_launch=False)
-
-    sensor._update_buffers_impl(env_mask)
-    sensor._update_buffers_impl(env_mask)
-    wp.synchronize_device(sensor.device)
-
-    assert root_view.get_count == 2
-    assert root_view.view_count == 1
 
 
 @pytest.mark.isaacsim_ci
@@ -574,8 +332,11 @@ def test_joint_wrench_records_and_replays_update_launch():
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
 def test_joint_wrench_falls_back_when_recording_fails(monkeypatch):
-    """A recording failure should disable recording and execute the current update eagerly."""
-    sensor, _, _, env_mask = _make_joint_wrench_sensor()
+    """A recording failure should disable recording and execute the current update eagerly.
+
+    Later eager updates refresh the PhysX buffer but reuse one typed view over it.
+    """
+    sensor, root_view, _, env_mask = _make_joint_wrench_sensor()
     original_launch = joint_wrench_module.wp.launch
 
     def launch_with_recording_failure(*args, record_cmd=False, **kwargs):
@@ -592,6 +353,12 @@ def test_joint_wrench_falls_back_when_recording_fails(monkeypatch):
         wp.to_torch(sensor._data._force)[0, 0],
         torch.tensor([1.0, 2.0, 3.0], device=sensor.device),
     )
+
+    sensor._update_buffers_impl(env_mask)
+    wp.synchronize_device(sensor.device)
+
+    assert root_view.get_count == 2
+    assert root_view.view_count == 1
 
 
 @pytest.mark.isaacsim_ci

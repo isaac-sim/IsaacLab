@@ -33,11 +33,12 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
-from isaaclab.app.loading_screen import report_activity
-from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
-from isaaclab.app.settings_manager import get_settings_manager, initialize_carb_settings
-from isaaclab.utils._device import set_cuda_device
-from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from ..paths import ISAACLAB_ROOT
+from ..utils._device import set_cuda_device
+from ..utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from .loading_screen import report_activity
+from .logging_utils import apply_python_logging_level, resolve_python_logging_level
+from .settings_manager import get_settings_manager, initialize_carb_settings
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -327,6 +328,13 @@ class AppLauncher:
         # Integrate env-vars and input keyword args into simulation app config
         self._config_resolution(launcher_args)
 
+        # PyTorch may already have been imported while constructing simulation configs. Drain
+        # its deferred CUDA capability checks before Kit changes the set of CUDA devices that
+        # correspond to Vulkan-capable GPUs. Otherwise a queued check for a device that Kit
+        # filters out fails during the post-Kit ``set_device`` call (for example, device=1 with
+        # two CUDA GPUs but only GPU 0 attached to the display).
+        self._initialize_preloaded_torch_cuda()
+
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
         self._set_deferred_cuda_device()
@@ -337,7 +345,7 @@ class AppLauncher:
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
+        from .. import _deprioritize_prebundle_paths
 
         _deprioritize_prebundle_paths()
 
@@ -660,7 +668,6 @@ class AppLauncher:
             default=argparse.SUPPRESS,
             help=("When set, caps the nums of envs shown in the launched visualizers."),
         )
-        # special flag for backwards compatibility
 
         # Corresponding to the beginning of the function,
         # if we have removed -h/--help handling, we add it back.
@@ -779,7 +786,6 @@ class AppLauncher:
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        # Handle core settings
         livestream_arg, livestream_env = self._resolve_livestream_settings(launcher_args)
         self._resolve_visualizer_settings(launcher_args)
         # XR must be resolved before headless so that XR can prevent
@@ -788,17 +794,9 @@ class AppLauncher:
         self._resolve_headless_settings(launcher_args, livestream_arg, livestream_env)
         self._resolve_camera_settings(launcher_args)
         self._resolve_viewport_settings(launcher_args)
-
-        # Handle device and distributed settings
         self._resolve_device_settings(launcher_args)
-
-        # Handle experience file settings
         self._resolve_experience_file(launcher_args)
-
-        # Handle animation recording settings
         self._resolve_anim_recording_settings(launcher_args)
-
-        # Handle additional arguments
         self._resolve_kit_args(launcher_args)
 
         # Prepare final simulation app config
@@ -851,12 +849,21 @@ class AppLauncher:
                     f"--/exts/omni.kit.livestream.app/primaryStream/publicIp={public_ip_env}",
                     "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
                     "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]
             elif self._livestream == 2:
                 # WebRTC private network
+                # Signal/stream ports and allowDynamicResize must be set explicitly; without
+                # them NVST cannot bind its server socket (NVST_R_INTERNAL_ERROR) and any
+                # subsequent window resize after a client connects triggers NVST_R_BUSY.
                 self._livestream_args += [
+                    "--/exts/omni.kit.livestream.app/primaryStream/signalPort=49100",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamPort=47998",
+                    "--/exts/omni.kit.livestream.app/primaryStream/allowDynamicResize=true",
+                    "--/exts/omni.kit.livestream.app/primaryStream/streamType=webrtc",
                     "--enable",
                     "omni.kit.livestream.app",
                 ]
@@ -1120,7 +1127,6 @@ class AppLauncher:
             # set environment variables to limit CPU threads
             os.environ["PXR_WORK_THREAD_LIMIT"] = str(num_threads_per_process)
             os.environ["OPENBLAS_NUM_THREADS"] = str(num_threads_per_process)
-            # pass command line variable to kit
             sys.argv.append(f"--/plugins/carb.tasking.plugin/threadCount={num_threads_per_process}")
 
         # ``/physics/cudaDevice`` is resolved by CUDA, so the masked index is correct there.
@@ -1138,6 +1144,21 @@ class AppLauncher:
         self.device = device
 
         logger.info("Using device: %s", device)
+
+    def _initialize_preloaded_torch_cuda(self) -> None:
+        """Initialize CUDA before Kit when another import has already loaded PyTorch.
+
+        Importing PyTorch schedules capability checks for every CUDA device it can see. Kit may
+        subsequently restrict CUDA to the GPUs that its Vulkan backend can use, leaving those
+        queued checks with stale device indices. Do not import PyTorch here: when it has not
+        already been loaded, the normal post-Kit initialization path remains preferable.
+        """
+        if self._deferred_cuda_device_id is None:
+            return
+
+        torch = sys.modules.get("torch")
+        if torch is not None and not torch.cuda.is_initialized():
+            torch.cuda.init()
 
     def _set_deferred_cuda_device(self) -> None:
         """Set the current CUDA device after Kit startup."""
@@ -1171,9 +1192,7 @@ class AppLauncher:
                 ) from e
             kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
-        isaaclab_app_exp_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), *[".."] * 4, "apps")
-        # For Isaac Sim 4.5 compatibility, we use the 4.5 app files in a different folder
-        # if launcher_args.get("use_isaacsim_45", False):
+        isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
         if self.is_isaac_sim_version_5():
             isaaclab_app_exp_path = os.path.join(isaaclab_app_exp_path, "isaacsim_5")
 
@@ -1290,7 +1309,12 @@ class AppLauncher:
                 self._kit_args.append(argument)
 
         # Select the renderer by CUDA index; the trailing comma keeps the setting string-typed.
-        if launcher_args.get("multi_gpu") is False:
+        # XR streams a single stereo swapchain that the CloudXR compositor imports, so the
+        # renderer has to stay on one known device there too -- otherwise the compositor and
+        # the renderer can end up on different GPUs and the headset receives noise. This only
+        # applies once a CUDA device has actually been selected: ``--xr`` on its own resolves
+        # to ``cpu``, where there is no simulation GPU to align to, so Kit's own choice stands.
+        if launcher_args.get("multi_gpu") is False or (self._xr and "cuda" in self.device):
             argument = f"--/renderer/multiGpu/activeCudaGpus={self.device_id},"
             setting = argument.partition("=")[0]
             if not any(arg.partition("=")[0] == setting for arg in sys.argv + self._kit_args):
@@ -1322,7 +1346,6 @@ class AppLauncher:
         self._app = SimulationApp(self._sim_app_config, experience=self._sim_experience_file)
         report_activity(None)
 
-        # enable sys stdout and stderr
         sys.stdout = sys.__stdout__
 
         # add Isaac Lab modules back to sys.modules
@@ -1367,20 +1390,13 @@ class AppLauncher:
         # Publish whether Kit has an interactive GUI (local window, livestream, or XR).
         # SimulationContext and renderers consume this setting during their initialization.
         settings.set_bool("/isaaclab/has_gui", not self._headless or self._livestream >= 1 or self._xr)
-
-        # set setting to indicate Isaac Lab's offscreen_render pipeline should be enabled
         settings.set_bool("/isaaclab/render/offscreen", self._offscreen_render)
-
-        # set setting to indicate Isaac Lab's render_viewport pipeline should be enabled
         settings.set_bool("/isaaclab/render/active_viewport", self._render_viewport)
-
-        # set setting to indicate XR mode is enabled
         settings.set_bool("/isaaclab/xr/enabled", self._xr)
         # set setting to indicate XR auto-start mode -- when running headless
         # (no Kit GUI) the AR profile must be enabled programmatically so that
         # the OpenXR session starts without user interaction
         settings.set_bool("/isaaclab/xr/auto_start", self._headless and self._xr)
-        # set setting to indicate video recording mode
         settings.set_bool("/isaaclab/video/enabled", self._video_enabled)
 
         # set setting to indicate no RTX sensors are used (set to True when RTX sensor is created)

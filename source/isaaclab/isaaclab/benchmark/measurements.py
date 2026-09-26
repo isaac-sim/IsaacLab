@@ -291,7 +291,7 @@ class TestPhase:
                 curr_meas = BooleanMeasurement(name=meas["name"], bvalue=meas["bvalue"])
                 curr_run.measurements.append(curr_meas)
 
-            curr_run.metadata = TestPhase.metadata_from_dict(m["metadata"])
+        curr_run.metadata = TestPhase.metadata_from_dict(m)
         return curr_run
 
     @classmethod

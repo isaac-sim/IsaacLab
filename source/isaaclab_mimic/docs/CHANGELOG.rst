@@ -1,6 +1,59 @@
 Changelog
 ---------
 
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
+2.0.8 (2026-09-12)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed locomanipulation SDG generation with NuRec backgrounds by enabling camera capture, applying Isaac RTX
+  Gaussian renderer settings, syncing randomized fixture poses, and recording the projected scene state after
+  placement. ``--high_res_video`` now records RGB observations at 512x320 instead of 960x540; update MP4
+  conversion dimensions and model input shapes accordingly.
+
+
+2.0.7 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Enabled contact reporting for the G1 locomanipulation SDG environment so its inherited hand
+  contact sensors initialize correctly.
+
+
+2.0.6 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Removed
+^^^^^^^
+
+* Removed the ``datagen_config.max_num_failures = 25`` assignment from the shipped Mimic environment
+  configs. The field was never read when those lines were written, so honouring it now would newly
+  cap every shipped task at 25 failed attempts and cut short any run asking for a large number of
+  demos. Set the field explicitly to opt into a cap.
+
+Fixed
+^^^^^
+
+* Fixed the Mimic generation loop never bounding a run by failure count. ``env_loop`` now stops when
+  ``datagen_config.max_num_failures`` failed attempts have accumulated, alongside the existing stop
+  on enough successes or attempts.
+
+
 2.0.5 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

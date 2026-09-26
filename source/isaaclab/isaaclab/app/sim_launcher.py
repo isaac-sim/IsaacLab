@@ -28,11 +28,11 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-from isaaclab.app.logging_utils import apply_python_logging_level, resolve_python_logging_level
-from isaaclab.physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
-from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.sensors.camera.camera_cfg import CameraCfg
-from isaaclab.utils._device import set_cuda_device
+from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
+from ..renderers.renderer_cfg import RendererCfg
+from ..sensors.camera.camera_cfg import CameraCfg
+from ..utils._device import set_cuda_device
+from .logging_utils import apply_python_logging_level, resolve_python_logging_level
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     Delegates to :meth:`AppLauncher.add_app_launcher_args` so that user scripts
     do not need to import ``AppLauncher`` directly.
     """
-    from isaaclab.app import AppLauncher
+    from . import AppLauncher
 
     AppLauncher.add_app_launcher_args(parser)
 
@@ -114,14 +114,11 @@ def _is_kit_camera(node) -> bool:
         # ``auto_rtx`` is resolved after the initial scan once physics and
         # visualizer intent are known; ie. it may become OVRTX for a kitless run.
         return False
-    if isinstance(renderer_cfg, RendererCfg):
-        return renderer_cfg.renderer_type in ("default", "isaac_rtx")
-    # PresetCfg renderers (e.g. MultiBackendRendererCfg) are resolved during
-    # environment construction once the physics backend is known; assume they
-    # match the backend, so not necessarily Kit.
-    from isaaclab_tasks.utils import PresetCfg
-
-    return not isinstance(renderer_cfg, PresetCfg)
+    if not isinstance(renderer_cfg, RendererCfg):
+        raise TypeError(
+            f"CameraCfg.renderer_cfg must be a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
+        )
+    return renderer_cfg.renderer_type in ("default", "isaac_rtx")
 
 
 """
@@ -218,7 +215,7 @@ class Scan:
     """Signals gathered from one walk of the config tree (see :func:`scan`).
 
     Every field starts as a plain snapshot computed during that single walk.
-    Automatic PhysX preset selections and RTX placeholders are also recorded so
+    Automatic PhysX configurations and RTX placeholders are also recorded so
     launch-time resolution can update the physics- and renderer-related fields
     without traversing the config tree again. ``needs_kit`` is the headline launch
     decision after automatic selections are resolved: a Kit-renderer camera or Isaac
@@ -267,7 +264,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
-    has_ovrtx = False
+    has_ovrtx = "newton_rtx" in _get_visualizer_types(launcher_args)
     has_auto_rtx = False
     has_auto_physx = False
     has_kit_camera = False
@@ -299,7 +296,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 return
             else:
                 concrete_physics_cfgs.append(node)
-        elif _is_ovrtx_renderer(node):
+        elif _is_ovrtx_renderer(node) or getattr(node, "visualizer_type", None) == "newton_rtx":
             has_ovrtx = True
         elif _is_kit_camera(node):
             has_kit_camera = True
@@ -424,28 +421,25 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
             "\n"
             "To fix this, pick one of the following supported combinations:\n"
             "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
-            "      presets=ovphysx,ovrtx\n"
+            "      use `OvPhysxCfg` with `OVRTXRendererCfg`\n"
             "    (and use `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
             "    the visualizer argument for headless execution.)\n"
             "  * Keep Isaac Sim / Kit and switch to a Kit-compatible physics backend:\n"
-            "      presets=isaacsim_physx,isaacsim_rtx\n"
+            "      use `PhysxCfg` with `IsaacRtxRendererCfg`\n"
         )
 
     if not scan.has_ovrtx or not kit_sources:
         return
 
     raise ValueError(
-        "Invalid backend combination: the OVRTX renderer (`OVRTXRendererCfg`,"
-        ' `renderer_type="ovrtx"`) is a kitless renderer and cannot be used together'
+        "Invalid backend combination: the OVRTX runtime (`OVRTXRendererCfg` or the"
+        " `newton_rtx` visualizer) cannot be used together"
         f" with Isaac Sim / Kit ({_format_runtime_sources(kit_sources)}).\n"
         "\n"
         "To fix this, pick one of the following supported combinations:\n"
         "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      presets=isaacsim_rtx\n"
-        "    (uses `IsaacRtxRendererCfg`, the Kit-compatible renderer.)\n"
-        "  * Keep the OVRTX renderer and switch to a kitless physics backend\n"
-        "    (and avoid `--visualizer kit`):\n"
-        "      presets=newton_mjwarp,ovrtx\n"
+        "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
+        "  * Keep OVRTX (`OVRTXRendererCfg` or `--visualizer newton_rtx`) and remove every Kit source\n"
     )
 
 
@@ -523,6 +517,11 @@ def launch_simulation(
 
     kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
     _validate_runtime(config_scan, kit_sources)
+    if config_scan.has_ovrtx:
+        # USD discovers schema plugins once, so load OVRTX only after rejecting incompatible Kit runtimes.
+        import ovrtx
+
+        ovrtx.register_schema_paths()
     needs_kit = bool(kit_sources)
     _set_arg(launcher_args, "visualizer_intent", config_scan.visualizer_intent)
 
@@ -549,10 +548,10 @@ def launch_simulation(
     close_fn: Any = None
     if needs_kit:
         _ensure_isaac_sim_available()
-        from isaaclab.utils import has_kit
+        from ..utils import has_kit
 
         if not has_kit():
-            from isaaclab.app import AppLauncher
+            from . import AppLauncher
 
             app_launcher = AppLauncher(launcher_args)
             # AppLauncher may refine the device choice; propagate its final value,
@@ -564,7 +563,7 @@ def launch_simulation(
     elif visualizer_types or visualizer_explicit_none:
         # Kitless path: AppLauncher is skipped, so persist the visualizer selection in
         # SettingsManager so SimulationContext._get_cli_visualizer_types() can find it.
-        from isaaclab.app import AppLauncher
+        from . import AppLauncher
 
         disable_all = visualizer_explicit_none or "none" in visualizer_types
         base = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
@@ -575,6 +574,11 @@ def launch_simulation(
 
     exit_code = 0
     try:
+        # The import stays after the Kit launch decision. With no selected profile this is a
+        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
+        from ..utils.assets import configure_storage_profile
+
+        configure_storage_profile()
         yield physics_cfg
     except Exception:
         exit_code = 1
@@ -592,7 +596,7 @@ def launch_simulation(
 
 def _ensure_isaac_sim_available() -> None:
     """Raise ``SystemExit`` with an actionable hint when Isaac Sim / Kit is missing."""
-    from isaaclab.app import AppLauncher  # noqa: PLC0415
+    from . import AppLauncher  # noqa: PLC0415
 
     if AppLauncher.is_available():
         return

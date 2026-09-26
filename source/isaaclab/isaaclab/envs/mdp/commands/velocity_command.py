@@ -19,11 +19,9 @@ from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from .commands_cfg import NormalVelocityCommandCfg, UniformVelocityCommandCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -158,7 +156,8 @@ class UniformVelocityCommand(CommandTerm):
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample velocity commands
-        r = torch.empty(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        r = torch.empty(num_envs, device=self.device)
         # -- linear velocity - x direction
         self.vel_command_b[env_ids, 0] = r.uniform_(*self.cfg.ranges.lin_vel_x)
         # -- linear velocity - y direction
@@ -305,7 +304,8 @@ class NormalVelocityCommand(UniformVelocityCommand):
 
     def _resample_command(self, env_ids):
         # sample velocity commands
-        r = torch.empty(len(env_ids), device=self.device)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        r = torch.empty(num_envs, device=self.device)
         # -- linear velocity - x direction
         self.vel_command_b[env_ids, 0] = r.normal_(mean=self.cfg.ranges.mean_vel[0], std=self.cfg.ranges.std_vel[0])
         self.vel_command_b[env_ids, 0] *= torch.where(r.uniform_(0.0, 1.0) <= 0.5, 1.0, -1.0)

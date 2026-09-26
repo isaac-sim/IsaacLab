@@ -15,14 +15,12 @@ import warp as wp
 
 from pxr import Gf, Usd, UsdGeom
 
-import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-from isaaclab.cloner import queue_replication
-from isaaclab.markers import VisualizationMarkers
-from isaaclab.terrains.trimesh.utils import make_plane
-from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ... import sim as sim_utils
+from ...markers import VisualizationMarkers
+from ...terrains.trimesh.utils import make_plane
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray, convert_to_warp_mesh
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels
 from .ray_caster_data import RayCasterData
@@ -70,7 +68,6 @@ class BaseRayCaster(SensorBase):
         """
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
-        queue_replication(self._source_cfg)
         self._data = RayCasterData()
 
     def __str__(self) -> str:
@@ -107,9 +104,9 @@ class BaseRayCaster(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
-        # resolve to indices for torch indexing
+        # determine the selected batch size
         if env_ids is not None:
-            num_envs_ids = len(env_ids)
+            num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         elif env_mask is not None:
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             num_envs_ids = len(env_ids)

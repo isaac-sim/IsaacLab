@@ -5,7 +5,7 @@
 
 """Tests for ancestor authoring in :func:`~isaaclab.cloner.usd_replicate`."""
 
-import torch
+import numpy as np
 
 from pxr import Sdf, Usd
 
@@ -20,15 +20,17 @@ def _make_stage_with_source(source_path: str) -> Usd.Stage:
 
 
 def test_usd_replicate_defines_nested_destination_ancestors():
-    """Copied prims under a nested scope compose as defined prims in target envs."""
+    """Copied prims under a nested scope compose as defined prims, keeping ancestors a target env already defines."""
     stage = _make_stage_with_source("/World/envs/env_0/Groceries/Object")
     stage.DefinePrim("/World/envs/env_1", "Xform")
+    for prefix in Sdf.Path("/World/envs/env_2/Groceries").GetPrefixes():
+        stage.DefinePrim(prefix, "Xform")
 
     usd_replicate(
         stage,
         sources=["/World/envs/env_0/Groceries/Object"],
         destinations=["/World/envs/env_{}/Groceries/Object"],
-        env_ids=torch.tensor([0, 1]),
+        env_ids=np.asarray([0, 1, 2], dtype=np.int64),
     )
 
     copied_scope = stage.GetPrimAtPath("/World/envs/env_1/Groceries")
@@ -36,21 +38,8 @@ def test_usd_replicate_defines_nested_destination_ancestors():
     assert copied_scope.IsDefined(), "intermediate ancestor must compose as a defined prim"
     assert copied_prim.IsDefined(), "copied prim must compose as a defined prim"
 
-
-def test_usd_replicate_keeps_existing_ancestor_specs():
-    """Ancestors already defined in the target env are left untouched."""
-    stage = _make_stage_with_source("/World/envs/env_0/Groceries/Object")
-    for prefix in Sdf.Path("/World/envs/env_1/Groceries").GetPrefixes():
-        stage.DefinePrim(prefix, "Xform")
-
-    usd_replicate(
-        stage,
-        sources=["/World/envs/env_0/Groceries/Object"],
-        destinations=["/World/envs/env_{}/Groceries/Object"],
-        env_ids=torch.tensor([0, 1]),
-    )
-
-    scope = stage.GetPrimAtPath("/World/envs/env_1/Groceries")
-    assert scope.IsDefined()
-    assert scope.GetTypeName() == "Xform"
-    assert stage.GetPrimAtPath("/World/envs/env_1/Groceries/Object").IsDefined()
+    # An ancestor already defined in the target env is left untouched.
+    existing_scope = stage.GetPrimAtPath("/World/envs/env_2/Groceries")
+    assert existing_scope.IsDefined()
+    assert existing_scope.GetTypeName() == "Xform"
+    assert stage.GetPrimAtPath("/World/envs/env_2/Groceries/Object").IsDefined()

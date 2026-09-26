@@ -166,7 +166,8 @@ class _NewtonRayCasterPoseMixin:
         )
 
     def get_world_poses(self: Any, indices=None) -> tuple[ProxyArray, ProxyArray]:
-        """Return world poses for legacy camera helpers."""
+        """Return current world poses after resolving pending FK."""
+        NewtonManager.get_state()
         self._update_newton_site_transforms(
             self._sensor_site_indices, self._newton_pose_w, self._newton_pos_w.warp, self._newton_quat_w.warp
         )
@@ -192,7 +193,7 @@ class _NewtonRayCasterPoseMixin:
         pos_buf: wp.array,
         quat_buf: wp.array,
     ) -> None:
-        """Update site transforms using the manager-bound model and state."""
+        """Update site transforms from manager state already refreshed by the caller."""
         model = NewtonManager.get_model()
         state = NewtonManager.get_state_0()
         wp.launch(
@@ -273,6 +274,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     def __init__(self, cfg: NewtonRaycastSensorCfg):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
+        NewtonManager._sensor_bvh_shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         super().__init__(cfg)
         self._data = NewtonRaycastSensorData()
         self._sensor_task_name: str | None = None
@@ -326,7 +328,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
         self._hit_normal = wp.empty(ray_count, dtype=wp.vec3f, device=self._device)
 
         self._sensor_task_name = f"newton_raycast:{self.cfg.prim_path}:{id(self)}"
-        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast, include_collision_shapes=True)
+        NewtonManager._register_sensor_task(self._sensor_task_name, self._launch_raycast)
 
     def _launch_raycast(self) -> None:
         """Sensor pose + ray transform + BVH query + hit resolve (graph-capturable)."""

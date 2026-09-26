@@ -16,7 +16,6 @@ from newton.selection import ArticulationView
 from pxr import UsdGeom
 
 from isaaclab.assets.cable_object.base_cable_object import BaseCableObject
-from isaaclab.cloner import queue_replication
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.utils.queries import has_deformable_curve_api, path_expr_to_glob, resolve_matching_prims_from_source
 from isaaclab.utils.warp import ProxyArray
@@ -43,15 +42,6 @@ class CableObject(BaseCableObject):
 
     __backend_name__: str = "newton"
     """The name of the backend for the cable object."""
-
-    def __init__(self, cfg: CableObjectCfg) -> None:
-        """Initialize the cable object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
-        queue_replication(cfg)
 
     @property
     def data(self) -> CableObjectData:
@@ -227,6 +217,8 @@ class CableObject(BaseCableObject):
         """Resolve environment indices to a Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32).contiguous(), dtype=wp.int32)
         if isinstance(env_ids, Sequence):

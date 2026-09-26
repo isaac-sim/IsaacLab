@@ -264,7 +264,8 @@ class BenchmarkResult(Generic[_BenchmarkBundleT]):
     """Completed benchmark result.
 
     Args:
-        bundle: Typed benchmark result bundle.
+        bundle: Typed benchmark result bundle. Runtime profiling summaries, when enabled,
+            are included as scalar metrics in ``bundle.extra``.
         output_paths: Files written by the selected formatters.
     """
 
@@ -302,6 +303,13 @@ def run_benchmark(request: BenchmarkRequest) -> BenchmarkResult:
 
 def run_runtime_benchmark(request: BenchmarkRuntimeRequest) -> BenchmarkResult[RuntimeBundle]:
     """Run an environment runtime benchmark.
+
+    A task with a non-``None`` ``benchmark_mode`` can collect synchronized scope
+    timings through ``ISAACLAB_RENDER_PROFILE`` and ``ISAACLAB_PHYSICS_PROFILE``.
+    The returned bundle includes per-call mean, standard deviation, maximum [ms],
+    and call count in ``extra`` under ``physics_*`` and ``render_*`` keys. Raw
+    samples remain in the local ``profile_timings.json`` file. Disabled scopes
+    contribute no summary keys.
 
     Args:
         request: Runtime benchmark request.

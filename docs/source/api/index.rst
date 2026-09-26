@@ -96,7 +96,7 @@ isaaclab_tasks extension
 ------------------------
 
 This package ``isaaclab_tasks`` contains the tasks that are available in the Isaac Lab.
-For more information, please refer to the :ref:`environments`.
+For more information, browse the registered tasks in :doc:`/source/setup/environments`.
 
 It includes the following modules:
 
@@ -153,6 +153,7 @@ The following modules are available in the ``isaaclab_newton`` extension:
 
    assets
    cloner
+   controllers
    physics
    renderers
    sensors
@@ -227,7 +228,7 @@ isaaclab_tasks_experimental extension
 
 The package ``isaaclab_tasks_experimental`` contains experimental task implementations
 under active development, not yet part of the stable task suite.
-For the list of available environments, please refer to the :ref:`environments`.
+For the list of available environments, please refer to :doc:`/source/setup/environments`.
 
 
 Additional public API modules
@@ -246,7 +247,6 @@ The following public modules provide additional specialized APIs:
    lab/isaaclab.utils.leapp
    lab_experimental/isaaclab_experimental.envs.mdp.actions
    lab_newton/isaaclab_newton.envs.mdp
-   lab_newton/isaaclab_newton.ik
    lab_newton/isaaclab_newton.sim.views
    lab_ov/isaaclab_ov.sensors
    lab_ov/isaaclab_ov.sensors.ray_caster

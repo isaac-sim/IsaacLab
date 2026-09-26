@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from ..renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -73,13 +73,16 @@ class FactoryBase:
     def _get_backend(cls, *args, **kwargs) -> str:
         """Return active backend name for this factory.
 
-        Falls back to ``"physx"`` for backward compatibility when no simulation
-        context is initialized yet.
+        Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
-        from isaaclab.sim.simulation_context import SimulationContext
+        from ..sim.simulation_context import SimulationContext
 
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            return "newton"
+
+        manager_name = sim_context.physics_manager.__name__.lower()
         if manager_name.startswith("newton"):
             return "newton"
         if manager_name.startswith("ovphysx"):
@@ -116,13 +119,11 @@ class FactoryBase:
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -147,7 +148,6 @@ class FactoryBase:
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
         impl = cls.resolve_class(*args, **kwargs)
-        # Return an instance of the chosen class.
         return impl(*args, **kwargs)
 
     @classmethod

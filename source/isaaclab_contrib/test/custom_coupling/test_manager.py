@@ -5,14 +5,47 @@
 
 """Unit tests for the custom coupling manager."""
 
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
+from newton import ModelBuilder
+
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager as manager_module
 from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCoupledMJWarpVBDManager
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
+
+
+def test_registered_mujoco_solver_imports_mujoco_joint_properties(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The coupled manager imports joint properties consumed by its MuJoCo solver."""
+    cfg = CoupledMJWarpVBDSolverCfg()
+    monkeypatch.setattr(manager_module.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
+
+    stage = Usd.Stage.CreateInMemory()
+    root_path = "/World/robot"
+    root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    child_path = f"{root_path}/child"
+    child = UsdGeom.Cube.Define(stage, child_path).GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(child)
+    joint = UsdPhysics.RevoluteJoint.Define(stage, f"{child_path}/joint")
+    joint.CreateAxisAttr().Set("Z")
+    joint.CreateBody0Rel().SetTargets([root_path])
+    joint.CreateBody1Rel().SetTargets([child_path])
+    joint.GetPrim().CreateAttribute("mjc:frictionloss", Sdf.ValueTypeNames.Double, True).Set(0.11)
+    joint.GetPrim().CreateAttribute("mjc:damping", Sdf.ValueTypeNames.Double, True).Set(0.23)
+
+    builder = ModelBuilder()
+    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
+    builder.add_usd(stage, schema_resolvers=NewtonCoupledMJWarpVBDManager._get_usd_import_schema_resolvers())
+    model = builder.finalize(device="cpu")
+
+    assert model.joint_friction.numpy()[-1] == pytest.approx(0.11)
+    assert model.joint_damping.numpy()[-1] == pytest.approx(0.23)
 
 
 def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -25,7 +58,7 @@ def test_reset_forwards_to_both_subsolvers(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_rigid_solver", rigid_solver, raising=False)
     monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_soft_solver", soft_solver, raising=False)
-    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "_state_0", state)
+    monkeypatch.setattr(NewtonCoupledMJWarpVBDManager, "backend", SimpleNamespace(state_0=state))
 
     NewtonCoupledMJWarpVBDManager._reset_solver_internals(world_mask)
 
@@ -95,6 +128,9 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
 
     NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), solver_cfg)
 
+    assert manager_module.NewtonManager._solver is manager_module.SolverBase.return_value
+    assert manager_module.NewtonManager._use_single_state is False
+    assert manager_module.NewtonManager._needs_collision_pipeline is True
     assert manager_module.NewtonManager._supports_contact_sensors is False
     assert manager_module.NewtonManager._supports_rigid_body_force_input is True
 

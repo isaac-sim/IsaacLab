@@ -20,8 +20,9 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
-from isaaclab.utils.configclass import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from . import mdp
 
@@ -32,7 +33,7 @@ from isaaclab_teleop.xr_cfg import XrCfg  # isort: skip
 from isaaclab_tasks.contrib.robot_pov_camera_cfg import robot_pov_camera_cfg  # isort: skip
 
 
-def _build_gr1t2_pickplace_pipeline():
+def build_gr1t2_pickplace_pipeline():
     """Build an IsaacTeleop retargeting pipeline for GR1T2 pick-place teleoperation.
 
     Creates two Se3AbsRetargeters for left and right wrist pose tracking and
@@ -269,7 +270,7 @@ def _build_gr1t2_pickplace_pipeline():
 
 # The steering wheel USD authors its rigid body on a nested prim rather than at the
 # spawned ``Object`` root, so contact filtering must target that actor: filtering
-# against ``Object`` matches an empty Xform and force_matrix_w always reads zero.
+# against ``Object`` matches an empty Xform and normal_force_matrix_w always reads zero.
 _STEERING_WHEEL_BODY = "{ENV_REGEX_NS}/Object/Geometry/sm_steeringwheel_a01_01"
 
 
@@ -283,7 +284,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, 0.0], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -293,7 +294,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
@@ -334,7 +335,7 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Per-finger contact sensors on all finger links of each hand, filtered against
-    # the wheel body so force_matrix_w reports each finger's grip force. This drives
+    # the wheel body so normal_force_matrix_w reports each finger's grip force. This drives
     # the per-finger haptic glove feedback (see GloveHapticFeedbackCfg below).
     # Contact reporting is already enabled on the robot by GR1T2_HIGH_PD_CFG
     # (``spawn.activate_contact_sensors=True``), so it is not set again here.
@@ -534,12 +535,10 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
                 "normalize": False,
-                "clone": False,
             },
         )
 
@@ -647,6 +646,8 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
         # general settings
         self.decimation = 6
         self.episode_length_s = 20.0
+        # visualizer camera settings
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(7.5, 7.5, 7.5), lookat=(0.0, 0.0, 0.0))
         # simulation settings
         self.sim.dt = 1 / 120  # 120Hz
         self.sim.render_interval = 2
@@ -662,7 +663,7 @@ class PickPlaceGR1T2EnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
             xr_camera_feeds=[

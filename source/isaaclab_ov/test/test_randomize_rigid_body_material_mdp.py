@@ -5,11 +5,11 @@
 
 """Real-backend test for the OVPhysX branch of the ``randomize_rigid_body_material`` MDP term.
 
-Exercises :class:`isaaclab.envs.mdp.events._RandomizeRigidBodyMaterialOvPhysx` against a real
-OVPhysX :class:`~isaaclab_ov.assets.RigidObject`, verifying that it writes per-shape
-friction/restitution through the asset's ``OvPhysxView``. The ``cfg`` / ``env`` / ``asset_cfg``
-inputs are stubbed (the OVPhysX implementation only reads ``cfg.params`` and
-``asset_cfg.body_ids`` and operates on ``asset.root_view``).
+Drives the public :class:`isaaclab.envs.mdp.events.randomize_rigid_body_material` term against a real
+OVPhysX :class:`~isaaclab_ov.assets.RigidObject`, so the backend dispatch itself is exercised (the
+``ovphysxmanager`` name also contains ``physx``), and verifies that it writes per-shape
+friction/restitution through the asset's ``OvPhysxView``. The ``cfg`` / ``env`` / ``asset_cfg`` inputs
+are stubbed: the term only reads ``cfg.params``, ``env.scene[...]`` and ``env.sim.physics_manager``.
 
 Kitless; run once per device (``-k cpu`` / ``-k 'cuda:0'``) -- the ovphysx runtime binds the
 device mode process-globally (see the asset tests' module docstring).
@@ -30,7 +30,7 @@ from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
-from isaaclab.envs.mdp.events import _RandomizeRigidBodyMaterialOvPhysx  # noqa: E402
+from isaaclab.envs.mdp.events import randomize_rigid_body_material  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
@@ -77,28 +77,34 @@ def _make_cubes(num_cubes: int, device: str) -> RigidObject:
     return RigidObject(cfg=cfg)
 
 
-@pytest.mark.parametrize("num_cubes", [1, 2])
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_randomize_material_writes_friction_within_range(num_cubes, device):
-    """The OVPhysX impl should write per-shape friction/restitution sampled within the given ranges."""
+def test_randomize_material_writes_friction_within_range(device):
+    """The term should dispatch to OVPhysX and write per-shape friction/restitution within the given ranges.
+
+    A per-body selection on a standalone rigid object must fail loud (no per-body shape counts).
+    """
+    num_cubes = 2
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
         cube_object = _make_cubes(num_cubes, device)
         sim.reset()
 
-        static_range, dynamic_range, restitution_range = (0.4, 0.8), (0.2, 0.6), (0.0, 0.3)
-        cfg = SimpleNamespace(
-            params={
-                "static_friction_range": static_range,
-                "dynamic_friction_range": dynamic_range,
-                "restitution_range": restitution_range,
-                "num_buckets": 16,
-            }
-        )
-        asset_cfg = SimpleNamespace(body_ids=[0])
-        env = SimpleNamespace()  # unused by the OVPhysX implementation
+        # The ranges exclude the asset's default material, so values inside them prove the write happened.
+        static_range, dynamic_range, restitution_range = (0.9, 1.2), (0.7, 0.9), (0.4, 0.6)
+        materials_before = wp.to_torch(
+            cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)
+        ).clone()
+        assert (materials_before[..., 0] < static_range[0]).all(), f"default material overlaps: {materials_before}"
+        params = {
+            "static_friction_range": static_range,
+            "dynamic_friction_range": dynamic_range,
+            "restitution_range": restitution_range,
+            "num_buckets": 16,
+        }
+        asset_cfg = SimpleNamespace(name="cube", body_ids=[0])
+        env = SimpleNamespace(sim=sim, scene={"cube": cube_object})
 
-        impl = _RandomizeRigidBodyMaterialOvPhysx(cfg, env, cube_object, asset_cfg)
-        impl(env, None, static_range, dynamic_range, restitution_range, 16, asset_cfg)
+        term = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
+        term(env, None, static_range, dynamic_range, restitution_range, 16, asset_cfg)
 
         materials = wp.to_torch(cube_object.root_view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION))
         assert materials.shape[0] == num_cubes and materials.shape[-1] == 3
@@ -107,15 +113,6 @@ def test_randomize_material_writes_friction_within_range(num_cubes, device):
             values = materials[..., component]
             assert (values >= lo - eps).all() and (values <= hi + eps).all()
 
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_randomize_material_body_subset_unsupported(device):
-    """A per-body selection must fail loud on OVPhysX (no per-body shape counts)."""
-    with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
-        cube_object = _make_cubes(1, device)
-        sim.reset()
-
-        cfg = SimpleNamespace(params={"static_friction_range": (0.4, 0.8), "num_buckets": 4})
-        asset_cfg = SimpleNamespace(body_ids=[])  # proper subset of the rigid object's single body
+        subset_cfg = SimpleNamespace(name="cube", body_ids=[])  # proper subset of the rigid object's single body
         with pytest.raises(NotImplementedError, match="per-body"):
-            _RandomizeRigidBodyMaterialOvPhysx(cfg, SimpleNamespace(), cube_object, asset_cfg)
+            randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": subset_cfg}), env)

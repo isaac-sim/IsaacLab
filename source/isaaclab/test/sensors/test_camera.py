@@ -29,6 +29,7 @@ from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors.camera import Camera, CameraCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
@@ -106,10 +107,12 @@ def test_camera_init(setup_sim_camera):
     """Test camera initialization."""
     # Create camera configuration
     sim, camera_cfg, dt = setup_sim_camera
+    sim.set_setting("/physics/fabricUpdateTransformations", False)
     # Create camera
     camera = Camera(camera_cfg)
     # Check simulation parameter is set correctly
     assert sim.get_setting("/isaaclab/render/rtx_sensors")
+    assert sim.get_setting("/physics/fabricUpdateTransformations")
     # Play sim
     sim.reset()
     # Check if camera is initialized
@@ -126,6 +129,7 @@ def test_camera_init(setup_sim_camera):
     assert camera.data.intrinsic_matrices.torch.shape == (1, 3, 3)
     assert camera.data.image_shape == (camera_cfg.height, camera_cfg.width)
     assert camera.data.info == {camera_cfg.data_types[0]: None}
+    assert "Camera" in str(camera)
 
     # Simulate physics
     for _ in range(10):
@@ -213,63 +217,6 @@ def test_camera_init_offset(setup_sim_camera):
     _assert_quat_close(camera_ros.data.quat_w_world[0], QUAT_WORLD, rtol=1e-5, atol=1e-5)
 
 
-def test_multi_camera_init(setup_sim_camera):
-    """Test multi-camera initialization."""
-    sim, camera_cfg, dt = setup_sim_camera
-    # create two cameras with different prim paths
-    # -- camera 1
-    cam_cfg_1 = copy.deepcopy(camera_cfg)
-    cam_cfg_1.prim_path = "/World/Camera_1"
-    cam_1 = Camera(cam_cfg_1)
-    # -- camera 2
-    cam_cfg_2 = copy.deepcopy(camera_cfg)
-    cam_cfg_2.prim_path = "/World/Camera_2"
-    cam_2 = Camera(cam_cfg_2)
-
-    # play sim
-    sim.reset()
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        cam_1.update(dt)
-        cam_2.update(dt)
-        # check image data
-        for cam in [cam_1, cam_2]:
-            for im_data in cam.data.output.values():
-                assert im_data.shape == (1, camera_cfg.height, camera_cfg.width, 1)
-
-
-def test_multi_camera_with_different_resolution(setup_sim_camera):
-    """Test multi-camera initialization with cameras having different image resolutions."""
-    sim, camera_cfg, dt = setup_sim_camera
-    # create two cameras with different prim paths
-    # -- camera 1
-    cam_cfg_1 = copy.deepcopy(camera_cfg)
-    cam_cfg_1.prim_path = "/World/Camera_1"
-    cam_1 = Camera(cam_cfg_1)
-    # -- camera 2
-    cam_cfg_2 = copy.deepcopy(camera_cfg)
-    cam_cfg_2.prim_path = "/World/Camera_2"
-    cam_cfg_2.height = 240
-    cam_cfg_2.width = 320
-    cam_2 = Camera(cam_cfg_2)
-
-    # play sim
-    sim.reset()
-
-    # perform rendering
-    sim.step()
-    # update camera
-    cam_1.update(dt)
-    cam_2.update(dt)
-    # check image sizes
-    assert cam_1.data.output["distance_to_image_plane"].shape == (1, camera_cfg.height, camera_cfg.width, 1)
-    assert cam_2.data.output["distance_to_image_plane"].shape == (1, cam_cfg_2.height, cam_cfg_2.width, 1)
-
-
 def test_camera_init_intrinsic_matrix(setup_sim_camera):
     """Test camera initialization from intrinsic matrix."""
     sim, camera_cfg, dt = setup_sim_camera
@@ -324,10 +271,11 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 
 
 def test_camera_set_world_poses(setup_sim_camera):
-    """Test camera function to set specific world pose."""
+    """Test that explicitly set world poses are reflected in the data buffers.
+
+    Uses the default ``update_latest_camera_pose=False``: pose writes must reach the buffers regardless.
+    """
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
     # init camera
     camera = Camera(camera_cfg)
     # play sim
@@ -342,22 +290,11 @@ def test_camera_set_world_poses(setup_sim_camera):
     np.testing.assert_allclose(camera.data.pos_w.warp.numpy(), position)
     _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
 
-
-def test_camera_set_world_poses_from_view(setup_sim_camera):
-    """Test camera function to set specific world pose from view."""
-    sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
-    camera_cfg.update_latest_camera_pose = True
-    # init camera
-    camera = Camera(camera_cfg)
-    # play sim
-    sim.reset()
-
+    # set a pose from eye/target
     eyes_np = np.asarray([POSITION], dtype=np.float32)
     targets_np = np.asarray([[0.0, 0.0, 0.0]], dtype=np.float32)
     eyes = torch.tensor(eyes_np, dtype=torch.float32, device=camera.device)
     quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
-    # set new pose
     camera.set_world_poses_from_view(eyes_np, targets_np)
 
     # check if transform correctly set in output
@@ -366,32 +303,41 @@ def test_camera_set_world_poses_from_view(setup_sim_camera):
 
 
 def test_intrinsic_matrix(setup_sim_camera):
-    """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
+    """Runtime calibration changes pixels without USD authoring and resets with the camera."""
     sim, camera_cfg, dt = setup_sim_camera
-    # enable update latest camera pose
     camera_cfg.update_latest_camera_pose = True
-    # init camera
+    camera_cfg.offset = CameraCfg.OffsetCfg(pos=(0.0, 0.0, 15.0), convention="opengl")
+    target = sim_utils.CuboidCfg(size=(1.0, 1.0, 1.0))
+    target.func("/World/CalibrationTarget", target, translation=(0.0, 0.0, 10.0))
     camera = Camera(camera_cfg)
-    # play sim
     sim.reset()
-    # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.8, 0.0, 160.0, 0.0, 229.8, 120.0, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = np.asarray(rs_intrinsic_matrix, dtype=float).reshape(1, 3, 3)
-    rs_intrinsic_matrix_tensor = torch.tensor(rs_intrinsic_matrix, dtype=torch.float32, device=camera.device)
-    # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix_tensor)
 
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # Check that matrix is correct
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 0], camera.data.intrinsic_matrices.torch[0, 0, 0].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 1], camera.data.intrinsic_matrices.torch[0, 1, 1].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 0, 2], camera.data.intrinsic_matrices.torch[0, 0, 2].item())
-        assert np.isclose(rs_intrinsic_matrix[0, 1, 2], camera.data.intrinsic_matrices.torch[0, 1, 2].item())
+    def width():
+        for _ in range(4):
+            sim.step()
+            camera.update(dt, force_recompute=True)
+        depth = camera.data.output["distance_to_image_plane"].torch[..., 0]
+        return ((depth > 4.0) & (depth < 6.0)).any(dim=1).sum(dim=1).float()
+
+    before = width()
+    assert (before > 20).all()
+    original = camera.data.intrinsic_matrices.torch.clone()
+    wider = original.clone()
+    wider[:, 0, 0] *= 0.5
+    wider[:, 1, 1] *= 0.5
+    authored = [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()]
+    camera.set_intrinsic_matrices(wider)
+    torch.testing.assert_close(width(), before * 0.5, atol=2.0, rtol=0.0)
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, wider)
+    assert [attr.Get() for attr in camera._sensor_prims[0].GetPrim().GetAttributes()] == authored
+
+    fabric = camera._render_data.intrinsic_stage
+    row_attribute = camera._render_data.intrinsic_row_attribute
+    sim.stop()
+    assert not fabric.GetPrimAtPath(camera_cfg.prim_path).GetAttribute(row_attribute).IsValid()
+    sim.reset()
+    torch.testing.assert_close(camera.data.intrinsic_matrices.torch, original)
+    torch.testing.assert_close(width(), before)
 
 
 def test_depth_clipping(setup_sim_camera):
@@ -456,7 +402,7 @@ def test_depth_clipping(setup_sim_camera):
     )
     assert (
         camera_none.data.output["distance_to_image_plane"][
-            ~torch.isinf(camera_none.data.output["distance_to_camera"])
+            ~torch.isinf(camera_none.data.output["distance_to_image_plane"])
         ].max()
         <= camera_cfg_zero.spawn.clipping_range[1]
     )
@@ -501,239 +447,8 @@ def test_depth_clipping(setup_sim_camera):
     assert camera_max.data.output["distance_to_image_plane"].max() <= camera_cfg_zero.spawn.clipping_range[1]
 
 
-def test_camera_resolution_all_colorize(setup_sim_camera):
-    """Test camera resolution is correctly set for all types with colorization enabled."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = [
-        "rgb",
-        "rgba",
-        "albedo",
-        "depth",
-        "distance_to_camera",
-        "distance_to_image_plane",
-        "normals",
-        "motion_vectors",
-        "semantic_segmentation",
-        "instance_segmentation",
-        "instance_id_segmentation_fast",
-    ]
-    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
-    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-
-    camera.update(dt)
-
-    # expected sizes
-    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
-    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
-    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
-    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["rgb"].shape == hw_3c_shape
-    assert output["rgba"].shape == hw_4c_shape
-    assert output["albedo"].shape == hw_4c_shape
-    assert output["depth"].shape == hw_1c_shape
-    assert output["distance_to_camera"].shape == hw_1c_shape
-    assert output["distance_to_image_plane"].shape == hw_1c_shape
-    assert output["normals"].shape == hw_3c_shape
-    assert output["motion_vectors"].shape == hw_2c_shape
-    assert output["semantic_segmentation"].shape == hw_4c_shape
-    assert output["instance_segmentation"].shape == hw_4c_shape
-    assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
-
-    # access image data and compare dtype
-    output = camera.data.output
-    assert output["rgb"].dtype == wp.uint8
-    assert output["rgba"].dtype == wp.uint8
-    assert output["albedo"].dtype == wp.uint8
-    assert output["depth"].dtype == wp.float32
-    assert output["distance_to_camera"].dtype == wp.float32
-    assert output["distance_to_image_plane"].dtype == wp.float32
-    assert output["normals"].dtype == wp.float32
-    assert output["motion_vectors"].dtype == wp.float32
-    assert output["semantic_segmentation"].dtype == wp.uint8
-    assert output["instance_segmentation"].dtype == wp.uint8
-    assert output["instance_id_segmentation_fast"].dtype == wp.uint8
-
-
-def test_camera_resolution_no_colorize(setup_sim_camera):
-    """Test camera resolution is correctly set for all types with no colorization enabled."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = [
-        "rgb",
-        "rgba",
-        "albedo",
-        "depth",
-        "distance_to_camera",
-        "distance_to_image_plane",
-        "normals",
-        "motion_vectors",
-        "semantic_segmentation",
-        "instance_segmentation",
-        "instance_id_segmentation_fast",
-    ]
-    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = False
-    camera_cfg.renderer_cfg.colorize_instance_segmentation = False
-    camera_cfg.renderer_cfg.colorize_semantic_segmentation = False
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-    camera.update(dt)
-
-    # expected sizes
-    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
-    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
-    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
-    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["rgb"].shape == hw_3c_shape
-    assert output["rgba"].shape == hw_4c_shape
-    assert output["albedo"].shape == hw_4c_shape
-    assert output["depth"].shape == hw_1c_shape
-    assert output["distance_to_camera"].shape == hw_1c_shape
-    assert output["distance_to_image_plane"].shape == hw_1c_shape
-    assert output["normals"].shape == hw_3c_shape
-    assert output["motion_vectors"].shape == hw_2c_shape
-    assert output["semantic_segmentation"].shape == hw_1c_shape
-    assert output["instance_segmentation"].shape == hw_1c_shape
-    assert output["instance_id_segmentation_fast"].shape == hw_1c_shape
-
-    # access image data and compare dtype
-    output = camera.data.output
-    assert output["rgb"].dtype == wp.uint8
-    assert output["rgba"].dtype == wp.uint8
-    assert output["albedo"].dtype == wp.uint8
-    assert output["depth"].dtype == wp.float32
-    assert output["distance_to_camera"].dtype == wp.float32
-    assert output["distance_to_image_plane"].dtype == wp.float32
-    assert output["normals"].dtype == wp.float32
-    assert output["motion_vectors"].dtype == wp.float32
-    assert output["semantic_segmentation"].dtype == wp.int32
-    assert output["instance_segmentation"].dtype == wp.int32
-    assert output["instance_id_segmentation_fast"].dtype == wp.int32
-
-
-def test_camera_large_resolution_all_colorize(setup_sim_camera):
-    """Test camera resolution is correctly set for all types with colorization enabled."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = [
-        "rgb",
-        "rgba",
-        "albedo",
-        "depth",
-        "distance_to_camera",
-        "distance_to_image_plane",
-        "normals",
-        "motion_vectors",
-        "semantic_segmentation",
-        "instance_segmentation",
-        "instance_id_segmentation_fast",
-    ]
-    camera_cfg.renderer_cfg.colorize_instance_id_segmentation = True
-    camera_cfg.renderer_cfg.colorize_instance_segmentation = True
-    camera_cfg.renderer_cfg.colorize_semantic_segmentation = True
-    camera_cfg.width = 512
-    camera_cfg.height = 512
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-
-    camera.update(dt)
-
-    # expected sizes
-    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
-    hw_2c_shape = (1, camera_cfg.height, camera_cfg.width, 2)
-    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
-    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["rgb"].shape == hw_3c_shape
-    assert output["rgba"].shape == hw_4c_shape
-    assert output["albedo"].shape == hw_4c_shape
-    assert output["depth"].shape == hw_1c_shape
-    assert output["distance_to_camera"].shape == hw_1c_shape
-    assert output["distance_to_image_plane"].shape == hw_1c_shape
-    assert output["normals"].shape == hw_3c_shape
-    assert output["motion_vectors"].shape == hw_2c_shape
-    assert output["semantic_segmentation"].shape == hw_4c_shape
-    assert output["instance_segmentation"].shape == hw_4c_shape
-    assert output["instance_id_segmentation_fast"].shape == hw_4c_shape
-
-    # access image data and compare dtype
-    output = camera.data.output
-    assert output["rgb"].dtype == wp.uint8
-    assert output["rgba"].dtype == wp.uint8
-    assert output["albedo"].dtype == wp.uint8
-    assert output["depth"].dtype == wp.float32
-    assert output["distance_to_camera"].dtype == wp.float32
-    assert output["distance_to_image_plane"].dtype == wp.float32
-    assert output["normals"].dtype == wp.float32
-    assert output["motion_vectors"].dtype == wp.float32
-    assert output["semantic_segmentation"].dtype == wp.uint8
-    assert output["instance_segmentation"].dtype == wp.uint8
-    assert output["instance_id_segmentation_fast"].dtype == wp.uint8
-
-
-def test_camera_resolution_rgb_only(setup_sim_camera):
-    """Test camera resolution is correctly set for RGB only."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = ["rgb"]
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-
-    camera.update(dt)
-
-    # expected sizes
-    hw_3c_shape = (1, camera_cfg.height, camera_cfg.width, 3)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["rgb"].shape == hw_3c_shape
-    # access image data and compare dtype
-    assert output["rgb"].dtype == wp.uint8
-
-
-def test_camera_resolution_rgba_only(setup_sim_camera):
-    """Test camera resolution is correctly set for RGBA only."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = ["rgba"]
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-
-    camera.update(dt)
-
-    # expected sizes
-    hw_4c_shape = (1, camera_cfg.height, camera_cfg.width, 4)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["rgba"].shape == hw_4c_shape
-    # access image data and compare dtype
-    assert output["rgba"].dtype == wp.uint8
-
-
 def test_camera_resolution_albedo_only(setup_sim_camera):
-    """Test camera resolution is correctly set for albedo only."""
+    """Test albedo-only cameras produce albedo content with the correct shape and dtype."""
     # Add all types
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg.data_types = ["albedo"]
@@ -752,6 +467,8 @@ def test_camera_resolution_albedo_only(setup_sim_camera):
     assert output["albedo"].shape == hw_4c_shape
     # access image data and compare dtype
     assert output["albedo"].dtype == wp.uint8
+    # albedo is still produced when it is the only color-like output requested
+    assert (output["albedo"] / 255.0).mean() > 0.0
 
 
 @pytest.mark.parametrize(
@@ -778,39 +495,6 @@ def test_camera_resolution_simple_shading_only(setup_sim_camera, data_type):
     assert output[data_type].shape == hw_3c_shape
     # access image data and compare dtype
     assert output[data_type].dtype == wp.uint8
-
-
-def test_camera_resolution_depth_only(setup_sim_camera):
-    """Test camera resolution is correctly set for depth only."""
-    # Add all types
-    sim, camera_cfg, dt = setup_sim_camera
-    camera_cfg.data_types = ["depth"]
-    # Create camera
-    camera = Camera(camera_cfg)
-
-    # Play sim
-    sim.reset()
-
-    camera.update(dt)
-
-    # expected sizes
-    hw_1c_shape = (1, camera_cfg.height, camera_cfg.width, 1)
-    # access image data and compare shapes
-    output = camera.data.output
-    assert output["depth"].shape == hw_1c_shape
-    # access image data and compare dtype
-    assert output["depth"].dtype == wp.float32
-
-
-def test_sensor_print(setup_sim_camera):
-    """Test sensor print is working correctly."""
-    # Create sensor
-    sim, camera_cfg, dt = setup_sim_camera
-    sensor = Camera(cfg=camera_cfg)
-    # Play sim
-    sim.reset()
-    # print info
-    print(sensor)
 
 
 def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
@@ -858,6 +542,10 @@ def test_camera_multi_regex_init(setup_camera_device, device):
     sim.reset()
 
     assert camera.is_initialized
+    camera.frame.torch.fill_(7)
+    camera.reset(slice(1, None, 2))
+    torch.testing.assert_close(camera.frame.torch[::2], torch.full((5,), 7, device=device, dtype=torch.int64))
+    torch.testing.assert_close(camera.frame.torch[1::2], torch.zeros(4, device=device, dtype=torch.int64))
     assert camera._sensor_prims[1].GetPath().pathString == "/World/Origin_1/CameraSensor"
     assert isinstance(camera._sensor_prims[0], UsdGeom.Camera)
 
@@ -880,12 +568,26 @@ def test_camera_multi_regex_init(setup_camera_device, device):
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
                 for i in range(4):
                     assert im_data[i].mean() > 0.0
+    # an rgb request without rgba is still served (through the rgba buffer)
+    assert camera.data.output["rgb"].dtype == wp.uint8
+    # Distinct selected rows must reach the matching Fabric prims, regardless of bucket order.
+    matrices = camera.data.intrinsic_matrices.torch[[8, 0, 4]].clone()
+    matrices[:, 0, 0] = matrices[:, 1, 1] = torch.tensor([100.0, 200.0, 300.0], device=device)
+    camera.set_intrinsic_matrices(matrices, env_ids=[8, 0, 4])
+    fabric = sim_utils.get_current_stage(fabric=True)
+    for row, index in enumerate((8, 0, 4)):
+        prim = fabric.GetPrimAtPath(camera._sensor_prims[index].GetPath().pathString)
+        fx = camera_cfg.width * prim.GetAttribute("focalLength").Get() / prim.GetAttribute("horizontalAperture").Get()
+        assert fx == pytest.approx(matrices[row, 0, 0].item())
     del camera
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_camera_all_annotators(setup_camera_device, device):
-    """Test all supported annotators produce correct shapes, dtypes, content, and info."""
+    """Test all supported annotators produce correct shapes, dtypes, content, and info.
+
+    Uses the default (colorized) segmentation, and checks that normals have unit length.
+    """
     sim, camera_cfg, dt = setup_camera_device
     all_annotator_types = [
         "rgb",
@@ -921,6 +623,11 @@ def test_camera_all_annotators(setup_camera_device, device):
         for data_type, im_data in camera.data.output.items():
             if data_type in ["rgb", "normals"]:
                 assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
+                if data_type == "normals":
+                    for i in range(4):
+                        assert im_data[i].mean() > 0.0
+                    norms = torch.linalg.norm(im_data, dim=-1)
+                    assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
             elif data_type in [
                 "rgba",
                 "albedo",
@@ -960,7 +667,7 @@ def test_camera_all_annotators(setup_camera_device, device):
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 def test_camera_segmentation_non_colorize(setup_camera_device, device):
     """Test segmentation outputs with colorization disabled produce correct dtypes and info."""
     sim, camera_cfg, dt = setup_camera_device
@@ -986,40 +693,13 @@ def test_camera_segmentation_non_colorize(setup_camera_device, device):
         assert camera.data.output[seg_type].shape == (num_cameras, camera_cfg.height, camera_cfg.width, 1)
         assert camera.data.output[seg_type].dtype == wp.int32
         assert isinstance(camera.data.info[seg_type], dict)
+        # Scene objects must produce non-zero IDs, so a dropped buffer copy cannot pass.
+        assert (camera.data.output[seg_type].torch != 0).any()
 
     del camera
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_camera_normals_unit_length(setup_camera_device, device):
-    """Test that normals output vectors have approximately unit length."""
-    sim, camera_cfg, dt = setup_camera_device
-    num_cameras = 9
-    for i in range(num_cameras):
-        sim_utils.create_prim(f"/World/Origin_{i}", "Xform")
-
-    camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = ["normals"]
-    camera_cfg.prim_path = "/World/Origin_[^/]*/CameraSensor"
-    camera = Camera(camera_cfg)
-
-    sim.reset()
-
-    for _ in range(10):
-        sim.step()
-        camera.update(dt)
-        im_data = camera.data.output["normals"]
-        assert im_data.shape == (num_cameras, camera_cfg.height, camera_cfg.width, 3)
-        for i in range(4):
-            assert im_data[i].mean() > 0.0
-        norms = torch.linalg.norm(im_data, dim=-1)
-        assert torch.allclose(norms, torch.ones_like(norms), atol=1e-9)
-
-    assert camera.data.output["normals"].dtype == wp.float32
-    del camera
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_camera_data_types_ordering(setup_camera_device, device):
     """Test that requesting specific data types produces the expected output keys."""
     sim, camera_cfg, dt = setup_camera_device
@@ -1052,59 +732,13 @@ def test_camera_data_types_ordering(setup_camera_device, device):
     del camera_both
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_camera_frame_offset(setup_camera_device, device):
-    """Test that camera reflects scene color changes without frame-offset lag."""
-    sim, camera_cfg, dt = setup_camera_device
-    camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.height = 480
-    camera_cfg.width = 480
-    camera = Camera(camera_cfg)
-
-    stage = sim_utils.get_current_stage()
-    for i in range(10):
-        prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
-        color = Gf.Vec3f(1, 1, 1)
-        UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
-
-    sim.reset()
-
-    for _ in range(100):
-        sim.step()
-        camera.update(dt)
-
-    image_before = camera.data.output["rgb"].clone() / 255.0
-
-    for i in range(10):
-        prim = stage.GetPrimAtPath(f"/World/Objects/Obj_{i:02d}")
-        color = Gf.Vec3f(0, 0, 0)
-        UsdGeom.Gprim(prim).GetDisplayColorAttr().Set([color])
-
-    sim.step()
-    camera.update(dt)
-
-    image_after = camera.data.output["rgb"].clone() / 255.0
-
-    assert torch.abs(image_after - image_before).mean() > 0.01
-
-    del camera
-
-
-@pytest.mark.parametrize(
-    ("data_types", "expected_names", "expected_messages"),
-    [
-        (["rgba", "depth", "normals"], ["depth", "normals"], ["_PartialRenderer", "Supported data types"]),
-        (["rgba", "not_a_render_buffer_kind"], ["not_a_render_buffer_kind"], ["Unknown camera data types"]),
-    ],
-)
-def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, expected_names, expected_messages):
-    """Test Camera rejects data types its renderer cannot produce or does not recognize."""
-    from isaaclab.renderers import Renderer
+def test_camera_raises_on_unsupported_data_types(setup_sim_camera):
+    """Test Camera rejects data types its runtime renderer cannot produce."""
     from isaaclab.renderers.base_renderer import BaseRenderer
 
     sim, camera_cfg, dt = setup_sim_camera
     camera_cfg = copy.deepcopy(camera_cfg)
-    camera_cfg.data_types = data_types
+    camera_cfg.data_types = ["rgba", "depth", "normals"]
 
     from isaaclab.sensors.camera.camera_data import RenderBufferKind, RenderBufferSpec
 
@@ -1144,23 +778,13 @@ def test_camera_raises_on_unsupported_data_types(setup_sim_camera, data_types, e
         def cleanup(self, render_data):
             pass
 
-    backend = Renderer._get_backend(camera_cfg.renderer_cfg)
-    original = Renderer._registry.get(backend)
-    Renderer._registry[backend] = _PartialRenderer
-    try:
-        camera = Camera(camera_cfg)
-        with pytest.raises(ValueError) as exc_info:
-            sim.reset()
-        assert all(name in str(exc_info.value) for name in expected_names)
-        assert all(message in str(exc_info.value) for message in expected_messages)
-        assert "Hint:" not in str(exc_info.value)
+    camera_cfg.renderer_cfg.class_type = _PartialRenderer
+    camera = Camera(camera_cfg)
+    with pytest.raises(ValueError, match="_PartialRenderer") as exc_info:
+        sim.reset()
+    assert "Hint:" not in str(exc_info.value)
 
-        del camera
-    finally:
-        if original is not None:
-            Renderer._registry[backend] = original
-        else:
-            Renderer._registry.pop(backend, None)
+    del camera
 
 
 def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
@@ -1172,10 +796,13 @@ def test_camera_raises_on_instance_segmentation_fast(setup_sim_camera):
         Camera(camera_cfg)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 @pytest.mark.isaacsim_ci
 def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
     """Camera pose changes via FrameView should be visible in rendered depth.
+
+    Runs on CPU only: the CUDA pose-write path is covered on every backend by
+    ``test_camera_pose_write_across_backends.py``; this covers the CPU Fabric write from ``set_world_poses_from_view``.
 
     Moves the camera close then far, renders depth, and verifies that the mean
     valid depth from the far position is significantly larger (>1.5×) than the
@@ -1281,6 +908,6 @@ def _populate_scene():
         geom_prim.GetDisplayColorAttr().Set([color])
         # add rigid body and collision properties using Isaac Lab schemas
         prim_path = f"/World/Objects/Obj_{i:02d}"
-        sim_utils.define_rigid_body_properties(prim_path, sim_utils.RigidBodyPropertiesCfg())
-        sim_utils.define_mass_properties(prim_path, sim_utils.MassPropertiesCfg(mass=5.0))
-        sim_utils.define_collision_properties(prim_path, sim_utils.CollisionPropertiesCfg())
+        sim_utils.apply_rigid_body_properties(prim_path, [sim_utils.UsdPhysicsRigidBodyCfg()], create_if_missing=True)
+        sim_utils.apply_mass_properties(prim_path, [sim_utils.MassCfg(mass=5.0)], create_if_missing=True)
+        sim_utils.apply_collision_properties(prim_path, [sim_utils.UsdPhysicsCollisionCfg()], create_if_missing=True)

@@ -6,15 +6,15 @@
 """Tests for the cloner path/query algebra.
 
 These exercise :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, which are pure
-string/tensor operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
+string/array operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
 
 import subprocess
 import sys
 
+import numpy as np
 import pytest
-import torch
 
 from isaaclab import cloner
 from isaaclab.cloner import ClonePlan
@@ -42,14 +42,9 @@ def test_path_relative_to():
     assert cloner.path.relative_to("/World/envs/env_0/Robot", root) == ""
     assert cloner.path.relative_to("/World/envs/env_0/RobotArm", root) is None
     assert cloner.path.relative_to("/World/ground", root) is None
-
-
-def test_path_rebase():
-    """rebase swaps a boundary-aligned root prefix, not a substring."""
-    assert (
-        cloner.path.rebase("/World/envs/env_0/Robot/base", "/World/envs/env_0", "/World/envs/env_5")
-        == "/World/envs/env_5/Robot/base"
-    )
+    # The stage root is not a segment: stripping it keeps the leading slash.
+    assert cloner.path.relative_to("/World/envs/env_0", "/") == "/World/envs/env_0"
+    assert cloner.path.relative_to("/", "/") == ""
 
 
 def test_expand_env_regex_ns_preserves_regex_quantifiers():
@@ -59,11 +54,6 @@ def test_expand_env_regex_ns_preserves_regex_quantifiers():
     assert cloner.expand_env_regex_ns(path_expr) == r"/World/envs/env_[^/]+/Robot/link_[0-9]{2}"
     assert cloner.expand_env_regex_ns(path_expr, "/World/scenes/scene_{}") == (
         r"/World/scenes/scene_[^/]+/Robot/link_[0-9]{2}"
-    )
-    # boundary-safe: str.replace would corrupt this, rebase leaves it unchanged
-    assert (
-        cloner.path.rebase("/World/envs/env_0X/Robot", "/World/envs/env_0", "/World/envs/env_5")
-        == "/World/envs/env_0X/Robot"
     )
 
 
@@ -95,7 +85,7 @@ def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
     if tail is None:
         assert rebased == path
     else:
-        assert rebased == (dst_root.rstrip("/") + tail) or "/"
+        assert rebased == ((dst_root.rstrip("/") + tail) or "/")
         assert cloner.path.rebase(path, root, root) == path
 
 
@@ -131,14 +121,6 @@ def test_path_law_template_split(path_expr, template):
     assert cloner.path.relativize(path_expr, template) == matched.suffix
 
 
-def test_path_stage_root_is_not_a_segment():
-    """Rebasing off and onto "/" does not introduce an empty segment."""
-    assert cloner.path.relative_to("/World/envs/env_0", "/") == "/World/envs/env_0"
-    assert cloner.path.relative_to("/", "/") == ""
-    assert cloner.path.rebase("/World/Robot", "/", "/Scene") == "/Scene/World/Robot"
-    assert cloner.path.rebase("/World/Robot", "/World", "/") == "/Robot"
-
-
 ##
 # Clone plans used by the query tests. Each covers a distinct shape of the source/clone
 # relation, and the law tests below run over all of them.
@@ -149,7 +131,7 @@ def _plan(sources, destinations, mask) -> ClonePlan:
     return ClonePlan(
         sources=tuple(sources),
         destinations=tuple(destinations),
-        clone_mask=torch.tensor(mask, dtype=torch.bool),
+        clone_mask=np.asarray(mask, dtype=np.bool_),
     )
 
 
@@ -160,7 +142,7 @@ def _robot_plan(mask_row=(True, True, True, True)) -> ClonePlan:
 
 def _wide_env_id_plan() -> ClonePlan:
     """Two variants of one asset over 12 envs, the second starting at a two-digit env id."""
-    mask = torch.zeros((2, 12), dtype=torch.bool)
+    mask = np.zeros((2, 12), dtype=np.bool_)
     mask[0, :10] = True
     mask[1, 10:] = True
     return ClonePlan(
@@ -181,7 +163,8 @@ PLANS = {
     "nested_prototype": _plan(
         ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
         ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
-        [[True, True, True, True], [True, True, True, True]],
+        # The nested row skips env 1, so only the nearest (nested) owner can decide that env.
+        [[True, True, True, True], [True, False, True, True]],
     ),
     "distinct_env_root": _plan(
         ("/World/source/Robot",),
@@ -203,29 +186,8 @@ def test_path_env_ids():
     partial = _robot_plan((True, True, False, True))
     assert cloner.query.path_env_ids(partial, "/World/envs/env_0/Robot/base") == (0, 1, 3)
     assert cloner.query.path_env_ids(_robot_plan(), "/World/ground") == ()
-
-
-def test_path_to_clone():
-    """path_to_clone returns a source path's clone, or None when unowned / not mapped."""
-    plan = _robot_plan((True, True, False, True))
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", 3) == "/World/envs/env_3/Robot/base"
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", 2) is None
-    assert cloner.query.path_to_clone(plan, "/World/ground", 0) is None
-
-
-def test_path_to_clone_heterogeneous_selects_env_owning_row():
-    """In a heterogeneous plan, a source path only reaches envs its own variant row populates."""
-    plan = PLANS["two_variants"]
-    # env 2 draws Object from the row-1 variant, so the row-0 prototype does not reach it.
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Object/base", 2) is None
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_2/Object/base", 2) == "/World/envs/env_2/Object/base"
-
-
-def test_path_to_clone_nested_prototype_uses_nearest_source():
-    """A path inside a nested prototype is cloned by the nested row, not its ancestor."""
-    plan = PLANS["nested_prototype"]
-    path = "/World/envs/env_0/Robot/wrist/Camera/lens"
-    assert cloner.query.path_to_clone(plan, path, 1) == "/World/envs/env_1/Robot/wrist/Camera/lens"
+    # An unowned path has no clone; owned paths are covered by the Q1/Q2 laws below.
+    assert cloner.query.path_to_clone(partial, "/World/ground", 0) is None
 
 
 def test_path_to_source_nested_templates_pick_most_specific():
@@ -265,11 +227,11 @@ def test_path_to_source_ambiguous_templates_raise():
 def test_path_to_source_merges_same_template_rows():
     """Heterogeneous source rows sharing one destination template resolve through a single owner."""
     # One logical asset cloned from two source variants onto the same destination template.
-    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> envs (1, 3).
+    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither.
     plan = _plan(
         ("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, False, True, False], [False, True, False, True]],
+        [[True, False, True, False], [False, True, False, False]],
     )
 
     # Without an env id, the first populated row represents the asset.
@@ -277,23 +239,10 @@ def test_path_to_source_merges_same_template_rows():
     assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
     # With an env id, the variant that actually populates that env is reported.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3)
+    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=1)
     assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
 
-
-def test_path_to_source_partial_coverage_returns():
-    """Partial-env coverage is allowed: env 3 uncovered by either row does not raise."""
-    # Row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither row.
-    plan = _plan(
-        ("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, False, True, False], [False, True, False, False]],
-    )
-
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
-
-    # No row populates env 3, so resolving for that env reports nothing.
+    # Partial-env coverage is allowed: no row populates env 3, so resolving for it reports nothing.
     assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3) is None
 
 
@@ -308,8 +257,8 @@ def test_path_to_source_inactive_rows_return_none():
     assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body") is None
 
 
-def test_iter_sources_yields_nearest_owner():
-    """ClonePlan rows can be matched by destination path expression."""
+def test_iter_sources_yields_each_populating_row():
+    """Every variant row behind a destination template is yielded with only the envs it populates."""
     plan = _plan(
         ("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
         ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
@@ -335,19 +284,19 @@ def test_iter_sources_yields_nearest_owner():
 
 
 def test_iter_sources_skips_rows_without_envs():
-    """A row populating no env is not a source of anything."""
+    """A nearer template populating no env does not hide the populated ancestor owning the path."""
     plan = _plan(
-        ("/World/envs/env_2/Object",),
-        ("/World/envs/env_{}/Object",),
-        [[False, False, True, True]],
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
+        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
+        [[True, True, False, False], [False, False, False, False]],
     )
 
-    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body/Camera")) == [
+    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot/wrist/Camera")) == [
         (
-            "/World/envs/env_2/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_2/Object/Body/Camera",
-            (2, 3),
+            "/World/envs/env_0/Robot",
+            "/World/envs/env_{}/Robot",
+            "/World/envs/env_0/Robot/wrist/Camera",
+            (0, 1),
         )
     ]
 
@@ -479,8 +428,8 @@ def test_query_translates_env_ids_through_the_plan():
     plan = ClonePlan(
         sources=("/World/envs/env_2/Robot",),
         destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=torch.tensor([[True, True]], dtype=torch.bool),
-        env_ids=torch.tensor([2, 5], dtype=torch.long),
+        clone_mask=np.asarray([[True, True]], dtype=np.bool_),
+        env_ids=np.asarray([2, 5], dtype=np.int64),
     )
     path = "/World/envs/env_2/Robot/base"
 
@@ -523,24 +472,6 @@ def test_query_agrees_across_duplicate_source_rows():
         assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
 
 
-##
-# Plan invariants.
-##
-
-
-def test_query_and_path_are_real_modules():
-    """``cloner.path``/``cloner.query`` import as modules, not just package attributes."""
-    import isaaclab.cloner.path  # noqa: PLC0415
-    import isaaclab.cloner.query  # noqa: PLC0415
-    from isaaclab.cloner.path import under  # noqa: PLC0415
-    from isaaclab.cloner.query import path_to_source  # noqa: PLC0415
-
-    assert isaaclab.cloner.path.__name__ == "isaaclab.cloner.path"
-    assert isaaclab.cloner.query.__name__ == "isaaclab.cloner.query"
-    assert under is cloner.path.under
-    assert path_to_source is cloner.query.path_to_source
-
-
 def test_cloner_imports_without_kit():
     """Importing the package in a clean interpreter must not drag in pxr.
 
@@ -548,7 +479,10 @@ def test_cloner_imports_without_kit():
     import ``isaaclab.sim``, so this guards both against an import cycle and against pulling
     pxr in before Kit boots, which corrupts Kit's own USD runtime.
     """
-    probe = "import isaaclab.cloner, sys; print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    probe = (
+        "from isaaclab.cloner import ClonePlan; import sys; "
+        "print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+    )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
 
     assert result.returncode == 0, result.stderr

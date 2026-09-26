@@ -9,19 +9,17 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
 from prettytable import PrettyTable
 
-from .manager_base import ManagerBase
+from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ..envs import ManagerBasedEnv
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -69,9 +67,9 @@ class EventManager(ManagerBase):
             env: An environment object.
         """
         # create buffers to parse and store terms
-        self._mode_term_names: dict[str, list[str]] = dict()
-        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = dict()
-        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = dict()
+        self._mode_term_names: dict[str, list[str]] = {}
+        self._mode_term_cfgs: dict[str, list[EventTermCfg]] = {}
+        self._mode_class_term_cfgs: dict[str, list[EventTermCfg]] = {}
 
         # call the base class (this will parse the terms config)
         super().__init__(cfg, env)
@@ -123,17 +121,19 @@ class EventManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: torch.Tensor | slice | None = slice(None)) -> dict[str, float]:
+        """Reset event state for device indices or a slice, defaulting to all environments.
+
+        None is also accepted and normalized to ``slice(None)``. The selector is passed directly to stateful terms.
+        """
+        if env_ids is None:
+            env_ids = slice(None)
         # call all terms that are classes
         for mode_cfg in self._mode_class_term_cfgs.values():
             for term_cfg in mode_cfg:
                 term_cfg.func.reset(env_ids=env_ids)
 
-        # resolve number of environments
-        if env_ids is None:
-            num_envs = self._env.num_envs
-        else:
-            num_envs = len(env_ids)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # if we are doing interval based events then we need to reset the time left
         # when the episode starts. otherwise the counter will start from the last time
         # for that environment
@@ -155,7 +155,7 @@ class EventManager(ManagerBase):
     def apply(
         self,
         mode: str,
-        env_ids: Sequence[int] | None = None,
+        env_ids: torch.Tensor | slice | None = None,
         dt: float | None = None,
         global_env_step_count: int | None = None,
     ):
@@ -176,6 +176,8 @@ class EventManager(ManagerBase):
             mode: The mode of event.
             env_ids: The indices of the environments to apply the event to.
                 Defaults to None, in which case the event is applied to all environments when applicable.
+                Reset mode accepts a slice or one-dimensional int32/int64 indices on the environment device.
+                Slices pass through to callbacks unless cooldown filtering selects an irregular subset.
             dt: The time step of the environment. This is only used for the "interval" mode.
                 Defaults to None to simplify the call for other modes.
             global_env_step_count: The total number of environment steps that have happened. This is only used
@@ -200,7 +202,6 @@ class EventManager(ManagerBase):
         if mode != "prestartup" and not self._is_scene_entities_resolved:
             self._resolve_terms_callback(None)
 
-        # check if mode is interval and dt is not provided
         if mode == "interval" and dt is None:
             raise ValueError(f"Event mode '{mode}' requires the time-step of the environment.")
         if mode == "interval" and env_ids is not None:
@@ -208,11 +209,11 @@ class EventManager(ManagerBase):
                 f"Event mode '{mode}' does not require environment indices. This is an undefined behavior"
                 " as the environment indices are computed based on the time left for each environment."
             )
-        # check if mode is reset and env step count is not provided
         if mode == "reset" and global_env_step_count is None:
             raise ValueError(f"Event mode '{mode}' requires the total number of environment steps to be provided.")
+        if mode == "reset" and env_ids is None:
+            env_ids = slice(None)
 
-        # iterate over all the event terms
         for index, term_cfg in enumerate(self._mode_term_cfgs[mode]):
             # initialize class-based terms if not already initialized (for non-prestartup modes)
             if inspect.isclass(term_cfg.func):
@@ -221,9 +222,7 @@ class EventManager(ManagerBase):
                 )
                 term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
             if mode == "interval":
-                # extract time left for this term
                 time_left = self._interval_term_time_left[index]
-                # update the time left for each environment
                 time_left -= dt
 
                 # check if the interval has passed and sample a new interval
@@ -242,26 +241,16 @@ class EventManager(ManagerBase):
                         lower, upper = term_cfg.interval_range_s
                         sampled_time = torch.rand(len(valid_env_ids), device=self.device) * (upper - lower) + lower
                         self._interval_term_time_left[index][valid_env_ids] = sampled_time
-
-                        # call the event term
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             elif mode == "reset":
-                # obtain the minimum step count between resets
                 min_step_count = term_cfg.min_step_count_between_reset
-                # resolve the environment indices
-                if env_ids is None:
-                    env_ids = slice(None)
-
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
                     self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
                     self._reset_term_last_triggered_once[index][env_ids] = True
-
-                    # call the event term with the environment indices
                     term_cfg.func(self._env, env_ids, **term_cfg.params)
                 else:
-                    # extract last reset step for this term
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
                     triggered_at_least_once = self._reset_term_last_triggered_once[index][env_ids]
                     # compute the steps since last reset
@@ -274,8 +263,9 @@ class EventManager(ManagerBase):
                     valid_trigger |= (last_triggered_step == 0) & ~triggered_at_least_once
 
                     # select the valid environment indices based on the trigger
-                    if env_ids == slice(None):
-                        valid_env_ids = valid_trigger.nonzero().flatten()
+                    if isinstance(env_ids, slice):
+                        start, _, step = env_ids.indices(self.num_envs)
+                        valid_env_ids = valid_trigger.nonzero().flatten() * step + start
                     else:
                         valid_env_ids = env_ids[valid_trigger]
 
@@ -287,7 +277,6 @@ class EventManager(ManagerBase):
                         # call the event term
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)
             else:
-                # call the event term
                 term_cfg.func(self._env, env_ids, **term_cfg.params)
 
     """
@@ -401,8 +390,8 @@ class EventManager(ManagerBase):
             self._mode_term_names[term_cfg.mode].append(term_name)
             self._mode_term_cfgs[term_cfg.mode].append(term_cfg)
 
-            # check if the term is a class
-            if inspect.isclass(term_cfg.func):
+            # check if the term is a class; it is already instantiated if the simulation is playing
+            if inspect.isclass(term_cfg.func) or isinstance(term_cfg.func, ManagerTermBase):
                 self._mode_class_term_cfgs[term_cfg.mode].append(term_cfg)
 
             # resolve the mode of the events
@@ -412,8 +401,6 @@ class EventManager(ManagerBase):
                     raise ValueError(
                         f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not specified."
                     )
-
-                # sample the time left for global
                 if term_cfg.is_global_time:
                     lower, upper = term_cfg.interval_range_s
                     time_left = torch.rand(1) * (upper - lower) + lower

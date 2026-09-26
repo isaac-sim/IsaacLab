@@ -1,6 +1,26 @@
 Changelog
 ---------
 
+2.0.2 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Published deformable geometry through SDP using clone-plan paths and native particle ranges,
+  preserving nonconsecutive environment IDs, custom paths, and position writes between renders.
+  Removed the internal Fabric-sync helper; rendering consumers now bind through SDP.
+
+
+2.0.1 (2026-08-23)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Registered every configured child solver's builder attributes for coupled Newton models.
+
+
 2.0.0 (2026-08-15)
 ~~~~~~~~~~~~~~~~~~
 

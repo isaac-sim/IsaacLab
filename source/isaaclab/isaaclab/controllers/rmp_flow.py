@@ -10,10 +10,9 @@ import time
 import numpy as np
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.math import matrix_from_quat
-
+from .. import sim as sim_utils
+from ..utils.assets import retrieve_file_path
+from ..utils.math import matrix_from_quat
 from .rmp_flow_cfg import RmpFlowControllerCfg  # noqa: F401
 from .utils import import_lula, resolve_rmpflow_path
 

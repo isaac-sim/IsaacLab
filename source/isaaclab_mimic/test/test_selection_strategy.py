@@ -26,6 +26,13 @@ from isaaclab_mimic.datagen.selection_strategy import (
 NUM_ITERS = 1000
 
 
+@pytest.fixture(autouse=True)
+def seed_rngs():
+    """Seed the NumPy and torch generators that the poses and the strategies draw from."""
+    np.random.seed(0)
+    torch.manual_seed(0)
+
+
 @pytest.fixture
 def nearest_neighbor_object_strategy():
     """Fixture for NearestNeighborObjectStrategy."""

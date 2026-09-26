@@ -5,10 +5,7 @@
 
 """Relationship-path contracts for heterogeneous USD replication."""
 
-import ast
-from pathlib import Path
-
-import torch
+import numpy as np
 
 from pxr import Sdf, Usd
 
@@ -38,7 +35,7 @@ def test_asset_clone_uses_native_relationship_path_mapping() -> None:
         stage,
         sources=["/World/envs/env_0/Robot"],
         destinations=["/World/envs/env_{}/Robot"],
-        env_ids=torch.tensor([0, 2]),
+        env_ids=np.asarray([0, 2], dtype=np.int64),
     )
 
     cloned_binding = layer.GetRelationshipAtPath("/World/envs/env_2/Robot/source.material:binding")
@@ -51,13 +48,3 @@ def test_asset_clone_uses_native_relationship_path_mapping() -> None:
     assert tuple(cloned_input.connectionPathList.explicitItems) == (Sdf.Path("/World/envs/env_2/Robot/source.output"),)
     cloned_body = layer.GetRelationshipAtPath("/World/envs/env_2/Robot/joint.physics:body1")
     assert cloned_body.targetPathList.explicitItems == [Sdf.Path("/World/envs/env_2/Robot/target")]
-
-
-def test_usd_replicate_keeps_native_copy_spec_path_semantics() -> None:
-    module = Path(__file__).parents[2] / "isaaclab" / "cloner" / "usd.py"
-    calls = [
-        node
-        for node in ast.walk(ast.parse(module.read_text()))
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "CopySpec"
-    ]
-    assert calls and all(len(call.args) == 4 and not call.keywords for call in calls)

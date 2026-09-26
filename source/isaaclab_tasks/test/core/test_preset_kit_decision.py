@@ -11,6 +11,7 @@ No Kit/GPU required — safe for CI and beginners.
 """
 
 import sys
+from types import SimpleNamespace
 
 import gymnasium as gym
 import pytest
@@ -60,19 +61,40 @@ def test_resolve_task_config_applies_plain_scalar_override():
     assert env_cfg.scene.num_envs == 123
 
 
-def test_rtx_is_renderer_selector():
-    """The automatic RTX selector is exposed as ``renderer=rtx``."""
+def test_camera_cli_size_overrides_update_observation_space(monkeypatch: pytest.MonkeyPatch):
+    """A composed camera config exposes CLI dimensions before the env derives its Gym space."""
+    from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv, CartpoleEnv
+
+    env_cfg = _resolve_with_args(
+        "env.scene.tiled_camera.height=45",
+        "env.scene.tiled_camera.width=80",
+        "env.frame_stack=1",
+    )
+
+    class FakeScene(dict):
+        num_envs = 2
+
+    def fake_parent_init(self, cfg, *_args, **_kwargs):
+        self.cfg = cfg
+        self.scene = FakeScene(robot=SimpleNamespace(), tiled_camera=SimpleNamespace())
+        self.sim = SimpleNamespace(device="cpu")
+        self._configure_gym_env_spaces()
+        self._is_closed = True
+
+    monkeypatch.setattr(CartpoleEnv, "__init__", fake_parent_init)
+    env = CartpoleCameraEnv(env_cfg)
+
+    assert env.cfg.observation_space == [3, 45, 80]
+    assert env.single_observation_space["policy"].shape == (3, 45, 80)
+    assert env.observation_space.shape == (2, 3, 45, 80)
+
+
+def test_rtx_and_isaacsim_physx_are_typed_selectors():
+    """``renderer=rtx`` (automatic RTX) and ``physics=isaacsim_physx`` (concrete Isaac Sim PhysX) are exposed."""
     preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
 
     assert preset_map is not None
     assert "rtx" in preset_map[PresetTarget.RENDERER]
-
-
-def test_isaacsim_physx_is_physics_selector():
-    """The concrete Isaac Sim PhysX selector is exposed as ``physics=isaacsim_physx``."""
-    preset_map = enumerate_task_presets(_CAMERA_PRESETS_TASK)
-
-    assert preset_map is not None
     assert "isaacsim_physx" in preset_map[PresetTarget.PHYSICS]
 
 

@@ -166,17 +166,16 @@ class RigidObject(BaseRigidObject):
         if inst.active:
             if perm.active:
                 inst.add_raw_buffers_from(perm)
-            force_b = inst.out_force_b.warp
-            torque_b = inst.out_torque_b.warp
+            composer = inst
         else:
-            force_b = perm.out_force_b.warp
-            torque_b = perm.out_torque_b.warp
+            composer = perm
+        force_in, torque_in, is_global = composer.get_forces_and_torques()
 
         poses = self._data.body_link_pose_w.warp  # (N, 1) wp.transformf
         wp.launch(
             _body_wrench_to_world,
             dim=(self._num_instances, 1),
-            inputs=[force_b, torque_b, poses],
+            inputs=[force_in, torque_in, poses, is_global],
             outputs=[self._wrench_buf],
             device=self._device,
         )
@@ -376,6 +375,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -416,6 +416,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_com_pose_to_sim_index(
         self,
@@ -458,6 +459,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids
         )
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -499,6 +501,7 @@ class RigidObject(BaseRigidObject):
         self._root_view.set_attribute(
             TT.RIGID_BODY_POSE, self.data._root_link_pose_w.data.view(wp.float32), mask=env_mask_wp
         )
+        OvPhysxManager._scene_data_backend.transforms_version += 1
 
     def write_root_com_velocity_to_sim_index(
         self,
@@ -723,6 +726,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_MASS is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_mass, self.data._body_mass)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), indices=cpu_env_ids)
 
     def set_masses_mask(
@@ -757,6 +761,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_mass, self.data._body_mass)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_MASS, self._cpu_body_mass.flatten(), mask=self._get_cpu_env_mask(env_mask_wp)
         )
@@ -800,6 +805,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_COM_POSE is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 7); squeeze singleton body dim with a flat float32 view.
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE, self._cpu_body_coms.reshape((self._num_instances, 7)), indices=cpu_env_ids
@@ -838,6 +844,7 @@ class RigidObject(BaseRigidObject):
         )
         self.data._reset_body_com_pose_b_dependents()
         wp.copy(self._cpu_body_coms, self.data._body_com_pose_b.data.view(wp.float32))
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_COM_POSE,
             self._cpu_body_coms.reshape((self._num_instances, 7)),
@@ -881,6 +888,7 @@ class RigidObject(BaseRigidObject):
         # Push cache to the wheel via pinned-CPU staging (RIGID_BODY_INERTIA is CPU-only).
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        wp.synchronize_stream(self._device)
         # Wheel binding shape is (N, 9); flatten the singleton body dim.
         self._root_view.set_attribute(
             TT.RIGID_BODY_INERTIA, self._cpu_body_inertia.reshape((self._num_instances, 9)), indices=cpu_env_ids
@@ -918,6 +926,7 @@ class RigidObject(BaseRigidObject):
             device=self._device,
         )
         wp.copy(self._cpu_body_inertia, self.data._body_inertia)
+        wp.synchronize_stream(self._device)
         self._root_view.set_attribute(
             TT.RIGID_BODY_INERTIA,
             self._cpu_body_inertia.reshape((self._num_instances, 9)),
@@ -1032,8 +1041,8 @@ class RigidObject(BaseRigidObject):
             device=device,
             copy=False,
         )
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self._body_names
@@ -1043,6 +1052,7 @@ class RigidObject(BaseRigidObject):
         # host memory enables DMA fast path and avoids per-call ``wp.clone`` allocation.
         self._cpu_env_ids_all = wp.zeros(N, dtype=wp.int32, device="cpu", pinned=True)
         wp.copy(self._cpu_env_ids_all, self._ALL_INDICES)
+        wp.synchronize_stream(self._device)
         self._cpu_env_ids = wp.empty(N, dtype=wp.int32, device="cpu", pinned=True)
         self._cpu_env_ids_views: dict[int, wp.array] = {}
         self._cpu_body_mass = wp.zeros((N, B), dtype=wp.float32, device="cpu", pinned=True)
@@ -1074,6 +1084,8 @@ class RigidObject(BaseRigidObject):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         if isinstance(env_ids, torch.Tensor):
@@ -1153,6 +1165,7 @@ class RigidObject(BaseRigidObject):
         ``_cpu_env_mask`` pinned buffer.
         """
         wp.copy(self._cpu_env_mask, env_mask)
+        wp.synchronize_stream(env_mask.device)
         return self._cpu_env_mask
 
     def _get_cpu_env_ids(self, env_ids: wp.array | torch.Tensor, sim_env_ids: wp.array | None = None) -> wp.array:
@@ -1173,6 +1186,7 @@ class RigidObject(BaseRigidObject):
             return env_ids
         cpu_env_ids = self._cpu_env_ids_view(env_ids.shape[0])
         wp.copy(cpu_env_ids, env_ids)
+        wp.synchronize_stream(env_ids.device)
         return cpu_env_ids
 
     def _cpu_env_ids_view(self, count: int) -> wp.array:

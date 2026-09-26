@@ -12,10 +12,9 @@ Device Architecture:
     1. sim_device: Where physics simulation runs and environment buffers live
     2. rl_device: Where policy networks and training computations occur
 
-Test Scenarios:
-    - GPU simulation + GPU RL: Same device (no transfers needed, optimal performance)
+Test Scenarios (cross-device only; the same-device case needs no transfer):
     - GPU simulation + CPU RL: Cross-device transfers (wrapper handles transfers)
-    - CPU simulation + CPU RL: CPU-only operation
+    - CPU simulation + GPU RL: Actions transferred from the policy device to the simulation
 
 Each test verifies the wrapper correctly:
     1. Unwrapped env: operates entirely on sim_device
@@ -303,16 +302,6 @@ def _test_skrl_device_separation(sim_device: str, rl_device: str):
 # ============================================================================
 
 
-def test_rsl_rl_device_separation_gpu_to_gpu():
-    """Test RSL-RL with GPU simulation and GPU RL (default configuration)."""
-    try:
-        import isaaclab_rl.rsl_rl  # noqa: F401
-    except ImportError:
-        pytest.skip("RSL-RL not installed")
-
-    _test_rsl_rl_device_separation(sim_device="cuda:0", rl_device="cuda:0")
-
-
 def test_rsl_rl_device_separation_gpu_to_cpu():
     """Test RSL-RL with GPU simulation and CPU RL (cross-device transfer)."""
     try:
@@ -321,16 +310,6 @@ def test_rsl_rl_device_separation_gpu_to_cpu():
         pytest.skip("RSL-RL not installed")
 
     _test_rsl_rl_device_separation(sim_device="cuda:0", rl_device="cpu")
-
-
-def test_rl_games_device_separation_gpu_to_gpu():
-    """Test RL Games with GPU simulation and GPU RL (default configuration)."""
-    try:
-        import isaaclab_rl.rl_games  # noqa: F401
-    except ImportError:
-        pytest.skip("RL Games not installed")
-
-    _test_rl_games_device_separation(sim_device="cuda:0", rl_device="cuda:0")
 
 
 def test_rl_games_device_separation_gpu_to_cpu():
@@ -354,16 +333,6 @@ def test_sb3_device_separation_gpu():
         pytest.skip("Stable-Baselines3 not installed")
 
     _test_sb3_device_separation(sim_device="cuda:0")
-
-
-def test_skrl_device_separation_gpu():
-    """Test skrl with GPU simulation and GPU policy (matching devices)."""
-    try:
-        import skrl  # noqa: F401
-    except ImportError:
-        pytest.skip("skrl not installed")
-
-    _test_skrl_device_separation(sim_device="cuda:0", rl_device="cuda:0")
 
 
 def test_skrl_device_separation_cpu_to_gpu():

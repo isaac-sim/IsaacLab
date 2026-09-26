@@ -7,8 +7,36 @@
 
 from __future__ import annotations
 
+import os
+import tempfile
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
+
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
+
+if TYPE_CHECKING:
+    from .ovphysx_manager import OvPhysxBackend
+
+# POSIX temp roots are shared between users; Windows already gives each user a private one.
+_CACHE_DIR_NAME = f"ovphysx_derived_data_cache_{os.getuid()}" if hasattr(os, "getuid") else "ovphysx_derived_data_cache"
+
+DEFAULT_COOKED_COLLIDER_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), _CACHE_DIR_NAME)
+"""Per-user cooked-collider cache shared by physics and native runtime configuration defaults."""
+
+
+@configclass
+class OvPhysxBackendCfg(BackendCfg):
+    """Native runtime construction settings, separate from physics scene policy."""
+
+    class_type: type[OvPhysxBackend] | str = "{DIR}.ovphysx_manager:OvPhysxBackend"
+
+    device: str = MISSING
+    """Normalized device: ``cpu`` or ``cuda:<index>``. CPU-only mode is process-wide."""
+
+    cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    """Cooked-collider cache location, fixed by the first runtime created in the process."""
 
 
 @configclass
@@ -21,6 +49,16 @@ class OvPhysxCfg(PhysicsCfg):
     """
 
     class_type = "{DIR}.ovphysx_manager:OvPhysxManager"
+
+    cooked_collider_cache_dir: str | None = DEFAULT_COOKED_COLLIDER_CACHE_DIR
+    """Directory for the OVPhysX cooked-collider cache, defaulting to a per-user directory under the
+    system temporary directory. Set to ``None`` to use the runtime default.
+
+    The datastore is created once per process, so the first OVPhysX construction fixes the location and a
+    later config does not relocate it. The runtime garbage collects the cache against a disk budget;
+    deleting the directory reclaims the space immediately, and a system temporary directory may also be
+    purged between boots.
+    """
 
     enable_enhanced_determinism: bool = False
     """Enable/disable improved determinism at the expense of performance. Defaults to False.

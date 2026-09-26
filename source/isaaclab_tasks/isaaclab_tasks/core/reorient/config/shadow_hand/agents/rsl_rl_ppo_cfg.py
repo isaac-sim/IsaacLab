@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPpoAlgorithmCfg
 
@@ -13,7 +13,7 @@ from isaaclab_tasks.utils import PresetCfg
 @configclass
 class ShadowHandPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     num_steps_per_env = 16
-    max_iterations = 10000
+    max_iterations = 3000
     save_interval = 250
     experiment_name = "shadow_hand"
     actor = RslRlMLPModelCfg(

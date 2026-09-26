@@ -11,7 +11,7 @@ import math
 
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 __all__ = [
     "ResetDatasetSamplerCfg",
@@ -138,7 +138,7 @@ def _ring_append_bool_count_rate(
     rate[unique_ids] = new_true_counts.to(rate.dtype) / new_size.clamp(min=1).to(rate.dtype)
 
 
-class _ResetDatasetSampler:
+class ResetDatasetSampler:
     """Sample reset rows using a rolling-success kernel and exact cyclic replay."""
 
     def __init__(

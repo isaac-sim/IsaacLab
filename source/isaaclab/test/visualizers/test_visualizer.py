@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for visualizer config factory and base visualizer behavior."""
+"""Unit tests for visualizer config construction and base visualizer behavior."""
 
 from __future__ import annotations
 
@@ -14,60 +14,48 @@ import pytest
 import torch
 
 from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
+from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
-from isaaclab.visualizers.visualizer import Visualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
 #
-# Config factory
+# Config construction
 #
 
 
-def test_create_visualizer_raises_for_base_cfg():
-    cfg = VisualizerCfg()
-    with pytest.raises(ValueError, match="Cannot create visualizer from base VisualizerCfg class"):
-        cfg.create_visualizer()
+@pytest.mark.parametrize(
+    "module_name,cfg_name,implementation",
+    [
+        ("isaaclab_visualizers.kit", "KitVisualizerCfg", "KitVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonGLVisualizerCfg", "NewtonGLVisualizer"),
+        ("isaaclab_visualizers.newton", "NewtonRTXVisualizerCfg", "NewtonRTXVisualizer"),
+        ("isaaclab_visualizers.rerun", "RerunVisualizerCfg", "RerunVisualizer"),
+        ("isaaclab_visualizers.viser", "ViserVisualizerCfg", "ViserVisualizer"),
+    ],
+)
+def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
+    cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
+    class_type = cfg_type().class_type
+    assert isinstance(class_type, ResolvableString)
+    assert class_type.__name__ == implementation
 
 
 def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
+    assert cfg.background_color == (0.3, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
-
-
-def test_streaming_cfg_fields_on_visualizer_cfg():
-    """streaming_view is opt-in (False) and streaming_cam_renderer defaults to None."""
-    cfg = VisualizerCfg()
-    assert cfg.streaming_view is False
     assert cfg.streaming_cam_renderer is None
 
 
-def test_create_visualizer_raises_for_unknown_type():
-    cfg = VisualizerCfg(visualizer_type="unknown-backend")
-    with pytest.raises(ValueError, match="not registered"):
-        cfg.create_visualizer()
-
-
-def test_create_visualizer_raises_import_error_when_backend_unavailable(monkeypatch):
-    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="newton_gl")
-    with pytest.raises(ImportError, match="isaaclab_visualizers"):
-        cfg.create_visualizer()
-
-
-def test_create_visualizer_rerun_import_error_recommends_uv_extra(monkeypatch):
-    monkeypatch.delitem(Visualizer._registry, "rerun", raising=False)
-    monkeypatch.setattr(Visualizer, "_get_module_name", classmethod(lambda cls, backend: "does.not.exist"))
-    cfg = VisualizerCfg(visualizer_type="rerun")
-
-    with pytest.raises(ImportError, match=r"uv run --extra rerun <command>") as exc_info:
-        cfg.create_visualizer()
-
-    assert "Original error:" in str(exc_info.value)
-    assert "pip install isaaclab_visualizers" not in str(exc_info.value)
+def test_visualizer_cfg_validates_background_color():
+    assert VisualizerCfg(background_color=None).background_color is None
+    assert VisualizerCfg(background_color=[0, 0.5, 1]).background_color == (0.0, 0.5, 1.0)
+    with pytest.raises(ValueError, match="three normalized RGB values"):
+        VisualizerCfg(background_color=(0.0, 0.5, 1.1))
 
 
 #
@@ -175,8 +163,8 @@ def test_compute_visualized_env_ids_cap_only_returns_none():
 
     The cap is applied later by ``resolve_visible_env_indices``.
     """
-    viz = _DummyVisualizer(_make_cfg(visible_env_indices=None))
-    viz._scene_data_provider = _FakeProvider(num_envs=8)
+    viz = _DummyVisualizer(_make_cfg(max_visible_envs=3, visible_env_indices=None))
+    viz._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz._compute_visualized_env_ids() is None
 
 
@@ -184,19 +172,6 @@ def test_compute_visualized_env_ids_from_visible_indices_filters_out_of_range():
     viz = _DummyVisualizer(_make_cfg(visible_env_indices=[-1, 0, 3, 99]))
     viz._scene_data_provider = _FakeProvider(num_envs=4)
     assert viz._compute_visualized_env_ids() == [0, 3]
-
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_partial_visualization_cap_only_uses_resolver():
-    """With ``visible_env_indices`` unset, :func:`resolve_visible_env_indices` applies ``max_visible_envs``."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(max_visible_envs=3, visible_env_indices=None)
-    viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    assert viz._compute_visualized_env_ids() is None
-    assert resolve_visible_env_indices(None, cfg.max_visible_envs, 10) == [0, 1, 2]
-    assert resolve_visible_env_indices(None, 3, 10) == [0, 1, 2]
 
 
 @pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
@@ -219,19 +194,6 @@ def test_compute_visualized_env_ids_random_cap_only_sorted_once():
     viz2 = _DummyVisualizer(cfg_explicit)
     viz2._scene_data_provider = _FakeProvider(num_envs=10)
     assert viz2._compute_visualized_env_ids() == [1, 5]
-
-
-@pytest.mark.skipif(not _HAS_ISAACLAB_VIZ, reason="isaaclab_visualizers not installed")
-def test_explicit_visible_env_indices_truncated_by_max_visible_envs():
-    """Explicit indices from :meth:`_compute_visualized_env_ids`; ``max_visible_envs`` truncates from the end."""
-    from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
-
-    cfg = _make_cfg(visible_env_indices=[0, 2, 4], max_visible_envs=1)
-    viz = _DummyVisualizer(cfg)
-    viz._scene_data_provider = _FakeProvider(num_envs=10)
-    ids = viz._compute_visualized_env_ids()
-    assert ids == [0, 2, 4]
-    assert resolve_visible_env_indices(ids, cfg.max_visible_envs, 10) == [0]
 
 
 def test_resolve_camera_pose_from_usd_path_uses_provider_transforms():

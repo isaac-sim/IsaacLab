@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, NoReturn
 
 import newton
-import torch
 import warp as wp
 
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
@@ -32,6 +31,29 @@ if TYPE_CHECKING:
     from isaaclab.utils.warp import ProxyArray
 
 logger = logging.getLogger(__name__)
+
+
+@wp.kernel(enable_backward=False)
+def _check_shared_intrinsics(intrinsics: wp.array(dtype=wp.mat33f), different: wp.array(dtype=wp.int32)):
+    i = wp.tid()
+    for row in range(3):
+        for column in range(3):
+            if wp.abs(intrinsics[i][row, column] - intrinsics[0][row, column]) > 1.0e-4:
+                wp.atomic_or(different, 0, 1)
+
+
+@wp.kernel(enable_backward=False)
+def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(dtype=wp.vec3f)):
+    y, x = wp.tid()
+    matrix = intrinsics[0]
+    direction = wp.vec3f(
+        (float(x) + 0.5 - matrix[0, 2]) / matrix[0, 0],
+        -(float(y) + 0.5 - matrix[1, 2]) / matrix[1, 1],
+        -1.0,
+    )
+    rays[0, y, x, 0] = wp.vec3f(0.0)
+    rays[0, y, x, 1] = wp.normalize(direction)
+
 
 _PPISP_IMPORT_ERROR_MESSAGE = (
     "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
@@ -113,6 +135,7 @@ class RenderData:
         self.camera_rays: wp.array(dtype=wp.vec3f, ndim=4) = None
         self.camera_transforms: wp.array(dtype=wp.transformf, ndim=2) = None
         self._camera_quat_scratch: wp.array = None
+        self._intrinsic_status = wp.zeros(1, dtype=wp.int32, device=newton_sensor.model.device)
         # Name under which this camera's render launch is registered with the
         # Newton sensor manager (set on first render).
         self.sensor_task_name: str | None = None
@@ -131,7 +154,7 @@ class RenderData:
         # Camera clipping planes [m] from ``spawn.clipping_range`` (``[0]`` near, ``[1]`` far).
         # Newton's ray tracer has no near-plane parameter, so only the far plane is enforced (through
         # the sensor's ``max_distance``); ``near_clip`` is captured for consumers but not applied.
-        spawn = getattr(spec.cfg, "spawn", None)
+        spawn = spec.cfg.spawn
         clipping_range = getattr(spawn, "clipping_range", None)
         self.near_clip: float | None = float(clipping_range[0]) if clipping_range is not None else None
         self.far_clip: float | None = float(clipping_range[1]) if clipping_range is not None else None
@@ -146,6 +169,9 @@ class RenderData:
         else:
             self.clear_color = 0xFFEEEEEE
 
+        # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
+        # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
+        self._distortion = spawn.distortion if spawn is not None else None
         # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
         # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
         self.ppisp_pipeline: PpispPipeline | None = None
@@ -357,13 +383,72 @@ class RenderData:
         )
 
         if self.camera_rays is None:
-            first_focal_length = intrinsics.torch[:, 1, 1][0:1]
-            fov_radians_all = 2.0 * torch.atan(self.height / (2.0 * first_focal_length))
+            if self._distortion is not None:
+                self.camera_rays = self._build_distortion_rays()
+            else:
+                self.camera_rays = wp.empty(
+                    (1, self.height, self.width, 2), dtype=wp.vec3f, device=self.newton_sensor.model.device
+                )
+                wp.launch(
+                    _update_camera_rays,
+                    (self.height, self.width),
+                    [intrinsics.warp, self.camera_rays],
+                    device=self.newton_sensor.model.device,
+                )
 
-            fov_warp = wp.from_torch(fov_radians_all, dtype=wp.float32)
-            self.camera_rays = self.newton_sensor.utils.compute_camera_rays_pinhole(
-                self.width, self.height, camera_fovs=fov_warp
+    def _build_distortion_rays(self) -> wp.array(dtype=wp.vec3f, ndim=4):
+        """Build the ``(1, H, W, 2)`` camera-space ray field for an OpenCV lens-distortion camera.
+
+        Uses Newton's native OpenCV pinhole and fisheye ray helpers. Both paths honor calibrated
+        ``fx/fy/cx/cy`` (non-square, off-center) intrinsics. When
+        :attr:`OpenCvDistortionCfg.apply_lens_distortion` is ``False``, the coefficients are treated
+        as zero while the calibrated intrinsics remain active, matching the RTX/OVRTX behavior.
+        """
+        cfg = self._distortion
+        image_width, image_height = float(cfg.image_size[0]), float(cfg.image_size[1])
+
+        def _coefficient(value: float) -> float:
+            return float(value) if cfg.apply_lens_distortion else 0.0
+
+        if cfg.model == "opencvFisheye":
+            return self.newton_sensor.utils.compute_camera_rays_fisheye_opencv(
+                self.width,
+                self.height,
+                float(cfg.fx),
+                float(cfg.fy),
+                float(cfg.cx),
+                float(cfg.cy),
+                image_width=image_width,
+                image_height=image_height,
+                k1=_coefficient(cfg.k1),
+                k2=_coefficient(cfg.k2),
+                k3=_coefficient(cfg.k3),
+                k4=_coefficient(cfg.k4),
+                max_fov=cfg.max_fov,
             )
+
+        return self.newton_sensor.utils.compute_camera_rays_pinhole_opencv(
+            self.width,
+            self.height,
+            float(cfg.fx),
+            float(cfg.fy),
+            float(cfg.cx),
+            float(cfg.cy),
+            image_width=image_width,
+            image_height=image_height,
+            k1=_coefficient(cfg.k1),
+            k2=_coefficient(cfg.k2),
+            k3=_coefficient(cfg.k3),
+            k4=_coefficient(cfg.k4),
+            k5=_coefficient(cfg.k5),
+            k6=_coefficient(cfg.k6),
+            p1=_coefficient(cfg.p1),
+            p2=_coefficient(cfg.p2),
+            s1=_coefficient(cfg.s1),
+            s2=_coefficient(cfg.s2),
+            s3=_coefficient(cfg.s3),
+            s4=_coefficient(cfg.s4),
+        )
 
     @wp.kernel
     def _update_transforms(
@@ -396,17 +481,12 @@ class NewtonWarpRenderer(BaseRenderer):
 
     def initialize(self) -> None:
         """Post-physics setup: read the built Newton model and construct the sensor."""
-        self._newton_model = NewtonManager.get_model()
-        if self._newton_model is None:
-            raise RuntimeError(
-                "NewtonWarpRenderer requires a Newton model but the Newton manager has no model. "
-                "This usually means the Newton model failed to build from the USD stage "
-                "(e.g., unsupported PhysX schemas such as tendons). "
-                "Check the log for earlier Newton model build errors."
-            )
+        model = NewtonManager.get_model()
+        if model is None:
+            raise RuntimeError("NewtonWarpRenderer requires a clone-built model before initialization.")
 
         self.newton_sensor = newton.sensors.SensorTiledCamera(
-            self._newton_model,
+            model,
             default_render_config=newton.sensors.SensorTiledCamera.RenderConfig(
                 enable_textures=self.cfg.enable_textures,
                 enable_shadows=self.cfg.enable_shadows,
@@ -439,24 +519,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
         """Publish the per-output layout this Newton Warp backend writes.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.supported_output_types`."""
-
-        def seg_spec(colorize: bool) -> RenderBufferSpec:
-            # Colorized segmentation is RGBA uint8; raw segmentation is a single int32 id channel
-            # (matching the Isaac RTX / OVRTX contract so backend-independent consumers see the same dtype).
-            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
-
-        return {
-            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
-            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
-            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
-            RenderBufferKind.SEMANTIC_SEGMENTATION: seg_spec(self.cfg.colorize_semantic_segmentation),
-            RenderBufferKind.INSTANCE_SEGMENTATION: seg_spec(self.cfg.colorize_instance_segmentation),
-        }
+        return self.cfg.supported_output_types()
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
         """Resolve the camera's PPISP cfg before rendering.
@@ -467,20 +530,9 @@ class NewtonWarpRenderer(BaseRenderer):
 
         Also captures the USD ``stage`` so the segmentation mapper can read the scene's
         :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
+
         """
         self._stage = stage
-        # NOTE: OpenCV lens distortion (``spawn.distortion``) is not yet applied by the Newton
-        # renderer. The distortion cfg is renderer-agnostic and could be piped through Newton's warp
-        # ray-tracing utilities here in the future; for now the camera renders undistorted. This is
-        # the intended extension point.
-        spawn = getattr(spec.cfg, "spawn", None)
-        if getattr(spawn, "distortion", None) is not None:
-            logger.warning(
-                "OpenCV lens distortion is set on the camera cfg but is not yet applied by the Newton"
-                " renderer: it derives a single field of view from fy, so the distortion coefficients,"
-                " the principal point, and a non-square fx are ignored and the camera renders as a"
-                " centered, square-pixel pinhole. Use the RTX/OVRTX renderer to apply the full model."
-            )
         if spec.cfg.isp_cfg is None:
             return
         try:
@@ -508,7 +560,7 @@ class NewtonWarpRenderer(BaseRenderer):
         ):
             if self._seg_mapper is None:
                 clone_plan = SimulationContext.instance().get_clone_plan()
-                self._seg_mapper = NewtonSegmentationMapper(self._newton_model, self._stage, self.cfg, clone_plan)
+                self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, clone_plan)
         if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
@@ -525,12 +577,9 @@ class NewtonWarpRenderer(BaseRenderer):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""
         render_data.set_outputs(output_data)
 
-    def update_transforms(self):
-        """Sync Newton scene state before rendering.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        sim = SimulationContext.instance()
-        sim.physics_manager.forward()
-        NewtonManager.update_visualization_state()
+    def update_transforms(self) -> None:
+        """No-op: the shared sensor pipeline refreshes transforms immediately before rendering."""
+        pass
 
     def update_geometries(self) -> None:
         """No-op for Newton Warp - geometry is read directly from Newton state during render.
@@ -544,18 +593,47 @@ class NewtonWarpRenderer(BaseRenderer):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ):
-        """Update camera poses and intrinsics.
+        """Update camera poses and initialize the ray field on first use.
         See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_camera`."""
         render_data.update(positions, orientations, intrinsics)
+
+    def update_camera_intrinsics(self, render_data: RenderData, intrinsics: wp.array, parameters: wp.array):
+        """Regenerate the shared native ray field in place, preserving captured render pointers."""
+        if render_data._distortion is not None:
+            return  # The camera retains its fixed OpenCV calibration.
+        if intrinsics.shape[0] > 1:
+            render_data._intrinsic_status.zero_()
+            wp.launch(
+                _check_shared_intrinsics,
+                intrinsics.shape[0],
+                [intrinsics, render_data._intrinsic_status],
+                device=intrinsics.device,
+            )
+            if render_data._intrinsic_status.numpy()[0]:
+                raise ValueError(
+                    "Newton Warp requires identical camera intrinsics across environments: its native ray field "
+                    "is shared across worlds. Use a uniform calibration batch or a renderer with per-view intrinsics."
+                )
+        wp.launch(
+            _update_camera_rays,
+            (render_data.height, render_data.width),
+            [intrinsics, render_data.camera_rays],
+            device=intrinsics.device,
+        )
 
     def render(self, render_data: RenderData):
         """Render and write to output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
 
-        # Refresh the shadow state under PhysX before the manager refits the BVH.
-        NewtonManager.get_state()
         if render_data.sensor_task_name is None:
             render_data.sensor_task_name = f"newton_warp_render:{id(render_data)}"
-            NewtonManager._register_sensor_task(render_data.sensor_task_name, lambda: self._launch_render(render_data))
+            tri_indices = self.newton_sensor.model.tri_indices
+            # Warp mesh refits allocate graph nodes and are not supported inside a conditional graph body.
+            graph_capturable = tri_indices is None or tri_indices.shape[0] == 0
+            NewtonManager._register_sensor_task(
+                render_data.sensor_task_name,
+                lambda: self._launch_render(render_data),
+                graph_capturable=graph_capturable,
+            )
         NewtonManager._update_sensor_tasks(render_data.sensor_task_name)
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination

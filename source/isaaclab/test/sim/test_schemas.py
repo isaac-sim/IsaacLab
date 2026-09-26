@@ -12,16 +12,11 @@ simulation_app = AppLauncher(headless=True).app
 
 """Rest everything follows."""
 
+import inspect
 import math
 import warnings
 
 import pytest
-from isaaclab_physx.sim.schemas import (
-    ArticulationRootPropertiesCfg as ArticulationRootDeprecatedAliasCfg,
-)
-from isaaclab_physx.sim.schemas import (
-    CollisionPropertiesCfg as PhysxCollisionPropertiesCfgAlias,
-)
 from isaaclab_physx.sim.schemas import (
     PhysxArticulationRootPropertiesCfg,
     PhysxCollisionCfg,
@@ -33,10 +28,9 @@ from isaaclab_physx.sim.schemas import (
 from isaaclab_physx.sim.spawners.materials import (
     PhysxRigidBodyMaterialCfg,
     PhysxSurfaceDeformableBodyMaterialCfg,
-    RigidBodyMaterialCfg,
 )
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.sim.schemas as schemas
@@ -103,27 +97,6 @@ def setup_simulation():
 
 
 @pytest.mark.isaacsim_ci
-def test_valid_properties_cfg(setup_simulation):
-    """Test that all the config instances have non-None values.
-
-    This is to ensure that we check that all the properties of the schema are set.
-    """
-    sim, arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg = setup_simulation
-    # deprecation aliases are nulled by __post_init__ after forwarding to the canonical
-    # field; exclude them from the all-non-None check.
-    deprecation_aliases = {"max_velocity", "max_effort"}
-    # nested opt-in cfgs whose ``None`` means "leave the USD-authored value alone"
-    optional_nested_cfgs = {"mesh_collision_property"}
-    for cfg in [arti_cfg, rigid_cfg, collision_cfg, mass_cfg, joint_cfg]:
-        for k, v in cfg.__dict__.items():
-            # skip class-metadata keys (``_usd_*``), deprecation aliases nulled in __post_init__,
-            # and nested cfgs that are meaningfully unset
-            if k.startswith("_") or k in deprecation_aliases or k in optional_nested_cfgs:
-                continue
-            assert v is not None, f"{cfg.__class__.__name__}:{k} is None. Please make sure schemas are valid."
-
-
-@pytest.mark.isaacsim_ci
 def test_max_joint_velocity_on_base_cfg(setup_simulation):
     """Setting ``max_joint_velocity`` on the base ``JointDriveBaseCfg`` must author
     ``physxJoint:maxJointVelocity`` on the prim, identical to setting it on
@@ -151,76 +124,13 @@ def test_max_joint_velocity_on_base_cfg(setup_simulation):
 
     prim_path = "/World/Articulation/joint_0"
     # use unwrapped function (no parent traversal) so this returns the inner bool
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     # Revolute drives convert rad/s -> deg/s; check the authored value.
     attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
     assert attr.IsValid(), "physxJoint:maxJointVelocity was not authored on the prim"
     expected_deg_per_sec = 10.0 * 180.0 / math.pi
     assert attr.Get() == pytest.approx(expected_deg_per_sec, rel=1e-6)
-
-
-@pytest.mark.isaacsim_ci
-def test_max_velocity_deprecation_alias(setup_simulation):
-    """Legacy ``max_velocity`` kwarg must forward to ``max_joint_velocity`` and emit
-    a ``DeprecationWarning``. Behavior must match setting ``max_joint_velocity`` directly.
-    """
-    sim, _, _, _, _, _ = setup_simulation
-    stage = sim_utils.get_current_stage()
-
-    with pytest.warns(DeprecationWarning, match="max_velocity"):
-        base_cfg = schemas.JointDriveBaseCfg(
-            drive_type="acceleration",
-            max_force=80.0,
-            max_velocity=10.0,
-            stiffness=10.0,
-            damping=0.1,
-        )
-
-    assert base_cfg.max_joint_velocity == 10.0
-    assert base_cfg.max_velocity is None
-
-    sim_utils.create_prim("/World/Articulation_dep", prim_type="Xform")
-    sim_utils.create_prim("/World/Articulation_dep/body0", prim_type="Cube")
-    sim_utils.create_prim("/World/Articulation_dep/body1", prim_type="Cube")
-    UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation_dep/joint_0")
-    prim_path = "/World/Articulation_dep/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
-
-    attr = stage.GetPrimAtPath(prim_path).GetAttribute("physxJoint:maxJointVelocity")
-    assert attr.IsValid()
-    assert attr.Get() == pytest.approx(10.0 * 180.0 / math.pi, rel=1e-6)
-
-
-@pytest.mark.isaacsim_ci
-def test_max_effort_deprecation_alias(setup_simulation):
-    """Legacy ``max_effort`` kwarg must forward to ``max_force`` and emit
-    a ``DeprecationWarning``. Behavior must match setting ``max_force`` directly.
-    """
-    sim, _, _, _, _, _ = setup_simulation
-    stage = sim_utils.get_current_stage()
-
-    with pytest.warns(DeprecationWarning, match="max_effort"):
-        base_cfg = schemas.JointDriveBaseCfg(
-            drive_type="acceleration",
-            max_effort=42.0,
-            stiffness=10.0,
-            damping=0.1,
-        )
-
-    assert base_cfg.max_force == 42.0
-    assert base_cfg.max_effort is None
-
-    sim_utils.create_prim("/World/Articulation_eff", prim_type="Xform")
-    sim_utils.create_prim("/World/Articulation_eff/body0", prim_type="Cube")
-    sim_utils.create_prim("/World/Articulation_eff/body1", prim_type="Cube")
-    UsdPhysics.PrismaticJoint.Define(stage, "/World/Articulation_eff/joint_0")
-    prim_path = "/World/Articulation_eff/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
-
-    attr = stage.GetPrimAtPath(prim_path).GetAttribute("drive:linear:physics:maxForce")
-    assert attr.IsValid()
-    assert attr.Get() == pytest.approx(42.0, rel=1e-6)
 
 
 @pytest.mark.isaacsim_ci
@@ -244,7 +154,7 @@ def test_joint_drive_base_no_physx_schema_when_max_joint_velocity_unset(setup_si
     UsdPhysics.RevoluteJoint.Define(stage, "/World/Articulation/joint_0")
 
     prim_path = "/World/Articulation/joint_0"
-    schemas.modify_joint_drive_properties.__wrapped__(prim_path, base_cfg)
+    inspect.unwrap(schemas.modify_joint_drive_properties)(prim_path, base_cfg)
 
     applied = stage.GetPrimAtPath(prim_path).GetAppliedSchemas()
     assert "PhysxJointAPI" not in applied, (
@@ -345,18 +255,6 @@ def test_physx_rigid_body_material_cfg(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
-def test_rigid_body_material_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``RigidBodyMaterialCfg`` name emits exactly one
-    ``DeprecationWarning`` whose message references the 5.0 removal target."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        RigidBodyMaterialCfg()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
 def test_collision_base_cfg_writes_physx_namespaced_attrs(setup_simulation):
     """Setting ``contact_offset`` / ``rest_offset`` on the base ``CollisionBaseCfg`` must
     author the ``physxCollision:*`` attributes AND apply ``PhysxCollisionAPI``. Newton's
@@ -451,18 +349,6 @@ def test_physx_collision_cfg_writes_torsional_patch(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``CollisionPropertiesCfg`` name emits exactly one
-    ``DeprecationWarning`` whose message references the 5.0 removal target."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        PhysxCollisionPropertiesCfgAlias()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
 def test_articulation_root_base_cfg_writes_articulation_enabled(setup_simulation):
     """Setting ``articulation_enabled`` on the base ``ArticulationRootBaseCfg`` must author
     ``physxArticulation:articulationEnabled`` AND apply ``PhysxArticulationAPI``. The
@@ -502,6 +388,27 @@ def test_articulation_root_base_no_physx_schema_when_only_fix_root_link_set(setu
     assert "PhysxArticulationAPI" not in applied, (
         f"PhysxArticulationAPI should not be applied when only fix_root_link is set; got {list(applied)}"
     )
+
+
+@pytest.mark.isaacsim_ci
+def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulation):
+    """``fix_root_link`` looks up the existing fixed joint on the stage that is passed in, not the current stage."""
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.Xform.Define(stage, "/World")
+    root = UsdGeom.Xform.Define(stage, "/World/Robot").GetPrim()
+    UsdPhysics.RigidBodyAPI.Apply(root)
+    UsdPhysics.ArticulationRootAPI.Apply(root)
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/FixedJoint")
+    joint.CreateBody1Rel().SetTargets(["/World/Robot"])
+    joint.CreateJointEnabledAttr(True)
+    assert not sim_utils.get_current_stage().GetPrimAtPath("/World/Robot").IsValid()
+
+    with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+        schemas.modify_articulation_root_properties(
+            "/World/Robot", schemas.ArticulationRootBaseCfg(fix_root_link=False), stage=stage
+        )
+
+    assert joint.GetJointEnabledAttr().Get() is False
 
 
 @pytest.mark.isaacsim_ci
@@ -546,18 +453,6 @@ def test_physx_articulation_root_self_collisions_follow_fixed_root(setup_simulat
     assert "NewtonArticulationRootAPI" in parent.GetAppliedSchemas()
     assert "NewtonArticulationRootAPI" not in child.GetAppliedSchemas()
     assert not child.GetAttribute("newton:selfCollisionEnabled").HasAuthoredValue()
-
-
-@pytest.mark.isaacsim_ci
-def test_articulation_root_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``ArticulationRootPropertiesCfg`` name emits exactly one
-    ``DeprecationWarning`` whose message references the 5.0 removal target."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        ArticulationRootDeprecatedAliasCfg()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected exactly one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
 
 
 @pytest.mark.isaacsim_ci
@@ -644,100 +539,6 @@ def test_bounding_cube_default_token(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize(
-    "name",
-    [
-        "MeshCollisionPropertiesCfg",
-        "ConvexHullPropertiesCfg",
-        "ConvexDecompositionPropertiesCfg",
-        "TriangleMeshPropertiesCfg",
-        "TriangleMeshSimplificationPropertiesCfg",
-        "SDFMeshPropertiesCfg",
-    ],
-)
-def test_mesh_collision_deprecation_aliases(setup_simulation, name):
-    """Each legacy mesh-collision class name emits exactly one DeprecationWarning on
-    instantiation and the warning message references the 5.0 removal target."""
-    from isaaclab_physx.sim.schemas import schemas_cfg as physx_cfg
-
-    cls = getattr(physx_cfg, name)
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        cls()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
-def test_physx_fixed_tendon_relocation(setup_simulation):
-    """``PhysxFixedTendonPropertiesCfg`` is importable from
-    :mod:`isaaclab_physx.sim.schemas` and round-trips its fields."""
-    from isaaclab_physx.sim.schemas import PhysxFixedTendonPropertiesCfg
-
-    cfg = PhysxFixedTendonPropertiesCfg(
-        tendon_enabled=True,
-        stiffness=10.0,
-        damping=0.5,
-        limit_stiffness=1.0,
-        offset=0.1,
-        rest_length=0.2,
-    )
-    assert cfg.tendon_enabled is True
-    assert cfg.stiffness == 10.0
-    assert cfg.damping == 0.5
-    assert cfg.limit_stiffness == 1.0
-    assert cfg.offset == 0.1
-    assert cfg.rest_length == 0.2
-
-
-@pytest.mark.isaacsim_ci
-def test_fixed_tendon_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``FixedTendonPropertiesCfg`` (via the shim) emits exactly
-    one ``DeprecationWarning`` whose message references the 5.0 removal target."""
-    cls = schemas.FixedTendonPropertiesCfg
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        cls()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
-def test_physx_spatial_tendon_relocation(setup_simulation):
-    """``PhysxSpatialTendonPropertiesCfg`` is importable from
-    :mod:`isaaclab_physx.sim.schemas` and round-trips its fields."""
-    from isaaclab_physx.sim.schemas import PhysxSpatialTendonPropertiesCfg
-
-    cfg = PhysxSpatialTendonPropertiesCfg(
-        tendon_enabled=True,
-        stiffness=20.0,
-        damping=0.25,
-        limit_stiffness=2.0,
-        offset=0.05,
-    )
-    assert cfg.tendon_enabled is True
-    assert cfg.stiffness == 20.0
-    assert cfg.damping == 0.25
-    assert cfg.limit_stiffness == 2.0
-    assert cfg.offset == 0.05
-
-
-@pytest.mark.isaacsim_ci
-def test_spatial_tendon_deprecation_alias(setup_simulation):
-    """Instantiating the legacy ``SpatialTendonPropertiesCfg`` (via the shim) emits exactly
-    one ``DeprecationWarning`` whose message references the 5.0 removal target."""
-    cls = schemas.SpatialTendonPropertiesCfg
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        cls()
-    deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
-    assert len(deprecations) == 1, f"expected one DeprecationWarning, got {len(deprecations)}"
-    assert "5.0" in str(deprecations[0].message)
-
-
-@pytest.mark.isaacsim_ci
 def test_usd_api_physx_api_attrs_deprecated(setup_simulation):
     """Reading ``cfg.usd_api`` and ``cfg.physx_api`` on the new mesh cfgs emits a
     DeprecationWarning and returns the legacy-mapped string value."""
@@ -792,8 +593,10 @@ def test_modify_properties_on_articulation_instanced_usd(setup_simulation):
     _validate_joint_drive_properties_on_prim("/World/asset_instanced", joint_cfg)
 
     # make a fixed joint
+    assert sim_utils.find_global_fixed_joint_prim("/World/asset_instanced") is None
     arti_cfg.fix_root_link = True
     schemas.modify_articulation_root_properties("/World/asset_instanced", arti_cfg)
+    assert sim_utils.find_global_fixed_joint_prim("/World/asset_instanced", check_enabled_only=True) is not None
 
 
 @pytest.mark.isaacsim_ci
@@ -891,24 +694,25 @@ def test_defining_rigid_body_properties_on_prim(setup_simulation):
     schemas.define_rigid_body_properties("/World/cube1", rigid_cfg)
     schemas.define_collision_properties("/World/cube1", collision_cfg)
     schemas.define_mass_properties("/World/cube1", mass_cfg)
-    # validate the properties
-    _validate_rigid_body_properties_on_prim("/World/cube1", rigid_cfg)
-    _validate_collision_properties_on_prim("/World/cube1", collision_cfg)
-    _validate_mass_properties_on_prim("/World/cube1", mass_cfg)
 
     # spawn another prim
     sim_utils.create_prim("/World/cube2", prim_type="Cube", translation=(1.0, 1.0, 0.62))
     # set properties on the asset and check all properties are set
     schemas.define_rigid_body_properties("/World/cube2", rigid_cfg)
     schemas.define_collision_properties("/World/cube2", collision_cfg)
-    # validate the properties
-    _validate_rigid_body_properties_on_prim("/World/cube2", rigid_cfg)
-    _validate_collision_properties_on_prim("/World/cube2", collision_cfg)
 
-    # check if we can play
-    sim.reset()
-    for _ in range(100):
-        sim.step()
+    # the define_* functions apply the schemas they author
+    for prim_path, apis in (
+        ("/World/cube1", (UsdPhysics.RigidBodyAPI, UsdPhysics.CollisionAPI, UsdPhysics.MassAPI)),
+        ("/World/cube2", (UsdPhysics.RigidBodyAPI, UsdPhysics.CollisionAPI)),
+    ):
+        prim = sim.stage.GetPrimAtPath(prim_path)
+        for api in apis:
+            assert prim.HasAPI(api), f"{prim_path} is missing {api.__name__}"
+    # validate the properties; the validators inspect the children (collision: grandchildren) of the given prim
+    _validate_rigid_body_properties_on_prim("/World", rigid_cfg)
+    _validate_collision_properties_on_prim("/", collision_cfg)
+    _validate_mass_properties_on_prim("/World", mass_cfg)
 
 
 @pytest.mark.isaacsim_ci
@@ -925,24 +729,25 @@ def test_defining_articulation_properties_on_prim(setup_simulation):
     sim_utils.create_prim("/World/parent/child", prim_type="Cube", translation=(0.0, 0.0, 0.62))
     schemas.define_rigid_body_properties("/World/parent/child", rigid_cfg)
     schemas.define_mass_properties("/World/parent/child", mass_cfg)
-
-    # check if we can play
-    sim.reset()
-    for _ in range(100):
-        sim.step()
+    child_prim = sim.stage.GetPrimAtPath("/World/parent/child")
+    assert child_prim.HasAPI(UsdPhysics.RigidBodyAPI)
+    assert child_prim.HasAPI(UsdPhysics.MassAPI)
+    # validate the properties; the validators inspect the children of the given prim
+    _validate_rigid_body_properties_on_prim("/World/parent", rigid_cfg)
+    _validate_mass_properties_on_prim("/World/parent", mass_cfg)
 
 
 @pytest.mark.isaacsim_ci
 def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
-    """Test that multi-instance PhysX tendon schemas are correctly detected via substring matching.
+    """Test that multi-instance PhysX tendon schema tokens are recognized with their instance suffixes.
 
     Multi-instance schemas (e.g. PhysxTendonAxisAPI, PhysxTendonAxisRootAPI) appear in
     GetAppliedSchemas() as 'SchemaName:instanceName' (e.g. 'PhysxTendonAxisAPI:inst0').
     An exact ``in list`` check fails because 'PhysxTendonAxisAPI' != 'PhysxTendonAxisAPI:inst0'.
-    This test ensures the substring-based detection used by modify_joint_drive_properties
-    and modify_fixed_tendon_properties handles multi-instance schemas correctly.
+    This test ensures both the joint-drive skip predicate and the fixed-tendon writer handle
+    multiple-apply schema tokens correctly.
 
-    We call the unwrapped functions directly (via ``__wrapped__``) to bypass the
+    We call the unwrapped functions directly (via ``inspect.unwrap``) to bypass the
     ``@apply_nested`` decorator, which traverses children and does not return the
     inner function's bool result.
     """
@@ -950,8 +755,8 @@ def test_multi_instance_schema_detection_on_tendon_joints(setup_simulation):
     stage = sim_utils.get_current_stage()
 
     # unwrap to get the raw functions that return bool
-    _modify_joint_drive = schemas.modify_joint_drive_properties.__wrapped__
-    _modify_fixed_tendon = schemas.modify_fixed_tendon_properties.__wrapped__
+    _modify_joint_drive = inspect.unwrap(schemas.modify_joint_drive_properties)
+    _modify_fixed_tendon = inspect.unwrap(schemas.modify_fixed_tendon_properties)
 
     # -- set up two body prims connected by a revolute joint
     sim_utils.create_prim("/World/tendon_test", prim_type="Xform")

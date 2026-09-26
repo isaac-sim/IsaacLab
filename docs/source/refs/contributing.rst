@@ -9,7 +9,7 @@ Contribution Guidelines
    `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
    `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
-   :doc:`/source/overview/developer-guide/agent_skills`.
+   :doc:`/source/developer-tools/agent_skills`.
 
 We wholeheartedly welcome contributions to the project to make the framework more mature
 and useful for everyone. These may happen in forms of:
@@ -514,7 +514,7 @@ to avoid importing it:
    from __future__ import annotations
    import typing
 
-   from isaaclab.utils.configclass import configclass
+   from isaaclab.utils import configclass
 
    if typing.TYPE_CHECKING:
        from .sensor import Sensor
@@ -713,10 +713,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -726,10 +726,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -744,10 +744,10 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -758,11 +758,13 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
+All of these commands exit with a nonzero code when tests fail, so a test
+failure fails the invoking shell or CI step as well.
 
 Tools
 -----

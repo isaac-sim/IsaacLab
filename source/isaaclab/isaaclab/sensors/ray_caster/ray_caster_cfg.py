@@ -10,11 +10,10 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import RAY_CASTER_MARKER_CFG
+from ...sim.spawners.sensors.sensors_cfg import SensorFrameCfg
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
 

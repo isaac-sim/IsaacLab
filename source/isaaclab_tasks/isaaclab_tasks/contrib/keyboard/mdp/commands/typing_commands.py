@@ -28,9 +28,8 @@ from isaaclab.utils.math import (
     skew_symmetric_matrix,
 )
 
-from isaaclab_tasks.core.lift.mdp.events import SuccessMonitor
-from isaaclab_tasks.core.lift.mdp.events_cfg import SuccessMonitorCfg
 from isaaclab_tasks.core.lift.mdp.utils import get_reset_state, set_reset_state
+from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 from . import typing_vis
 
@@ -351,7 +350,7 @@ class LetterTypingCommand(CommandTerm):
             return
         if not self._buffer_built:
             self._build_buffer()
-        env_ids_t = torch.as_tensor(env_ids, device=self.device)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
         k = int(env_ids_t.numel())
         if k == 0:
             return
@@ -653,7 +652,7 @@ class LetterTypingCommand(CommandTerm):
         # instant success, and seed the typing metrics + progress water marks - one Warp thread per resetting
         # env, so the ragged fill reads as a per-thread loop instead of padded-matrix masking, with no sum(t)
         # host sync (see :func:`_resample_reset_kernel`). Non-ragged per-env bookkeeping stays in torch.
-        env_ids_t = torch.as_tensor(env_ids, device=self.device)
+        env_ids_t = self._env.scene._ALL_INDICES[env_ids]
         k = int(env_ids_t.numel())
         if k == 0:
             return
@@ -766,10 +765,9 @@ class LetterTypingCommand(CommandTerm):
         Runs only on episode reset (not on the mid-episode resampling timer), so the IK snap never
         teleports the arm while the agent is mid-word.
         """
-        if env_ids is None or isinstance(env_ids, slice):
-            ids = torch.arange(self.num_envs, device=self.device)
-        else:
-            ids = torch.as_tensor(env_ids, device=self.device)
+        if env_ids is None:
+            env_ids = slice(None)
+        ids = self._env.scene._ALL_INDICES[env_ids]
 
         # Terminal success (read BEFORE super().reset() resamples the word) of the ending episodes, plus the
         # STARTING distance-to-success each began at (captured at its previous reset).
@@ -952,7 +950,7 @@ class LetterTypingCommand(CommandTerm):
         position, so it need not be exactly reachable on the 5-DoF arm.
 
         Args:
-            ee_quat_w: Current moving-jaw link orientation (w, x, y, z), shape ``(num_envs, 4)``.
+            ee_quat_w: Current moving-jaw link orientation (x, y, z, w), shape ``(num_envs, 4)``.
         """
         finger = quat_apply(ee_quat_w, self._ik_finger_axis)  # current finger axis in world
         heading = finger[:, :2] / torch.linalg.norm(finger[:, :2], dim=-1, keepdim=True).clamp_min(1.0e-6)

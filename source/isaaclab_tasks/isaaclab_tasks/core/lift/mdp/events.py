@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Event terms for the lift tasks."""
+"""Event terms for the lift environments."""
 
 from __future__ import annotations
 
@@ -63,7 +63,7 @@ def reset_joints_shared_offset(
     asset = env.scene[asset_cfg.name]
     default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
     limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids]
-    offset = sample_uniform(position_range[0], position_range[1], (len(env_ids), 1), device=default.device)
+    offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
     asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(
@@ -82,7 +82,7 @@ def reset_cable_state_uniform(
     segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
     segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
     ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=asset.device)
+    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (segment_pose.shape[0], 3), device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
     asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
     asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
@@ -121,6 +121,7 @@ def reset_to_target(
         target_cfg: Target body (e.g. the gripper palm) to spawn the asset at.
         asset_cfg: The asset to reset.
     """
+    env_ids = env.scene._ALL_INDICES[env_ids]
     picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
     if len(picked) == 0:
         return
@@ -249,8 +250,8 @@ class conditional_reset(ManagerTermBase):
 
         if not self._prefilled:
             # envs sharing a clone-mask column are clones of the same unique asset combination
-            mask = env.scene.clone_plan.clone_mask.to(device=env.device, dtype=torch.uint8)
-            self._group = torch.unique(mask.T, dim=0, return_inverse=True)[1]
+            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
             harvest_size = buffer_size_per_group
@@ -327,7 +328,7 @@ class conditional_reset(ManagerTermBase):
         groups = self._group[env_ids]
         if self._monitor is None:
             # ``rand * fill`` floors to a uniform draw in ``[0, fill)``.
-            donor = (torch.rand(len(env_ids), device=env_ids.device) * self._fill[groups]).long()
+            donor = (torch.rand(groups.shape[0], device=env.device) * self._fill[groups]).long()
             rows = groups * buffer_size_per_group + donor
         else:
             # credit before drawing: the outcome belongs to the row these environments were playing
@@ -431,7 +432,7 @@ class grasp_travel_distance(ManagerTermBase):
         body_pos = self._robot.data.body_pos_w.torch[env_ids][:, self._body_ids]
         grasp = torch.linalg.norm(body_pos - object_pos[:, None, :], dim=-1).amax(dim=-1, keepdim=True)
         goal_pos = self._robot.data.root_pos_w.torch[env_ids] + quat_apply(
-            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(len(env_ids), 3)
+            self._robot.data.root_quat_w.torch[env_ids], self._goal_center_b.expand(object_pos.shape[0], 3)
         )
         travel = torch.linalg.norm(goal_pos - object_pos, dim=-1, keepdim=True)
         feature = torch.cat([grasp, travel], dim=-1)
@@ -580,7 +581,7 @@ class mesh_clearance(ManagerTermBase):
     Reset draws can place the object overlapping the arm; the solver resolves the overlap
     ballistically at episode birth. Checks both the object's surface point cloud against the
     robot's collision meshes and the robot's collision vertices against the object's collision
-    mesh with Warp signed-distance queries — the winding-number sign catches full containment.
+    mesh with Warp signed-distance queries; the winding-number sign catches full containment.
 
     The object point cloud comes from the same sampler as the point-cloud observation (per
     clone-plan prototype, geometry-keyed cache), so with the default count the cloud is
@@ -674,6 +675,7 @@ class mesh_clearance(ManagerTermBase):
         self._max_dist = max(4.0 * cfg.min_clearance, 0.15)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         wp.launch(
@@ -759,6 +761,7 @@ class slab_clearance(ManagerTermBase):
         self._env_origins = wp.from_torch(env.scene.env_origins.contiguous(), dtype=wp.vec3)
 
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor) -> torch.Tensor:
+        env_ids = env.scene._ALL_INDICES[env_ids]
         num = len(env_ids)
         out_min = wp.full(num, 1.0e6, dtype=wp.float32, device=env.device)
         ids = wp.from_torch(env_ids.to(torch.int32).contiguous())
@@ -817,7 +820,8 @@ def reset_deformable_over_support(
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
     ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (len(env_ids), 3), device=deformable.device)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 3), device=deformable.device)
 
     nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
     nodal_state[..., :3] += offset.unsqueeze(1)
@@ -828,7 +832,7 @@ def reset_deformable_over_support(
         root_pose[:, :3] += env.scene.env_origins[env_ids]
         root_pose[:, :2] += offset[:, :2]
 
-    gap = sample_uniform(*clear_gap_range, (len(env_ids),), device=supports[0].device)
+    gap = sample_uniform(*clear_gap_range, (num_envs,), device=supports[0].device)
     center_y = 0.5 * (root_poses[0][:, 1] + root_poses[1][:, 1])
     thickness_neg = supports[0].cfg.spawn.size[1]
     thickness_pos = supports[1].cfg.spawn.size[1]

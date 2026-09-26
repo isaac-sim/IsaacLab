@@ -71,7 +71,7 @@ def reset_obstacles_with_individual_ranges(
     obstacles: RigidObjectCollection = env.scene[asset_cfg.name]
 
     num_objects = obstacles.num_objects
-    num_envs = len(env_ids)
+    num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     object_names = obstacles.object_names
 
     # Get difficulty levels per environment
@@ -168,7 +168,7 @@ def reset_obstacles_with_individual_ranges(
 
         # Add env origins
         active_env_indices = torch.where(envs_need_obstacle)[0]
-        positions += env.scene.env_origins[env_ids[active_env_indices]]
+        positions += env.scene.env_origins[env_ids][active_env_indices]
 
         # Generate quaternions
         quats = math_utils.random_orientation(num_envs, device=env.device)
@@ -179,7 +179,7 @@ def reset_obstacles_with_individual_ranges(
 
         # Move inactive obstacles far away
         inactive = ~envs_need_obstacle
-        all_poses[inactive, obj_idx, 0:3] = env.scene.env_origins[env_ids[inactive]] + torch.tensor(
+        all_poses[inactive, obj_idx, 0:3] = env.scene.env_origins[env_ids][inactive] + torch.tensor(
             [0.0, 0.0, -1000.0], device=env.device
         )
         all_poses[inactive, obj_idx, 3:7] = torch.tensor([1.0, 0.0, 0.0, 0.0], device=env.device)

@@ -12,15 +12,13 @@ import re
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-
+from ... import cloner
+from ..simulation_context import SimulationContext
 from .stage import get_current_stage
 
 if TYPE_CHECKING:
     from pxr import Sdf, Usd, UsdPhysics  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 _CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
@@ -128,31 +126,22 @@ def get_first_matching_ancestor_prim(
     Raises:
         ValueError: If the prim path is not global (i.e: does not start with '/').
     """
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
 
     # walk up to find the first matching ancestor prim
     ancestor_prim = prim
     while ancestor_prim and ancestor_prim.IsValid():
-        # check if prim passes predicate
         if predicate(ancestor_prim):
             return ancestor_prim
-        # get parent prim
         ancestor_prim = ancestor_prim.GetParent()
-
-    # If no ancestor prim passes the predicate, return None
     return None
 
 
@@ -192,18 +181,13 @@ def get_first_matching_child_prim(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
     # iterate over all prims under prim-path
@@ -211,10 +195,8 @@ def get_first_matching_child_prim(
     while len(all_prims) > 0:
         # get current prim
         child_prim = all_prims.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             return child_prim
-        # add children to list
         if traverse_instance_prims:
             all_prims += child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
         else:
@@ -266,21 +248,15 @@ def get_all_matching_child_prims(
     """
     from pxr import Usd  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
-    # make paths str type if they aren't already
     prim_path = str(prim_path)
-    # check if prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-    # get prim
     prim = stage.GetPrimAtPath(prim_path)
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")
-    # check if depth is valid
     if depth is not None and depth <= 0:
         raise ValueError(f"Depth must be bigger than zero, got {depth}.")
     if expected_num_matches is not None and expected_num_matches < 0:
@@ -293,17 +269,13 @@ def get_all_matching_child_prims(
     while len(all_prims_queue) > 0:
         # get current prim
         child_prim, current_depth = all_prims_queue.pop(0)
-        # check if prim passes predicate
         if predicate(child_prim):
             output_prims.append(child_prim)
-        # add children to list
         if depth is None or current_depth < depth:
-            # resolve prims under the current prim
             if traverse_instance_prims:
                 children = child_prim.GetFilteredChildren(Usd.TraverseInstanceProxies())
             else:
                 children = child_prim.GetChildren()
-            # add children to list
             all_prims_queue += [(child, current_depth + 1) for child in children]
 
     if expected_num_matches is not None and len(output_prims) != expected_num_matches:
@@ -419,12 +391,14 @@ def resolve_matching_prims_from_source(
     """Resolve matching prims from a single(source) instance when multiple instances are present.
 
     The returned prims come from the stage source instance, while each destination expression
-    keeps the multi-instance pattern that callers can pass to simulation views.
+    keeps the multi-instance pattern that callers can pass to simulation views. Each source
+    prim appears once, in first-match order, even when matching ancestor subtrees overlap.
+    Uniqueness is resolved here before counting matches, rather than by individual callers.
 
     Args:
         path_expr: Prim path expression to resolve. It may contain regex wildcards.
         predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
-        expected_num_matches: Optional exact result count.
+        expected_num_matches: Optional exact count of unique source prims.
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
@@ -486,13 +460,16 @@ def resolve_matching_prims_from_source(
                 or prim.GetPath().pathString.startswith(instance_root + "/")
             ]
     if predicate is not None:
-        results = [
-            (child, dest + child.GetPath().pathString[len(source.GetPath().pathString) :])
-            for source, dest in results
+        # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
+        unique_matches = {}
+        for source, dest in results:
+            source_path = source.GetPath().pathString
             for child in get_all_matching_child_prims(
                 source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
-            )
-        ]
+            ):
+                child_path = child.GetPath().pathString
+                unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
+        results = list(unique_matches.values())
 
     if expected_num_matches is not None and len(results) != expected_num_matches:
         raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")
@@ -544,15 +521,13 @@ def find_global_fixed_joint_prim(
     """
     from pxr import Usd, UsdPhysics  # noqa: PLC0415
 
-    # get stage handle
     if stage is None:
         stage = get_current_stage()
 
+    prim_path = str(prim_path)
     # check prim path is global
     if not prim_path.startswith("/"):
         raise ValueError(f"Prim path '{prim_path}' is not global. It must start with '/'.")
-
-    # check if prim exists
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim_path}' is not valid.")

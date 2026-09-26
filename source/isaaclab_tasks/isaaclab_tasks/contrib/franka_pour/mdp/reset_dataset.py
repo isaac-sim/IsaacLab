@@ -15,7 +15,7 @@ import torch
 from isaaclab.managers import CurriculumTermCfg
 from isaaclab.managers.manager_base import ManagerTermBase
 
-from ..reset_sampler import ResetDatasetSamplerCfg, _ResetDatasetSampler
+from ..reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
 if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
@@ -42,7 +42,7 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         sampler_cfg = env.cfg.reset_dataset_sampler.copy()
         if not isinstance(sampler_cfg, ResetDatasetSamplerCfg):
             raise TypeError("reset_dataset_sampler must be ResetDatasetSamplerCfg.")
-        self._sampler = _ResetDatasetSampler(self._row_count, self._device, sampler_cfg)
+        self._sampler = ResetDatasetSampler(self._row_count, self._device, sampler_cfg)
 
         self._frozen_rows = torch.arange(self._row_count, device=self._device, dtype=torch.long)
         top_grasp_count = env.cfg.reset_dataset_top_grasp_count
@@ -63,49 +63,38 @@ class PourResetDatasetCurriculum(ManagerTermBase):
         self._local_metrics_refresh_interval = max(1, env.num_envs)
         self._refresh_metrics_cache()
 
-    @staticmethod
-    def _env_ids(
-        env: FrankaPourEnv,
-        env_ids: Sequence[int] | torch.Tensor | slice,
-    ) -> torch.Tensor:
-        """Normalize manager-provided environment IDs on the simulation device."""
-        if isinstance(env_ids, slice):
-            return torch.arange(env.num_envs, device=env.device, dtype=torch.long)[env_ids]
-        return torch.as_tensor(env_ids, device=env.device, dtype=torch.long).flatten()
-
     def __call__(
         self,
         env: FrankaPourEnv,
         env_ids: Sequence[int] | torch.Tensor | slice,
     ) -> dict[str, float]:
         """Record completed episodes and assign the next reset rows."""
-        ids = self._env_ids(env, env_ids)
-        if ids.numel() == 0:
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
             return self._metrics(env)
 
-        completed = (env.episode_length_buf[ids] > 0) & (env.reset_dataset_row_id[ids] >= 0)
-        completed_ids = ids[completed]
-        if completed_ids.numel() > 0 and not env.cfg.curriculum_freeze:
-            progress = env.termination_manager.get_term_cfg("learning_progress_context").func
-            rows = env.reset_dataset_row_id[completed_ids]
-            local_progress = progress.ever_success[completed_ids]
-            self._apply_outcomes(rows, local_progress)
+        completed = (env.episode_length_buf[env_ids] > 0) & (env.reset_dataset_row_id[env_ids] >= 0)
+        if not env.cfg.curriculum_freeze:
+            rows = env.reset_dataset_row_id[env_ids][completed]
+            if rows.numel() > 0:
+                progress = env.termination_manager.get_term_cfg("learning_progress_context").func
+                self._apply_outcomes(rows, progress.ever_success[env_ids][completed])
 
         if env.cfg.curriculum_freeze:
-            slots = torch.randint(self._frozen_rows.numel(), (ids.numel(),), device=self._device)
+            slots = torch.randint(self._frozen_rows.numel(), (num_envs,), device=self._device)
             rows = self._frozen_rows[slots]
         elif self._sampling_mode == "uniform":
-            rows = torch.randint(self._row_count, (ids.numel(),), device=self._device)
+            rows = torch.randint(self._row_count, (num_envs,), device=self._device)
         else:
-            rows = self._sampler._sample_with_uniform_replay(ids.numel())
-            if rows.shape != ids.shape or rows.dtype != torch.long:
+            rows = self._sampler._sample_with_uniform_replay(num_envs)
+            if rows.shape != (num_envs,) or rows.dtype != torch.long:
                 raise RuntimeError("Adaptive sampler returned invalid reset-row IDs.")
 
-        env.reset_dataset_row_id[ids] = rows
-        env.pour_target_frac[ids] = float(env.cfg.pour_target_frac)
+        env.reset_dataset_row_id[env_ids] = rows
+        env.pour_target_frac[env_ids] = float(env.cfg.pour_target_frac)
 
         if not env.cfg.curriculum_freeze:
-            self._local_reset_assignments_since_metrics += int(ids.numel())
+            self._local_reset_assignments_since_metrics += num_envs
             if self._local_reset_assignments_since_metrics >= self._local_metrics_refresh_interval:
                 self._refresh_metrics_cache()
         return self._metrics(env)

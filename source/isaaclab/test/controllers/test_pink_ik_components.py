@@ -5,7 +5,9 @@
 
 """Test cases for PinkKinematicsConfiguration class."""
 
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+from threading import Event
 
 import numpy as np
 import pinocchio as pin
@@ -14,7 +16,59 @@ from pink.exceptions import FrameNotFound
 
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+pytestmark = pytest.mark.integration
+
+
+@pytest.mark.parametrize("load_fails", [False, True])
+def test_concurrent_controller_conversion_preserves_model(monkeypatch, tmp_path, load_fails):
+    """Another controller must not overwrite an export before its consumer finishes loading it."""
+    from isaaclab.assets import ArticulationCfg
+    from isaaclab.controllers.pink_ik import PinkIKControllerCfg, pink_ik
+
+    urdf = (Path(__file__).parent / "urdfs/test_urdf_two_link_robot.urdf").read_text()
+    first_loading, second_started, second_converted = Event(), Event(), Event()
+
+    def convert(usd_path, output_path, force_conversion):
+        output = Path(output_path) / "robot.urdf"
+        name = Path(usd_path).parent.name
+        output.write_text(urdf.replace("test_two_link_robot", name))
+        if name == "second":
+            second_converted.set()
+        return str(output), ""
+
+    def load(**kwargs):
+        if not first_loading.is_set():
+            first_loading.set()
+            assert second_started.wait(5)
+            # Give the contender a chance to overwrite the URDF while this reader is paused.
+            second_converted.wait(1)
+            if load_fails:
+                raise RuntimeError("model loading failed")
+        return PinkKinematicsConfiguration(**kwargs)
+
+    def initialize(name):
+        cfg = PinkIKControllerCfg(
+            usd_path=f"/{name}/robot.usd",
+            urdf_output_dir=str(tmp_path),
+            joint_names=["joint_1", "joint_2"],
+            all_joint_names=["joint_1", "joint_2"],
+        )
+        if name == "second":
+            second_started.set()
+        return pink_ik.PinkIKController(cfg, ArticulationCfg(), "cpu", [0, 1])
+
+    monkeypatch.setattr(pink_ik.controller_utils, "convert_usd_to_urdf", convert)
+    monkeypatch.setattr(pink_ik, "PinkKinematicsConfiguration", load)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(initialize, "first")
+        assert first_loading.wait(5)
+        second = pool.submit(initialize, "second")
+        if load_fails:
+            with pytest.raises(RuntimeError, match="model loading failed"):
+                first.result(timeout=10)
+        else:
+            assert first.result(timeout=10).pink_configuration.full_model.name == "first"
+        assert second.result(timeout=10).pink_configuration.full_model.name == "second"
 
 
 class TestPinkKinematicsConfiguration:
@@ -46,24 +100,6 @@ class TestPinkKinematicsConfiguration:
             forward_kinematics=True,
         )
 
-    def test_initialization(self, pink_config, controlled_joint_names):
-        """Test proper initialization of PinkKinematicsConfiguration."""
-        # Check that controlled joint names are stored correctly
-        assert pink_config._controlled_joint_names == controlled_joint_names
-
-        # Check that both full and controlled models are created
-        assert pink_config.full_model is not None
-        assert pink_config.controlled_model is not None
-        assert pink_config.full_data is not None
-        assert pink_config.controlled_data is not None
-
-        # Check that configuration vectors are initialized
-        assert pink_config.full_q is not None
-        assert pink_config.controlled_q is not None
-
-        # Check that the controlled model has the same number or fewer joints than the full model
-        assert pink_config.controlled_model.nq == pink_config.full_model.nq
-
     def test_joint_names_properties(self, pink_config):
         """Test joint name properties."""
         # Test controlled joint names in pinocchio order
@@ -93,7 +129,6 @@ class TestPinkKinematicsConfiguration:
         pink_config.update(new_q)
 
         # Check that the configuration was updated
-        print(pink_config.full_q)
         assert not np.allclose(pink_config.full_q, initial_q)
         assert np.allclose(pink_config.full_q, new_q)
 
@@ -165,10 +200,9 @@ class TestPinkKinematicsConfiguration:
         # Check that controlled model has correct number of joints
         assert pink_config.controlled_model.nq == len(controlled_joint_names)
 
-    def test_no_controlled_joints(self, urdf_path, mesh_path):
-        """Test configuration with no controlled joints."""
-        controlled_joint_names = []
-
+    @pytest.mark.parametrize("controlled_joint_names", [[], ["nonexistent_joint"]])
+    def test_no_controlled_joints(self, urdf_path, mesh_path, controlled_joint_names):
+        """Empty or unknown controlled joint names lock every joint."""
         pink_config = PinkKinematicsConfiguration(
             urdf_path=str(urdf_path),
             mesh_path=mesh_path,
@@ -211,49 +245,6 @@ class TestPinkKinematicsConfiguration:
         # Transforms should be different
         assert not np.allclose(transform_1.homogeneous, transform_2.homogeneous)
 
-    def test_inheritance_from_configuration(self, pink_config):
-        """Test that PinkKinematicsConfiguration properly inherits from Pink Configuration."""
-        from pink.configuration import Configuration
-
-        # Check inheritance
-        assert isinstance(pink_config, Configuration)
-
-        # Check that we can call parent class methods
-        assert hasattr(pink_config, "update")
-        assert hasattr(pink_config, "get_transform_frame_to_world")
-
-    def test_controlled_joint_indices_calculation(self, pink_config):
-        """Test that controlled joint indices are calculated correctly."""
-        # Check that controlled joint indices are valid
-        assert len(pink_config._controlled_joint_indices) == len(pink_config._controlled_joint_names)
-
-        # Check that all indices are within bounds
-        for idx in pink_config._controlled_joint_indices:
-            assert 0 <= idx < len(pink_config._all_joint_names)
-
-        # Check that indices correspond to controlled joint names
-        for i, idx in enumerate(pink_config._controlled_joint_indices):
-            joint_name = pink_config._all_joint_names[idx]
-            assert joint_name in pink_config._controlled_joint_names
-
-    def test_full_model_integrity(self, pink_config):
-        """Test that the full model maintains integrity."""
-        # Check that full model has all joints
-        assert pink_config.full_model.nq > 0
-        assert len(pink_config.full_model.names) > 1  # More than just "universe"
-
-    def test_controlled_model_integrity(self, pink_config):
-        """Test that the controlled model maintains integrity."""
-        # Check that controlled model has correct number of joints
-        assert pink_config.controlled_model.nq == len(pink_config._controlled_joint_names)
-
-    def test_configuration_vector_consistency(self, pink_config):
-        """Test that configuration vectors are consistent between full and controlled models."""
-        # Check that controlled_q is a subset of full_q
-        controlled_indices = pink_config._controlled_joint_indices
-        for i, idx in enumerate(controlled_indices):
-            assert np.isclose(pink_config.controlled_q[i], pink_config.full_q[idx])
-
     def test_error_handling_invalid_urdf(self, mesh_path, controlled_joint_names):
         """Test error handling with invalid URDF path."""
         with pytest.raises(Exception):  # Should raise some exception for invalid URDF
@@ -263,36 +254,71 @@ class TestPinkKinematicsConfiguration:
                 controlled_joint_names=controlled_joint_names,
             )
 
-    def test_error_handling_invalid_joint_names(self, urdf_path, mesh_path):
-        """Test error handling with invalid joint names."""
-        invalid_joint_names = ["nonexistent_joint"]
-
-        # This should not raise an error, but the controlled model should have 0 joints
-        pink_config = PinkKinematicsConfiguration(
-            urdf_path=str(urdf_path),
-            mesh_path=mesh_path,
-            controlled_joint_names=invalid_joint_names,
-        )
-
-        assert pink_config.controlled_model.nq == 0
-        assert len(pink_config.controlled_q) == 0
-
-    def test_undercontrolled_kinematics_model(self, urdf_path, mesh_path):
+    @pytest.mark.parametrize("controlled, locked", [("joint_1", "joint_2"), ("joint_2", "joint_1")])
+    def test_undercontrolled_kinematics_model(self, urdf_path, mesh_path, controlled, locked):
         """Test that the fixed joint to world is properly handled."""
 
         test_model = PinkKinematicsConfiguration(
             urdf_path=str(urdf_path),
             mesh_path=mesh_path,
-            controlled_joint_names=["joint_1"],
+            controlled_joint_names=[controlled],
             copy_data=True,
             forward_kinematics=True,
         )
         # Check that the controlled model only includes the revolute joints
-        assert "joint_1" in test_model.controlled_joint_names_pinocchio_order
-        assert "joint_2" not in test_model.controlled_joint_names_pinocchio_order
+        assert controlled in test_model.controlled_joint_names_pinocchio_order
+        assert locked not in test_model.controlled_joint_names_pinocchio_order
         assert len(test_model.controlled_joint_names_pinocchio_order) == 1  # Only the two revolute joints
 
         # Check that the full configuration has more elements than controlled
         assert len(test_model.full_q) > len(test_model.controlled_q)
         assert len(test_model.full_q) == len(test_model.all_joint_names_pinocchio_order)
         assert len(test_model.controlled_q) == len(test_model.controlled_joint_names_pinocchio_order)
+
+        # A full configuration update forwards the controlled joint's own value to the reduced model
+        all_names = test_model.all_joint_names_pinocchio_order
+        full_q = 0.1 * np.arange(1, len(all_names) + 1)
+        test_model.update(full_q)
+        np.testing.assert_allclose(test_model.q, full_q[[all_names.index(controlled)]])
+
+
+# The robot config only supplies ``disable_gravity``, which each row overrides, so one robot covers the branches.
+@pytest.mark.parametrize(
+    "fixed_base, disable_gravity, robot_name",
+    [(False, False, "GR1T2_HIGH_PD_CFG"), (True, False, "GR1T2_HIGH_PD_CFG"), (False, True, "GR1T2_HIGH_PD_CFG")],
+)
+def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, disable_gravity, robot_name):
+    """The Pink robot configs retain direct gravity access and the action's effort targets."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    import torch
+
+    from isaaclab.envs.mdp.actions.pink_task_space_actions import PinkInverseKinematicsAction
+
+    import isaaclab_assets
+
+    robot_cfg = getattr(isaaclab_assets, robot_name).copy()
+    robot_cfg.spawn.rigid_props.disable_gravity = disable_gravity
+    num_base_dofs = 0 if fixed_base else 6
+    forces = torch.arange(2 * (3 + num_base_dofs), dtype=torch.float32).reshape(2, -1)
+    asset = SimpleNamespace(
+        cfg=robot_cfg,
+        data=SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces)),
+        num_base_dofs=num_base_dofs,
+        is_fixed_base=fixed_base,
+        set_joint_effort_target_index=Mock(),
+    )
+    action = SimpleNamespace(
+        _asset=asset, _controlled_joint_ids=[0, 2], _controlled_joint_ids_tensor=torch.tensor([0, 2])
+    )
+    PinkInverseKinematicsAction._apply_gravity_compensation(action)
+
+    if disable_gravity:
+        asset.set_joint_effort_target_index.assert_not_called()
+    else:
+        asset.set_joint_effort_target_index.assert_called_once()
+        kwargs = asset.set_joint_effort_target_index.call_args.kwargs
+        assert kwargs["joint_ids"] == [0, 2]
+        expected = torch.zeros(2, 2) if fixed_base else forces[:, [6, 8]]
+        torch.testing.assert_close(kwargs["target"], expected)

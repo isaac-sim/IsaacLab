@@ -18,10 +18,9 @@ from urllib.parse import urlparse
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from isaaclab.managers import ManagerBase
-    from isaaclab.renderers.base_renderer import VisualMaterialBatch
-    from isaaclab.scene_data import SceneDataProvider
-
+    from ..managers import ManagerBase
+    from ..renderers.base_renderer import VisualMaterialBatch
+    from ..scene_data import SceneDataProvider
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -153,8 +152,11 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         try:
-            from isaaclab.utils.backend_utils import FactoryBase
+            from ..sim.simulation_context import SimulationContext
+            from ..utils.backend_utils import FactoryBase
 
+            if SimulationContext.instance() is None:
+                return None
             return FactoryBase._get_backend()
         except Exception:
             return None
@@ -206,7 +208,7 @@ class BaseVisualizer(ABC):
 
         if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
             return
-        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
+        from ..ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 
         # Scalar groups (e.g. episode metrics) are placed first so they appear at
         # the top of every visualizer's plot list regardless of backend ordering.
@@ -405,7 +407,7 @@ class BaseVisualizer(ABC):
         """
         import torch
 
-        from isaaclab.utils.math import quat_apply
+        from ..utils.math import quat_apply
 
         quat = torch.tensor(quat_xyzw, dtype=torch.float32).unsqueeze(0)
         vector = torch.tensor(vec, dtype=torch.float32).unsqueeze(0)

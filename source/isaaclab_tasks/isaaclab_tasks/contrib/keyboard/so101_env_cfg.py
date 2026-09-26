@@ -5,10 +5,8 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
-from isaaclab_physx.sim.schemas import PhysxArticulationRootPropertiesCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -22,15 +20,20 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 
 from . import mdp
 from .keyboards import TYPING_KEYBOARD_POOL
+
+##
+# Pre-defined configs
+##
+from isaaclab_assets.robots.so101 import SO101_CFG  # isort: skip
 
 
 @configclass
@@ -64,23 +67,19 @@ class KeyboardAssetCfg(PresetCfg):
         spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
     )
     isaacsim_physx = default
+    physx = default
+    default = newton_mjwarp
 
 
 @configclass
 class SO101SceneCfg(InteractiveSceneCfg):
     """SO-101 keyboard-typing scene."""
 
-    # The checkpoint requires this converted asset's backend payload and authored drives.
-    robot: ArticulationCfg = ArticulationCfg(
+    robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.UsdFileCfg(
-            usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/SO101/so101.usda",
-            copy_from_source=False,
-            collision_props=sim_utils.UsdPhysicsMeshCollisionCfg(mesh_approximation_name="convexHull"),
-            activate_contact_sensors=True,
-            articulation_props=PhysxArticulationRootPropertiesCfg(enabled_self_collisions=True),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(
+        # Face the keyboard at +X and retain the task's original reset-IK seed.
+        init_state=SO101_CFG.init_state.replace(
+            rot=(0.0, 0.0, 2**-0.5, 2**-0.5),
             joint_pos={
                 "shoulder_pan": 0.0,
                 "shoulder_lift": 0.0,
@@ -90,18 +89,18 @@ class SO101SceneCfg(InteractiveSceneCfg):
                 "gripper": 0.0,
             },
         ),
-        actuators={
-            # Resolve the converted asset's backend-authored drive gains and effort limits.
-            "all": ImplicitActuatorCfg(
-                joint_names_expr=[".*"],
-                stiffness=None,
-                damping=None,
-                armature=0.028,
-                effort_limit_sim=None,
-                velocity_limit_sim=5.0,
-            ),
-        },
-        soft_joint_pos_limit_factor=1.0,
+        spawn=SO101_CFG.spawn.replace(
+            variants={
+                "Robot": "robot",
+                "Sensor": "sensors",
+                "Physics": preset(
+                    default="physics",
+                    isaacsim_physx="physx",
+                    physx="physx",
+                    newton_mjwarp="physics",
+                ),
+            }
+        ),
     )
 
     # keyboard
@@ -312,7 +311,7 @@ class PhysicsCfg(PresetCfg):
         debug_mode=False,
     )
     physx = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
-    default = isaacsim_physx
+    default = newton_mjwarp
 
 
 @configclass

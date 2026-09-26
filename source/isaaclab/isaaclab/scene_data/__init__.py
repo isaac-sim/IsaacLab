@@ -17,6 +17,6 @@ physics backends (``isaaclab_physx``, ``isaaclab_newton``) can subclass
 ``AppLauncher`` pre-launch import chain.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

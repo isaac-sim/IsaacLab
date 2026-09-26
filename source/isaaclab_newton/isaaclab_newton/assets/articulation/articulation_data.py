@@ -22,6 +22,10 @@ from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
+from isaaclab_newton.assets.articulation.joint_coordinates import (
+    build_ball_joint_coordinate_map,
+    gather_joint_coordinates,
+)
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
@@ -36,6 +40,30 @@ _LAZY_CAPTURE_REASON = (
     "root_com_vel_w, body_link_pose_w, body_com_vel_w, joint_pos, joint_vel) and "
     "inline the computation in your warp kernel.  See GRAPH_CAPTURE_MIGRATION.md."
 )
+
+
+# Shared tendon properties that Isaac Lab's Newton backend does not implement.
+_UNSUPPORTED_FIXED_TENDON_PROPERTIES = {
+    "limit_stiffness": (
+        "the tendon path has no force-gain conversion for MuJoCo solreflimit/solimplimit; "
+        "Newton already provides such a conversion for joint limits"
+    ),
+    "rest_length": (
+        "Isaac Lab does not expose MuJoCo springlength through this property, and Newton's SolverMuJoCo "
+        "does not propagate springlength changes in its runtime tendon update"
+    ),
+    "offset": (
+        "MuJoCo has no equivalent length-offset field; Isaac Lab does not implement a mapping that "
+        "preserves the PhysX spring and limit behavior"
+    ),
+}
+
+
+def _unsupported_fixed_tendon_property(name: str) -> NotImplementedError:
+    """Explain an unimplemented shared property without implying that Newton lacks tendons."""
+    reason = _UNSUPPORTED_FIXED_TENDON_PROPERTIES[name]
+    label = name.replace("_", " ")
+    return NotImplementedError(f"Fixed tendon {label} is not implemented in Isaac Lab's Newton backend: {reason}.")
 
 
 class ArticulationData(BaseArticulationData):
@@ -54,6 +82,9 @@ class ArticulationData(BaseArticulationData):
 
     Depending on the settings, the two frames may not coincide with each other. In the robotics sense, the actor frame
     can be interpreted as the link frame.
+
+    Jacobian, mass-matrix, and gravity-force buffers are allocated on first access and retained.
+    With CUDA memory pools disabled, access these quantities before capturing a graph.
     """
 
     __backend_name__: str = "newton"
@@ -533,6 +564,9 @@ class ArticulationData(BaseArticulationData):
     def fixed_tendon_damping(self) -> ProxyArray:
         """Fixed tendon damping provided to the simulation.
 
+        MuJoCo uses this for passive tendon damping. Its limit response uses separate ``solreflimit``
+        parameters; PhysX's tendon damping parameter also affects its limit response.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
@@ -542,34 +576,46 @@ class ArticulationData(BaseArticulationData):
     def fixed_tendon_limit_stiffness(self) -> ProxyArray:
         """Fixed tendon limit stiffness provided to the simulation.
 
+        Not implemented in this backend. MuJoCo's ``solreflimit`` supports stiffness/damping, but
+        force gains require an inverse-inertia and impedance conversion. Newton already applies
+        this conversion to joint limits; the tendon path does not yet implement it.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("limit_stiffness")
 
     @property
     def fixed_tendon_rest_length(self) -> ProxyArray:
         """Fixed tendon rest length provided to the simulation.
 
+        Not exposed by this backend. MuJoCo has ``springlength``, but Newton's runtime tendon update
+        does not propagate changes to it.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("rest_length")
 
     @property
     def fixed_tendon_offset(self) -> ProxyArray:
         """Fixed tendon offset provided to the simulation.
 
+        Not implemented in this backend. Preserving a PhysX accumulated-length offset would require
+        coordinated changes to MuJoCo's spring reference and limit range.
+
         Shape is (num_instances, num_fixed_tendons), dtype = wp.float32. In torch this resolves to
         (num_instances, num_fixed_tendons).
         """
-        raise NotImplementedError
+        raise _unsupported_fixed_tendon_property("offset")
 
     @property
     def fixed_tendon_pos_limits(self) -> ProxyArray:
         """Fixed tendon position limits provided to the simulation.
 
-        Shape is (num_instances, num_fixed_tendons, 2), dtype = wp.vec2f. In torch this resolves to
+        MuJoCo enforces this range only for tendons whose limits were enabled in the model.
+
+        Shape is (num_instances, num_fixed_tendons), dtype = wp.vec2f. In torch this resolves to
         (num_instances, num_fixed_tendons, 2).
         """
         return self._fixed_tendon_pos_limits_ta
@@ -889,6 +935,12 @@ class ArticulationData(BaseArticulationData):
         # Newton's eval_jacobian reads ``state.body_q`` (link poses); refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
+        self._create_jacobian_buffers()
+        if self._body_com_jacobian_w_ta is None:
+            num_bodies = self._num_bodies - self._jacobian_link_offset
+            shape = (self._num_instances, num_bodies, 6, self._num_joints + self._num_base_dofs)
+            self._body_com_jacobian_w_ta = ProxyArray(wp.empty(shape, dtype=wp.float32, device=self.device))
+        jacobian = self._body_com_jacobian_w_ta.warp
         # eval_jacobian writes every articulation in the model; gather kernel extracts this
         # view's rows. ``link_offset`` skips Newton's fixed-root row for fixed-base; the DoF
         # axis is preserved in full (free-root joint's 6 columns up front for floating-base),
@@ -902,7 +954,7 @@ class ArticulationData(BaseArticulationData):
         self._read_launch_cache.launch(
             "body_com_jacobian_w",
             articulation_kernels.gather_jacobian_rows,
-            dim=self._body_com_jacobian_w_buf.shape,
+            dim=jacobian.shape,
             inputs=[
                 self._jacobian_buf,
                 self._jacobian_view_art_ids,
@@ -911,7 +963,7 @@ class ArticulationData(BaseArticulationData):
                 self._num_base_dofs,
                 joint_ordering is not None,
             ],
-            outputs=[self._body_com_jacobian_w_buf],
+            outputs=[jacobian],
         )
         return self._body_com_jacobian_w_ta
 
@@ -928,17 +980,20 @@ class ArticulationData(BaseArticulationData):
         # kernel from using stale link rotations during reset / IK-warm-start paths.
         link_pose_w = self.body_link_pose_w.warp
         com_jac = self.body_com_jacobian_w
+        if self._body_link_jacobian_w_ta is None:
+            self._body_link_jacobian_w_ta = ProxyArray(wp.empty_like(com_jac.warp))
+        jacobian = self._body_link_jacobian_w_ta.warp
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
-            dim=self._body_link_jacobian_w_buf.shape[:2] + (self._body_link_jacobian_w_buf.shape[3],),
+            dim=jacobian.shape[:2] + (jacobian.shape[3],),
             inputs=[
                 link_pose_w,
                 self.body_com_pos_b.warp,
                 self._jacobian_link_offset,
                 com_jac.warp,
             ],
-            outputs=[self._body_link_jacobian_w_buf],
+            outputs=[jacobian],
         )
         return self._body_link_jacobian_w_ta
 
@@ -952,10 +1007,24 @@ class ArticulationData(BaseArticulationData):
         # eval_jacobian / eval_mass_matrix read ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
+        self._create_jacobian_buffers()
+        if self._mass_matrix_ta is None:
+            model = self._root_view.model
+            self._mass_matrix_full_buf = wp.zeros(
+                (model.articulation_count, model.max_dofs_per_articulation, model.max_dofs_per_articulation),
+                dtype=wp.float32,
+                device=self.device,
+            )
+            self._mass_matrix_body_I_s_buf = wp.zeros(model.body_count, dtype=wp.spatial_matrix, device=self.device)
+            num_dofs = self._num_joints + self._num_base_dofs
+            self._mass_matrix_ta = ProxyArray(
+                wp.empty((self._num_instances, num_dofs, num_dofs), dtype=wp.float32, device=self.device)
+            )
+        mass_matrix = self._mass_matrix_ta.warp
         # eval_mass_matrix treats ``J`` as an input (skips its own jacobian compute when
         # provided), so we must populate the scratch first via eval_jacobian. Reusing
-        # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. All scratch buffers
-        # are pre-allocated for CUDA-graph capture safety.
+        # ``_jacobian_buf_flat`` (same shape) avoids a second allocation. Buffers are
+        # allocated on first use and reused on subsequent calls, including graph replay.
         state = SimulationManager.get_state_0()
         self._root_view.eval_jacobian(
             state,
@@ -973,7 +1042,7 @@ class ArticulationData(BaseArticulationData):
         self._read_launch_cache.launch(
             "mass_matrix",
             articulation_kernels.gather_mass_matrix_rows,
-            dim=self._mass_matrix_buf.shape,
+            dim=mass_matrix.shape,
             inputs=[
                 self._mass_matrix_full_buf,
                 self._jacobian_view_art_ids,
@@ -981,7 +1050,7 @@ class ArticulationData(BaseArticulationData):
                 self._num_base_dofs,
                 joint_ordering is not None,
             ],
-            outputs=[self._mass_matrix_buf],
+            outputs=[mass_matrix],
         )
         return self._mass_matrix_ta
 
@@ -995,12 +1064,22 @@ class ArticulationData(BaseArticulationData):
         # eval_inverse_dynamics_passive reads ``state.body_q``; refresh FK if stale.
         # Matches the convention in ``body_link_pose_w`` — Python-guarded lazy refresh.
         self._ensure_fk_fresh()
+        if self._gravity_compensation_forces_ta is None:
+            self._gravity_force_full_buf = wp.zeros(
+                self._root_view.model.joint_dof_count, dtype=wp.float32, device=self.device
+            )
+            self._gravity_compensation_forces_ta = ProxyArray(
+                wp.empty(
+                    (self._num_instances, self._num_joints + self._num_base_dofs), dtype=wp.float32, device=self.device
+                )
+            )
+        gravity_force = self._gravity_compensation_forces_ta.warp
         # eval_inverse_dynamics_passive writes every articulation in the model-wide flat
         # buffer (zeros outside the view); the gather kernel extracts this view's DoF
         # segments. Newton allocates its RNEA scratch internally on every call through
         # Warp's stream-ordered mempool allocator — capture-safe when mempools are
         # enabled (validated by Newton's own graph-capture test) — so only the output
-        # and gather buffers need pre-allocation here.
+        # and gather buffers are retained here.
         self._root_view.eval_inverse_dynamics_passive(
             SimulationManager.get_state_0(),
             gravity_force=self._gravity_force_full_buf,
@@ -1010,7 +1089,7 @@ class ArticulationData(BaseArticulationData):
         model = self._root_view.model
         wp.launch(
             articulation_kernels.gather_dof_force_rows,
-            dim=self._gravity_compensation_forces_buf.shape,
+            dim=gravity_force.shape,
             inputs=[
                 self._gravity_force_full_buf,
                 self._jacobian_view_art_ids,
@@ -1020,7 +1099,7 @@ class ArticulationData(BaseArticulationData):
                 self._num_base_dofs,
                 self.has_joint_ordering,
             ],
-            outputs=[self._gravity_compensation_forces_buf],
+            outputs=[gravity_force],
             device=self.device,
         )
         return self._gravity_compensation_forces_ta
@@ -1591,7 +1670,23 @@ class ArticulationData(BaseArticulationData):
                 "joint_effort_limit", SimulationManager.get_model()
             )[:, 0]
             # -- joint states
-            self._sim_bind_joint_pos = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            # ``get_dof_positions`` returns Newton's ``joint_q``, which is *coordinate* space: a ball
+            # joint occupies 4 quaternion components against 3 DOFs, so the array is wider than
+            # ``num_joints`` whenever the articulation has one. IsaacLab addresses joints by DOF
+            # index everywhere, so keep the coordinate array separate and publish a DOF-space view.
+            self._sim_bind_joint_coords = self._root_view.get_dof_positions(SimulationManager.get_state_0())[:, 0]
+            # The view's per-joint counts are already in the column order of the array above and
+            # already exclude the free root, fixed joints and loop-closing joints.
+            self._joint_coord_map = build_ball_joint_coordinate_map(
+                self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
+            )
+            if self._joint_coord_map.required:
+                self._sim_bind_joint_pos = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+            else:
+                self._sim_bind_joint_pos = self._sim_bind_joint_coords
             self._sim_bind_joint_vel = self._root_view.get_dof_velocities(SimulationManager.get_state_0())[:, 0]
             # -- joint commands (sent to the simulation)
             self._sim_bind_joint_effort = self._root_view.get_attribute("joint_f", SimulationManager.get_control())[
@@ -1601,6 +1696,19 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_position_target = self._root_view.get_attribute(
                 "joint_target_q", SimulationManager.get_control()
             )[:, 0]
+            # ``joint_target_q`` follows ``newton.use_coord_layout_targets``, which defaults to
+            # True from Newton 1.6. Under that layout the array is coordinate-shaped, exactly like
+            # ``joint_q``, so actuators keep writing DOF-indexed targets into a staging buffer and
+            # the same map scatters them across.
+            self._sim_bind_joint_target_coords = self._sim_bind_joint_position_target
+            self._joint_targets_need_conversion = self._sim_bind_joint_target_coords.shape[1] != self._num_joints
+            if self._joint_targets_need_conversion:
+                self._sim_bind_joint_position_target = wp.zeros(
+                    (self._num_instances, self._num_joints), dtype=wp.float32, device=self.device
+                )
+                gather_joint_coordinates(
+                    self._joint_coord_map, self._sim_bind_joint_target_coords, self._sim_bind_joint_position_target
+                )
             self._sim_bind_joint_velocity_target = self._root_view.get_attribute(
                 "joint_target_qd", SimulationManager.get_control()
             )[:, 0]
@@ -1629,13 +1737,20 @@ class ArticulationData(BaseArticulationData):
             self._sim_bind_joint_effort_limits_sim = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
-            self._sim_bind_joint_pos = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            # No joints: the view reports no counts, so the map has nothing to convert.
+            self._sim_bind_joint_coords = self._sim_bind_joint_pos = wp.zeros(
+                (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._joint_coord_map = build_ball_joint_coordinate_map(
+                self._root_view.joint_coord_counts, self._root_view.joint_dof_counts, self.device
+            )
             self._sim_bind_joint_vel = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_effort = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_act = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._sim_bind_joint_position_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
+            self._joint_targets_need_conversion = False
             self._sim_bind_joint_velocity_target = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
@@ -1649,12 +1764,19 @@ class ArticulationData(BaseArticulationData):
                 "mujoco.tendon_damping",
                 SimulationManager.get_model(),
             )[:, 0]
+            self._sim_bind_fixed_tendon_pos_limits = self._root_view.get_attribute(
+                "mujoco.tendon_range",
+                SimulationManager.get_model(),
+            )[:, 0]
         else:
             self._sim_bind_fixed_tendon_stiffness = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
             )
             self._sim_bind_fixed_tendon_damping = wp.zeros(
                 (self._num_instances, 0), dtype=wp.float32, device=self.device
+            )
+            self._sim_bind_fixed_tendon_pos_limits = wp.zeros(
+                (self._num_instances, 0), dtype=wp.vec2f, device=self.device
             )
 
         # Re-pin ProxyArray wrappers to the newly created sim bindings.
@@ -1745,9 +1867,16 @@ class ArticulationData(BaseArticulationData):
         if self._num_fixed_tendons > 0:
             self._fixed_tendon_stiffness = wp.clone(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping = wp.clone(self._sim_bind_fixed_tendon_damping)
+            self._fixed_tendon_pos_limits = wp.clone(self._sim_bind_fixed_tendon_pos_limits)
         else:
             self._fixed_tendon_stiffness = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
             self._fixed_tendon_damping = wp.zeros((self._num_instances, 0), dtype=wp.float32, device=self.device)
+            self._fixed_tendon_pos_limits = wp.zeros((self._num_instances, 0), dtype=wp.vec2f, device=self.device)
+        # Unlike the properties above this is a per-step command, so it starts at zero rather than
+        # cloning a sim binding: MuJoCo holds the tendon's control in its own array, not on the tendon.
+        self._fixed_tendon_position_target = wp.zeros(
+            (self._num_instances, self._num_fixed_tendons), dtype=wp.float32, device=self.device
+        )
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
@@ -1801,8 +1930,15 @@ class ArticulationData(BaseArticulationData):
         self._joint_pos_limits_upper_user: wp.array | None = None
         self._joint_vel_limits_user: wp.array | None = None
         self._joint_effort_limits_user: wp.array | None = None
-        # -- dynamics quantities for task-space controllers
-        self._create_jacobian_buffers(SimulationManager.get_model())
+        # -- optional task-space quantities: retain ordering metadata, but defer large
+        # model-wide scratch until the corresponding accessor is actually used.
+        self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
+        self._num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        self._jacobian_body_user_to_backend: wp.array | None = None
+        self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
+        self._jacobian_buf_flat: wp.array | None = None
+        self._mass_matrix_full_buf: wp.array | None = None
+        self._gravity_force_full_buf: wp.array | None = None
         # Empty memory pre-allocations
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
@@ -1839,84 +1975,17 @@ class ArticulationData(BaseArticulationData):
         # Pin all ProxyArray wrappers to current buffers.
         self._pin_proxy_arrays()
 
-    def _create_jacobian_buffers(self, model) -> None:
-        """Allocate the scratch + view-sized buffers used by task-space accessors.
-
-        Newton's :meth:`eval_jacobian` / :meth:`eval_mass_matrix` /
-        :meth:`eval_inverse_dynamics_passive` write into model-sized scratch buffers spanning
-        every articulation in the model; the gather kernels in
-        :attr:`body_com_jacobian_w` / :attr:`mass_matrix` /
-        :attr:`gravity_compensation_forces` extract this view's rows. The
-        output buffers are sized using THIS articulation's body / DoF counts (not the
-        model-wide ``max_*``) so heterogeneous scenes do not leak zero-padded rows / cols
-        into the returned tensor. The DoF axis includes ``num_base_dofs`` floating-base
-        columns up front (0 for fixed-base, 6 for floating-base), matching the cross-
-        library industry convention (PhysX, Pinocchio, Drake, MuJoCo, RBDL, OCS2, iDynTree).
-
-        Args:
-            model: Newton ``Model`` from :meth:`SimulationManager.get_model`. Read for
-                ``articulation_count``, ``max_joints_per_articulation``,
-                ``max_dofs_per_articulation``, ``joint_dof_count``, ``body_count``.
-        """
-        max_links = model.max_joints_per_articulation
-        max_dofs = model.max_dofs_per_articulation
-
-        # -- shared scratch (eval_jacobian outputs; consumed by ``body_com_jacobian_w``
-        #    and reused as ``eval_mass_matrix``'s ``J`` input to skip a re-compute)
+    def _create_jacobian_buffers(self) -> None:
+        """Allocate native scratch shared by Jacobian and mass-matrix queries."""
+        if self._jacobian_buf_flat is not None:
+            return
+        model = self._root_view.model
+        max_links, max_dofs = model.max_joints_per_articulation, model.max_dofs_per_articulation
         self._jacobian_buf_flat = wp.zeros(
             (model.articulation_count, max_links * 6, max_dofs), dtype=wp.float32, device=self.device
         )
-        # Motion subspace (Featherstone ``S``, spatial frame); produced by eval_jacobian,
-        # also consumed by eval_mass_matrix.
         self._joint_S_s_buf = wp.zeros(model.joint_dof_count, dtype=wp.spatial_vector, device=self.device)
-
-        # -- per-view gather config (shared by every gather/shift kernel below)
-        # Link-row offset: fixed-base skips Newton's row-0 fixed-root row; floating-base keeps it.
-        self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        num_jacobi_bodies = self._num_bodies - self._jacobian_link_offset
-        # Free-root DoF columns Newton fills for floating-base (0 fixed-base, 6 floating-base);
-        # included in the DoF axis to match the cross-library industry convention.
-        num_base_dofs = 0 if self._root_view.is_fixed_base else 6
-        self._num_base_dofs = num_base_dofs
-        self._jacobian_body_user_to_backend: wp.array | None = None
-        # Flattened (num_worlds*num_per_view,) view-to-model index map for the gather kernels.
-        self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
-
-        # -- ``body_com_jacobian_w``: 4-D reshape view of the shared scratch (kernel input
-        #    to the gather) and the per-view output buffer (gather output)
         self._jacobian_buf = self._jacobian_buf_flat.reshape((model.articulation_count, max_links, 6, max_dofs))
-        self._body_com_jacobian_w_buf = wp.zeros(
-            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
-            dtype=wp.float32,
-            device=self.device,
-        )
-
-        # -- ``body_link_jacobian_w``: output of the COM→origin shift kernel applied to
-        #    the COM-referenced Jacobian above; same shape, link-origin reference
-        self._body_link_jacobian_w_buf = wp.zeros(
-            (self._num_instances, num_jacobi_bodies, 6, self._num_joints + num_base_dofs),
-            dtype=wp.float32,
-            device=self.device,
-        )
-
-        # -- ``mass_matrix``: model-wide ``H`` scratch (eval_mass_matrix output), per-body
-        #    spatial-inertia aux (Featherstone ``I``), and per-view output (gather output)
-        self._mass_matrix_full_buf = wp.zeros(
-            (model.articulation_count, max_dofs, max_dofs), dtype=wp.float32, device=self.device
-        )
-        self._mass_matrix_body_I_s_buf = wp.zeros(model.body_count, dtype=wp.spatial_matrix, device=self.device)
-        self._mass_matrix_buf = wp.zeros(
-            (self._num_instances, self._num_joints + num_base_dofs, self._num_joints + num_base_dofs),
-            dtype=wp.float32,
-            device=self.device,
-        )
-
-        # -- ``gravity_compensation_forces``: model-wide flat gravity-force output
-        #    (eval_inverse_dynamics_passive) and per-view output (gather output)
-        self._gravity_force_full_buf = wp.zeros(model.joint_dof_count, dtype=wp.float32, device=self.device)
-        self._gravity_compensation_forces_buf = wp.zeros(
-            (self._num_instances, self._num_joints + num_base_dofs), dtype=wp.float32, device=self.device
-        )
 
     def _validate_joint_ordering_buffers(self) -> None:
         """Validate buffers required while nonidentity joint ordering is active."""
@@ -2145,8 +2214,18 @@ class ArticulationData(BaseArticulationData):
             outputs=[self._body_link_pose_w_user, self._body_com_vel_w_user],
         )
 
+    def _gather_joint_coordinates(self) -> None:
+        """Re-derive the DOF-space joint positions from Newton's coordinate array.
+
+        A no-op unless the articulation has a ball joint; without one ``_sim_bind_joint_pos`` is a
+        zero-copy view onto ``joint_q`` and is always current.
+        """
+        if self._joint_coord_map.required:
+            gather_joint_coordinates(self._joint_coord_map, self._sim_bind_joint_coords, self._sim_bind_joint_pos)
+
     def _refresh_user_order_state(self) -> None:
-        """Republish all Tier-1 user-order state shadows from live backend state.
+        """Republish all Tier-1 user-order state shadows from live backend state, and gather any
+        ball-joint DOF positions ahead of them.
 
         Registered as a post-step callback (see
         :meth:`isaaclab_newton.physics.NewtonManager.register_post_step_callback`)
@@ -2154,8 +2233,12 @@ class ArticulationData(BaseArticulationData):
         the last solver substep. With no Python freshness guard the launches are
         recorded into every captured graph and replayed on each tick, so the
         passthrough ``joint_pos`` / ``joint_vel`` / ``body_link_pose_w`` /
-        ``body_com_vel_w`` shadows behave exactly like sim-bound memory.
+        ``body_com_vel_w`` shadows behave exactly like sim-bound memory. For an
+        identity-ordered ball-joint articulation the coordinate gather is the only
+        work this method does -- the two reorder calls below are no-ops.
         """
+        # Ahead of the reorder: the user-order shadows have to gather from a current DOF buffer.
+        self._gather_joint_coordinates()
         self._refresh_user_order_joint_state()
         self._refresh_user_order_body_state()
 
@@ -2351,6 +2434,7 @@ class ArticulationData(BaseArticulationData):
             self._body_com_pos_b_ta = ProxyArray(body_com_pos_b)
             self._fixed_tendon_stiffness_ta = ProxyArray(self._sim_bind_fixed_tendon_stiffness)
             self._fixed_tendon_damping_ta = ProxyArray(self._sim_bind_fixed_tendon_damping)
+            self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
 
             # Category 2: TimestampedBuffer properties
             self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
@@ -2362,10 +2446,10 @@ class ArticulationData(BaseArticulationData):
             self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
             self._heading_w_ta = ProxyArray(self._heading_w.data)
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
-            self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w_buf)
-            self._body_link_jacobian_w_ta = ProxyArray(self._body_link_jacobian_w_buf)
-            self._mass_matrix_ta = ProxyArray(self._mass_matrix_buf)
-            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces_buf)
+            self._body_com_jacobian_w_ta: ProxyArray | None = None
+            self._body_link_jacobian_w_ta: ProxyArray | None = None
+            self._mass_matrix_ta: ProxyArray | None = None
+            self._gravity_compensation_forces_ta: ProxyArray | None = None
 
             # -- deprecated state properties (lazy); type annotations declared once here
             self._root_state_w_ta: ProxyArray | None = None

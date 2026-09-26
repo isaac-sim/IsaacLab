@@ -23,7 +23,9 @@ PER_TEST_TIMEOUTS = {
     "test_environments_isaacsim_physx.py": 10000,
     "test_environments_newton.py": 10000,
     "test_environments_ovphysx.py": 10000,
-    "test_contrib_environments.py": 10000,
+    "test_contrib_environments_kit.py": 10000,
+    "test_contrib_environments_kit_cameras.py": 10000,
+    "test_contrib_environments_kitless.py": 10000,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
     "test_generate_dataset_franka_state.py": 10000,  # This test runs annotation for 10 demos and generation for 1 demo
@@ -39,11 +41,7 @@ PER_TEST_TIMEOUTS = {
     "test_operational_space.py": 1000,
     "test_non_headless_launch.py": 1000,  # This test launches the app in non-headless mode and starts simulation
     "test_standalone_scripts.py": 3600,  # Runs every supported standalone launch in the selected CI runtime group
-    "test_rl_games_wrapper.py": 1000,
     "test_leapp_export_flow.py": 4000,
-    "test_rsl_rl_wrapper.py": 1000,
-    "test_sb3_wrapper.py": 1000,
-    "test_skrl_wrapper.py": 1000,
     "test_action_state_recorder_term.py": 1000,
     "test_manager_based_rl_env_obs_spaces_task_integration.py": 1000,
     # Newton cloth warmup can reach ~2750 s under GPU throttling (50 frames × ~55 s each).
@@ -73,6 +71,40 @@ PER_TEST_TIMEOUTS = {
 Note: Any tests not listed here will use the default timeout.
 """
 
+GIT_ASSET_STARTUP_TIMEOUT = 1000
+"""Startup timeout for tests that may populate the external Git asset cache."""
+
+PER_TEST_STARTUP_TIMEOUTS = {
+    "test_environments_isaacsim_physx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+}
+"""Per-test startup timeouts for cold external asset downloads."""
+
+PYTEST_WORKERS = {
+    # 20 independent export round trips, ~18 min serially: the RL job's long pole.
+    "test_leapp_export_flow.py": 4,
+    # Contributed-environment smoke tests: environment runs of several seconds to 2 min each. The camera file
+    # stays whole: its workers would each start the RTX renderer, and one environment dominates it.
+    "test_contrib_environments_kit.py": 2,
+    "test_contrib_environments_kitless.py": 2,
+}
+"""Test files split across ``pytest-xdist`` workers, and how many.
+
+Every worker starts its own process -- and its own Kit app and simulation, for files that launch one -- so
+splitting only pays off for files whose tests take far longer than that startup. List a file here when it
+is the long pole of its CI job. Each worker holds one of the job's ``TEST_JOBS`` slots; a file never gets
+more workers than the job has slots.
+"""
+
+EXCLUSIVE_TESTS = [
+    # Both assert wall-clock limits, which other files running at the same time would eat into.
+    "test_kit_startup_performance.py",
+    "test_robot_load_performance.py",
+]
+"""Test files that run with no other test file alongside them, when a job runs several files at once."""
+
 CUROBO_PLANNER_TESTS = [
     "test_curobo_planner_franka.py",
     "test_curobo_planner_cube_stack.py",
@@ -87,7 +119,9 @@ These tests are skipped in the base image CI jobs and run in the dedicated
 CUROBO_TESTS = [
     *CUROBO_PLANNER_TESTS,
     "test_generate_dataset_skillgen.py",
-    "test_contrib_environments.py",
+    "test_contrib_environments_kit.py",
+    "test_contrib_environments_kit_cameras.py",
+    "test_contrib_environments_kitless.py",
 ]
 """A list of tests that require cuRobo installation.
 
@@ -108,19 +142,18 @@ quarantine them from regular CI.
 
 TESTS_TO_SKIP = [
     # lab
-    "test_argparser_launch.py",  # app.close issue
-    "test_build_simulation_context_nonheadless.py",  # headless
-    "test_env_var_launch.py",  # app.close issue
-    "test_kwarg_launch.py",  # app.close issue
-    "test_differential_ik.py",  # Failing
     # lab_tasks
     "test_record_video.py",  # Failing
-    "test_tiled_camera_env.py",  # Need to improve the logic
     # curobo / skillgen - require cuRobo installation; run via test-curobo and test-skillgen CI jobs
     *CUROBO_TESTS,
     # quarantined tests - run in dedicated CI job that does not block PR merges
     *QUARANTINED_TESTS,
     "test_environments_training.py",  # Long-running RL training test; runs in dedicated CI job
+    # Exercises tools/conftest.py itself, including a hang that has to be waited out in real time.
+    # Needs no Isaac Sim and is not worth the CI spend. To run it when changing the orchestrator:
+    #   PYTHONPATH=tools:source/isaaclab pytest --noconftest \
+    #     source/isaaclab/test/cli/test_test_orchestrator_result_handling.py
+    "test_test_orchestrator_result_handling.py",
 ]
 """A list of tests to skip in CI (see conftest.py)."""
 

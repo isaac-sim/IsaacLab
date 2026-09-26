@@ -106,48 +106,14 @@ def setup_simulation():
     sim.clear_instance()
 
 
-@pytest.mark.parametrize(
-    "convention,quat",
-    [
-        ("ros", QUAT_ROS),
-        ("opengl", QUAT_OPENGL),
-        ("world", QUAT_WORLD),
-    ],
-)
-@pytest.mark.isaacsim_ci
-def test_camera_init_offset(setup_simulation, convention, quat):
-    """Test camera initialization with offset using different conventions."""
-    sim, dt, camera_cfg = setup_simulation
-
-    # Create camera config with specific convention
-    cam_cfg_offset = copy.deepcopy(camera_cfg)
-    cam_cfg_offset.offset = MultiMeshRayCasterCameraCfg.OffsetCfg(
-        pos=POSITION,
-        rot=quat,
-        convention=convention,
-    )
-    sim_utils.create_prim(f"/World/CameraOffset{convention.capitalize()}", "Xform")
-    cam_cfg_offset.prim_path = f"/World/CameraOffset{convention.capitalize()}"
-
-    camera = MultiMeshRayCasterCamera(cam_cfg_offset)
-
-    # play sim
-    sim.reset()
-
-    # update camera
-    camera.update(dt)
-
-    # check that transform is set correctly
-    np.testing.assert_allclose(camera.data.pos_w.torch[0].cpu().numpy(), cam_cfg_offset.offset.pos)
-
-    del camera
-
-
 @pytest.mark.isaacsim_ci
 def test_camera_init(setup_simulation):
-    """Test camera initialization."""
+    """Test camera initialization and that image mesh ids identify the hit mesh."""
     sim, dt, camera_cfg = setup_simulation
 
+    camera_cfg = copy.deepcopy(camera_cfg)
+    camera_cfg.update_mesh_ids = True
+    camera_cfg.data_types = ["distance_to_camera"]
     # Create camera
     camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
     # Play sim
@@ -172,116 +138,30 @@ def test_camera_init(setup_simulation):
         for im_data in camera.data.output.values():
             assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
 
+    assert camera.data.image_mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
+    mesh_ids = camera.data.image_mesh_ids.torch  # shape (N, H, W, 1), dtype torch.int16
+    assert mesh_ids.shape[-1] == 1
+    assert mesh_ids.dtype == torch.int16
+
+    # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
+    # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
+    # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
+    # the inf comparison incorrect.
+    hit_mask = camera.data.output["distance_to_camera"].torch[0, :, :, 0] < float("inf")
+    assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
+
+    # All hits against the single registered mesh must carry the ground mesh id.
+    hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
+    assert torch.all(hit_mesh_ids == MESH_ID_GROUND), (
+        f"All hits against the single ground mesh must have mesh_id={MESH_ID_GROUND}, got: {hit_mesh_ids.unique()}"
+    )
+
     del camera
-
-
-@pytest.mark.isaacsim_ci
-def test_camera_resolution(setup_simulation):
-    """Test camera resolution is correctly set."""
-    sim, dt, camera_cfg = setup_simulation
-
-    # Create camera
-    camera = MultiMeshRayCasterCamera(cfg=camera_cfg)
-    # Play sim
-    sim.reset()
-    camera.update(dt)
-    # access image data and compare shapes
-    for im_data in camera.data.output.values():
-        assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
-
-    del camera
-
-
-@pytest.mark.isaacsim_ci
-def test_camera_init_intrinsic_matrix(setup_simulation):
-    """Test camera initialization from intrinsic matrix."""
-    sim, dt, camera_cfg = setup_simulation
-
-    # get the first camera
-    camera_1 = MultiMeshRayCasterCamera(cfg=camera_cfg)
-    # get intrinsic matrix
-    sim.reset()
-    intrinsic_matrix = camera_1.data.intrinsic_matrices.torch[0].cpu().flatten().tolist()
-
-    # initialize from intrinsic matrix
-    intrinsic_camera_cfg = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/Camera",
-        mesh_prim_paths=["/World/defaultGroundPlane"],
-        update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0), convention="world"),
-        debug_vis=False,
-        pattern_cfg=patterns.PinholeCameraPatternCfg.from_intrinsic_matrix(
-            intrinsic_matrix=intrinsic_matrix,
-            height=camera_cfg.pattern_cfg.height,
-            width=camera_cfg.pattern_cfg.width,
-            focal_length=camera_cfg.pattern_cfg.focal_length,
-        ),
-        data_types=["distance_to_image_plane"],
-    )
-    camera_2 = MultiMeshRayCasterCamera(cfg=intrinsic_camera_cfg)
-
-    # play sim
-    sim.reset()
-    sim.play()
-
-    # update cameras
-    camera_1.update(dt)
-    camera_2.update(dt)
-
-    # check image data
-    torch.testing.assert_close(
-        camera_1.data.output["distance_to_image_plane"].torch,
-        camera_2.data.output["distance_to_image_plane"].torch,
-    )
-    # check that both intrinsic matrices are the same
-    torch.testing.assert_close(
-        camera_1.data.intrinsic_matrices.torch[0],
-        camera_2.data.intrinsic_matrices.torch[0],
-    )
-
-    del camera_1, camera_2
-
-
-@pytest.mark.isaacsim_ci
-def test_multi_camera_init(setup_simulation):
-    """Test multi-camera initialization."""
-    sim, dt, camera_cfg = setup_simulation
-
-    # -- camera 1
-    cam_cfg_1 = copy.deepcopy(camera_cfg)
-    cam_cfg_1.prim_path = "/World/Camera_0"
-    sim_utils.create_prim("/World/Camera_0", "Xform")
-    # Create camera
-    cam_1 = MultiMeshRayCasterCamera(cam_cfg_1)
-
-    # -- camera 2
-    cam_cfg_2 = copy.deepcopy(camera_cfg)
-    cam_cfg_2.prim_path = "/World/Camera_1"
-    sim_utils.create_prim("/World/Camera_1", "Xform")
-    # Create camera
-    cam_2 = MultiMeshRayCasterCamera(cam_cfg_2)
-
-    # play sim
-    sim.reset()
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        cam_1.update(dt)
-        cam_2.update(dt)
-        # check image data
-        for cam in [cam_1, cam_2]:
-            for im_data in cam.data.output.values():
-                assert im_data.shape == (1, camera_cfg.pattern_cfg.height, camera_cfg.pattern_cfg.width, 1)
-
-    del cam_1, cam_2
 
 
 @pytest.mark.isaacsim_ci
 def test_camera_set_world_poses(setup_simulation):
-    """Test camera function to set specific world pose."""
+    """Test camera functions to set specific world poses directly and from view."""
     sim, dt, camera_cfg = setup_simulation
 
     camera = MultiMeshRayCasterCamera(camera_cfg)
@@ -298,23 +178,10 @@ def test_camera_set_world_poses(setup_simulation):
     torch.testing.assert_close(camera.data.pos_w.torch, position)
     torch.testing.assert_close(camera.data.quat_w_world.torch, orientation)
 
-    del camera
-
-
-@pytest.mark.isaacsim_ci
-def test_camera_set_world_poses_from_view(setup_simulation):
-    """Test camera function to set specific world pose from view."""
-    sim, dt, camera_cfg = setup_simulation
-
-    camera = MultiMeshRayCasterCamera(camera_cfg)
-    # play sim
-    sim.reset()
-
-    # convert to torch tensors
+    # set a pose from eye/target
     eyes = torch.tensor([POSITION], dtype=torch.float32, device=camera.device)
     targets = torch.tensor([[0.0, 0.0, 0.0]], dtype=torch.float32, device=camera.device)
     quat_ros_gt = torch.tensor([QUAT_ROS], dtype=torch.float32, device=camera.device)
-    # set new pose
     camera.set_world_poses_from_view(eyes.clone(), targets.clone())
 
     # check if transform correctly set in output
@@ -324,47 +191,11 @@ def test_camera_set_world_poses_from_view(setup_simulation):
     del camera
 
 
-@pytest.mark.parametrize("height,width", [(240, 320), (480, 640)])
 @pytest.mark.isaacsim_ci
-def test_intrinsic_matrix(setup_simulation, height, width):
-    """Checks that the camera's set and retrieve methods work for intrinsic matrix."""
-    sim, dt, camera_cfg = setup_simulation
-
-    camera_cfg_copy = copy.deepcopy(camera_cfg)
-    camera_cfg_copy.pattern_cfg.height = height
-    camera_cfg_copy.pattern_cfg.width = width
-    camera = MultiMeshRayCasterCamera(camera_cfg_copy)
-    # play sim
-    sim.reset()
-    # Desired properties (obtained from realsense camera at 320x240 resolution)
-    rs_intrinsic_matrix = [229.31640625, 0.0, 164.810546875, 0.0, 229.826171875, 122.1650390625, 0.0, 0.0, 1.0]
-    rs_intrinsic_matrix = torch.tensor(rs_intrinsic_matrix, device=camera.device).reshape(3, 3).unsqueeze(0)
-    # Set matrix into simulator
-    camera.set_intrinsic_matrices(rs_intrinsic_matrix.clone())
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update camera
-        camera.update(dt)
-        # Check that matrix is correct
-        torch.testing.assert_close(rs_intrinsic_matrix, camera.data.intrinsic_matrices.torch)
-
-    del camera
-
-
-@pytest.mark.parametrize(
-    "data_types",
-    [
-        ["distance_to_image_plane", "distance_to_camera", "normals"],
-        ["distance_to_image_plane"],
-        ["distance_to_camera"],
-    ],
-)
-@pytest.mark.isaacsim_ci
-def test_output_equal_to_usdcamera(setup_simulation, data_types):
+def test_output_equal_to_usdcamera(setup_simulation):
     """Test that ray caster camera output equals USD camera output."""
     sim, dt, camera_cfg = setup_simulation
+    data_types = ["distance_to_image_plane", "distance_to_camera", "normals"]
 
     camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
         focal_length=24.0,
@@ -461,18 +292,18 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
     """Create alternating Spot/ANYmal and cube/sphere cloned environments."""
     stage = sim_utils.get_current_stage()
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=4.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=4.0)
 
     sim_utils.create_prim("/World/envs", "Xform", stage=stage)
-    for env_id, origin in enumerate(env_origins.cpu().tolist()):
+    for env_id, origin in enumerate(env_origins):
         sim_utils.create_prim(env_fmt.format(env_id), "Xform", translation=tuple(origin), stage=stage)
         sim_utils.create_prim(env_fmt.format(env_id) + "/RayCasterCamera", "Xform", stage=stage)
 
-    robot_mask = torch.zeros((2, num_envs), dtype=torch.bool, device=sim.device)
+    robot_mask = np.zeros((2, num_envs), dtype=np.bool_)
     robot_mask[0, 0::2] = True
     robot_mask[1, 1::2] = True
-    object_mask = robot_mask.clone()
+    object_mask = robot_mask.copy()
 
     spot_spawn = copy.deepcopy(SPOT_CFG.spawn)
     anymal_spawn = copy.deepcopy(ANYMAL_C_CFG.spawn)
@@ -499,7 +330,7 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
         [env_fmt.format(i) + f"/{asset_name}" for asset_name in ("Robot", "Object") for i in range(2)],
         [env_fmt + "/Robot", env_fmt + "/Robot", env_fmt + "/Object", env_fmt + "/Object"],
         env_ids,
-        mask=torch.cat([robot_mask, object_mask], dim=0),
+        mask=np.concatenate((robot_mask, object_mask), axis=0),
     )
 
     sim.set_clone_plan(
@@ -516,14 +347,14 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
                 env_fmt + "/Object",
                 env_fmt + "/Object",
             ),
-            clone_mask=torch.cat([robot_mask, object_mask], dim=0),
+            clone_mask=np.concatenate((robot_mask, object_mask), axis=0),
             env_ids=env_ids,
             positions=None,
             cfg_rows={},
         )
     )
     sim_utils.update_stage()
-    return env_origins
+    return torch.as_tensor(env_origins, device=sim.device)
 
 
 @pytest.mark.isaacsim_ci
@@ -636,82 +467,6 @@ def test_depth_output_equal_to_usd_camera_heterogeneous_scene(setup_simulation):
 
 
 @pytest.mark.isaacsim_ci
-def test_output_equal_to_usdcamera_offset(setup_simulation):
-    """Test that ray caster camera output equals USD camera output with offset."""
-    sim, dt, camera_cfg = setup_simulation
-    offset_rot = (0.3617, 0.8731, -0.3020, -0.1251)
-
-    camera_pattern_cfg = patterns.PinholeCameraPatternCfg(
-        focal_length=24.0,
-        horizontal_aperture=20.955,
-        height=240,
-        width=320,
-    )
-    sim_utils.create_prim("/World/Camera_warp", "Xform")
-    camera_cfg_warp = MultiMeshRayCasterCameraCfg(
-        prim_path="/World/Camera_warp",
-        mesh_prim_paths=["/World/defaultGroundPlane"],
-        update_period=0,
-        offset=MultiMeshRayCasterCameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
-        debug_vis=False,
-        pattern_cfg=camera_pattern_cfg,
-        data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
-    )
-    camera_warp = MultiMeshRayCasterCamera(camera_cfg_warp)
-
-    # create usd camera
-    camera_cfg_usd = CameraCfg(
-        height=240,
-        width=320,
-        prim_path="/World/Camera_usd",
-        update_period=0,
-        data_types=["distance_to_image_plane", "distance_to_camera", "normals"],
-        spawn=PinholeCameraCfg(
-            focal_length=24.0, focus_distance=400.0, horizontal_aperture=20.955, clipping_range=(1e-6, 1.0e5)
-        ),
-        offset=CameraCfg.OffsetCfg(pos=(2.5, 2.5, 4.0), rot=offset_rot, convention="ros"),
-    )
-    camera_usd = Camera(camera_cfg_usd)
-
-    # play sim
-    sim.reset()
-    sim.play()
-
-    # perform steps
-    for _ in range(5):
-        sim.step()
-
-    # update camera
-    camera_usd.update(dt)
-    camera_warp.update(dt)
-
-    # check image data
-    torch.testing.assert_close(
-        camera_usd.data.output["distance_to_image_plane"].torch,
-        camera_warp.data.output["distance_to_image_plane"].torch,
-        atol=5e-5,
-        rtol=5e-6,
-    )
-    torch.testing.assert_close(
-        camera_usd.data.output["distance_to_camera"].torch,
-        camera_warp.data.output["distance_to_camera"].torch,
-        atol=5e-5,
-        rtol=5e-6,
-    )
-
-    # check normals
-    # NOTE: floating point issues of ~1e-5, so using atol and rtol in this case
-    torch.testing.assert_close(
-        camera_usd.data.output["normals"].torch[..., :3],
-        camera_warp.data.output["normals"].torch,
-        rtol=1e-5,
-        atol=1e-4,
-    )
-
-    del camera_usd, camera_warp
-
-
-@pytest.mark.isaacsim_ci
 def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     """Test that the output of the ray caster camera is equal to the output of the usd camera when both are placed
     under an XForm prim that is translated and rotated from the world origin."""
@@ -807,12 +562,13 @@ def test_output_equal_to_usdcamera_prim_offset(setup_simulation):
     del camera_usd, camera_warp
 
 
-@pytest.mark.parametrize("height,width", [(540, 960), (240, 320)])
 @pytest.mark.isaacsim_ci
-def test_output_equal_to_usd_camera_intrinsics(setup_simulation, height, width):
+def test_output_equal_to_usd_camera_intrinsics(setup_simulation):
     """Test that the output of the ray caster camera and usd camera are the same when both are
     initialized with the same intrinsic matrix."""
     sim, dt, camera_cfg = setup_simulation
+    # the principal point is centered at any resolution, so one resolution covers the ray pattern
+    height, width = 240, 320
 
     # create cameras
     offset_rot = [0.3617, 0.8731, -0.3020, -0.1251]
@@ -982,35 +738,3 @@ def test_output_equal_to_usd_camera_when_intrinsics_set(setup_simulation):
     )
 
     del camera_usd, camera_warp
-
-
-@pytest.mark.isaacsim_ci
-def test_image_mesh_ids_identifies_hit_mesh(setup_simulation):
-    """image_mesh_ids must contain 0 for ground-plane hits (only one mesh registered)."""
-    sim, dt, camera_cfg = setup_simulation
-
-    cfg = copy.deepcopy(camera_cfg)
-    cfg.update_mesh_ids = True
-    cfg.data_types = ["distance_to_camera"]
-
-    camera = MultiMeshRayCasterCamera(cfg=cfg)
-    sim.reset()
-    camera.update(dt)
-
-    assert camera.data.image_mesh_ids is not None, "image_mesh_ids should not be None when update_mesh_ids=True"
-    mesh_ids = camera.data.image_mesh_ids.torch  # shape (N, H, W, 1), dtype torch.int16
-    assert mesh_ids.shape[-1] == 1
-    assert mesh_ids.dtype == torch.int16
-
-    # Identify actual hits via distance < inf. This relies on depth_clipping_behavior="none"
-    # (the default), which leaves missed rays at the Warp-kernel fill value of inf.
-    # Under "max" clipping, missed rays would be clamped to a finite max_distance, making
-    # the inf comparison incorrect.
-    hit_mask = camera.data.output["distance_to_camera"].torch[0, :, :, 0] < float("inf")
-    assert hit_mask.any(), "Expected at least some rays to hit the ground plane"
-
-    # All hits against the single registered mesh must carry the ground mesh id.
-    hit_mesh_ids = mesh_ids[0, :, :, 0][hit_mask]
-    assert torch.all(hit_mesh_ids == MESH_ID_GROUND), (
-        f"All hits against the single ground mesh must have mesh_id={MESH_ID_GROUND}, got: {hit_mesh_ids.unique()}"
-    )

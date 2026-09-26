@@ -37,7 +37,6 @@ __all__ = [
     "feet_flat",
     "feet_touchdown_vel",
     "root_orientation_exp",
-    "survival_success_rate",
     "walk_success_rate",
 ]
 
@@ -146,7 +145,7 @@ def contact_matching(
     gait_period: float = 1.0,
 ) -> torch.Tensor:
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
     observed = torch.linalg.norm(net_forces, dim=-1) > threshold
     reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
     return torch.sum(observed == reference, dim=1).float() - 1.0
@@ -209,7 +208,7 @@ def feet_touchdown_vel(
     asset = env.scene[asset_cfg.name]
     contact_sensor = env.scene.sensors[sensor_cfg.name]
     foot_z_vel = asset.data.body_com_lin_vel_w.torch[:, asset_cfg.body_ids, 2]
-    net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
     contact = (torch.linalg.norm(net_forces, dim=-1) > threshold).float()
     downward_vel = torch.clamp(-foot_z_vel, min=0.0)
     return torch.sum(contact * downward_vel, dim=-1)
@@ -226,24 +225,10 @@ def root_orientation_exp(
     return _exp_se(torch.sum(torch.square(tilt[:, :3]), dim=1), sigma)
 
 
-class survival_success_rate(ManagerTermBase):
-    """Logs ``Metrics/success_rate`` = fraction of environments that survived the full episode."""
-
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        super().__init__(cfg, env)
-
-    def reset(self, env_ids: torch.Tensor):
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
-
-    def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
-        return torch.zeros(env.num_envs, device=env.device)
-
-
 class walk_success_rate(ManagerTermBase):
     """Episode-mean velocity-tracking + gait-contact success metric for the walk task."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         self._err_xy_sum = torch.zeros(env.num_envs, device=env.device)
         self._err_yaw_sum = torch.zeros(env.num_envs, device=env.device)
@@ -295,7 +280,7 @@ class walk_success_rate(ManagerTermBase):
         self._err_xy_sum += torch.linalg.norm(command[:, :2] - asset.data.root_lin_vel_b.torch[:, :2], dim=1)
         self._err_yaw_sum += torch.abs(command[:, 2] - asset.data.root_ang_vel_b.torch[:, 2])
         contact_sensor = env.scene.sensors[sensor_cfg.name]
-        net_forces = contact_sensor.data.net_forces_w.torch[:, sensor_cfg.body_ids]
+        net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
         observed = torch.linalg.norm(net_forces, dim=-1) > contact_threshold
         reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
         self._contact_sum += (observed == reference).float().mean(dim=1)

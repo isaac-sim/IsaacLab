@@ -1,3 +1,5 @@
+:orphan:
+
 .. _cloudxr-teleoperation:
 
 Setting up Isaac Teleop with CloudXR
@@ -117,7 +119,7 @@ To use the check on its own -- for example to qualify a machine before setting u
 
 .. code-block:: bash
 
-   uv run --extra teleop python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
+   uv run --extra teleop,isaacsim python -c "from isaaclab_teleop import check_system_requirements; print(check_system_requirements().format_table())"
 
 
 .. _install-isaac-teleop:
@@ -238,7 +240,7 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
              --visualizer kit \
              --xr
@@ -294,7 +296,7 @@ so pair it with a hand-tracking task such as
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -346,6 +348,22 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
    there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
+
+.. note::
+
+   **ERROR_STREAMSDK_PORT_UNAVAILABLE / port 49100 already in use.** The CloudXR runtime
+   binds TCP port 49100 for WebRTC signaling. If a previous CloudXR runtime instance is still
+   running, ``Server::create`` fails with this error. Identify the process holding the port,
+   confirm it is safe to stop, then terminate it -- try a graceful ``kill`` before escalating
+   to ``kill -9``:
+
+   .. code-block:: bash
+
+      ss -tlnp | grep 49100  # or: lsof -i :49100
+      kill $(lsof -ti tcp:49100)       # SIGTERM first
+      kill -9 $(lsof -ti tcp:49100)    # only if it is still running
+
+   Alternatively, set a different port with the ``NV_CXR_SERVER_PORT`` environment variable.
 
 
 .. _connect-xr-device:
@@ -441,7 +459,7 @@ choose the tab that matches your hardware.
 
                .. code-block:: bash
 
-                  uv run --extra teleop isaaclab teleop run \
+                  uv run --extra teleop,isaacsim isaaclab teleop run \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -693,7 +711,7 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop run \
+         uv run --extra teleop,isaacsim isaaclab teleop run \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr
 
@@ -719,11 +737,11 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
          .. code-block:: bash
 
             # Copy a shipped profile and enable push devices
-            cp $(uv run --extra teleop python -c \
+            cp $(uv run --extra teleop,isaacsim python -c \
                 "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
-            uv run --extra teleop isaaclab teleop run \
+            uv run --extra teleop,isaacsim isaaclab teleop run \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -784,6 +802,72 @@ Start teleoperation
 
 Move your hands and the simulated follower will mirror the glove-tracked finger joints in real
 time.
+
+.. _haptikos-quest-handtracking:
+
+Haptikos Exoskeletons with Quest
+--------------------------------
+
+The `Haptikos plugin <https://github.com/NVIDIA/IsaacTeleop/tree/release/1.4.x/src/plugins/haptikos>`_
+combines controller wrist poses with exoskeleton finger tracking from the Haptikos Core App and
+pushes hand joints into the OpenXR runtime. Isaac Lab receives them through Isaac Teleop's
+standard hand-tracking input, so no Haptikos-specific Isaac Lab device is needed. The plugin
+supports Linux and has been tested with Meta Quest headsets; other headsets with controllers may
+also work.
+
+Build the plugin
+^^^^^^^^^^^^^^^^
+
+The Haptikos plugin is built from Isaac Teleop source; it is not included in Isaac Lab's
+``teleop`` extra. Check out the release branch matching Isaac Lab's ``isaacteleop`` pin (currently
+``1.4.x``), obtain the `Haptikos Robotics API <https://github.com/Haptikostech/HaptikosAPI>`_,
+and copy its ``HaptikosCpp_API_Shared`` directory into ``src/plugins/haptikos``. The C++ API is
+required to build the tracking plugin, even if you do not use haptic feedback. Follow the
+`plugin's setup instructions <https://github.com/NVIDIA/IsaacTeleop/tree/release/1.4.x/src/plugins/haptikos>`_
+for Haptikos account and licensing requirements.
+
+.. code-block:: bash
+
+   git clone https://github.com/NVIDIA/IsaacTeleop.git
+   cd IsaacTeleop
+   git checkout release/1.4.x
+   # Copy HaptikosCpp_API_Shared to src/plugins/haptikos before building.
+   cmake -S . -B build -DENABLE_CLANG_FORMAT_CHECK=OFF
+   cmake --build build --target haptikos_hands_plugin --parallel 4
+
+Run Isaac Lab and the plugin
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Attach a controller to each exoskeleton using the included mount. Calibrate the exoskeleton
+forward direction against the headset, then keep the Haptikos Core App, exoskeletons, and
+controllers active. Use the hand-tracking task below.
+
+Haptikos uses an external OpenXR push device. The shipped CloudXR profiles disable push devices,
+so enable them in a custom profile before launching Isaac Lab:
+
+.. code-block:: bash
+
+   cp $(uv run --extra teleop,isaacsim python -c \
+       "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/haptikos.env
+   sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/haptikos.env
+
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
+       --visualizer kit --xr --cloudxr_env ~/haptikos.env
+
+Once CloudXR is waiting for a connection, open a separate terminal and start the plugin with
+the runtime environment created by Isaac Lab:
+
+.. code-block:: bash
+
+   cd /path/to/IsaacTeleop
+   source ~/.cloudxr/run/cloudxr.env
+   ./build/src/plugins/haptikos/haptikos_hands_plugin
+
+Connect the Quest using :ref:`the Quest/Pico connection steps <connect-quest-pico>`, then start
+teleoperation from the headset.
+
+See :ref:`isaac-teleop-cloudxr-profiles` for more on custom profiles.
 
 
 Run with Docker
@@ -868,7 +952,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
       .. code-block:: bash
 
-         uv run --extra teleop isaaclab teleop record \
+         uv run --extra teleop,isaacsim isaaclab teleop record \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \

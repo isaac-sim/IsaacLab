@@ -273,6 +273,7 @@ class DeformableObject(AssetBase):
         self._data._root_pos_w.timestamp = -1.0
         # set into simulation
         self.root_view.set_simulation_nodal_positions(self._get_nodal_pos_w_f32(), indices=env_ids)
+        SimulationManager.get_scene_data_backend().geometry_timestamp += 1
 
     def write_nodal_pos_to_sim_mask(
         self,
@@ -569,6 +570,8 @@ class DeformableObject(AssetBase):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)

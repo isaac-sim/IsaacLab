@@ -14,7 +14,6 @@ _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
 
 pytestmark = [
-    pytest.mark.isaacsim_ci,
     pytest.mark.skipif(
         bool(_MISSING_MODULES),
         reason=f"requires optional modules: {', '.join(_MISSING_MODULES)}",
@@ -35,19 +34,19 @@ if not _MISSING_MODULES:
     )
 
 
-def _encode_semantic_id_map(entries: list[tuple[int, str]]) -> "np.ndarray":
-    """Encode ``(semantic_id, raw_label)`` pairs into a SemanticIdMap byte buffer for decode tests.
+def _encode_identifier_map(entries: "list[StableIdLabelPair]") -> "np.ndarray":
+    """Encode ``(id_words, raw_label)`` pairs into an IdentifierMap byte buffer (SemanticIdMap / StableIdMap).
 
-    Layout mirrors the OVRTX render var: packed ``SemanticIdentifierMap`` entries, the UTF-8 label blob,
-    then a trailing little-endian ``uint32`` entry count.
+    Layout mirrors the OVRTX render var: packed ``IdentifierMap`` entries, the UTF-8 label blob, then a
+    trailing little-endian ``uint32`` entry count.
     """
     entry_dtype = np.dtype([("id", "<u4", (4,)), ("label_length", "<u4"), ("label_offset", "<u4")])
     header_size = len(entries) * entry_dtype.itemsize
     entry_arr = np.zeros(len(entries), dtype=entry_dtype)
     label_blob = b""
-    for i, (semantic_id, label) in enumerate(entries):
+    for i, (id_words, label) in enumerate(entries):
         label_bytes = label.encode("utf-8")
-        entry_arr[i]["id"][0] = semantic_id
+        entry_arr[i]["id"] = id_words
         entry_arr[i]["label_length"] = len(label_bytes)
         entry_arr[i]["label_offset"] = header_size + len(label_blob)
         label_blob += label_bytes
@@ -64,7 +63,7 @@ def test_parse_semantic_label_splits_type_and_label():
 
 def test_decode_semantic_id_map_round_trips_entries():
     """Decoding an encoded SemanticIdMap recovers the semantic-ID-to-label mapping."""
-    id_map = _encode_semantic_id_map([(2, "class: cone;"), (3, "class: cube;")])
+    id_map = _encode_identifier_map([((2, 0, 0, 0), "class: cone;"), ((3, 0, 0, 0), "class: cube;")])
     assert decode_semantic_id_map(id_map) == {2: {"class": "cone"}, 3: {"class": "cube"}}
 
 
@@ -75,7 +74,7 @@ def test_decode_semantic_id_map_handles_empty_buffer():
 
 def test_decode_semantic_id_map_rejects_corrupt_entry_count():
     """A SemanticIdMap whose entry count exceeds the buffer raises instead of reading out of bounds."""
-    id_map = _encode_semantic_id_map([(2, "class: cone;")])
+    id_map = _encode_identifier_map([((2, 0, 0, 0), "class: cone;")])
     id_map[-4:] = np.frombuffer(int(999).to_bytes(4, "little"), dtype=np.uint8)
     with pytest.raises(ValueError, match="Corrupt SemanticIdMap"):
         decode_semantic_id_map(id_map)
@@ -83,7 +82,7 @@ def test_decode_semantic_id_map_rejects_corrupt_entry_count():
 
 def test_decode_semantic_id_map_rejects_label_spilling_into_count_field():
     """A label whose bytes run into the trailing 4-byte entry count is rejected (bound is data.size - 4)."""
-    id_map = _encode_semantic_id_map([(2, "class: cone;")])
+    id_map = _encode_identifier_map([((2, 0, 0, 0), "class: cone;")])
     # Inflate the single entry's label_length (u4 at byte offset 16 of the 24-byte entry) so the label
     # would extend into the trailing entry-count word.
     id_map[16:20] = np.frombuffer(int(len("class: cone;") + 4).to_bytes(4, "little"), dtype=np.uint8)
@@ -112,26 +111,6 @@ def test_build_semantic_id_to_labels_colorize_keys_by_color():
     assert id_to_labels[(0, 0, 0, 255)] == {"class": "UNLABELLED"}
     assert {"class": "cone"} in id_to_labels.values()
     assert len(id_to_labels) == 3
-
-
-def _encode_identifier_map(entries: "list[StableIdLabelPair]") -> "np.ndarray":
-    """Encode ``(id_words, raw_label)`` pairs into an IdentifierMap byte buffer (SemanticIdMap / StableIdMap).
-
-    Layout mirrors the OVRTX render var: packed ``IdentifierMap`` entries, the UTF-8 label blob, then a
-    trailing little-endian ``uint32`` entry count.
-    """
-    entry_dtype = np.dtype([("id", "<u4", (4,)), ("label_length", "<u4"), ("label_offset", "<u4")])
-    header_size = len(entries) * entry_dtype.itemsize
-    entry_arr = np.zeros(len(entries), dtype=entry_dtype)
-    label_blob = b""
-    for i, (id_words, label) in enumerate(entries):
-        label_bytes = label.encode("utf-8")
-        entry_arr[i]["id"] = id_words
-        entry_arr[i]["label_length"] = len(label_bytes)
-        entry_arr[i]["label_offset"] = header_size + len(label_blob)
-        label_blob += label_bytes
-    buffer = entry_arr.tobytes() + label_blob + int(len(entries)).to_bytes(4, "little")
-    return np.frombuffer(buffer, dtype=np.uint8).copy()
 
 
 def _encode_stable_id_semantic_id_map(entries: "list[tuple[StableId, int]]") -> "np.ndarray":

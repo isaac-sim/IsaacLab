@@ -36,17 +36,10 @@ class NewtonVBDManager(NewtonManager):
 
     @classmethod
     def start_simulation(cls) -> None:
-        """Start simulation and bind registered deformables to Fabric."""
+        """Color the prebuilt model before starting simulation."""
         if cls._builder is not None:
-            cls._builder.color()
+            cls._builder.color(balance_colors=False)
         super().start_simulation()
-        try:
-            from isaaclab_contrib.deformable.deformable_object import setup_registered_deformable_fabric_sync
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            setup_registered_deformable_fabric_sync(cls)
 
     @classmethod
     def instantiate_builder_from_stage(cls) -> None:
@@ -54,7 +47,9 @@ class NewtonVBDManager(NewtonManager):
         super().instantiate_builder_from_stage()
         if cls._builder is None:
             raise RuntimeError("Newton stage import did not create a builder.")
-        cls._builder.color()
+        # Warp's optional balancing pass can cycle indefinitely for valid graph colorings.
+        # The initial assignment is sufficient for VBD correctness.
+        cls._builder.color(balance_colors=False)
 
     @classmethod
     def _get_usd_import_ignore_paths(cls) -> list[str]:
@@ -90,6 +85,6 @@ class NewtonVBDManager(NewtonManager):
     @classmethod
     def _simulate_physics_only(cls) -> None:
         """Rebuild the VBD particle BVH before stepping physics."""
-        if cls._model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
-            cls._solver.rebuild_bvh(cls._state_0)
+        if cls.backend.model.particle_count > 0 and hasattr(cls._solver, "rebuild_bvh"):
+            cls._solver.rebuild_bvh(cls.backend.state_0)
         super()._simulate_physics_only()

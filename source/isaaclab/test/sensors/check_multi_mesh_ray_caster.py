@@ -44,6 +44,7 @@ simulation_app = app_launcher.app
 
 import random
 
+import numpy as np
 import torch
 
 import isaaclab.sim as sim_utils
@@ -64,8 +65,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Create interface to clone the scene
     # Create environment clones using Lab's cloner utilities
     env_fmt = "/World/envs/env_{}"
-    env_ids = torch.arange(num_envs, dtype=torch.long, device=sim.device)
-    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0, device=sim.device)
+    env_ids = np.arange(num_envs, dtype=np.int64)
+    env_origins, _ = lab_cloner.grid_transforms(num_envs, spacing=10.0)
     # Everything under the namespace "/World/envs/env_0" will be cloned
     sim.stage.DefinePrim("/World/envs/env_0", "Xform")
     # Define the scene
@@ -75,9 +76,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # -- Balls
     cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
@@ -85,9 +86,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     for i in range(args_cli.num_objects):
         object = sim_utils.CuboidCfg(
             size=(0.5 + random.random() * 0.5, 0.5 + random.random() * 0.5, 0.1 + random.random() * 0.05),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(0.0 + i / args_cli.num_objects, 0.0, 1.0 - i / args_cli.num_objects)
             ),
@@ -109,7 +110,7 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
         lab_cloner.ClonePlan(
             sources=(env_fmt.format(0),),
             destinations=(env_fmt,),
-            clone_mask=torch.ones((1, num_envs), dtype=torch.bool, device=sim.device),
+            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
         )
     )
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —

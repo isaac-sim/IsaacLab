@@ -48,7 +48,7 @@ class EmptyWindow:
 
         # keep a dictionary of stacks so that child environments can add their own UI elements
         # this can be done by using the `with` context manager
-        self.ui_window_elements = dict()
+        self.ui_window_elements = {}
         # create main frame
         self.ui_window_elements["main_frame"] = self.ui_window.frame
         with self.ui_window_elements["main_frame"]:

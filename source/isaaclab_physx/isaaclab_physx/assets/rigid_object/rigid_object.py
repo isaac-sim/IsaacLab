@@ -153,19 +153,15 @@ class RigidObject(BaseRigidObject):
             if self._instantaneous_wrench_composer.active:
                 composer = self._instantaneous_wrench_composer
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
-                get_force_data = self._get_inst_wrench_force_f32
-                get_torque_data = self._get_inst_wrench_torque_f32
             else:
                 composer = self._permanent_wrench_composer
-                get_force_data = self._get_perm_wrench_force_f32
-                get_torque_data = self._get_perm_wrench_torque_f32
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             self.root_view.apply_forces_and_torques_at_position(
-                force_data=get_force_data(),
-                torque_data=get_torque_data(),
+                force_data=force_user.flatten().view(wp.float32),
+                torque_data=torque_user.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=is_global,
             )
         self._instantaneous_wrench_composer.reset()
 
@@ -375,6 +371,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms()
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -467,6 +464,7 @@ class RigidObject(BaseRigidObject):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_transforms(self._get_root_link_pose_w_f32(), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms()
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1029,8 +1027,8 @@ class RigidObject(BaseRigidObject):
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self.body_names
@@ -1040,11 +1038,6 @@ class RigidObject(BaseRigidObject):
         # Reset to None each time _create_buffers runs (during initialization).
         self._root_link_pose_w_f32: wp.array | None = None
         self._root_com_vel_w_f32: wp.array | None = None
-        # Cached wrench views for write_data_to_sim
-        self._inst_wrench_force_f32: wp.array | None = None
-        self._inst_wrench_torque_f32: wp.array | None = None
-        self._perm_wrench_force_f32: wp.array | None = None
-        self._perm_wrench_torque_f32: wp.array | None = None
 
         # Pre-allocated pinned CPU buffers for PhysX TensorAPI writes.
         # PhysX requires CPU arrays for "model" property updates (masses, coms, inertias).
@@ -1156,34 +1149,6 @@ class RigidObject(BaseRigidObject):
             self._root_com_vel_w_f32 = self.data._root_com_vel_w.data.view(wp.float32)
         return self._root_com_vel_w_f32
 
-    def _get_inst_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench force. Invalidated in ``_create_buffers``."""
-        if self._inst_wrench_force_f32 is None:
-            self._inst_wrench_force_f32 = self._instantaneous_wrench_composer.out_force_b.warp.flatten().view(
-                wp.float32
-            )
-        return self._inst_wrench_force_f32
-
-    def _get_inst_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of instantaneous wrench torque. Invalidated in ``_create_buffers``."""
-        if self._inst_wrench_torque_f32 is None:
-            self._inst_wrench_torque_f32 = self._instantaneous_wrench_composer.out_torque_b.warp.flatten().view(
-                wp.float32
-            )
-        return self._inst_wrench_torque_f32
-
-    def _get_perm_wrench_force_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench force. Invalidated in ``_create_buffers``."""
-        if self._perm_wrench_force_f32 is None:
-            self._perm_wrench_force_f32 = self._permanent_wrench_composer.out_force_b.warp.flatten().view(wp.float32)
-        return self._perm_wrench_force_f32
-
-    def _get_perm_wrench_torque_f32(self) -> wp.array:
-        """Get a cached flattened float32 view of permanent wrench torque. Invalidated in ``_create_buffers``."""
-        if self._perm_wrench_torque_f32 is None:
-            self._perm_wrench_torque_f32 = self._permanent_wrench_composer.out_torque_b.warp.flatten().view(wp.float32)
-        return self._perm_wrench_torque_f32
-
     def _sim_env_ids_view(self, count: int) -> wp.array:
         """Return a cached prefix of the simulator-index scratch buffer."""
         if count not in self._sim_env_ids_views:
@@ -1207,6 +1172,8 @@ class RigidObject(BaseRigidObject):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids
