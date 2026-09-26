@@ -55,11 +55,12 @@ class CameraImageStack(ManagerTermBase):
         if data_type == "albedo":
             camera_data = camera_data[..., :3]
         if (rgb_like or segmentation) and not defer_normalize:
-            camera_data = normalize_camera_image(camera_data, data_type)
-        elif data_type == "depth":
-            camera_data[camera_data == float("inf")] = 0
-
-        observation = camera_data.permute(0, 3, 1, 2).contiguous()
+            # normalize straight into the channel-first layout
+            observation = normalize_camera_image(camera_data, data_type, output_channel_dim=1)
+        else:
+            if data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            observation = camera_data.permute(0, 3, 1, 2).contiguous()
         if self._stack is not None:
             self._stack.append(observation)
             observation = self._stack.stacked

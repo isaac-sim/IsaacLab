@@ -377,6 +377,8 @@ def image(
     - "rgb": Scales the image to (0, 1) and subtracts with the mean of the current image batch.
     - "depth" or "distance_to_camera" or "distance_to_plane": Replaces infinity values with zero.
 
+    See :func:`~isaaclab.utils.images.normalize_camera_image` for all data types.
+
     Args:
         env: The environment the cameras are placed within.
         sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
@@ -400,8 +402,9 @@ def image(
     if (data_type == "distance_to_camera") and convert_perspective_to_orthogonal:
         images = math_utils.orthogonalize_perspective_depth(images, sensor.data.intrinsic_matrices)
     if normalize:
-        images = normalize_camera_image(images, data_type)
-    if permute:
+        # permute while normalizing to avoid a separate layout copy
+        images = normalize_camera_image(images, data_type, output_channel_dim=1 if permute else None)
+    elif permute:
         images = images.permute(0, 3, 1, 2)
 
     return images.clone() if clone else images
