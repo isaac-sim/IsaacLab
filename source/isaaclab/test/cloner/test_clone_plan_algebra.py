@@ -456,6 +456,17 @@ def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets
             actual = query(plan, path_expr)
             assert actual.dtype == np.int32 and actual.ndim == 1
             np.testing.assert_array_equal(actual, expected)
+    for selector, asset_ids in ((0, {0}), (np.int32(1), {1}), ("/Banana", {0}), (".*", {0, 1}), ("/Missing", set())):
+        expected = [-1 for asset in shared_assets if asset in asset_ids]
+        expected += [world for world in range(16) for asset in worlds[world // 4] if asset in asset_ids]
+        for unique in (False, True):
+            actual = cloner.query.get_asset_prototype_world_index(plan, selector, unique=unique)
+            assert actual.dtype == np.int32 and actual.ndim == 1
+            np.testing.assert_array_equal(actual, sorted(set(expected)) if unique else expected)
+    for prototype in range(-1, len(worlds)):
+        actual = cloner.query.get_world_prototype_world_index(plan, prototype)
+        assert actual.dtype == np.int32 and actual.ndim == 1
+        np.testing.assert_array_equal(actual, [-1] if prototype == -1 else range(4 * prototype, 4 * (prototype + 1)))
     # Pure planning does not modify USD names or source poses.
     assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
     assert all(cfg.spawn.spawn_path is None for cfg in assets)
@@ -471,12 +482,22 @@ def test_world_topology_weights_empty_worlds_and_invalid_membership():
     np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, ".*/Banana"), [0])
     np.testing.assert_array_equal(cloner.query.get_asset_prototypes(plan, "/env_0/Banana"), [])
     empty = make_clone_plan((), ((),), 3)
+    shared_only = make_clone_plan(assets, ((0,),), 0, shared_assets=(1, 1))
     np.testing.assert_array_equal(empty.world_prototype_starts, [0, 0, 0])
     np.testing.assert_array_equal(empty.world_prototype_layout, [0, 0, 0])
     for actual, expected in (
         (cloner.query.get_asset_prototypes(empty), []),
         (cloner.query.get_world_prototypes(empty), [-1, 0]),
         (cloner.query.get_world_prototypes(empty, ".*"), []),
+        (cloner.query.get_asset_prototype_world_index(empty, ".*"), []),
+        (cloner.query.get_asset_prototype_world_index(empty, 0, unique=True), []),
+        (cloner.query.get_world_prototype_world_index(empty, 0), [0, 1, 2]),
+        (cloner.query.get_world_prototype_world_index(empty, -1), [-1]),
+        (cloner.query.get_world_prototype_world_index(plan, 1), []),
+        (cloner.query.get_world_prototype_world_index(plan, 3), []),
+        (cloner.query.get_asset_prototype_world_index(shared_only, 0), []),
+        (cloner.query.get_asset_prototype_world_index(shared_only, 1), [-1, -1]),
+        (cloner.query.get_asset_prototype_world_index(shared_only, assets[1].prim_path, unique=True), [-1]),
     ):
         assert actual.dtype == np.int32 and actual.ndim == 1
         np.testing.assert_array_equal(actual, expected)

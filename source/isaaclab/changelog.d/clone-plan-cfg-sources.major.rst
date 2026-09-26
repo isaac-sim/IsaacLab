@@ -12,6 +12,10 @@ Changed
   ``get_asset_prototypes(plan, path_expr=None)`` and ``get_world_prototypes(plan, path_expr=None)``
   returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
   Read cfgs and world memberships from the plan instead of unpacking topology-query results.
+  Added ``get_asset_prototype_world_index(plan, asset_prototype, unique=False)`` and
+  ``get_world_prototype_world_index(plan, world_prototype)`` for destination world indices.
+  Asset selection accepted an index or declared-path expression and preserved instance multiplicity
+  unless ``unique=True`` was requested.
   Renamed native-path lookup ``iter_sources`` to ``get_matched_sources``, returning a list.
   Removed cached configuration/context routing maps. Raw USD and native backend replication
   functions retained their path-based inputs.

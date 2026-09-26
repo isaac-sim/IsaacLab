@@ -210,6 +210,25 @@ cfg ``prim_path`` or a regular expression matched against that complete path str
 World filtering selects compositions containing matching assets, without removing their
 other members or repeated instances. These IDs identify prototypes, not destination worlds.
 
+The complementary queries return actual world indices, also as 1-D NumPy ``int32`` arrays:
+
+.. code-block:: python
+
+    # World prototype 1 occupies worlds 4 through 7 in the sixteen-world example above.
+    cloner.query.get_world_prototype_world_index(plan, 1)  # array([4, 5, 6, 7], dtype=int32)
+
+    # Franka is asset prototype 1 and occurs twice in each of those worlds.
+    worlds = cloner.query.get_asset_prototype_world_index(plan, 1)
+    # array([0, 1, 2, 3, 4, 4, 5, 5, 6, 6, 7, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
+    worlds = cloner.query.get_asset_prototype_world_index(plan, franka_cfg.prim_path, unique=True)
+    # array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15], dtype=int32)
+
+``get_asset_prototype_world_index`` accepts an integer prototype index or the same declared-path
+expression as ``get_asset_prototypes``. It preserves one entry per selected asset instance by
+default; ``unique=True`` returns each containing world once. Shared instances use world index
+``-1``. ``get_world_prototype_world_index(plan, -1)`` returns ``[-1]``, even for an empty shared world.
+An unused world prototype or an asset with no instances returns an empty array.
+
 Native-path queries instead resolve backend-assigned instance names and descendants.
 They take plain native mapping data, not a clone context or a plan. For example,
 a USD-backed consumer gets its source/destination mappings from the USD context:
