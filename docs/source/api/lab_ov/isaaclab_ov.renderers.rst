@@ -16,7 +16,6 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
    OVRTXRenderer
    OVRTXRendererCfg
    OVRTXBackendCfg
-   map_attribute_for_warp_writes
 
 .. autoclass:: OVRTXRenderer
    :show-inheritance:
@@ -26,5 +25,3 @@ The following classes are part of the public :mod:`isaaclab_ov.renderers` API.
 
 .. autoclass:: OVRTXBackendCfg
    :show-inheritance:
-
-.. autofunction:: map_attribute_for_warp_writes
