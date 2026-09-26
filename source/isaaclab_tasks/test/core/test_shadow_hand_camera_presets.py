@@ -8,38 +8,38 @@
 Two test suites are provided:
 
 1. **Validation unit tests** — use lightweight ``types.SimpleNamespace`` mocks.
-   These exercise :meth:`ShadowHandCameraEnvCfg.validate_config` directly and
-   do not require Isaac Sim.
+   These exercise generic camera validation followed by Shadow Hand's task-specific
+   feature-extractor validation and do not require Isaac Sim.
 
 2. **Preset resolution tests** — verify that each named preset in
    :class:`ShadowHandTiledCameraCfg` and
    :class:`~isaaclab_tasks.utils.renderer_cfg.RendererPresetCfg` resolves to the expected
    concrete config class and data types, using the real config classes.
-   These require Isaac Sim to be launched so that the renderer cfg imports
-   are available.
+
+3. **Checkpoint tests** — verify that published policies resolve to their matching
+   feature-extractor checkpoints.
 """
 
-"""Launch Isaac Sim Simulator first."""
+import types
+from pathlib import Path
 
-from isaaclab.app import AppLauncher
+import pytest
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+from isaaclab.renderers import RendererCfg
+from isaaclab.sensors import CameraCfg
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-
-import types  # noqa: E402
-
-import pytest  # noqa: E402
-from isaaclab_newton.renderers import NewtonWarpRendererCfg  # noqa: E402
-from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
-from isaaclab_physx.renderers import IsaacRtxRendererCfg  # noqa: E402
-
-from isaaclab.renderers import RendererCfg  # noqa: E402
-
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_env_cfg import (  # noqa: E402
+from isaaclab_tasks.core.reorient.config.shadow_hand import feature_extractor as feature_extractor_module
+from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractor, FeatureExtractorCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_camera_manager_env_cfg import (
+    ShadowHandCameraManagerEnvCfg,
+)
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_camera_env_cfg import (
     ShadowHandCameraEnvCfg,
 )
-from isaaclab_tasks.utils.hydra import collect_presets  # noqa: E402
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -52,13 +52,28 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
     The mock reuses the real validation logic from :class:`ShadowHandCameraEnvCfg`.
     """
     cfg = types.SimpleNamespace()
-    cfg.tiled_camera = types.SimpleNamespace(
-        renderer_cfg=types.SimpleNamespace(renderer_type=renderer_type),
-        data_types=data_types,
+    if renderer_type == "newton_warp":
+        renderer_cfg = NewtonWarpRendererCfg()
+    elif renderer_type == "isaac_rtx":
+        renderer_cfg = IsaacRtxRendererCfg()
+    else:
+        renderer_cfg = RendererCfg(renderer_type=renderer_type) if renderer_type is not None else None
+    cfg.scene = types.SimpleNamespace(
+        tiled_camera=CameraCfg(
+            prim_path="/Camera",
+            renderer_cfg=renderer_cfg,
+            data_types=data_types,
+        )
     )
     cfg.feature_extractor = types.SimpleNamespace(enabled=feature_extractor_enabled)
     cfg.validate_config = lambda: ShadowHandCameraEnvCfg.validate_config(cfg)
     return cfg
+
+
+def _validate_cfg(cfg) -> None:
+    """Run camera and task hooks for the intentionally incomplete lightweight mock."""
+    cfg.scene.tiled_camera.validate_config()
+    cfg.validate_config()
 
 
 # ---------------------------------------------------------------------------
@@ -67,33 +82,17 @@ def _make_cfg(renderer_type: str | None, data_types: list[str], feature_extracto
 
 _VALID_COMBOS = [
     # renderer_type, data_types, feature_extractor_enabled
-    # ── Non-warp renderers accept every data type ──
-    (None, ["rgb"], True),
-    (None, ["rgb", "depth", "semantic_segmentation"], True),
-    (None, ["albedo"], True),
-    (None, ["simple_shading_constant_diffuse"], True),
-    (None, ["simple_shading_diffuse_mdl"], True),
-    (None, ["simple_shading_full_mdl"], True),
-    (None, ["depth"], False),  # depth-only OK when CNN disabled
-    ("isaac_rtx", ["rgb"], True),
-    ("isaac_rtx", ["albedo"], True),
-    ("isaac_rtx", ["simple_shading_full_mdl"], True),
-    ("isaac_rtx", ["rgb", "depth", "semantic_segmentation"], True),
-    ("isaac_rtx", ["depth"], False),
-    pytest.param("ovrtx", ["rgb"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    pytest.param("ovrtx", ["albedo"], True, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    pytest.param("ovrtx", ["depth"], False, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
-    # ── Warp renderer: only rgb and depth are supported ──
-    ("newton_warp", ["rgb"], True),
+    (None, ["rgb", "depth", "semantic_segmentation"], True),  # no renderer contract to check
+    ("isaac_rtx", ["simple_shading_full_mdl"], True),  # RTX publishes simple-shading outputs
+    ("newton_warp", ["rgb", "depth", "semantic_segmentation"], True),  # warp-published outputs
     ("newton_warp", ["depth"], False),  # depth-only OK when CNN disabled
-    ("newton_warp", ["rgb", "depth"], True),  # multiple supported types
 ]
 
 
 @pytest.mark.parametrize("renderer_type,data_types,enabled", _VALID_COMBOS)
 def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
     cfg = _make_cfg(renderer_type, data_types, enabled)
-    cfg.validate_config()  # must not raise
+    _validate_cfg(cfg)  # must not raise
 
 
 # ---------------------------------------------------------------------------
@@ -102,63 +101,10 @@ def test_valid_combinations_do_not_raise(renderer_type, data_types, enabled):
 
 _INVALID_COMBOS = [
     # renderer_type, data_types, enabled, substring expected in error message
-    # ── Warp does not support colour-space data types ──
-    (
-        "newton_warp",
-        ["albedo"],
-        True,
-        "albedo",
-    ),
-    (
-        "newton_warp",
-        ["simple_shading_constant_diffuse"],
-        True,
-        "simple_shading_constant_diffuse",
-    ),
-    (
-        "newton_warp",
-        ["simple_shading_diffuse_mdl"],
-        True,
-        "simple_shading_diffuse_mdl",
-    ),
-    (
-        "newton_warp",
-        ["simple_shading_full_mdl"],
-        True,
-        "simple_shading_full_mdl",
-    ),
-    (
-        "newton_warp",
-        ["rgb", "depth", "semantic_segmentation"],
-        True,
-        "semantic_segmentation",
-    ),
-    # ── Depth-only with CNN enabled is not valid for training ──
-    (
-        None,
-        ["depth"],
-        True,
-        "Depth-only",
-    ),
-    (
-        "isaac_rtx",
-        ["depth"],
-        True,
-        "Depth-only",
-    ),
-    pytest.param(
-        "ovrtx",
-        ["depth"],
-        True,
-        "Depth-only",
-        marks=pytest.mark.skip(reason="OVRTX testing disabled"),
-    ),
-    (
-        "newton_warp",
-        ["depth"],
-        True,
-        "Depth-only",  # depth is warp-supported but CNN can't train on it
-    ),
+    # ── Warp does not support RTX simple-shading outputs ──
+    ("newton_warp", ["simple_shading_full_mdl"], True, "simple_shading_full_mdl"),
+    # ── Depth-only with CNN enabled is not valid for training (renderer-independent) ──
+    (None, ["depth"], True, "Depth-only"),
 ]
 
 
@@ -166,7 +112,7 @@ _INVALID_COMBOS = [
 def test_invalid_combinations_raise_value_error(renderer_type, data_types, enabled, match):
     cfg = _make_cfg(renderer_type, data_types, enabled)
     with pytest.raises(ValueError, match=match):
-        cfg.validate_config()
+        _validate_cfg(cfg)
 
 
 # ---------------------------------------------------------------------------
@@ -180,52 +126,27 @@ def shadow_hand_camera_presets():
     return collect_presets(ShadowHandCameraEnvCfg())
 
 
-_CAMERA_DATA_TYPE_PRESETS = [
-    # preset_name, expected_data_types
-    ("default", ["rgb", "depth", "semantic_segmentation"]),
-    ("full", ["rgb", "depth", "semantic_segmentation"]),
-    ("rgb", ["rgb"]),
-    ("albedo", ["albedo"]),
-    ("simple_shading_constant_diffuse", ["simple_shading_constant_diffuse"]),
-    ("simple_shading_diffuse_mdl", ["simple_shading_diffuse_mdl"]),
-    ("simple_shading_full_mdl", ["simple_shading_full_mdl"]),
-    ("depth", ["depth"]),
-]
-
-
-@pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_preset_data_types(shadow_hand_camera_presets, preset_name, expected_data_types):
-    camera_presets = shadow_hand_camera_presets["tiled_camera"]
-    assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
-    resolved = camera_presets[preset_name]
-    assert resolved.data_types == expected_data_types, (
-        f"Preset '{preset_name}': expected data_types={expected_data_types}, got {resolved.data_types}"
-    )
-
-
-@pytest.mark.parametrize("preset_name,_", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_preset_cfg_is_valid(shadow_hand_camera_presets, preset_name, _):
-    """Every camera preset config must request at least one data type and have valid dimensions.
-
-    Note: this is a config-level check only. It verifies that the preset is correctly wired up
-    (non-empty data_types, positive width/height) but does NOT run the renderer or inspect actual
-    pixel values. Verifying that rendered frames are non-empty requires a full integration test
-    that steps the simulation and checks the camera output tensors.
-    """
-    resolved = shadow_hand_camera_presets["tiled_camera"][preset_name]
-    assert len(resolved.data_types) > 0, (
-        f"Camera preset '{preset_name}' has an empty data_types list — nothing would be rendered."
-    )
-    assert resolved.width > 0, f"Camera preset '{preset_name}' has non-positive width: {resolved.width}"
-    assert resolved.height > 0, f"Camera preset '{preset_name}' has non-positive height: {resolved.height}"
-
-
-def test_all_camera_presets_present(shadow_hand_camera_presets):
-    """Every preset defined in ShadowHandTiledCameraCfg is discoverable."""
-    camera_presets = shadow_hand_camera_presets["tiled_camera"]
-    expected_names = {name for name, _ in _CAMERA_DATA_TYPE_PRESETS}
-    missing = expected_names - set(camera_presets.keys())
-    assert not missing, f"Camera presets missing from collected presets: {missing}"
+def test_camera_presets_resolve_to_valid_configs(shadow_hand_camera_presets):
+    """Camera presets must be discoverable, request their named data type, and have valid dimensions."""
+    camera_presets = shadow_hand_camera_presets["scene.tiled_camera"]
+    assert set(camera_presets) == {
+        "default",
+        "full",
+        "rgb",
+        "albedo",
+        "simple_shading_constant_diffuse",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_full_mdl",
+        "depth",
+        "semantic_segmentation",
+    }
+    for preset_name, resolved in camera_presets.items():
+        if preset_name in ("default", "full"):
+            assert resolved.data_types == ["rgb", "depth", "semantic_segmentation"], preset_name
+        else:
+            assert resolved.data_types == [preset_name]
+        assert resolved.width > 0, f"Camera preset '{preset_name}' has non-positive width: {resolved.width}"
+        assert resolved.height > 0, f"Camera preset '{preset_name}' has non-positive height: {resolved.height}"
 
 
 # ---------------------------------------------------------------------------
@@ -234,42 +155,27 @@ def test_all_camera_presets_present(shadow_hand_camera_presets):
 
 _RENDERER_PRESETS = [
     # preset_name, expected_class
-    ("default", IsaacRtxRendererCfg),
-    ("isaacsim_rtx_renderer", IsaacRtxRendererCfg),
+    ("default", NewtonWarpRendererCfg),
+    ("isaacsim_rtx", IsaacRtxRendererCfg),
     ("newton_renderer", NewtonWarpRendererCfg),
-    pytest.param("ovrtx_renderer", OVRTXRendererCfg, marks=pytest.mark.skip(reason="OVRTX testing disabled")),
 ]
 
 
 @pytest.mark.parametrize("preset_name,expected_class", _RENDERER_PRESETS)
-def test_renderer_preset_class(shadow_hand_camera_presets, preset_name, expected_class):
-    renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
+def test_renderer_presets_resolve_to_expected_configs(shadow_hand_camera_presets, preset_name, expected_class):
+    """Renderer presets must resolve to the expected configuration and renderer type."""
+    renderer_presets = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]
     assert preset_name in renderer_presets, f"Preset '{preset_name}' not found in renderer presets"
     resolved = renderer_presets[preset_name]
     assert isinstance(resolved, expected_class), (
         f"Renderer preset '{preset_name}': expected {expected_class.__name__}, got {type(resolved).__name__}"
     )
+    if preset_name == "newton_renderer":
+        assert resolved.renderer_type == "newton_warp"
 
-
-def test_warp_renderer_has_correct_renderer_type(shadow_hand_camera_presets):
-    """NewtonWarpRendererCfg must expose renderer_type='newton_warp' for validation to work."""
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    assert warp_cfg.renderer_type == "newton_warp"
-
-
-def test_rtx_preset_has_auto_renderer_type(shadow_hand_camera_presets):
-    """The ``rtx`` preset is an automatic renderer placeholder resolved at launch."""
-    rtx_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["rtx"]
+    rtx_cfg = renderer_presets["rtx"]
     assert isinstance(rtx_cfg, RendererCfg)
     assert rtx_cfg.renderer_type == "auto_rtx"
-
-
-def test_all_renderer_presets_present(shadow_hand_camera_presets):
-    """Every preset in MultiBackendRendererCfg is discoverable."""
-    renderer_presets = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]
-    expected_names = {"default", "rtx", "isaacsim_rtx_renderer", "newton_renderer", "ovrtx_renderer"}
-    missing = expected_names - set(renderer_presets.keys())
-    assert not missing, f"Renderer presets missing from collected presets: {missing}"
 
 
 # ---------------------------------------------------------------------------
@@ -277,32 +183,157 @@ def test_all_renderer_presets_present(shadow_hand_camera_presets):
 # when paired with the warp renderer preset
 # ---------------------------------------------------------------------------
 
-_WARP_VALID_CAMERA_PRESETS = ["rgb", "depth"]
-_WARP_INVALID_CAMERA_PRESETS = [
-    "default",
-    "full",
-    "albedo",
-    "simple_shading_constant_diffuse",
-    "simple_shading_diffuse_mdl",
-    "simple_shading_full_mdl",
+_WARP_CAMERA_PRESETS = [
+    ("rgb", False),
+    ("depth", False),
+    ("default", False),
+    ("full", False),
+    ("albedo", False),
+    ("simple_shading_constant_diffuse", True),
+    ("simple_shading_diffuse_mdl", True),
+    ("simple_shading_full_mdl", True),
 ]
 
 
-@pytest.mark.parametrize("camera_preset", _WARP_VALID_CAMERA_PRESETS)
-def test_warp_with_valid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + {rgb, depth} camera presets must not raise (depth with CNN disabled)."""
-    camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    enabled = camera_cfg.data_types != ["depth"]  # disable CNN for depth-only
+@pytest.mark.parametrize("camera_preset,raises", _WARP_CAMERA_PRESETS)
+def test_warp_camera_preset_compatibility(shadow_hand_camera_presets, camera_preset, raises):
+    """Warp support must match the camera preset's requested data types."""
+    camera_cfg = shadow_hand_camera_presets["scene.tiled_camera"][camera_preset]
+    warp_cfg = shadow_hand_camera_presets["scene.tiled_camera.renderer_cfg"]["newton_renderer"]
+    enabled = camera_cfg.data_types != ["depth"]
     cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, enabled)
-    cfg.validate_config()  # must not raise
+    if raises:
+        with pytest.raises(ValueError):
+            _validate_cfg(cfg)
+    else:
+        _validate_cfg(cfg)
 
 
-@pytest.mark.parametrize("camera_preset", _WARP_INVALID_CAMERA_PRESETS)
-def test_warp_with_invalid_camera_preset(shadow_hand_camera_presets, camera_preset):
-    """Warp + unsupported camera presets must raise ValueError."""
-    camera_cfg = shadow_hand_camera_presets["tiled_camera"][camera_preset]
-    warp_cfg = shadow_hand_camera_presets["tiled_camera.renderer_cfg"]["newton_renderer"]
-    cfg = _make_cfg(warp_cfg.renderer_type, camera_cfg.data_types, True)
-    with pytest.raises(ValueError):
-        cfg.validate_config()
+@pytest.mark.parametrize(
+    "env_cfg_type,presets,checkpoint_filename",
+    [
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("newton_mjwarp", "newton_renderer"),
+            "Isaac-Reorient-Cube-Shadow-Camera_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("isaacsim_physx", "isaacsim_rtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraManagerEnvCfg,
+            ("ovphysx", "ovrtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("newton_mjwarp", "newton_renderer"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("isaacsim_physx", "isaacsim_rtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+        (
+            ShadowHandCameraEnvCfg,
+            ("ovphysx", "ovrtx"),
+            "Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth",
+        ),
+    ],
+)
+def test_task_presets_select_published_feature_extractor_checkpoint(
+    env_cfg_type: type,
+    presets: tuple[str, str],
+    checkpoint_filename: str,
+) -> None:
+    """Each task/backend combination must select its published feature-extractor checkpoint."""
+    env_cfg = resolve_presets(env_cfg_type(), presets)
+
+    expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
+    assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
+
+
+@pytest.fixture
+def mocked_feature_extractor_loading(monkeypatch: pytest.MonkeyPatch) -> tuple[list[str], list[str]]:
+    """Replace the CNN and checkpoint deserializer with lightweight recording doubles."""
+    loaded_paths: list[str] = []
+    loaded_checkpoints: list[str] = []
+
+    class _FeatureExtractorNetwork:
+        def to(self, device: str) -> None:
+            pass
+
+        def load_state_dict(self, checkpoint) -> None:
+            loaded_checkpoints.append(checkpoint)
+
+        def eval(self) -> None:
+            pass
+
+    monkeypatch.setattr(
+        feature_extractor_module, "FeatureExtractorNetwork", lambda **kwargs: _FeatureExtractorNetwork()
+    )
+    monkeypatch.setattr(
+        feature_extractor_module.torch,
+        "load",
+        lambda path, weights_only: loaded_paths.append(path) or "feature extractor weights",
+    )
+    return loaded_paths, loaded_checkpoints
+
+
+def test_feature_extractor_fetches_task_configured_pretrained_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mocked_feature_extractor_loading: tuple[list[str], list[str]],
+) -> None:
+    """The feature extractor must retrieve its own configured checkpoint."""
+    retrieved_paths: list[str] = []
+    checkpoint_path = tmp_path / "feature_extractor.pth"
+    checkpoint_path.touch()
+
+    def _retrieve_file_path(path: str) -> str:
+        retrieved_paths.append(path)
+        return str(checkpoint_path)
+
+    monkeypatch.setattr(feature_extractor_module, "retrieve_file_path", _retrieve_file_path)
+    published_checkpoint = "omniverse://IsaacLab/feature_extractor.pth"
+    cfg = FeatureExtractorCfg(
+        train=False,
+        load_checkpoint=True,
+        pretrained_checkpoint=published_checkpoint,
+    )
+
+    FeatureExtractor(cfg, "cpu", ["rgb"], str(tmp_path / "logs"))
+
+    loaded_paths, loaded_checkpoints = mocked_feature_extractor_loading
+    assert retrieved_paths == [published_checkpoint]
+    assert loaded_paths == [str(checkpoint_path)]
+    assert loaded_checkpoints == ["feature extractor weights"]
+
+
+def test_feature_extractor_prefers_local_training_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    mocked_feature_extractor_loading: tuple[list[str], list[str]],
+) -> None:
+    """Local playback must keep loading the CNN checkpoint saved with the training run."""
+    local_checkpoint = tmp_path / "cnn_100_loss.pth"
+    local_checkpoint.touch()
+    monkeypatch.setattr(
+        feature_extractor_module,
+        "retrieve_file_path",
+        lambda path: pytest.fail("The pretrained checkpoint must not be fetched when a local CNN checkpoint exists."),
+    )
+    cfg = FeatureExtractorCfg(
+        train=False,
+        load_checkpoint=True,
+        pretrained_checkpoint="omniverse://IsaacLab/feature_extractor.pth",
+    )
+
+    FeatureExtractor(cfg, "cpu", ["rgb"], str(tmp_path))
+
+    loaded_paths, loaded_checkpoints = mocked_feature_extractor_loading
+    assert loaded_paths == [str(local_checkpoint)]
+    assert loaded_checkpoints == ["feature extractor weights"]

@@ -3,12 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import warnings
 from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
@@ -21,7 +24,13 @@ from isaaclab.utils.leapp import (
     joint_names_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
+from . import ordering_kernels
+
+if TYPE_CHECKING:
+    from ...actuators import ActuatorCollection
+    from ...utils.buffers import TimestampedBufferWarp
+    from .ordering import ArticulationNameMap
 
 
 class BaseArticulationData(ABC):
@@ -42,6 +51,9 @@ class BaseArticulationData(ABC):
     can be interpreted as the link frame.
     """
 
+    __backend_name__: str = "base"
+    """The name of the backend for the articulation data container."""
+
     def __init__(self, root_view, device: str):
         """Initializes the articulation data.
 
@@ -51,6 +63,68 @@ class BaseArticulationData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._actuator_collection: ActuatorCollection | None = None
+        self._joint_pos_target = None
+        self._joint_vel_target = None
+        self._joint_effort_target = None
+        self._joint_pos_target_ta: ProxyArray | None = None
+        self._joint_vel_target_ta: ProxyArray | None = None
+        self._joint_effort_target_ta: ProxyArray | None = None
+
+    def bind_actuator_collection(self, actuators: ActuatorCollection) -> None:
+        """Bind collection-owned command and telemetry aliases plus actuator compatibility projections."""
+        self._actuator_collection = actuators
+        self._joint_pos_target = actuators.target_command.position.warp
+        self._joint_vel_target = actuators.target_command.velocity.warp
+        self._joint_effort_target = actuators.target_command.effort.warp
+        self._computed_torque = actuators.computed_effort.warp
+        self._applied_torque = actuators.applied_effort.warp
+        self._soft_joint_vel_limits = actuators._soft_joint_vel_limits
+        self._joint_pos_target_ta = actuators.target_command.position
+        self._joint_vel_target_ta = actuators.target_command.velocity
+        self._joint_effort_target_ta = actuators.target_command.effort
+        self._computed_torque_ta = actuators.computed_effort
+        self._applied_torque_ta = actuators.applied_effort
+        self._soft_joint_vel_limits_ta = ProxyArray(self._soft_joint_vel_limits)
+
+    def _get_actuator_collection_proxy(self, name: str, buffer_name: str, proxy_name: str) -> ProxyArray:
+        collection = self._actuator_collection
+        if collection is not None:
+            command_field = {
+                "joint_pos_target": "position",
+                "joint_vel_target": "velocity",
+                "joint_effort_target": "effort",
+            }.get(name)
+            collection_field = {
+                "computed_torque": "computed_effort",
+                "applied_torque": "applied_effort",
+            }.get(name, name)
+            replacement = f"command.{command_field}" if command_field is not None else collection_field
+            warnings.warn(
+                f"ArticulationData.{name} is deprecated. Use articulation.actuators.{replacement} instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return (
+                getattr(collection.target_command, command_field)
+                if command_field is not None
+                else getattr(collection, collection_field)
+            )
+
+        warnings.warn(
+            f"ArticulationData.{name} is deprecated.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        buffer = getattr(self, buffer_name)
+        if buffer is None:
+            buffer = wp.zeros((self._num_instances, self._num_joints), dtype=wp.float32, device=self.device)
+            setattr(self, buffer_name, buffer)
+        proxy = getattr(self, proxy_name)
+        if proxy is None:
+            proxy = ProxyArray(buffer)
+            setattr(self, proxy_name, proxy)
+        return proxy
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -89,16 +163,139 @@ class BaseArticulationData(ABC):
     ##
 
     body_names: list[str] | None = None
-    """Body names in the order parsed by the simulation view."""
+    """Body names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
 
     joint_names: list[str] | None = None
-    """Joint names in the order parsed by the simulation view."""
+    """Joint names in public API order.
+
+    Configured order is used when present; otherwise this is active backend
+    solver-view order.
+    """
+
+    joint_ordering: ArticulationNameMap | None = None
+    """Bidirectional map between backend and public joint order.
+
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
+    """
+
+    body_ordering: ArticulationNameMap | None = None
+    """Bidirectional map between backend and public body order.
+
+    This is ``None`` whenever public and backend orders coincide (default
+    ordering, or a configured ordering that resolved to backend order); a
+    non-``None`` map always denotes an actual permutation.
+    """
 
     fixed_tendon_names: list[str] | None = None
-    """Fixed tendon names in the order parsed by the simulation view."""
+    """Fixed tendon names in active backend solver-view order."""
 
     spatial_tendon_names: list[str] | None = None
-    """Spatial tendon names in the order parsed by the simulation view."""
+    """Spatial tendon names in active backend solver-view order."""
+
+    @property
+    def has_joint_ordering(self) -> bool:
+        """Whether a nonidentity joint ordering is active.
+
+        Derived from :attr:`joint_ordering`; a non-``None`` map always denotes an
+        actual permutation between backend and public joint order.
+        """
+        return self.joint_ordering is not None
+
+    @property
+    def has_body_ordering(self) -> bool:
+        """Whether a nonidentity body ordering is active.
+
+        Derived from :attr:`body_ordering`; a non-``None`` map always denotes an
+        actual permutation between backend and public body order.
+        """
+        return self.body_ordering is not None
+
+    def _apply_ordering_maps_after_resolve(self) -> None:
+        """Configure backend-order staging after the articulation resolves ordering maps.
+
+        The owning articulation calls this once it has resolved and stored the joint
+        and body ordering maps (:attr:`joint_ordering` and :attr:`body_ordering`) on
+        this data container. The base implementation is a no-op; backend data classes
+        override it to allocate or release the backend-order shadow buffers their read
+        paths require when the public order differs from backend order.
+        """
+
+    def _make_jacobian_body_user_to_backend(self) -> wp.array:
+        """Build the compact user-to-backend row map for Jacobian body axes.
+
+        The map follows the installed :attr:`body_ordering`, or backend body
+        order when no ordering is active. Fixed-base articulations omit the
+        root link's Jacobian rows, so a nonzero :attr:`_jacobian_link_offset`
+        drops backend row 0 and shifts the remaining rows down by one.
+
+        Returns:
+            One-dimensional ``wp.int32`` device array of backend Jacobian rows in
+            public body order.
+        """
+        body_ordering = self.body_ordering
+        body_user_to_backend = (
+            body_ordering.user_to_backend_indices if body_ordering is not None else range(self._num_bodies)
+        )
+        if self._jacobian_link_offset == 0:
+            backend_rows = tuple(int(backend_id) for backend_id in body_user_to_backend)
+        else:
+            backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
+        return wp.array(backend_rows, dtype=wp.int32, device=self.device)
+
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBufferWarp) -> None:
+        """Read the current backend-order static body COM pose into ``buf`` when stale.
+
+        Backend hook for :meth:`_ensure_body_com_pose_b_current` and
+        :attr:`_backend_body_com_pose_b`. The base raises because only backends that
+        stage a static body COM pose implement the fetch.
+
+        Args:
+            buf: Timestamped buffer to refresh with the backend-order COM pose.
+        """
+        raise NotImplementedError
+
+    def _ensure_body_com_pose_b_current(self) -> None:
+        """Refresh the static body COM pose cache when explicitly invalidated.
+
+        Under body ordering the fetch fills the backend-order staging buffer and the
+        result is gathered into public order; otherwise it fills the public buffer
+        directly.
+        """
+        if self._body_com_pose_b.timestamp >= 0.0:
+            return
+        if self.body_ordering is None:
+            self._fetch_body_com_pose_b_backend(self._body_com_pose_b)
+            return
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError(f"{self.__backend_name__} body COM ordering staging was not initialized.")
+        self._fetch_body_com_pose_b_backend(backend_staging)
+        wp.launch(
+            ordering_kernels.reorder_2d_backend_to_user,
+            dim=(self._num_instances, self._num_bodies),
+            inputs=[backend_staging.data, self.body_ordering.user_to_backend],
+            outputs=[self._body_com_pose_b.data],
+            device=self.device,
+        )
+        self._body_com_pose_b.timestamp = backend_staging.timestamp
+
+    @property
+    def _backend_body_com_pose_b(self) -> wp.array(dtype=wp.transformf, ndim=2):
+        """Backend-order body COM pose buffer for root-only computations."""
+        if self.body_ordering is None:
+            self._ensure_body_com_pose_b_current()
+            return self._body_com_pose_b.data
+        backend_staging = self._body_com_pose_b_backend
+        if backend_staging is None:
+            raise RuntimeError(f"{self.__backend_name__} body COM ordering staging was not initialized.")
+        self._fetch_body_com_pose_b_backend(backend_staging)
+        return backend_staging.data
 
     ##
     # Defaults - Initial state.
@@ -162,77 +359,70 @@ class BaseArticulationData(ABC):
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_POSITION)
     def joint_pos_target(self) -> ProxyArray:
-        """Joint position targets commanded by the user.
+        """Joint position targets commanded by the user [m or rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.position`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_pos_target", "_joint_pos_target", "_joint_pos_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_VELOCITY)
     def joint_vel_target(self) -> ProxyArray:
-        """Joint velocity targets commanded by the user.
+        """Joint velocity targets commanded by the user [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.velocity`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("joint_vel_target", "_joint_vel_target", "_joint_vel_target_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind=InputKindEnum.COMMAND_JOINT_TORQUES)
     def joint_effort_target(self) -> ProxyArray:
-        """Joint effort targets commanded by the user.
+        """Joint effort targets commanded by the user [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.target_command.effort`` instead.
 
-        For an implicit actuator model, the targets are directly set into the simulation.
-        For an explicit actuator model, the targets are used to compute the joint torques (see :attr:`applied_torque`),
-        which are then set into the simulation.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy(
+            "joint_effort_target", "_joint_effort_target", "_joint_effort_target_ta"
+        )
 
     ##
     # Joint commands -- Explicit actuators.
     ##
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/computed_torque")
     def computed_torque(self) -> ProxyArray:
-        """Joint torques computed from the actuator model (before clipping).
+        """Computed actuator torques before clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.computed_effort`` instead.
 
-        This quantity is the raw torque output from the actuator mode, before any clipping is applied.
-        It is exposed for users who want to inspect the computations inside the actuator model.
-        For instance, to penalize the learning agent for a difference between the computed and applied torques.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("computed_torque", "_computed_torque", "_computed_torque_ta")
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(kind="state/joint/applied_torque")
     def applied_torque(self) -> ProxyArray:
-        """Joint torques applied from the actuator model (after clipping).
+        """Actuator torques applied after clipping [N or N·m, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        .. deprecated:: 3.0.0
+            Use ``articulation.actuators.applied_effort`` instead.
 
-        These torques are set into the simulation, after clipping the :attr:`computed_torque` based on the
-        actuator model.
+        Shape is (num_instances, num_joints), dtype = wp.float32.
         """
-        raise NotImplementedError
+        return self._get_actuator_collection_proxy("applied_torque", "_applied_torque", "_applied_torque_ta")
 
     ##
     # Joint properties.
@@ -242,11 +432,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_stiffness(self) -> ProxyArray:
-        """Joint stiffness provided to the simulation.
+        """Solver joint-drive stiffness [N/m or N·m/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -254,11 +443,10 @@ class BaseArticulationData(ABC):
     @abstractmethod
     @leapp_tensor_semantics(const=True)
     def joint_damping(self) -> ProxyArray:
-        """Joint damping provided to the simulation.
+        """Solver joint-drive damping [N·s/m or N·m·s/rad, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-
-        In the case of explicit actuators, the value for the corresponding joints is zero.
+        Shape is (num_instances, num_joints), dtype = wp.float32. Explicit
+        actuator joints report zero because their model owns the gains.
         """
         raise NotImplementedError
 
@@ -351,27 +539,17 @@ class BaseArticulationData(ABC):
         raise NotImplementedError
 
     @property
-    @abstractmethod
     @leapp_tensor_semantics(const=True)
     def soft_joint_vel_limits(self) -> ProxyArray:
-        """Soft joint velocity limits for all joints.
+        """Actuator-resolved soft joint velocity limits [m/s or rad/s, depending on joint type].
 
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
+        Shape is (num_instances, num_joints), dtype = wp.float32.
 
-        These are obtained from the actuator model. It may differ from :attr:`joint_vel_limits` if the actuator model
-        has a variable velocity limit model. For instance, in a variable gear ratio actuator model.
+        These values are produced by the actuator model and can differ from :attr:`joint_vel_limits` for a
+        state-dependent velocity-limit model, such as one with a variable gear ratio. They are compatibility outputs;
+        the solver velocity limits remain :attr:`joint_vel_limits`.
         """
-        raise NotImplementedError
-
-    @property
-    @abstractmethod
-    @leapp_tensor_semantics(const=True)
-    def gear_ratio(self) -> ProxyArray:
-        """Gear ratio for relating motor torques to applied Joint torques.
-
-        Shape is (num_instances, num_joints), dtype = wp.float32. In torch this resolves to (num_instances, num_joints).
-        """
-        raise NotImplementedError
+        return self._soft_joint_vel_limits_ta
 
     ##
     # Fixed tendon properties.
@@ -720,6 +898,8 @@ class BaseArticulationData(ABC):
         Conventions:
             * Body axis: ``jacobi_body_idx == body_idx - 1`` for fixed-base (fixed-root
               row excluded); ``jacobi_body_idx == body_idx`` for floating-base.
+              With custom body ordering, fixed-base Jacobian rows follow user body
+              order with the fixed root omitted.
             * DoF axis: leading
               :attr:`~isaaclab.assets.BaseArticulation.num_base_dofs` floating-base
               columns (world-frame ``[lin_x, lin_y, lin_z, ang_x, ang_y, ang_z]``),

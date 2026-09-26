@@ -10,7 +10,9 @@ Covers all combinations of:
 - Isaac Sim installation methods: local _isaac_sim symlink, pip-installed isaacsim, none
 """
 
+import os
 import subprocess
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from unittest import mock
@@ -19,12 +21,14 @@ import pytest
 
 import isaaclab.cli.commands.install as install_cmd
 from isaaclab.cli.commands.install import (
-    _PREBUNDLE_REPOINT_PACKAGES,
     _ensure_cuda_torch,
+    _install_isaacsim,
     _maybe_uninstall_prebundled_torch,
     _repoint_prebundle_packages,
     _torch_first_on_sys_path_is_prebundle,
 )
+
+pytestmark = pytest.mark.unit
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -69,29 +73,89 @@ def _make_site_packages(
     return site_pkgs
 
 
+def test_kernel_only_install_adds_extras_at_installed_version():
+    with (
+        mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value="python"),
+        mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=["uv", "pip"]),
+        mock.patch(
+            "isaaclab.cli.commands.install.run_command",
+            side_effect=[_cp(0, "1.2.3+local"), _cp(1), _cp(0)],
+        ) as mock_run,
+    ):
+        _install_isaacsim()
+
+    assert mock_run.call_args.args[0] == [
+        "uv",
+        "pip",
+        "install",
+        "isaacsim[all,extscache]==1.2.3+local",
+        "--extra-index-url",
+        install_cmd.NVIDIA_INDEX_URL,
+        "--index-strategy",
+        "unsafe-best-match",
+    ]
+
+
+# ---------------------------------------------------------------------------
+# _arm_cmake_policy_compatibility
+# ---------------------------------------------------------------------------
+
+
+class TestArmCmakePolicyCompatibility:
+    """Tests for legacy CMake dependency builds on ARM."""
+
+    def test_sets_policy_minimum_during_arm_install(self):
+        """ARM installs allow nlopt and egl-probe CMake projects to configure."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"PATH": "/bin"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
+
+    def test_restores_existing_policy_minimum_after_arm_install(self):
+        """An existing user setting is restored after the installer finishes."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
+            mock.patch.dict("os.environ", {"CMAKE_POLICY_VERSION_MINIMUM": "3.10"}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.5"
+            assert os.environ["CMAKE_POLICY_VERSION_MINIMUM"] == "3.10"
+
+    def test_leaves_environment_unchanged_outside_arm(self):
+        """Non-ARM installs do not receive the compatibility setting."""
+        with (
+            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
+            mock.patch.dict("os.environ", {}, clear=True),
+        ):
+            with install_cmd._arm_cmake_policy_compatibility():
+                assert "CMAKE_POLICY_VERSION_MINIMUM" not in os.environ
+
+
 # ---------------------------------------------------------------------------
 # _install_isaaclab_submodules targeted dependency upgrades
 # ---------------------------------------------------------------------------
 
 
 class TestInstallSubmodulesTargetedDependencyUpgrades:
-    """Tests for extension.toml-driven dependency upgrades."""
+    """Tests for pyproject.toml-driven dependency upgrades."""
 
-    def _make_extension(self, tmp_path, extension_toml: str) -> Path:
+    def _make_extension(self, tmp_path, pyproject_toml: str) -> Path:
         """Create a minimal installable extension fixture."""
         source_dir = tmp_path / "source"
         extension_dir = source_dir / "isaaclab_teleop"
-        config_dir = extension_dir / "config"
-        config_dir.mkdir(parents=True)
+        extension_dir.mkdir(parents=True)
         (extension_dir / "setup.py").write_text("# test fixture\n", encoding="utf-8")
-        (config_dir / "extension.toml").write_text(extension_toml, encoding="utf-8")
+        (extension_dir / "pyproject.toml").write_text(pyproject_toml, encoding="utf-8")
         return extension_dir
 
     def test_installs_editable_then_upgrades_declared_dependency_from_metadata(self, tmp_path):
         """An opted-in dependency is upgraded using the requirement recorded in installed metadata."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -119,7 +183,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """uv upgrades only the declared package rather than using a global upgrade."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = ["isaacteleop"]\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = ["isaacteleop"]\n',
         )
 
         python_exe = str(tmp_path / "python")
@@ -189,11 +253,16 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
                 ["isaacteleop", "IsaacTeleop"],
             )
 
-        mock_run.assert_called_once_with(pip_cmd + ["install", "--upgrade", req])
+        mock_run.assert_called_once_with(
+            pip_cmd + ["install", "--upgrade", req],
+            check=True,
+            retry_attempts=3,
+            retry_delay_seconds=3.0,
+        )
 
     def test_skips_when_toml_has_no_upgrade_dependencies(self, tmp_path):
         """Extensions without pip upgrade opt-ins do not trigger metadata probes."""
-        extension_dir = self._make_extension(tmp_path, "[isaac_lab_settings]\n")
+        extension_dir = self._make_extension(tmp_path, "[tool.isaaclab]\n")
 
         assert install_cmd._get_extension_pip_upgrade_dependencies(extension_dir) == []
 
@@ -201,7 +270,7 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
         """Invalid TOML value types warn and disable targeted upgrades."""
         extension_dir = self._make_extension(
             tmp_path,
-            '[isaac_lab_settings]\npip_upgrade_dependencies = "isaacteleop"\n',
+            '[tool.isaaclab]\npip_upgrade_dependencies = "isaacteleop"\n',
         )
 
         with mock.patch("isaaclab.cli.commands.install.print_warning") as mock_warning:
@@ -238,46 +307,22 @@ class TestInstallSubmodulesTargetedDependencyUpgrades:
 class TestTorchProbe:
     """Tests for :func:`_torch_first_on_sys_path_is_prebundle`.
 
-    The function shells out to ``python_exe -c <probe>`` and interprets the
-    subprocess exit code: 1 → prebundle is first; 0 → it is not.
+    Runs the real probe subprocess with a fake ``torch`` package placed first on
+    ``PYTHONPATH``, which the probe only receives through the forwarded ``env``.
     """
 
-    def test_returns_true_when_prebundle_first(self, tmp_path):
-        """Probe exits 1 → the first torch on sys.path is under a pip_prebundle directory."""
-        with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=1)):
-            result = _torch_first_on_sys_path_is_prebundle(
-                str(tmp_path / "python"),
-                env={"PYTHONPATH": "/fake/extsDeprecated/pip_prebundle"},
-            )
-        assert result is True
+    @pytest.mark.parametrize(
+        ("torch_parent", "expected"),
+        [("exts/omni.isaac.ml_archive/pip_prebundle", True), ("site-packages", False)],
+        ids=["prebundle_first", "site_packages_first"],
+    )
+    def test_reports_whether_first_torch_is_prebundled(self, tmp_path, torch_parent, expected):
+        torch_root = tmp_path / torch_parent
+        (torch_root / "torch").mkdir(parents=True)
+        (torch_root / "torch" / "__init__.py").write_text("")
+        env = {**os.environ, "PYTHONPATH": str(torch_root)}
 
-    def test_returns_false_when_site_packages_first(self, tmp_path):
-        """Probe exits 0 → the first torch on sys.path is in regular site-packages."""
-        with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=0)):
-            result = _torch_first_on_sys_path_is_prebundle(
-                str(tmp_path / "python"),
-                env={"PYTHONPATH": "/conda/lib/python3.12/site-packages"},
-            )
-        assert result is False
-
-    def test_returns_false_when_torch_not_found_anywhere(self, tmp_path):
-        """Probe exits 0 (no torch on sys.path at all) → returns False."""
-        with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(returncode=0)):
-            result = _torch_first_on_sys_path_is_prebundle(
-                str(tmp_path / "python"),
-                env={},
-            )
-        assert result is False
-
-    def test_passes_env_to_subprocess(self, tmp_path):
-        """The custom env dict is forwarded to run_command."""
-        env_sent = {"PYTHONPATH": "/some/path"}
-        with mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0)) as mock_run:
-            _torch_first_on_sys_path_is_prebundle(str(tmp_path / "python"), env=env_sent)
-        call_kwargs = mock_run.call_args
-        assert call_kwargs.kwargs.get("env") == env_sent or (
-            len(call_kwargs.args) > 1 and call_kwargs.args[1] == env_sent
-        )
+        assert _torch_first_on_sys_path_is_prebundle(sys.executable, env=env) is expected
 
 
 # ---------------------------------------------------------------------------
@@ -351,27 +396,24 @@ class TestMaybeUninstallTorch:
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.usefixtures("source_checkout_root")
 class TestEnsureCudaTorch:
     """Tests for :func:`_ensure_cuda_torch` across architectures and environment types.
 
     Combinations tested:
-    - Architecture:  x86 (cu128) vs ARM (cu130)
     - Pip command:   ``python -m pip`` (venv/conda/kit) vs ``uv pip`` (uv venv)
     - Torch state:   already installed at correct version; wrong CUDA tag; not installed
     """
 
-    # ---- x86 scenarios -------------------------------------------------------
-
-    def test_x86_skips_install_when_correct_version_present(self, tmp_path):
-        """x86: torch 2.10.0+cu128 already installed → pip install is not called."""
+    def test_skips_install_when_correct_version_present(self, tmp_path):
+        """A matching CUDA 13.0 build does not trigger an install."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu128\n"
+        pip_show_out = "Name: torch\nVersion: 2.12.0+cu130\n"
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
             mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
             mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, pip_show_out)) as mock_run,
         ):
             _ensure_cuda_torch()
@@ -380,8 +422,8 @@ class TestEnsureCudaTorch:
         assert mock_run.call_count == 1
         assert "show" in mock_run.call_args[0][0]
 
-    def test_x86_installs_cu128_when_torch_missing(self, tmp_path):
-        """x86: no torch installed → installs torch+cu128 from pytorch.org/whl/cu128."""
+    def test_installs_cu130_when_torch_missing(self, tmp_path):
+        """Missing torch is installed from the CUDA 13.0 index."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
         calls: list[list[str]] = []
@@ -393,31 +435,29 @@ class TestEnsureCudaTorch:
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
             mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
             mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
         ):
             _ensure_cuda_torch()
 
         install_cmds = [c for c in calls if "install" in c]
         combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu128" in combined
+        assert "https://download.pytorch.org/whl/cu130" in combined
         assert "torch" in combined
 
-    def test_x86_reinstalls_when_wrong_cuda_tag(self, tmp_path):
-        """x86: torch+cu130 installed (ARM build) → uninstalls and reinstalls as cu128."""
+    def test_reinstalls_when_wrong_cuda_tag(self, tmp_path):
+        """An existing CUDA 12.6 build is replaced with CUDA 13.0."""
         py = str(tmp_path / "python")
         pip_cmd = [py, "-m", "pip"]
         calls: list[list[str]] = []
 
         def _run(cmd, **kwargs):
             calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu130\n" if "show" in cmd else ""
+            stdout = "Name: torch\nVersion: 2.12.0+cu126\n" if "show" in cmd else ""
             return _cp(0, stdout)
 
         with (
             mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
             mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
             mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
         ):
             _ensure_cuda_torch()
@@ -425,71 +465,7 @@ class TestEnsureCudaTorch:
         assert any("uninstall" in c for c in calls), "Expected an uninstall call"
         install_cmds = [c for c in calls if "install" in c]
         combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu128" in combined
-
-    # ---- ARM scenarios -------------------------------------------------------
-
-    def test_arm_installs_cu130_when_torch_missing(self, tmp_path):
-        """ARM: no torch installed → installs torch+cu130 from pytorch.org/whl/cu130."""
-        py = str(tmp_path / "python")
-        pip_cmd = [py, "-m", "pip"]
-        calls: list[list[str]] = []
-
-        def _run(cmd, **kwargs):
-            calls.append(list(cmd))
-            return _cp(0, "")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
-            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
-        ):
-            _ensure_cuda_torch()
-
-        install_cmds = [c for c in calls if "install" in c]
-        combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu130" in combined
-
-    def test_arm_skips_install_when_correct_version_present(self, tmp_path):
-        """ARM: torch 2.10.0+cu130 already installed → pip install is not called."""
-        py = str(tmp_path / "python")
-        pip_cmd = [py, "-m", "pip"]
-        pip_show_out = "Name: torch\nVersion: 2.10.0+cu130\n"
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
-            mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, pip_show_out)) as mock_run,
-        ):
-            _ensure_cuda_torch()
-
-        assert mock_run.call_count == 1
-
-    def test_arm_reinstalls_when_wrong_cuda_tag(self, tmp_path):
-        """ARM: torch+cu128 installed (x86 build) → uninstalls and reinstalls as cu130."""
-        py = str(tmp_path / "python")
-        pip_cmd = [py, "-m", "pip"]
-        calls: list[list[str]] = []
-
-        def _run(cmd, **kwargs):
-            calls.append(list(cmd))
-            stdout = "Name: torch\nVersion: 2.10.0+cu128\n" if "show" in cmd else ""
-            return _cp(0, stdout)
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=True),
-            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
-        ):
-            _ensure_cuda_torch()
-
-        assert any("uninstall" in c for c in calls)
-        install_cmds = [c for c in calls if "install" in c]
-        combined = " ".join(str(t) for c in install_cmds for t in c)
-        assert "cu130" in combined
+        assert "https://download.pytorch.org/whl/cu130" in combined
 
     # ---- uv venv environment ------------------------------------------------
 
@@ -540,26 +516,6 @@ class TestEnsureCudaTorch:
         assert "-y" in uninstall_calls[0], "pip uninstall must include -y"
         assert py in uninstall_calls[0], "Expected python exe in pip command"
 
-    def test_kit_python_uses_python_sh_as_pip_prefix(self, tmp_path):
-        """With Isaac Sim's kit Python, python.sh is the executable prefix in the pip command."""
-        python_sh = str(tmp_path / "_isaac_sim" / "python.sh")
-        pip_cmd = [python_sh, "-m", "pip"]
-        calls: list[list[str]] = []
-
-        def _run(cmd, **kwargs):
-            calls.append(list(cmd))
-            return _cp(0, "")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_sh),
-            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
-            mock.patch("isaaclab.cli.commands.install.is_arm", return_value=False),
-            mock.patch("isaaclab.cli.commands.install.run_command", side_effect=_run),
-        ):
-            _ensure_cuda_torch()
-
-        assert calls[0][0] == python_sh
-
 
 # ---------------------------------------------------------------------------
 # _repoint_prebundle_packages  — Isaac Sim install method × venv type
@@ -576,6 +532,15 @@ class TestRePointPrebundlePackages:
     """
 
     # ---- shared fixtures / helpers ------------------------------------------
+
+    @pytest.fixture(autouse=True)
+    def _isolate_home(self, tmp_path, monkeypatch):
+        """Keep prebundle discovery away from the host's real ``~/.local/share/ov`` cache."""
+        home = tmp_path / "home"
+        home.mkdir()
+        monkeypatch.setenv("HOME", str(home))
+        monkeypatch.setenv("XDG_DATA_HOME", str(home / ".local" / "share"))
+        monkeypatch.setenv("XDG_CACHE_HOME", str(home / ".cache"))
 
     def _sim_with_prebundle(self, base: Path, packages: list[str]) -> tuple[Path, Path]:
         """Create a minimal fake Isaac Sim tree containing a pip_prebundle dir.
@@ -627,7 +592,8 @@ class TestRePointPrebundlePackages:
         with self._patch(isaacsim_path, site_pkgs, py):
             _repoint_prebundle_packages()
 
-        assert not (site_pkgs.parent / "pip_prebundle" / "torch").exists()
+        assert list(isaacsim_path.rglob("*")) == []
+        assert (site_pkgs / "torch").is_dir() and not (site_pkgs / "torch").is_symlink()
 
     # ---- local _isaac_sim symlink (local build) ------------------------------
 
@@ -668,7 +634,7 @@ class TestRePointPrebundlePackages:
     def test_local_build_repoints_nvidia_when_cudnn_present_venv(self, tmp_path):
         """Local build + CUDA-capable venv: site-packages/nvidia has cudnn → nvidia IS repointed.
 
-        This covers the conda or pip venv case where the user installed torch+cu128/cu130
+        This covers the conda or pip venv case where the user installed torch+cu126/cu130
         with its nvidia-cudnn-cu12 dependency, giving site-packages/nvidia/cudnn/.
         """
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
@@ -732,112 +698,6 @@ class TestRePointPrebundlePackages:
                 with pytest.raises(RuntimeError, match="neutralize"):
                     _repoint_prebundle_packages()
 
-    # ---- pip-installed isaacsim (path found via import probe) ----------------
-
-    def test_pip_isaacsim_symlinks_torch(self, tmp_path):
-        """pip-installed isaacsim: extract_isaacsim_path() returns its directory and torch is repointed."""
-        # With pip-installed isaacsim the path may be inside site-packages rather than a symlink
-        # at the repo root, but _repoint_prebundle_packages treats it identically.
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "pip_isaacsim", ["torch"])
-        site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
-        py = str(tmp_path / "env" / "bin" / "python")
-
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").is_symlink()
-        assert (prebundle / "torch").resolve() == (site_pkgs / "torch").resolve()
-
-    def test_pip_isaacsim_skips_nvidia_without_cudnn(self, tmp_path):
-        """pip-installed isaacsim + no cudnn in site-packages → nvidia prebundle preserved."""
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "pip_isaacsim", ["nvidia"])
-        # site-packages has nvidia/ but without a cudnn sub-package
-        site_pkgs = _make_site_packages(tmp_path / "env", ["nvidia"])
-        py = str(tmp_path / "env" / "bin" / "python")
-
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
-
-        assert not (prebundle / "nvidia").is_symlink(), "nvidia must not be repointed without cudnn"
-
-    # ---- different venv types ------------------------------------------------
-
-    def test_uv_venv_repoints_torch_using_venv_site_packages(self, tmp_path):
-        """uv venv: site-packages inside VIRTUAL_ENV is used as the symlink target."""
-        venv_site = tmp_path / "env_uv" / "lib" / "python3.12" / "site-packages"
-        venv_site.mkdir(parents=True)
-        (venv_site / "torch").mkdir()
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
-        py = str(tmp_path / "env_uv" / "bin" / "python")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_isaacsim_path", return_value=isaacsim_path),
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.is_windows", return_value=False),
-            mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, str(venv_site))),
-        ):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").is_symlink()
-        assert (prebundle / "torch").resolve() == (venv_site / "torch").resolve()
-
-    def test_conda_repoints_torch_using_conda_site_packages(self, tmp_path):
-        """conda env: site-packages inside CONDA_PREFIX is used as the symlink target."""
-        conda_site = tmp_path / "conda" / "lib" / "python3.12" / "site-packages"
-        conda_site.mkdir(parents=True)
-        (conda_site / "torch").mkdir()
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
-        py = str(tmp_path / "conda" / "bin" / "python")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_isaacsim_path", return_value=isaacsim_path),
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.is_windows", return_value=False),
-            mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, str(conda_site))),
-        ):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "torch").is_symlink()
-        assert (prebundle / "torch").resolve() == (conda_site / "torch").resolve()
-
-    def test_conda_repoints_nvidia_when_full_cuda_torch_installed(self, tmp_path):
-        """conda env with nvidia-cudnn-cu12 installed: nvidia/ is repointed because cudnn subdir exists."""
-        conda_site = tmp_path / "conda" / "lib" / "python3.12" / "site-packages"
-        conda_site.mkdir(parents=True)
-        (conda_site / "nvidia").mkdir()
-        (conda_site / "nvidia" / "cudnn").mkdir()
-        (conda_site / "nvidia" / "cublas").mkdir()
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
-        py = str(tmp_path / "conda" / "bin" / "python")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_isaacsim_path", return_value=isaacsim_path),
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.is_windows", return_value=False),
-            mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, str(conda_site))),
-        ):
-            _repoint_prebundle_packages()
-
-        assert (prebundle / "nvidia").is_symlink()
-
-    def test_conda_skips_nvidia_when_no_cudnn(self, tmp_path):
-        """conda env without CUDA torch: site-packages/nvidia lacks cudnn → nvidia not repointed."""
-        conda_site = tmp_path / "conda" / "lib" / "python3.12" / "site-packages"
-        conda_site.mkdir(parents=True)
-        (conda_site / "nvidia").mkdir()  # exists but no cudnn inside
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
-        py = str(tmp_path / "conda" / "bin" / "python")
-
-        with (
-            mock.patch("isaaclab.cli.commands.install.extract_isaacsim_path", return_value=isaacsim_path),
-            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=py),
-            mock.patch("isaaclab.cli.commands.install.is_windows", return_value=False),
-            mock.patch("isaaclab.cli.commands.install.run_command", return_value=_cp(0, str(conda_site))),
-        ):
-            _repoint_prebundle_packages()
-
-        assert not (prebundle / "nvidia").is_symlink()
-
     # ---- multiple prebundle directories -------------------------------------
 
     def test_repoints_across_multiple_prebundle_dirs(self, tmp_path):
@@ -860,6 +720,25 @@ class TestRePointPrebundlePackages:
 
         for pb in (pb1, pb2):
             assert (pb / "torch").is_symlink(), f"torch in {pb} should be repointed"
+
+    def test_repoints_package_inside_expanded_extra_bundle(self, tmp_path):
+        """Expanded extras bundles must not retain file links into a replaced package."""
+        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["newton"])
+        shared_init = prebundle / "newton" / "legacy" / "__init__.py"
+        shared_init.parent.mkdir()
+        shared_init.write_text("")
+        bundled_newton = prebundle / "newton[sim]" / "newton-wheel" / "newton"
+        bundled_init = bundled_newton / "legacy" / "__init__.py"
+        bundled_init.parent.mkdir(parents=True)
+        bundled_init.symlink_to(shared_init)
+        site_pkgs = _make_site_packages(tmp_path / "env", ["newton"])
+
+        with self._patch(isaacsim_path, site_pkgs, str(tmp_path / "env" / "bin" / "python")):
+            _repoint_prebundle_packages()
+
+        assert (prebundle / "newton").resolve() == (site_pkgs / "newton").resolve()
+        assert bundled_newton.is_symlink()
+        assert bundled_newton.resolve() == (site_pkgs / "newton").resolve()
 
     # ---- Windows: copy instead of symlink -----------------------------------
 
@@ -929,17 +808,29 @@ class TestRePointPrebundlePackages:
 
         assert not (prebundle / "torch").is_symlink(), "No symlink should be created when probe fails"
 
-    # ---- all packages in the repoint list are covered -----------------------
 
-    @pytest.mark.parametrize("pkg_name", [p for p in _PREBUNDLE_REPOINT_PACKAGES if p != "nvidia"])
-    def test_all_non_nvidia_packages_are_repointed(self, tmp_path, pkg_name):
-        """Every non-nvidia entry in _PREBUNDLE_REPOINT_PACKAGES is repointed when it exists."""
-        isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", [pkg_name])
-        site_pkgs = _make_site_packages(tmp_path / "env", [pkg_name])
-        py = str(tmp_path / "env" / "bin" / "python")
+class TestInstallRootExtraExcludesIsaacSim:
+    """A root extra may list Isaac Sim for uv, but pip must never resolve it inline."""
 
-        with self._patch(isaacsim_path, site_pkgs, py):
-            _repoint_prebundle_packages()
+    def test_install_root_extra_omits_isaacsim_from_the_pip_command(self, tmp_path):
+        """pip has no override mechanism, so isaacsim + isaacteleop in one pass cannot resolve."""
+        python_exe = str(tmp_path / "python")
+        pip_cmd = [python_exe, "-m", "pip"]
+        root_pyproject = {
+            "project": {
+                "optional-dependencies": {
+                    "teleop": ["isaacsim[all,extscache]==6.1.0.0", "isaacteleop[cloudxr]==1.0.0", "isaaclab_teleop"]
+                }
+            }
+        }
 
-        assert (prebundle / pkg_name).is_symlink(), f"{pkg_name} should be repointed"
-        assert (prebundle / pkg_name).resolve() == (site_pkgs / pkg_name).resolve()
+        with (
+            mock.patch("isaaclab.cli.commands.install._load_root_pyproject", return_value=root_pyproject),
+            mock.patch("isaaclab.cli.commands.install.extract_python_exe", return_value=python_exe),
+            mock.patch("isaaclab.cli.commands.install.get_pip_command", return_value=pip_cmd),
+            mock.patch("isaaclab.cli.commands.install.run_command") as mock_run,
+        ):
+            install_cmd._install_root_extra("teleop")
+
+        mock_run.assert_called_once()
+        assert mock_run.call_args.args[0] == [*pip_cmd, "install", "isaacteleop[cloudxr]==1.0.0"]

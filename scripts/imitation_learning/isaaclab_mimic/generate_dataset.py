@@ -56,8 +56,9 @@ AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli, remaining_args = parser.parse_known_args()
 
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
+# Mimic environments may use camera observations or an RTX renderer. Request
+# rendering support here so callers do not need a legacy CLI flag.
+app_launcher = AppLauncher(args_cli, enable_cameras=True)
 simulation_app = app_launcher.app
 
 # Call an external callback if requested.
@@ -87,8 +88,6 @@ from isaaclab.envs import ManagerBasedRLMimicEnv
 import isaaclab_mimic.envs  # noqa: F401
 from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
 from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
-
-import isaaclab_tasks  # noqa: F401
 
 # import logger
 logger = logging.getLogger(__name__)

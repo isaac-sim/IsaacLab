@@ -4,11 +4,12 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.envs import ManagerBasedRLEnvCfg, ViewerCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -16,7 +17,8 @@ from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.assemble_trocar import mdp
 
@@ -94,21 +96,20 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     right_wrist_camera = CameraPresets.right_dex3_wrist_camera()
 
     scene = AssetBaseCfg(
-        prim_path="/World/envs/env_.*/Scene",
+        prim_path="{ENV_REGEX_NS}/Scene",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/scene03.usd",
         ),
     )
 
     trocar_1 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_1",
+        prim_path="{ENV_REGEX_NS}/trocar_1",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/Trocar002/Trocar002-xform-wo.usd",
-            collision_props=sim_utils.CollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_offset=0.001,
-                rest_offset=-0.001,
-            ),
+            collision_props=[
+                sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
+                PhysxCollisionCfg(contact_offset=0.001, rest_offset=-0.001),
+            ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             pos=[-1.60202, 1.91362, 0.87183],
@@ -117,24 +118,24 @@ class AssembleTrocarSceneCfg(InteractiveSceneCfg):
     )
 
     trocar_2 = RigidObjectCfg(
-        prim_path="/World/envs/env_.*/trocar_2",
+        prim_path="{ENV_REGEX_NS}/trocar_2",
         spawn=UsdFileCfg(
             usd_path=(
                 f"{USD_ROOT}/Assets/"
                 "DisposableLaparoscopicPunctureDevice001/"
                 "DisposableLaparoscopicPunctureDevice005-xform.usd"
             ),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                rigid_body_enabled=True,
-                disable_gravity=False,
-            ),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=False),
+            ],
         ),
         init_state=RigidObjectCfg.InitialStateCfg(
             rot=[-0.71475, -0.000243, 0.05853, 0.69692], pos=[-1.50635, 1.90997, 0.8631]
         ),
     )
     tray = ArticulationCfg(
-        prim_path="/World/envs/env_.*/surgical_tray",
+        prim_path="{ENV_REGEX_NS}/surgical_tray",
         spawn=UsdFileCfg(
             usd_path=f"{USD_ROOT}/Assets/SurgicalTray001/SurgicalTray001.usd",
         ),
@@ -370,12 +371,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         env_spacing=6.0,
         replicate_physics=True,
     )
-    # viewer settings
-    viewer: ViewerCfg = ViewerCfg(
-        eye=(-0.5, 2.4, 1.6),
-        lookat=(-5.4, 0.2, -1.2),
-        cam_prim_path="/OmniverseKit_Persp",
-    )
     # basic settings
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
@@ -397,6 +392,7 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
         self.sim.dt = 1 / 200
         self.sim.render_interval = self.decimation
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.01)
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.5, 2.4, 1.6), lookat=(-5.4, 0.2, -1.2))
         for camera_cfg in (
             self.scene.front_camera,
             self.scene.left_wrist_camera,
@@ -406,7 +402,6 @@ class G1AssembleTrocarEnvCfg(ManagerBasedRLEnvCfg):
                 camera_cfg.renderer_cfg,
                 enable_translucency=True,
                 carb_settings={"rtx.raytracing.fractionalCutoutOpacity": True},
-                rendering_mode="quality",
                 antialiasing_mode="DLAA",
             )
 

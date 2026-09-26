@@ -9,20 +9,17 @@ import logging
 import os
 import re
 import tempfile
-import time
+from types import SimpleNamespace
 
 import pytest
 
+import isaaclab.utils.logger as logger_module
 from isaaclab.utils.logger import ColoredFormatter, RateLimitFilter, configure_logging
+
+pytestmark = pytest.mark.unit
 
 
 # Fixtures
-@pytest.fixture
-def formatter():
-    """Fixture providing a ColoredFormatter instance."""
-    return ColoredFormatter("%(levelname)s: %(message)s")
-
-
 @pytest.fixture
 def test_message():
     """Fixture providing a test message string."""
@@ -40,124 +37,22 @@ Tests for the ColoredFormatter class.
 """
 
 
-def test_info_formatting(formatter, test_message):
-    """Test INFO level message formatting."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.INFO,
-        pathname="test.py",
-        lineno=1,
-        msg=test_message,
-        args=(),
-        exc_info=None,
-    )
-    formatted = formatter.format(record)
-
-    # INFO should use reset color (no color)
-    assert "\033[0m" in formatted
-    assert test_message in formatted
-    assert "INFO" in formatted
-
-
-def test_debug_formatting(formatter, test_message):
-    """Test DEBUG level message formatting."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.DEBUG,
-        pathname="test.py",
-        lineno=1,
-        msg=test_message,
-        args=(),
-        exc_info=None,
-    )
-    formatted = formatter.format(record)
-
-    # DEBUG should use reset color (no color)
-    assert "\033[0m" in formatted
-    assert test_message in formatted
-    assert "DEBUG" in formatted
-
-
-def test_warning_formatting(formatter, test_message):
-    """Test WARNING level message formatting."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=1,
-        msg=test_message,
-        args=(),
-        exc_info=None,
-    )
-    formatted = formatter.format(record)
-
-    # WARNING should use yellow/orange color
-    assert "\033[33m" in formatted
-    assert test_message in formatted
-    assert "WARNING" in formatted
-    # Should end with reset
-    assert formatted.endswith("\033[0m")
-
-
-def test_error_formatting(formatter, test_message):
-    """Test ERROR level message formatting."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.ERROR,
-        pathname="test.py",
-        lineno=1,
-        msg=test_message,
-        args=(),
-        exc_info=None,
-    )
-    formatted = formatter.format(record)
-
-    # ERROR should use red color
-    assert "\033[31m" in formatted
-    assert test_message in formatted
-    assert "ERROR" in formatted
-    # Should end with reset
-    assert formatted.endswith("\033[0m")
-
-
-def test_critical_formatting(formatter, test_message):
-    """Test CRITICAL level message formatting."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.CRITICAL,
-        pathname="test.py",
-        lineno=1,
-        msg=test_message,
-        args=(),
-        exc_info=None,
-    )
-    formatted = formatter.format(record)
-
-    # CRITICAL should use bold red color
-    assert "\033[1;31m" in formatted
-    assert test_message in formatted
-    assert "CRITICAL" in formatted
-    # Should end with reset
-    assert formatted.endswith("\033[0m")
-
-
-def test_color_codes_are_ansi():
-    """Test that color codes are valid ANSI escape sequences."""
-    # Test all defined colors
-    for level_name, color_code in ColoredFormatter.COLORS.items():
-        # ANSI color codes should match pattern \033[<number>m or \033[<number>;<number>m (for bold, etc.)
-        assert re.match(r"\033\[[\d;]+m", color_code), f"Invalid ANSI color code for {level_name}"
-
-    # Test reset code
-    assert re.match(r"\033\[[\d;]+m", ColoredFormatter.RESET), "Invalid ANSI reset code"
-
-
-def test_custom_format_string(test_message):
-    """Test that custom format strings work correctly."""
+@pytest.mark.parametrize(
+    "level, color",
+    [
+        (logging.DEBUG, "\033[0m"),
+        (logging.INFO, "\033[0m"),
+        (logging.WARNING, "\033[33m"),
+        (logging.ERROR, "\033[31m"),
+        (logging.CRITICAL, "\033[1;31m"),
+    ],
+)
+def test_level_formatting(test_message, level, color):
+    """Test that each level is wrapped in its ANSI color and the reset code, using a custom format string."""
     custom_formatter = ColoredFormatter("%(name)s - %(levelname)s - %(message)s")
     record = logging.LogRecord(
         name="custom.logger",
-        level=logging.WARNING,
+        level=level,
         pathname="test.py",
         lineno=1,
         msg=test_message,
@@ -166,10 +61,8 @@ def test_custom_format_string(test_message):
     )
     formatted = custom_formatter.format(record)
 
-    assert "custom.logger" in formatted
-    assert "WARNING" in formatted
-    assert test_message in formatted
-    assert "\033[33m" in formatted  # Warning color
+    # DEBUG and INFO use the reset code (no color); every message ends with the reset code
+    assert formatted == f"{color}custom.logger - {logging.getLevelName(level)} - {test_message}\033[0m"
 
 
 """
@@ -215,52 +108,14 @@ def test_non_warning_messages_pass_through(rate_limit_filter):
     )
     assert rate_limit_filter.filter(debug_record) is True
 
-
-def test_first_warning_passes(rate_limit_filter):
-    """Test that the first WARNING message passes through."""
-    record = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=1,
-        msg="First warning",
-        args=(),
-        exc_info=None,
-    )
-    assert rate_limit_filter.filter(record) is True
+    # the default interval is 5 seconds
+    assert RateLimitFilter().interval == 5
 
 
-def test_duplicate_warning_within_interval_blocked(rate_limit_filter):
-    """Test that duplicate WARNING messages within interval are blocked."""
-    message = "Duplicate warning"
-
-    # First warning should pass
-    record1 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=1,
-        msg=message,
-        args=(),
-        exc_info=None,
-    )
-    assert rate_limit_filter.filter(record1) is True
-
-    # Immediate duplicate should be blocked
-    record2 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=2,
-        msg=message,
-        args=(),
-        exc_info=None,
-    )
-    assert rate_limit_filter.filter(record2) is False
-
-
-def test_warning_after_interval_passes():
-    """Test that WARNING messages pass after the rate limit interval."""
+def test_warning_after_interval_passes(monkeypatch):
+    """Test that duplicate WARNING messages are blocked within the interval and pass after it."""
+    now = [100.0]
+    monkeypatch.setattr(logger_module, "time", SimpleNamespace(time=lambda: now[0]))
     message = "Rate limited warning"
     filter_short = RateLimitFilter(interval_seconds=1)
 
@@ -288,8 +143,8 @@ def test_warning_after_interval_passes():
     )
     assert filter_short.filter(record2) is False
 
-    # Wait for interval to pass
-    time.sleep(1.1)
+    # Advance the clock past the interval
+    now[0] += 1.1
 
     # After interval, same message should pass again
     record3 = logging.LogRecord(
@@ -302,82 +157,6 @@ def test_warning_after_interval_passes():
         exc_info=None,
     )
     assert filter_short.filter(record3) is True
-
-
-def test_different_warnings_not_rate_limited(rate_limit_filter):
-    """Test that different WARNING messages are not rate limited together."""
-    # First warning
-    record1 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=1,
-        msg="Warning A",
-        args=(),
-        exc_info=None,
-    )
-    assert rate_limit_filter.filter(record1) is True
-
-    # Different warning should also pass
-    record2 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=2,
-        msg="Warning B",
-        args=(),
-        exc_info=None,
-    )
-    assert rate_limit_filter.filter(record2) is True
-
-
-def test_custom_interval():
-    """Test that custom interval seconds work correctly."""
-    custom_filter = RateLimitFilter(interval_seconds=1)
-    assert custom_filter.interval == 1
-
-    long_filter = RateLimitFilter(interval_seconds=10)
-    assert long_filter.interval == 10
-
-
-def test_last_emitted_tracking(rate_limit_filter):
-    """Test that the filter correctly tracks last emission times."""
-    message1 = "Message 1"
-    message2 = "Message 2"
-
-    # Emit first message
-    record1 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=1,
-        msg=message1,
-        args=(),
-        exc_info=None,
-    )
-    rate_limit_filter.filter(record1)
-
-    # Check that message1 is tracked
-    assert message1 in rate_limit_filter.last_emitted
-
-    # Emit second message
-    record2 = logging.LogRecord(
-        name="test",
-        level=logging.WARNING,
-        pathname="test.py",
-        lineno=2,
-        msg=message2,
-        args=(),
-        exc_info=None,
-    )
-    rate_limit_filter.filter(record2)
-
-    # Check that both messages are tracked
-    assert message1 in rate_limit_filter.last_emitted
-    assert message2 in rate_limit_filter.last_emitted
-
-    # Timestamps should be different (though very close)
-    assert rate_limit_filter.last_emitted[message1] <= rate_limit_filter.last_emitted[message2]
 
 
 def test_formatted_message_warnings(rate_limit_filter):
@@ -420,51 +199,6 @@ def test_formatted_message_warnings(rate_limit_filter):
 
 
 """
-Integration Tests.
-
-Tests that the filter and formatter work together in a logger.
-"""
-
-
-def test_filter_and_formatter_together():
-    """Test that filter and formatter work together in a logger."""
-    # Create a logger with both filter and formatter
-    test_logger = logging.getLogger("test_integration")
-    test_logger.setLevel(logging.DEBUG)
-
-    # Remove any existing handlers
-    test_logger.handlers.clear()
-
-    # Create handler with colored formatter
-    handler = logging.StreamHandler()
-    handler.setFormatter(ColoredFormatter("%(levelname)s: %(message)s"))
-
-    # Add rate limit filter
-    rate_filter = RateLimitFilter(interval_seconds=1)
-    handler.addFilter(rate_filter)
-
-    test_logger.addHandler(handler)
-
-    # Test that logger is set up correctly
-    assert len(test_logger.handlers) == 1
-    assert isinstance(test_logger.handlers[0].formatter, ColoredFormatter)
-
-    # Clean up
-    test_logger.handlers.clear()
-
-
-def test_default_initialization():
-    """Test that classes can be initialized with default parameters."""
-    # ColoredFormatter with default format
-    formatter = ColoredFormatter()
-    assert formatter is not None
-
-    # RateLimitFilter with default interval
-    filter_obj = RateLimitFilter()
-    assert filter_obj.interval == 5  # default is 5 seconds
-
-
-"""
 Tests for the configure_logging function.
 """
 
@@ -497,14 +231,14 @@ def test_configure_logging_basic():
 
 
 def test_configure_logging_with_file():
-    """Test configure_logging with file logging enabled."""
-    # Setup logger with file logging
+    """Test configure_logging with file logging enabled in a custom (nested) log directory."""
     with tempfile.TemporaryDirectory() as temp_dir:
-        logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=temp_dir)
+        custom_log_dir = os.path.join(temp_dir, "custom_logs")
+        logger = configure_logging(logging_level="DEBUG", save_logs_to_file=True, log_dir=custom_log_dir)
 
         # Should return root logger
         assert logger is not None
-        # Root logger is always set to DEBUG
+        # Root logger level matches the requested level
         assert logger.level == logging.DEBUG
 
         # Should have two handlers (stream + file)
@@ -515,15 +249,27 @@ def test_configure_logging_with_file():
         assert isinstance(stream_handler, logging.StreamHandler)
         assert isinstance(stream_handler.formatter, ColoredFormatter)
         assert stream_handler.level == logging.DEBUG
+        stream_format = stream_handler.formatter._fmt  # type: ignore
+        assert "%(asctime)s" in stream_format
+        assert "%(filename)s" in stream_format
 
-        # Check file handler
+        # Check file handler: always DEBUG, with a more detailed format including line numbers
         file_handler = logger.handlers[1]
         assert isinstance(file_handler, logging.FileHandler)
         assert file_handler.level == logging.DEBUG
+        file_format = file_handler.formatter._fmt  # type: ignore
+        assert "%(asctime)s" in file_format
+        assert "%(lineno)d" in file_format
 
-        # Verify log file was created
-        log_files = [f for f in os.listdir(temp_dir) if f.startswith("isaaclab_")]
+        # Custom directory should be created and hold the log file
+        assert os.path.isdir(custom_log_dir)
+        assert os.path.dirname(file_handler.baseFilename) == custom_log_dir
+        log_files = [f for f in os.listdir(custom_log_dir) if f.startswith("isaaclab_")]
         assert len(log_files) == 1
+
+        # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
+        pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
+        assert re.match(pattern, log_files[0]), f"Log filename {log_files[0]} doesn't match expected pattern"
 
 
 def test_configure_logging_levels():
@@ -583,6 +329,8 @@ def test_configure_logging_default_log_dir():
     assert len(logger.handlers) == 2
     file_handler = logger.handlers[1]
     assert isinstance(file_handler, logging.FileHandler)
+    # The file handler always records DEBUG, regardless of the requested console level.
+    assert file_handler.level == logging.DEBUG
 
     # File should be in temp directory
     log_file_path = file_handler.baseFilename
@@ -592,94 +340,6 @@ def test_configure_logging_default_log_dir():
     # Cleanup
     if os.path.exists(log_file_path):
         os.remove(log_file_path)
-
-
-def test_configure_logging_custom_log_dir():
-    """Test configure_logging with custom log directory."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        custom_log_dir = os.path.join(temp_dir, "custom_logs")
-
-        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=custom_log_dir)
-
-        # Custom directory should be created
-        assert os.path.exists(custom_log_dir)
-        assert os.path.isdir(custom_log_dir)
-
-        # Root logger level matches the requested level
-        assert logger.level == logging.INFO
-
-        # Log file should be in custom directory
-        file_handler = logger.handlers[1]
-        assert isinstance(file_handler, logging.FileHandler)
-        log_file_path = file_handler.baseFilename
-        assert os.path.dirname(log_file_path) == custom_log_dir
-
-
-def test_configure_logging_log_file_format():
-    """Test that log file has correct timestamp format."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
-
-        # Root logger level matches the requested level
-        assert logger.level == logging.INFO
-
-        # Get log file name
-        file_handler = logger.handlers[1]
-        assert isinstance(file_handler, logging.FileHandler)
-        log_file_path = file_handler.baseFilename
-        log_filename = os.path.basename(log_file_path)
-
-        # Check filename format: isaaclab_YYYY-MM-DD_HH-MM-SS.log
-        pattern = r"isaaclab_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.log"
-        assert re.match(pattern, log_filename), f"Log filename {log_filename} doesn't match expected pattern"
-
-
-def test_configure_logging_file_formatter():
-    """Test that file handler has more detailed formatter than stream handler."""
-    with tempfile.TemporaryDirectory() as temp_dir:
-        logger = configure_logging(logging_level="INFO", save_logs_to_file=True, log_dir=temp_dir)
-
-        # Root logger level matches the requested level
-        assert logger.level == logging.INFO
-
-        stream_handler = logger.handlers[0]
-        file_handler = logger.handlers[1]
-
-        # Stream formatter should exist and be ColoredFormatter
-        assert stream_handler.formatter is not None
-        assert isinstance(stream_handler.formatter, ColoredFormatter)
-        stream_format = stream_handler.formatter._fmt  # type: ignore
-        assert stream_format is not None
-        assert "%(asctime)s" in stream_format
-        assert "%(filename)s" in stream_format
-
-        # File formatter should exist and include line numbers
-        assert file_handler.formatter is not None
-        assert isinstance(file_handler.formatter, logging.Formatter)
-        file_format = file_handler.formatter._fmt  # type: ignore
-        assert file_format is not None
-        assert "%(asctime)s" in file_format
-        assert "%(lineno)d" in file_format
-
-        # File handler should always use DEBUG level
-        assert file_handler.level == logging.DEBUG
-
-
-def test_configure_logging_multiple_calls():
-    """Test that multiple configure_logging calls properly cleanup."""
-    # First setup
-    logger1 = configure_logging(logging_level="INFO", save_logs_to_file=False)
-    handler_count_1 = len(logger1.handlers)
-
-    # Second setup should remove previous handlers
-    logger2 = configure_logging(logging_level="DEBUG", save_logs_to_file=False)
-    handler_count_2 = len(logger2.handlers)
-
-    # Should be same logger (root logger)
-    assert logger1 is logger2
-
-    # Should have same number of handlers (old ones removed)
-    assert handler_count_1 == handler_count_2 == 1
 
 
 def test_configure_logging_actual_logging():

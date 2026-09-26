@@ -7,16 +7,16 @@
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p tools/run_all_tests.py
+    uv run python tools/run_all_tests.py
 
     # for dry run
-    ./isaaclab.sh -p tools/run_all_tests.py --discover_only
+    uv run python tools/run_all_tests.py --discover_only
 
     # for quiet run
-    ./isaaclab.sh -p tools/run_all_tests.py --quiet
+    uv run python tools/run_all_tests.py --quiet
 
     # for increasing timeout (default is 600 seconds)
-    ./isaaclab.sh -p tools/run_all_tests.py --timeout 1000
+    uv run python tools/run_all_tests.py --timeout 1000
 
 """
 

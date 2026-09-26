@@ -10,7 +10,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -22,11 +22,11 @@ class _AutoRtxRendererCfg(RendererCfg):
 
 @configclass
 class MultiBackendRendererCfg(PresetCfg):
-    default: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     rtx: _AutoRtxRendererCfg = _AutoRtxRendererCfg()
+    ovrtx: OVRTXRendererCfg = OVRTXRendererCfg()
+    isaacsim_rtx: IsaacRtxRendererCfg = IsaacRtxRendererCfg()
     newton_renderer: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
-    ovrtx_renderer: OVRTXRendererCfg = OVRTXRendererCfg()
-    isaacsim_rtx_renderer = default
+    default: NewtonWarpRendererCfg = NewtonWarpRendererCfg()
 
 
 def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
@@ -40,7 +40,7 @@ def set_isaac_rtx_global_settings(renderer_cfg: Any, **settings: Any) -> None:
         if getattr(cfg, "renderer_type", None) == "isaac_rtx" and hasattr(cfg, "global_settings"):
             for key, value in settings.items():
                 setattr(cfg.global_settings, key, value)
-        for attr_name in ("default", "isaacsim_rtx_renderer"):
+        for attr_name in ("default", "isaacsim_rtx"):
             _visit(getattr(cfg, attr_name, None))
 
     _visit(renderer_cfg)

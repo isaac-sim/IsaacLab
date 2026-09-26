@@ -7,17 +7,29 @@
 
 from __future__ import annotations
 
+from unittest.mock import patch
+
 import pytest
 import torch
 import warp as wp
+
+import isaaclab.utils.images as images_utils
+from isaaclab.test.utils import test_devices
+
+pytestmark = pytest.mark.unit
 
 wp.config.quiet = True
 wp.init()
 
 
-@pytest.fixture(params=["cpu", "cuda:0"] if torch.cuda.is_available() else ["cpu"])
+@pytest.fixture(params=test_devices())
 def device(request):
+    """Device for tests that reach the Warp kernel; PyTorch-only paths override it with CPU."""
     return request.param
+
+
+cpu_only = pytest.mark.parametrize("device", ["cpu"])
+"""Run a PyTorch-only path once on CPU instead of on every device."""
 
 
 class TestPredicates:
@@ -66,14 +78,17 @@ class TestPredicates:
 class TestNormalizeCameraImageRGBLike:
     """RGB-like dispatch: rgb, albedo, simple_shading_*."""
 
-    @pytest.mark.parametrize("data_type", ["rgb", "albedo", "simple_shading_diffuse_mdl"])
-    def test_uint8_routes_to_warp_fast_path(self, device, data_type):
-        """uint8 contiguous 4D input produces float32 ``(x/255 - per-image mean)`` output."""
+    def test_uint8_routes_to_warp_fast_path(self, device):
+        """uint8 contiguous 4D input goes through the Warp kernel and produces ``(x/255 - per-image mean)``."""
         from isaaclab.utils.images import normalize_camera_image
 
         torch.manual_seed(0)
         src = torch.randint(0, 255, (2, 8, 8, 3), dtype=torch.uint8, device=device)
-        out = normalize_camera_image(src, data_type)
+        with patch.object(
+            images_utils, "normalize_image_uint8", wraps=images_utils.normalize_image_uint8
+        ) as warp_normalize:
+            out = normalize_camera_image(src, "rgb")
+        warp_normalize.assert_called_once()
 
         expected = src.float() / 255.0
         expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
@@ -91,6 +106,7 @@ class TestNormalizeCameraImageRGBLike:
         assert result is out
         assert result.data_ptr() == ptr
 
+    @cpu_only
     def test_float_input_takes_pytorch_fallback(self, device):
         """Non-uint8 input routes through the PyTorch fallback with equivalent math."""
         from isaaclab.utils.images import normalize_camera_image
@@ -104,6 +120,7 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected)
         assert out.dtype == torch.float32
 
+    @cpu_only
     def test_non_contiguous_uint8_takes_pytorch_fallback(self, device):
         """Strided uint8 input falls back instead of raising in the Warp wrapper."""
         from isaaclab.utils.images import normalize_camera_image
@@ -131,6 +148,7 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
         assert out.dtype == torch.float32
 
+    @cpu_only
     def test_bchw_float_input_takes_pytorch_fallback(self, device):
         """Non-uint8 BCHW input routes through the PyTorch fallback with BCHW reduction axes."""
         from isaaclab.utils.images import normalize_camera_image
@@ -144,9 +162,43 @@ class TestNormalizeCameraImageRGBLike:
         torch.testing.assert_close(out, expected)
 
 
+class TestNormalizeCameraImageSegmentation:
+    """Segmentation dispatch, keyed on the tensor dtype rather than on the ``colorize`` flag."""
+
+    def test_colorized_semantic_segmentation_is_normalized(self, device):
+        """RGBA uint8 semantic segmentation produces a float32 normalized image."""
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 255, (2, 8, 8, 4), dtype=torch.uint8, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        expected = src.float() / 255.0
+        expected = expected - torch.mean(expected, dim=(1, 2), keepdim=True)
+        torch.testing.assert_close(out, expected, atol=1e-5, rtol=1e-5)
+        assert out.dtype == torch.float32
+
+    @cpu_only
+    def test_non_colorized_semantic_segmentation_is_cast_to_float(self, device):
+        """int32 label-id segmentation is cast to float32 with the ids left untouched.
+
+        Non-colorized segmentation is ``int32`` for every renderer, and feeding it to a
+        convolution raises ``Input type (int) and bias type (float) should be the same``.
+        """
+        from isaaclab.utils.images import normalize_camera_image
+
+        torch.manual_seed(0)
+        src = torch.randint(0, 4, (2, 8, 8, 1), dtype=torch.int32, device=device)
+        out = normalize_camera_image(src, "semantic_segmentation")
+
+        assert out.dtype == torch.float32
+        torch.testing.assert_close(out, src.to(torch.float32))
+
+
 class TestNormalizeCameraImageDepth:
     """Depth-like dispatch: in-place ``inf -> 0``."""
 
+    @cpu_only
     @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_plane"])
     def test_inf_replaced_with_zero_in_place(self, device, data_type):
         from isaaclab.utils.images import normalize_camera_image
@@ -161,6 +213,7 @@ class TestNormalizeCameraImageDepth:
 class TestNormalizeCameraImageNormals:
     """Normals dispatch: ``[-1, 1] -> [0, 1]``."""
 
+    @cpu_only
     def test_range_remap(self, device):
         from isaaclab.utils.images import normalize_camera_image
 
@@ -173,7 +226,8 @@ class TestNormalizeCameraImageNormals:
 class TestNormalizeCameraImagePassthrough:
     """Unknown data_types return the input unchanged."""
 
-    @pytest.mark.parametrize("data_type", ["semantic_segmentation", "instance_segmentation", "motion_vectors"])
+    @cpu_only
+    @pytest.mark.parametrize("data_type", ["instance_segmentation", "motion_vectors"])
     def test_unknown_type_passthrough(self, device, data_type):
         from isaaclab.utils.images import normalize_camera_image
 
@@ -182,6 +236,7 @@ class TestNormalizeCameraImagePassthrough:
         assert out is src
 
 
+@cpu_only
 class TestNormalizeCameraOutputForDisplay:
     """Display normalization for capture and golden-image workflows."""
 
@@ -193,13 +248,22 @@ class TestNormalizeCameraOutputForDisplay:
         expected = torch.tensor([[[[0.0, 127.0 / 255.0, 1.0]]]], device=device)
         torch.testing.assert_close(out, expected)
 
-    def test_depth_scales_by_max(self, device):
+    @pytest.mark.parametrize("data_type", ["depth", "distance_to_camera", "distance_to_image_plane"])
+    def test_depth_scales_by_max_and_ignores_nonfinite_values(self, device, data_type):
         from isaaclab.utils.images import normalize_camera_output_for_display
 
-        src = torch.tensor([[[[0.0], [2.0], [4.0]]]], device=device)
-        out = normalize_camera_output_for_display(src, "distance_to_camera")
-        expected = torch.tensor([[[[0.0], [0.5], [1.0]]]], device=device)
+        src = torch.tensor([0.0, 2.0, float("inf"), 4.0, float("nan")], device=device)
+        out = normalize_camera_output_for_display(src, data_type)
+        expected = torch.tensor([0.0, 0.5, 0.0, 1.0, 0.0], device=device)
         torch.testing.assert_close(out, expected)
+        assert torch.isfinite(out).all()
+
+    def test_depth_handles_all_nonfinite_values(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
+
+        src = torch.tensor([float("inf"), float("nan")], device=device)
+        out = normalize_camera_output_for_display(src, "depth")
+        torch.testing.assert_close(out, torch.zeros_like(src))
 
     def test_albedo_keeps_rgb_channels(self, device):
         from isaaclab.utils.images import normalize_camera_output_for_display
@@ -209,7 +273,19 @@ class TestNormalizeCameraOutputForDisplay:
         expected = torch.tensor([[[[1.0, 128.0 / 255.0, 64.0 / 255.0]]]], device=device)
         torch.testing.assert_close(out, expected)
 
+    def test_motion_vectors_map_uv_to_rgb(self, device):
+        from isaaclab.utils.images import normalize_camera_output_for_display
 
+        # (u, v) offsets are clamped to [-1, 1], remapped to [0, 1], and packed with a zero B channel.
+        # Values outside [-1, 1] saturate (e.g. 4.0 -> 1.0, -2.0 -> 0.0 after remap).
+        src = torch.tensor([[[[4.0, -2.0], [0.0, 4.0]]]], device=device)
+        out = normalize_camera_output_for_display(src, "motion_vectors")
+        expected = torch.tensor([[[[1.0, 0.0, 0.0], [0.5, 1.0, 0.0]]]], device=device)
+        assert out.shape[-1] == 3
+        torch.testing.assert_close(out, expected)
+
+
+@cpu_only
 class TestMakeCameraOutputGrid:
     """Grid composition for multi-env camera capture."""
 

@@ -8,17 +8,44 @@
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from dataclasses import MISSING, field
+from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
 
-from .newton_collision_cfg import NewtonCollisionPipelineCfg
+from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
+    from newton import ModelBuilder
+
     from isaaclab_newton.physics import NewtonManager
 
+    from .newton_manager import NewtonBackend
+
 logger = logging.getLogger(__name__)
+
+
+@configclass
+class NewtonBackendCfg(BackendCfg):
+    """Native allocation inputs; the populated builder is borrowed without copying."""
+
+    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
+    builder: ModelBuilder = field(kw_only=True, metadata={"copy": False})
+    """Populated clone builder. Reusing this builder and matching settings shares one resource."""
+    device: str = MISSING
+    """Allocation device, such as ``cpu`` or ``cuda:0``."""
+    num_envs: int | None = None
+    """Environment count; None uses the finalized model's world count."""
+    gravity: tuple[float, float, float] | None = None
+    """Gravity [m/s^2]; None preserves the builder's authored gravity."""
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Optional soft-contact settings applied before state allocation."""
+    contact_attributes: tuple[str, ...] = ()
+    """Additional contact attributes requested before state allocation."""
+    simulation: bool = True
+    """Allocate two states and control for physics, or one state for rendering only."""
 
 
 @configclass
@@ -54,14 +81,36 @@ class NewtonSolverCfg:
 
 
 @configclass
+class NewtonSoftContactCfg:
+    """Global soft-contact parameters applied to the finalized Newton model."""
+
+    soft_contact_ke: float = 1.0e3
+    """Body-particle and particle self-contact stiffness [N/m].
+
+    Effective body-particle stiffness is ``0.5 * (soft_contact_ke + shape_ke)``,
+    where ``shape_ke`` is the rigid shape's material stiffness.
+    """
+
+    soft_contact_kd: float = 10.0
+    """Body-particle contact damping [N*s/m]."""
+
+    soft_contact_mu: float = 0.5
+    """Body-particle contact friction coefficient [dimensionless].
+
+    Effective body-particle friction is ``sqrt(soft_contact_mu * shape_mu)``,
+    where ``shape_mu`` is the rigid shape's material friction coefficient.
+    """
+
+
+@configclass
 class NewtonShapeCfg:
     """Default per-shape collision properties applied to all shapes in a Newton scene.
 
-    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Only fields Isaac
-    Lab actually overrides are declared here; unspecified fields keep Newton's
-    upstream default. The struct is forwarded onto Newton's upstream
-    ``ShapeConfig`` via :func:`~isaaclab.utils.checked_apply` at builder
-    construction.
+    Mirrors Newton's :attr:`ModelBuilder.default_shape_cfg`. Fields that Isaac
+    Lab overrides or exposes for user overrides are declared here; fields not
+    represented keep Newton's upstream defaults. The struct is forwarded onto
+    Newton's upstream ``ShapeConfig`` via
+    :func:`~isaaclab.utils.checked_apply` at builder construction.
     """
 
     margin: float = 0.0
@@ -74,6 +123,28 @@ class NewtonShapeCfg:
 
     gap: float = 0.01
     """Default per-shape contact gap [m]. Newton's upstream default is ``None``."""
+
+    # Defaults mirror Newton's ShapeConfig defaults so an unspecified field is a no-op.
+    ke: float = 2.5e3
+    """Default per-shape normal contact stiffness [N/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.ke`` default.
+    """
+
+    kd: float = 100.0
+    """Default per-shape normal contact damping [N*s/m].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.kd`` default.
+    """
+
+    mu: float = 1.0
+    """Default per-shape friction coefficient [dimensionless].
+
+    Applied to shapes that lack an explicit material; per-asset materials
+    override it. Mirrors Newton's ``ShapeConfig.mu`` default.
+    """
 
 
 @configclass
@@ -112,8 +183,35 @@ class NewtonCfg(PhysicsCfg):
     If set to False, the simulation performance will be severely degraded.
     """
 
+    deterministic_mode: Literal["not_guaranteed", "run_to_run", "gpu_to_gpu"] = "not_guaranteed"
+    """Determinism guarantee applied to the Newton solver and collision pipeline.
+
+    The values ``"not_guaranteed"``, ``"run_to_run"``, and ``"gpu_to_gpu"``
+    map to the corresponding ``warp.DeterministicMode`` values. Deterministic
+    execution increases memory use and can reduce simulation performance.
+
+    .. warning::
+
+       Deterministic contact ordering adds sorting work and allocates buffers
+       sized for the configured maximum contact count. Runtime and memory
+       overhead therefore grow with contact capacity. Enable this mode only
+       when its reproducibility guarantee is required.
+
+    MJWarp on the GPU with
+    :attr:`~isaaclab_newton.physics.MJWarpSolverCfg.disable_sensors` set to
+    ``True``, XPBD, and Featherstone support this setting. Newton raises an
+    error during solver initialization for unsupported solvers rather than
+    silently running them without the requested guarantee.
+    """
+
     solver_cfg: NewtonSolverCfg | None = None
     """Solver configuration. If None (default), MJWarpSolverCfg is used by default."""
+
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Global soft-contact parameters applied after model finalization.
+
+    If ``None``, Newton model defaults are preserved.
+    """
 
     collision_cfg: NewtonCollisionPipelineCfg | None = None
     """Newton collision pipeline configuration.
@@ -122,8 +220,10 @@ class NewtonCfg(PhysicsCfg):
     The pipeline is active when the solver delegates collision detection to Newton:
 
     - :class:`MJWarpSolverCfg` with ``use_mujoco_contacts=False``,
-    - :class:`KaminoSolverCfg` with ``use_collision_detector=False``,
+    - :class:`KaminoPADMMSolverCfg` or :class:`KaminoDVISolverCfg` with
+      ``use_collision_detector=False``,
     - :class:`XPBDSolverCfg` (always),
+    - :class:`VBDSolverCfg` (always),
     - :class:`FeatherstoneSolverCfg` (always).
 
     :class:`~isaaclab_newton.physics.MPMSolverCfg` does not use this pipeline;
@@ -135,7 +235,7 @@ class NewtonCfg(PhysicsCfg):
 
     .. note::
         Setting this while ``MJWarpSolverCfg.use_mujoco_contacts=True`` raises
-        :class:`ValueError`.  When ``KaminoSolverCfg.use_collision_detector=True``,
+        :class:`ValueError`.  When a Kamino solver config has ``use_collision_detector=True``,
         the field is ignored because Kamino's internal detector handles contacts.
     """
 
@@ -147,11 +247,45 @@ class NewtonCfg(PhysicsCfg):
     :class:`NewtonShapeCfg` for the declared fields.
     """
 
-    simplify_meshes: bool = True
-    """Whether Newton replication simplifies mesh colliders to convex hulls.
+    load_visual_shapes: bool | None = None
+    """Whether Newton replication imports visual-only geometry from USD.
 
-    Keep this enabled for most rigid-body scenes. Disable it when exact triangle
-    meshes are intentional, for example thin or hollow MPM colliders.
+    ``None`` imports it only when a viewer, an offscreen ``rgb_array`` capture, or a
+    camera sensor is active, so headless training does not pay the USD parse time and
+    memory for shapes nothing draws. Set to ``True`` to always import it, which is
+    needed when a ray-cast sensor must hit geometry that carries no collider.
+    """
+
+    bvh_constructor_geometry: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for mesh geometry colliders.
+
+    Selects the bounding-volume-hierarchy builder Newton uses for the triangle
+    meshes of collision geometry, forwarded to :attr:`ModelBuilder.BvhConfig`.
+    Trades build time against query (traversal) quality:
+
+    - ``"lbvh"``: linear BVH; fastest to build, lowest-quality tree.
+    - ``"sah"``: surface-area-heuristic BVH; slower build, tighter tree with
+      faster ray/overlap queries.
+    - ``"cubql"``: cuBQL GPU builder; balances fast construction with good tree
+      quality on the GPU (default).
+    """
+
+    bvh_constructor_scene: Literal["lbvh", "sah"] = "sah"
+    """BVH construction algorithm for the top-level scene (broad-phase) hierarchy.
+
+    Selects the builder for the BVH over all colliders used during broad-phase
+    culling, forwarded to :attr:`ModelBuilder.BvhConfig`. See
+    :attr:`bvh_constructor_geometry` for the ``"lbvh"`` / ``"sah"`` trade-off;
+    ``"cubql"`` is not available for the scene hierarchy.
+    """
+
+    bvh_constructor_gaussian: Literal["lbvh", "sah", "cubql"] = "cubql"
+    """BVH construction algorithm for Gaussian-splat primitives.
+
+    Selects the builder for the BVH over 3D Gaussian primitives (used by the
+    Gaussian renderer/collision path), forwarded to
+    :attr:`ModelBuilder.BvhConfig`. See :attr:`bvh_constructor_geometry` for the
+    ``"lbvh"`` / ``"sah"`` / ``"cubql"`` trade-off.
     """
 
     def __post_init__(self):
@@ -160,10 +294,16 @@ class NewtonCfg(PhysicsCfg):
         # previously silently overwritten.
         if self.class_type is not None:
             raise TypeError("Cannot manually set NewtonCfg.class_type; it is auto-derived from solver_cfg.class_type.")
+        if self.deterministic_mode not in ("not_guaranteed", "run_to_run", "gpu_to_gpu"):
+            raise ValueError(
+                "NewtonCfg.deterministic_mode must be 'not_guaranteed', 'run_to_run', or 'gpu_to_gpu', "
+                f"got {self.deterministic_mode!r}."
+            )
         if self.solver_cfg is None:
-            from .mjwarp_manager_cfg import MJWarpSolverCfg
+            from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
 
             self.solver_cfg = MJWarpSolverCfg()
+
         self.class_type = self.solver_cfg.class_type
 
         # Mid-tick re-collide is silently disabled when collision_decimation >= num_substeps.

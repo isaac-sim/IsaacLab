@@ -3,8 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.physics import KaminoSolverCfg, MJWarpSolverCfg, NewtonCfg
-from isaaclab_physx.physics import PhysxCfg
+"""Configuration for the manager-based Ant environment."""
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -17,56 +16,22 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
-import isaaclab_tasks.core.locomotion.mdp as mdp
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_assets.robots.ant import ANT_CFG
+
+from .. import mdp
+from .ant_common import (
+    FEET_BODY_NAMES,
+    JOINT_GEARS,
+    TERRAIN_CFG,
+    WALK_TARGET_POS,
+    AntPhysicsCfg,
+)
 
 ##
-# Pre-defined configs
+# Scene definition
 ##
-from isaaclab_assets.robots.ant import ANT_CFG  # isort: skip
-
-
-@configclass
-class AntPhysicsCfg(PresetCfg):
-    default: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    physx: PhysxCfg = PhysxCfg(bounce_threshold_velocity=0.2)
-    newton_mjwarp: NewtonCfg = NewtonCfg(
-        solver_cfg=MJWarpSolverCfg(
-            njmax=38,
-            nconmax=15,
-            cone="pyramidal",
-            integrator="implicitfast",
-            impratio=1,
-        ),
-        num_substeps=1,
-        debug_mode=False,
-    )
-    newton_kamino: NewtonCfg = NewtonCfg(
-        solver_cfg=KaminoSolverCfg(
-            integrator="moreau",
-            use_collision_detector=False,
-            sparse_jacobian=True,
-            constraints_alpha=0.1,
-            padmm_max_iterations=100,
-            padmm_primal_tolerance=1e-4,
-            padmm_dual_tolerance=1e-4,
-            padmm_compl_tolerance=1e-4,
-            padmm_rho_0=0.05,
-            padmm_eta=1e-5,
-            padmm_use_acceleration=True,
-            padmm_warmstart_mode="containers",
-            padmm_contact_warmstart_method="geom_pair_net_force",
-            padmm_use_graph_conditionals=False,
-            collision_detector_pipeline="unified",
-            collision_detector_max_contacts_per_pair=8,
-        ),
-        num_substeps=2,
-        debug_mode=False,
-        use_cuda_graph=True,
-    )
 
 
 @configclass
@@ -74,19 +39,7 @@ class AntSceneCfg(InteractiveSceneCfg):
     """Configuration for the terrain scene with an ant robot."""
 
     # terrain
-    terrain = TerrainImporterCfg(
-        prim_path="/World/ground",
-        terrain_type="plane",
-        collision_group=-1,
-        physics_material=sim_utils.RigidBodyMaterialCfg(
-            friction_combine_mode="average",
-            restitution_combine_mode="average",
-            static_friction=1.0,
-            dynamic_friction=1.0,
-            restitution=0.0,
-        ),
-        debug_vis=False,
-    )
+    terrain = TERRAIN_CFG
 
     # robot
     robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
@@ -110,7 +63,9 @@ class AntSceneCfg(InteractiveSceneCfg):
 class ActionsCfg:
     """Action specifications for the MDP."""
 
-    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5)
+    # the effort is clipped at the gear magnitude, i.e. to a unit action: unbounded joint efforts
+    # drive the solver to NaN
+    joint_effort = mdp.JointEffortActionCfg(asset_name="robot", joint_names=[".*"], scale=7.5, clip={".*": (-7.5, 7.5)})
 
 
 @configclass
@@ -125,20 +80,15 @@ class ObservationsCfg:
         base_lin_vel = ObsTerm(func=mdp.base_lin_vel)
         base_ang_vel = ObsTerm(func=mdp.base_ang_vel)
         base_yaw_roll = ObsTerm(func=mdp.base_yaw_roll)
-        base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": (1000.0, 0.0, 0.0)})
+        base_angle_to_target = ObsTerm(func=mdp.base_angle_to_target, params={"target_pos": WALK_TARGET_POS})
         base_up_proj = ObsTerm(func=mdp.base_up_proj)
-        base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": (1000.0, 0.0, 0.0)})
+        base_heading_proj = ObsTerm(func=mdp.base_heading_proj, params={"target_pos": WALK_TARGET_POS})
         joint_pos_norm = ObsTerm(func=mdp.joint_pos_limit_normalized)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel, scale=0.2)
         feet_body_forces = ObsTerm(
             func=mdp.body_incoming_wrench,
             scale=0.1,
-            params={
-                "sensor_cfg": SceneEntityCfg(
-                    "joint_wrench",
-                    body_names=["front_left_foot", "front_right_foot", "left_back_foot", "right_back_foot"],
-                )
-            },
+            params={"sensor_cfg": SceneEntityCfg("joint_wrench", body_names=FEET_BODY_NAMES)},
         )
         actions = ObsTerm(func=mdp.last_action)
 
@@ -148,13 +98,6 @@ class ObservationsCfg:
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
-class AntObservationsCfg(PresetCfg):
-    default: ObservationsCfg = ObservationsCfg()
-    physx: ObservationsCfg = ObservationsCfg()
-    newton_mjwarp: ObservationsCfg = ObservationsCfg()
 
 
 @configclass
@@ -182,23 +125,27 @@ class RewardsCfg:
     """Reward terms for the MDP."""
 
     # (1) Reward for moving forward
-    progress = RewTerm(func=mdp.progress_reward, weight=1.0, params={"target_pos": (1000.0, 0.0, 0.0)})
+    progress = RewTerm(func=mdp.progress_reward, weight=1.0, params={"target_pos": WALK_TARGET_POS})
     # (2) Stay alive bonus
     alive = RewTerm(func=mdp.is_alive, weight=0.5)
     # (3) Reward for upright posture
     upright = RewTerm(func=mdp.upright_posture_bonus, weight=0.1, params={"threshold": 0.93})
     # (4) Reward for moving in the right direction
     move_to_target = RewTerm(
-        func=mdp.move_to_target_bonus, weight=0.5, params={"threshold": 0.8, "target_pos": (1000.0, 0.0, 0.0)}
+        func=mdp.move_to_target_bonus, weight=0.5, params={"threshold": 0.8, "target_pos": WALK_TARGET_POS}
     )
     # (5) Penalty for large action commands
     action_l2 = RewTerm(func=mdp.action_l2, weight=-0.005)
     # (6) Penalty for energy consumption
-    energy = RewTerm(func=mdp.power_consumption, weight=-0.05, params={"gear_ratio": {".*": 15.0}})
+    energy = RewTerm(func=mdp.power_consumption, weight=-0.05, params={"gear_ratio": JOINT_GEARS})
     # (7) Penalty for reaching close to joint limits
     joint_pos_limits = RewTerm(
-        func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": {".*": 15.0}}
+        func=mdp.joint_pos_limits_penalty_ratio, weight=-0.1, params={"threshold": 0.99, "gear_ratio": JOINT_GEARS}
     )
+    # (8) Penalty for falling over, applied once on the terminating step
+    terminating = RewTerm(func=mdp.terminated_penalty, weight=-2.0)
+    # (9) Survival rate metric (logged only, contributes no reward)
+    success_rate = RewTerm(func=mdp.survival_success_rate, weight=0.0)
 
 
 @configclass
@@ -211,14 +158,19 @@ class TerminationsCfg:
     torso_height = DoneTerm(func=mdp.root_height_below_minimum, params={"minimum_height": 0.31})
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
 class AntEnvCfg(ManagerBasedRLEnvCfg):
-    """Configuration for the Ant walking environment."""
+    """Configuration for the manager-based Ant walking environment."""
 
     # Scene settings
     scene: AntSceneCfg = AntSceneCfg(num_envs=4096, env_spacing=5.0, clone_in_fabric=True)
     # Basic settings
-    observations: AntObservationsCfg = AntObservationsCfg()
+    observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()
     # MDP settings
     rewards: RewardsCfg = RewardsCfg()
@@ -231,10 +183,9 @@ class AntEnvCfg(ManagerBasedRLEnvCfg):
         self.decimation = 2
         self.episode_length_s = 16.0
         # simulation settings
-        self.sim.dt = 1 / 120.0
+        self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = AntPhysicsCfg()
-        # default friction material
         self.sim.physics_material.static_friction = 1.0
         self.sim.physics_material.dynamic_friction = 1.0
         self.sim.physics_material.restitution = 0.0

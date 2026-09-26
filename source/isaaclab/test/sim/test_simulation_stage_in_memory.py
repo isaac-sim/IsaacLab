@@ -16,11 +16,12 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 """Rest everything follows."""
 
 
+import numpy as np
 import pytest
-import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.physx
-import omni.usd
 import usdrt
 
 import isaaclab.sim as sim_utils
@@ -28,6 +29,8 @@ from isaaclab import cloner
 from isaaclab.sim.simulation_context import SimulationCfg, SimulationContext
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 from isaaclab.utils.version import get_isaac_sim_version
+
+pytestmark = pytest.mark.integration
 
 
 @pytest.fixture
@@ -98,13 +101,11 @@ def test_stage_in_memory_with_shapes(sim):
                 ),
             ],
             random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
-                solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=PhysxRigidBodyCfg(solver_position_iteration_count=4, solver_velocity_iteration_count=0),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         )
-        prim_path_regex = "/World/Cone/asset_.*"
+        prim_path_regex = "/World/Cone/asset_[^/]*"
         cfg.func(prim_path_regex, cfg)
 
         # verify prims exist in stage
@@ -145,7 +146,7 @@ def test_stage_in_memory_with_usds(sim):
         cfg = sim_utils.MultiUsdFileCfg(
             usd_path=usd_paths,
             random_choice=True,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            rigid_props=PhysxRigidBodyCfg(
                 disable_gravity=False,
                 retain_accelerations=False,
                 linear_damping=0.0,
@@ -154,12 +155,17 @@ def test_stage_in_memory_with_usds(sim):
                 max_angular_velocity=1000.0,
                 max_depenetration_velocity=1.0,
             ),
-            articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-                enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-            ),
+            articulation_props=[
+                PhysxArticulationCfg(
+                    enabled_self_collisions=True,
+                    solver_position_iteration_count=4,
+                    solver_velocity_iteration_count=0,
+                ),
+                NewtonArticulationCfg(self_collision_enabled=True),
+            ],
             activate_contact_sensors=True,
         )
-        prim_path_regex = "/World/Robot/asset_.*"
+        prim_path_regex = "/World/Robot/asset_[^/]*"
         cfg.func(prim_path_regex, cfg)
 
         # verify prims exist in stage
@@ -196,8 +202,8 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
         source_prim_path = f"{base_env_path}/env_0"
 
         # create environment clones using Isaac Lab's cloner utilities
-        env_ids = torch.arange(num_clones, dtype=torch.long, device="cpu")
-        env_origins, _ = cloner.grid_transforms(num_clones, spacing=3.0, device="cpu")
+        env_ids = np.arange(num_clones, dtype=np.int64)
+        env_origins, _ = cloner.grid_transforms(num_clones, spacing=3.0)
 
         # create source prim
         stage_in_memory.DefinePrim(source_prim_path, "Xform")

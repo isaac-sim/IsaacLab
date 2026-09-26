@@ -12,8 +12,7 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_frame_view import BaseFrameView
 
 
@@ -25,7 +24,7 @@ class FrameView(FactoryBase, BaseFrameView):
 
     - **PhysX / no backend**: :class:`~isaaclab_physx.sim.views.FabricFrameView`
       (Fabric GPU acceleration with USD fallback).
-    - **OVPhysX**: :class:`~isaaclab_ovphysx.sim.views.OvPhysxFrameView`
+    - **OVPhysX**: :class:`~isaaclab_ov.sim.views.OvPhysxFrameView`
       (Warp-native, reads body poses via an OVPhysX ``RIGID_BODY_POSE``
       tensor binding).
     - **Newton**: :class:`~isaaclab_newton.sim.views.NewtonSiteFrameView`
@@ -40,7 +39,7 @@ class FrameView(FactoryBase, BaseFrameView):
 
     @classmethod
     def _get_backend(cls, *args, **kwargs) -> str:
-        from isaaclab.sim.simulation_context import SimulationContext  # noqa: PLC0415
+        from ..simulation_context import SimulationContext  # noqa: PLC0415
 
         ctx = SimulationContext.instance()
         if ctx is None:

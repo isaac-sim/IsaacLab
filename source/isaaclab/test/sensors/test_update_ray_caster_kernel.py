@@ -21,6 +21,8 @@ import pytest
 import torch
 import warp as wp
 
+pytestmark = pytest.mark.unit
+
 # Import the kernel module directly to avoid pulling in the full isaaclab package
 # (which requires Isaac Sim / Omniverse dependencies).  The kernel file itself only
 # depends on warp.
@@ -379,28 +381,24 @@ class TestUpdateRayCasterKernel:
         np.testing.assert_allclose(starts_w[0, 0], expected_start, atol=ATOL)
 
     def test_ray_cast_drift_base_mode(self):
-        """Base mode: ray_cast_drift XY is rotated by full combined_quat, Z is NOT applied.
+        """Base mode: ray_cast_drift is rotated by the full combined_quat, then only its XY is applied.
 
-        Sensor pitched 90° around Y, drift = (1.0, 0.0, 0.0).
-        Full rotation of (1,0,0) by 90° pitch around Y → (0, 0, -1).
-        pos_drifted = (combined_pos.x + 0, combined_pos.y + 0, combined_pos.z) — both XY of
-        rotated drift happen to be 0 in this case.
+        Sensor pitched 90° around Y, drift = (0.0, 0.0, 1.0).
+        Full rotation of (0,0,1) by 90° pitch around Y → (1, 0, 0), so the start moves by +1 in x.
+        A yaw-only rotation (identity here) or an ignored drift would leave the start at (0, 0, 5).
         """
         pitch90 = _euler_to_quat_xyzw(0, math.pi / 2, 0)
         inputs = _make_inputs(
             view_pos=(0.0, 0.0, 5.0),
             view_quat=pitch90,
-            ray_cast_drift=(1.0, 0.0, 0.0),
+            ray_cast_drift=(0.0, 0.0, 1.0),
             ray_start=(0.0, 0.0, 0.0),
             ray_dir=(0.0, 0.0, -1.0),
         )
         _, _, starts_w, _ = _launch_kernel(*inputs, alignment_mode=2, num_envs=1, num_rays=1)
 
-        rot_drift = _quat_rotate(pitch90, (1, 0, 0))  # (0, 0, -1)
-        # pos_drifted = (0 + rot_drift.x, 0 + rot_drift.y, 5) = (0, 0, 5)
-        # local_start (0,0,0) rotated by pitch90 → still (0,0,0)
-        expected_start = np.array([rot_drift[0], rot_drift[1], 5.0])
-        np.testing.assert_allclose(starts_w[0, 0], expected_start, atol=ATOL)
+        # local_start (0,0,0) rotated by pitch90 → still (0,0,0); Z comes from combined_pos
+        np.testing.assert_allclose(starts_w[0, 0], [1.0, 0.0, 5.0], atol=ATOL)
 
     def test_env_mask_skips_masked_envs(self):
         """Masked-out environments retain sentinel values in output buffers.

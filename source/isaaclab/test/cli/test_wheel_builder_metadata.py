@@ -3,112 +3,196 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for wheel-builder package metadata."""
+"""Tests for wheel-builder package metadata generated from the root pyproject."""
 
 from __future__ import annotations
 
+import re
+import subprocess
+import sys
+from importlib import util
 from pathlib import Path
+from unittest import mock
 
+import pytest
 import tomllib
 
-
-def _repo_root() -> Path:
-    """Find the Isaac Lab repository root from this test file."""
-    for parent in Path(__file__).resolve().parents:
-        if (parent / "pyproject.toml").is_file() and (parent / "source").is_dir():
-            return parent
-    raise RuntimeError("Could not find Isaac Lab repository root.")
+pytestmark = pytest.mark.unit
 
 
-def _load_toml(relative_path: str) -> dict:
-    """Load a TOML file from the Isaac Lab repository root."""
-    with (_repo_root() / relative_path).open("rb") as f:
+def _root_rsl_rl_pin(source_checkout_root: Path) -> str:
+    """Return the ``rsl-rl-lib`` pin declared by the root ``pyproject.toml`` core deps."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        data = tomllib.load(f)
+    for dependency in data["project"]["dependencies"]:
+        if dependency.startswith("rsl-rl-lib=="):
+            return dependency
+    raise AssertionError("Could not find rsl-rl-lib pin in the root pyproject.toml")
+
+
+def _generate_wheel_pyproject(source_checkout_root: Path, tmp_path: Path) -> dict:
+    """Run ``gen_pyproject.py`` against the root pyproject and return the parsed result."""
+    output = tmp_path / "pyproject.toml"
+    subprocess.run(
+        [
+            sys.executable,
+            str(source_checkout_root / "tools/wheel_builder/gen_pyproject.py"),
+            str(source_checkout_root / "pyproject.toml"),
+            str(output),
+            "3.0.0",
+        ],
+        check=True,
+    )
+    with output.open("rb") as f:
         return tomllib.load(f)
 
 
-def _single_dependency(dependencies: list[str], prefix: str, source: str) -> str:
-    """Return the only dependency in a list matching the provided prefix."""
-    matches = [dependency for dependency in dependencies if dependency.startswith(prefix)]
-    assert len(matches) == 1, f"Expected one {prefix!r} dependency in {source}, got {matches}"
-    return matches[0]
+@pytest.fixture(scope="module")
+def generated_wheel_project(source_checkout_root: Path, tmp_path_factory) -> dict:
+    """Return the ``[project]`` table generated once for this module."""
+    return _generate_wheel_pyproject(source_checkout_root, tmp_path_factory.mktemp("wheel"))["project"]
 
 
-def _wheel_builder_dependencies_by_extra() -> dict[str, list[str]]:
-    """Return the wheel-builder optional dependencies grouped by extra name."""
-    packages = _load_toml("tools/wheel_builder/res/python_packages.toml")
-    optional_dependencies = packages["isaaclab"]["pyproject"]["optional-dependencies"]["all"]
-    return {name: dependencies for entry in optional_dependencies for name, dependencies in entry.items()}
+def _requirement_name(requirement: str) -> str:
+    """Return the normalized distribution name of a requirement string."""
+    return re.split(r"[\s\[<>=!~;@]", requirement, maxsplit=1)[0].lower()
 
 
-def _rsl_rl_pin_from_pyproject() -> str:
-    """Return the ``rsl-rl-lib`` pin declared by ``source/isaaclab_rl/pyproject.toml``."""
-    dependencies = _load_toml("source/isaaclab_rl/pyproject.toml")["project"]["optional-dependencies"]["rsl-rl"]
-    return _single_dependency(dependencies, "rsl-rl-lib==", "source/isaaclab_rl/pyproject.toml")
-
-
-def _newton_pin_from_pyproject(relative_path: str, extra_name: str) -> str:
-    """Return the ``newton[sim]`` direct URL pin declared by a package extra."""
-    dependencies = _load_toml(relative_path)["project"]["optional-dependencies"][extra_name]
-    return _single_dependency(
-        dependencies,
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@",
-        f"{relative_path}[{extra_name}]",
+def _generate_uv_overrides(source_checkout_root: Path, tmp_path: Path) -> list[str]:
+    """Run ``gen_uv_overrides.py`` against the root pyproject and return its requirements."""
+    output = tmp_path / "uv-overrides.txt"
+    subprocess.run(
+        [
+            sys.executable,
+            str(source_checkout_root / "tools/wheel_builder/gen_uv_overrides.py"),
+            str(source_checkout_root / "pyproject.toml"),
+            str(output),
+        ],
+        check=True,
     )
+    return output.read_text(encoding="utf-8").splitlines()
 
 
-def _warp_pin_from_core_pyproject() -> str:
-    """Return the core ``warp-lang`` pin declared by ``source/isaaclab/pyproject.toml``."""
-    dependencies = _load_toml("source/isaaclab/pyproject.toml")["project"]["dependencies"]
-    return _single_dependency(dependencies, "warp-lang==", "source/isaaclab/pyproject.toml")
+def test_wheel_builder_drops_workspace_members(generated_wheel_project: dict):
+    """The generated wheel metadata must not depend on the bundled ``isaaclab*`` packages."""
+    dependencies = generated_wheel_project["dependencies"]
+
+    assert not [dep for dep in dependencies if dep.lower().startswith("isaaclab")]
 
 
-def test_wheel_builder_rsl_rl_pin_matches_source_package():
-    """The bundled wheel metadata must install the RSL-RL version required by training scripts."""
-    expected_pin = _rsl_rl_pin_from_pyproject()
-    dependencies_by_extra = _wheel_builder_dependencies_by_extra()
+def test_wheel_builder_includes_template_generator_dependencies(generated_wheel_project: dict):
+    """The generated wheel must install everything required by the project generator."""
+    dependencies = set(generated_wheel_project["dependencies"])
 
-    for extra_name in ("rsl-rl", "all"):
-        rsl_rl_pin = _single_dependency(dependencies_by_extra[extra_name], "rsl-rl-lib==", extra_name)
-        assert rsl_rl_pin == expected_pin
+    assert {"Jinja2", "rich"} <= dependencies
+    assert "InquirerPy" not in dependencies
 
 
-def test_wheel_builder_newton_pin_matches_source_packages():
-    """The bundled wheel metadata must install the Newton revision used by source packages."""
-    expected_pin = _newton_pin_from_pyproject("source/isaaclab_newton/pyproject.toml", "all")
-    source_pins = [
-        _newton_pin_from_pyproject("source/isaaclab_physx/pyproject.toml", "newton"),
-        _newton_pin_from_pyproject("source/isaaclab_visualizers/pyproject.toml", "newton"),
-        _newton_pin_from_pyproject("source/isaaclab_visualizers/pyproject.toml", "rerun"),
-        _newton_pin_from_pyproject("source/isaaclab_visualizers/pyproject.toml", "viser"),
-        _newton_pin_from_pyproject("source/isaaclab_visualizers/pyproject.toml", "all"),
+def test_wheel_console_delegates_to_the_full_isaaclab_cli(source_checkout_root: Path):
+    """The wheel console command must expose the same workflows as a source installation."""
+    module_path = source_checkout_root / "source" / "isaaclab" / "isaaclab" / "__main__.py"
+    spec = util.spec_from_file_location("_isaaclab_wheel_main", module_path)
+    assert spec is not None
+    assert spec.loader is not None
+    module = util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    with mock.patch.object(sys, "argv", ["isaaclab", "train", "--help"]), mock.patch("isaaclab.cli.cli") as cli:
+        module.main()
+
+    cli.assert_called_once_with()
+
+
+def test_wheel_console_uses_compatibility_dispatcher(generated_wheel_project: dict):
+    """The generated console script must preserve legacy installed-wheel options."""
+    assert generated_wheel_project["scripts"]["isaaclab"] == "isaaclab.__main__:main"
+
+
+def test_wheel_builder_omits_integrations_without_published_wheels(
+    source_checkout_root: Path, generated_wheel_project: dict
+):
+    """Git-only RL-Games and Robomimic requirements must stay out of published metadata."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        source_project = tomllib.load(f)["project"]
+    generated_project = generated_wheel_project
+
+    # Source checkouts retain the integrations through their Git requirements.
+    assert any(dep.startswith("rl-games @ git+") for dep in source_project["optional-dependencies"]["rl-games"])
+    assert any(dep.startswith("robomimic @ git+") for dep in source_project["optional-dependencies"]["mimic"])
+
+    # The published wheel cannot expose the RL-Games extra or reference either Git-only distribution.
+    assert "rl-games" not in generated_project["optional-dependencies"]
+    generated_requirements = generated_project["dependencies"] + [
+        dep for requirements in generated_project["optional-dependencies"].values() for dep in requirements
     ]
-    assert source_pins == [expected_pin] * len(source_pins)
+    assert not any(dep.startswith("rl-games") for dep in generated_requirements)
+    assert not any(dep.startswith("robomimic") for dep in generated_requirements)
 
-    wheel_newton_pin = _single_dependency(
-        _wheel_builder_dependencies_by_extra()["newton"],
-        "newton[sim] @ git+https://github.com/newton-physics/newton.git@",
-        "tools/wheel_builder/res/python_packages.toml[newton]",
+
+def test_wheel_builder_keeps_explicit_extras_opt_in(source_checkout_root: Path, generated_wheel_project: dict):
+    """Isaac Sim, standalone importers, and PyTetWild ship only through their explicit root extras."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        root_optional = tomllib.load(f)["project"]["optional-dependencies"]
+    generated_optional = generated_wheel_project["optional-dependencies"]
+
+    for extra in ("isaacsim", "importers", "tetrahedralization"):
+        assert generated_optional[extra] == root_optional[extra]
+    dependency_names = {_requirement_name(dep) for dep in generated_wheel_project["dependencies"]}
+    assert not dependency_names & {"isaacsim", "isaacsim-asset-isolated", "tinyobjloader", "pytetwild"}
+
+
+def test_wheel_builder_expands_all_extra_into_concrete_requirements(generated_wheel_project: dict):
+    """``isaaclab[all]`` must contain concrete curated requirements."""
+    optional_dependencies = generated_wheel_project["optional-dependencies"]
+    all_extra = optional_dependencies["all"]
+
+    assert not any(dep.lower().startswith("isaaclab") for dep in all_extra)
+    for prefix in ("ovphysx", "ovrtx", "ovstage", "stable-baselines3", "skrl", "viser", "rerun-sdk"):
+        assert any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' missing from the 'all' extra"
+    for prefix in (
+        "isaacsim[",
+        "isaacsim-asset-isolated",
+        "ray",
+        "rl-games",
+        "robomimic",
+        "isaacteleop",
+        "pytetwild",
+        "moviepy",
+        "leapp",
+        "pytest",
+    ):
+        assert not any(dep.startswith(prefix) for dep in all_extra), f"'{prefix}' must not be in the 'all' extra"
+
+
+def test_wheel_builder_rsl_rl_pin_matches_root_pyproject(source_checkout_root: Path, generated_wheel_project: dict):
+    """The bundled wheel metadata must install the RSL-RL version declared at the root."""
+    expected_pin = _root_rsl_rl_pin(source_checkout_root)
+
+    # RSL-RL is a core dependency (default training library) and also exposed as an extra.
+    core_pins = [dep for dep in generated_wheel_project["dependencies"] if dep.startswith("rsl-rl-lib==")]
+    assert core_pins == [expected_pin]
+
+    optional_dependencies = generated_wheel_project["optional-dependencies"]
+    # RSL-RL is also exposed through its own ``rsl-rl`` extra.
+    rsl_rl_pins = [dep for dep in optional_dependencies["rsl-rl"] if dep.startswith("rsl-rl-lib==")]
+    assert rsl_rl_pins == [expected_pin]
+
+
+def test_wheel_builder_uv_overrides_match_root_pyproject(source_checkout_root: Path, tmp_path):
+    """The wheel resolver override file must mirror the root uv overrides exactly."""
+    with (source_checkout_root / "pyproject.toml").open("rb") as f:
+        root = tomllib.load(f)
+
+    generated_overrides = _generate_uv_overrides(source_checkout_root, tmp_path)
+    published_overrides = (
+        (source_checkout_root / "tools" / "wheel_builder" / "uv-overrides.txt").read_text(encoding="utf-8").splitlines()
     )
-    assert wheel_newton_pin == expected_pin
-
-
-def test_wheel_builder_warp_pin_matches_core_package():
-    """The bundled wheel metadata must keep Warp aligned with the core package pin."""
-    expected_pin = _warp_pin_from_core_pyproject()
-    packages = _load_toml("tools/wheel_builder/res/python_packages.toml")
-    wheel_core_dependencies = packages["isaaclab"]["pyproject"]["dependencies"]["all"]
-    dependencies_by_extra = _wheel_builder_dependencies_by_extra()
-
-    wheel_core_pin = _single_dependency(
-        wheel_core_dependencies,
-        "warp-lang==",
-        "tools/wheel_builder/res/python_packages.toml[dependencies]",
-    )
-    wheel_newton_pin = _single_dependency(
-        dependencies_by_extra["newton"],
-        "warp-lang==",
-        "tools/wheel_builder/res/python_packages.toml[newton]",
+    install_ci_overrides = (
+        (source_checkout_root / "source" / "isaaclab" / "test" / "install_ci" / "uv_pip" / "uv-overrides.txt")
+        .read_text(encoding="utf-8")
+        .splitlines()
     )
 
-    assert wheel_core_pin == expected_pin
-    assert wheel_newton_pin == expected_pin
+    assert generated_overrides == root["tool"]["uv"]["override-dependencies"]
+    assert published_overrides == generated_overrides
+    assert install_ci_overrides == generated_overrides

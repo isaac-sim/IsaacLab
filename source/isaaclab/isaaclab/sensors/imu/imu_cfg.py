@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:

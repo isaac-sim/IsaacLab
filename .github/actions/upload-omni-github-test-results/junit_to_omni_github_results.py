@@ -54,6 +54,28 @@ def _test_id(testcase: ET.Element) -> str:
     return "::".join(part for part in parts if part) or "unknown-testcase"
 
 
+def _testcase_markers(testcase: ET.Element) -> list[str]:
+    """Return the intent markers recorded on a testcase, in stable order.
+
+    pytest serializes ``item.user_properties`` as ``<property>`` elements under a
+    ``<properties>`` child of the testcase. The repo-root ``conftest.py`` records the
+    auto-applied intent markers there under the ``markers`` property as a comma-separated
+    string. Missing or empty values yield an empty list.
+    """
+    properties = _first_child(testcase, {"properties"})
+    if properties is None:
+        return []
+    markers: list[str] = []
+    for prop in properties:
+        if _local_name(prop.tag) != "property" or prop.attrib.get("name") != "markers":
+            continue
+        for value in prop.attrib.get("value", "").split(","):
+            value = value.strip()
+            if value:
+                markers.append(value)
+    return markers
+
+
 def _short_message(element: ET.Element | None) -> str | None:
     """Return a compact message from a failure, error, or skip element."""
     if element is None:
@@ -77,23 +99,26 @@ def _convert_testcase(
     """Convert one JUnit testcase element into an omni-github test row."""
     failure_or_error = _first_child(testcase, {"error", "failure"})
     skipped = _first_child(testcase, {"skipped"})
+    is_xfail = skipped is not None and skipped.attrib.get("type") == "pytest.xfail"
     message = _short_message(failure_or_error)
     skip_reason = _short_message(skipped)
     row: dict[str, object] = {
         "test_id": _test_id(testcase),
         "passed": failure_or_error is None and skipped is None,
         "duration": _duration_seconds(testcase),
-        "test_type": test_type,
         "group_id": group_id,
         "retries": retries,
         "log_paths": log_paths,
     }
     if testcase.attrib.get("name"):
         row["test_name"] = testcase.attrib["name"]
-    if skipped is not None:
+    if is_xfail:
+        row["unreliable"] = True
+    elif skipped is not None:
         row["skipped"] = True
     if skip_reason is not None:
-        row["skip_reason"] = skip_reason
+        if not is_xfail:
+            row["skip_reason"] = skip_reason
         row.setdefault("message", skip_reason)
     if message is not None:
         row["message"] = message
@@ -105,6 +130,12 @@ def _convert_testcase(
         for flag, patterns in _FLAG_PATTERNS.items():
             if any(pattern in detail_text for pattern in patterns):
                 row[flag] = True
+
+    markers = _testcase_markers(testcase)
+    if markers:
+        row["test_type"] = ",".join([test_type, *markers])
+    else:
+        row["test_type"] = test_type
 
     return row
 

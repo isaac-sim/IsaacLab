@@ -20,7 +20,6 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -129,11 +128,8 @@ def standardize_xform_ops(
     """
     from pxr import Gf, Sdf, UsdGeom  # noqa: PLC0415
 
-    # Validate prim
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath()}' is not valid.")
-
-    # Check if prim is an Xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.error(
             f"Prim at path '{prim.GetPath().pathString}' is of type '{prim.GetTypeName()}', "
@@ -142,9 +138,7 @@ def standardize_xform_ops(
         )
         return False
 
-    # Create xformable interface
     xformable = UsdGeom.Xformable(prim)
-    # Get current property names
     prop_names = prim.GetPropertyNames()
 
     # Obtain current local transformations
@@ -159,7 +153,6 @@ def standardize_xform_ops(
         # orientation is (x, y, z, w), Gf.Quatd expects (w, x, y, z)
         xform_quat = Gf.Quatd(orientation[3], orientation[0], orientation[1], orientation[2])
 
-    # Handle scale resolution
     if scale is not None:
         # User provided scale
         xform_scale = Gf.Vec3d(scale)
@@ -175,7 +168,6 @@ def standardize_xform_ops(
         # No scale exists, use default uniform scale
         xform_scale = Gf.Vec3d(1.0, 1.0, 1.0)
 
-    # Verify if xform stack is reset
     has_reset = xformable.GetResetXformStack()
 
     # Ensure the prim has an "over" spec on the edit target layer. Prims from
@@ -192,7 +184,6 @@ def standardize_xform_ops(
 
     # Batch the operations
     with Sdf.ChangeBlock():
-        # Clear the existing transform operation order
         for prop_name in prop_names:
             if prop_name in _INVALID_XFORM_OPS:
                 prim.RemoveProperty(prop_name)
@@ -247,11 +238,9 @@ def validate_standard_xform_ops(prim: Usd.Prim) -> bool:
     """
     from pxr import UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         logger.error(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
         return False
-    # check if prim is an xformable
     if not prim.IsA(UsdGeom.Xformable):
         logger.error(f"Prim at path '{prim.GetPath().pathString}' is not an xformable.")
         return False
@@ -319,7 +308,6 @@ def resolve_prim_pose(
     """
     from pxr import Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
     # get prim xform
@@ -382,7 +370,6 @@ def resolve_prim_scale(prim: Usd.Prim) -> tuple[float, float, float]:
     """
     from pxr import Usd, UsdGeom  # noqa: PLC0415
 
-    # check if prim is valid
     if not prim.IsValid():
         raise ValueError(f"Prim at path '{prim.GetPath().pathString}' is not valid.")
     # compute local to world transform
@@ -444,7 +431,6 @@ def convert_world_pose_to_local(
     """
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: PLC0415
 
-    # Check if prim is valid
     if not ref_prim.IsValid():
         raise ValueError(f"Reference prim at path '{ref_prim.GetPath().pathString}' is not valid.")
 
@@ -457,7 +443,6 @@ def convert_world_pose_to_local(
     # Get reference prim's world transform
     ref_world_tf = ref_xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
 
-    # Create world transform for the desired position and orientation
     desired_world_tf = Gf.Matrix4d()
     desired_world_tf.SetTranslateOnly(Gf.Vec3d(*position))
 

@@ -15,11 +15,13 @@ import logging
 import os
 import re
 import time
-from collections.abc import Callable
+import warnings
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from enum import Enum
 from typing import TYPE_CHECKING, Any, ClassVar
 
+import numpy as np
 import torch
 import warp as wp
 
@@ -29,17 +31,28 @@ import omni.physics.tensors
 import omni.physx
 import omni.timeline
 import omni.usd
+import usdrt
 from pxr import Sdf, Usd, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
+from isaaclab.scene_data.deformable_discovery import (
+    deformable_geometry_batches,
+    deformable_prototypes,
+    expand_deformable_entries,
+)
 from isaaclab.utils.string import to_camel_case
 
+from isaaclab_physx.cloner import PhysxReplicateContext
+
+from .physx_manager_cfg import PhysxBackendCfg
+
 if TYPE_CHECKING:
+    from isaaclab.scene_data.deformable_discovery import DeformableStageEntry
     from isaaclab.sim.simulation_context import SimulationContext
 
-    from .physx_cfg import PhysxCfg
+    from .physx_manager_cfg import PhysxCfg
 
 __all__ = ["IsaacEvents", "PhysxManager"]
 
@@ -155,20 +168,44 @@ class AnimationRecorder:
                 f.write(content)
 
 
+class PhysxBackend:
+    """Own the native PhysX tensor view shared by physics and scene data."""
+
+    def __init__(self, cfg: PhysxBackendCfg):
+        self.simulation_view = omni.physics.tensors.create_simulation_view("warp", stage_id=cfg.stage_id)
+        self.simulation_view.set_subspace_roots("/")
+
+    def close(self) -> None:
+        """Invalidate the native tensor view once and release its handle."""
+        if self.simulation_view is not None:
+            self.simulation_view.invalidate()
+            self.simulation_view = None
+
+
 class PhysxSceneDataBackend(SceneDataBackend):
+    backend: PhysxBackend | None
+    """Borrowed native resource; its lifetime belongs to the simulation registry."""
+
     def __init__(self):
-        self._simulation_view: omni.physics.tensors.SimulationView | None = None
+        self._transforms = SceneDataFormat.Transform()
+        self.transforms_version = 0
+        self.geometry_timestamp = 0
+        self.clear()
+
+    def clear(self) -> None:
+        """Drop the native binding and its derived views after simulation stops."""
+        self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
-        self._scene_data = SceneDataFormat.Transform()
-
-    @property
-    def simulation_view(self) -> omni.physics.tensors.SimulationView | None:
-        return self._simulation_view
-
-    @simulation_view.setter
-    def simulation_view(self, simulation_view: omni.physics.tensors.SimulationView | None):
-        self._simulation_view = simulation_view
-        self._rigid_body_view = None
+        self._deformable_bindings: list[tuple[Any, list]] | None = None
+        self._transforms.transforms = None
+        self.transforms_version += 1
+        self.geometry_timestamp += 1
+        self._transforms_version_last_update = self._fabric_version_last_update = -1
+        self._geometry_timestamp_last_update = -1
+        self._fabric_transforms = SceneDataFormat.FabricMatrix44()
+        self._fabric_selection = None
+        self._fabric_points = SceneDataFormat.FabricPoints()
+        self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
         """Lazily create a rigid body view covering all rigid bodies in the scene.
@@ -181,7 +218,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if self._rigid_body_view is not None:
             return self._rigid_body_view
 
-        if self._simulation_view is None:
+        if self.backend is None:
             return None
 
         stage: Usd.Stage = omni.usd.get_context().get_stage()
@@ -191,10 +228,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
         rigid_body_paths: list[str] = []
         non_rigid_body_names: set[str] = set()
         for prim in stage.Traverse():
-            if prim.IsA(UsdPhysics.Joint):
-                continue
             prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
                 rigid_body_paths.append(prim_path)
             elif re.search(r"/World/envs/env_\d+/", prim_path):
                 non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
@@ -212,15 +247,106 @@ class PhysxSceneDataBackend(SceneDataBackend):
         if not body_paths:
             return None
 
-        self._rigid_body_view = self._simulation_view.create_rigid_body_view(body_paths)
+        self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
         return self._rigid_body_view
+
+    def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
+        """Bind exact visual mesh paths directly to padded native nodal buffers."""
+        bindings = []
+        for deformable_type in ("volume", "surface"):
+            declared = [entry for entry in entries if entry.deformable_type == deformable_type]
+            if not declared:
+                continue
+            paths = [entry.root_path for entry in declared]
+            if deformable_type == "volume":
+                view = self.backend.simulation_view.create_volume_deformable_body_view(paths)
+            else:
+                view = self.backend.simulation_view.create_surface_deformable_body_view(paths)
+            by_path = {path: entry for entry in declared for path in (entry.root_path, entry.sim_mesh_path)}
+            ordered = [by_path[path] for path in view.prim_paths]
+            if sorted(entry.root_path for entry in ordered) != sorted(paths):
+                raise RuntimeError("PhysX deformable view does not cover the declared clone-plan entries.")
+            counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
+            if np.any(counts > view.max_simulation_nodes_per_body):
+                raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
+            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+            native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
+            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            bindings.append((view, batches))
+        self._deformable_bindings = bindings
+
+    @property
+    def native_geometry_formats(self) -> tuple[Any, ...]:
+        """Expose initialized geometry formats, including native Fabric points when available.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        formats = tuple(dict.fromkeys(batch[0]._cls for _, batches in self._deformable_bindings for batch in batches))
+        return (*formats, SceneDataFormat.FabricPoints) if PhysxManager._fabric is not None else formats
+
+    def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> Any:
+        """Publish padded native nodes or native Fabric points without an intermediate copy.
+
+        Raises:
+            RuntimeError: If scene geometry was not initialized from a clone plan.
+        """
+        if self._deformable_bindings is None:
+            raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
+        if output_format is SceneDataFormat.FabricPoints and PhysxManager._fabric is not None:
+            self._update_fabric()
+            if self._fabric_points_selection is None:
+                stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
+                for _, batches in self._deformable_bindings:
+                    for _, paths in batches:
+                        for path in paths:
+                            prim = stage.GetPrimAtPath(path)
+                            prim.CreateAttribute("isaaclab:geometry", usdrt.Sdf.ValueTypeNames.Bool, True).Set(True)
+                self._fabric_points_selection = stage.SelectPrims(
+                    require_attrs=[
+                        (usdrt.Sdf.ValueTypeNames.Point3fArray, "points", usdrt.Usd.Access.Read),
+                        (usdrt.Sdf.ValueTypeNames.Bool, "isaaclab:geometry", usdrt.Usd.Access.Read),
+                    ],
+                    device=str(PhysicsManager._device),
+                )
+            if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
+                self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
+                self.geometry_timestamp += 1
+                self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
+            return [(self._fabric_points, {})]
+        if self._geometry_timestamp_last_update != self.geometry_timestamp:
+            for view, batches in self._deformable_bindings:
+                points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
+                for publication, _ in batches:
+                    publication.points = points
+            self._geometry_timestamp_last_update = self.geometry_timestamp
+        return [batch for _, batches in self._deformable_bindings for batch in batches]
+
+    def _update_fabric(self) -> None:
+        """Refresh the native stage once when either poses or geometry changed."""
+        PhysxManager.pre_render()
+        version = (self.transforms_version, self.geometry_timestamp)
+        if self._fabric_version_last_update != version:
+            PhysxManager._fabric.force_update(0.0, 0.0)
+            self._fabric_version_last_update = version
+
+    @property
+    def native_transform_formats(self) -> tuple[Any, ...]:
+        """Native pose formats available without extracting or converting body state."""
+        if PhysxManager._fabric is not None:
+            return SceneDataFormat.Transform, SceneDataFormat.FabricMatrix44
+        return (SceneDataFormat.Transform,)
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
-        """Return the current PhysX rigid body transforms as :class:`SceneDataFormat.Transform`."""
-        if view := self.get_rigid_body_view():
-            self._scene_data.transforms = view.get_transforms().view(wp.transformf)
-        return self._scene_data
+        """Publish native rigid-body poses [m, xyzw]."""
+        PhysxManager.pre_render()
+        if self._transforms_version_last_update != self.transforms_version and (view := self.get_rigid_body_view()):
+            self._transforms.transforms = view.get_transforms().view(wp.transformf)
+            self._transforms_version_last_update = self.transforms_version
+        return self._transforms
 
     @property
     def transform_count(self) -> int:
@@ -236,6 +362,24 @@ class PhysxSceneDataBackend(SceneDataBackend):
             return list(view.prim_paths)
         return []
 
+    def get_transforms(self, output_format: Any) -> SceneDataFormat.Transform | SceneDataFormat.FabricMatrix44:
+        """Publish the requested native representation, refreshing only that representation."""
+        if output_format is not SceneDataFormat.FabricMatrix44 or PhysxManager._fabric is None:
+            return self.transforms
+        self._update_fabric()
+        if self._fabric_selection is None:
+            stage = usdrt.Usd.Stage.Attach(PhysxManager._stage_id)
+            self._fabric_selection = stage.SelectPrims(
+                require_applied_schemas=["PhysicsRigidBodyAPI"],
+                require_attrs=[(usdrt.Sdf.ValueTypeNames.Matrix4d, "omni:fabric:worldMatrix", usdrt.Usd.Access.Read)],
+                device=str(PhysicsManager._device),
+            )
+        if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
+            self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
+            self.transforms_version += 1
+        self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
+        return self._fabric_transforms
+
 
 class PhysxManager(PhysicsManager):
     """Manages PhysX physics simulation lifecycle.
@@ -243,21 +387,25 @@ class PhysxManager(PhysicsManager):
     Lifecycle: initialize() -> reset() -> step() (repeated) -> close()
     """
 
+    clone_context_type = PhysxReplicateContext
+
     _cfg: ClassVar[PhysxCfg | None] = None
+
+    supports_anim_recording: ClassVar[bool] = True
 
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
+    _kinematics_dirty: ClassVar[bool] = False
 
-    _view: ClassVar[omni.physics.tensors.SimulationView | None] = None
-    _view_warp: ClassVar[omni.physics.tensors.SimulationView | None] = None
+    backend: ClassVar[PhysxBackend | None] = None
+    """Borrowed native resource, available after physics warmup and released on stop."""
     _warmup_needed: ClassVar[bool] = True
     _view_created: ClassVar[bool] = False
     _assets_loaded: ClassVar[bool] = True
     _stage_id: ClassVar[int] = -1
     _subscriptions: ClassVar[dict[str, Any]] = {}
     _fabric: ClassVar[Any] = None
-    _update_fabric: ClassVar[Callable[[float, float], None] | None] = None
     _anim_recorder: ClassVar[AnimationRecorder | None] = None
     _callback_exception: ClassVar[Exception | None] = None
 
@@ -284,16 +432,23 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def initialize(cls, sim_context: SimulationContext) -> None:
         """Initialize the physics manager."""
+        from isaaclab_physx import _patch_isaacsim_simulation_manager, _subscribe_to_simulation_manager_enable
+
+        _subscribe_to_simulation_manager_enable()
+        _patch_isaacsim_simulation_manager()
+
         from isaaclab.sim.utils.stage import get_current_stage_id
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
+        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
         cls._scene_data_backend = PhysxSceneDataBackend()
+        cls._kinematics_dirty = False
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -301,12 +456,37 @@ class PhysxManager(PhysicsManager):
         omni.kit.app.get_app().update()
         sim.set_setting("/app/player/playSimulations", True)  # type: ignore[union-attr]
 
+        # Register the headless video pump as a render callback so it fires after each
+        # visualizer step without depending on the now-deleted recording_hooks module.
+        from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (  # noqa: PLC0415
+            pump_kit_app_for_headless_video_render_if_needed,
+        )
+
+        _sim = PhysicsManager._sim
+        _sim.add_render_callback(
+            "physx_headless_video_pump",
+            lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim),
+            order=-10,
+        )
+
+    @classmethod
+    def fix_articulation_root(cls, articulation_prim: Any, stage: Any = None) -> Any:
+        """Fix and normalize an articulation root for the PhysX parser."""
+        root = super().fix_articulation_root(articulation_prim, stage)
+        if root.HasAPI(UsdPhysics.RigidBodyAPI):
+            return cls._relocate_articulation_root(
+                root,
+                companion_schema="PhysxArticulationAPI",
+                companion_namespace="physxArticulation",
+            )
+        return root
+
     @classmethod
     def reset(cls, soft: bool = False) -> None:
         """Reset the physics simulation."""
         if not soft:
             # Ensure views are created (warmup only happens once per stage)
-            if cls._view is None:
+            if cls.backend is None:
                 cls._warmup_and_create_views()
             # Deterministic lifecycle dispatch for backend-agnostic callbacks.
             # This avoids relying on asynchronous event-bus ordering during env construction.
@@ -318,24 +498,47 @@ class PhysxManager(PhysicsManager):
         if "cuda" in device:
             torch.cuda.set_device(device)
 
-        if cls._view is not None:
-            cls._view._backend.initialize_kinematic_bodies()
+        if cls.backend is not None:
+            cls.backend.simulation_view._backend.initialize_kinematic_bodies()
 
+        cls.invalidate_transforms(kinematics=True)
+        cls._scene_data_backend.geometry_timestamp += 1
         cls.raise_callback_exception_if_any()
 
     @classmethod
     def forward(cls) -> None:
         """Update articulation kinematics and fabric for rendering."""
         sim = PhysicsManager._sim
-        if cls._fabric is not None and cls._update_fabric is not None:
-            if cls._view is not None and sim is not None and sim.is_playing():
-                cls._view.update_articulations_kinematic()
-            cls._update_fabric(0.0, 0.0)
+        if cls.backend is not None and sim is not None and sim.is_playing():
+            cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
+        cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_timestamp += 1
+        if cls._fabric is not None:
+            cls._scene_data_backend.get_transforms(SceneDataFormat.FabricMatrix44)
+
+    @classmethod
+    def invalidate_transforms(cls, *, kinematics: bool = False) -> None:
+        """Invalidate both native pose representations after writes; defer FK when needed."""
+        cls._kinematics_dirty |= kinematics
+        cls._scene_data_backend.transforms_version += 1
+
+    @classmethod
+    def pre_render(cls) -> None:
+        """Complete pending pose writes before SDP publishes articulation transforms."""
+        if cls._kinematics_dirty and cls.backend is not None:
+            cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
         """Return the SceneDataBackend for the SceneDataProvider."""
         return cls._scene_data_backend
+
+    @classmethod
+    def video_capture_backend(cls) -> str:
+        """Kit/Replicator perspective video capture."""
+        return "kit"
 
     @classmethod
     def step(cls) -> None:
@@ -352,6 +555,9 @@ class PhysxManager(PhysicsManager):
         physx_sim = omni.physx.get_physx_simulation_interface()
         physx_sim.simulate(sim.cfg.dt, 0.0)
         physx_sim.fetch_results()
+        cls._kinematics_dirty = False
+        cls.invalidate_transforms()
+        cls._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if "cuda" in device:
             torch.cuda.set_device(device)
@@ -404,10 +610,11 @@ class PhysxManager(PhysicsManager):
         # detach/attach resets the FabricManager, then immediately push current
         # poses so the first render after resume shows correct state.
         cls._re_sync_fabric()
-        if cls._view is not None:
-            cls._view.update_articulations_kinematic()
-        if cls._update_fabric is not None:
-            cls._update_fabric(0.0, 0.0)
+        if cls.backend is not None:
+            cls.backend.simulation_view.update_articulations_kinematic()
+            cls._kinematics_dirty = False
+        if cls._fabric is not None:
+            cls._fabric.force_update(0.0, 0.0)
 
     @classmethod
     def close(cls) -> None:
@@ -427,18 +634,17 @@ class PhysxManager(PhysicsManager):
         cls._event_bus.dispatch_event(IsaacEvents.PRIM_DELETION.value, payload={"prim_path": "/"})
 
         cls._fabric = None
-        cls._update_fabric = None
         cls._anim_recorder = None
         cls._warmup_needed = True
-        cls._view_created = False
         cls._assets_loaded = True
         cls._callback_exception = None
+        cls._kinematics_dirty = False
 
         super().close()
 
     @classmethod
     def get_physics_sim_view(cls) -> omni.physics.tensors.SimulationView | None:
-        return cls._view
+        return None if cls.backend is None else cls.backend.simulation_view
 
     @classmethod
     def get_physics_sim_device(cls) -> str:
@@ -509,13 +715,6 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def _subscribe_isaac(cls, callback: Callable, event: IsaacEvents, order: int, name: str | None) -> Any:
         """Subscribe to an IsaacEvents event."""
-
-        def guarded(cb: Callable) -> Callable:
-            def wrapper(dt: float) -> Any:
-                return cb(dt) if cls._view_created else None
-
-            return wrapper
-
         if event in (
             IsaacEvents.PHYSICS_WARMUP,
             IsaacEvents.PHYSICS_READY,
@@ -524,13 +723,11 @@ class PhysxManager(PhysicsManager):
             IsaacEvents.PRIM_DELETION,
         ):
             return cls._event_bus.observe_event(event_name=event.value, order=order, on_event=callback)
-        elif event == IsaacEvents.POST_PHYSICS_STEP:
+        elif event in (IsaacEvents.PRE_PHYSICS_STEP, IsaacEvents.POST_PHYSICS_STEP):
             return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
-                guarded(callback), pre_step=False, order=order
-            )
-        elif event == IsaacEvents.PRE_PHYSICS_STEP:
-            return omni.physx.get_physx_interface().subscribe_physics_on_step_events(
-                guarded(callback), pre_step=True, order=order
+                lambda dt: callback(dt) if cls._view_created else None,
+                pre_step=event == IsaacEvents.PRE_PHYSICS_STEP,
+                order=order,
             )
         elif event == IsaacEvents.TIMELINE_STOP:
             return cls._timeline.get_timeline_event_stream().create_subscription_to_pop_by_type(
@@ -631,8 +828,15 @@ class PhysxManager(PhysicsManager):
         if bool(sim.get_setting("/isaaclab/has_gui")):
             cfg.enable_scene_query_support = True
 
+        # PhysX answers the backend-agnostic determinism request with enhanced determinism. An
+        # explicitly enabled flag stays enabled.
+        if cfg.deterministic:
+            cfg.enable_enhanced_determinism = True
+
         # apply remaining cfg attributes to scene (physxScene:*)
         skip = {
+            # generic request, translated above; PhysX has no physxScene:deterministic attribute
+            "deterministic",
             "solver_type",
             "enable_ccd",
             "solve_articulation_contact_last",
@@ -658,16 +862,26 @@ class PhysxManager(PhysicsManager):
         # default physics material (from SimulationCfg, or create default if None)
         physics_material = sim_cfg.physics_material
         if physics_material is None:
-            from isaaclab.sim.spawners.materials import RigidBodyMaterialCfg
+            from isaaclab.sim.spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
-            physics_material = RigidBodyMaterialCfg()
+            physics_material = RigidBodyMaterialBaseCfg()
         mat_path = f"{sim_cfg.physics_prim_path}/defaultMaterial"
         physics_material.func(mat_path, physics_material)
         sim_utils.bind_physics_material(sim_cfg.physics_prim_path, mat_path)
 
         # warnings
-        if cfg.solver_type == 1 and not cfg.enable_external_forces_every_iteration:
-            logger.warning("TGS solver with enable_external_forces_every_iteration=False may cause noisy velocities.")
+        if not cfg.enable_external_forces_every_iteration:
+            warning_message = (
+                "PhysxCfg.enable_external_forces_every_iteration is deprecated and will be removed in a future "
+                "PhysX release. External forces are applied every iteration by default; remove this override."
+            )
+            if cfg.solver_type == 1:
+                warning_message += " Disabling this behavior with the TGS solver may cause noisy velocities."
+            warnings.warn(
+                warning_message,
+                DeprecationWarning,
+                stacklevel=2,
+            )
         if not cfg.enable_stabilization and sim_cfg.dt > 0.0333:
             logger.warning("Large timestep without stabilization may cause physics issues.")
 
@@ -689,12 +903,10 @@ class PhysxManager(PhysicsManager):
             from omni.physxfabric import get_physx_fabric_interface
 
             cls._fabric = get_physx_fabric_interface()
-            cls._update_fabric = getattr(cls._fabric, "force_update", cls._fabric.update)
         else:
             if ext_mgr.is_extension_enabled("omni.physx.fabric"):
                 ext_mgr.set_extension_enabled_immediate("omni.physx.fabric", False)
             cls._fabric = None
-            cls._update_fabric = None
 
         # disable usd sync when fabric is enabled (via SettingsManager)
         for key in [
@@ -755,6 +967,11 @@ class PhysxManager(PhysicsManager):
 
         stage_id = get_current_stage_id()
 
+        sim = PhysicsManager._sim
+        entries = None
+        if (plan := sim.get_clone_plan()) is not None:
+            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+
         is_gpu = "cuda" in PhysicsManager.get_device()
 
         physx = omni.physx.get_physx_interface()
@@ -779,19 +996,15 @@ class PhysxManager(PhysicsManager):
         if cls._view_created:
             return
 
-        # Create tensor views
-        cls._view = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
-        cls._view_warp = omni.physics.tensors.create_simulation_view("warp", stage_id=stage_id)
-
-        if cls._view:
-            cls._view.set_subspace_roots("/")
-        if cls._view_warp:
-            cls._view_warp.set_subspace_roots("/")
+        # Register the complete tensor view only after PhysX has loaded the stage.
+        cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
+        cls._scene_data_backend.backend = cls.backend
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)
+        if entries is not None:
+            cls._scene_data_backend._setup_deformable_geometry(entries)
         cls._view_created = True
-        cls._scene_data_backend.simulation_view = cls._view
 
         cls._event_bus.dispatch_event(IsaacEvents.SIMULATION_VIEW_CREATED.value, payload={})
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
@@ -800,11 +1013,13 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def _invalidate_views(cls) -> None:
         """Invalidate and clear simulation views."""
-        for view in (cls._view, cls._view_warp):
-            if view:
-                view.invalidate()
-        cls._view = None
-        cls._view_warp = None
+        for key in [key for key in cls.views if key[0] is cls]:
+            del cls.views[key]
+        if cls._scene_data_backend is not None:
+            cls._scene_data_backend.clear()
+        if cls.backend is not None:
+            PhysicsManager._sim.close_backend(cls.backend)
+            cls.backend = None
         cls._view_created = False
 
     @classmethod
@@ -817,6 +1032,15 @@ class PhysxManager(PhysicsManager):
     def _on_stop(cls, event: Any) -> None:
         cls._warmup_needed = True
         cls._invalidate_views()
+        # Detach the stage `_warmup_and_create_views` attached (GPU pipeline only, matching its own
+        # is_gpu guard) so the next play() can reattach cleanly. Without this, a second
+        # `_warmup_and_create_views` (e.g. play() -> stop() -> play() with no reset() in between)
+        # calls attach_stage() on a stage that is still attached ("Stage already attached") and
+        # corrupts PhysX's native view registry (SIGSEGV inside omni.physx.tensors). Guarded by
+        # get_attached_stage() so this is a no-op when close() already detached it.
+        if "cuda" in PhysicsManager.get_device() and (physx_sim := omni.physx.get_physx_simulation_interface()):
+            if physx_sim.get_attached_stage():
+                physx_sim.detach_stage()
 
     @classmethod
     def _on_stage_open(cls, event: Any) -> None:

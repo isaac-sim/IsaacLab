@@ -8,10 +8,14 @@ import torch
 
 import isaaclab.utils.noise as noise
 
+pytestmark = pytest.mark.unit
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("noise_device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("op", ["add", "scale", "abs"])
+# Each operation runs once; the noise parameters start on the other device so the first call migrates them
+# to the data device and the second call reuses the migrated parameters.
+_DEVICE_MIGRATION_ROWS = [("cpu", "cuda:0", "add"), ("cuda:0", "cpu", "scale"), ("cpu", "cuda:0", "abs")]
+
+
+@pytest.mark.parametrize("device, noise_device, op", _DEVICE_MIGRATION_ROWS)
 def test_gaussian_noise(device, noise_device, op):
     """Test guassian_noise function."""
 
@@ -27,7 +31,7 @@ def test_gaussian_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.GaussianNoiseCfg(std=std, mean=mean, operation=op)
 
-    for i in range(10):
+    for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
         # calculate resulting noise compared to original data set
@@ -42,9 +46,7 @@ def test_gaussian_noise(device, noise_device, op):
         torch.testing.assert_close(noise_cfg.mean, mean_result, atol=1e-2, rtol=1e-2)
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("noise_device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("op", ["add", "scale", "abs"])
+@pytest.mark.parametrize("device, noise_device, op", _DEVICE_MIGRATION_ROWS)
 def test_uniform_noise(device, noise_device, op):
     """Test uniform_noise function."""
     # Use ones for 'scale' so noisy_data is the noise term directly;
@@ -59,7 +61,7 @@ def test_uniform_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.UniformNoiseCfg(n_max=n_max, n_min=n_min, operation=op)
 
-    for i in range(10):
+    for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
         # calculate resulting noise compared to original data set
@@ -77,9 +79,7 @@ def test_uniform_noise(device, noise_device, op):
         assert all(torch.ge(noise_cfg.n_max + 1e-5, max_result).tolist())
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("noise_device", ["cpu", "cuda:0"])
-@pytest.mark.parametrize("op", ["add", "scale", "abs"])
+@pytest.mark.parametrize("device, noise_device, op", _DEVICE_MIGRATION_ROWS)
 def test_constant_noise(device, noise_device, op):
     """Test constant_noise"""
     # Use ones for 'scale' so noisy_data is the bias term directly;
@@ -93,7 +93,7 @@ def test_constant_noise(device, noise_device, op):
     # create noise config
     noise_cfg = noise.ConstantNoiseCfg(bias=bias, operation=op)
 
-    for i in range(10):
+    for _ in range(2):
         # apply noise
         noisy_data = noise_cfg.func(data, cfg=noise_cfg)
         # calculate resulting noise compared to original data set

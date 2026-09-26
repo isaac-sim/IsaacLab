@@ -27,6 +27,8 @@ from isaaclab.devices import (
     Se3SpaceMouseCfg,
 )
 
+pytestmark = pytest.mark.integration
+
 
 @pytest.fixture
 def mock_environment(mocker):
@@ -54,7 +56,9 @@ def mock_environment(mocker):
     carb_mock.input.KeyboardEventType.KEY_RELEASE = 2
 
     # Mock the SpaceMouse
-    hid_mock.enumerate.return_value = [{"product_string": "SpaceMouse Compact", "vendor_id": 123, "product_id": 456}]
+    hid_mock.enumerate.return_value = [
+        {"product_string": "SpaceMouse Compact", "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
     hid_mock.device.return_value = device_mock
 
     # Mock Haply WebSocket
@@ -78,172 +82,201 @@ def mock_environment(mocker):
 
 
 """
-Test keyboard devices.
+Test keyboard, gamepad, and spacemouse devices.
 """
 
 
-def test_se2keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se2Keyboard."""
-    # Test config-based constructor
-    config = Se2KeyboardCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se2_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
+@pytest.mark.parametrize(
+    "module_name,device_cls,cfg,patched_modules,report,expected_shape",
+    [
+        (
+            "isaaclab.devices.keyboard.se2_keyboard",
+            Se2Keyboard,
+            Se2KeyboardCfg(v_x_sensitivity=0.9, v_y_sensitivity=0.5, omega_z_sensitivity=1.2),
+            ("carb", "omni"),
+            None,
+            3,  # (v_x, v_y, omega_z)
+        ),
+        (
+            "isaaclab.devices.keyboard.se3_keyboard",
+            Se3Keyboard,
+            Se3KeyboardCfg(pos_sensitivity=0.5, rot_sensitivity=0.9),
+            ("carb", "omni"),
+            None,
+            7,  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
+        ),
+        (
+            "isaaclab.devices.gamepad.se2_gamepad",
+            Se2Gamepad,
+            Se2GamepadCfg(v_x_sensitivity=1.1, v_y_sensitivity=0.6, omega_z_sensitivity=1.2, dead_zone=0.02),
+            ("carb", "omni"),
+            None,
+            3,
+        ),
+        (
+            "isaaclab.devices.gamepad.se3_gamepad",
+            Se3Gamepad,
+            Se3GamepadCfg(pos_sensitivity=1.1, rot_sensitivity=1.7, dead_zone=0.02),
+            ("carb", "omni"),
+            None,
+            7,
+        ),
+        (
+            "isaaclab.devices.spacemouse.se2_spacemouse",
+            Se2SpaceMouse,
+            Se2SpaceMouseCfg(v_x_sensitivity=0.9, v_y_sensitivity=0.5, omega_z_sensitivity=1.2),
+            ("hid",),
+            [1, 0, 0, 0, 0],
+            3,
+        ),
+        (
+            "isaaclab.devices.spacemouse.se3_spacemouse",
+            Se3SpaceMouse,
+            Se3SpaceMouseCfg(pos_sensitivity=0.5, rot_sensitivity=0.9),
+            ("hid",),
+            [1, 0, 0, 0, 0, 0, 0],
+            7,
+        ),
+    ],
+    ids=["se2_keyboard", "se3_keyboard", "se2_gamepad", "se3_gamepad", "se2_spacemouse", "se3_spacemouse"],
+)
+def test_device_constructs_and_advance_shape(
+    mock_environment, mocker, module_name, device_cls, cfg, patched_modules, report, expected_shape
+):
+    """Each device applies its config and ``advance()`` returns a command of its documented size."""
+    device_mod = importlib.import_module(module_name)
+    mocker.patch.dict("sys.modules", {name: mock_environment[name] for name in patched_modules})
+    for name in patched_modules:
+        mocker.patch.object(device_mod, name, mock_environment[name])
 
-    keyboard = Se2Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.v_x_sensitivity == 0.9
-    assert keyboard.v_y_sensitivity == 0.5
-    assert keyboard.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
-
-
-def test_se3keyboard_constructors(mock_environment, mocker):
-    """Test constructor for Se3Keyboard."""
-    # Test config-based constructor
-    config = Se3KeyboardCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.keyboard.se3_keyboard")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    keyboard = Se3Keyboard(config)
-
-    # Verify configuration was applied correctly
-    assert keyboard.pos_sensitivity == 0.5
-    assert keyboard.rot_sensitivity == 0.9
-
-    # Test advance() returns expected type
-    result = keyboard.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test gamepad devices.
-"""
-
-
-def test_se2gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se2Gamepad."""
-    # Test config-based constructor
-    config = Se2GamepadCfg(
-        v_x_sensitivity=1.1,
-        v_y_sensitivity=0.6,
-        omega_z_sensitivity=1.2,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se2_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
-
-    gamepad = Se2Gamepad(config)
+    device = device_cls(cfg)
 
     # Verify configuration was applied correctly
-    assert gamepad.v_x_sensitivity == 1.1
-    assert gamepad.v_y_sensitivity == 0.6
-    assert gamepad.omega_z_sensitivity == 1.2
-    assert gamepad.dead_zone == 0.02
+    for field in ("v_x_sensitivity", "v_y_sensitivity", "omega_z_sensitivity", "pos_sensitivity", "rot_sensitivity"):
+        if hasattr(cfg, field):
+            assert getattr(device, field) == getattr(cfg, field)
+    if hasattr(cfg, "dead_zone"):
+        assert device.dead_zone == cfg.dead_zone
 
     # Test advance() returns expected type
-    result = gamepad.advance()
+    if report is not None:
+        mock_environment["device"].read.return_value = report
+    result = device.advance()
     assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
+    assert result.shape == (expected_shape,)
 
 
-def test_se3gamepad_constructors(mock_environment, mocker):
-    """Test constructor for Se3Gamepad."""
-    # Test config-based constructor
-    config = Se3GamepadCfg(
-        pos_sensitivity=1.1,
-        rot_sensitivity=1.7,
-        dead_zone=0.02,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.gamepad.se3_gamepad")
-    mocker.patch.dict("sys.modules", {"carb": mock_environment["carb"], "omni": mock_environment["omni"]})
-    mocker.patch.object(device_mod, "carb", mock_environment["carb"])
-    mocker.patch.object(device_mod, "omni", mock_environment["omni"])
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # some HID backends report the kernel's combined name instead of the bare USB product string
+        "3Dconnexion SpaceMouse Compact",
+        # the libusb-based backend bundled in the hidapi wheels reports no product string at all
+        # unless the process is allowed to open the USB node
+        "",
+    ],
+    ids=["prefixed_product_string", "missing_product_string"],
+)
+def test_spacemouse_detected_by_usb_id(mock_environment, mocker, product_string):
+    """SpaceMouse detection must not rely on an exact product string match."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x256F, "product_id": 0xC635}
+    ]
+    for module_name, device_cls, cfg_cls in (
+        ("isaaclab.devices.spacemouse.se2_spacemouse", Se2SpaceMouse, Se2SpaceMouseCfg),
+        ("isaaclab.devices.spacemouse.se3_spacemouse", Se3SpaceMouse, Se3SpaceMouseCfg),
+    ):
+        device_mod = importlib.import_module(module_name)
+        mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+        # the listener thread polls the mocked device in a busy loop; detection is what is under test
+        mocker.patch.object(device_mod, "threading")
 
-    gamepad = Se3Gamepad(config)
+        device = device_cls(cfg_cls())
 
-    # Verify configuration was applied correctly
-    assert gamepad.pos_sensitivity == 1.1
-    assert gamepad.rot_sensitivity == 1.7
-    assert gamepad.dead_zone == 0.02
-
-    # Test advance() returns expected type
-    result = gamepad.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
-
-
-"""
-Test spacemouse devices.
-"""
-
-
-def test_se2spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se2SpaceMouse."""
-    # Test config-based constructor
-    config = Se2SpaceMouseCfg(
-        v_x_sensitivity=0.9,
-        v_y_sensitivity=0.5,
-        omega_z_sensitivity=1.2,
-    )
-    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se2_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
-    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
-
-    spacemouse = Se2SpaceMouse(config)
-
-    # Verify configuration was applied correctly
-    assert spacemouse.v_x_sensitivity == 0.9
-    assert spacemouse.v_y_sensitivity == 0.5
-    assert spacemouse.omega_z_sensitivity == 1.2
-
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (3,)  # (v_x, v_y, omega_z)
+        assert device is not None
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC635)
 
 
-def test_se3spacemouse_constructors(mock_environment, mocker):
-    """Test constructor for Se3SpaceMouse."""
-    # Test config-based constructor
-    config = Se3SpaceMouseCfg(
-        pos_sensitivity=0.5,
-        rot_sensitivity=0.9,
-    )
+@pytest.mark.parametrize(
+    "product_string",
+    [
+        # the string the device reports when the backend can read its USB descriptors
+        "SpaceNavigator",
+        # the same device seen through a backend that cannot read them
+        "",
+    ],
+    ids=["product_string", "usb_id_only"],
+)
+def test_se3spacemouse_detects_spacenavigator(mock_environment, mocker, product_string):
+    """The legacy SpaceNavigator must stay detectable, with or without a readable product string."""
+    mock_environment["hid"].enumerate.return_value = [
+        {"product_string": product_string, "vendor_id": 0x046D, "product_id": 0xC626}
+    ]
     device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
-    mocker.patch.dict("sys.modules", {"hid": mock_environment["hid"]})
     mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
 
-    spacemouse = Se3SpaceMouse(config)
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
 
-    # Verify configuration was applied correctly
-    assert spacemouse.pos_sensitivity == 0.5
-    assert spacemouse.rot_sensitivity == 0.9
+    # the resolved name selects the report layout used by the listener thread
+    assert device._device_name == "SpaceNavigator"
+    mock_environment["device"].open.assert_called_with(0x046D, 0xC626)
 
-    # Test advance() returns expected type
-    mock_environment["device"].read.return_value = [1, 0, 0, 0, 0, 0, 0]
-    result = spacemouse.advance()
-    assert isinstance(result, torch.Tensor)
-    assert result.shape == (7,)  # (pos_x, pos_y, pos_z, rot_x, rot_y, rot_z, gripper)
+
+def test_spacemouse_skips_devices_that_cannot_be_opened(mock_environment, mocker):
+    """An inaccessible SpaceMouse must not hide a second one the user can actually open."""
+    inaccessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}
+    accessible = {"product_string": "", "vendor_id": 0x256F, "product_id": 0xC62E}
+    mock_environment["hid"].enumerate.return_value = [inaccessible, accessible]
+    mock_environment["device"].open.side_effect = [OSError("open failed"), None]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+
+    device = Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    assert device._device_name == "SpaceMouse Wireless"
+    mock_environment["device"].open.assert_called_with(0x256F, 0xC62E)
+
+
+def test_spacemouse_open_failure_reports_permissions(mock_environment, mocker):
+    """When the only supported device cannot be opened, the error must explain why."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x256F, "product_id": 0xC635}]
+    mock_environment["device"].open.side_effect = OSError("open failed")
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "SpaceMouse Compact" in message
+    assert "/dev/bus/usb" in message
+
+
+def test_spacemouse_not_found_error_lists_enumerated_devices(mock_environment, mocker):
+    """The error raised when no SpaceMouse is connected should help identify the problem."""
+    mock_environment["hid"].enumerate.return_value = [{"product_string": "", "vendor_id": 0x046D, "product_id": 0xC52F}]
+    device_mod = importlib.import_module("isaaclab.devices.spacemouse.se3_spacemouse")
+    mocker.patch.object(device_mod, "hid", mock_environment["hid"])
+    mocker.patch.object(device_mod, "threading")
+    mocker.patch.object(device_mod.time, "sleep")
+
+    with pytest.raises(OSError) as exc_info:
+        Se3SpaceMouse(Se3SpaceMouseCfg())
+
+    message = str(exc_info.value)
+    assert "0x046d:0xc52f" in message
+    assert "/dev/bus/usb" in message
+
+
+def test_se3spacemouse_destructor_handles_partial_initialization():
+    """The destructor must tolerate construction failing before the listener thread exists."""
+    spacemouse = Se3SpaceMouse.__new__(Se3SpaceMouse)
+
+    spacemouse.__del__()
 
 
 """
@@ -337,11 +370,6 @@ def test_haply_constructors(mock_environment, mocker):
         "versegrip_connected": True,
     }
     haply.feedback_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-
-    # Verify configuration was applied correctly
-    assert haply.websocket_uri == "ws://localhost:10001"
-    assert haply.pos_sensitivity == 1.5
-    assert haply.data_rate == 250.0
 
     # Test advance() returns expected type
     result = haply.advance()

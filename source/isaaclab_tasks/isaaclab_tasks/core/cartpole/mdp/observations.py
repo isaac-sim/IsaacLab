@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Observation terms for the cartpole environments."""
+
 from __future__ import annotations
 
 from collections.abc import Sequence
@@ -43,18 +45,22 @@ class CameraImageStack(ManagerTermBase):
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
         camera: Camera = env.scene.sensors[sensor_cfg.name]
-        camera_data = camera.data.output[data_type]
+        camera_data = camera.data.output[data_type].torch
 
         rgb_like = is_rgb_like(data_type)
-        defer_normalize = self._stack is not None and rgb_like
+        segmentation = data_type == "semantic_segmentation"
+        # Colorized segmentation is uint8 RGBA, so it can ride the same deferred-normalize path as
+        # the RGB-like types; non-colorized segmentation is an int32 label map that cannot.
+        defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
         if data_type == "albedo":
             camera_data = camera_data[..., :3]
-        if rgb_like and not defer_normalize:
-            camera_data = normalize_camera_image(camera_data, data_type)
-        elif data_type == "depth":
-            camera_data[camera_data == float("inf")] = 0
-
-        observation = camera_data.permute(0, 3, 1, 2).contiguous()
+        if (rgb_like or segmentation) and not defer_normalize:
+            # normalize straight into the channel-first layout
+            observation = normalize_camera_image(camera_data, data_type, output_channel_dim=1)
+        else:
+            if data_type == "depth":
+                camera_data[camera_data == float("inf")] = 0
+            observation = camera_data.permute(0, 3, 1, 2).contiguous()
         if self._stack is not None:
             self._stack.append(observation)
             observation = self._stack.stacked

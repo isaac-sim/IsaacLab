@@ -13,12 +13,14 @@ import logging
 import numpy as np
 from scipy.spatial.transform import Rotation
 
-import carb
-
 from .xr_anchor_utils import XrAnchorSynchronizer
 from .xr_cfg import XrCfg
 
-# Import XR components with fallback for testing
+# Import Kit components with fallback for sessions without Kit
+carb = None
+with contextlib.suppress(ModuleNotFoundError):
+    import carb
+
 XRCore = None
 XRCoreEventType = None
 with contextlib.suppress(ModuleNotFoundError):
@@ -116,12 +118,10 @@ class XrAnchorManager:
                 logger.warning(f"Failed to create XR anchor prim: {e}")
 
         # Configure carb settings for XR rendering
-        if hasattr(carb, "settings"):
+        if carb is not None and hasattr(carb, "settings"):
             settings = carb.settings.get_settings()
             settings.set_float("/persistent/xr/render/nearPlane", self._xr_cfg.near_plane)
-            # The ar/vr profile-specific settings default to 0.15 and take precedence
-            # over the generic path above, so profile-based sessions (e.g. CloudXR)
-            # would keep culling geometry closer than 15 cm unless they are written too.
+            # Profile settings take precedence over the generic path in AR/VR sessions.
             settings.set_float("/persistent/xr/profile/ar/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_float("/persistent/xr/profile/vr/render/nearPlane", self._xr_cfg.near_plane)
             settings.set_string("/persistent/xr/anchorMode", "custom anchor")

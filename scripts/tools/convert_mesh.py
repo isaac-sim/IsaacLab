@@ -90,11 +90,7 @@ simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
-import contextlib
 import os
-
-import carb
-import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
@@ -102,14 +98,16 @@ from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
 
+# Mesh-collision approximation token authored for each collision approximation choice.
+# A triangle-mesh collider uses the "none" token (the mesh itself is the collider).
 collision_approximation_map = {
-    "convexDecomposition": schemas_cfg.ConvexDecompositionPropertiesCfg,
-    "convexHull": schemas_cfg.ConvexHullPropertiesCfg,
-    "triangleMesh": schemas_cfg.TriangleMeshPropertiesCfg,
-    "meshSimplification": schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-    "sdf": schemas_cfg.SDFMeshPropertiesCfg,
-    "boundingCube": schemas_cfg.BoundingCubePropertiesCfg,
-    "boundingSphere": schemas_cfg.BoundingSpherePropertiesCfg,
+    "convexDecomposition": "convexDecomposition",
+    "convexHull": "convexHull",
+    "triangleMesh": "none",
+    "meshSimplification": "meshSimplification",
+    "sdf": "sdf",
+    "boundingCube": "boundingCube",
+    "boundingSphere": "boundingSphere",
     "none": None,
 }
 
@@ -129,24 +127,28 @@ def main():
 
     # Mass properties
     if args_cli.mass is not None:
-        mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)
-        rigid_props = schemas_cfg.RigidBodyPropertiesCfg()
+        mass_props = schemas_cfg.MassCfg(mass=args_cli.mass)
+        rigid_props = schemas_cfg.UsdPhysicsRigidBodyCfg()
     else:
         mass_props = None
         rigid_props = None
 
     # Collision properties
-    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=args_cli.collision_approximation != "none")
+    collision_props = schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=args_cli.collision_approximation != "none")
 
     # Create Mesh converter config
-    cfg_class = collision_approximation_map.get(args_cli.collision_approximation)
-    if cfg_class is None and args_cli.collision_approximation != "none":
+    approximation_name = collision_approximation_map.get(args_cli.collision_approximation)
+    if approximation_name is None and args_cli.collision_approximation != "none":
         valid_keys = ", ".join(sorted(collision_approximation_map.keys()))
         raise ValueError(
             f"Invalid collision approximation type '{args_cli.collision_approximation}'. "
             f"Valid options are: {valid_keys}."
         )
-    collision_cfg = cfg_class() if cfg_class is not None else None
+    collision_cfg = (
+        schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=approximation_name)
+        if approximation_name is not None
+        else None
+    )
 
     mesh_converter_cfg = MeshConverterCfg(
         mass_props=mass_props,
@@ -177,25 +179,9 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    # Determine if there is a GUI to update:
-    # acquire settings interface
-    carb_settings_iface = carb.settings.get_settings()
-    # read flag for whether a local GUI is enabled
-    local_gui = carb_settings_iface.get("/app/window/enabled")
-    # read flag for whether livestreaming GUI is enabled
-    livestream_gui = carb_settings_iface.get("/app/livestream/enabled")
-
-    # Simulate scene (if not headless)
-    if local_gui or livestream_gui:
-        # Open the stage with USD
-        sim_utils.open_stage(mesh_converter.usd_path)
-        # Reinitialize the simulation
-        app = omni.kit.app.get_app_interface()
-        # Run simulation
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                # perform step
-                app.update()
+    # Show the converted asset if the launch resolved to a window or livestream
+    if AppLauncher.has_gui():
+        sim_utils.show_stage_in_viewport(mesh_converter.usd_path)
 
 
 if __name__ == "__main__":

@@ -332,7 +332,7 @@ class set_robot_to_grasp_pose(ManagerTermBase):
             jacobians = self.robot_asset.data.body_link_jacobian_w.torch.clone()
             jacobian = jacobians[env_ids, self.jacobi_body_idx, :, self.robot_asset.num_base_dofs :]
 
-            delta_dof_pos = fc._get_delta_dof_pos(
+            delta_dof_pos = fc.get_delta_dof_pos(
                 delta_pose=delta_hand_pose,
                 ik_method="dls",
                 jacobian=jacobian,

@@ -13,6 +13,8 @@ import pytest
 from isaaclab.envs import DirectMARLEnv, DirectRLEnv, ManagerBasedEnv
 from isaaclab.envs.utils.marl import multi_agent_to_single_agent, multi_agent_with_one_agent
 
+pytestmark = pytest.mark.unit
+
 
 class _FakeMultiAgentEnv:
     possible_agents = ["agent_0", "agent_1"]
@@ -81,6 +83,23 @@ def test_env_destructor_skips_close_after_import_shutdown(env_cls, monkeypatch):
     env._is_closed = False
     monkeypatch.setattr(env_cls, "close", close)
     monkeypatch.setattr("sys.meta_path", None)
+
+    env.__del__()
+
+
+@pytest.mark.parametrize("env_cls", [DirectRLEnv, DirectMARLEnv, ManagerBasedEnv])
+def test_env_destructor_skips_close_when_init_failed_early(env_cls, monkeypatch):
+    """Environment destructors should tolerate an env whose ``__init__`` raised before it set ``_is_closed``.
+
+    Subclasses may run fallible setup (e.g. buffer allocation) before delegating to the base
+    ``__init__`` that assigns the flag, so the destructor must not mask that original failure.
+    """
+
+    def close(_self):
+        raise AssertionError("close should not be called for a partially constructed env")
+
+    env = object.__new__(env_cls)
+    monkeypatch.setattr(env_cls, "close", close)
 
     env.__del__()
 

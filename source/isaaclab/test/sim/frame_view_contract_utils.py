@@ -43,6 +43,7 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.warp import ProxyArray
 
 CHILD_OFFSET = (0.1, 0.0, 0.05)
@@ -81,7 +82,7 @@ def _wp_vec4f(data, device="cpu"):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_world_pose_equals_parent_plus_offset(device, view_factory):
     """world_pose == parent_pos + local offset (identity parent orientation)."""
     bundle = view_factory(num_envs=4, device=device)
@@ -95,7 +96,7 @@ def test_world_pose_equals_parent_plus_offset(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_local_pose_equals_structural_offset(device, view_factory):
     """local_pose == the authored offset (0.1, 0, 0.05) for every prim."""
     bundle = view_factory(num_envs=4, device=device)
@@ -110,28 +111,7 @@ def test_local_pose_equals_structural_offset(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_local_differs_from_world(device, view_factory):
-    """local != world when parent is not at the origin.
-
-    Asserts |world - local| > 0.5 to catch any implementation that returns
-    world as local.  The parent is offset from the origin so the z-component
-    alone provides > 0.5 difference.
-    """
-    bundle = view_factory(num_envs=2, device=device)
-    try:
-        world_pos = _t(bundle.view.get_world_poses()[0])
-        local_pos = _t(bundle.view.get_local_poses()[0])
-
-        diff = (world_pos - local_pos).abs().max().item()
-        assert diff > 0.5, (
-            f"Expected |world - local| > 0.5, got {diff:.4f}. world={world_pos.tolist()}, local={local_pos.tolist()}"
-        )
-    finally:
-        bundle.teardown()
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_local_stable_after_parent_move(device, view_factory):
     """Moving the parent changes world but NOT local."""
     bundle = view_factory(num_envs=2, device=device)
@@ -145,7 +125,7 @@ def test_local_stable_after_parent_move(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_world_tracks_parent_move(device, view_factory):
     """Moving the parent shifts world poses by the same amount."""
     bundle = view_factory(num_envs=2, device=device)
@@ -161,7 +141,7 @@ def test_world_tracks_parent_move(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_indexed_get_returns_correct_subset(device, view_factory):
     """Indexed get (out-of-order) returns exact copies for both world and local."""
     bundle = view_factory(num_envs=5, device=device)
@@ -186,14 +166,15 @@ def test_indexed_get_returns_correct_subset(device, view_factory):
 # ==================================================================
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_world_roundtrip(device, view_factory):
     """set_world_poses -> get_world_poses returns the same values."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         new_pos = _wp_vec3f([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], device=device)
         new_quat = _wp_vec4f([[0.0, 0.0, 0.7071068, 0.7071068], [0.0, 0.0, 0.0, 1.0]], device=device)
-        bundle.view.set_world_poses(new_pos, new_quat)
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_poses(new_pos, new_quat)
 
         ret_pos, ret_quat = bundle.view.get_world_poses()
         torch.testing.assert_close(_t(ret_pos), _t(new_pos), atol=ATOL, rtol=0)
@@ -202,14 +183,15 @@ def test_set_world_roundtrip(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_local_roundtrip(device, view_factory):
     """set_local_poses -> get_local_poses returns the same values."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         new_pos = _wp_vec3f([[0.5, 0.3, 0.1], [0.2, 0.7, 0.4]], device=device)
         new_quat = _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device)
-        bundle.view.set_local_poses(new_pos, new_quat)
+        with bundle.view.xform_local_space_writer() as w:
+            w.set_poses(new_pos, new_quat)
 
         ret_pos, ret_quat = bundle.view.get_local_poses()
         torch.testing.assert_close(_t(ret_pos), _t(new_pos), atol=ATOL, rtol=0)
@@ -218,92 +200,69 @@ def test_set_local_roundtrip(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_set_world_does_not_move_parent(device, view_factory):
-    """set_world_poses must not modify the parent prim/body position."""
-    bundle = view_factory(num_envs=2, device=device)
-    try:
-        parent_before = bundle.get_parent_pos(2, device).clone()
-        bundle.view.set_world_poses(
-            _wp_vec3f([[99.0, 99.0, 99.0], [88.0, 88.0, 88.0]], device=device),
-            _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
-        )
-        parent_after = bundle.get_parent_pos(2, device)
-
-        torch.testing.assert_close(parent_after, parent_before, atol=0, rtol=0)
-    finally:
-        bundle.teardown()
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_set_local_does_not_move_parent(device, view_factory):
-    """set_local_poses must not modify the parent prim/body position."""
-    bundle = view_factory(num_envs=2, device=device)
-    try:
-        parent_before = bundle.get_parent_pos(2, device).clone()
-        bundle.view.set_local_poses(
-            _wp_vec3f([[0.5, 0.5, 0.5], [1.0, 1.0, 1.0]], device=device),
-            _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
-        )
-        parent_after = bundle.get_parent_pos(2, device)
-
-        torch.testing.assert_close(parent_after, parent_before, atol=0, rtol=0)
-    finally:
-        bundle.teardown()
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_world_updates_local(device, view_factory):
-    """After set_world_poses, get_local_poses reflects the new offset.
+    """After set_world_poses, get_local_poses reflects the new offset and the parent is unmoved.
 
     Uses non-axis-aligned offsets to catch coordinate swap bugs.
     """
     bundle = view_factory(num_envs=2, device=device)
     try:
         parent_pos = bundle.get_parent_pos(2, device)
+        parent_before = parent_pos.clone()
         desired_offset = torch.tensor([[0.3, 0.7, 0.2], [0.8, 0.1, 0.6]], device=device)
         new_world = parent_pos + desired_offset
 
-        bundle.view.set_world_poses(
-            _wp_vec3f(new_world.tolist(), device=device),
-            _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
-        )
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_poses(
+                _wp_vec3f(new_world.tolist(), device=device),
+                _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
+            )
 
         local_pos = _t(bundle.view.get_local_poses()[0])
         torch.testing.assert_close(local_pos, desired_offset, atol=ATOL, rtol=0)
+        # set_world_poses must not modify the parent prim/body position
+        parent_after = bundle.get_parent_pos(2, device)
+        torch.testing.assert_close(parent_after, parent_before, atol=0, rtol=0)
     finally:
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_local_updates_world(device, view_factory):
-    """After set_local_poses, get_world_poses == parent + new_local.
+    """After set_local_poses, get_world_poses == parent + new_local and the parent is unmoved.
 
     Uses non-axis-aligned offsets to catch coordinate swap bugs.
     """
     bundle = view_factory(num_envs=2, device=device)
     try:
         parent_pos = bundle.get_parent_pos(2, device)
+        parent_before = parent_pos.clone()
         new_offset = torch.tensor([[0.4, 0.9, 0.15], [0.6, 0.2, 0.85]], device=device)
-        bundle.view.set_local_poses(
-            _wp_vec3f(new_offset.tolist(), device=device),
-            _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
-        )
+        with bundle.view.xform_local_space_writer() as w:
+            w.set_poses(
+                _wp_vec3f(new_offset.tolist(), device=device),
+                _wp_vec4f([[0.0, 0.0, 0.0, 1.0]] * 2, device=device),
+            )
 
         world_pos = _t(bundle.view.get_world_poses()[0])
         torch.testing.assert_close(world_pos, parent_pos + new_offset, atol=ATOL, rtol=0)
+        # set_local_poses must not modify the parent prim/body position
+        parent_after = bundle.get_parent_pos(2, device)
+        torch.testing.assert_close(parent_after, parent_before, atol=0, rtol=0)
     finally:
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_world_partial_position_only(device, view_factory):
     """Setting only positions: new positions written, orientations preserved."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         _, orig_quat = bundle.view.get_world_poses()
         new_pos = _wp_vec3f([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], device=device)
-        bundle.view.set_world_poses(positions=new_pos)
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_poses(positions=new_pos)
 
         ret_pos, ret_quat = bundle.view.get_world_poses()
         torch.testing.assert_close(_t(ret_pos), _t(new_pos), atol=ATOL, rtol=0)
@@ -312,14 +271,15 @@ def test_set_world_partial_position_only(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_world_partial_orientation_only(device, view_factory):
     """Setting only orientations: new orientations written, positions preserved."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         orig_pos, _ = bundle.view.get_world_poses()
         new_quat = _wp_vec4f([[0.0, 0.0, 0.7071068, 0.7071068], [0.7071068, 0.0, 0.0, 0.7071068]], device=device)
-        bundle.view.set_world_poses(orientations=new_quat)
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_poses(orientations=new_quat)
 
         ret_pos, ret_quat = bundle.view.get_world_poses()
         torch.testing.assert_close(_t(ret_pos), _t(orig_pos), atol=ATOL, rtol=0)
@@ -328,14 +288,15 @@ def test_set_world_partial_orientation_only(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_local_partial_position_only(device, view_factory):
     """Setting only local translations: new translations written, orientations preserved."""
     bundle = view_factory(num_envs=2, device=device)
     try:
         _, orig_quat = bundle.view.get_local_poses()
         new_pos = _wp_vec3f([[0.2, 0.3, 0.4], [0.5, 0.6, 0.7]], device=device)
-        bundle.view.set_local_poses(translations=new_pos)
+        with bundle.view.xform_local_space_writer() as w:
+            w.set_poses(positions=new_pos)
 
         ret_pos, ret_quat = bundle.view.get_local_poses()
         torch.testing.assert_close(_t(ret_pos), _t(new_pos), atol=ATOL, rtol=0)
@@ -344,7 +305,7 @@ def test_set_local_partial_position_only(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_set_world_indexed_only_affects_subset(device, view_factory):
     """Indexed set_world_poses writes requested indices, leaves others untouched."""
     bundle = view_factory(num_envs=4, device=device)
@@ -352,7 +313,8 @@ def test_set_world_indexed_only_affects_subset(device, view_factory):
         orig_pos = _t(bundle.view.get_world_poses()[0]).clone()
         indices = wp.array([1, 3], dtype=wp.int32, device=device)
         new_pos = _wp_vec3f([[10.0, 20.0, 30.0], [40.0, 50.0, 60.0]], device=device)
-        bundle.view.set_world_poses(positions=new_pos, indices=indices)
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_poses(positions=new_pos, indices=indices)
 
         updated = _t(bundle.view.get_world_poses()[0])
         torch.testing.assert_close(updated[0], orig_pos[0], atol=0, rtol=0)
@@ -363,7 +325,7 @@ def test_set_world_indexed_only_affects_subset(device, view_factory):
         bundle.teardown()
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices())
 def test_return_types_are_torcharray(device, view_factory):
     """Public API contract — every backend returns ProxyArray from the pose and scale getters."""
     bundle = view_factory(num_envs=2, device=device)
@@ -401,11 +363,88 @@ def test_return_types_are_torcharray(device, view_factory):
             f"get_local_poses(indices)[1] must be ProxyArray, got {type(lquat_idx).__name__}"
         )
 
+        world_scales_full = bundle.view.get_world_scales()
+        assert isinstance(world_scales_full, ProxyArray), (
+            f"get_world_scales() must be ProxyArray, got {type(world_scales_full).__name__}"
+        )
+        world_scales_idx = bundle.view.get_world_scales(indices)
+        assert isinstance(world_scales_idx, ProxyArray), (
+            f"get_world_scales(indices) must be ProxyArray, got {type(world_scales_idx).__name__}"
+        )
+
+        local_scales_full = bundle.view.get_local_scales()
+        assert isinstance(local_scales_full, ProxyArray), (
+            f"get_local_scales() must be ProxyArray, got {type(local_scales_full).__name__}"
+        )
+        local_scales_idx = bundle.view.get_local_scales(indices)
+        assert isinstance(local_scales_idx, ProxyArray), (
+            f"get_local_scales(indices) must be ProxyArray, got {type(local_scales_idx).__name__}"
+        )
+
         scales_full = bundle.view.get_scales()
         assert isinstance(scales_full, ProxyArray), f"get_scales() must be ProxyArray, got {type(scales_full).__name__}"
         scales_idx = bundle.view.get_scales(indices)
         assert isinstance(scales_idx, ProxyArray), (
             f"get_scales(indices) must be ProxyArray, got {type(scales_idx).__name__}"
         )
+    finally:
+        bundle.teardown()
+
+
+# ==================================================================
+# Contract: Scales
+# ==================================================================
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_scales_default_identity(device, view_factory):
+    """Local and world scales are (1, 1, 1) by default (no authored scale transforms)."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        expected = torch.ones(2, 3, device=device)
+        scales = _t(bundle.view.get_local_scales())
+        torch.testing.assert_close(scales, expected, atol=ATOL, rtol=0)
+        scales = _t(bundle.view.get_world_scales())
+        torch.testing.assert_close(scales, expected, atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_local_scales_roundtrip(device, view_factory):
+    """Writing scales through the local-space writer roundtrips via ``get_local_scales`` and leaves
+    local poses unchanged."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        local_pos_before = _t(bundle.view.get_local_poses()[0]).clone()
+        local_ori_before = _t(bundle.view.get_local_poses()[1]).clone()
+
+        new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
+        with bundle.view.xform_local_space_writer() as w:
+            w.set_scales(new_scales)
+
+        ret_scales = _t(bundle.view.get_local_scales())
+        torch.testing.assert_close(ret_scales, _t(new_scales), atol=ATOL, rtol=0)
+
+        # changing scales does not change local pose translations/orientations
+        local_pos_after = _t(bundle.view.get_local_poses()[0])
+        local_ori_after = _t(bundle.view.get_local_poses()[1])
+        torch.testing.assert_close(local_pos_after, local_pos_before, atol=ATOL, rtol=0)
+        torch.testing.assert_close(local_ori_after, local_ori_before, atol=ATOL, rtol=0)
+    finally:
+        bundle.teardown()
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_world_scales_roundtrip(device, view_factory):
+    """Writing scales through the world-space writer roundtrips via ``get_world_scales``."""
+    bundle = view_factory(num_envs=2, device=device)
+    try:
+        new_scales = _wp_vec3f([[2.0, 3.0, 4.0], [0.5, 1.5, 2.5]], device=device)
+        with bundle.view.xform_world_space_writer() as w:
+            w.set_scales(new_scales)
+
+        ret_scales = _t(bundle.view.get_world_scales())
+        torch.testing.assert_close(ret_scales, _t(new_scales), atol=ATOL, rtol=0)
     finally:
         bundle.teardown()

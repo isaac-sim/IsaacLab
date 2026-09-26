@@ -14,19 +14,22 @@ Reference:
 
 from __future__ import annotations
 
+import os
+import tempfile
+from contextlib import ExitStack
 from typing import TYPE_CHECKING, cast
 
 import numpy as np
 import torch
+from filelock import FileLock
 from pink import solve_ik
 from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
-from isaaclab.assets import ArticulationCfg
-from isaaclab.controllers import utils as controller_utils
-from isaaclab.utils.assets import retrieve_file_path
-from isaaclab.utils.string import resolve_matching_names_values
-
+from ...assets import ArticulationCfg
+from ...utils.assets import retrieve_file_path
+from ...utils.string import resolve_matching_names_values
+from .. import utils as controller_utils
 from .null_space_posture_task import NullSpacePostureTask
 from .pink_kinematics_configuration import PinkKinematicsConfiguration
 from .pink_task_cfg import PinkIKTaskCfg
@@ -82,27 +85,28 @@ class PinkIKController:
         # Validate consistency between controlled_joint_indices and configuration
         self._validate_consistency(cfg, controlled_joint_indices)
 
-        # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
-        if cfg.urdf_path is None and cfg.usd_path is not None:
-            import tempfile
+        with ExitStack() as stack:
+            # Resolve URDF/mesh paths at runtime. If only usd_path is provided, convert USD→URDF first.
+            if cfg.urdf_path is None and cfg.usd_path is not None:
+                urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
+                # Conversions share mesh filenames. Protect the output directory until Pinocchio finishes reading it.
+                stack.enter_context(FileLock(os.path.join(urdf_output_dir, ".isaaclab_urdf.lock")))
+                urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
+                    cfg.usd_path, urdf_output_dir, force_conversion=True
+                )
+            else:
+                urdf_path = retrieve_file_path(cfg.urdf_path) if cfg.urdf_path else cfg.urdf_path
+                mesh_path = retrieve_file_path(cfg.mesh_path) if cfg.mesh_path else cfg.mesh_path
 
-            urdf_output_dir = cfg.urdf_output_dir or tempfile.gettempdir()
-            urdf_path, mesh_path = controller_utils.convert_usd_to_urdf(
-                cfg.usd_path, urdf_output_dir, force_conversion=True
+            if urdf_path is None:
+                raise ValueError("Either urdf_path or usd_path must be provided in the controller configuration")
+
+            # Initialize the Kinematics model used by pink IK to control robot
+            self.pink_configuration = PinkKinematicsConfiguration(
+                urdf_path=urdf_path,
+                mesh_path=mesh_path,
+                controlled_joint_names=cfg.joint_names,
             )
-        else:
-            urdf_path = retrieve_file_path(cfg.urdf_path) if cfg.urdf_path else cfg.urdf_path
-            mesh_path = retrieve_file_path(cfg.mesh_path) if cfg.mesh_path else cfg.mesh_path
-
-        if urdf_path is None:
-            raise ValueError("Either urdf_path or usd_path must be provided in the controller configuration")
-
-        # Initialize the Kinematics model used by pink IK to control robot
-        self.pink_configuration = PinkKinematicsConfiguration(
-            urdf_path=urdf_path,
-            mesh_path=mesh_path,
-            controlled_joint_names=cfg.joint_names,
-        )
 
         # Find the initial joint positions by matching Pink's joint names to robot_cfg.init_state.joint_pos,
         # where the joint_pos keys may be regex patterns and the values are the initial positions.
@@ -252,7 +256,7 @@ class PinkIKController:
                 )
 
             if self.cfg.xr_enabled:
-                from isaaclab.ui.xr_widgets import XRVisualization
+                from ...ui.xr_widgets import XRVisualization
 
                 XRVisualization.push_event("ik_error", {"error": error})
             return torch.tensor(curr_controlled_joint_pos, device=self.device, dtype=torch.float32)
@@ -271,14 +275,16 @@ class PinkIKController:
         except SolverNotFound as e:
             raise RuntimeError(
                 f"Pink IK requires the '{_QP_SOLVER}' QP solver. Install the Pink IK stack with "
-                "``./isaaclab.sh -i`` or manually install ``pin pin-pink==3.1.0 daqp==0.8.5``."
+                "``./isaaclab.sh -i`` or manually install the ``pin``, ``pin-pink`` and ``daqp``"
+                " versions pinned in Isaac Lab's root ``pyproject.toml``."
             ) from e
         except TypeError as e:
             if "primal_start" in str(e):
                 raise RuntimeError(
                     "Pink IK requires a DAQP version compatible with qpsolvers warm-start arguments. "
-                    "Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install "
-                    "``pin pin-pink==3.1.0 daqp==0.8.5``."
+                    "Install the Pink IK stack with ``./isaaclab.sh -i`` or manually install the "
+                    "``pin``, ``pin-pink`` and ``daqp`` versions pinned in Isaac Lab's root "
+                    "``pyproject.toml``."
                 ) from e
             return _return_current_joint_positions(e)
         except (AssertionError, Exception) as e:

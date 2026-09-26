@@ -9,7 +9,7 @@ This script checks if the XR visualization widgets are visible from the camera.
 .. code-block:: bash
 
     # Usage
-    ./isaaclab.sh -p source/isaaclab/test/xr_visualization/check_scene_xr_visualization.py
+    uv run python source/isaaclab/test/xr_visualization/check_scene_xr_visualization.py
 
 """
 
@@ -43,7 +43,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager, XRVisualization, update_instruction
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 ##
 # Pre-defined configs

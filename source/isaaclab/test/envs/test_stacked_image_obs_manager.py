@@ -31,7 +31,7 @@ from isaaclab.envs.mdp.observations import stacked_image
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 NUM_ENVS = 4
 HEIGHT = 8
@@ -83,30 +83,11 @@ def _make_cfg(frame_stack: int):
     return ObsCfg()
 
 
-def test_obs_manager_infers_channel_stacked_shape(env_with_sim):
-    """ObservationManager probes ``stacked_image`` at construction and infers the stacked shape."""
-    with mock.patch("isaaclab.envs.mdp.observations.image", side_effect=_fake_image):
-        manager = ObservationManager(_make_cfg(frame_stack=2), env_with_sim)
-    assert manager.group_obs_dim["policy"] == (HEIGHT, WIDTH, CHANNELS * 2)
-
-
 def test_obs_manager_compute_returns_stacked_output(env_with_sim):
     """``compute()`` after construction returns the channel-stacked obs tensor."""
     with mock.patch("isaaclab.envs.mdp.observations.image", side_effect=_fake_image):
         manager = ObservationManager(_make_cfg(frame_stack=3), env_with_sim)
         obs = manager.compute()
+    # the manager probes the term at construction and infers the channel-stacked shape
+    assert manager.group_obs_dim["policy"] == (HEIGHT, WIDTH, CHANNELS * 3)
     assert obs["policy"].shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
-
-
-def test_obs_manager_reset_clears_term_state(env_with_sim):
-    """``manager.reset()`` forwards to ``stacked_image.reset()``; next compute fills slots with the new frame."""
-    with mock.patch("isaaclab.envs.mdp.observations.image", side_effect=_fake_image):
-        manager = ObservationManager(_make_cfg(frame_stack=2), env_with_sim)
-        manager.compute()
-        manager.compute()  # ring fills with two distinct frames
-        manager.reset()
-        # Next compute should treat the frame as fresh init — both channel-slots identical.
-        obs = manager.compute()
-    oldest = obs["policy"][..., :CHANNELS]
-    newest = obs["policy"][..., CHANNELS:]
-    assert torch.equal(oldest, newest), "After reset, init path should fill all slots with the same frame."

@@ -9,6 +9,8 @@ import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
 
+pytestmark = pytest.mark.unit
+
 
 @pytest.fixture
 def env():
@@ -20,9 +22,7 @@ def test_str(env):
     """Test the string representation of the command manager."""
     cfg = NullCommandCfg()
     command_term = cfg.class_type(cfg, env)
-    # print the expected string
-    print()
-    print(command_term)
+    assert "NullCommand" in str(command_term)
 
 
 def test_compute(env):

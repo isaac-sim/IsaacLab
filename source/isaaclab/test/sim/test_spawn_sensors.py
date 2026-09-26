@@ -22,7 +22,7 @@ from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.sensors.sensors import CUSTOM_FISHEYE_CAMERA_ATTRIBUTES, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES
 from isaaclab.utils.string import to_camel_case
 
-pytestmark = pytest.mark.isaacsim_ci
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
 
 @pytest.fixture
@@ -42,8 +42,8 @@ Basic spawning.
 """
 
 
-def test_spawn_pinhole_camera(sim):
-    """Test spawning a pinhole camera."""
+def test_spawn_cameras(sim):
+    """Test spawning a pinhole and a fisheye camera."""
     cfg = sim_utils.PinholeCameraCfg(
         focal_length=5.0, f_stop=10.0, clipping_range=(0.1, 1000.0), horizontal_aperture=10.0
     )
@@ -55,9 +55,7 @@ def test_spawn_pinhole_camera(sim):
     # Check properties
     _validate_properties_on_prim(prim, cfg, CUSTOM_PINHOLE_CAMERA_ATTRIBUTES)
 
-
-def test_spawn_fisheye_camera(sim):
-    """Test spawning a fisheye camera."""
+    # spawn a fisheye camera on the same stage
     cfg = sim_utils.FisheyeCameraCfg(
         projection_type="fisheyePolynomial",
         focal_length=5.0,

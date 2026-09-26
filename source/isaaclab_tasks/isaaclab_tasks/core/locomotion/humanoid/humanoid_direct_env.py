@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow Humanoid locomotion environment."""
+
 from __future__ import annotations
 
-from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import HumanoidEnvCfg
-from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
+from ..locomotion_direct_env import LocomotionDirectEnv
+from .humanoid_direct_env_cfg import HumanoidEnvCfg
 
 
 class HumanoidEnv(LocomotionDirectEnv):
-    """Direct-workflow Humanoid locomotion environment."""
+    """Direct-workflow Humanoid locomotion environment.
+
+    The behavior is fully defined by :class:`LocomotionDirectEnv` and :class:`HumanoidEnvCfg`.
+    """
 
     cfg: HumanoidEnvCfg
-
-    def __init__(self, cfg: HumanoidEnvCfg, render_mode: str | None = None, **kwargs):
-        super().__init__(cfg, render_mode, **kwargs)

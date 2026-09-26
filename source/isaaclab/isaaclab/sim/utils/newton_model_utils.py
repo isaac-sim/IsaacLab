@@ -17,7 +17,6 @@ import warnings
 from typing import Any
 
 import numpy as np
-import warp as wp
 
 from pxr import Usd, UsdGeom, UsdShade
 
@@ -223,7 +222,7 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
 
     Args:
         builder: Object with ``shape_label`` (``list`` of USD prim paths) and ``shape_color``
-            (``list`` of ``wp.vec3``), typically a Newton ``ModelBuilder`` before finalization.
+            (``list`` of RGB triples), typically a Newton ``ModelBuilder`` before finalization.
         stage: USD stage to read material and primvar data from.
 
     Returns:
@@ -252,7 +251,7 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
             f"Mismatching length of shape_label and shape_color: {len(shape_labels)} != {len(shape_colors)}"
         )
 
-    from isaaclab.utils.timer import Timer
+    from ...utils.timer import Timer
 
     with Timer(
         f"[INFO]: Time taken for replace_newton_builder_shape_colors for {len(shape_labels)} shapes", enable=False
@@ -262,7 +261,7 @@ def replace_newton_builder_shape_colors(builder: Any, stage: Usd.Stage) -> int:
         for i, label in enumerate(shape_labels):
             rgb = _resolve_shape_color(stage, label, material_color_cache)
             if rgb is not None:
-                shape_colors[i] = wp.vec3(
+                shape_colors[i] = (
                     _linear_channel_to_srgb(rgb[0]),
                     _linear_channel_to_srgb(rgb[1]),
                     _linear_channel_to_srgb(rgb[2]),

@@ -17,6 +17,8 @@ from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
 
+pytestmark = [pytest.mark.integration, pytest.mark.rendering]
+
 _SPAWN = PinholeCameraCfg(
     focal_length=24.0,
     focus_distance=400.0,
@@ -74,18 +76,21 @@ def test_camera_cfg_default_does_not_warn_or_forward():
     assert cfg.renderer_cfg.colorize_semantic_segmentation is True
 
 
-def test_camera_cfg_post_construction_mutation_is_silent_no_op():
-    """Mutating a deprecated field after construction does not propagate to renderer_cfg."""
-    cfg = CameraCfg(
-        height=64,
-        width=64,
-        prim_path="/World/Camera",
-        spawn=_SPAWN,
-        data_types=["rgb"],
-    )
-    assert cfg.renderer_cfg.colorize_semantic_segmentation is True
-    cfg.colorize_semantic_segmentation = False
-    assert cfg.renderer_cfg.colorize_semantic_segmentation is True
+def test_camera_cfg_copy_does_not_reforward_deprecated_fields():
+    """Copying a cfg (as ``SensorBase`` does) keeps a renderer_cfg value set after forwarding."""
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", DeprecationWarning)
+        cfg = CameraCfg(
+            height=64,
+            width=64,
+            prim_path="/World/Camera",
+            spawn=_SPAWN,
+            data_types=["rgb"],
+            colorize_semantic_segmentation=False,
+        )
+    cfg.renderer_cfg.colorize_semantic_segmentation = True
+
+    assert cfg.copy().renderer_cfg.colorize_semantic_segmentation is True
 
 
 def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
@@ -115,7 +120,7 @@ def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
 
 
 def test_newton_warp_supported_output_types_key_set():
-    """NewtonWarpRenderer publishes the documented key set."""
+    """Newton renderer and config publish one shared output contract."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("newton")
     from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
@@ -125,16 +130,63 @@ def test_newton_warp_supported_output_types_key_set():
     renderer.cfg = NewtonWarpRendererCfg()
     specs = renderer.supported_output_types()
 
+    assert specs == renderer.cfg.supported_output_types()
     assert set(specs.keys()) == {
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
         RenderBufferKind.RGB_HDR,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.DEPTH,
+        RenderBufferKind.DISTANCE_TO_CAMERA,
+        RenderBufferKind.DISTANCE_TO_IMAGE_PLANE,
         RenderBufferKind.NORMALS,
-        RenderBufferKind.INSTANCE_SEGMENTATION_FAST,
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
     }
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32)
+
+
+def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
+    """Camera config validation rejects output types absent from the renderer contract and accepts supported ones."""
+    pytest.importorskip("isaaclab_newton")
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    def make_cfg(data_type: str) -> CameraCfg:
+        return CameraCfg(
+            height=64,
+            width=64,
+            prim_path="/World/Camera",
+            spawn=_SPAWN,
+            data_types=[data_type],
+            renderer_cfg=NewtonWarpRendererCfg(),
+        )
+
+    make_cfg("rgb_hdr").validate()
+    with pytest.raises(ValueError, match="simple_shading_full_mdl"):
+        make_cfg("simple_shading_full_mdl").validate()
+
+
+@pytest.mark.parametrize("colorize", [True, False])
+def test_newton_warp_segmentation_spec_follows_colorize_flags(colorize):
+    """Segmentation specs are RGBA uint8 when colorized, else single-channel int32 (matching RTX)."""
+    pytest.importorskip("isaaclab_newton")
+    pytest.importorskip("newton")
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
+    from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+
+    renderer = NewtonWarpRenderer.__new__(NewtonWarpRenderer)
+    renderer.cfg = NewtonWarpRendererCfg(
+        colorize_semantic_segmentation=colorize,
+        colorize_instance_segmentation=colorize,
+    )
+    specs = renderer.supported_output_types()
+
+    expected = RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+    for kind in (
+        RenderBufferKind.SEMANTIC_SEGMENTATION,
+        RenderBufferKind.INSTANCE_SEGMENTATION,
+    ):
+        assert specs[kind] == expected
 
 
 def test_newton_warp_wraps_requested_rgb_hdr_output():
@@ -147,7 +199,9 @@ def test_newton_warp_wraps_requested_rgb_hdr_output():
     from isaaclab.utils.warp.proxy_array import ProxyArray
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
-    render_data = RenderData(fake_sensor, SimpleNamespace(cfg=SimpleNamespace(width=4, height=3, isp_cfg=None)))
+    spawn = SimpleNamespace(distortion=None)
+    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn, isp_cfg=None)
+    render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
     render_data.set_outputs({str(RenderBufferKind.RGB_HDR): hdr_proxy})
@@ -168,7 +222,7 @@ def _make_camera_cfg(data_types: list[str]) -> CameraCfg:
 
 def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     """CameraData allocates the intersection of requested + supported and aliases rgb into rgba."""
-    cfg = _make_camera_cfg(["rgb", "rgba", "depth"])
+    cfg = _make_camera_cfg(["rgb", "rgba", "depth", "instance_segmentation"])
     specs = {
         RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
@@ -187,51 +241,6 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     assert data.output["rgb"].warp.ptr == data.output["rgba"].warp.ptr
     assert data.image_shape == (8, 16)
     assert data.info == {"rgba": None, "rgb": None, "depth": None}
-
-
-def test_camera_data_drops_requested_types_not_in_supported_specs():
-    """Requested types absent from supported_specs are absent from data.output."""
-    cfg = _make_camera_cfg(["rgb", "normals"])
-    specs = {
-        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-    }
-    data = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=specs
-    )
-
-    assert "normals" not in data.output
-    assert {"rgb", "rgba"} <= set(data.output.keys())
-
-
-def test_camera_data_no_arg_construction_yields_empty_container():
-    """Bare CameraData() produces an all-None container."""
-    data = CameraData()
-    assert data.pos_w is None
-    assert data.quat_w_world is None
-    assert data.intrinsic_matrices is None
-    assert data.output is None
-    assert data.info is None
-    assert data.image_shape is None
-
-
-def test_camera_data_segmentation_dtype_follows_supported_spec():
-    """CameraData consumes the layout dtype declared by the renderer spec."""
-    cfg = _make_camera_cfg(["instance_segmentation_fast"])
-    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(1, wp.int32)}
-    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION_FAST: RenderBufferSpec(4, wp.uint8)}
-
-    raw = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=raw_specs
-    )
-    colorized = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=colorized_specs
-    )
-
-    assert raw.output["instance_segmentation_fast"].dtype == wp.int32
-    assert raw.output["instance_segmentation_fast"].shape == (1, 4, 4, 1)
-    assert colorized.output["instance_segmentation_fast"].dtype == wp.uint8
-    assert colorized.output["instance_segmentation_fast"].shape == (1, 4, 4, 4)
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

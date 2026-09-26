@@ -5,14 +5,19 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 
 @configclass
 class HfTerrainBaseCfg(SubTerrainBaseCfg):
     """The base configuration for height field terrains."""
+
+    convert_to_heightfield: bool = True
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to True.
+
+    Height field terrains are generated from a height field, so the conversion reproduces them exactly.
+    """
 
     border_width: float = 0.0
     """The width of the border/padding around the terrain (in m). Defaults to 0.0.
