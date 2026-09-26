@@ -143,14 +143,15 @@ def create_prim(
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    prim = stage.DefinePrim(prim_path, prim_type)
+    if usd_path is None:
+        prim = stage.DefinePrim(prim_path, prim_type)
+    else:
+        prim = add_usd_reference(prim_path=prim_path, usd_path=usd_path, prim_type=prim_type, stage=stage)
     if not prim.IsValid():
         raise ValueError(f"Failed to create prim at path: '{prim_path}' of type: '{prim_type}'.")
     if attributes is not None:
         for k, v in attributes.items():
             prim.GetAttribute(k).Set(v)
-    if usd_path is not None:
-        add_usd_reference(prim_path=prim_path, usd_path=usd_path, stage=stage)
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 

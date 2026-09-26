@@ -475,6 +475,11 @@ def test_git_asset_paths_tell_a_windows_drive_letter_from_a_url_scheme(git_path,
     assert assets_utils._is_git_remote_path(git_path) is is_remote
 
 
+def test_resolve_reference_url_treats_windows_drive_as_local_path():
+    """Resolve a relative dependency beside a local Windows layer instead of constructing a URL."""
+    assert assets_utils._resolve_reference_url(r"C:\assets\scene.usda", "robot.usda") == r"C:\assets\robot.usda"
+
+
 def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
     """Test that git asset retrieval raises when the requested asset is missing."""
     repo_dir = tmp_path / "newton-assets"
@@ -581,6 +586,39 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
 
     monkeypatch.setattr(Sdf.Layer, "OpenAsAnonymous", lambda _: pytest.fail("walked a completed tree"))
     assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
+    assert assets_utils.retrieve_file_path(source[layout]) == resolved_path
+
+
+def test_local_usd_preserves_unresolved_search_path_sublayer(asset_cache, monkeypatch):
+    """Keep a search-path sublayer resolvable when another dependency requires a working copy."""
+    import omni.client
+    from pxr import Ar, Sdf, Usd
+
+    source_dir = asset_cache / "source"
+    search_dir = asset_cache / "search"
+    source_dir.mkdir()
+    search_dir.mkdir()
+    source = source_dir / "scene.usda"
+    source.write_text(f"#usda 1.0\n(subLayers = [@robot.usda@, @{_REMOTE_URL}@])\n", encoding="utf-8")
+    (search_dir / "robot.usda").write_text('#usda 1.0\ndef Xform "robot" {}\n', encoding="utf-8")
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+
+    def fake_copy(url, target_path, behavior):
+        assert url == _REMOTE_URL
+        Path(target_path).write_text('#usda 1.0\ndef Xform "remote" {}\n', encoding="utf-8")
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    context = Ar.ResolverContext(Ar.DefaultResolverContext([str(search_dir)]))
+    assert Usd.Stage.Open(str(source), context).GetPrimAtPath("/robot").IsValid()
+
+    resolved_path = assets_utils.retrieve_file_path(str(source))
+    resolved_layer = Sdf.Layer.FindOrOpen(resolved_path)
+    assert resolved_layer.subLayerPaths[0] == "robot.usda"
+    resolved_stage = Usd.Stage.Open(resolved_path, context)
+    assert resolved_stage.GetPrimAtPath("/robot").IsValid()
+    assert resolved_stage.GetPrimAtPath("/remote").IsValid()
 
 
 def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):

@@ -128,6 +128,20 @@ def test_create_prim():
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
+def test_create_prim_retries_after_missing_usd(tmp_path):
+    """Do not leave an empty prim that prevents retrying after USD retrieval fails."""
+    stage = sim_utils.get_current_stage()
+    prim_path = "/World/RetryUSDReference"
+    usd_path = tmp_path / "asset.usda"
+
+    with pytest.raises(FileNotFoundError):
+        sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage)
+    assert not stage.GetPrimAtPath(prim_path).IsValid()
+
+    usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
+    assert sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage).IsValid()
+
+
 @pytest.mark.parametrize(
     "input_type",
     ["list", "tuple", "numpy", "torch_cpu", "torch_cuda"],
