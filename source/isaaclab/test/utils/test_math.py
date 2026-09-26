@@ -327,6 +327,22 @@ def test_convention_converter(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("origin", ["opengl", "ros", "world"])
+@pytest.mark.parametrize("target", ["opengl", "ros", "world"])
+def test_convention_converter_leading_dims(device, origin, target):
+    """Test convert_camera_frame_orientation_convention on (..., 4) inputs other than (N, 4)."""
+    quat = math_utils.random_orientation(6, device)
+    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
+
+    # multiple leading dimensions (A, B, 4) match the flat (N, 4) result
+    nested = math_utils.convert_camera_frame_orientation_convention(quat.view(2, 3, 4), origin, target)
+    torch.testing.assert_close(nested, expected.view(2, 3, 4))
+    # a single (4,) quaternion matches the corresponding row
+    single = math_utils.convert_camera_frame_orientation_convention(quat[0], origin, target)
+    torch.testing.assert_close(single, expected[0])
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_convert_quat(device):
     """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
 
