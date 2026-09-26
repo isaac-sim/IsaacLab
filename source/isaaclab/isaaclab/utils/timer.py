@@ -117,7 +117,6 @@ class Timer(ContextDecorator):
         self._name = name
         self._activity = activity
         self._start_time = None
-        self._stop_time = None
         self._elapsed_time = None
         self._enable = enable if Timer.enable else False
 
@@ -187,9 +186,7 @@ class Timer(ContextDecorator):
         # Synchronize the device to make sure we time the whole operation
         wp.synchronize()
 
-        # Get the elapsed time
-        self._stop_time = time.perf_counter()
-        self._elapsed_time = self._stop_time - self._start_time
+        self._elapsed_time = time.perf_counter() - self._start_time
         self._start_time = None
 
         if self._name is not None:
@@ -233,16 +230,14 @@ class Timer(ContextDecorator):
             from ..app.loading_screen import report_activity
 
             report_activity(None)
-        # print message
-        if self._enable:
-            if (self._msg is not None) and (Timer.enable_display_output):
-                parts = [f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}"]
-                if self._name is not None:
-                    info = Timer.timing_info[self._name]
-                    parts.append(f"Mean: {(info['mean'] * self._multiplier):0.6f} {self._format}")
-                    parts.append(f"Std: {(info['std'] * self._multiplier):0.6f} {self._format}")
-                    parts.append(f"N: {info['n']}")
-                print(self._msg, ", ".join(parts))
+        if self._enable and self._msg is not None and Timer.enable_display_output:
+            parts = [f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}"]
+            if self._name is not None:
+                info = Timer.timing_info[self._name]
+                parts.append(f"Mean: {(info['mean'] * self._multiplier):0.6f} {self._format}")
+                parts.append(f"Std: {(info['std'] * self._multiplier):0.6f} {self._format}")
+                parts.append(f"N: {info['n']}")
+            print(self._msg, ", ".join(parts))
 
     """
     Static Methods
@@ -278,7 +273,7 @@ class Timer(ContextDecorator):
         """
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
-        return Timer.timing_info.get(name)["last"]
+        return Timer.timing_info[name]["last"]
 
     @staticmethod
     def get_timer_statistics(name: str) -> dict[str, float]:
@@ -294,10 +289,6 @@ class Timer(ContextDecorator):
         Returns:
             A dictionary containing the mean, std, and n for the named timer.
         """
-
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
-
-        keys = ["mean", "std", "n", "last"]
-
-        return {k: Timer.timing_info[name][k] for k in keys}
+        return dict(Timer.timing_info[name])

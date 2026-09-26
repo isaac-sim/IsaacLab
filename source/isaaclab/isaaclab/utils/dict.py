@@ -31,15 +31,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     Args:
         obj: An instance of a class to convert.
 
-    Raises:
-        ValueError: When input argument is not an object.
-
     Returns:
         Converted dictionary mapping.
     """
-    # check that input data is class instance
-    if not hasattr(obj, "__class__"):
-        raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
@@ -209,16 +203,9 @@ def dict_to_md5_hash(data: object) -> str:
     Returns:
         A string object of double length containing only hexadecimal digits.
     """
-    # convert to dictionary
-    if isinstance(data, dict):
-        encoded_buffer = json.dumps(data, sort_keys=True).encode()
-    else:
-        encoded_buffer = json.dumps(class_to_dict(data), sort_keys=True).encode()
-    # compute hash using MD5
-    data_hash = hashlib.md5()
-    data_hash.update(encoded_buffer)
-    # return the hash key
-    return data_hash.hexdigest()
+    if not isinstance(data, dict):
+        data = class_to_dict(data)
+    return hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
 """
@@ -286,7 +273,7 @@ def convert_dict_to_backend(
             # convert the data to the desired backend.
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
-        elif isinstance(data[key], dict):
+        elif isinstance(value, dict):
             output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:

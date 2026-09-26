@@ -121,7 +121,17 @@ def _create_cube_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
 def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Trimesh:
     """Creates a trimesh for a sphere primitive."""
     radius = prim.GetAttribute("radius").Get()
-    mesh = trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
+    return trimesh.creation.icosphere(radius=radius, subdivisions=subdivisions)
+
+
+def _align_length_axis(mesh: trimesh.Trimesh, axis: str) -> trimesh.Trimesh:
+    """Rotates a Z-aligned trimesh so its length points along the USD ``axis`` attribute."""
+    if axis == "X":
+        # rotate −90° about Y to point the length along +X
+        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0]))
+    elif axis == "Y":
+        # rotate +90° about X to point the length along +Y
+        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0]))
     return mesh
 
 
@@ -130,16 +140,7 @@ def _create_cylinder_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     radius = prim.GetAttribute("radius").Get()
     height = prim.GetAttribute("height").Get()
     mesh = trimesh.creation.cylinder(radius=radius, height=height)
-    axis = prim.GetAttribute("axis").Get()
-    if axis == "X":
-        # rotate −90° about Y to point the length along +X
-        R = trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0])
-        mesh.apply_transform(R)
-    elif axis == "Y":
-        # rotate +90° about X to point the length along +Y
-        R = trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0])
-        mesh.apply_transform(R)
-    return mesh
+    return _align_length_axis(mesh, prim.GetAttribute("axis").Get())
 
 
 def _create_capsule_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
@@ -147,16 +148,7 @@ def _create_capsule_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     radius = prim.GetAttribute("radius").Get()
     height = prim.GetAttribute("height").Get()
     mesh = trimesh.creation.capsule(radius=radius, height=height)
-    axis = prim.GetAttribute("axis").Get()
-    if axis == "X":
-        # rotate −90° about Y to point the length along +X
-        R = trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0])
-        mesh.apply_transform(R)
-    elif axis == "Y":
-        # rotate +90° about X to point the length along +Y
-        R = trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0])
-        mesh.apply_transform(R)
-    return mesh
+    return _align_length_axis(mesh, prim.GetAttribute("axis").Get())
 
 
 def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:

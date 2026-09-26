@@ -1,0 +1,1 @@
+Simplified small utility helpers (dict, timer, version, backend factory, mesh, images, yaml, circular buffer); behavior is unchanged.

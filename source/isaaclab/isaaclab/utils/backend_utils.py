@@ -52,9 +52,7 @@ class FactoryBase:
         """Initializes a new factory subclass."""
         super().__init_subclass__(**kwargs)
         cls._registry = {}
-        # Determine the module subpath for dynamic loading.
-        # e.g., if factory is in 'isaaclab.assets.articulation.articulation',
-        # the subpath becomes 'assets.articulation'.
+        # Map e.g. isaaclab.assets.articulation.articulation to assets.articulation.
         module_parts = cls.__module__.split(".")
         if module_parts[0] != "isaaclab":
             raise ImportError(f"Factory class {cls.__name__} must be defined within the 'isaaclab' package.")
@@ -137,7 +135,7 @@ class FactoryBase:
         try:
             impl = cls._registry[backend]
         except KeyError:
-            available = list(cls.get_registry_keys())
+            available = cls.get_registry_keys()
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
                 f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
@@ -153,4 +151,4 @@ class FactoryBase:
     @classmethod
     def get_registry_keys(cls) -> list[str]:
         """Returns a list of registered backend names."""
-        return list(cls._registry.keys())
+        return list(cls._registry)
