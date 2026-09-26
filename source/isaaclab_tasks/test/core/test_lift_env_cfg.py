@@ -18,13 +18,36 @@ from isaaclab.sim import select_usd_variants
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
+from isaaclab_tasks.core.lift.config.so101.so101_env_cfg import SO101LiftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
     CableUniformPoseCommand,
     DeformableUniformPoseCommand,
     ObjectUniformPoseCommand,
 )
-from isaaclab_tasks.utils.hydra import resolve_presets
+from isaaclab_tasks.utils.hydra import resolve_presets, resolve_task_config
+
+
+@pytest.mark.parametrize(
+    ("backend", "physics_variant"),
+    [("isaacsim_physx", "physx"), ("newton_mjwarp", "physics")],
+)
+def test_so101_lift_selects_matching_robot_physics_variant(backend: str, physics_variant: str) -> None:
+    """The SO101 USD's drive parameters must match the selected solver."""
+    cfg, _ = resolve_task_config("Isaac-Lift-SO101", None, overrides=[f"physics={backend}"])
+
+    assert cfg.scene.robot.spawn.variants["Physics"] == physics_variant
+
+
+def test_so101_lift_bounds_cover_spawn_and_curriculum_start() -> None:
+    """The SO101 tabletop spawn must stay in bounds when ADR first adjusts the cutoff."""
+    cfg = SO101LiftEnvCfg()
+    bounds = cfg.terminations.object_out_of_bound.params["in_bound_range"]
+
+    assert all(
+        bounds[axis][0] < position < bounds[axis][1] for axis, position in zip("xyz", cfg.scene.object.init_state.pos)
+    )
+    assert cfg.curriculum.oob_adr.params["modify_params"]["initial_value"] == bounds["z"]
 
 
 class _MarkerSpy:
