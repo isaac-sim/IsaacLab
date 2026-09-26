@@ -197,9 +197,8 @@ class path:
             return np.arange(len(plan.asset_cfgs), dtype=np.int32)
         pattern = re.compile(path_expr)
         paths = (cfg.prim_path for cfg in plan.asset_cfgs)
-        return np.fromiter(
-            (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path)), dtype=np.int32
-        )
+        indices = (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path))
+        return np.fromiter(indices, dtype=np.int32)
 
     @staticmethod
     def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:

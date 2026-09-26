@@ -94,14 +94,17 @@ def test_empty_and_shared_only_worlds(simulation, shared):
 def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_env_0):
     """Camera requirements enter both construction workflows before dispatch."""
     constructed = []
-    renderer_cfg = RendererCfg(
-        class_type=lambda cfg: constructed.append(cfg) or object(),
-        renderer_type="test",
-        cloning_contexts=(_RenderContext,),
-    )
-    camera = CameraCfg(prim_path="/Lab/Cell[^/]+/Camera", spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg)
+
+    def factory(cfg):
+        constructed.append(cfg)
+        return object()
+
+    renderer_cfg = RendererCfg(class_type=factory, renderer_type="test", cloning_contexts=(_RenderContext,))
+    camera = CameraCfg(prim_path="{ENV_REGEX_NS}/Camera", spawn=PinholeCameraCfg(), renderer_cfg=renderer_cfg)
     ground = AssetBaseCfg(prim_path="/Lab/Ground", spawn=CuboidCfg(size=(1, 1, 1)))
-    assets = camera, ground, SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
+    prop = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Prop", spawn=MultiAssetSpawnerCfg(assets_cfg=[SphereCfg(radius=1)]))
+    assets = camera, ground, prop, AssetBaseCfg(prim_path="/Lab/Ground/Material")
+    assets += SensorBaseCfg(prim_path="/Lab/Ground/Frame"), SensorBaseCfg(prim_path=camera.prim_path)
     if from_env_0:
         plan = clone_plan_from_env_0(CloneCfg(clone_template="/Lab/Cell{}"), assets, 3, 2.0)
         replicate_session.replicate(plan)
@@ -111,11 +114,18 @@ def test_camera_registers_before_cloning_and_shares_the_plan(simulation, from_en
     assert constructed == [camera.renderer_cfg]
     simulation.get_or_create_backend(camera.renderer_cfg)
     assert len(constructed) == 1
-    assert plan.asset_cfgs[0] is camera and plan.asset_cfgs[1] is ground
+    assert plan.asset_cfgs == assets
+    assert camera.prim_path == "/Lab/Cell[^/]+/Camera"
     assert camera.spawn.spawn_path == "/Lab/Cell0/Camera"
     assert plan.env_template == "/Lab/Cell{}"
     assert ground.spawn.spawn_path == "/Lab/Ground"
-    np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 0])
+    assert prop.spawn.spawn_path is None and prop.spawn.spawn_paths == ["/Lab/Cell0/Prop"]
+    templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+    shared = templates[: starts[1]]
+    roots = [path for path, parent in zip(shared, cloner_path.get_parent_indices(shared)) if parent == -1]
+    assert roots == ["/Lab/Ground"]
+    np.testing.assert_array_equal(plan.topology.world_prototypes, [1, 3, 0, 2])
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 0])
     assert {context for context, _, _ in simulation.calls} == {_Context, _RenderContext}
     assert all(received is plan for _, received, _ in simulation.calls)
 
@@ -129,11 +139,8 @@ def test_dispatch_order_and_usd_scope(simulation):
     class Early(_Context):
         replicate_priority = -1
 
-    cfg = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=CuboidCfg(size=(1, 1, 1)),
-        cloning_contexts=(UsdReplicateContext, Late, Early),
-    )
+    contexts = UsdReplicateContext, Late, Early
+    cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)), cloning_contexts=contexts)
     with ReplicateSession((cfg,), 2, 1.0) as session:
         UsdGeom.Xform.Define(simulation.stage, cfg.spawn.spawn_path)
         UsdGeom.Camera.Define(simulation.stage, "/World/envs/env_0/UndeclaredCamera")
@@ -157,9 +164,16 @@ def test_grid_transforms_centers_a_float32_grid():
 
 
 def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
-    """Asset alternatives become distinct definitions; their original spawner authors each once."""
+    """Homogeneous planning rejects variants atomically; a session authors each alternative once."""
     shapes = [CuboidCfg(size=(1, 1, 1)), SphereCfg(radius=1)]
     object_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Object", spawn=MultiAssetSpawnerCfg(assets_cfg=shapes))
+    robot = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot", spawn=CuboidCfg(size=(1, 1, 1)))
+    with pytest.raises(ValueError, match="single-variant"):
+        clone_plan_from_env_0(CloneCfg(), (robot, object_cfg), 2, 1.0)
+    assert robot.prim_path == "{ENV_REGEX_NS}/Robot" and robot.spawn.spawn_path is None
+    assert object_cfg.prim_path == "{ENV_REGEX_NS}/Object" and object_cfg.spawn.spawn_paths is None
+    assert simulation.plan is None
+
     ground = AssetBaseCfg(prim_path="/World/Ground")
     with ReplicateSession((object_cfg, ground), 4, 2.0) as session:
         plan = session.plan
@@ -169,3 +183,12 @@ def test_multi_spawner_creates_concrete_asset_prototypes(simulation):
         assert object_cfg.spawn.spawn_paths == ["/World/envs/env_0/Object", "/World/envs/env_2/Object"]
         np.testing.assert_array_equal(plan.topology.world_prototypes, [2, 0, 1])
         np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 1, 1])
+
+
+def test_replicate_session_clears_plan_when_asset_init_fails(simulation):
+    """Failed construction releases the plan without dispatching any clone backend."""
+    with pytest.raises(RuntimeError, match="asset boom"):
+        with ReplicateSession((), 2, 1.0) as session:
+            assert simulation.plan is session.plan
+            raise RuntimeError("asset boom")
+    assert simulation.plan is None and not simulation.calls

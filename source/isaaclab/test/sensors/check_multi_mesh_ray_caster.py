@@ -106,12 +106,8 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
     # Publish the manually authored environment declaration for sensor queries.
-    plan = lab_cloner.make_clone_plan(
-        (AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0))),),
-        ((0,),),
-        num_envs,
-        positions=env_origins,
-    )
+    asset = AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0)))
+    plan = lab_cloner.make_clone_plan((asset,), ((0,),), num_envs, positions=env_origins)
     sim.set_clone_plan(plan)
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
     # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.

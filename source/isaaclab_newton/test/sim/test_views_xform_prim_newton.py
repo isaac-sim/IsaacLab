@@ -129,12 +129,8 @@ def test_non_colliding_shapes_after_finalize(device):
     site_prim.SetMetadata("apiSchemas", site_schemas)
     sim_utils.create_prim(VISUAL_PATH, prim_type="Cube", scale=(0.01, 0.01, 0.01))
     sim.require_visual_shapes()
-    plan = cloner.clone_plan_from_env_0(
-        cloner.CloneCfg(),
-        (AssetBaseCfg(prim_path="/World/defaultGroundPlane"), AssetBaseCfg(prim_path="/World/Robot")),
-        1,
-        0.0,
-    )
+    assets = AssetBaseCfg(prim_path="/World/defaultGroundPlane"), AssetBaseCfg(prim_path="/World/Robot")
+    plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, 1, 0.0)
     cloner.replicate(plan)
     sim.reset()
 

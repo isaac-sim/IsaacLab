@@ -242,15 +242,11 @@ def test_runtime_material_writes_have_no_host_or_usd_path() -> None:
 
 
 def test_material_initialization_orders_paths_by_destination_world(monkeypatch: pytest.MonkeyPatch) -> None:
-    plan = make_clone_plan(
-        tuple(
-            AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=path))
-            for path in ("/World/envs/env_42/Robot", "/World/envs/env_7/Robot")
-        ),
-        ((0,), (1,)),
-        3,
-        weights=(2, 1),
+    assets = tuple(
+        AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path=path))
+        for path in ("/World/envs/env_42/Robot", "/World/envs/env_7/Robot")
     )
+    plan = make_clone_plan(assets, ((0,), (1,)), 3, weights=(2, 1))
     simulation = SimpleNamespace(get_clone_plan=lambda: plan)
     monkeypatch.setattr(
         "isaaclab.assets.visual_material.visual_material.SimulationContext",

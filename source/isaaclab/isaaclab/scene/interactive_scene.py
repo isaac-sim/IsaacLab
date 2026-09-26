@@ -227,12 +227,10 @@ class InteractiveScene:
                 prototype_indices.extend(range(prototype_count, prototype_count + count))
             prototype_count += count
 
-        if self.cloner_cfg.clone_combinations and clone_asset_names:
+        combinations = self.cloner_cfg.clone_combinations
+        if combinations and clone_asset_names:
             worlds, weights = cloner.make_valid_clone_combinations(
-                clone_asset_names,
-                variant_counts,
-                self.cloner_cfg.clone_combinations,
-                all_asset_names=scene_asset_names,
+                clone_asset_names, variant_counts, combinations, all_asset_names=scene_asset_names
             )
             return cfgs, tuple(tuple(prototype_indices[index] for index in world) for world in worlds), weights
         return cfgs, None, None

@@ -347,19 +347,15 @@ class NewtonSiteFrameView(BaseFrameView):
                     if not prims:
                         raise RuntimeError(f"FrameView '{path_expr}' could not resolve source prim '{root + suffix}'.")
                     ids = tuple(map(int, env_ids))
-                    specs.extend(
-                        self._resolve_source_prim(prim, validate_xform_ops, root, template, ids, before_physics, stage)
-                        for prim in prims
-                    )
+                    source_args = validate_xform_ops, root, template, ids, before_physics, stage
+                    specs.extend(self._resolve_source_prim(prim, *source_args) for prim in prims)
                 continue
 
             prims = sim_utils.find_matching_prims(path_expr, stage)
             if not prims:
                 raise RuntimeError(f"FrameView '{path_expr}' could not resolve a source prim.")
-            specs.extend(
-                self._resolve_source_prim(prim, validate_xform_ops, None, None, None, before_physics, stage)
-                for prim in prims
-            )
+            source_args = validate_xform_ops, None, None, None, before_physics, stage
+            specs.extend(self._resolve_source_prim(prim, *source_args) for prim in prims)
 
         return specs
 

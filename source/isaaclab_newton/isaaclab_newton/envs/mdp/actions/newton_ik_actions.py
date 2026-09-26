@@ -181,10 +181,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
         prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
         prototype_view = ArticulationView(
-            prototype_model,
-            self._source_path,
-            verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            prototype_model, self._source_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
         coord_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._asset.joint_names)
         controlled_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._joint_names)

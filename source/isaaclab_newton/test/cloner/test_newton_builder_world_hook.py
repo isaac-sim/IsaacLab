@@ -134,14 +134,8 @@ def test_explicit_global_import_uses_global_world(
     monkeypatch.setattr(NewtonManager, "_cl_protos", {})
     monkeypatch.setattr(NewtonManager, "_num_envs", 0)
 
-    builder, _ = replicate_module.newton_physics_replicate(
-        stage,
-        (),
-        (),
-        np.arange(2, dtype=np.int64),
-        np.empty((0, 2), dtype=np.bool_),
-        global_paths=global_paths,
-    )
+    env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)
+    builder, _ = replicate_module.newton_physics_replicate(stage, (), (), env_ids, mapping, global_paths=global_paths)
 
     assert [kwargs["root_path"] for kwargs in imports] == ["/physicsScene", *global_paths]
     assert all(kwargs["load_visual_shapes"] is expected for kwargs in imports[1:])

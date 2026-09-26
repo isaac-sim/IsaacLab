@@ -61,17 +61,13 @@ def test_world_attached_source_prim_expands_from_clone_plan(repeated):
         path = "/World/envs/env_[^/]+/WorldCamera"
         positions = np.zeros((scene.num_envs, 3), dtype=np.float32)
         positions[:, 0] = np.arange(scene.num_envs) * 3 + 2
-        plan = cloner.make_clone_plan(
-            (
-                AssetBaseCfg(prim_path=path),
-                AssetBaseCfg(prim_path=path),
-                AssetBaseCfg(prim_path=path + "/Frame", spawn=sim_utils.SpawnerCfg()),
-            ),
-            ((0, 0), (1, 1)) if repeated else ((0,), (1,)),
-            scene.num_envs,
-            weights=(10, 2),
-            positions=positions,
+        assets = (
+            AssetBaseCfg(prim_path=path),
+            AssetBaseCfg(prim_path=path),
+            AssetBaseCfg(prim_path=path + "/Frame", spawn=sim_utils.SpawnerCfg()),
         )
+        worlds = ((0, 0), (1, 1)) if repeated else ((0,), (1,))
+        plan = cloner.make_clone_plan(assets, worlds, scene.num_envs, weights=(10, 2), positions=positions)
         sim.set_clone_plan(plan)
         stage = sim_utils.get_current_stage()
         for env_id, offset in ((0, 0.25), (10, 0.5)):

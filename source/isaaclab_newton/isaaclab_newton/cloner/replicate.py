@@ -144,11 +144,8 @@ def _replicate_newton(
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:
         entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
-        ignore_paths = list(
-            dict.fromkeys(
-                path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
-            )
-        )
+        paths = (path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path))
+        ignore_paths = list(dict.fromkeys(paths))
         global_ignore_paths = [*exclude_paths, *ignore_paths]
 
     stage_info = None

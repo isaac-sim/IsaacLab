@@ -29,20 +29,9 @@ from isaaclab.sim import CuboidCfg
 ##
 
 
-def test_path_relative_to():
-    """relative_to strips a concrete root on a boundary, or returns None."""
-    root = "/World/envs/env_0/Robot"
-    assert cloner.path.relative_to("/World/envs/env_0/Robot/base", root) == "/base"
-    assert cloner.path.relative_to("/World/envs/env_0/Robot", root) == ""
-    assert cloner.path.relative_to("/World/envs/env_0/RobotArm", root) is None
-    assert cloner.path.relative_to("/World/ground", root) is None
-    # The stage root is not a segment: stripping it keeps the leading slash.
-    assert cloner.path.relative_to("/World/envs/env_0", "/") == "/World/envs/env_0"
-    assert cloner.path.relative_to("/", "/") == ""
-    np.testing.assert_array_equal(
-        cloner.path.get_parent_indices(("/Banana/Peel", "/Franka/hand", "/Banana", "/Franka", "/Banana_1", "/")),
-        [2, 3, 5, 5, 5, -1],
-    )
+def test_path_parents_respect_segment_boundaries():
+    paths = "/Banana/Peel", "/Franka/hand", "/Banana", "/Franka", "/Banana_1", "/"
+    np.testing.assert_array_equal(cloner.path.get_parent_indices(paths), [2, 3, 5, 5, 5, -1])
 
 
 def test_expand_env_regex_ns_preserves_regex_quantifiers():
@@ -55,59 +44,43 @@ def test_expand_env_regex_ns_preserves_regex_quantifiers():
     )
 
 
-# (path, root) pairs spanning the ordinary cases plus the stage root and trailing slashes.
-_PATH_ROOT_CASES = [
-    ("/World/envs/env_0/Robot/base", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/RobotArm", "/World/envs/env_0/Robot"),
-    ("/World/ground", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/Robot", "/World/envs/env_0/"),
-    ("/World/envs/env_0", "/"),
-    ("/", "/"),
-    ("/World", "/World"),
-]
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-@pytest.mark.parametrize("dst_root", ["/World/other", "/World/other/", "/"])
-def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
+@pytest.mark.parametrize(
+    "path, root, suffix",
+    [
+        ("/World/envs/env_0/Robot/base", "/World/envs/env_0/Robot", "/base"),
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot", ""),
+        ("/World/envs/env_0/RobotArm", "/World/envs/env_0/Robot", None),
+        ("/World/ground", "/World/envs/env_0/Robot", None),
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/", "/Robot"),
+        ("/World/envs/env_0", "/", "/World/envs/env_0"),
+        ("/", "/", ""),
+        ("/World", "/World", ""),
+    ],
+)
+def test_path_rebase_and_relative_to_preserve_suffixes(path, root, suffix):
     """Rebasing changes only a complete root; stage roots and trailing slashes follow the same rules."""
-    tail = cloner.path.relative_to(path, root)
-    rebased = cloner.path.rebase(path, root, dst_root)
-    if tail is None:
-        assert rebased == path
-    else:
-        assert rebased == ((dst_root.rstrip("/") + tail) or "/")
-        assert cloner.path.rebase(path, root, root) == path
-    assert cloner.path.relative_to(path, "/") is not None
-    assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
-    assert cloner.path.rebase(path, root, "/World/x") == cloner.path.rebase(path, root + "/", "/World/x")
+    assert cloner.path.relative_to(path, root) == suffix
+    assert cloner.path.relative_to(path, root.rstrip("/") or "/") == suffix
+    assert cloner.path.rebase(path, root, root) == path
+    for destination in ("/World/other", "/World/other/", "/"):
+        expected = path if suffix is None else (destination.rstrip("/") + suffix or "/")
+        assert cloner.path.rebase(path, root, destination) == expected
+        assert cloner.path.rebase(path, root + "/", destination) == expected
 
 
 def test_path_match_captures_the_clone_slot():
     """Match captures the instance slot and rejects ambiguous templates."""
-    tmpl = "/World/envs/env_{}/Robot"
-    assert cloner.path.match("/World/envs/env_3/Robot/base", tmpl) == ("3", "/base")
-    assert cloner.path.match("/World/envs/env_[^/]+/Robot", tmpl) == ("[^/]+", "")
-    assert cloner.path.match("/World/envs/env_3/RobotArm", tmpl) is None
+    for template, instance, suffix in (
+        ("/World/envs/env_{}/Robot", "3", "/base"),
+        ("/World/envs/env_{}/Robot", "12", ""),
+        ("/World/envs/env_{}/Robot", "[^/]+", ""),
+        ("/World/scenes/{}/Robot", "0", "/link"),
+    ):
+        assert cloner.path.match(template.format(instance) + suffix, template) == (instance, suffix)
+    assert cloner.path.match("/World/envs/env_3/RobotArm", "/World/envs/env_{}/Robot") is None
     for invalid in ("/World/envs/env_0/Robot", "/World/envs/env_{}/Robot/{}"):
         with pytest.raises(ValueError, match="exactly one"):
             cloner.path.match("/World/envs/env_3/Robot", invalid)
-
-
-@pytest.mark.parametrize(
-    "path_expr, template",
-    [
-        ("/World/envs/env_3/Robot/base", "/World/envs/env_{}/Robot"),
-        ("/World/envs/env_12/Robot", "/World/envs/env_{}/Robot"),
-        ("/World/scenes/0/Robot/link", "/World/scenes/{}/Robot"),
-    ],
-)
-def test_path_law_template_split(path_expr, template):
-    """P4: a match reassembles into the original path."""
-    matched = cloner.path.match(path_expr, template)
-    assert matched is not None
-    assert template.format(matched.instance) + matched.suffix == path_expr
 
 
 def test_cloner_imports_without_kit():

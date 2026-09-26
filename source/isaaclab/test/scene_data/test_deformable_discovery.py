@@ -145,25 +145,17 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     env_ids = np.asarray([3, 7, 11])
     positions = np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]])
     shared = ("/Shared", "/Shared/Cloth", "/Lab")
-    plan = make_clone_plan(
-        tuple(
-            AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
-            for source, template in zip((*sources, *shared), (*destinations, *shared), strict=True)
-        ),
-        ((0, 1), (0,), (1,)),
-        3,
-        shared_assets=(2, 3, 4),
-        env_template="/Lab/Cell{}",
+    assets = tuple(
+        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+        for source, template in zip((*sources, *shared), (*destinations, *shared), strict=True)
     )
+    plan = make_clone_plan(assets, ((0, 1), (0,), (1,)), 3, shared_assets=(2, 3, 4), env_template="/Lab/Cell{}")
     excluded = ("/Missing", "/Lab/Cell3/Dormant")
     prototypes = deformable_prototypes(stage, plan, exclude_paths=excluded)
     nested = deformable_prototypes(stage, plan, exclude_paths=(*sources[:1], *excluded))
     assert len(prototypes) == 3
     assert {entry.root_path for entry in prototypes} == {"/Lab/Cell3/Cloth", "/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
-    assert {entry.root_path for entry in nested} == {
-        "/Lab/Cell3/Nested/Cloth",
-        "/Shared/Cloth",
-    }
+    assert {entry.root_path for entry in nested} == {"/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
     prototype = next(entry for entry in prototypes if entry.root_path == "/Lab/Cell3/Cloth")
     stage.RemovePrim("/Lab")
 
@@ -188,21 +180,11 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
 
     # Distinct source roots can target the same subtree; its nearest destination owner wins.
     shared = next(entry for entry in prototypes if entry.root_path == "/Shared/Cloth")
+    assets = tuple(
+        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+        for source, template in zip(("/Lab/Cell3", "/Shared"), destinations, strict=True)
+    )
+    plan = make_clone_plan(assets, ((0, 1),), 1, env_template="/Lab/Cell{}")
     for ordered in (prototypes, prototypes[::-1]):
-        expanded = {
-            entry.root_path: entry
-            for entry in expand_deformable_entries(
-                ordered,
-                make_clone_plan(
-                    tuple(
-                        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
-                        for source, template in zip(("/Lab/Cell3", "/Shared"), destinations, strict=True)
-                    ),
-                    ((0, 1),),
-                    1,
-                    env_template="/Lab/Cell{}",
-                ),
-                np.asarray([3]),
-            )
-        }
+        expanded = {entry.root_path: entry for entry in expand_deformable_entries(ordered, plan, np.asarray([3]))}
         assert expanded["/Lab/Cell3/Nested/Cloth"].vertices is shared.vertices

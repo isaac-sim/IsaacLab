@@ -215,10 +215,7 @@ def test_scene_publishes_plan_before_replicate(monkeypatch: pytest.MonkeyPatch):
         "/World/envs/env_0/Robot",
         "/World/envs/env_0/RigidObj",
     )
-    assert templates[starts[1] :] == (
-        "/World/envs/env_{}/Robot",
-        "/World/envs/env_{}/RigidObj",
-    )
+    assert templates[starts[1] :] == ("/World/envs/env_{}/Robot", "/World/envs/env_{}/RigidObj")
     np.testing.assert_array_equal(worlds[world_starts[1] : world_starts[2]], np.arange(4))
     assert replicate_physics is True
 
@@ -338,15 +335,10 @@ def test_replicate_physics_flag_controls_physx_replicator(device, replicate_phys
 def test_collect_asset_cfgs_preserves_declarations_and_resolves_namespaces():
     """Collections, shared assets, and non-spawning sensors feed one plan without parallel manifests."""
     scene = object.__new__(InteractiveScene)
-    cube_cfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Cube",
-        spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)),
-    )
+    cube_cfg = RigidObjectCfg(prim_path="{ENV_REGEX_NS}/Cube", spawn=sim_utils.CuboidCfg(size=(0.1, 0.1, 0.1)))
+    variants = [sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
     shape_cfg = RigidObjectCfg(
-        prim_path="{ENV_REGEX_NS}/Shape",
-        spawn=sim_utils.MultiAssetSpawnerCfg(
-            assets_cfg=[sim_utils.ConeCfg(radius=0.1, height=0.2), sim_utils.SphereCfg(radius=0.1)]
-        ),
+        prim_path="{ENV_REGEX_NS}/Shape", spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=variants)
     )
     scene.cfg = SimpleNamespace(
         num_envs=2,

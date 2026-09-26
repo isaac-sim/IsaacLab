@@ -427,9 +427,7 @@ class MPMObject(BaseDeformableObject):
                     asset_prim_paths.append(templates[index].format(world))
         for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
             SimulationManager.register_particle_visual_prim(
-                f"{prim_path}/Particles",
-                particle_offset=offset,
-                particle_count=self._particles_per_object,
+                f"{prim_path}/Particles", particle_offset=offset, particle_count=self._particles_per_object
             )
         logger.info("MPM particle visualization initialized for: %s", self.cfg.prim_path)
 

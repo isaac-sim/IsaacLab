@@ -1537,23 +1537,13 @@ class NewtonManager(PhysicsManager):
                 translation = world_xform.ExtractTranslation()
                 rotation = world_xform.ExtractRotationQuat()
                 imag = rotation.GetImaginary()
-                poses.append(
-                    (
-                        (translation[0], translation[1], translation[2]),
-                        (imag[0], imag[1], imag[2], rotation.GetReal()),
-                    )
-                )
+                poses.append((tuple(translation), (*imag, rotation.GetReal())))
 
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
             env_template = proto_path.rsplit("_", 1)[0] + "_{}"
-            plan = make_clone_plan(
-                (AssetBaseCfg(prim_path=proto_path, spawn=SpawnerCfg(spawn_path=proto_path)),),
-                ((0,),),
-                len(env_paths),
-                positions=positions,
-                env_template=env_template,
-            )
+            asset = AssetBaseCfg(prim_path=proto_path, spawn=SpawnerCfg(spawn_path=proto_path))
+            plan = make_clone_plan((asset,), ((0,),), len(env_paths), positions=positions, env_template=env_template)
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
                 if source == proto_path:

@@ -530,11 +530,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
     with _ovphysx_sim_context(device="cuda:0") as sim:
         num_envs = 4
         scene = InteractiveScene(
-            HeterogeneousMixedDeformableRigidSceneCfg(
-                num_envs=num_envs,
-                env_spacing=1.0,
-                lazy_sensor_update=False,
-            )
+            HeterogeneousMixedDeformableRigidSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
         )
         plan = sim.get_clone_plan()
         source_paths = path.get_asset_prototype_paths(plan)

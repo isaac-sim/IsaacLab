@@ -359,12 +359,8 @@ def replicate_builder_mapping(
                             values[index] = clone_path.rebase(values[index], source, destination.format(env_ids[world]))
                 builder.end_world()
         else:
-            builder.replicate(
-                prototype,
-                int(stop - start),
-                xforms=xforms_np[start:stop],
-                label_prefixes=[env_template.format(env_ids[world]) for world in range(start, stop)],
-            )
+            prefixes = [env_template.format(env_ids[world]) for world in range(start, stop)]
+            builder.replicate(prototype, int(stop - start), xforms=xforms_np[start:stop], label_prefixes=prefixes)
         for label, indices in sites.items():
             per_world = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
             per_world[start:stop] = (shape_offsets[:, None] + np.asarray(indices)).tolist()

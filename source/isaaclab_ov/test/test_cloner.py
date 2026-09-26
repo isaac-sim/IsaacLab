@@ -91,13 +91,9 @@ def test_ovphysx_context_consumes_plan():
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
-    plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),),
-        ((0, 0), (0,)),
-        3,
-        weights=(2, 1),
-        positions=np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32),
-    )
+    assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
+    positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
+    plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
     OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
 
     assert len(recipes) == 2
@@ -121,23 +117,23 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     assert OvPhysxManager._pending_clones == expected_recipes
 
 
-def test_raw_replicate_rejects_invalid_source_prim():
-    """Active clone rows require a valid source prim."""
+def test_raw_replicate_validates_sources_and_pose_arrays():
+    """Cloning requires source/anchor prims and a complete, correctly shaped pose array."""
     stage = Usd.Stage.CreateInMemory()
+    sources, destinations = ["/World/envs/env_0/Robot"], ["/World/envs/env_{}/Robot"]
+    options = dict(env_ids=np.array([0, 1], dtype=np.int64), mapping=np.array([[True, True]], dtype=np.bool_))
     with pytest.raises(ValueError, match="/World/envs/env_0/Robot"):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-        )
+        ovphysx_replicate(stage, sources, destinations, **options)
 
-
-def test_raw_replicate_rejects_invalid_source_anchor():
-    """Active nested clone rows require a valid source-environment anchor."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
+    UsdGeom.Xform.Define(stage, sources[0])
+    for name, shape in (
+        ("positions", (2, 2)),
+        ("quaternions", (2, 3)),  # Wrong component count.
+        ("positions", (1, 3)),
+        ("quaternions", (1, 4)),  # Missing a selected environment.
+    ):
+        with pytest.raises(ValueError, match=rf"{name} must have shape"):
+            ovphysx_replicate(stage, sources, destinations, **options, **{name: np.zeros(shape, dtype=np.float32)})
 
     class StageWithoutAnchor:
         def GetPrimAtPath(self, path):
@@ -146,35 +142,4 @@ def test_raw_replicate_rejects_invalid_source_anchor():
             return stage.GetPrimAtPath(path)
 
     with pytest.raises(ValueError, match="/World/envs/env_0"):
-        ovphysx_replicate(
-            StageWithoutAnchor(),
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-        )
-
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("positions", np.zeros((2, 2), dtype=np.float32)),
-        ("quaternions", np.zeros((2, 3), dtype=np.float32)),
-        # Missing the second selected environment.
-        ("positions", np.zeros((1, 3), dtype=np.float32)),
-        ("quaternions", np.zeros((1, 4), dtype=np.float32)),
-    ],
-)
-def test_raw_replicate_rejects_malformed_pose_array(name, value):
-    """Provided pose arrays use the documented component counts and include every selected environment."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    with pytest.raises(ValueError, match=rf"{name} must have shape"):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-            **{name: value},
-        )
+        ovphysx_replicate(StageWithoutAnchor(), sources, destinations, **options)

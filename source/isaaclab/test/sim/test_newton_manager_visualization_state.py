@@ -73,12 +73,8 @@ def test_visualization_model_is_built_during_clone_and_allocated_on_physics_read
 
     _reset_newton_manager_state()
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source")),),
-        ((0,),),
-        2,
-        env_template="/Scene/Copy_{}",
-    )
+    asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source"))
+    plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
     sim.stage = Usd.Stage.CreateInMemory()
@@ -348,17 +344,12 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
     for source in sources:
         UsdGeom.Xform.Define(stage, source)
         Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
-    plan = make_clone_plan(
-        tuple(
-            AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
-            for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
-        )
-        + (AssetBaseCfg(prim_path=global_path),),
-        ((0, 1),),
-        2,
-        shared_assets=(2,),
-        env_template="/Copies/env_{}",
+    assets = tuple(
+        AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
+        for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
     )
+    assets += (AssetBaseCfg(prim_path=global_path),)
+    plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=(2,), env_template="/Copies/env_{}")
     sim = SimpleNamespace(
         cfg=SimpleNamespace(physics=object()),
         device="cpu",
@@ -379,10 +370,6 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
     geometry = callback.args[1]
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
-    assert set(geometry) == {
-        "/World/Assets/Cloth",
-        "/Copies/env_0/Selected/Cloth",
-        "/Copies/env_1/Selected/Cloth",
-    }
+    assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}
     assert sorted(geometry.values()) == [0, 3, 6]
     assert builder.particle_count == 9
