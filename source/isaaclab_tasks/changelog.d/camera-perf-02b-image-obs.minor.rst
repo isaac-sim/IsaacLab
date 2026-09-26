@@ -4,8 +4,8 @@ Changed
 * Changed camera tasks to use the per-modality image terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
   :class:`~isaaclab.envs.mdp.observations.image_depth`,
   :class:`~isaaclab.envs.mdp.observations.image_normals` and
-  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the deprecated
-  :func:`~isaaclab.envs.mdp.observations.image`.
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the removed
+  ``isaaclab.envs.mdp.image``.
 * Changed the Cartpole camera, Kuka Allegro ``vision_camera`` and drone VAE observations to use the
   shared normalizers and frame stack in :mod:`isaaclab.utils.images`. Observation values are unchanged,
   except that NaN depth is now replaced like infinite depth.

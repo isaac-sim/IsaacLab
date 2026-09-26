@@ -26,9 +26,16 @@ Changed
 Deprecated
 ^^^^^^^^^^
 
-* Deprecated :func:`~isaaclab.envs.mdp.observations.image`. Use ``image_rgb``, ``image_depth``,
-  ``image_normals`` or ``image_segmentation``; replace ``permute=True`` with ``channel_first=True``.
 * Deprecated :class:`~isaaclab.envs.mdp.observations.stacked_image`. Use the ``frame_stack`` parameter
   of the per-modality image terms.
 * Deprecated :func:`isaaclab.utils.warp.ops.normalize_image_uint8`. Use
   :func:`~isaaclab.utils.images.normalize_rgb`, which takes the same arguments.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.envs.mdp.image``. Use ``image_rgb``, ``image_depth``,
+  ``image_normals`` or ``image_segmentation`` in observation term configs; replace ``permute=True``
+  with ``channel_first=True`` and remove ``clone``. For direct tensor processing, use the
+  normalizers and ``CameraFrameStack`` in :mod:`isaaclab.utils.images`. The new terms return
+  independent tensors; ``image_rgb`` drops alpha channels.

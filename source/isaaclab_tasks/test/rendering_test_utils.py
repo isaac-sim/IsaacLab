@@ -2112,11 +2112,15 @@ def rendering_test_kuka_visual_material_randomization(
 
 def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[str]) -> None:
     """Shrink the scene and force image-only observations for Franka golden AOV tests."""
-    from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
     from isaaclab.utils import configclass
+    from isaaclab.utils.images import normalize_camera_image
+
+    def camera_observation(env, sensor_cfg: SceneEntityCfg, data_type: str):
+        images = env.scene.sensors[sensor_cfg.name].data.output[data_type].torch
+        return normalize_camera_image(images, data_type, output_channel_dim=1)
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2125,8 +2129,8 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
-                func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0], "permute": True},
+                func=camera_observation,
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0]},
             )
 
             def __post_init__(self) -> None:

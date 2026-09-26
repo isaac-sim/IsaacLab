@@ -578,50 +578,6 @@ class image_segmentation(_camera_image):
         return self._frames(images, normalize_segmentation if normalize else None)
 
 
-@deprecated(
-    "mdp.image is deprecated; use image_rgb, image_depth, image_normals or image_segmentation instead."
-    " mdp.image will be removed in a future release."
-)
-def image(
-    env: ManagerBasedEnv,
-    sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-    data_type: str = "rgb",
-    convert_perspective_to_orthogonal: bool = False,
-    normalize: bool = True,
-    permute: bool = False,
-    clone: bool = True,
-) -> torch.Tensor:
-    """Images of a specific datatype from the camera sensor.
-
-    .. deprecated::
-        Use the per-modality terms :class:`image_rgb`, :class:`image_depth`, :class:`image_normals`
-        or :class:`image_segmentation`. ``permute=True`` corresponds to ``channel_first=True``.
-
-    If the flag :attr:`normalize` is True, the images are normalized with
-    :func:`~isaaclab.utils.images.normalize_camera_image`.
-
-    Args:
-        env: The environment the cameras are placed within.
-        sensor_cfg: The desired sensor to read from. Defaults to SceneEntityCfg("tiled_camera").
-        data_type: The data type to pull from the desired camera. Defaults to "rgb".
-        convert_perspective_to_orthogonal: Whether to orthogonalize perspective depth images.
-            This is used only when the data type is "distance_to_camera". Defaults to False.
-        normalize: Whether to normalize the images. This depends on the selected data type.
-            Defaults to True.
-        permute: Whether to permute the image to (num_envs, channel, height, width). Defaults to False.
-        clone: Whether to return a fresh clone of the result. Defaults to True.
-
-    Returns:
-        The images produced at the last time-step
-    """
-    images = _read_camera_output(env, sensor_cfg, data_type, convert_perspective_to_orthogonal)
-    if normalize:
-        images = normalize_camera_image(images, data_type, output_channel_dim=1 if permute else None)
-    elif permute:
-        images = images.permute(0, 3, 1, 2)
-    return images.clone() if clone else images
-
-
 class image_features(ManagerTermBase):
     """Extracted image features from a pre-trained frozen encoder.
 

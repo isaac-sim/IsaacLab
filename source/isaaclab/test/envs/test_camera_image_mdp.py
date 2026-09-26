@@ -21,7 +21,6 @@ import warp as wp
 pytestmark = pytest.mark.unit
 
 from isaaclab.envs.mdp.observations import (
-    image,
     image_depth,
     image_features,
     image_rgb,
@@ -185,19 +184,7 @@ class TestModalityTerms:
 
 
 class TestDeprecatedTerms:
-    """``image`` and ``stacked_image`` keep working and point to the per-modality terms."""
-
-    def test_image_clone_false_returns_camera_buffer_view(self):
-        camera = _random_rgb()
-        with pytest.deprecated_call():
-            out = image(_make_env({"rgb": camera}), sensor_cfg=SENSOR_CFG, normalize=False, clone=False)
-        assert out.data_ptr() == camera.data_ptr()
-
-    def test_image_permute_normalizes_channel_first(self):
-        camera = _random_rgb()
-        with pytest.deprecated_call():
-            out = image(_make_env({"rgb": camera}), sensor_cfg=SENSOR_CFG, permute=True)
-        torch.testing.assert_close(out, _rgb_reference(camera).permute(0, 3, 1, 2), atol=1e-5, rtol=1e-5)
+    """``stacked_image`` keeps working and points to the per-modality terms."""
 
     def test_stacked_image_forwards(self):
         camera = _random_rgb()
