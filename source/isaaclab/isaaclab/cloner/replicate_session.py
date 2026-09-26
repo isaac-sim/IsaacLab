@@ -23,7 +23,7 @@ from .clone_plan import ClonePlan, grid_transforms, make_clone_plan
 from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
 from .cloner_strategies import sequential
 from .path import match
-from .query import iter_worlds
+from .query import get_world_prototypes
 from .usd import UsdReplicateContext
 
 
@@ -253,7 +253,7 @@ def _context_asset_prototype_ids(plan: ClonePlan, sim) -> dict[type, tuple[int, 
     routing = {context: set() for context in render_contexts}
     if shared and physics_context is not None:
         routing[physics_context] = set()
-    active = {int(index) for _, members, world_ids in iter_worlds(plan) if len(world_ids) for index in members}
+    active = {int(index) for _, members, world_ids in get_world_prototypes(plan) if len(world_ids) for index in members}
     for index in sorted(active):
         cfg = plan.asset_prototypes[index]
         fields = vars(cfg)

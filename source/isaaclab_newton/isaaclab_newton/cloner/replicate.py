@@ -19,7 +19,6 @@ from pxr import Usd, UsdGeom
 
 from isaaclab.cloner import ClonePlan, UsdReplicateContext
 from isaaclab.cloner.path import match, rebase
-from isaaclab.cloner.query import replication_mapping
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data.deformable_discovery import deformable_prototypes, expand_deformable_entries
 
@@ -93,16 +92,13 @@ def newton_builder_world_hook(
 
 def _replicate_newton(
     stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
     env_ids: np.ndarray,
-    mapping: np.ndarray,
     sim: SimulationContext,
     *,
     plan: ClonePlan,
     instances: tuple,
     env_template: str,
-    reference_instances: tuple = (),
+    reference_instances: tuple,
     positions: np.ndarray | None = None,
     global_paths: Sequence[str] = (),
     exclude_paths: Sequence[str] = (),
@@ -140,13 +136,14 @@ def _replicate_newton(
         ignore_paths = [
             source + matched.suffix
             for entry in NewtonManager._deformable_registry
-            for source, destination in zip(sources, destinations, strict=True)
+            for _, source, destination, world_ids in instances
+            if len(world_ids) and world_ids[0] != -1
             if (matched := match(entry.prim_path, destination)) is not None
         ]
         global_ignore_paths.extend(ignore_paths)
         global_ignore_paths.extend(entry.prim_path for entry in NewtonManager._deformable_registry)
     else:
-        entries = deformable_prototypes(stage, sources, destinations, global_paths, exclude_paths=exclude_paths)
+        entries = deformable_prototypes(stage, reference_instances, global_paths, exclude_paths=exclude_paths)
         ignore_paths = list(
             dict.fromkeys(
                 path for entry in entries for path in (entry.root_path, entry.sim_mesh_path, entry.vis_mesh_path)
@@ -242,7 +239,7 @@ def _replicate_newton(
         NewtonManager._num_envs = len(env_ids)
     else:
         geometry_offsets = add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, sources, destinations, env_ids, mapping, positions)
+            builder, expand_deformable_entries(entries, instances, env_ids, positions)
         )
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False)
         sim.physics_manager.register_callback(
@@ -267,18 +264,9 @@ class NewtonReplicateContext:
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
         usd = self._sim.clone_contexts[UsdReplicateContext]
-        sources, destinations, mapping = replication_mapping(usd.instances, len(plan.destinations), asset_prototype_ids)
-        excluded_sources, _, _ = replication_mapping(
-            usd.instances,
-            len(plan.destinations),
-            tuple(set(range(len(plan.asset_prototypes))) - set(asset_prototype_ids)),
-        )
         return _replicate_newton(
             self._sim.stage,
-            sources,
-            destinations,
             np.arange(len(plan.destinations)),
-            mapping,
             self._sim,
             plan=plan,
             instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
@@ -286,7 +274,11 @@ class NewtonReplicateContext:
             reference_instances=usd.instances,
             positions=usd.positions,
             global_paths=usd.global_paths,
-            exclude_paths=excluded_sources,
+            exclude_paths=tuple(
+                source
+                for index, source, _, world_ids in usd.instances
+                if index not in asset_prototype_ids and len(world_ids) and world_ids[0] != -1
+            ),
             up_axis=self.up_axis,
         )
 
@@ -334,13 +326,11 @@ def newton_physics_replicate(
     prefix, suffix = destinations[0].split("{}", 1) if destinations else ("/World/envs/env_", "")
     builder, stage_info, _ = _replicate_newton(
         stage,
-        sources,
-        destinations,
         env_ids,
-        mapping,
         PhysicsManager._sim,
         plan=plan,
         instances=instances,
+        reference_instances=instances,
         env_template=prefix + "{}" + suffix.split("/", 1)[0],
         positions=positions,
         global_paths=global_paths,

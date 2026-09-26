@@ -17,7 +17,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
-from isaaclab.cloner.query import iter_worlds
+from isaaclab.cloner.query import get_world_prototypes
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 
 from isaaclab_newton.renderers.visual_material import import_builder_visual_material_paths
@@ -322,7 +322,7 @@ def replicate_builder_mapping(
                 else _invert_xform(xforms_np[world_ids[0]])
             )
     world_builders = {}
-    for world_prototype_id, members, world_ids in iter_worlds(plan):
+    for world_prototype_id, members, world_ids in get_world_prototypes(plan):
         if not len(world_ids):
             continue
         # Native names belong to the importer. The plan supplies composition and cardinality.

@@ -278,8 +278,7 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
 
 def deformable_prototypes(
     stage: Usd.Stage,
-    source_paths: Sequence[str],
-    destination_paths: Sequence[str],
+    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
     global_paths: Sequence[str] = (),
     *,
     exclude_paths: Sequence[str] = (),
@@ -288,14 +287,16 @@ def deformable_prototypes(
 
     Args:
         stage: Stage containing the authored asset prototypes.
-        source_paths: Active prototype roots imported by this backend.
-        destination_paths: Destination templates, used to exclude generated clones beneath shared roots.
+        instances: Complete native mapping of asset-prototype ID, source path, destination template, and world IDs.
         global_paths: Declared shared roots imported once.
         exclude_paths: Prototypes routed to other contexts, excluded even beneath shared roots.
 
     Returns:
         Prototype geometry owned by the caller, including shared assets once.
     """
+    active = [instance for instance in instances if len(instance[3]) and instance[3][0] != -1]
+    source_paths = [source for _, source, _, _ in active if source not in exclude_paths]
+    destination_paths = [template for _, _, template, _ in active]
     selected_sources = {Sdf.Path(source) for source in source_paths}
     sources = selected_sources | {Sdf.Path(source) for source in exclude_paths}
     roots = Sdf.Path.RemoveDescendentPaths([*source_paths, *global_paths])
@@ -325,20 +326,16 @@ def deformable_prototypes(
 
 def expand_deformable_entries(
     prototypes: Sequence[DeformableStageEntry],
-    sources: Sequence[str],
-    destinations: Sequence[str],
+    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
     env_ids: np.ndarray,
-    mapping: np.ndarray,
     positions: np.ndarray | None = None,
 ) -> list[DeformableStageEntry]:
     """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.
 
     Args:
         prototypes: Geometry captured during this backend's prototype import.
-        sources: Imported prototype roots.
-        destinations: Destination prim path templates.
+        instances: Asset-prototype ID, source path, destination template, and world IDs per instance group.
         env_ids: Target environment ids.
-        mapping: Boolean prototype-to-environment mask.
         positions: Environment origins [m], shape [num_envs, 3].
 
     Returns:
@@ -346,26 +343,26 @@ def expand_deformable_entries(
         include the clone translation; topology and vertex arrays remain shared with the prototype.
     """
     entries: dict[str, tuple[str, DeformableStageEntry]] = {}
-    source_indices = defaultdict(list)
-    for prototype_index, source in enumerate(sources):
-        source_indices[Sdf.Path(source)].append(prototype_index)
+    source_instances = defaultdict(list)
+    for _, source, template, world_ids in instances:
+        if len(world_ids) and world_ids[0] != -1:
+            source_instances[Sdf.Path(source)].append((source, template, world_ids))
     for entry in prototypes:
         owner = Sdf.Path(entry.root_path)
-        while owner != Sdf.Path.absoluteRootPath and owner not in source_indices:
+        while owner != Sdf.Path.absoluteRootPath and owner not in source_instances:
             owner = owner.GetParentPath()
-        if owner not in source_indices:
+        if owner not in source_instances:
             entries[entry.root_path] = (entry.root_path, entry)
             continue
-        for prototype_index in source_indices[owner]:
-            columns = np.flatnonzero(mapping[prototype_index])
+        for source, template, columns in source_instances[owner]:
             for column in columns:
-                target = destinations[prototype_index].format(int(env_ids[column]))
+                target = template.format(int(env_ids[column]))
                 offset = 0 if positions is None else positions[column] - positions[columns[0]]
                 cloned = replace(
                     entry,
-                    root_path=rebase(entry.root_path, sources[prototype_index], target),
-                    sim_mesh_path=rebase(entry.sim_mesh_path, sources[prototype_index], target),
-                    vis_mesh_path=rebase(entry.vis_mesh_path, sources[prototype_index], target),
+                    root_path=rebase(entry.root_path, source, target),
+                    sim_mesh_path=rebase(entry.sim_mesh_path, source, target),
+                    vis_mesh_path=rebase(entry.vis_mesh_path, source, target),
                     init_pos=tuple(np.asarray(entry.init_pos) + offset),
                 )
                 if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):

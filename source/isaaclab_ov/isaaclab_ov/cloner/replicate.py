@@ -43,14 +43,12 @@ def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
 
 def _clone_recipes(
     stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
+    instances: Sequence[tuple[int, str | None, str, np.ndarray]],
     env_ids: np.ndarray,
-    mapping: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
 ) -> list[tuple[str, list[str], list[CloneTransform], list[int]]]:
-    """Build OvPhysX clone recipes from one flat mapping."""
+    """Build OvPhysX clone recipes from the selected native instance groups."""
     if positions is not None and positions.shape != (len(env_ids), 3):
         raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
     if quaternions is not None and quaternions.shape != (len(env_ids), 4):
@@ -58,12 +56,11 @@ def _clone_recipes(
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
-    for source_index, source in enumerate(sources):
-        columns = np.flatnonzero(mapping[source_index])
-        if not len(columns):
+    for _, source, template, columns in instances:
+        if not len(columns) or columns[0] == -1:
             continue
         active_env_ids = env_ids[columns]
-        prefix, suffix = cloner.path.split(destinations[source_index])
+        prefix, suffix = cloner.path.split(template)
         env_template = prefix + "{}" + suffix.split("/", 1)[0]
         matched = cloner.path.match(source, env_template)
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
@@ -87,7 +84,7 @@ def _clone_recipes(
         target_env_ids = []
         for env_id, column in zip(active_env_ids, columns):
             env_id = int(env_id)
-            destination = destinations[source_index].format(env_id)
+            destination = template.format(env_id)
             if destination == source:
                 continue
             targets.append(destination)
@@ -129,15 +126,10 @@ class OvPhysxReplicateContext:
             ValueError: If positions are malformed or an active source or source anchor prim is invalid.
         """
         usd = self._sim.clone_contexts[cloner.UsdReplicateContext]
-        sources, destinations, mapping = cloner.query.replication_mapping(
-            usd.instances, len(plan.destinations), asset_prototype_ids
-        )
         recipes = _clone_recipes(
             stage=self.stage,
-            sources=sources,
-            destinations=destinations,
+            instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
             env_ids=np.arange(len(plan.destinations)),
-            mapping=mapping,
             positions=usd.positions,
             quaternions=None,
         )
@@ -171,10 +163,11 @@ def ovphysx_replicate(
     """
     recipes = _clone_recipes(
         stage=stage,
-        sources=sources,
-        destinations=destinations,
+        instances=tuple(
+            (index, source, destination, np.flatnonzero(mapping[index]))
+            for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
+        ),
         env_ids=env_ids,
-        mapping=mapping,
         positions=positions,
         quaternions=quaternions,
     )

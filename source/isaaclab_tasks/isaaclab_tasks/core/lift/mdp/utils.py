@@ -65,7 +65,7 @@ def sample_object_point_cloud(num_envs: int, num_points: int, prim_path: str, de
     stage = sim_utils.get_current_stage()
 
     usd = sim_utils.SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-    for _, _, obj_path, env_ids in cloner.query.iter_sources(usd.instances, prim_path):
+    for _, _, obj_path, env_ids in cloner.query.get_matched_sources(usd.instances, prim_path):
         # Gather prims
         prims = sim_utils.get_all_matching_child_prims(
             obj_path, predicate=lambda p: p.GetTypeName() in ("Mesh", "Cube", "Sphere", "Cylinder", "Capsule", "Cone")

@@ -316,7 +316,7 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         usd = sim.clone_contexts.get(cloner.UsdReplicateContext) if sim is not None else None
         self._usd = usd
-        source_matches = tuple(cloner.query.iter_sources(usd.instances, prim_path)) if usd is not None else ()
+        source_matches = cloner.query.get_matched_sources(usd.instances, prim_path) if usd is not None else []
         self._source_sites = []
         self._prims: list[Usd.Prim] = []
         for source_root, destination_template, source_path, env_ids in source_matches:

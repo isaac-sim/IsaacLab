@@ -9,8 +9,11 @@ Changed
   for pure topology, or let ``InteractiveScene`` manage planning and replication.
 * **Breaking:** Moved USD names and placement out of ``ClonePlan``. Path queries now accepted
   the native mapping tuples in ``sim.clone_contexts[UsdReplicateContext].instances``;
-  topology queries used ``iter_worlds(plan)``. Removed cached configuration/context routing
-  maps. Raw USD and native backend replication functions retained their path-based inputs.
+  topology queries used ``get_world_prototypes(plan)``. Renamed ``iter_sources`` to
+  ``get_matched_sources``; both ``get_*`` queries returned lists instead of generators.
+  Removed cached configuration/context routing maps. Raw USD and native backend replication
+  functions retained their path-based inputs.
+  Clone contexts consumed destination world IDs directly without allocating dense masks.
 * **Breaking:** Changed clone strategies to select world-prototype indices from relative
   weights. The sequential strategy allocated contiguous world groups; use the random
   strategy for independent sampling. ``ReplicateSession`` accepted ragged

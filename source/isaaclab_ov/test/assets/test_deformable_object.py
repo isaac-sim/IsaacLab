@@ -32,7 +32,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.cloner import UsdReplicateContext
-from isaaclab.cloner.query import iter_sources
+from isaaclab.cloner.query import get_matched_sources
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
@@ -538,7 +538,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
             )
         )
         instances = sim.clone_contexts[UsdReplicateContext].instances
-        shape_sources = list(iter_sources(instances, scene.cfg.shape.prim_path))
+        shape_sources = get_matched_sources(instances, scene.cfg.shape.prim_path)
         assert [len(env_ids) for _, _, _, env_ids in shape_sources] == [2, 2]
         assert sorted(env_id for _, _, _, env_ids in shape_sources for env_id in env_ids) == list(range(num_envs))
 
@@ -553,7 +553,7 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
         assert authored_paths == source_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
         deformable_source_paths = {
-            f"{path}/simulation" for _, _, path, _ in iter_sources(instances, scene.cfg.deformable.prim_path)
+            f"{path}/simulation" for _, _, path, _ in get_matched_sources(instances, scene.cfg.deformable.prim_path)
         }
         assert {
             path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()

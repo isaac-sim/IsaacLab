@@ -17,7 +17,7 @@ import warp as wp
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.cloner import UsdReplicateContext
 from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner.query import iter_sources
+from isaaclab.cloner.query import get_matched_sources
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -422,7 +422,7 @@ class MPMObject(BaseDeformableObject):
         source = self.cfg.spawn.spawn_path
         asset_prim_paths = [
             cloner_path.rebase(source, root, template.format(env_id))
-            for root, template, source_path, env_ids in iter_sources(usd.instances, self.cfg.prim_path)
+            for root, template, source_path, env_ids in get_matched_sources(usd.instances, self.cfg.prim_path)
             if source_path == source
             for env_id in env_ids
         ]

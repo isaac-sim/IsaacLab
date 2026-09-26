@@ -331,7 +331,7 @@ class NewtonSiteFrameView(BaseFrameView):
                         f"FrameView prim '{path_expr}' matches a Newton collision shape. "
                         "FrameView should only be used for non-physics frames."
                     )
-            matches = tuple(cloner.query.iter_sources(usd.instances, path_expr)) if usd is not None else ()
+            matches = cloner.query.get_matched_sources(usd.instances, path_expr) if usd is not None else []
             if matches:
                 for source_root, destination_template, source_path, env_ids in matches:
                     source_pattern = re.compile(source_path)

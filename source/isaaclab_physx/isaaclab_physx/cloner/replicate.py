@@ -44,51 +44,42 @@ class PhysxReplicateContext:
             asset_prototype_ids: Asset definitions routed to PhysX.
         """
         usd = SimulationContext.instance().clone_contexts[cloner.UsdReplicateContext]
-        sources, destinations, mapping = cloner.query.replication_mapping(
-            usd.instances, len(plan.destinations), asset_prototype_ids
-        )
-        self._replicate_mapping(
-            sources=sources,
-            destinations=destinations,
+        self._replicate_instances(
+            instances=tuple(instance for instance in usd.instances if instance[0] in asset_prototype_ids),
             env_ids=np.arange(len(plan.destinations)),
-            mapping=mapping,
             has_usd_only_sources=any(
                 index not in asset_prototype_ids for index, _, _, world_ids in usd.instances if len(world_ids)
             ),
             exclude_self_replication=True,
         )
 
-    def _replicate_mapping(
+    def _replicate_instances(
         self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
+        instances: Sequence[tuple[int, str | None, str, np.ndarray]],
         env_ids: np.ndarray,
-        mapping: np.ndarray,
         has_usd_only_sources: bool,
         exclude_self_replication: bool,
     ) -> None:
-        """Register one raw source-to-environment mapping with PhysX."""
+        """Register the selected native instance groups with PhysX."""
         physx_queue: list[tuple[str, str, tuple[int, ...]]] = []
-
-        expected_shape = (len(sources), len(env_ids))
-        if mapping.shape != expected_shape:
-            raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
-        if mapping.shape[1] <= 1:
+        if len(env_ids) <= 1:
             return
 
         native_paths: list[str] = []
 
-        for i, src in enumerate(sources):
-            worlds = tuple(map(int, env_ids[np.flatnonzero(mapping[i])]))
+        for _, src, destination, world_ids in instances:
+            if not len(world_ids) or world_ids[0] == -1:
+                continue
+            worlds = tuple(map(int, env_ids[world_ids]))
             if has_usd_only_sources:
                 native_paths.append(src)
-                native_paths.extend(destinations[i].format(world) for world in worlds)
+                native_paths.extend(destination.format(world) for world in worlds)
             if exclude_self_replication:
-                matched = cloner.path.match(src, destinations[i])
+                matched = cloner.path.match(src, destination)
                 if matched is not None and matched.instance.isdigit():
                     filtered = tuple(world for world in worlds if world != int(matched.instance))
                     worlds = filtered if filtered else worlds
-            physx_queue.append((src, destinations[i], worlds))
+            physx_queue.append((src, destination, worlds))
 
         # Fully-heterogeneous 1:1 layouts have every source mapped only to its own
         # environment (no cross-env replication needed). Calling rep.replicate() once
@@ -106,7 +97,7 @@ class PhysxReplicateContext:
 
         current_worlds: list[int] = []
         current_template: str = ""
-        prefixes = [cloner.path.split(destination)[0] for destination in destinations]
+        prefixes = [cloner.path.split(destination)[0] for _, destination, _ in physx_queue]
         env_namespaces = [
             prefix.rstrip("/") if prefix.endswith("/") else prefix.rsplit("/", 1)[0] for prefix in prefixes
         ]
@@ -165,12 +156,16 @@ def physx_replicate(
         exclude_self_replication: Whether to omit a source environment from its own targets.
     """
     del positions, quaternions
+    expected_shape = (len(sources), len(env_ids))
+    if mapping.shape != expected_shape:
+        raise ValueError(f"mapping must have shape {expected_shape}, got {mapping.shape}.")
     context = PhysxReplicateContext(stage)
-    context._replicate_mapping(
-        sources=sources,
-        destinations=destinations,
+    context._replicate_instances(
+        instances=tuple(
+            (index, source, destination, np.flatnonzero(mapping[index]))
+            for index, (source, destination) in enumerate(zip(sources, destinations, strict=True))
+        ),
         env_ids=env_ids,
-        mapping=mapping,
         has_usd_only_sources=False,
         exclude_self_replication=exclude_self_replication,
     )
