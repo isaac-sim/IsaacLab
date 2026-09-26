@@ -195,13 +195,13 @@ class SensorBase(ABC):
             inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
-        self._data_generation += 1
+        self._data_dirty = True
 
     def update(self, dt: float, force_recompute: bool = False):
         # Skip update if sensor is not initialized
         if not self._is_initialized:
             return
-        self._data_generation += 1
+        self._data_dirty = True
         # Update the timestamp for the sensors
         wp.launch(
             update_timestamp_kernel,
@@ -292,8 +292,7 @@ class SensorBase(ABC):
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
-        self._data_generation = 0
-        self._data_generation_last_update = -1
+        self._data_dirty = True
 
         # Initialize debug visualization handle
         if self._debug_vis_handle is None:
@@ -446,7 +445,7 @@ class SensorBase(ABC):
 
     def _update_outdated_buffers(self, force_recompute: bool = False) -> None:
         """Fills the sensor data for the outdated sensors."""
-        if not force_recompute and self._data_generation == self._data_generation_last_update:
+        if not force_recompute and not self._data_dirty:
             return
         self._update_buffers_impl(self._is_outdated)
         self._mark_buffers_updated()
@@ -460,7 +459,7 @@ class SensorBase(ABC):
             inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
             device=self._device,
         )
-        self._data_generation_last_update = self._data_generation
+        self._data_dirty = False
 
     @staticmethod
     def _process_batch(sensors: Sequence[SensorBase]) -> None:
@@ -468,7 +467,7 @@ class SensorBase(ABC):
         # A later sensor's update may already have refreshed an earlier sensor's data.
         groups: dict[Callable[[Sequence[SensorBase]], None], list[SensorBase]] = {}
         for sensor in sensors:
-            if not sensor.is_initialized or sensor._data_generation == sensor._data_generation_last_update:
+            if not sensor.is_initialized or not sensor._data_dirty:
                 continue
             batch_impl = type(sensor)._update_buffers_batch_impl
             groups.setdefault(batch_impl, []).append(sensor)

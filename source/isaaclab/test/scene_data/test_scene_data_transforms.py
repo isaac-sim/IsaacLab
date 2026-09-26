@@ -7,7 +7,9 @@
 
 from __future__ import annotations
 
+import gc
 import itertools
+import weakref
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -38,7 +40,7 @@ def test_get_transforms_matches_backend_device_when_warp_default_is_cuda():
     provider = SceneDataProvider(
         _Backend(
             transforms=transforms,
-            transforms_version=0,
+            transforms_timestamp=0,
             transform_count=3,
             transform_paths=["/World/a", "/World/b", "/World/c"],
         )
@@ -61,7 +63,7 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     """Clean reads share conversions; no provider can hide a publication from another."""
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    backend = _Backend(transforms=data, transforms_version=0, transform_count=1)
+    backend = _Backend(transforms=data, transforms_timestamp=0, transform_count=1)
     provider = SceneDataProvider(backend)
     native = SceneDataFormat.Transform()
     converted = SceneDataFormat.Vec3_Quat()
@@ -84,14 +86,14 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     assert converted.positions is other.positions
 
     data.transforms.assign([[4, 5, 6, 0, 0, 0, 1]])
-    backend.transforms_version += 1
+    backend.transforms_timestamp += 1
     assert provider.get_transforms(converted)
     assert converted.positions is other.positions
     assert launch.call_count == 2
     np.testing.assert_array_equal(converted.positions.numpy(), [[4, 5, 6]])
 
     data.transforms = wp.array([[7, 8, 9, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    backend.transforms_version += 1
+    backend.transforms_timestamp += 1
     assert provider.get_transforms(native)
     assert native.transforms is data.transforms
     assert provider.get_transforms(converted)
@@ -104,7 +106,7 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
     assert peer.get_transforms(peer_output)
     for position in ([10, 11, 12], [13, 14, 15]):
         data.transforms.assign([position + [0, 0, 0, 1]])
-        backend.transforms_version += 1
+        backend.transforms_timestamp += 1
         assert provider.get_transforms(converted)
         assert peer.get_transforms(peer_output)
         np.testing.assert_array_equal(converted.positions.numpy(), [position])
@@ -115,7 +117,7 @@ def test_publication_aliases_native_pointer_and_converts_once_per_write(monkeypa
 def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(format_name, monkeypatch):
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    backend = _Backend(transforms=data, transforms_version=0, transform_count=1)
+    backend = _Backend(transforms=data, transforms_timestamp=0, transform_count=1)
     provider = SceneDataProvider(backend)
     shared, owned = (getattr(SceneDataFormat, format_name)() for _ in range(2))
     assert provider.get_transforms(shared)
@@ -126,7 +128,7 @@ def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(for
     monkeypatch.setattr(wp, "copy", copy)
     for x in (4, 7):
         data.transforms.assign([[x, 5, 6, 0, 0, 0, 1]])
-        backend.transforms_version += 1
+        backend.transforms_timestamp += 1
         launch.reset_mock()
         copy.reset_mock()
         assert provider.get_transforms(owned, allow_passthrough=False)
@@ -143,7 +145,7 @@ def test_mapping_preserves_unmapped_destination_slots():
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     provider = SceneDataProvider(
-        _Backend(transforms=data, transforms_version=0, transform_count=2, transform_paths=["/a", "/b"])
+        _Backend(transforms=data, transforms_timestamp=0, transform_count=2, transform_paths=["/a", "/b"])
     )
     mapping = provider.create_mapping(["/a", "/b", None])
     output = SceneDataFormat.Transform()
@@ -179,7 +181,7 @@ def test_transposed_matrices_fuse_format_mapping_and_scale(format_name, scaled):
             dtype=wp.quatf if format_name == "Vec3_Quat" else wp.mat33f,
             device="cpu",
         )
-    provider = SceneDataProvider(_Backend(transforms=data, transforms_version=0, transform_count=2))
+    provider = SceneDataProvider(_Backend(transforms=data, transforms_timestamp=0, transform_count=2))
     mapping = wp.array([1, 0], dtype=wp.int32, device="cpu")
     scales = wp.array([[2, 3, 4], [5, 6, 7]], dtype=wp.vec3f, device="cpu") if scaled else None
     output = SceneDataFormat.TransposedMatrix44d()
@@ -205,10 +207,10 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
     poses[2, 3:] /= np.sqrt(13)
     data = SceneDataFormat.Transform()
     data.transforms = wp.array(poses, dtype=wp.transformf, device=device)
-    native = SceneDataProvider(_Backend(transforms=data, transforms_version=0, transform_count=len(poses)))
+    native = SceneDataProvider(_Backend(transforms=data, transforms_timestamp=0, transform_count=len(poses)))
     source = getattr(SceneDataFormat, format_name)()
     assert native.get_transforms(source)
-    provider = SceneDataProvider(_Backend(transforms=source, transforms_version=0, transform_count=len(poses)))
+    provider = SceneDataProvider(_Backend(transforms=source, transforms_timestamp=0, transform_count=len(poses)))
     authored_scales = np.array([[5, 6, 7], [1, 1, 1], [2, 3, 4]], dtype=np.float32)
     scales = wp.array(authored_scales, dtype=wp.vec3f, device=device)
     expected = np.array([np.eye(4), np.diag([5, 6, 7, 1])], dtype=np.float64)
@@ -248,6 +250,11 @@ def test_fabric_conversion_preserves_scale_and_refreshes_reallocated_destination
         assert provider.get_transforms(output, mapping, scales=scales)
         assert output.matrices is destination
         launch.assert_called_once()
-        assert len(provider._transform_cache) == 1
         np.testing.assert_allclose(matrices.numpy(), expected, rtol=1.0e-6, atol=1.0e-6)
         np.testing.assert_array_equal(scales.numpy(), authored_scales)
+        released_output, released_mapping = weakref.ref(output), weakref.ref(mapping)
+        launch.reset_mock()
+        del output, mapping
+        gc.collect()
+        assert released_output() is None
+        assert released_mapping() is None

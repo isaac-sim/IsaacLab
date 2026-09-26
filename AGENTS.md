@@ -21,6 +21,10 @@
   locators, resource keys, or separate renderer registries.
 - Renderers consume geometry through `SceneDataProvider`. Keep Newton imports out of OVRTX renderers
   and Fabric destination ownership and shadow remapping out of physics backends.
+- Keep SDP caches data-only, with direct timestamp guards rather than binding factories or stored
+  update callbacks. Cache ownership must not extend caller-owned destination lifetimes.
+- Lazy-data aliases must refresh their owning property on every read; a cached view does not imply fresh data.
+  Component views preserve parent strides; do not allocate extraction buffers just because a parent is non-contiguous.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
   frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
   do not introduce frame enums, content bitmasks, or a classification layer.

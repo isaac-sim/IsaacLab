@@ -976,6 +976,7 @@ def test_newton_ordered_body_state_cache_invalidates_on_same_timestamp_root_writ
     articulation.write_root_link_pose_to_sim_index(root_pose=written_root_pose)
     assert data._sim_timestamp == sim_timestamp
     torch.testing.assert_close(data.root_link_pose_w.torch, written_root_pose)
+    SimulationManager.forward()  # Another consumer may resolve shared FK before this view reads.
     refreshed_body_pose = data.body_link_pose_w.torch[:, root_body_idx]
     torch.testing.assert_close(refreshed_body_pose, written_root_pose)
     assert not torch.equal(refreshed_body_pose, cached_body_pose)
@@ -1067,11 +1068,17 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
     old_bindings = {name: getattr(data, name) for name in public_to_binding.values()}
     old_binding_ptrs = {name: int(array.ptr) for name, array in old_bindings.items()}
     old_public_proxies = {name: getattr(data, name) for name in public_to_binding}
+    component_sources = {
+        "root_link_pos_w": ("root_link_pose_w", slice(None, 3)),
+        "root_link_quat_w": ("root_link_pose_w", slice(3, None)),
+        "body_com_lin_vel_w": ("body_com_vel_w", slice(None, 3)),
+        "body_com_ang_vel_w": ("body_com_vel_w", slice(3, None)),
+    }
+    old_components = {name: getattr(data, name) for name in component_sources}
     implicit_executor = articulation.actuators._implicit_executor
     assert implicit_executor is not None
     actuator_state_inputs = [implicit_executor.kernel_inputs]
     data.joint_pos_limits.torch.clone()
-    assert data._joint_pos_limits_timestamp == data._sim_timestamp
     # The Tier-1 state shadows are plain wp.arrays (no timestamp): they are
     # allocated for non-identity ordering and stay ``None`` for identity ordering.
     if has_ordering:
@@ -1136,7 +1143,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         assert inputs[3].ptr == data.joint_pos.warp.ptr
         assert inputs[4].ptr == data.joint_vel.warp.ptr
 
-    assert data._joint_pos_limits_timestamp == -1.0
     assert data._joint_acc.timestamp == -1.0
     assert data._body_com_acc_w.timestamp == -1.0
 
@@ -1185,6 +1191,14 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
             assert int(proxy.warp.ptr) == int(getattr(data, binding_name).ptr)
         np.testing.assert_array_equal(proxy.warp.numpy(), expected)
 
+    for name, (parent, selection) in component_sources.items():
+        component = getattr(data, name)
+        expected = getattr(data, parent).torch[..., selection]
+        assert component is not old_components[name]
+        assert component.torch.data_ptr() == expected.data_ptr()
+        assert component.torch.stride() == expected.stride()
+        torch.testing.assert_close(component.torch, expected)
+
     expected_limits = np.stack(
         (
             new_source_bindings["_sim_bind_joint_pos_limits_lower"].numpy()[:, joint_user_to_backend],
@@ -1193,7 +1207,6 @@ def test_newton_ordered_state_caches_invalidate_on_rebind(
         axis=-1,
     )
     np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
-    assert data._joint_pos_limits_timestamp == data._sim_timestamp
 
 
 @pytest.mark.parametrize("num_articulations", [1])

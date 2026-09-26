@@ -280,7 +280,7 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     """One state refresh precedes BVH refits and rendering, including explicit transform updates."""
 
     state = object()
-    status = {"state_refreshes": 0, "shape_refit": False, "particle_refit": False, "rendered": False}
+    status = {"state_refreshes": 0, "shape_refit": 0, "particle_refit": 0, "rendered": False}
 
     class FakeModel:
         shape_count = 1
@@ -299,16 +299,16 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
 
         def bvh_refit_shapes(self, current_state):
             assert current_state is state
-            status["shape_refit"] = True
+            status["shape_refit"] += 1
 
         def bvh_refit_particles(self, current_state):
             assert current_state is state
-            status["particle_refit"] = True
+            status["particle_refit"] += 1
 
     model = FakeModel()
 
     def render():
-        assert status["state_refreshes"] == 1
+        assert status["state_refreshes"] > 0
         assert model.bvh_shapes is not None
         assert model.bvh_particles is not None
         assert status["shape_refit"]
@@ -336,8 +336,13 @@ def test_sensor_task_builds_and_refits_bvhs_before_rendering(monkeypatch):
     renderer.newton_sensor = SimpleNamespace(model=model)
     monkeypatch.setattr(renderer, "_launch_render", lambda _data: render())
     renderer.update_transforms()
-    renderer.render(SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None))
-
+    render_data = SimpleNamespace(sensor_task_name=None, ppisp_pipeline=None)
+    renderer.render(render_data)
+    renderer.render(render_data)
+    assert status["shape_refit"] == status["particle_refit"] == 1
+    NewtonManager._mark_sensor_state_dirty()
+    renderer.render(render_data)
+    assert status["shape_refit"] == status["particle_refit"] == 2
     assert status["rendered"]
 
 
@@ -1131,8 +1136,8 @@ def test_forward_consumes_existing_reset_masks(monkeypatch):
 
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_reconciliation_pending", True, raising=False)
-    monkeypatch.setattr(NewtonManager, "_transforms_may_change_on_graph_replay", False)
+    monkeypatch.setattr(NewtonManager, "kinematics_dirty", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "transforms_may_change_on_graph_replay", False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", record_fk, raising=False)
     monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=object()))
     monkeypatch.setattr(NewtonManager, "_solver", _RecordingSolver(), raising=False)
@@ -1163,7 +1168,7 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 
     monkeypatch.setattr(NewtonManager, "_world_reset_mask", world_mask, raising=False)
     monkeypatch.setattr(NewtonManager, "_fk_reset_mask", fk_mask, raising=False)
-    monkeypatch.setattr(NewtonManager, "_reconciliation_pending", True, raising=False)
+    monkeypatch.setattr(NewtonManager, "kinematics_dirty", True, raising=False)
     monkeypatch.setattr(NewtonManager, "_eval_fk", lambda worlds, articulations: None, raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", _RejectingSolver(), raising=False)
     monkeypatch.setattr(

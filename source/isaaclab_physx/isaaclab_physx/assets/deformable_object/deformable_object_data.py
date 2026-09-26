@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, vec6f
@@ -63,12 +63,18 @@ class DeformableObjectData:
 
         # Initialize the lazy buffers.
         # -- node state in simulation world frame
-        self._nodal_pos_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_vel_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_state_w = TimestampedBuffer((self._num_instances, self._max_sim_vertices), device, vec6f)
+        self._nodal_pos_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._max_sim_vertices), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_vel_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._max_sim_vertices), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_state_w = TimestampedBuffer(
+            wp.empty((self._num_instances, self._max_sim_vertices), dtype=vec6f, device=device)
+        )
         # -- derived: root pos/vel
-        self._root_pos_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBuffer((self._num_instances,), device, wp.vec3f)
+        self._root_pos_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
 
         # -- Pinned ProxyArray cache (one per read property, lazily created on first access)
         self._nodal_pos_w_ta: ProxyArray | None = None

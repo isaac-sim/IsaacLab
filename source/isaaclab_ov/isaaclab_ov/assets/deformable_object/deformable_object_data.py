@@ -12,7 +12,7 @@ import weakref
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.tensor_types import TensorType
@@ -58,11 +58,17 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._max_sim_elements = root_view.max_simulation_elements_per_body
         self._max_collision_elements = root_view.max_collision_elements_per_body
 
-        self._nodal_pos_w = TimestampedBufferWarp((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_vel_w = TimestampedBufferWarp((self._num_instances, self._max_sim_vertices), device, wp.vec3f)
-        self._nodal_state_w = TimestampedBufferWarp((self._num_instances, self._max_sim_vertices), device, vec6f)
-        self._root_pos_w = TimestampedBufferWarp((self._num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBufferWarp((self._num_instances,), device, wp.vec3f)
+        self._nodal_pos_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._max_sim_vertices), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_vel_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, self._max_sim_vertices), dtype=wp.vec3f, device=device)
+        )
+        self._nodal_state_w = TimestampedBuffer(
+            wp.empty((self._num_instances, self._max_sim_vertices), dtype=vec6f, device=device)
+        )
+        self._root_pos_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=device))
 
         self._nodal_pos_w_proxy: ProxyArray | None = None
         self._nodal_vel_w_proxy: ProxyArray | None = None

@@ -14,8 +14,7 @@ import torch
 import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.math import normalize
 from isaaclab.utils.warp import ProxyArray
 
@@ -867,25 +866,43 @@ class RigidObjectData(BaseRigidObjectData):
         super()._create_buffers()
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_link_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
+        self._root_link_pose_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.transformf, device=self.device)
+        )
+        self._root_link_vel_w = TimestampedBuffer(
+            wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        )
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self._num_instances, 1), self.device, wp.transformf)
+        self._body_com_pose_b = TimestampedBuffer(
+            wp.zeros((self._num_instances, 1), dtype=wp.transformf, device=self.device)
+        )
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer((self._num_instances), self.device, wp.transformf)
-        self._root_com_vel_w = TimestampedBuffer((self._num_instances), self.device, wp.spatial_vectorf)
-        self._body_com_acc_w = TimestampedBuffer((self._num_instances, 1), self.device, wp.spatial_vectorf)
+        self._root_com_pose_w = TimestampedBuffer(
+            wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
+        )
+        self._root_com_vel_w = TimestampedBuffer(
+            wp.zeros(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
+        )
+        self._body_com_acc_w = TimestampedBuffer(
+            wp.zeros((self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device)
+        )
         # -- combined state (these are cached as they concatenate)
-        self._root_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_link_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
-        self._root_com_state_w = TimestampedBuffer((self._num_instances), self.device, shared_kernels.vec13f)
+        self._root_state_w = TimestampedBuffer(
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
+        self._root_link_state_w = TimestampedBuffer(
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
+        self._root_com_state_w = TimestampedBuffer(
+            wp.empty(self._num_instances, dtype=shared_kernels.vec13f, device=self.device)
+        )
         # -- derived properties (these are cached to avoid repeated memory allocations)
-        self._projected_gravity_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self._num_instances), self.device, wp.float32)
-        self._root_link_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_link_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_lin_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
-        self._root_com_ang_vel_b = TimestampedBuffer((self._num_instances), self.device, wp.vec3f)
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._heading_w = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.float32, device=self.device))
+        self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
+        self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device))
 
         # -- Default state
         self._default_root_pose = wp.zeros((self._num_instances), dtype=wp.transformf, device=self.device)

@@ -29,7 +29,7 @@ from . import ordering_kernels
 
 if TYPE_CHECKING:
     from ...actuators import ActuatorCollection
-    from ...utils.buffers import TimestampedBufferWarp
+    from ...utils.buffers import TimestampedBuffer
     from .ordering import ArticulationNameMap
 
 
@@ -248,7 +248,7 @@ class BaseArticulationData(ABC):
             backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
         return wp.array(backend_rows, dtype=wp.int32, device=self.device)
 
-    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBufferWarp) -> None:
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
         """Read the current backend-order static body COM pose into ``buf`` when stale.
 
         Backend hook for :meth:`_ensure_body_com_pose_b_current` and

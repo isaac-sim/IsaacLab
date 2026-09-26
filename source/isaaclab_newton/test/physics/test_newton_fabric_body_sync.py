@@ -358,7 +358,7 @@ def test_nested_bodies_keep_independent_world_poses():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
@@ -429,6 +429,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
         mesh = fabric.stage.GetPrimAtPath(mesh_path)
         mesh.CreateAttribute("test:geometryBucket", RtSdf.ValueTypeNames.Bool, custom=True).Set(True)
         mesh.GetAttribute("points").Set(Vt.Vec3fArray([Gf.Vec3f(99.0)] * 3))
+        with monkeypatch.context() as patch:
+            patch.setattr(provider, "get_geometry_points", Mock(side_effect=RuntimeError("conversion failed")))
+            with pytest.raises(RuntimeError, match="conversion failed"):
+                fabric.update_geometries(provider, 3)
         fabric.update_geometries(provider, 3)
         wp.synchronize_device(sim.device)
         np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)

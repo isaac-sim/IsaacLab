@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -27,11 +27,17 @@ class MPMObjectData(BaseDeformableObjectData):
         self._particles_per_object = particles_per_object
         self._num_instances = num_instances
 
-        self._particle_pos_w = TimestampedBuffer((num_instances, particles_per_object), device, wp.vec3f)
-        self._particle_vel_w = TimestampedBuffer((num_instances, particles_per_object), device, wp.vec3f)
-        self._particle_state_w = TimestampedBuffer((num_instances, particles_per_object), device, vec6f)
-        self._root_pos_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
+        self._particle_pos_w = TimestampedBuffer(
+            wp.empty((num_instances, particles_per_object), dtype=wp.vec3f, device=device)
+        )
+        self._particle_vel_w = TimestampedBuffer(
+            wp.empty((num_instances, particles_per_object), dtype=wp.vec3f, device=device)
+        )
+        self._particle_state_w = TimestampedBuffer(
+            wp.empty((num_instances, particles_per_object), dtype=vec6f, device=device)
+        )
+        self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._particle_pos_w_ta = ProxyArray(self._particle_pos_w.data)
         self._particle_vel_w_ta = ProxyArray(self._particle_vel_w.data)
         self._particle_state_w_ta = ProxyArray(self._particle_state_w.data)
