@@ -77,6 +77,18 @@ class SO101SceneCfg(InteractiveSceneCfg):
 
     robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
+        # Face the keyboard at +X and retain the task's original reset-IK seed.
+        init_state=SO101_CFG.init_state.replace(
+            rot=(0.0, 0.0, 2**-0.5, 2**-0.5),
+            joint_pos={
+                "shoulder_pan": 0.0,
+                "shoulder_lift": 0.0,
+                "elbow_flex": 0.0,
+                "wrist_flex": 0.0,
+                "wrist_roll": 0.0,
+                "gripper": 0.0,
+            },
+        ),
         spawn=SO101_CFG.spawn.replace(
             variants={
                 "Robot": "robot",
