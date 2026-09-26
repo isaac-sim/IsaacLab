@@ -516,6 +516,19 @@ def test_modifier_compute(setup_env):
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
 
+    # A concatenated observation must survive subsequent updates to a modifier's internal state.
+    cfg.policy.term_1 = None
+    cfg.policy.term_2 = None
+    cfg.policy.concatenate_terms = True
+    obs_man = ObservationManager(cfg, env)
+    first = obs_man.compute()["policy"]
+    expected = 0.5 * (env.data.pos_w + 1.0) * env.dt
+    torch.testing.assert_close(first, expected)
+    obs_man.compute()
+    torch.testing.assert_close(first, expected)
+    obs_man.reset()
+    torch.testing.assert_close(first, expected)
+
 
 def test_serialize(setup_env):
     """Test serialize call for ManagerTermBase terms."""
