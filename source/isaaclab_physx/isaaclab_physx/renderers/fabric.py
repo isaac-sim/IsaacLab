@@ -165,7 +165,8 @@ class FabricBackend:
             groups.setdefault((device, frequency), []).append(path)
         self.stage.SynchronizeToFabric()
         self._geometry_bindings = []
-        for index, ((device, frequency), group_paths) in enumerate(groups.items()):
+        for index, (group, group_paths) in enumerate(groups.items()):
+            device, frequency = group
             tag = f"isaaclab:geometryIndex:group{index}"
             for row, path in enumerate(group_paths):
                 prim = self.stage.GetPrimAtPath(path)

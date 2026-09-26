@@ -404,11 +404,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, False],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Mark the link pose fresh so reads within the same step return the
@@ -458,11 +454,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, True],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Invalidate dependent timestamps

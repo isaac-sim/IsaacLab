@@ -1033,11 +1033,7 @@ class RigidObjectData(BaseRigidObjectData):
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Return a strided position view without copying the parent array."""
         return wp.array(
-            ptr=transform.ptr,
-            shape=transform.shape,
-            dtype=wp.vec3f,
-            strides=transform.strides,
-            device=self.device,
+            ptr=transform.ptr, shape=transform.shape, dtype=wp.vec3f, strides=transform.strides, device=self.device
         )
 
     def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
@@ -1091,13 +1087,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_state_w.data],
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1122,13 +1113,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_link_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
+                outputs=[self._root_link_state_w.data],
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1153,13 +1139,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_com_state_w.data,
-                ],
+                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_com_state_w.data],
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1213,13 +1194,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_state_w.data],
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1246,13 +1222,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_link_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
+                outputs=[self._root_link_state_w.data],
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1278,13 +1249,8 @@ class RigidObjectData(BaseRigidObjectData):
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_com_state_w.data,
-                ],
+                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_com_state_w.data],
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

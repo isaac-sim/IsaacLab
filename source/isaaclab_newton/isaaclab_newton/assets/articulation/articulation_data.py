@@ -468,13 +468,8 @@ class ArticulationData(BaseArticulationData):
                 "joint_pos_limits",
                 articulation_kernels.concat_joint_pos_limits_lower_and_upper,
                 dim=(self._num_instances, self._num_joints),
-                inputs=[
-                    joint_pos_limits_lower,
-                    joint_pos_limits_upper,
-                ],
-                outputs=[
-                    self._joint_pos_limits.data,
-                ],
+                inputs=[joint_pos_limits_lower, joint_pos_limits_upper],
+                outputs=[self._joint_pos_limits.data],
             )
             self._joint_pos_limits.timestamp = self._sim_timestamp
         return self._joint_pos_limits_ta
@@ -801,13 +796,8 @@ class ArticulationData(BaseArticulationData):
                 "body_com_pose_w",
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._body_com_pose_w.data,
-                ],
+                inputs=[self.body_link_pose_w.warp, self.body_com_pos_b.warp],
+                outputs=[self._body_com_pose_w.data],
             )
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
@@ -2369,11 +2359,7 @@ class ArticulationData(BaseArticulationData):
     def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
         """Return a strided position view without copying the parent array."""
         return wp.array(
-            ptr=transform.ptr,
-            shape=transform.shape,
-            dtype=wp.vec3f,
-            strides=transform.strides,
-            device=self.device,
+            ptr=transform.ptr, shape=transform.shape, dtype=wp.vec3f, strides=transform.strides, device=self.device
         )
 
     def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
@@ -2427,13 +2413,8 @@ class ArticulationData(BaseArticulationData):
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=(self._num_instances),
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_state_w.data],
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -2458,13 +2439,8 @@ class ArticulationData(BaseArticulationData):
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_link_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
+                outputs=[self._root_link_state_w.data],
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -2489,13 +2465,8 @@ class ArticulationData(BaseArticulationData):
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_com_state_w.data,
-                ],
+                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_com_state_w.data],
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -2558,13 +2529,8 @@ class ArticulationData(BaseArticulationData):
                 "body_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w.warp,
-                    self.body_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._body_state_w.data,
-                ],
+                inputs=[self.body_link_pose_w.warp, self.body_com_vel_w.warp],
+                outputs=[self._body_state_w.data],
             )
             self._body_state_w.timestamp = self._sim_timestamp
 
@@ -2593,13 +2559,8 @@ class ArticulationData(BaseArticulationData):
                 "body_link_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_link_pose_w.warp,
-                    self.body_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._body_link_state_w.data,
-                ],
+                inputs=[self.body_link_pose_w.warp, self.body_link_vel_w.warp],
+                outputs=[self._body_link_state_w.data],
             )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
@@ -2630,13 +2591,8 @@ class ArticulationData(BaseArticulationData):
                 "body_com_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[
-                    self.body_com_pose_w.warp,
-                    self.body_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._body_com_state_w.data,
-                ],
+                inputs=[self.body_com_pose_w.warp, self.body_com_vel_w.warp],
+                outputs=[self._body_com_state_w.data],
             )
             self._body_com_state_w.timestamp = self._sim_timestamp
 
