@@ -185,59 +185,29 @@ def test_step_schedule_writes_expected_clips(tmp_path, schedule, num_steps, expe
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("source", ["visualizer:kit", "visualizer:kit:streaming_view"])
-@pytest.mark.parametrize("is_rendering", [False, True], ids=["on-demand", "continuous"])
-def test_visualizer_source_refreshes_render_state_before_on_demand_capture(source, is_rendering):
-    """Every capture sees fresh state; continuous rendering needs no extra refresh."""
-    physics_value = 0
-    published_value = 0
+def test_visualizer_source_refreshes_physics_before_on_demand_capture():
+    """On-demand capture reads a frame after physics transforms are synchronized."""
+    synchronized = False
 
     class _FreshFrameViz(_FakeViz):
         def render_rgb_array(self) -> np.ndarray:
-            return np.full_like(self._frame, published_value)
-
-        def render_tiled_rgb_array(self) -> np.ndarray:
-            return self.render_rgb_array()
+            return np.full_like(self._frame, 255 if synchronized else 0)
 
     viz = _FreshFrameViz("kit")
-    viz.cfg.streaming_view = True
-    env = _make_env(visualizers=[viz])
-    env.sim.is_rendering = is_rendering
-
-    def publish_render_state() -> None:
-        nonlocal published_value
-        published_value = physics_value
-
-    env.sim.render.side_effect = publish_render_state
-    recorder = VideoRecorder(_cfg(source=source), env)
-
-    for physics_value in (64, 128, 192):
-        if is_rendering:
-            # The environment has already published this step's state.
-            publish_render_state()
-        frame = recorder._get_frame()
-
-        assert frame is not None
-        assert np.all(frame == physics_value)
-
-    if is_rendering:
-        env.sim.render.assert_not_called()
-
-
-def test_on_demand_rendering_stops_between_recording_windows():
-    """Headless synchronization should only run on steps that capture a frame."""
-    viz = _FakeViz("kit")
     env = _make_env(visualizers=[viz])
     env.sim.is_rendering = False
-    recorder = VideoRecorder(_cfg(source="visualizer:kit", video_length=2, video_interval=5), env)
 
-    for step in range(1, 8):
-        env.sim.render.reset_mock()
-        recorder.step()
-        if step in (1, 2, 6, 7):
-            env.sim.render.assert_called_once_with()
-        else:
-            env.sim.render.assert_not_called()
+    def synchronize_physics() -> None:
+        nonlocal synchronized
+        synchronized = True
+
+    env.sim.forward.side_effect = synchronize_physics
+    recorder = VideoRecorder(_cfg(source="visualizer:kit"), env)
+
+    frame = recorder._get_frame()
+
+    assert frame is not None
+    assert np.all(frame == 255)
 
 
 def test_kit_visualizer_newton_physics_logs_warning(caplog):

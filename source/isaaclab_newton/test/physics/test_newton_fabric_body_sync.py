@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from types import SimpleNamespace
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 from isaaclab.app import AppLauncher
 
@@ -171,10 +171,8 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True)],
+        visualizer_cfgs=[KitVisualizerCfg(headless=True, window_width=64, window_height=64)],
     )
-    if capture_method == "video_recorder":
-        sim_cfg.visualizer_cfgs = [KitVisualizerCfg(headless=True, window_width=64, window_height=64)]
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
@@ -196,12 +194,8 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
             assert sim.visualizers[0]._fabric is scene["camera"]._renderer._fabric is fabric
             assert sum(isinstance(resource, FabricBackend) for _, resource in sim._backend_registry) == 1
 
-            def capture_frame() -> None:
-                _render(sim, scene)
-
+            recorder = None
             if capture_method == "video_recorder":
-                import omni.kit.app
-
                 # The suite enables cameras at startup; this case exercises capture-only rendering.
                 sim.set_setting("/isaaclab/render/rtx_sensors", False)
                 assert not sim.is_rendering
@@ -209,15 +203,12 @@ def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, 
                 recorder = VideoRecorder(
                     VideoRecorderCfg(source="visualizer:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
                 )
-                app = omni.kit.app.get_app()
 
-                def capture_frame() -> None:
-                    app_proxy = Mock(wraps=app)
-                    with patch("omni.kit.app.get_app", return_value=app_proxy):
-                        frame = recorder._get_frame()
-                    assert frame is not None
-                    assert frame.shape == (64, 64, 3)
-                    app_proxy.update.assert_called_once_with()
+            def capture_frame() -> None:
+                if recorder is None:
+                    _render(sim, scene)
+                else:
+                    assert recorder._get_frame().shape == (64, 64, 3)
                     wp.synchronize_device(device)
 
             cube = scene["cube"]

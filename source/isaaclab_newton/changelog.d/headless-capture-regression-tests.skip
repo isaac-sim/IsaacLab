@@ -1,1 +1,1 @@
-Added regression coverage for on-demand recorder Fabric synchronization and Kit render cadence.
+Extended the existing Fabric pose-write regression to cover headless video capture without a physics step.

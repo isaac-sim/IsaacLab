@@ -202,8 +202,7 @@ class VideoRecorder:
 
         viz = candidates[0]
         if not sim.is_rendering:
-            # Publish backend transforms and refresh visualizers before capture.
-            sim.render()
+            sim.forward()
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(

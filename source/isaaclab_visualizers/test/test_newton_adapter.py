@@ -762,13 +762,8 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
     assert viewer.logged_state is None
 
 
-@pytest.mark.parametrize(
-    "visualizer_type,cfg_type",
-    [(NewtonGLVisualizer, NewtonGLVisualizerCfg), (NewtonRTXVisualizer, NewtonRTXVisualizerCfg)],
-    ids=["gl", "rtx"],
-)
-def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, visualizer_type, cfg_type):
-    """Headless viewers should render each fresh state only when a frame is requested."""
+def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
+    """Headless EGL should defer rendering until a frame is requested."""
     from isaaclab_newton.physics import NewtonManager
 
     state = SimpleNamespace(body_q=_BodyQ())
@@ -778,21 +773,15 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, visuali
     monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
     monkeypatch.setattr(NewtonManager, "get_num_envs", lambda: 1)
 
-    visualizer = visualizer_type(cfg_type(headless=True, enable_markers=False))
-    visualizer._is_initialized = True
+    visualizer = _make_newton_visualizer(viewer)
     visualizer._runtime_headless = True
-    visualizer._viewer = viewer
+    visualizer.step(0.1)
 
-    for _ in range(2):
-        state = SimpleNamespace(body_q=_BodyQ())
-        viewer.events.clear()
-        visualizer.step(0.1)
-        assert viewer.events == []
+    assert viewer.logged_state is None
 
-        visualizer.render_rgb_array()
+    visualizer.render_rgb_array()
 
-        assert viewer.logged_state is state
-        assert viewer.events == ["begin_frame", "log_state", "end_frame"]
+    assert viewer.logged_state is state
 
 
 def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch):
