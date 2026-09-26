@@ -627,8 +627,10 @@ def test_headless_kit_recorder_publishes_state_and_renders_once(monkeypatch: pyt
     viz = kit_visualizer.KitVisualizer(KitVisualizerCfg(headless=True, window_width=12, window_height=8))
     viz._is_initialized = True
     viz._scene_data_provider = _FakeProvider()
+    viz._fabric = Mock()
     monkeypatch.setattr(viz, "_apply_render_product_background", Mock())
     ctx = _make_context([viz])
+    monkeypatch.setattr(SimulationContext, "instance", lambda: ctx)
     ctx.physics_manager = Mock()
     ctx.physics_manager.pre_render.side_effect = publish_transforms
     ctx._viz_dt = 0.1
