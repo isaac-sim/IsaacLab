@@ -358,6 +358,53 @@ def test_retrieve_git_asset_path_clones_default_repo_cache(tmp_path, monkeypatch
     assert temporary_path.parent.name.startswith(".example-assets.")
 
 
+def test_retrieve_git_asset_path_clones_exact_commit(tmp_path, monkeypatch):
+    """Test that a full commit SHA produces an immutable, revision-specific checkout."""
+    git_commands = []
+    git_path = "https://example.com/example-assets.git"
+    commit = "0123456789abcdef0123456789abcdef01234567"
+    cache_dir = tmp_path / "asset_cache"
+
+    def mock_run_git_command(command):
+        git_commands.append(command)
+        if command[:2] == ["git", "init"]:
+            repo_dir = Path(command[-1])
+            (repo_dir / ".git").mkdir(parents=True)
+        elif command[-3:] == ["checkout", "--detach", "FETCH_HEAD"]:
+            repo_dir = Path(command[2])
+            asset_dir = repo_dir / "Robots" / "Disney" / "ExampleBot"
+            asset_dir.mkdir(parents=True)
+            (asset_dir / "example_bot.usd").write_text("#usda 1.0\n", encoding="utf-8")
+
+    monkeypatch.setattr(assets_utils, "_run_git_command", mock_run_git_command)
+
+    asset_path = Path(
+        assets_utils.retrieve_git_asset_path(
+            git_path, "Robots/Disney/ExampleBot", cache_dir=str(cache_dir), revision=commit
+        )
+    )
+
+    expected_repo = cache_dir / f"example-assets-{commit}"
+    assert asset_path == expected_repo / "Robots" / "Disney" / "ExampleBot"
+    temporary_path = Path(git_commands[0][-1])
+    assert git_commands == [
+        ["git", "init", str(temporary_path)],
+        ["git", "-C", str(temporary_path), "fetch", "--depth", "1", git_path, commit],
+        ["git", "-C", str(temporary_path), "checkout", "--detach", "FETCH_HEAD"],
+    ]
+
+
+def test_retrieve_git_asset_path_rejects_mutable_revision(tmp_path):
+    """Test that revision pinning accepts only immutable full commit SHAs."""
+    with pytest.raises(ValueError, match="full 40-character Git commit SHA"):
+        assets_utils.retrieve_git_asset_path(
+            "https://example.com/example-assets.git",
+            "Robots/Disney/ExampleBot",
+            cache_dir=str(tmp_path),
+            revision="main",
+        )
+
+
 def test_retrieve_git_asset_path_serializes_cold_cache_population(tmp_path, monkeypatch):
     """Test concurrent callers publish one complete Git asset checkout."""
     git_path = "https://example.com/example-assets.git"
