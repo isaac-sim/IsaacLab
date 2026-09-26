@@ -21,7 +21,7 @@ class MultitaskManipulationEnv(ManagerBasedRLEnv):
         Args:
             env_ids: Global environment IDs to reset.
         """
-        global_env_ids = self.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+        global_env_ids = self.scene._ALL_INDICES[env_ids]
 
         self.curriculum_manager.compute(env_ids=global_env_ids)
         for asset_name, asset in (*self.scene.articulations.items(), *self.scene.rigid_objects.items()):

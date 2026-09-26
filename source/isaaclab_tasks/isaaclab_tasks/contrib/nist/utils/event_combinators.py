@@ -188,7 +188,7 @@ class reset_accumulator(ManagerTermBase):
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
                     exclude_mask |= env.termination_manager._last_episode_dones[:, term_idx]
-            monitor_ids = env.scene._ALL_INDICES[env_ids] if isinstance(env_ids, slice) else env_ids
+            monitor_ids = env.scene._ALL_INDICES[env_ids]
             monitor_ids = monitor_ids[~exclude_mask[monitor_ids]]
         num_monitored = num_envs if isinstance(monitor_ids, slice) else len(monitor_ids)
         if num_monitored > 0:
@@ -290,8 +290,7 @@ class TermChoice(ManagerTermBase):
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
             self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
 
-        if isinstance(env_ids, slice):
-            env_ids = env.scene._ALL_INDICES[env_ids]
+        env_ids = env.scene._ALL_INDICES[env_ids]
         probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
         self.term_samples[env_ids] = choices
         if report:
@@ -320,11 +319,10 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
-        if isinstance(env_ids, slice):
+        if probability < 1.0:
             env_ids = env.scene._ALL_INDICES[env_ids]
-        keep = torch.rand(env_ids.size(0), device=env_ids.device) < probability
-        if not keep.any():
-            return
-        env_ids_to_reset = env_ids[keep]
+            env_ids = env_ids[torch.rand(env_ids.shape[0], device=env.device) < probability]
+            if env_ids.shape[0] == 0:
+                return
         for _, term in terms.items():
-            term.func(env, env_ids_to_reset, **term.params)  # type: ignore
+            term.func(env, env_ids, **term.params)  # type: ignore
