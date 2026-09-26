@@ -217,7 +217,7 @@ def test_ovphysx_data_targets_are_independent_and_properties_preflight_when_avai
 
 
 def test_newton_articulation_open_targets_constructs_real_method_and_data_targets(monkeypatch) -> None:
-    """The combined Newton path should configure model dimensions before constructing either data target."""
+    """Both Newton targets should retain model dimensions for lazily allocated dynamics quantities."""
     from isaaclab.benchmark.asset_suites import get_asset_benchmark_adapter
 
     _hide_app_launcher(monkeypatch)
@@ -225,8 +225,8 @@ def test_newton_articulation_open_targets_constructs_real_method_and_data_target
     request = SimpleNamespace(launcher_args=None, check_shapes=True)
 
     with newton_runtime.open_asset_targets(adapter, request, _CONFIG, _CONFIG) as targets:
-        assert targets.method_target._data._jacobian_buf.shape == (2, 3, 6, 10)
-        assert targets.data_target._jacobian_buf.shape == (2, 3, 6, 10)
+        assert targets.method_target.data.mass_matrix.shape == (2, 10, 10)
+        assert targets.data_target.body_com_jacobian_w.shape == (2, 3, 6, 10)
         # The dedicated data target applies joint/body ordering and installs the dynamics stubs.
         assert targets.data_target._jacobian_body_user_to_backend is not None
         assert targets.data_target.mass_matrix is not None

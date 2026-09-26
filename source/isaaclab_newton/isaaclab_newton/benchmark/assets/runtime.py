@@ -87,8 +87,8 @@ def create_test_articulation(
 
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
-    # ArticulationData allocates buffers from the model dimensions at construction.
-    _configure_articulation_model(data_module.SimulationManager.get_model(), num_instances, num_bodies, num_joints)
+    mock_view.model = data_module.SimulationManager.get_model()
+    _configure_articulation_model(mock_view.model, num_instances, num_bodies, num_joints)
     data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
@@ -350,6 +350,7 @@ def _create_articulation_data_target(config):
     mock_view.set_random_mock_data()
     mock_view.eval_jacobian = lambda state, *, J, joint_S_s: None
     mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
+    mock_view.model = model
     data = data_type(mock_view, config.device)
     data._apply_ordering_maps_after_resolve()
     return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)

@@ -376,13 +376,13 @@ def test_apply_interval_mode_resample_on_reset(env):
     torch.testing.assert_close(event_man._interval_term_time_left[1], expected_after_apply)
 
 
-@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64, slice])
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64, slice, None])
 @pytest.mark.parametrize("env", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA), indirect=True)
 def test_apply_reset_mode(env, index_dtype):
     """Selectors preserve index storage and per-environment cooldowns for both reset terms."""
 
     def increment(env, ids):
-        assert ids is env_ids
+        assert ids == slice(None) if env_ids is None else ids is env_ids
         increment_dummy1_by_one(env, ids)
 
     event_man = EventManager(
@@ -396,17 +396,23 @@ def test_apply_reset_mode(env, index_dtype):
     last_step = [[0] * env.num_envs for _ in range(2)]
     triggered = [False] * env.num_envs
 
+    env_ids = torch.tensor([0], device=env.device)
+    event_man.apply("reset", env_ids=env_ids, global_env_step_count=0)
+    triggered[0] = True
+
     for count in range(23):
         # Include a full reset, mixed cooldowns, and empty selections.
         selected = list(range(env.num_envs)) if count == 0 else [i for i in range(env.num_envs) if (i + count) % 3 == 0]
         if count > 0 and count % 4 == 0:
             selected = []
-        if index_dtype is slice:
+        if index_dtype in (slice, None):
             env_ids = slice(None) if count == 0 else slice((-count) % 3, None, 3)
             if not selected:
                 env_ids = slice(0, 0)
         else:
             env_ids = torch.tensor(selected, dtype=index_dtype, device=env.device)
+        if index_dtype is None and count == 0:
+            env_ids = None
         event_man.apply("reset", env_ids=env_ids, global_env_step_count=count)
 
         for i in selected:
