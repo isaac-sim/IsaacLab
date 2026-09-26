@@ -3,11 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""End-to-end test of :class:`stacked_image` through :class:`ObservationManager`.
+"""End-to-end test of a frame-stacked :class:`image_rgb` term through :class:`ObservationManager`.
 
 Launches Kit + sim so the obs manager's construction-time shape probe and per-step compute
-exercise the real lifecycle. Mocks the camera-pull function ``image`` so no scene/sensors
-are required.
+exercise the real lifecycle. The camera is a stand-in exposing ``data.output`` as a
+:class:`ProxyArray`, so no scene or rendering is required.
 """
 
 from __future__ import annotations
@@ -21,15 +21,17 @@ simulation_app = AppLauncher(headless=True).app
 """Rest everything follows."""
 
 from collections import namedtuple
-from unittest import mock
+from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 import isaaclab.sim as sim_utils
-from isaaclab.envs.mdp.observations import stacked_image
+from isaaclab.envs.mdp.observations import image_rgb
 from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -40,30 +42,16 @@ CHANNELS = 3
 DEVICE = "cuda:0"
 
 
-def _fake_image(
-    env, sensor_cfg=None, data_type="rgb", convert_perspective_to_orthogonal=False, normalize=True, clone=True
-):
-    """Stand-in for ``isaaclab.envs.mdp.observations.image`` — returns a constant frame.
-
-    The value is keyed to the call count so consecutive calls produce distinct frames
-    (used by the channel-shift assertion).
-    """
-    value = float(_fake_image.call_count)
-    _fake_image.call_count += 1
-    return torch.full((env.num_envs, HEIGHT, WIDTH, CHANNELS), value, dtype=torch.float32, device=env.device)
-
-
-_fake_image.call_count = 0
-
-
 @pytest.fixture
 def env_with_sim():
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=DEVICE)
     sim = sim_utils.SimulationContext(sim_cfg)
-    env = namedtuple("Env", ["num_envs", "device", "sim"])(NUM_ENVS, DEVICE, sim)
+    camera_buf = torch.randint(0, 255, (NUM_ENVS, HEIGHT, WIDTH, CHANNELS), dtype=torch.uint8, device=DEVICE)
+    camera = SimpleNamespace(data=SimpleNamespace(output={"rgb": ProxyArray(wp.from_torch(camera_buf))}))
+    scene = SimpleNamespace(sensors={"tiled_camera": camera})
+    env = namedtuple("Env", ["num_envs", "device", "sim", "scene"])(NUM_ENVS, DEVICE, sim, scene)
     env.sim._app_control_on_stop_handle = None
     env.sim.reset()
-    _fake_image.call_count = 0
     yield env
     sim.clear_instance()
 
@@ -74,7 +62,7 @@ def _make_cfg(frame_stack: int):
         @configclass
         class PolicyCfg(ObservationGroupCfg):
             img: ObservationTermCfg = ObservationTermCfg(
-                func=stacked_image,
+                func=image_rgb,
                 params={"frame_stack": frame_stack},
             )
 
@@ -85,9 +73,8 @@ def _make_cfg(frame_stack: int):
 
 def test_obs_manager_compute_returns_stacked_output(env_with_sim):
     """``compute()`` after construction returns the channel-stacked obs tensor."""
-    with mock.patch("isaaclab.envs.mdp.observations.image", side_effect=_fake_image):
-        manager = ObservationManager(_make_cfg(frame_stack=3), env_with_sim)
-        obs = manager.compute()
+    manager = ObservationManager(_make_cfg(frame_stack=3), env_with_sim)
+    obs = manager.compute()
     # the manager probes the term at construction and infers the channel-stacked shape
     assert manager.group_obs_dim["policy"] == (HEIGHT, WIDTH, CHANNELS * 3)
     assert obs["policy"].shape == (NUM_ENVS, HEIGHT, WIDTH, CHANNELS * 3)
