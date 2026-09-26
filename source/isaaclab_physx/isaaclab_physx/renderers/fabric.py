@@ -122,7 +122,8 @@ class FabricBackend:
         if self._geometry_bindings is None:
             self._bind_geometries(provider, tuple(path for _, ranges in batches for path in ranges))
         timestamp = provider.backend.geometry_timestamp
-        for index, (selections, frequency, cached, offsets, frame_last_update) in enumerate(self._geometry_bindings):
+        for index, binding in enumerate(self._geometry_bindings):
+            selections, frequency, cached, offsets, frame_last_update = binding
             selection, write_selection = selections
             changed = selection.PrepareForReuse()
             if (

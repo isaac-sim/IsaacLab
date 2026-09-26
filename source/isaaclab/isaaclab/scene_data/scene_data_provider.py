@@ -381,9 +381,9 @@ class SceneDataProvider:
         views, jobs, _ = cached.data
         timestamp = self.backend.geometry_timestamp
         if cached.timestamp != timestamp:
-            for index, ((source, ranges), (source_indices, destination_indices, buffer, transfer)) in enumerate(
-                zip(batches, jobs, strict=True)
-            ):
+            for index, (batch, job) in enumerate(zip(batches, jobs, strict=True)):
+                source, ranges = batch
+                source_indices, destination_indices, buffer, transfer = job
                 if output is None and source._cls is SceneDataFormat.Points:
                     if buffer is not source.points:
                         buffer = source.points
