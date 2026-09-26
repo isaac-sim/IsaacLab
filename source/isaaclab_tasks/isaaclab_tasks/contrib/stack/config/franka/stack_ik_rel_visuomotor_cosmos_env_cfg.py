@@ -33,25 +33,20 @@ class ObservationsCfg:
         eef_pos = ObsTerm(func=mdp.ee_frame_pos)
         eef_quat = ObsTerm(func=mdp.ee_frame_quat)
         gripper_pos = ObsTerm(func=mdp.gripper_pos)
-        table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
-        )
-        wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
-        )
+        table_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("table_cam"), "normalize": False})
+        wrist_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "normalize": False})
         table_cam_segmentation = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "semantic_segmentation", "normalize": True},
+            func=mdp.image_segmentation,
+            params={"sensor_cfg": SceneEntityCfg("table_cam"), "normalize": True},
         )
         table_cam_normals = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "normals", "normalize": True},
+            func=mdp.image_normals,
+            params={"sensor_cfg": SceneEntityCfg("table_cam"), "normalize": True},
         )
         table_cam_depth = ObsTerm(
-            func=mdp.image,
+            func=mdp.image_depth,
             params={
                 "sensor_cfg": SceneEntityCfg("table_cam"),
-                "data_type": "distance_to_image_plane",
                 "normalize": True,
             },
         )

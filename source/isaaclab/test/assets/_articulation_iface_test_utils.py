@@ -346,7 +346,7 @@ def create_newton_articulation(
         dtype=wp.vec3f,
         device=device,
     )
-    # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
+    # Sizes consumed by NewtonArticulationData's lazy task-space buffers.
     # Model-wide counts equal the per-articulation counts because the mock contains only
     # this homogeneous articulation batch.
     mock_model.articulation_count = num_instances
@@ -355,6 +355,7 @@ def create_newton_articulation(
     mock_model.max_dofs_per_articulation = total_dofs
     mock_model.joint_dof_count = num_instances * total_dofs
     mock_model.body_count = num_instances * num_bodies
+    mock_view.model = mock_model
     mock_state = MagicMock()
     mock_control = MagicMock()
 

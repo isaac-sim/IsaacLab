@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from isaaclab.app import AppLauncher
 
@@ -33,6 +34,8 @@ from usdrt import Sdf as RtSdf
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
+from isaaclab.envs.utils.video_recorder import VideoRecorder
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sensors import CameraCfg
@@ -153,7 +156,8 @@ def _expected_cable_points_world(cable, env_id: int = 0) -> torch.Tensor:
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_root_pose_write_is_visible_on_next_render_without_step():
+@pytest.mark.parametrize("capture_method", ["render", "video_recorder"])
+def test_root_pose_write_is_visible_on_next_render_without_step(capture_method, monkeypatch, tmp_path):
     """A reset-time pose write must reach Kit/RTX on the next render.
 
     This reproduces the application sequence that used to render one-frame-old
@@ -167,13 +171,14 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
         device=device,
         gravity=(0.0, 0.0, 0.0),
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
-        visualizer_cfgs=[KitVisualizerCfg(headless=True)],
+        visualizer_cfgs=[KitVisualizerCfg(headless=True, window_width=64, window_height=64)],
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
         scene = InteractiveScene(_RenderSceneCfg(num_envs=1, env_spacing=2.0))
         sim.register_interactive_scene(scene)
+        previous_rtx_sensors = sim.get_setting("/isaaclab/render/rtx_sensors")
         try:
             body_path = "/World/envs/env_0/Cube"
             authored_scale = torch.tensor([0.25, 0.5, 0.75])
@@ -189,6 +194,23 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             assert sim.visualizers[0]._fabric is scene["camera"]._renderer._fabric is fabric
             assert sum(isinstance(resource, FabricBackend) for _, resource in sim._backend_registry) == 1
 
+            recorder = None
+            if capture_method == "video_recorder":
+                # The suite enables cameras at startup; this case exercises capture-only rendering.
+                sim.set_setting("/isaaclab/render/rtx_sensors", False)
+                assert not sim.is_rendering
+                monkeypatch.setattr("isaaclab.envs.utils.video_recorder.ImageSequenceClip", Mock())
+                recorder = VideoRecorder(
+                    VideoRecorderCfg(source="visualizer:kit", output_dir=str(tmp_path)), SimpleNamespace(sim=sim)
+                )
+
+            def capture_frame() -> None:
+                if recorder is None:
+                    _render(sim, scene)
+                else:
+                    assert recorder._get_frame().shape == (64, 64, 3)
+                    wp.synchronize_device(device)
+
             cube = scene["cube"]
             target_pose = torch.tensor(
                 [[1.5, -0.75, 2.0, 0.0, 0.0, 0.0, 1.0]],
@@ -199,7 +221,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             cube.write_root_link_pose_to_sim_index(root_pose=target_pose)
 
             physics_steps = sim.get_physics_step_count()
-            _render(sim, scene)
+            capture_frame()
 
             assert sim.get_physics_step_count() == physics_steps
             torch.testing.assert_close(
@@ -216,13 +238,13 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
             env_mask = wp.ones(1, dtype=wp.bool, device=device)
             pose_buffer = target_pose.clone()
             cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
-            _render(sim, scene)
+            capture_frame()
 
             torch.cuda.synchronize(device)
             with wp.ScopedCapture(device=device) as capture:
                 cube.write_root_link_pose_to_sim_mask(root_pose=pose_buffer, env_mask=env_mask)
 
-            _render(sim, scene)
+            capture_frame()
 
             replay_targets = (
                 torch.tensor([2.5, 0.5, 1.25, 0.0, 0.0, 0.0, 1.0], device=device),
@@ -235,7 +257,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 wp.synchronize_device(device)
 
                 physics_steps = sim.get_physics_step_count()
-                _render(sim, scene)
+                capture_frame()
 
                 assert sim.get_physics_step_count() == physics_steps
                 torch.testing.assert_close(
@@ -246,6 +268,7 @@ def test_root_pose_write_is_visible_on_next_render_without_step():
                 )
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
         finally:
+            sim.set_setting("/isaaclab/render/rtx_sensors", previous_rtx_sensors)
             sim.register_interactive_scene(None)
 
 

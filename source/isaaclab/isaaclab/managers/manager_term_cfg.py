@@ -135,7 +135,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
     func: Callable[..., float | dict[str, float] | None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input and return the curriculum state for
     logging purposes. If the function returns None, the curriculum state
     is not logged.
@@ -230,7 +230,7 @@ class ObservationTermCfg(ManagerTermBaseCfg):
 
     The clone keeps in-place post-processing and later consumers of the observation from aliasing
     buffers owned by the term, such as sensor data. Set it to False only for terms that return a
-    new tensor on every call, e.g. :func:`~isaaclab.envs.mdp.observations.image` with ``normalize=True``,
+    new tensor on every call, e.g. :class:`~isaaclab.envs.mdp.observations.image_rgb`,
     to skip a redundant copy.
     """
 
@@ -303,7 +303,7 @@ class EventTermCfg(ManagerTermBaseCfg):
     func: Callable[..., None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input.
     """
 
