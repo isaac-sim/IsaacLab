@@ -210,13 +210,6 @@ def _rotate_builder_particles(
         builder.tet_poses[tet_start : tet_start + source.tet_count] = _quat_rotate(xform[3:], poses).tolist()
 
 
-def _invert_xform(xform: Sequence[float] | np.ndarray) -> np.ndarray:
-    """Inverse of a single xyzw transform, assuming a unit quaternion."""
-    xform = np.asarray(xform, dtype=np.float32)
-    quat_inv = np.array([-xform[3], -xform[4], -xform[5], xform[6]], dtype=np.float32)
-    return np.concatenate([-_quat_rotate(quat_inv, xform[:3]), quat_inv])
-
-
 def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     """Return every entity-label container owned by a Newton builder."""
     groups = {
@@ -320,7 +313,7 @@ def replicate_builder_mapping(
                 source_inverse[source] = (
                     np.asarray(wp.transform(), dtype=np.float32)
                     if first_world == -1 or clone_path.match(source, env_template) is None
-                    else _invert_xform(xforms_np[first_world])
+                    else np.asarray(wp.transform_inverse(world_xforms[first_world]), dtype=np.float32)
                 )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))

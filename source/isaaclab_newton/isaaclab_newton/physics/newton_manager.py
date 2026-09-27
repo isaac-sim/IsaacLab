@@ -930,7 +930,7 @@ class NewtonManager(PhysicsManager):
         main_builder: ModelBuilder,
         source_builders: dict[str, ModelBuilder],
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Inject registered sites into plan-owned builders before replication.
+        """Inject registered sites into source builders or an explicitly supplied main builder.
 
         Body sites are matched against source builders, then the main builder containing
         shared assets. Bodyless global sites are added to *main_builder* with ``body=-1``.
@@ -968,9 +968,8 @@ class NewtonManager(PhysicsManager):
             for source_builder in (*source_builders.values(), main_builder):
                 if source_builder is main_builder and any_matched:
                     break
-                body_labels = list(source_builder.body_label)
                 matched_indices, matched_names = resolve_matching_names(
-                    body_pattern, body_labels, raise_when_no_match=False
+                    body_pattern, source_builder.body_label, raise_when_no_match=False
                 )
                 if not matched_indices:  # Pattern has no matches in this source builder
                     continue
@@ -981,56 +980,14 @@ class NewtonManager(PhysicsManager):
                     site_label = f"{body_name}/{label}"
                     source_site_idx = source_builder.add_site(body=body_idx, xform=xform, label=site_label)
                     site_indices.append(source_site_idx)
-                    logger.debug(f"Injected site '{site_label}' into clone-plan builder")
+                    logger.debug(f"Injected site '{site_label}' into builder")
                 source_site_indices.setdefault(id(source_builder), {})[label] = site_indices
 
             if not any_matched:
-                raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched no clone-plan builder bodies."
-                )
+                raise ValueError(f"Site '{label}' with body_pattern '{body_pattern}' matched no builder bodies.")
 
         cls._cl_pending_sites.clear()
         return global_site_indices, source_site_indices, env_root_sites
-
-    @classmethod
-    def _cl_inject_sites_fallback(cls) -> None:
-        """Inject pending sites into the flat builder (no-replication path).
-
-        Populates :attr:`_cl_site_index_map` with the unified per-world structure:
-
-        - Global sites (``body_pattern is None``): ``(shape_idx, None)``
-        - Local and world sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
-        """
-        builder = cls._builder
-        body_labels = list(builder.body_label)
-
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
-            if per_world:
-                site_idx = builder.add_site(body=-1, xform=xform, label=label)
-                cls._cl_site_index_map[label] = (None, [[site_idx]])
-                continue
-            if body_pattern is None:
-                site_idx = builder.add_site(body=-1, xform=xform, label=label)
-                cls._cl_site_index_map[label] = (site_idx, None)
-            else:
-                try:
-                    matched_indices, matched_names = resolve_matching_names(body_pattern, body_labels)
-                except ValueError as e:
-                    raise ValueError(
-                        f"Site '{label}' with body_pattern '{body_pattern}' matched no bodies "
-                        f"in the flat builder. Available body labels: {body_labels}."
-                    ) from e
-
-                site_indices: list[int] = []
-                for body_idx in matched_indices:
-                    site_label = f"{builder.body_label[body_idx]}/{label}"
-                    site_idx = builder.add_site(body=body_idx, xform=xform, label=site_label)
-                    site_indices.append(site_idx)
-
-                # Single world (no replication): one-element outer list
-                cls._cl_site_index_map[label] = (None, [site_indices])
-
-        cls._cl_pending_sites.clear()
 
     @classmethod
     def add_model_change(cls, change: ModelFlags) -> None:
@@ -1193,9 +1150,16 @@ class NewtonManager(PhysicsManager):
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
-        # Inject any pending site requests (no-replication fallback path).
-        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
-        cls._cl_inject_sites_fallback()
+        # Explicit builders and MODEL_INIT callbacks use the same site import as clone prototypes.
+        if cls._cl_pending_sites:
+            global_sites, body_sites, world_sites = cls._cl_inject_sites(cls._builder, {})
+            cls._cl_site_index_map.update((label, (index, None)) for label, index in global_sites.items())
+            cls._cl_site_index_map.update(
+                (label, (None, [indices])) for label, indices in body_sites.get(id(cls._builder), {}).items()
+            )
+            for label, xform in world_sites.items():
+                index = cls._builder.add_site(body=-1, xform=xform, label=label)
+                cls._cl_site_index_map[label] = (None, [[index]])
 
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
@@ -1240,26 +1204,6 @@ class NewtonManager(PhysicsManager):
         cls._scene_data_backend.initialize_geometry()
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
-
-    @classmethod
-    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
-        """Map each renderable cable prim path to its ordered Newton segment shape ids.
-
-        Concrete destination paths and segment order come from Newton ``shape_label`` values
-        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
-        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
-        not the ``_edge_capsule_N`` suffix. Example:
-        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
-        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
-        indices ``42..44`` after earlier scene shapes.
-
-        Bindings are recorded during native import and cloning, including destinations that
-        exist only in a native backend. No completed-stage lookup is needed.
-
-        Returns:
-            Concrete cable prim paths mapped to ordered Newton segment shape ids.
-        """
-        return cls._cable_bindings
 
     @classmethod
     def _inject_terrain_heightfields(

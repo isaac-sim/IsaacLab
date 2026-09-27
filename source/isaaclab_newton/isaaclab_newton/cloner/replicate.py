@@ -15,7 +15,7 @@ import numpy as np
 import warp as wp
 from newton import ModelBuilder
 
-from pxr import Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
@@ -37,7 +37,6 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.physics.visualization_deformables import add_shadow_deformables_to_builder
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 if TYPE_CHECKING:
@@ -161,8 +160,26 @@ def _replicate_newton(
     options = dict(ignore_paths=ignore_paths, load_visual_shapes=load_visual_shapes)
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
+    source_geometry = {source: {} for source in source_builders}
     if simulation:
         entries = [add_deformable_from_usd(source_builders[path], stage, root_path=path) for path in deformable_paths]
+    else:
+        # Import visual meshes once into their owning prototypes, before the common native replication.
+        for entry in entries:
+            ancestors = reversed(Sdf.Path(entry.root_path).GetPrefixes())
+            source = next(str(path) for path in ancestors if str(path) in source_builders)
+            native = source_builders[source]
+            source_geometry[source][entry.vis_mesh_path] = native.particle_count
+            pose = dict(pos=wp.vec3(*entry.init_pos), rot=wp.quat(*entry.init_rot), scale=1.0, vel=wp.vec3())
+            if entry.deformable_type == "surface" or entry.vis_mesh_path != entry.sim_mesh_path:
+                add_mesh = native.add_cloth_mesh
+                mesh = dict(vertices=entry.vis_vertices, indices=entry.vis_indices, density=1.0)
+                mesh.update(tri_ke=1e4, tri_ka=1e4, tri_kd=1.5e-6, edge_ke=5.0, edge_kd=1e-2, particle_radius=0.008)
+            else:
+                add_mesh = native.add_soft_mesh
+                mesh = dict(vertices=entry.vertices, indices=entry.indices, density=1000.0)
+                mesh.update(k_mu=1e5, k_lambda=1e5, k_damp=0.0)
+            add_mesh(**mesh, **pose)
 
     # Resolve native capsule indices once per source, not by rediscovering labels after cloning.
     source_cables = {}
@@ -187,7 +204,7 @@ def _replicate_newton(
             imported.shape_collision_group[:] = [0] * imported.shape_count
         global_sites, source_sites, root_sites = {}, {}, {}
 
-    particle_ranges, visual_ranges, cable_bindings = {}, {}, {}
+    particle_ranges, visual_ranges, cable_bindings, geometry_offsets = {}, {}, {}, {}
     # The USD importer owns simulation ranges; MPM's spawner authors a separate visible point prim.
     particle_visual_paths = {
         path: path.removesuffix(_SIMULATION_POINTS_SUFFIX) + "/Particles"
@@ -205,11 +222,13 @@ def _replicate_newton(
             particle_ranges[cloner_path.rebase(path, source, destination)] = native_range
             if path in particle_visual_paths:
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
+        for path, offset in source_geometry[source].items():
+            geometry_offsets[cloner_path.rebase(path, source, destination)] = particle_offset + offset
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
     options["per_world_builder_hooks"] = NewtonManager._per_world_builder_hooks if simulation else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
-    options["source_builder_added"] = record_geometry if has_geometry else None
+    options["source_builder_added"] = record_geometry if has_geometry or any(source_geometry.values()) else None
     local_site_map, world_xforms = replicate_builder_mapping(
         builder, plan, positions, quaternions, source_builders, **options
     )
@@ -236,9 +255,6 @@ def _replicate_newton(
         NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(env_ids)
     else:
-        geometry_offsets = add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, plan, env_ids, positions)
-        )
         backend_cfg = NewtonBackendCfg(builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False)
         sim.physics_manager.register_callback(
             partial(NewtonManager._initialize_visualization_model, backend_cfg, geometry_offsets),

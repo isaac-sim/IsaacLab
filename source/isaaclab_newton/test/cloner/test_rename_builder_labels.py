@@ -16,18 +16,12 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
-from isaaclab_newton.physics import visualization_deformables as visualization_deformables_module
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.scene_data.deformable_discovery import (
-    DeformableStageEntry,
-    deformable_prototypes,
-    expand_deformable_entries,
-)
 from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
@@ -203,7 +197,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
         model = builder.finalize(device="cpu")
-        bindings = replicate_module.NewtonManager.collect_cable_segment_shape_ids()
+        bindings = replicate_module.NewtonManager._cable_bindings
         self.assertEqual(set(bindings), {"/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"})
         for path, shape_ids in bindings.items():
             self.assertEqual(
@@ -285,68 +279,70 @@ class TestVisualizationClonePlan(unittest.TestCase):
             {world: f"/World/envs/env_{world}/Material" for world in range(3)},
         )
 
-    def test_shadow_deformables_use_plan_placement_without_destination_prims(self):
-        stage = Usd.Stage.CreateInMemory()
+    def test_render_deformables_import_once_then_follow_native_replication(self):
+        stage = self.sim.stage = Usd.Stage.CreateInMemory()
+        UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
         self._define_xform(stage, "/Scene/copy_7", (10.0, 0.0, 0.0))
         self._define_xform(stage, "/Scene/copy_7/Parent", (2.0, 0.0, 0.0))
-        path = "/Scene/copy_7/Parent/Cloth"
-        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0]], dtype=np.float32)
-        cloth = UsdGeom.Mesh.Define(stage, path)
-        cloth.AddTranslateOp().Set((3.0, 0.0, 0.0))
-        cloth.GetPrim().SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
-        cloth.CreatePointsAttr(vertices)
-        cloth.CreateFaceVertexCountsAttr([3])
-        cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
-        asset = AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Parent/Cloth", spawn=SpawnerCfg(spawn_path=path))
-        options = dict(env_template="/Scene/copy_{}", clone_strategy=lambda _weights, _count: np.array([0, 1, 0]))
-        plan = make_clone_plan((asset,), ((0,), ()), 3, **options)
-        env_ids = np.array([7, 9, 12])
-        positions = np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32)
-        prototypes = deformable_prototypes(stage, plan)
-        for positions in (positions, None):
-            with self.subTest(positions=positions):
-                builder = newton.ModelBuilder()
-                instances = expand_deformable_entries(prototypes, plan, env_ids, positions)
-                offsets = visualization_deformables_module.add_shadow_deformables_to_builder(builder, instances)
-                self.assertEqual(offsets, {path: 0, "/Scene/copy_12/Parent/Cloth": 3})
-                self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
-                offset = np.zeros(3) if positions is None else positions[2] - positions[0]
-                # Root translation is baked into vertices, not applied a second time at placement.
-                source_points = vertices + [15.0, 0.0, 0.0]
-                np.testing.assert_allclose(builder.particle_q, np.concatenate((source_points, source_points + offset)))
-
-    def test_shadow_visual_topologies_keep_heterogeneous_offsets(self):
-        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1], [1, 0, 1], [0, 1, 1]])
-        entries = tuple(
-            DeformableStageEntry(
-                root_path=f"/Source/{name}",
-                sim_mesh_path=f"/Source/{name}/Simulation",
-                vis_mesh_path=f"/Source/{name}/Visual",
-                deformable_type="volume",
-                vertex_count=4,
-                vis_vertex_count=count,
-                vis_vertices=vertices[:count],
-                vis_indices=np.arange(count),
-            )
-            for name, count in (("A", 3), ("B", 6))
-        )
+        sources = "/Scene/copy_7/Parent", "/Sources/Volume", "/Sources/Tet", "/Shared"
+        vertices = np.array([[0, 0, 0], [1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float32)
+        visual = np.concatenate((vertices[:3], vertices[:3] + [0, 0, 1])).astype(np.float32)
+        roots = sources[0] + "/Cloth", *sources[1:]
+        for root, volume in zip(roots, (False, True, True, False), strict=True):
+            prim = UsdGeom.Xform.Define(stage, root).GetPrim()
+            prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(["OmniPhysicsDeformableBodyAPI"]))
+            if root.endswith("Cloth"):
+                UsdGeom.Xform(prim).AddTranslateOp().Set((3.0, 0.0, 0.0))
+            if volume:
+                mesh = UsdGeom.TetMesh.Define(stage, root + "/sim")
+                mesh.CreatePointsAttr(vertices)
+                mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+                if root == sources[1]:
+                    mesh = UsdGeom.Mesh.Define(stage, root + "/vis")
+                    mesh.CreatePointsAttr(visual)
+                    mesh.CreateFaceVertexCountsAttr([3, 3])
+                    mesh.CreateFaceVertexIndicesAttr(np.arange(6))
+            else:
+                mesh = UsdGeom.Mesh.Define(stage, root + "/sim")
+                mesh.CreatePointsAttr(vertices[:3])
+                mesh.CreateFaceVertexCountsAttr([3])
+                mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
         assets = tuple(
-            AssetBaseCfg(prim_path="/Copies/[^/]+/Body", spawn=SpawnerCfg(spawn_path=entry.root_path))
-            for entry in entries
-        )
-        options = dict(env_template="/Copies/{}", clone_strategy=lambda _weights, _count: np.array([0, 1, 0]))
-        plan = make_clone_plan(assets, ((0,), (1,)), 3, **options)
-        env_ids = np.array([2, 10, 30])
-        builder = newton.ModelBuilder()
-        builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
-        offsets = visualization_deformables_module.add_shadow_deformables_to_builder(
-            builder, expand_deformable_entries(entries, plan, env_ids)
-        )
-        self.assertEqual(
-            offsets, {"/Copies/2/Body/Visual": 1, "/Copies/30/Body/Visual": 4, "/Copies/10/Body/Visual": 7}
-        )
-        self.assertEqual(builder.particle_count, 13)
-        self.assertEqual(len(builder.tri_indices), 4)
+            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/" + name, spawn=SpawnerCfg(spawn_path=source))
+            for name, source in zip(("Parent", "Volume", "Tet"), sources[:3], strict=True)
+        ) + (AssetBaseCfg(prim_path="/Shared"),)
+        env_ids = np.array([7, 9, 12])
+        quaternions = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
+        for positions in (np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32), None):
+            with self.subTest(positions=positions):
+                options = dict(shared_assets=(3,), env_template="/Scene/copy_{}")
+                options.update(clone_strategy=lambda _weights, _count: np.array([0, 1, 0]), positions=positions)
+                plan = make_clone_plan(assets, ((0,), (1, 1, 2)), 3, **options)
+                with mock.patch.object(
+                    newton.ModelBuilder, "add_cloth_mesh", autospec=True, side_effect=newton.ModelBuilder.add_cloth_mesh
+                ) as add_cloth:
+                    options = dict(plan=plan, asset_prototype_ids=range(4))
+                    options.update(positions=positions, quaternions=quaternions)
+                    builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
+                self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
+                np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
+                offsets = self.sim.physics_manager.register_callback.call_args.args[0].args[1]
+                expected = {"/Shared/sim": vertices[:3]}
+                origins = np.zeros((3, 3)) if positions is None else positions
+                for world, env_id in enumerate(env_ids):
+                    xform = wp.transform(origins[world], quaternions[world])
+                    meshes = {"Volume/vis": visual, "Volume_1/vis": visual, "Tet/sim": vertices}
+                    if world != 1:
+                        meshes = {"Parent/Cloth/sim": vertices[:3] + [15, 0, 0] - origins[0]}
+                    for suffix, points in meshes.items():
+                        expected[f"/Scene/copy_{env_id}/{suffix}"] = np.asarray(
+                            [wp.transform_point(xform, wp.vec3(point)) for point in points]
+                        )
+                self.assertEqual(set(offsets), set(expected))
+                for path, points in expected.items():
+                    start = offsets[path]
+                    np.testing.assert_allclose(builder.particle_q[start : start + len(points)], points, atol=1e-5)
+                self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
 
 
 class TestReplicationNamesItsCopies(unittest.TestCase):

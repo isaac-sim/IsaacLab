@@ -16,6 +16,8 @@ Fixed
 
 * Applied clone-plan world compositions to Newton deformables and imported shared deformables once.
   Preserved rotated particle positions, velocities, and tetrahedral rest frames during builder composition.
+  Built render-only deformable meshes in source builders before native replication, instead of
+  rebuilding their geometry for every destination world.
 
 * Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
 

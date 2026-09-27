@@ -94,35 +94,6 @@ def deformable_geometry_batches(
     return batches
 
 
-def _usd_points_to_numpy(points) -> np.ndarray:
-    """Convert USD point arrays to ``(N, 3)`` float32."""
-    if not points:
-        return np.empty((0, 3), dtype=np.float32)
-    return np.asarray(points, dtype=np.float32).reshape(-1, 3)
-
-
-def _get_applied_schema_names(prim) -> set[str]:
-    """Return applied API schema names from composed schemas and explicit ``apiSchemas`` metadata."""
-    names = set(prim.GetAppliedSchemas())
-    api_schemas = prim.GetMetadata("apiSchemas")
-    if isinstance(api_schemas, Sdf.TokenListOp):
-        names.update(str(token) for token in api_schemas.explicitItems)
-    return names
-
-
-def _prim_has_schema(prim, schema_substring: str) -> bool:
-    """Return ``True`` if any applied API schema name contains ``schema_substring``."""
-    return any(schema_substring in name for name in _get_applied_schema_names(prim))
-
-
-def _mesh_point_count(prim) -> int:
-    """Return the number of points authored on a Mesh or TetMesh prim."""
-    if prim.GetTypeName() not in ("Mesh", "TetMesh"):
-        return 0
-    pts = UsdGeom.PointBased(prim).GetPointsAttr().Get()
-    return len(pts or [])
-
-
 def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: int):
     """Choose the visual mesh among candidates when several non-sim meshes exist.
 
@@ -138,18 +109,13 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
 
     # Rare case that the sim mesh has multiple visual candidates.
     sim_parent = sim_mesh_prim.GetParent()
-    sim_parent_path = sim_parent.GetPath() if sim_parent is not None and sim_parent.IsValid() else None
 
     def _score(prim) -> tuple:
         """Rank visual-mesh candidates; higher tuples are preferred by ``max``."""
         name = prim.GetName().lower()
         name_bonus = int(any(token in name for token in ("visual", "render", "display", "proxy")))
-        sibling_bonus = int(
-            sim_parent_path is not None
-            and prim.GetParent() is not None
-            and prim.GetParent().GetPath() == sim_parent_path
-        )
-        count_bonus = int(_mesh_point_count(prim) == sim_vertex_count)
+        sibling_bonus = int(prim.GetParent() == sim_parent)
+        count_bonus = int(len(UsdGeom.PointBased(prim).GetPointsAttr().Get() or []) == sim_vertex_count)
         path = prim.GetPath().pathString
         return (sibling_bonus, name_bonus, count_bonus, -path.count("/"), path)
 
@@ -173,6 +139,11 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
     )
     tet_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "TetMesh"]
     mesh_prims = [prim for prim in mesh_prims if prim.GetTypeName() == "Mesh"]
+    sim_candidates, vis_candidates = [], []
+    for prim in mesh_prims:
+        schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
+        is_sim = any("DeformableSimAPI" in schema for schema in schemas)
+        (sim_candidates if is_sim else vis_candidates).append(prim)
 
     if tet_prims:
         if len(tet_prims) > 1:
@@ -185,20 +156,12 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
 
         deformable_type = "volume"
         sim_mesh_prim = tet_prims[0]
-        vis_candidates = [p for p in mesh_prims if not _prim_has_schema(p, "DeformableSimAPI")]
         tet_mesh = UsdGeom.TetMesh(sim_mesh_prim)
         pts = tet_mesh.GetPointsAttr().Get() or []
         raw_tet_indices = tet_mesh.GetTetVertexIndicesAttr().Get() or []
-        indices = np.array([int(v) for vec4i in raw_tet_indices for v in vec4i], dtype=np.int32)
+        indices = np.asarray(raw_tet_indices, dtype=np.int32).reshape(-1)
     elif mesh_prims:
         deformable_type = "surface"
-        sim_candidates: list = []
-        vis_candidates: list = []
-        for prim in mesh_prims:
-            if _prim_has_schema(prim, "DeformableSimAPI"):
-                sim_candidates.append(prim)
-            else:
-                vis_candidates.append(prim)
         sim_mesh_prim = sim_candidates[0] if sim_candidates else mesh_prims[0]
         if not sim_candidates:
             vis_candidates = []
@@ -215,12 +178,14 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
     world_to_parent = parent_transform.GetInverse()
     mesh_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(sim_mesh_prim) * world_to_parent)
     # USD affine transforms multiply row vectors.
-    vertices = (_usd_points_to_numpy(pts) @ mesh_to_parent[:3, :3] + mesh_to_parent[3, :3]).astype(np.float32)
+    vertices = np.asarray(pts, dtype=np.float32).reshape(-1, 3)
+    vertices = (vertices @ mesh_to_parent[:3, :3] + mesh_to_parent[3, :3]).astype(np.float32)
     vis_vertices = vertices
     if vis_mesh_prim != sim_mesh_prim:
         vis_pts = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
         vis_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(vis_mesh_prim) * world_to_parent)
-        vis_vertices = (_usd_points_to_numpy(vis_pts) @ vis_to_parent[:3, :3] + vis_to_parent[3, :3]).astype(np.float32)
+        vis_vertices = np.asarray(vis_pts or [], dtype=np.float32).reshape(-1, 3)
+        vis_vertices = (vis_vertices @ vis_to_parent[:3, :3] + vis_to_parent[3, :3]).astype(np.float32)
 
     vis_indices = np.empty(0, dtype=np.int32)
     if vis_mesh_prim.GetTypeName() == "Mesh":
