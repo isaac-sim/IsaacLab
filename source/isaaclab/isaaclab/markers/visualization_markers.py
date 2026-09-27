@@ -219,18 +219,12 @@ class VisualizationMarkers:
         target_device = self._resolve_target_device(
             norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
         )
-        if norm_translations is not None:
-            norm_translations = norm_translations.to(device=target_device)
-        if norm_orientations is not None:
-            norm_orientations = norm_orientations.to(device=target_device)
-        if norm_scales is not None:
-            norm_scales = norm_scales.to(device=target_device)
-        if norm_marker_indices is not None:
-            norm_marker_indices = norm_marker_indices.to(device=target_device)
-        if norm_environment_ids is not None:
-            norm_environment_ids = norm_environment_ids.to(device=target_device)
-            if torch.any(norm_environment_ids < 0):
-                raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+        norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids = (
+            None if value is None else value.to(device=target_device)
+            for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
+        )
+        if norm_environment_ids is not None and torch.any(norm_environment_ids < 0):
+            raise ValueError("Expected `environment_ids` to contain non-negative indices.")
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
         marker_counts = {value.shape[0] for value in marker_values if value is not None}

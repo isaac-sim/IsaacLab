@@ -169,13 +169,7 @@ class SensorBase(ABC):
                 if sim_ctx is not None:
                     self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            sim_ctx = sim_utils.SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-            else:
-                self._debug_vis_handle = None
-        # return success
+            self._clear_debug_vis_handle()
         return True
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
@@ -377,11 +371,7 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-        else:
-            self._debug_vis_handle = None
+        self._clear_debug_vis_handle()
 
     def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
@@ -393,24 +383,20 @@ class SensorBase(ABC):
             This function is called when the prim is deleted.
         """
         prim_path = event.payload["prim_path"]
-        if prim_path == "/":
-            self._clear_callbacks()
-            return
-        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
+        if prim_path == "/" or sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
-        """Clears the callbacks."""
-        if self._initialize_handle is not None:
-            self._initialize_handle.deregister()
-            self._initialize_handle = None
-        if self._invalidate_initialize_handle is not None:
-            self._invalidate_initialize_handle.deregister()
-            self._invalidate_initialize_handle = None
-        if self._prim_deletion_handle is not None:
-            self._prim_deletion_handle.deregister()
-            self._prim_deletion_handle = None
-        # Clear debug visualization
+        """Clears the callbacks. Handles may be missing if ``__init__`` failed before registering them."""
+        for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle"):
+            handle = getattr(self, name, None)
+            if handle is not None:
+                handle.deregister()
+                setattr(self, name, None)
+        self._clear_debug_vis_handle()
+
+    def _clear_debug_vis_handle(self) -> None:
+        """Removes the debug visualization subscriber, if any."""
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
