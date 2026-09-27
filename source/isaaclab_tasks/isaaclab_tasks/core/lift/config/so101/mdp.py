@@ -20,32 +20,12 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def object_position_b(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return the object position in the robot root frame [m], shape [N, 3]."""
-    robot = env.scene["robot"]
-    return quat_apply_inverse(
-        robot.data.root_quat_w.torch,
-        env.scene["object"].data.root_pos_w.torch - robot.data.root_pos_w.torch,
-    )
-
-
 def gripper_to_object_b(env: ManagerBasedRLEnv) -> torch.Tensor:
     """Return grasp-to-object displacement in the robot root frame [m], shape [N, 3]."""
     return quat_apply_inverse(
         env.scene["robot"].data.root_quat_w.torch,
         env.scene["object"].data.root_pos_w.torch - env.scene["grasp_frame"].data.target_pos_w.torch[:, 0],
     )
-
-
-def gripper_orientation_w(env: ManagerBasedRLEnv) -> torch.Tensor:
-    """Return the gripper's world quaternion in xyzw order, shape [N, 4]."""
-    return env.scene["grasp_frame"].data.target_quat_w.torch[:, 0]
-
-
-def reaching_object(env: ManagerBasedRLEnv, std: float) -> torch.Tensor:
-    """Reward grasp-frame proximity with a tanh kernel of width ``std`` [m]."""
-    distance = torch.linalg.vector_norm(gripper_to_object_b(env), dim=-1)
-    return 1.0 - torch.tanh(distance / std)
 
 
 class LiftReward(ManagerTermBase):

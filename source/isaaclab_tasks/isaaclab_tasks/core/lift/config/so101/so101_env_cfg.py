@@ -19,6 +19,9 @@ from isaaclab.sim import MassCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
+from isaaclab_tasks.contrib.lift.mdp.observations import object_position_in_robot_root_frame
+from isaaclab_tasks.contrib.lift.mdp.rewards import object_ee_distance
+from isaaclab_tasks.contrib.stack.mdp.observations import ee_frame_quat
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.so101 import SO101_CFG
@@ -87,10 +90,10 @@ class SO101StateObservationCfg:
 
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
-        object_pos_b = ObsTerm(func=so101_mdp.object_position_b)
+        object_pos_b = ObsTerm(func=object_position_in_robot_root_frame)
         object_quat_w = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
         gripper_to_object_b = ObsTerm(func=so101_mdp.gripper_to_object_b)
-        gripper_quat_w = ObsTerm(func=so101_mdp.gripper_orientation_w)
+        gripper_quat_w = ObsTerm(func=ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("grasp_frame")})
         last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -140,7 +143,9 @@ class SO101EventCfg:
 class SO101LiftRewardCfg:
     """Reach, lift, and avoid unnecessary changes in joint targets."""
 
-    reach = RewTerm(func=so101_mdp.reaching_object, weight=1.0, params={"std": 0.06})
+    reach = RewTerm(
+        func=object_ee_distance, weight=1.0, params={"std": 0.06, "ee_frame_cfg": SceneEntityCfg("grasp_frame")}
+    )
     lift = RewTerm(
         func=so101_mdp.LiftReward, weight=10.0, params={"resting_height": 0.27, "lift_height": 0.08, "speed_std": 0.5}
     )
