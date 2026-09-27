@@ -8,24 +8,17 @@ from __future__ import annotations
 import subprocess
 import sys
 import textwrap
-from types import SimpleNamespace
 
 import numpy as np
 import pytest
-import warp as wp
 
 newton = pytest.importorskip("newton")
-from isaaclab_newton.assets import MPMObject
-from isaaclab_newton.physics import NewtonManager
-from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg, MPMPointsCfg
 from newton.solvers import SolverImplicitMPM
 
 from pxr import UsdGeom, UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg
-from isaaclab.cloner import make_clone_plan
 
 pytestmark = pytest.mark.unit
 
@@ -95,47 +88,6 @@ def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     np.testing.assert_allclose(
         [transform.Transform(point) for point in visual_points.GetPointsAttr().Get()], builder.particle_q, atol=2.0e-7
     )
-    shared_cfg = cfg.copy()
-    shared_cfg.func("/World/Shared", shared_cfg, translation=(-2.0, 0.0, 0.0))
-    layout = np.zeros(100, dtype=np.int32)
-    layout[[7, 12]], layout[99] = 1, 2
-    cfg.spawn_path, shared_cfg.spawn_path = "/World/Media", "/World/Shared"
-    plan = make_clone_plan(
-        (
-            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
-            AssetBaseCfg(prim_path="/Scene/copy_[^/]+/Media", spawn=sim_utils.SpawnerCfg(spawn_path="/World/Other")),
-            AssetBaseCfg(prim_path="/World/Shared", spawn=shared_cfg),
-        ),
-        ((), (0,), (1,)),
-        100,
-        shared_assets=(2,),
-        clone_strategy=lambda _weights, _num_worlds: layout,
-        env_template="/Scene/copy_{}",
-    )
-    monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: SimpleNamespace(get_clone_plan=lambda: plan))
-    state = SimpleNamespace(particle_q=wp.zeros(12, dtype=wp.vec3f, device="cpu"))
-    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(state_0=state))
-    backend = NewtonSceneDataBackend()
-    backend.initialize_geometry(plan)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
-    asset = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/Scene/copy_[^/]+/Media", spawn=cfg),
-        _recorded_particle_offsets=[4, 10],
-        _particles_per_object=2,
-    )
-    MPMObject._bind_particle_visualization(asset)
-    asset.cfg.prim_path = "/World/Shared"
-    asset.cfg.spawn = shared_cfg
-    asset._recorded_particle_offsets = [0]
-    MPMObject._bind_particle_visualization(asset)
-    assert not stage.GetPrimAtPath("/Scene/copy_12/Media/Particles")
-    [(publication, ranges)] = backend.get_geometry_batches()
-    assert publication.points is state.particle_q
-    assert ranges == {
-        "/Scene/copy_7/Media/Particles": (4, 2),
-        "/Scene/copy_12/Media/Particles": (10, 2),
-        "/World/Shared/Particles": (0, 2),
-    }
     assert visual_points.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() == cfg.visual_update_frequency
 
 

@@ -10,7 +10,7 @@ import pytest
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import GeoType, ShapeFlags
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 _SOURCE = "/World/Asset"
 
@@ -131,11 +131,22 @@ def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
 class TestClonerCollisionApproximation:
     """build_source_builders must leave every collider at its USD-authored approximation."""
 
-    def test_authored_convex_decomposition_produces_multiple_hulls(self):
-        """A concave mesh authored with convexDecomposition decomposes into 2+ hulls."""
-        shapes = _collision_shapes(_build(_make_stage("convexDecomposition")))
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_authored_convex_decomposition_produces_multiple_hulls(self, dynamic):
+        """Decompose collisions while preserving the authored visual mesh and material binding."""
+        stage = _make_stage("convexDecomposition")
+        if not dynamic:
+            stage.GetPrimAtPath(_SOURCE).RemoveAPI(UsdPhysics.RigidBodyAPI)
+        material = UsdShade.Material.Define(stage, f"{_SOURCE}/material")
+        UsdShade.MaterialBindingAPI.Apply(stage.GetPrimAtPath(_SOURCE)).Bind(material)
+        builder = _build(stage)
+        shapes = _collision_shapes(builder)
         assert len(shapes) >= 2, f"expected a multi-hull decomposition, got {shapes}"
         assert all(geo_type == GeoType.CONVEX_MESH for geo_type in shapes.values())
+        named_flags = zip(builder.shape_label, builder.shape_flags, strict=True)
+        assert [path for path, flags in named_flags if flags & ShapeFlags.VISIBLE] == [f"{_SOURCE}/geom_visual"]
+        visual = builder.shape_label.index(f"{_SOURCE}/geom_visual")
+        assert builder.finalize(device="cpu").isaaclab.visual_material_path[visual] == str(material.GetPath())
 
     def test_skip_mesh_approximation_bypasses_authored_convex_decomposition(self):
         """A render-only import can bypass decomposition and retain the original mesh."""

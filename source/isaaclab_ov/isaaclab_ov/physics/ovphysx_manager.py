@@ -91,12 +91,12 @@ logger = logging.getLogger(__name__)
 class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
 
-    Each rigid-body binding reads directly into its portion of one native pose
-    buffer. Pointer aliases preserve the binding shape without staging or merging.
+    The runtime's rigid-body view fills one pose buffer directly. Deformable views
+    fill their native slices without an intermediate packing pass.
     """
 
     def __init__(self):
-        self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
+        self.backend: OvPhysxBackend | None = None
         self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
@@ -111,64 +111,35 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     @property
     def transform_paths(self) -> list[str]:
-        """Concatenated ``prim_paths`` across all bindings, in registration order."""
-        return [path for view, _ in self._rigid_bindings for path in view.prim_paths]
+        """Native body paths in the same order as the published poses."""
+        view = None if self.backend is None else self.backend.rigid_body_view
+        return [] if view is None else view.prim_paths
 
-    def setup(self, physx, stage, device: str, entries: Sequence[DeformableStageEntry] | None = None) -> None:
-        """Discover RigidBodyAPI prims, dedup by env-wildcard form, create one binding per pattern.
+    def setup(
+        self, backend: OvPhysxBackend, device: str, entries: Sequence[DeformableStageEntry] | None = None
+    ) -> None:
+        """Bind the native body table and declared deformable geometry.
 
         Args:
-            physx: Live ``ovphysx.PhysX`` instance (the wheel handle).
-            stage: USD stage to traverse for RigidBodyAPI prims.
+            backend: Initialized native physics resource.
             device: Warp device string used to allocate the published buffers.
             entries: Declared deformables captured before native stage import. ``None`` leaves
                 scene geometry uninitialized; an empty sequence declares no deformables.
         """
-        from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
-
-        self._rigid_bindings = []
+        self.backend = backend
         self._transforms.data.transforms = None
         self.transforms_timestamp += 1
         self._deformable_bindings = []
         self.geometry_timestamp += 1
         self._geometry = TimestampedBuffer()
 
-        if stage is None:
-            return
-
-        # Discover RigidBodyAPI prims, dedup by env-wildcard form.
-        patterns: set[str] = set()
-        for prim in stage.Traverse():
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim.GetPath().pathString))
-
-        views = []
-        for pattern in sorted(patterns):
-            view = OvPhysxView(physx, pattern=pattern, device=device)
-            view.binding_for(TT.RIGID_BODY_POSE)
-            if view.count == 0:
-                logger.debug("Pattern %s matched 0 rigid bodies; skipping.", pattern)
-                view.close()
-                continue
-            views.append(view)
-
-        if views:
-            poses = wp.empty(sum(view.count for view in views), dtype=wp.transformf, device=device)
-            self._transforms.data.transforms = poses
-            offset = 0
-            for view in views:
-                buffer = wp.array(
-                    ptr=poses.ptr + offset * wp.types.type_size_in_bytes(wp.transformf),
-                    shape=(view.count,),
-                    dtype=wp.transformf,
-                    device=device,
-                    copy=False,
-                )
-                self._rigid_bindings.append((view, buffer))
-                offset += view.count
+        if backend.rigid_body_view is not None and backend.rigid_body_view.count:
+            self._transforms.data.transforms = wp.empty(
+                backend.rigid_body_view.count, dtype=wp.transformf, device=device
+            )
 
         if entries is not None:
-            self._setup_deformable_bindings(physx, entries, device)
+            self._setup_deformable_bindings(backend.physx, entries, device)
 
     def _setup_deformable_bindings(self, physx, entries: Sequence[DeformableStageEntry], device: str) -> None:
         """Bind exact planned deformables directly into one flat publication buffer."""
@@ -216,7 +187,9 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._deformable_bindings.append((view, tensor_type, buffer))
             offset += view.count * count
         offsets = np.cumsum(np.r_[0, counts[:-1]])
-        self._geometry.data = deformable_geometry_batches(native_entries, points, offsets)
+        self._geometry.data = deformable_geometry_batches(native_entries, offsets, device=device)
+        for publication, _ in self._geometry.data:
+            publication.points = points
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
         """Publish native positions with exact visual paths and interpolation metadata.
@@ -248,8 +221,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         """Publish native rigid-body poses [m, xyzw]."""
         if self._transforms.timestamp != self.transforms_timestamp:
             OvPhysxManager.pre_render()
-            for view, buffer in self._rigid_bindings:
-                view.read_into("rigid_body_pose", buffer)
+            if self._transforms.data.transforms is not None:
+                self.backend.rigid_body_view.read(self._transforms.data.transforms)
             self._transforms.timestamp = self.transforms_timestamp
         return self._transforms.data
 
@@ -280,6 +253,7 @@ class OvPhysxBackend:
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
         self.stage: Any = None
+        self.rigid_body_view: Any = None
 
     def close(self) -> None:
         """Release bindings, the runtime, and its stage in native teardown order."""
@@ -295,6 +269,9 @@ class OvPhysxBackend:
         release_owners = destroy_entry_point == "release"
         try:
             try:
+                if self.rigid_body_view is not None:
+                    self.rigid_body_view.destroy()
+                    self.rigid_body_view = None
                 OvPhysxView._close_all_for(physx)
             finally:
                 try:
@@ -613,6 +590,9 @@ class OvPhysxManager(PhysicsManager):
         physx = cls.backend.physx
         if physx is None:
             return
+        if cls.backend.rigid_body_view is not None:
+            cls.backend.rigid_body_view.destroy()
+            cls.backend.rigid_body_view = None
         OvPhysxView._close_all_for(physx)
         physx.wait_op(physx.reset_stage())
         if cls.backend.stage is not None:
@@ -856,7 +836,7 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        or runtime replay, and re-runs the supported warmup entry point
         so the new stage's bodies are resident.
 
         Raises:
@@ -936,18 +916,27 @@ class OvPhysxManager(PhysicsManager):
 
         cls._replay_pending_clones(cls.backend.physx, requires_full_stage=cls._requires_full_stage)
 
-        # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
-        # instance carries its old buffer layout from the previous stage.
-        if ovphysx_device == "gpu":
-            cls._warmup_physx(cls.backend.physx)
+        # Native metadata and bindings must see the newly attached bodies, including on CPU.
+        cls._warmup_physx(cls.backend.physx)
 
-        # Initialize the SceneDataBackend now that the wheel's PhysX is live and
-        # the OVStage is attached. The central
-        # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
-        # via :meth:`get_scene_data_backend`.
+        # Bind SDP after the native runtime has realized the stage and clones.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._scene_data_backend.setup(cls.backend.physx, sim.stage, PhysicsManager._device, entries)
+        # Native output metadata names the actual bodies, not articulation-root aliases.
+        # SDK imports follow runtime initialization so inactive backends remain optional.
+        from ovphysx.types import SimObjectType
+        from ovstage import PathDictionary
+
+        body_paths = []
+        with PathDictionary() as paths:
+            for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
+                # Mass is host-resident: obtaining paths needs no GPU pose read or another step.
+                with cls.backend.physx.read(kind, ["mass"]) as bodies:
+                    for group in bodies.groups:
+                        body_paths.extend(paths.get_path_strings(group.prim_list))
+        if body_paths:
+            cls.backend.rigid_body_view = cls.backend.physx.create_tensor_binding(prim_paths=body_paths)
+        cls._scene_data_backend.setup(cls.backend, PhysicsManager._device, entries)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})
         cls._warmup_done = True
