@@ -245,75 +245,44 @@ def test_check_file_path_invalid():
     assert assets_utils.check_file_path(usd_path) == 0
 
 
-def test_find_mdl_dependencies_collects_mdl_texture_resources(tmp_path):
-    """Test collecting texture resources from quoted MDL strings."""
-    mdl_path = tmp_path / "material.mdl"
-    mdl_path.write_text(
-        """
-        export material Example(*) = OmniPBR(
-            diffuse_texture: texture_2d("./textures/Albedo.png", ::tex::gamma_srgb),
-            normalmap_texture: texture_2d("../shared/Normal.EXR", ::tex::gamma_linear),
-            ORM_texture: texture_2d("https://example.com/materials/orm.<UDIM>.png", ::tex::gamma_linear),
-            roughness_texture: texture_2d("omniverse://server/Library/roughness.tx", ::tex::gamma_linear),
-            ignored_label: "not_a_texture",
-            empty_texture: texture_2d()
-        );
-        // texture_2d("./textures/commented_line.png")
-        /* texture_2d("./textures/commented_block.png") */
-        """,
-        encoding="utf-8",
+@pytest.mark.parametrize("remote", [False, True], ids=["local", "remote"])
+def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypatch, remote):
+    """MDL modules and sparse UDIM tiles retain their source, not a partial mirror."""
+    import omni.client
+    from pxr import Sdf, Usd, UsdShade
+
+    layer = (
+        f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Shader "Material" {{\n'
+        " asset info:mdl:sourceAsset = @./material.mdl@\n asset inputs:file = @texture.<UDIM>.png@\n}\n"
     )
+    module = 'mdl 1.7;\nimport ::anno::*;\nexport material example() [[anno::description("wood.png")]] = material();\n'
+    payloads = {"scene.usda": layer, "material.mdl": module, "texture.1002.png": "tile", "texture.1004.png": "tile"}
+    for name, data in payloads.items():
+        (asset_cache / name).write_text(data)
+    assert assets_utils.retrieve_file_path(str(asset_cache / "material.mdl")) == str(asset_cache / "material.mdl")
 
-    assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
-        ("./textures/Albedo.png",),
-        ("../shared/Normal.EXR",),
-        ("https://example.com/materials/orm.<UDIM>.png",),
-        ("omniverse://server/Library/roughness.tx",),
-    }
+    payloads = {f"https://example.com/{name}": data for name, data in payloads.items()}
+    payloads[_REMOTE_URL] = '#usda 1.0\ndef Xform "Remote" {}\n'
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, dict.fromkeys(payloads, revision))
 
+    def copy(url, target_path, behavior):
+        Path(target_path).write_text(payloads[url])
+        return omni.client.Result.OK
 
-def test_find_mdl_dependencies_collects_mdl_relative_import_modules(tmp_path):
-    """Test collecting sibling MDL modules imported by material files."""
-    mdl_path = tmp_path / "materials" / "material.mdl"
-    mdl_path.parent.mkdir()
-    mdl_path.write_text(
-        """
-        import .::OmniUe4Function;
-        import .::OmniUe4Translucent::*;
-        import .::Shared::OmniUe4Base::*;
-        import .::Helpers::make_color;
-        import ..::Common::Surface::*;
-        export using .::Local::Palette import *;
-        using ..::Shared::Functions import make_color, make_normal;
-        import ::nvidia::core_definitions::*;
-        export material Example(*) = OmniPBR();
-        // import .::CommentedLine;
-        /* import .::CommentedBlock; */
-        string ignored = "import .::QuotedString;";
-        """,
-        encoding="utf-8",
-    )
-
-    assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
-        ("OmniUe4Function.mdl",),
-        ("OmniUe4Translucent.mdl",),
-        ("Shared/OmniUe4Base.mdl",),
-        ("Helpers/make_color.mdl", "Helpers.mdl"),
-        ("../Common/Surface.mdl",),
-        ("Local/Palette.mdl", "Local.mdl"),
-        ("../Shared/Functions.mdl", "../Shared.mdl"),
-    }
-
-    # Only one candidate must exist for each import; its concrete resources are required.
-    for alternatives in assets_utils._find_mdl_dependencies(str(mdl_path)):
-        module = mdl_path.parent / alternatives[-1]
-        module.parent.mkdir(parents=True, exist_ok=True)
-        module.write_text('export material Example(*) = OmniPBR(diffuse_texture: texture_2d("albedo.<UDIM>.png"));')
-        (module.parent / "albedo.1001.png").write_bytes(b"texture")
-    assert assets_utils.retrieve_file_path(str(mdl_path)) == str(mdl_path)
-    (mdl_path.parent / "albedo.1001.png").unlink()
-    with pytest.raises(FileNotFoundError, match="albedo.1001.png"):
-        assets_utils.retrieve_file_path(str(mdl_path))
+    monkeypatch.setattr(omni.client, "copy", copy)
+    source = "https://example.com/scene.usda" if remote else str(asset_cache / "scene.usda")
+    result = assets_utils.retrieve_file_path(source)
+    assert result != source
+    stage = Usd.Stage.Open(result)
+    material = stage.GetPrimAtPath("/Material")
+    directory = "https://example.com" if remote else str(asset_cache)
+    assert material.GetAttribute("info:mdl:sourceAsset").Get().path == f"{directory}/material.mdl"
+    assert material.GetAttribute("inputs:file").Get().path == f"{directory}/texture.<UDIM>.png"
+    if not remote:
+        layer = Sdf.Layer.FindOrOpen(str(asset_cache / "scene.usda"))
+        tiles = UsdShade.UdimUtils.ResolveUdimTilePaths("texture.<UDIM>.png", layer)
+        assert [tile for _, tile in tiles] == ["1002", "1004"]
 
 
 def test_retrieve_git_asset_path_uses_local_repo_path(tmp_path):
@@ -600,9 +569,9 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
 
 
 def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
-    """Resolve roots and nested dependencies in context, failing before publishing partial assets."""
+    """Resolve in context without requiring an unavailable, unselected variant."""
     import omni.client
-    from pxr import Ar, Usd
+    from pxr import Ar, Sdf, Usd
 
     source_dir = asset_cache / "source"
     search_dir = asset_cache / "search"
@@ -610,6 +579,16 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
     search_dir.mkdir()
     source = source_dir / "scene.usda"
     source.write_text("#usda 1.0\n(subLayers = [@robot.usda@, @./child.usda@])\n", encoding="utf-8")
+    (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n')
+    layer = Sdf.Layer.FindOrOpen(str(source))
+    prim = Sdf.PrimSpec(layer, "Variants", Sdf.SpecifierDef, "Xform")
+    variants = Sdf.VariantSetSpec(prim, "model")
+    Sdf.VariantSpec(variants, "available")
+    missing = Sdf.VariantSpec(variants, "missing")
+    missing.primSpec.referenceList.prependedItems = [Sdf.Reference("./missing.usda")]
+    prim.variantSetNameList.prependedItems = ["model"]
+    prim.variantSelections["model"] = "available"
+    layer.Save()
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, {_REMOTE_URL: revision})
 
@@ -625,15 +604,12 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
         (directory / "robot.usda").write_text(f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Xform "{name}" {{}}\n')
         context = Ar.ResolverContext(Ar.DefaultResolverContext([str(directory), str(source_dir)]))
         with Ar.ResolverContextBinder(context):
-            if name == "first":
-                with pytest.raises(FileNotFoundError, match="child.usda"):
-                    assets_utils.retrieve_file_path(source.name)
-                (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
             resolved_path = assets_utils.retrieve_file_path(source.name)
             assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
             assert assets_utils.retrieve_file_path(source.name) == resolved_path
             resolved_stage = Usd.Stage.Open(resolved_path, context)
             assert all(resolved_stage.GetPrimAtPath("/" + prim).IsValid() for prim in (name, "child", "remote"))
+            assert not resolved_stage.GetCompositionErrors()
 
 
 def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):

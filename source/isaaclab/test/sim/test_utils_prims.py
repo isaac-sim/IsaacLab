@@ -129,23 +129,17 @@ def test_create_prim():
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
-@pytest.mark.parametrize("missing", ["root", "dependency"])
-def test_create_prim_retries_after_missing_usd(tmp_path, missing):
-    """Resolve in the destination context and leave no prim when a root or dependency is missing."""
-    context = Ar.ResolverContext(Ar.DefaultResolverContext([str(tmp_path)]))
-    stage = Usd.Stage.CreateInMemory("destination.usda", context)
+def test_create_prim_retries_after_missing_usd(tmp_path):
+    """Leave no prim when the requested file is missing, so creating the file permits retry."""
+    stage = Usd.Stage.CreateInMemory()
     prim_path = "/World/RetryUSDReference"
     usd_path = tmp_path / "asset.usda"
-    missing_path = usd_path if missing == "root" else tmp_path / "child.usda"
-    if missing == "dependency":
-        usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset"\nsubLayers = [@./child.usda@])\n')
-
     with pytest.raises(FileNotFoundError):
-        sim_utils.create_prim(prim_path, usd_path=usd_path.name, stage=stage)
+        sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage)
     assert not stage.GetPrimAtPath(prim_path).IsValid()
 
-    missing_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
-    assert sim_utils.create_prim(prim_path, usd_path=usd_path.name, stage=stage).IsValid()
+    usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
+    assert sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage).IsValid()
 
 
 @pytest.mark.parametrize(

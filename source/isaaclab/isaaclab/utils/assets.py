@@ -35,19 +35,8 @@ from ..paths import ISAACLAB_ROOT
 
 logger = logging.getLogger(__name__)
 
-_UDIM_RE = re.compile(r"<UDIM>", re.IGNORECASE)
 # USDZ packages own their internal dependency layout and must not be rewritten.
 _USD_EXTENSIONS = {".usd", ".usda", ".usdc"}
-_MDL_RESOURCE_RE = re.compile(r'"([^"\\]*(?:\\.[^"\\]*)*)"|/\*.*?\*/|//[^\r\n]*', re.DOTALL)
-_MDL_TEXTURE_RE = re.compile(r"\.(?:bmp|dds|exr|hdr|ies|jpe?g|ktx2?|png|tga|tiff?|tx)(?:[?#].*)?$", re.IGNORECASE)
-_MDL_MODULE_PATTERN = r"(?:(?:\.\.::)++|\.::)[A-Za-z_]\w*+(?:::[A-Za-z_]\w*+)*+(?:::\*)?"
-_MDL_IMPORT_RE = re.compile(rf"\bimport\s++({_MDL_MODULE_PATTERN});")
-_MDL_USING_IMPORT_RE = re.compile(
-    rf"\busing\s++({_MDL_MODULE_PATTERN})\s++import\s++(?:\*|[A-Za-z_]\w*+(?:\s*+,\s*+[A-Za-z_]\w*+)*+);"
-)
-_MDL_RELATIVE_IMPORT_RE = re.compile(
-    r"(?P<prefix>(?:\.\.::)+|\.::)(?P<module>[A-Za-z_]\w*(?:::[A-Za-z_]\w*)*)(?P<wildcard>::\*)?"
-)
 
 
 _KIT_EXPERIENCE_PATH = str(ISAACLAB_ROOT / "apps" / "isaaclab.python.kit")
@@ -246,10 +235,10 @@ _ANNOUNCED_MIRRORS: set[str] = set()
 """URLs already announced, so an asset consulted repeatedly is logged once."""
 
 _ASSET_SOURCES: dict[str, tuple[str, str]] = {}
-"""Original source and download directory of each managed copy, independent of tree completion."""
+"""Original source and download directory of each managed copy."""
 
 _LOCALIZED_ASSETS: dict[tuple[str, str, object], tuple[str, dict[str, tuple[int, int]]]] = {}
-"""Completed trees keyed by source, download directory, and USD resolver context."""
+"""Localized files keyed by source, download directory, and USD resolver context."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -626,11 +615,11 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
-    USD dependencies are prepared in the bound resolver context before returning; missing
-    dependencies raise instead of producing a partial asset. Changed layers are written to
-    working copies, preserving authored layers and raw downloads. Completed trees are reused
-    while their file stamps match. Renderer module identifiers and USDZ contents remain owned
-    by their native loaders.
+    USD layers are localized in the bound resolver context without modifying authored files or
+    raw downloads. Working copies are reused while their file stamps match. Unresolved references
+    retain their anchors; USD decides which references are required by the selected composition.
+    MDL modules, UDIM textures, and USDZ contents keep their native loader's dependency handling.
+    Localization does not validate composition or rendering readiness.
 
     Args:
         path: The path to the file.
@@ -643,14 +632,14 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         The path to the file on the local machine.
 
     Raises:
-        FileNotFoundError: When the file or a required dependency cannot be resolved or found.
+        FileNotFoundError: When the requested file cannot be resolved or found.
         RuntimeError: When a download fails or a resolved USD copy cannot be saved.
     """
     root, cached_dir = _ASSET_SOURCES.get(os.path.abspath(path), (path, ""))
     download_dir = os.path.abspath(download_dir or cached_dir or tempfile.gettempdir())
     context = None
     if os.path.splitext(root)[1].lower() in _USD_EXTENSIONS:
-        from pxr import Ar, Sdf, UsdUtils  # noqa: PLC0415
+        from pxr import Ar, Sdf, UsdShade, UsdUtils  # noqa: PLC0415
 
         resolver = Ar.GetResolver()
         context = resolver.GetCurrentContext()
@@ -660,21 +649,21 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 raise FileNotFoundError(f"Unable to resolve the file: {root}")
             root = str(resolved)
     root = root.replace(os.sep, "/") if _is_remote_path(root) else os.path.abspath(root)
-    prepared = {}
+    localized = {}
     files = {}
     dependencies = {}
     copy_dir = os.path.join(download_dir, f"isaaclab_usd_{uuid.uuid4().hex}")
 
-    def prepare(source: str) -> str:
-        if source in prepared:
-            return prepared[source]
-        completed = _LOCALIZED_ASSETS.get((source, download_dir, context))
-        if completed is not None and not force_download:
-            result, stamps = completed
+    def localize(source: str) -> str:
+        if source in localized:
+            return localized[source]
+        cached = _LOCALIZED_ASSETS.get((source, download_dir, context))
+        if cached is not None and not force_download:
+            result, stamps = cached
             try:
                 if all(((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in stamps.items()):
                     files.update(stamps)
-                    prepared[source] = result
+                    localized[source] = result
                     dependencies[source] = set(stamps)
                     return result
             except OSError:
@@ -682,16 +671,6 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         remote = _is_remote_path(source)
         target = _mirror_path(source, download_dir) if remote else source
         dependencies[source] = {target}
-        if _UDIM_RE.search(source):
-            for tile in range(1001, 1101):
-                tile_path = _UDIM_RE.sub(str(tile), source)
-                if tile != 1001 and check_file_path(tile_path) == 0:
-                    break
-                dependencies[source].add(tile_path)
-                prepare(tile_path)
-            prepared[source] = target
-            return target
-
         # Read detached contents while the download lock protects the raw mirror.
         suffix = os.path.splitext(target)[1].lower()
         with _download_file(source, download_dir, force_download) as local_path:
@@ -699,27 +678,14 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             files[local_path] = (stat.st_mtime_ns, stat.st_size)
             if suffix in _USD_EXTENSIONS:
                 layer = Sdf.Layer.OpenAsAnonymous(local_path)
-            else:
-                refs = _find_mdl_dependencies(local_path) if suffix == ".mdl" else ()
 
-        prepared[source] = local_path
+        localized[source] = local_path
         if suffix not in _USD_EXTENSIONS:
-            for alternatives in refs:
-                paths = tuple(_resolve_reference_url(source, ref) for ref in alternatives)
-                dependency = paths[0]
-                if len(paths) > 1:
-                    dependency = next(
-                        (path for path in paths if _usable_mirror(path, download_dir) or check_file_path(path)), None
-                    )
-                    if dependency is None:
-                        raise FileNotFoundError(f"Unable to resolve {alternatives} from MDL module: {source}")
-                dependencies[source].add(dependency)
-                prepare(dependency)
             return local_path
 
         # Reserve before descending so shared children and cycles have one destination.
-        output = os.path.join(copy_dir, str(len(prepared)), os.path.basename(local_path))
-        prepared[source] = output
+        output = os.path.join(copy_dir, str(len(localized)), os.path.basename(local_path))
+        localized[source] = output
         anchor = Ar.ResolvedPath(local_path)
         changed = False
 
@@ -729,20 +695,23 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 return ref
             dependency = _resolve_reference_url(source, ref)
             identifier = ref if _is_remote_path(ref) else resolver.CreateIdentifier(ref, anchor)
-            if not _is_remote_path(dependency) and not _UDIM_RE.search(ref):
-                dependency = str(resolver.Resolve(identifier))
-            # Unresolved MDL search identifiers belong to the renderer's module path.
-            if (
-                ref.endswith(".mdl")
-                and not _is_remote_path(ref)
-                and resolver.IsContextDependentPath(identifier)
-                and (not dependency or (_is_remote_path(dependency) and check_file_path(dependency) == 0))
-            ):
-                return ref
-            if not dependency:
-                raise FileNotFoundError(f"Unable to resolve '{ref}' from USD layer: {source}")
-            dependencies[source].add(dependency)
-            resolved = prepare(dependency)
+            if UsdShade.UdimUtils.IsUdimIdentifier(ref):
+                # Keep the pattern on its source, not on a partially populated mirror.
+                resolved = dependency
+                if not _is_remote_path(dependency):
+                    resolved = UsdShade.UdimUtils.ResolveUdimPath(ref, Sdf.Layer.FindOrOpen(local_path)) or dependency
+            else:
+                if not _is_remote_path(dependency):
+                    dependency = str(resolver.Resolve(identifier)) or identifier
+                exists = check_file_path(dependency)
+                if ref.endswith(".mdl"):
+                    # Material loaders own module imports and texture resources.
+                    resolved = identifier if not exists and resolver.IsContextDependentPath(identifier) else dependency
+                elif exists:
+                    dependencies[source].add(dependency)
+                    resolved = localize(dependency)
+                else:
+                    resolved = dependency
             changed |= resolved != (_resolve_reference_url(local_path, ref) if remote else dependency)
             return resolved
 
@@ -756,15 +725,15 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             dependencies[source].add(output)
             _ASSET_SOURCES[output] = (source, download_dir)
         else:
-            prepared[source] = local_path
-        return prepared[source]
+            localized[source] = local_path
+        return localized[source]
 
     from ..app.loading_screen import report_activity
 
     report_activity("Loading assets")
     try:
-        result = prepare(root)
-        for source, local_path in prepared.items():
+        result = localize(root)
+        for source, local_path in localized.items():
             required = pending = {source}
             while pending:
                 pending = set().union(*(dependencies.get(path, ()) for path in pending)) - required
@@ -841,57 +810,8 @@ def read_file(path: str) -> io.BytesIO:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-def _find_mdl_dependencies(local_path: str) -> set[tuple[str, ...]]:
-    """Collect MDL dependencies, grouping alternative filenames for ambiguous module imports."""
-    with open(local_path, encoding="utf-8") as f:
-        source = f.read()
-
-    refs = set()
-
-    for match in _MDL_RESOURCE_RE.finditer(source):
-        ref = match.group(1)
-        if ref and _MDL_TEXTURE_RE.search(ref.strip()):
-            refs.add((ref.strip(),))
-
-    source_code = _MDL_RESOURCE_RE.sub("", source)
-    for match in _MDL_USING_IMPORT_RE.finditer(source_code):
-        refs.update(_find_mdl_import_dependencies(match.group(1)))
-    source_code = _MDL_USING_IMPORT_RE.sub("", source_code)
-    for match in _MDL_IMPORT_RE.finditer(source_code):
-        refs.update(_find_mdl_import_dependencies(match.group(1)))
-
-    return refs
-
-
-def _find_mdl_import_dependencies(import_clause: str) -> set[tuple[str, ...]]:
-    """Collect candidate module filenames for each relative MDL import."""
-    refs = set()
-
-    for match in _MDL_RELATIVE_IMPORT_RE.finditer(import_clause):
-        parents = [".."] * match.group("prefix").count("..::")
-        components = match.group("module").split("::")
-
-        if match.group("wildcard") is not None:
-            candidate_lengths = (len(components),)
-        else:
-            # ``import .::A::B;`` can mean module ``A::B`` or symbol ``B`` from module ``A``.
-            candidate_lengths = range(len(components), 0, -1)
-
-        refs.add(tuple(posixpath.join(*(parents + components[:length])) + ".mdl" for length in candidate_lengths))
-
-    return refs
-
-
 def _resolve_reference_url(base_url: str, ref: str) -> str:
-    """Resolve a USD reference against a base URL.
-
-    Args:
-        base_url: URL or local path containing the reference.
-        ref: Referenced asset path.
-
-    Returns:
-        Resolved URL or local path.
-    """
+    """Anchor a reference to its original URL or filesystem layer."""
     ref = ref.strip()
     if not ref:
         return ref

@@ -898,7 +898,7 @@ def add_usd_reference(
     This function adds a reference to an external USD file at the specified prim path on the provided stage.
     If the prim does not exist, it will be created with the specified type.
 
-    Dependencies are prepared in the stage's resolver context before any prim is authored.
+    The file is localized in the stage's resolver context before any prim is authored.
 
     Args:
         prim_path: The prim path where the reference will be attached.
