@@ -80,6 +80,9 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
+    Sequences containing mappings are merged element by element, preserving existing nested
+    objects and the destination list or tuple type. Other elements are replaced. Such sequences
+    must match the existing length; sequences without mappings may replace a different-length value.
 
     Args:
         obj: An instance of a class to update.
@@ -137,19 +140,16 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
 
-                # ---- 2d) keep tuple/list parity & recurse ----------
-                if isinstance(obj_mem, tuple):
-                    value = tuple(value)
-                else:
-                    set_obj = True
-                    # recursively call if iterable contains Mappings
-                    for i in range(len(obj_mem)):
-                        if isinstance(value[i], Mapping):
-                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
-                            set_obj = False
-                    # do not set value to obj, otherwise it overwrites the cfg class with the dict
-                    if not set_obj:
-                        continue
+                # Keep nested objects while also applying non-mapping replacements.
+                merged_value = list(value)
+                for i, item in enumerate(merged_value):
+                    if isinstance(item, Mapping):
+                        update_class_from_dict(obj_mem[i], item, _ns=f"{key_ns}/{i}")
+                        merged_value[i] = obj_mem[i]
+                if isinstance(obj_mem, list):
+                    obj_mem[:] = merged_value
+                    continue
+                value = tuple(merged_value) if isinstance(obj_mem, tuple) else merged_value
 
             # -- 3) callable attribute → keep string lazily resolvable --------------
             elif callable(obj_mem):
