@@ -5,25 +5,10 @@
 
 import os
 import random
-from collections.abc import Callable
 
 import numpy as np
 import torch
 import warp as wp
-
-_SEED_HOOKS: list[Callable[[int], None]] = []
-
-
-def register_seed_hook(fn: Callable[[int], None]) -> None:
-    """Register a callback that :func:`configure_seed` calls with the seed after seeding.
-
-    Runtimes use this to seed their own random number generators (e.g. Replicator) without the
-    core package importing them.
-
-    Args:
-        fn: Callable receiving the resolved seed.
-    """
-    _SEED_HOOKS.append(fn)
 
 
 def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
@@ -46,8 +31,6 @@ def configure_seed(seed: int | None, torch_deterministic: bool = False) -> int:
     torch.cuda.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
     wp.rand_init(seed)
-    for hook in _SEED_HOOKS:
-        hook(seed)
 
     if torch_deterministic:
         # refer to https://docs.nvidia.com/cuda/cublas/index.html#cublasApi_reproducibility

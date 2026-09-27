@@ -17,7 +17,6 @@ import torch
 import warp as wp
 
 from .. import sim as sim_utils
-from ..app.runtime import get_runtime
 from ..app.settings_manager import SettingsManager
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
@@ -183,9 +182,14 @@ class SimulationContext:
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        # When Kit is running, attach the stage to Kit's USD context so that
-        # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        get_runtime().attach_stage(self.stage)
+        self._kit_stage: Any | None = None
+        """Kit USD-context backend the stage is attached to, or None without Kit."""
+        if use_isaac_sim:
+            from isaaclab_physx.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
+
+            # Attach the stage to Kit's USD context so that Kit extensions (PhysX views,
+            # Articulation, viewport) can discover it.
+            self._kit_stage = self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = SettingsManager.instance()
@@ -496,8 +500,9 @@ class SimulationContext:
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
         """Apply ``--max_visible_envs`` to every resolved visualizer cfg when set in settings.
 
-        the Kit launcher stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1`` when the flag was
-        omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs` on each cfg.
+        :func:`~isaaclab.app.launch_simulation` stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1``
+        when the flag was omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs`
+        on each cfg.
         """
         raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         try:
@@ -1023,7 +1028,9 @@ class SimulationContext:
                 instance._pending_visualizers.clear()
 
                 instance.clone_contexts.clear()
-                for cfg, resource in instance._backend_registry:
+                # Newest first: the Kit USD-context backend, registered first, closes last but
+                # before close_stage() clears the stage cache.
+                for cfg, resource in reversed(instance._backend_registry):
                     if isinstance(cfg, BackendCfg) and not isinstance(cfg, RendererCfg):
                         run_cleanup(lambda resource=resource: resource.close())
                 instance._backend_registry.clear()

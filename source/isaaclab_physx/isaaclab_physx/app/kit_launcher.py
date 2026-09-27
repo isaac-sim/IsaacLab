@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import argparse
 import atexit
-import contextlib
 import importlib.metadata
 import importlib.util
 import logging
@@ -23,7 +22,7 @@ import os
 import re
 import signal
 import sys
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 try:
     import isaacsim  # noqa: F401
@@ -32,21 +31,14 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
-if TYPE_CHECKING:
-    import threading
-
-    from pxr import Usd
-
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
-from isaaclab.app.runtime import Runtime, set_runtime
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.app.sim_launcher import _parse_visualizer_csv, fuse_kit_args
 from isaaclab.app.simulation_launcher import SimulationLauncher
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils._device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-from isaaclab.utils.seed import register_seed_hook
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -190,12 +182,22 @@ class KitLauncher(SimulationLauncher):
 
         # Create SimulationApp, passing the resolved self._config to it for initialization
         self._create_app()
-        # back the core settings, Kit operations, and seeding with the running app
+        # back the core settings with the running app
         import carb
 
         get_settings_manager().set_backend(carb.settings.get_settings())
-        set_runtime(KitRuntime())
-        register_seed_hook(_seed_replicator)
+        # Isaac Sim's stage helpers load only with their extension, which may be enabled later.
+        import omni.kit.app
+
+        self._stage_context_hook = (
+            omni.kit.app.get_app()
+            .get_extension_manager()
+            .subscribe_to_extension_enable(
+                lambda _: _share_stage_context(),
+                ext_name="isaacsim.core.experimental.utils",
+                hook_name="isaaclab stage context",
+            )
+        )
         self._set_deferred_cuda_device()
         # Load IsaacSim extensions
         self._load_extensions()
@@ -884,68 +886,19 @@ class KitLauncher(SimulationLauncher):
                 play_button_group._play_button.enabled = not flag  # type: ignore
 
 
-class KitRuntime(Runtime):
-    """Kit implementation of the core :class:`~isaaclab.app.runtime.Runtime` operations."""
-
-    _stage_context_shared = False
-
-    def update(self) -> None:
-        import omni.kit.app
-
-        omni.kit.app.get_app_interface().update()
-
-    def attach_stage(self, stage: Usd.Stage) -> None:
-        import omni.usd
-        from pxr import UsdUtils
-
-        context = omni.usd.get_context()
-        if context is not None and context.get_stage() is not stage:
-            context.attach_stage_with_callback(UsdUtils.StageCache.Get().GetId(stage).ToLongInt())
-
-    def close_stage(self) -> None:
-        import omni.usd
-
-        omni.usd.get_context().close_stage()
-
-    def share_stage_context(self, context: threading.local) -> None:
-        if self._stage_context_shared:
-            return
-        try:
-            # Do not enable ``isaacsim.core.experimental.utils`` here. Stage creation is used by
-            # Newton tests before Newton imports Warp, and enabling Isaac Sim experimental utils can
-            # make Kit's importer expose the bundled ``omni.warp.core`` package ahead of pip Warp.
-            from isaacsim.core.experimental.utils import stage as sim_stage
-        except ImportError:
-            return
-        # Isaac Sim stage helpers read this singleton context.
-        sim_stage._context = context
-        self._stage_context_shared = True
-
-    def show_stage(self, usd_path: str) -> None:
-        import omni.kit.app
-        import omni.usd
-
-        # A failed open leaves the previously loaded stage in the viewport, which would look like a
-        # successful preview of the wrong asset, so surface the failure instead of blocking on it.
-        result = omni.usd.get_context().open_stage(usd_path)
-        opened = result[0] if isinstance(result, tuple) else result
-        if opened is False:
-            raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
-
-        app = omni.kit.app.get_app_interface()
-        with contextlib.suppress(KeyboardInterrupt):
-            while app.is_running():
-                app.update()
-
-
-def _seed_replicator(seed: int) -> None:
-    """Seed Replicator's global random number generator when Replicator is loaded."""
+def _share_stage_context() -> None:
+    """Point Isaac Sim's stage helpers at Isaac Lab's thread-local current-stage context."""
     try:
-        import omni.replicator.core as rep
+        # Do not enable ``isaacsim.core.experimental.utils`` here. Stage creation is used by
+        # Newton tests before Newton imports Warp, and enabling Isaac Sim experimental utils can
+        # make Kit's importer expose the bundled ``omni.warp.core`` package ahead of pip Warp.
+        from isaacsim.core.experimental.utils import stage as sim_stage
+    except ImportError:
+        return
+    from isaaclab.sim.utils import stage as stage_utils
 
-        rep.set_global_seed(seed)
-    except (ModuleNotFoundError, AttributeError):
-        pass
+    # Isaac Sim stage helpers read this singleton context.
+    sim_stage._context = stage_utils._context
 
 
 def _ensure_isaac_sim_available() -> None:

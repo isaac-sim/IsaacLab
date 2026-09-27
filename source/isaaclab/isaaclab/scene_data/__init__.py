@@ -14,7 +14,7 @@ the provider converts and remaps them on demand for each consumer.
 This package is deliberately separate from :mod:`isaaclab.scene` so that
 physics backends (``isaaclab_physx``, ``isaaclab_newton``) can subclass
 :class:`SceneDataBackend` without pulling :mod:`isaaclab.scene` into the
-the Kit launcher pre-launch import chain.
+Kit launcher pre-launch import chain.
 """
 
 from ..utils.module import lazy_export

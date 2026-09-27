@@ -8,6 +8,14 @@ isaaclab\_physx.app
    .. autosummary::
 
       KitLauncher
+      KitStageBackend
+      KitStageBackendCfg
+
+   .. rubric:: Functions
+
+   .. autosummary::
+
+      show_stage_in_viewport
 
 Environment variables
 ---------------------
@@ -145,6 +153,18 @@ Kit Launcher
 .. autoclass:: KitLauncher
    :members:
    :show-inheritance:
+
+Kit Stage
+---------
+
+.. autoclass:: KitStageBackend
+   :members:
+
+.. autoclass:: KitStageBackendCfg
+   :members:
+   :show-inheritance:
+
+.. autofunction:: show_stage_in_viewport
 
 .. _livestream: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html
 .. _`WebRTC Livestream`: https://docs.isaacsim.omniverse.nvidia.com/latest/installation/manual_livestream_clients.html#isaac-sim-short-webrtc-streaming-client

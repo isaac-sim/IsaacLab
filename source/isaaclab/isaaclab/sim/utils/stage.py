@@ -14,7 +14,6 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
-from ...app.runtime import get_runtime
 from ...utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -22,6 +21,14 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
+
+
+def _get_kit_stage():
+    """Return the Kit USD-context backend of the active simulation, or None without Kit or a simulation."""
+    from ..simulation_context import SimulationContext  # noqa: PLC0415
+
+    sim = SimulationContext.instance()
+    return None if sim is None else sim._kit_stage
 
 
 def _check_ancestral(prim: Usd.Prim) -> bool:
@@ -157,8 +164,6 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    get_runtime().share_stage_context(_context)
-
     from pxr import Usd, UsdUtils  # noqa: PLC0415
 
     stage: Usd.Stage = Usd.Stage.CreateInMemory()
@@ -184,8 +189,6 @@ def open_stage(usd_path: str) -> Usd.Stage:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When failed to open the stage.
     """
-    get_runtime().share_stage_context(_context)
-
     from pxr import Usd  # noqa: PLC0415
 
     if not Usd.Stage.IsSupportedFile(usd_path):
@@ -257,8 +260,8 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
 def update_stage() -> None:
     """Triggers a full application update cycle to process USD stage changes.
 
-    With Kit running, this runs one complete Kit application update, including the following.
-    Without Kit, it does nothing.
+    With Kit running a simulation, this runs one complete Kit application update, including the
+    following. Otherwise, it does nothing.
 
     * Physics simulation step (if ``/app/player/playSimulations`` is True)
     * Rendering (RTX path tracing, viewport updates)
@@ -303,7 +306,8 @@ def update_stage() -> None:
         >>> for _ in range(100):
         ...     sim.step()  # Handles updates internally
     """
-    get_runtime().update()
+    if (kit_stage := _get_kit_stage()) is not None:
+        kit_stage.update()
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -348,8 +352,8 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 def close_stage() -> bool:
     """Closes the current USD stage.
 
-    If Kit is running, this first closes the stage of the Kit USD context, then
-    clears the stage cache. Without Kit, only the stage cache is cleared.
+    If Kit is running a simulation, this first closes the stage of the Kit USD context, then
+    clears the stage cache. Otherwise, only the stage cache is cleared.
 
     .. note::
 
@@ -370,7 +374,8 @@ def close_stage() -> bool:
     # Close Kit's USD context first (while the stage is still in the cache),
     # then clear the cache. Reversing this order causes Kit to fail with
     # "Removal of UsdStage from cache failed" and can hang during teardown.
-    get_runtime().close_stage()
+    if (kit_stage := _get_kit_stage()) is not None:
+        kit_stage.close()
 
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Clear()
@@ -449,7 +454,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
     delete_prim(prim_paths_to_delete)
-    get_runtime().update()
+    update_stage()
 
 
 def get_current_stage(fabric: bool = False) -> Usd.Stage:
@@ -469,8 +474,6 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    get_runtime().share_stage_context(_context)
-
     # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
     if stage is not None:
@@ -513,21 +516,3 @@ def get_current_stage_id() -> int:
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
-
-
-def show_stage_in_viewport(usd_path: str) -> None:
-    """Open a USD file in the running Kit viewport and block until the app is closed.
-
-    Opens the stage through the Kit USD context so it appears in the viewport (or the
-    livestream client), then spins the Kit update loop until the window is closed or the
-    loop is interrupted. Must only be called inside a running Kit process; use
-    :func:`~isaaclab.utils.version.has_kit` or :attr:`~isaaclab.sim.SimulationContext.has_gui`
-    to gate the call.
-
-    Args:
-        usd_path: Path of the USD file to display.
-
-    Raises:
-        RuntimeError: If Kit is not running or the stage cannot be opened.
-    """
-    get_runtime().show_stage(usd_path)
