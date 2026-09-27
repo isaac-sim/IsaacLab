@@ -174,7 +174,6 @@ class TerminationManager(ManagerBase):
             self._term_dones[:, i] = value
         # update last-episode dones once per compute: for any env where a term fired,
         # reflect exactly which term(s) fired this step and clear others
-        # torch.where instead of boolean indexing avoids a device-to-host sync
         fired = self._term_dones.any(dim=1, keepdim=True)
         torch.where(fired, self._term_dones, self._last_episode_dones, out=self._last_episode_dones)
         # return combined termination signal

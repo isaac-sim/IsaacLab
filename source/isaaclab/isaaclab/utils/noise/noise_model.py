@@ -64,7 +64,6 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
     """
 
     if cfg.operation == "add" and not isinstance(cfg.n_min, torch.Tensor) and not isinstance(cfg.n_max, torch.Tensor):
-        # Zero additive noise is the identity; skip the random draw and add pass.
         if cfg.n_min == 0.0 and cfg.n_max == 0.0:
             return data
     _move_params_to_device(cfg, data, "n_min", "n_max")

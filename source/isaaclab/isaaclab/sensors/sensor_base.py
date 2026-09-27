@@ -466,7 +466,6 @@ class SensorBase(ABC):
             return env_mask
         else:
             self._reset_mask.zero_()
-            # device-side fill: a scalar index assignment synchronizes the stream on every call
             if isinstance(env_ids, slice):
                 self._reset_mask_torch[env_ids].fill_(True)
             else:

@@ -419,7 +419,6 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        # device-side fill: a scalar index assignment synchronizes the stream on every call
         if isinstance(env_ids, slice):
             self.episode_length_buf[env_ids] = 0
         else:

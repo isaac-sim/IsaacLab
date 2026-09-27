@@ -107,7 +107,6 @@ def test_compute(env):
     assert float(rewards[0]) == expected_reward
     assert tuple(rewards.shape) == (env.num_envs,)
 
-    # Partial slice resets must preserve the other environments' episodic rewards.
     selected = slice(1, None, 2)
     extras = rew_man.reset(selected)
     assert extras["Episode_Reward/term_1"] == expected_reward / env.max_episode_length_s

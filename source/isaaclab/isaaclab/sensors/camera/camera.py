@@ -1032,8 +1032,7 @@ class Camera(SensorBase):
 
     def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        # Every step marks all cameras outdated when the update period is zero, so skip the
-        # device-to-host copy and synchronization.
+        # A zero update period marks every camera outdated.
         return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """

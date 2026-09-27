@@ -117,7 +117,6 @@ class RewardManager(ManagerBase):
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
             extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
             # reset episodic sum
-            # device-side fill: a scalar index assignment synchronizes the stream on every call
             if isinstance(env_ids, slice):
                 self._episode_sums[key][env_ids].fill_(0.0)
             else:

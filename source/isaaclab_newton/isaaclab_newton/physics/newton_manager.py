@@ -2134,8 +2134,7 @@ class NewtonManager(PhysicsManager):
         task_names = tuple(name for name in cls._sensor_tasks if name not in cls._sensor_eager_tasks)
         for name in names:
             cls._sensor_flags_host[1 + task_names.index(name)] = 1
-        # The host->device flag upload is a pageable copy that synchronizes the stream; the flags are
-        # identical on steady-state steps, so only upload when they differ from the last launch.
+        # Uploading unchanged flags synchronizes the stream on every render.
         if cls._sensor_flags_uploaded is None or not np.array_equal(cls._sensor_flags_uploaded, cls._sensor_flags_host):
             cls._sensor_flags.assign(cls._sensor_flags_host)
             cls._sensor_flags_uploaded = cls._sensor_flags_host.copy()

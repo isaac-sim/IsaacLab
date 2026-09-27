@@ -247,7 +247,6 @@ class EventManager(ManagerBase):
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
-                    # device-side fills: scalar index assignments synchronize the stream on every call
                     if isinstance(env_ids, slice):
                         self._reset_term_last_triggered_step_id[index][env_ids].fill_(global_env_step_count)
                         self._reset_term_last_triggered_once[index][env_ids].fill_(True)
