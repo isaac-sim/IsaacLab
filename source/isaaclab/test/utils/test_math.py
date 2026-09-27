@@ -12,7 +12,7 @@ import scipy.spatial.transform as scipy_tf
 import torch
 
 import isaaclab.utils.math as math_utils
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -327,6 +327,22 @@ def test_convention_converter(device):
 
 
 @pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("origin", ["opengl", "ros", "world"])
+@pytest.mark.parametrize("target", ["opengl", "ros", "world"])
+def test_convention_converter_leading_dims(device, origin, target):
+    """Test convert_camera_frame_orientation_convention on (..., 4) inputs other than (N, 4)."""
+    quat = math_utils.random_orientation(6, device)
+    expected = math_utils.convert_camera_frame_orientation_convention(quat, origin, target)
+
+    # multiple leading dimensions (A, B, 4) match the flat (N, 4) result
+    nested = math_utils.convert_camera_frame_orientation_convention(quat.view(2, 3, 4), origin, target)
+    torch.testing.assert_close(nested, expected.view(2, 3, 4))
+    # a single (4,) quaternion matches the corresponding row
+    single = math_utils.convert_camera_frame_orientation_convention(quat[0], origin, target)
+    torch.testing.assert_close(single, expected[0])
+
+
+@pytest.mark.parametrize("device", test_devices())
 def test_convert_quat(device):
     """Test convert_quat from "xyzw" to "wxyz" and back to "xyzw" and verify the correct rolling of the tensor.
 
@@ -582,6 +598,17 @@ def test_interpolate_poses():
         # Assert that the result is almost equal to the expected quaternion
         np.testing.assert_array_almost_equal(result_quat, expected_quat, decimal=DECIMAL_PRECISION)
         np.testing.assert_array_almost_equal(result_pos, expected_pos, decimal=DECIMAL_PRECISION)
+
+
+def test_interpolate_poses_without_interpolation():
+    """Test that interpolate_poses with num_steps=0 returns just the start and end poses."""
+    pose_1 = math_utils.generate_random_transformation_matrix()
+    pose_2 = math_utils.generate_random_transformation_matrix()
+
+    poses, num_steps = math_utils.interpolate_poses(pose_1, pose_2, num_steps=0)
+
+    assert num_steps == 0
+    torch.testing.assert_close(poses, torch.stack([pose_1, pose_2]))
 
 
 def test_pose_inv():
@@ -1169,3 +1196,48 @@ def test_create_rotation_matrix_from_view_non_finite_returns_nan(device):
     targets = torch.tensor([[0.0, 0.0, 0.0]], device=device)
     R = math_utils.create_rotation_matrix_from_view(eyes, targets, up_axis="Z", device=device)
     assert torch.isnan(R).all()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "mean, std, size",
+    [
+        (0.5, 0.2, 4096),
+        (torch.tensor(0.5), torch.tensor(0.2), (4096,)),
+        (0.5, torch.tensor([0.1, 0.2, 0.3]), (4096, 3)),
+    ],
+)
+def test_sample_gaussian_shape_and_distribution(device, mean, std, size):
+    """Draw independent samples of the requested shape, including CPU tensor parameters on CUDA."""
+    torch.manual_seed(42)
+    samples = math_utils.sample_gaussian(mean, std, size, device)
+    assert samples.shape == ((size,) if isinstance(size, int) else size)
+    assert samples.device == torch.device(device)
+    actual_std, actual_mean = torch.std_mean(samples, dim=0)
+    expected_mean = torch.as_tensor(mean, device=device).expand_as(actual_mean)
+    expected_std = torch.as_tensor(std, device=device).expand_as(actual_std)
+    torch.testing.assert_close(actual_mean, expected_mean, atol=0.02, rtol=0.0)
+    torch.testing.assert_close(actual_std, expected_std, atol=0.02, rtol=0.0)
+
+
+def test_sample_gaussian_parameters():
+    """Broadcast per-row means at zero std and reject invalid shapes or negative std."""
+    mean = torch.tensor([[0.0], [10.0]])
+    samples = math_utils.sample_gaussian(mean, 0.0, (2, 3), "cpu")
+    torch.testing.assert_close(samples, torch.tensor([[0.0, 0.0, 0.0], [10.0, 10.0, 10.0]]))
+
+    for mean, std, match in ((torch.zeros(4), 1.0, "expand"), (0.0, torch.zeros(4), "expand"), (0.0, -1.0, "std")):
+        with pytest.raises(RuntimeError, match=match):
+            math_utils.sample_gaussian(mean, std, (3,), "cpu")
+
+
+def test_apply_delta_pose_zero_rotation_gradients():
+    """A translation-only command preserves orientation and has finite gradients at zero rotation."""
+    source_pos = torch.tensor([[1.0, 2.0, 3.0]])
+    source_rot = torch.tensor([[0.0, 0.0, 1.0, 0.0]])
+    delta = torch.tensor([[0.5, -0.5, 1.0, 0.0, 0.0, 0.0]], requires_grad=True)
+    target_pos, target_rot = math_utils.apply_delta_pose(source_pos, source_rot, delta)
+    torch.testing.assert_close(target_pos, torch.tensor([[1.5, 1.5, 4.0]]))
+    torch.testing.assert_close(target_rot, source_rot)
+    (target_pos.sum() + target_rot.sum()).backward()
+    assert torch.isfinite(delta.grad).all()

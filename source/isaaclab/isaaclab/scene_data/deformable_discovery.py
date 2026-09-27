@@ -11,7 +11,6 @@ import logging
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass, field, replace
-from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
@@ -19,13 +18,11 @@ import warp as wp
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
-from ..cloner.path import match, rebase
+from ..cloner import ClonePlan
+from ..cloner import path as cloner_path
 from ..sim.utils.queries import has_deformable_body_api
 from .deformable_vis_remap import build_volume_vis_barycentric_remap
 from .scene_data_backend import SceneDataFormat
-
-if TYPE_CHECKING:
-    from ..cloner.clone_plan import ClonePlan
 
 logger = logging.getLogger(__name__)
 
@@ -281,25 +278,27 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
 
 
 def deformable_prototypes(
-    stage: Usd.Stage, plan: ClonePlan, rows: Sequence[int] | None = None
+    stage: Usd.Stage, plan: ClonePlan, *, exclude_paths: Sequence[str] = ()
 ) -> list[DeformableStageEntry]:
     """Read deformable geometry beneath the prototypes imported by one backend.
 
     Args:
         stage: Stage containing the authored asset prototypes.
-        plan: Generic replication layout; it is not modified.
-        rows: Rows imported by this backend; ``None`` selects all active rows.
+        plan: Declared asset prototypes and their world topology.
+        exclude_paths: Prototypes routed to other contexts, excluded even beneath shared roots.
 
     Returns:
         Prototype geometry owned by the caller, including shared assets once.
     """
-    selected = set(range(len(plan.sources)) if rows is None else rows)
-    selected.intersection_update(np.flatnonzero(plan.clone_mask.any(axis=1)))
-    sources = {Sdf.Path(source) for source in plan.sources}
-    selected_sources = {Sdf.Path(plan.sources[row]) for row in selected}
-    roots = Sdf.Path.RemoveDescendentPaths([plan.sources[row] for row in selected] + list(plan.global_paths))
+    authored = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+    prototype_ids = np.unique(plan.topology.world_prototypes[starts[1] :])
+    source_paths = [authored[i] for i in prototype_ids if authored[i] is not None and authored[i] not in exclude_paths]
+    destination_paths = templates[starts[1] :]
+    selected_sources = {Sdf.Path(source) for source in source_paths}
+    sources = selected_sources | {Sdf.Path(source) for source in exclude_paths}
     entries = []
-    for root in roots:
+    for root in Sdf.Path.RemoveDescendentPaths([*source_paths, *templates[: starts[1]]]):
         prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
         for prim in prims:
             path = prim.GetPath()
@@ -311,7 +310,7 @@ def deformable_prototypes(
                     prims.PruneChildren()
                 continue
             # Shared roots may contain a replicated namespace: never inspect its generated clones.
-            if owner not in sources and any(match(str(path), template) for template in plan.destinations):
+            if owner not in sources and any(cloner_path.match(str(path), template) for template in destination_paths):
                 if not any(source.HasPrefix(path) for source in selected_sources):
                     prims.PruneChildren()
                     continue
@@ -323,43 +322,51 @@ def deformable_prototypes(
 
 
 def expand_deformable_entries(
-    plan: ClonePlan, prototypes: Sequence[DeformableStageEntry], rows: Sequence[int] | None = None
+    prototypes: Sequence[DeformableStageEntry],
+    plan: ClonePlan,
+    env_ids: np.ndarray,
+    positions: np.ndarray | None = None,
 ) -> list[DeformableStageEntry]:
     """Expand backend-owned prototype geometry without copying its vertex arrays or reading USD.
 
     Args:
-        plan: Generic source-to-destination mapping.
         prototypes: Geometry captured during this backend's prototype import.
-        rows: Source rows consumed by this backend; ``None`` selects all rows.
+        plan: Declared asset prototypes and their world topology.
+        env_ids: Target environment ids.
+        positions: Environment origins [m], shape [num_envs, 3].
 
     Returns:
         Destination geometry records, including shared geometry once. Parent-frame world poses [m, xyzw]
         include the clone translation; topology and vertex arrays remain shared with the prototype.
     """
     entries: dict[str, tuple[str, DeformableStageEntry]] = {}
-    selected = set(range(len(plan.sources)) if rows is None else rows)
-    source_rows = defaultdict(list)
-    for row, source in enumerate(plan.sources):
-        source_rows[Sdf.Path(source)].append(row)
+    source_instances = defaultdict(list)
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+        columns = world_ids[world_starts[group] : world_starts[group + 1]]
+        for index in range(*starts[group : group + 2]):
+            source = sources[plan.topology.world_prototypes[index]]
+            source_instances[Sdf.Path(source)].append((source, templates[index], columns))
     for entry in prototypes:
         owner = Sdf.Path(entry.root_path)
-        while owner != Sdf.Path.absoluteRootPath and owner not in source_rows:
+        while owner != Sdf.Path.absoluteRootPath and owner not in source_instances:
             owner = owner.GetParentPath()
-        if owner not in source_rows:
+        if owner not in source_instances:
             entries[entry.root_path] = (entry.root_path, entry)
             continue
-        for row in source_rows[owner]:
-            if row not in selected:
-                continue
-            columns = np.flatnonzero(plan.clone_mask[row])
+        source_column = source_instances[owner][0][2][0]
+        for source, template, columns in source_instances[owner]:
             for column in columns:
-                target = plan.destinations[row].format(int(plan.env_ids[column]))
-                offset = 0 if plan.positions is None else plan.positions[column] - plan.positions[columns[0]]
+                target = template.format(int(env_ids[column]))
+                offset = 0 if positions is None else positions[column] - positions[source_column]
                 cloned = replace(
                     entry,
-                    root_path=rebase(entry.root_path, plan.sources[row], target),
-                    sim_mesh_path=rebase(entry.sim_mesh_path, plan.sources[row], target),
-                    vis_mesh_path=rebase(entry.vis_mesh_path, plan.sources[row], target),
+                    root_path=cloner_path.rebase(entry.root_path, source, target),
+                    sim_mesh_path=cloner_path.rebase(entry.sim_mesh_path, source, target),
+                    vis_mesh_path=cloner_path.rebase(entry.vis_mesh_path, source, target),
                     init_pos=tuple(np.asarray(entry.init_pos) + offset),
                 )
                 if cloned.root_path not in entries or len(target) > len(entries[cloned.root_path][0]):

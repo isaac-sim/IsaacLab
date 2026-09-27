@@ -249,8 +249,8 @@ class conditional_reset(ManagerTermBase):
             return ok
 
         if not self._prefilled:
-            # envs sharing a clone-mask column are clones of the same unique asset combination
-            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            # The plan already identifies the world prototype selected by each environment.
+            _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
             self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
@@ -637,8 +637,13 @@ class mesh_clearance(ManagerTermBase):
         object_meshes = []
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
-        clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, self._object.cfg.prim_path):
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
+        for index in cloner.path.get_asset_prototypes(plan, self._object.cfg.prim_path):
+            env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
+            if not len(env_ids):
+                continue
+            source_path = source_paths[index]
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))

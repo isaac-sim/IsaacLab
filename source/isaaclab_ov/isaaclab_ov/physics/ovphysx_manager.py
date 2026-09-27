@@ -35,6 +35,7 @@ from isaaclab.scene_data.deformable_discovery import (
     expand_deformable_entries,
 )
 from isaaclab.sim.simulation_context import SimulationContext
+from isaaclab.utils.buffers import TimestampedBuffer
 
 from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
@@ -96,18 +97,16 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._rigid_bindings: list[tuple[OvPhysxView, wp.array]] = []
-        self._transforms = SceneDataFormat.Transform()
-        self.transforms_version = 0
-        self._transforms_version_last_update = -1
+        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
+        self.transforms_timestamp = 0
         self.geometry_timestamp = 0
-        self._geometry_timestamp_last_update = -1
-        self._geometry_batches: list | None = None
+        self._geometry = TimestampedBuffer()
         self._deformable_bindings: list[tuple[OvPhysxView, Any, wp.array]] = []
 
     @property
     def transform_count(self) -> int:
         """Number of poses in the native publication."""
-        poses = self._transforms.transforms
+        poses = self._transforms.data.transforms
         return 0 if poses is None else len(poses)
 
     @property
@@ -128,11 +127,11 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         from isaaclab_ov import tensor_types as TT  # local: keep heavy ovphysx out of module load
 
         self._rigid_bindings = []
-        self._transforms.transforms = None
-        self.transforms_version += 1
+        self._transforms.data.transforms = None
+        self.transforms_timestamp += 1
         self._deformable_bindings = []
         self.geometry_timestamp += 1
-        self._geometry_batches = None
+        self._geometry = TimestampedBuffer()
 
         if stage is None:
             return
@@ -155,7 +154,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
 
         if views:
             poses = wp.empty(sum(view.count for view in views), dtype=wp.transformf, device=device)
-            self._transforms.transforms = poses
+            self._transforms.data.transforms = poses
             offset = 0
             for view in views:
                 buffer = wp.array(
@@ -201,7 +200,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             views.append((view, tensor_type, count))
 
         if not views:
-            self._geometry_batches = []
+            self._geometry.data = []
             return
         counts = [entry.vertex_count for entry in native_entries]
         points = wp.empty(sum(counts), dtype=wp.vec3f, device=device)
@@ -217,7 +216,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
             self._deformable_bindings.append((view, tensor_type, buffer))
             offset += view.count * count
         offsets = np.cumsum(np.r_[0, counts[:-1]])
-        self._geometry_batches = deformable_geometry_batches(native_entries, points, offsets)
+        self._geometry.data = deformable_geometry_batches(native_entries, points, offsets)
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> list:
         """Publish native positions with exact visual paths and interpolation metadata.
@@ -225,13 +224,13 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         Raises:
             RuntimeError: If scene geometry was not initialized from a clone plan.
         """
-        if self._geometry_batches is None:
+        if self._geometry.data is None:
             raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
-        if self._geometry_timestamp_last_update != self.geometry_timestamp:
+        if self._geometry.timestamp != self.geometry_timestamp:
             for view, tensor_type, buffer in self._deformable_bindings:
                 view.read_into(tensor_type, buffer)
-            self._geometry_timestamp_last_update = self.geometry_timestamp
-        return self._geometry_batches
+            self._geometry.timestamp = self.geometry_timestamp
+        return self._geometry.data
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:
@@ -240,19 +239,19 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         Raises:
             RuntimeError: If scene geometry was not initialized from a clone plan.
         """
-        if self._geometry_batches is None:
+        if self._geometry.data is None:
             raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
-        return tuple(dict.fromkeys(publication._cls for publication, _ in self._geometry_batches))
+        return tuple(dict.fromkeys(publication._cls for publication, _ in self._geometry.data))
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
-        if self._transforms_version_last_update != self.transforms_version:
+        if self._transforms.timestamp != self.transforms_timestamp:
             OvPhysxManager.pre_render()
             for view, buffer in self._rigid_bindings:
                 view.read_into("rigid_body_pose", buffer)
-            self._transforms_version_last_update = self.transforms_version
-        return self._transforms
+            self._transforms.timestamp = self.transforms_timestamp
+        return self._transforms.data
 
 
 class OvPhysxBackend:
@@ -351,13 +350,13 @@ class OvPhysxManager(PhysicsManager):
     _locked_device: ClassVar[str | None] = None
     # Active clone recipes survive the consumable pending queue so a forced
     # re-warmup can rebuild serialized-stage or runtime-only clones.
-    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform], list[int] | None]]] = []
     # Consumable snapshot of the active recipes. Full-stage warmup materializes
     # these into serialized USDA; env-0-only warmup replays them with physx.clone().
-    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform]]]] = []
+    _pending_clones: ClassVar[list[tuple[str, list[str], list[CloneTransform], list[int] | None]]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
-    _kinematics_dirty: ClassVar[bool] = False
+    kinematics_dirty: ClassVar[bool] = False
     # Gravity currently applied to the running scene [m/s^2]. Seeded from ``SimulationCfg.gravity``
     # in :meth:`initialize` and refreshed by :meth:`set_gravity`. ``cfg.gravity`` stays the nominal
     # value that randomization terms resample from, so live updates must not be written back to it.
@@ -402,20 +401,17 @@ class OvPhysxManager(PhysicsManager):
 
     @classmethod
     def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[CloneTransform]
+        cls, source: str, targets: list[str], target_transforms: list[CloneTransform], env_ids: list[int] | None = None
     ) -> None:
         """Register final target-root world poses for the current simulation context."""
-        recipe = (source, list(targets), list(target_transforms))
+        recipe = (source, list(targets), list(target_transforms), None if env_ids is None else list(env_ids))
         cls._active_clone_recipes.append(recipe)
         cls._pending_clones.append(recipe)
 
     @classmethod
     def _rearm_pending_clones(cls) -> None:
         """Refresh the consumable clone queue from active context recipes."""
-        cls._pending_clones = [
-            (source, list(targets), list(target_transforms))
-            for source, targets, target_transforms in cls._active_clone_recipes
-        ]
+        cls._pending_clones = cls._active_clone_recipes.copy()
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -473,7 +469,6 @@ class OvPhysxManager(PhysicsManager):
         ``cls._locked_device`` carries the process-wide first-device policy.
         """
         super().initialize(sim_context)
-        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context)
         cls._ensure_physx_schemas_registered()
         cls._gravity = tuple(sim_context.cfg.gravity)
         cls._warmup_done = False
@@ -489,7 +484,7 @@ class OvPhysxManager(PhysicsManager):
         # and the USD stage are live. Matches PhysX's pattern of constructing
         # the backend during ``initialize()``.
         cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls._kinematics_dirty = False
+        cls.kinematics_dirty = False
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -511,25 +506,30 @@ class OvPhysxManager(PhysicsManager):
                     cls.dispatch_event(PhysicsEvent.STOP, payload={})
                 cls._warmup_and_load()
             cls.dispatch_event(PhysicsEvent.PHYSICS_READY, payload={})
-        cls._kinematics_dirty = True
-        cls._scene_data_backend.transforms_version += 1
+        cls.kinematics_dirty = True
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
 
     @classmethod
     def forward(cls) -> None:
         """Evaluate and publish state changes made without stepping physics."""
-        if cls.backend is not None and cls.backend.physx is not None:
-            cls.backend.physx.update_articulations_kinematic()
-            cls._kinematics_dirty = False
-        cls._scene_data_backend.transforms_version += 1
+        cls.update_kinematics()
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
 
     @classmethod
     def pre_render(cls) -> None:
         """Finish native kinematics before SDP publishes manually written joint poses."""
-        if cls._kinematics_dirty and cls.backend is not None and cls.backend.physx is not None:
+        cls.update_kinematics()
+
+    @classmethod
+    def update_kinematics(cls) -> None:
+        """Update dirty articulation kinematics without publishing or rendering."""
+        if not cls.kinematics_dirty:
+            return
+        if cls.backend is not None and cls.backend.physx is not None:
             cls.backend.physx.update_articulations_kinematic()
-            cls._kinematics_dirty = False
+            cls.kinematics_dirty = False
 
     @classmethod
     def step(cls) -> None:
@@ -538,9 +538,9 @@ class OvPhysxManager(PhysicsManager):
             return
         dt = cls.get_physics_dt()
         cls.backend.physx.step_sync(dt=dt)
-        cls.backend.physx.update_articulations_kinematic()
-        cls._kinematics_dirty = False
-        cls._scene_data_backend.transforms_version += 1
+        cls.kinematics_dirty = True
+        cls.update_kinematics()
+        cls._scene_data_backend.transforms_timestamp += 1
         cls._scene_data_backend.geometry_timestamp += 1
         PhysicsManager._sim_time += dt
 
@@ -577,7 +577,7 @@ class OvPhysxManager(PhysicsManager):
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
                 cls._scene_data_backend = None
-                cls._kinematics_dirty = False
+                cls.kinematics_dirty = False
                 cls._next_control_ordinal = 2
 
     @classmethod
@@ -741,7 +741,7 @@ class OvPhysxManager(PhysicsManager):
         envs_path = Sdf.Path("/World/envs")
         operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
         processed_targets: set[Sdf.Path] = set()
-        for source, targets, _ in pending_clones:
+        for source, targets, _, _ in pending_clones:
             source_path = Sdf.Path(source)
             if layer.GetPrimAtPath(source_path) is None:
                 raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
@@ -834,7 +834,7 @@ class OvPhysxManager(PhysicsManager):
         if requires_full_stage:
             return
 
-        for source, targets, target_transforms in pending_clones:
+        for source, targets, target_transforms, env_ids in pending_clones:
             if not targets:
                 continue
             logger.info(
@@ -844,9 +844,8 @@ class OvPhysxManager(PhysicsManager):
                 targets[0],
                 targets[-1],
             )
-            transforms = target_transforms or None
-            op_idx = physx.clone(source, targets, transforms)
-            physx.wait_op(op_idx)
+            # Assets cloned separately into the same world must still collide with each other.
+            physx.wait_op(physx.clone(source, targets, target_transforms or None, env_ids=env_ids))
 
     @classmethod
     def _warmup_and_load(cls) -> None:
@@ -873,7 +872,8 @@ class OvPhysxManager(PhysicsManager):
 
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            env_ids = np.arange(len(plan.topology.world_prototype_layout))
+            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 

@@ -226,11 +226,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         NewtonMPMManager._solver_specific_clear()
 
     @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Capture coupled MPM only after the task authors its initial particle state."""
-        return bool(NewtonMPMManager._implicit_mpm_solvers())
-
-    @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
         """Reject capture when a nested MPM solver has dynamic storage."""
         return all(
