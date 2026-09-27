@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import math
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -97,85 +96,6 @@ def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[s
         mag = _contact_force_mag(env.scene.sensors[sensor_name], env.num_envs)
         count += (mag > threshold).float()
     return count / len(sensor_names)
-
-
-class ObjectLiftAndHold(ManagerTermBase):
-    """Reward lifting near the end effector while reducing object motion.
-
-    The reward is normalized height clipped to [0, 1], gated by end-effector proximity,
-    and multiplied by a Gaussian of object speed. Success counters only log metrics;
-    they do not affect the reward or reset distribution. Hold durations are fixed at
-    construction from the term configuration and rounded up to control steps.
-    """
-
-    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        self._hold_steps = math.ceil(cfg.params["hold_time"] / env.step_dt)
-        self._final_hold_steps = math.ceil(cfg.params["final_hold_time"] / env.step_dt)
-        self._hold = torch.zeros(env.num_envs, dtype=torch.long, device=env.device)
-        self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-        self._max_lift = torch.zeros(env.num_envs, device=env.device)
-
-    def __call__(
-        self,
-        env: ManagerBasedRLEnv,
-        resting_height: float,
-        lift_height: float,
-        speed_std: float,
-        distance_threshold: float,
-        success_height: float,
-        success_speed: float,
-        hold_time: float,
-        final_hold_time: float,
-        object_cfg: SceneEntityCfg = SceneEntityCfg("object"),
-        ee_frame_cfg: SceneEntityCfg = SceneEntityCfg("ee_frame"),
-    ) -> torch.Tensor:
-        """Compute the lift reward and update hold metrics.
-
-        Args:
-            env: The environment.
-            resting_height: Resting object center height above the environment origin [m].
-            lift_height: Height above rest at which the height reward saturates [m].
-            speed_std: Width of the Gaussian penalty on object speed [m/s].
-            distance_threshold: Maximum end-effector distance for reward and success [m].
-            success_height: Minimum height above rest for success [m].
-            success_speed: Maximum object speed for success [m/s].
-            hold_time: Continuous hold duration required for episode success [s].
-            final_hold_time: Continuous hold duration required at episode end [s].
-            object_cfg: Object to lift.
-            ee_frame_cfg: Frame transformer whose first target defines the end effector.
-
-        Returns:
-            Reward in [0, 1], shape [N].
-        """
-        obj: RigidObject = env.scene[object_cfg.name]
-        ee_frame: FrameTransformer = env.scene[ee_frame_cfg.name]
-        height = obj.data.root_pos_w.torch[:, 2] - env.scene.env_origins[:, 2] - resting_height
-        distance = torch.linalg.vector_norm(obj.data.root_pos_w.torch - ee_frame.data.target_pos_w.torch[:, 0], dim=-1)
-        near_gripper = distance < distance_threshold
-        slow = torch.linalg.vector_norm(obj.data.root_lin_vel_w.torch, dim=-1) < success_speed
-        held = (height > success_height) & near_gripper & slow
-        self._hold = torch.where(held, self._hold + 1, 0)
-        self._succeeded |= self._hold >= self._hold_steps
-        self._max_lift = torch.maximum(self._max_lift, height)
-        stillness = torch.exp(-torch.sum((obj.data.root_lin_vel_w.torch / speed_std).square(), dim=-1))
-        return (height / lift_height).clamp(0.0, 1.0) * near_gripper * stillness
-
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
-        """Log episode success, peak lift [m], and final hold, then clear the counters."""
-        if env_ids is None:
-            env_ids = slice(None)
-        self._env.extras.setdefault("log", {}).update(
-            {
-                "Metrics/lift_success": self._succeeded[env_ids].float().mean(),
-                "Metrics/max_lift": self._max_lift[env_ids].mean(),
-                "Metrics/final_hold": (self._hold[env_ids] >= self._final_hold_steps).float().mean(),
-            }
-        )
-        self._hold[env_ids] = 0
-        self._succeeded[env_ids] = False
-        self._max_lift[env_ids] = 0.0
-        return {}
 
 
 class success_reward(ManagerTermBase):

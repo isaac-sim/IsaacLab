@@ -11,7 +11,6 @@ __all__ = [
     "DeformableUniformPoseCommandCfg",
     "GraspTravelDistanceCfg",
     "MeshClearanceCfg",
-    "ObjectLiftAndHold",
     "ObjectUniformPoseCommandCfg",
     "SlabClearanceCfg",
     "SuccessMonitor",
@@ -89,7 +88,6 @@ from .observations import (
 from .rewards import (
     CableSegmentGoalDistance,
     DeformableComGoalDistance,
-    ObjectLiftAndHold,
     cable_ee_distance,
     cable_lifting,
     cable_segment_goal_reached,

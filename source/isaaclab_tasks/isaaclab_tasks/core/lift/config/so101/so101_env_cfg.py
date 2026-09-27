@@ -13,14 +13,13 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim import MassCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.contrib.lift.mdp.observations import object_position_in_robot_root_frame
-from isaaclab_tasks.contrib.lift.mdp.rewards import object_ee_distance
 from isaaclab_tasks.contrib.stack.mdp.observations import ee_frame_quat
 from isaaclab_tasks.utils import preset
 
@@ -37,7 +36,7 @@ class SO101SceneCfg(lift.SceneCfg):
     robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SO101_CFG.spawn.replace(
-            activate_contact_sensors=False,
+            activate_contact_sensors=True,
             variants={
                 "Robot": "robot",
                 "Sensor": "sensors",
@@ -62,11 +61,18 @@ class SO101SceneCfg(lift.SceneCfg):
     )
     object: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Object",
-        spawn=lift.ObjectCfg().cube.replace(size=(0.03, 0.03, 0.03), mass_props=MassCfg(mass=0.05)),
+        spawn=lift.ObjectCfg().cube.replace(
+            size=(0.03, 0.03, 0.03), mass_props=MassCfg(mass=0.05), activate_contact_sensors=True
+        ),
         # Start 2 mm above the resting center height to avoid penetration on reset.
         init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.32, 0.2, 0.272)),
     )
     table: RigidObjectCfg = lift.SceneCfg().table.replace(spawn=lift.TABLE_SPAWN_CFG.replace(visible=True))
+    # Object-side sensing supports filtered moving-jaw contact on PhysX as well as Newton.
+    jaw_object_s: ContactSensorCfg = ContactSensorCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/moving_jaw_so101_v1"],
+    )
     grasp_frame: FrameTransformerCfg = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         target_frames=[
@@ -86,7 +92,7 @@ class SO101StateObservationCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
-        """The same 32 state values are available to actor and critic."""
+        """The same 39 state and command values are available to actor and critic."""
 
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
@@ -96,6 +102,7 @@ class SO101StateObservationCfg:
             func=lift_mdp.ee_to_object_b, params={"ee_frame_cfg": SceneEntityCfg("grasp_frame")}
         )
         gripper_quat_w = ObsTerm(func=ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("grasp_frame")})
+        target_object_pose_b = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
         last_action = ObsTerm(func=mdp.last_action)
 
         def __post_init__(self):
@@ -142,28 +149,29 @@ class SO101EventCfg:
 
 
 @configclass
-class SO101LiftRewardCfg:
-    """Reach, lift, and avoid unnecessary changes in joint targets."""
+class SO101LiftRewardCfg(lift.RewardsCfg):
+    """Shared lift rewards with the SO-101 jaw contact binding."""
 
-    reach = RewTerm(
-        func=object_ee_distance, weight=1.0, params={"std": 0.06, "ee_frame_cfg": SceneEntityCfg("grasp_frame")}
+    orientation_tracking = None
+    early_termination = None
+    # One moving jaw provides the grasp-contact signal; a second contact-count term duplicates it.
+    good_finger_contact = RewTerm(
+        func=lift_mdp.contacts,
+        weight=0.75,
+        params={"threshold": 0.01, "thumb_name": "jaw_object_s", "finger_names": ["jaw_object_s"]},
     )
-    lift = RewTerm(
-        func=lift_mdp.ObjectLiftAndHold,
-        weight=10.0,
-        params={
-            "resting_height": 0.27,
-            "lift_height": 0.08,
-            "speed_std": 0.5,
-            "distance_threshold": 0.055,
-            "success_height": 0.05,
-            "success_speed": 0.2,
-            "hold_time": 0.5,
-            "final_hold_time": 1.0,
-            "ee_frame_cfg": SceneEntityCfg("grasp_frame"),
-        },
-    )
-    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+
+    def __post_init__(self):
+        super().__post_init__()
+        # Make transport competitive with maintaining jaw contact on the table.
+        self.position_tracking.weight = 50.0
+        self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg(
+            "robot", body_names=["gripper", "moving_jaw_so101_v1"]
+        )
+        for term in (self.fingers_to_object, self.position_tracking, self.success):
+            term.params["thumb_name"] = "jaw_object_s"
+            term.params["finger_names"] = ["jaw_object_s"]
+        self.success.params["rot_std"] = None
 
 
 @configclass
@@ -179,27 +187,36 @@ class SO101TerminationCfg:
 
 @configclass
 class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
-    """Lift a tabletop cube by 5 cm and hold it under full gravity.
+    """Lift a tabletop cube to a commanded position under full gravity.
 
     Episodes last 6 s. Each reset samples the cube within a 5 cm square with yaw in
     [-45, 45] degrees and returns the arm to an open-gripper home pose. Actor and critic
-    receive the same 32 state values; there are no cameras, point clouds, or history.
+    receive the same 39 state and command values; there are no cameras, point clouds, or history.
 
     Five actions command arm joint offsets about home, and one commands the jaw angle.
-    Rewards encourage reaching the grasp frame to the cube, lifting it by 8 cm while
-    slowing its motion, and keeping successive actions smooth. Success is measured
-    independently as at least 5 cm of lift held for 0.5 s with object speed below 0.2 m/s.
-    No command generator, physics randomization, reset bank, or curriculum is used.
+    The command generator and contact-gated position-progress and success rewards are
+    shared with Franka and Kuka lift. Target positions are sampled in the robot root
+    frame within its reach. Orientation tracking is disabled, with no hold-duration
+    requirement, physics randomization, reset bank, or curriculum.
     """
 
     scene: SO101SceneCfg = SO101SceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
     observations: SO101StateObservationCfg = SO101StateObservationCfg()
     actions: SO101JointPosActionCfg = SO101JointPosActionCfg()
     events: SO101EventCfg = SO101EventCfg()
+    commands: lift.CommandsCfg = lift.CommandsCfg()
     rewards: SO101LiftRewardCfg = SO101LiftRewardCfg()
     terminations: SO101TerminationCfg = SO101TerminationCfg()
 
     def __post_init__(self):
+        self.commands.object_pose.position_only = True
+        self.commands.object_pose.ranges.pos_x = (-0.025, 0.025)
+        self.commands.object_pose.ranges.pos_y = (-0.185, -0.135)
+        self.commands.object_pose.ranges.pos_z = (0.15, 0.20)
+        self.commands.object_pose.ranges.roll = (0.0, 0.0)
+        self.commands.object_pose.ranges.pitch = (0.0, 0.0)
+        self.commands.object_pose.ranges.yaw = (0.0, 0.0)
+        self.commands.object_pose.success_vis_asset_name = ""
         self.decimation = 4
         self.episode_length_s = 6.0
         self.sim.dt = 1 / 120
