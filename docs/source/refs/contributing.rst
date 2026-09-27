@@ -272,6 +272,10 @@ Note that ``__init__.py`` files are an exception to the above: they use
 :func:`~isaaclab.utils.module.lazy_export` instead of traditional imports.
 See the `Lazy Loading & Module Exports`_ section for details.
 
+Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
+parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
+``data``. Use explicit native access only where the receiving API requires it.
+
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
