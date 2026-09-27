@@ -611,6 +611,9 @@ class NewtonManager(PhysicsManager):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
+        # Reset observations read these transforms before the next physics step.
+        for sensor in cls._newton_frame_transform_sensors:
+            sensor.update(cls.backend.state_0)
         if cls._fk_reset_mask is not None:
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
@@ -2822,6 +2825,7 @@ class NewtonManager(PhysicsManager):
             shapes=shapes,
             reference_sites=reference_sites,
         )
+        sensor.update(cls.backend.state_0)
         idx = len(cls._newton_frame_transform_sensors)
         cls._newton_frame_transform_sensors.append(sensor)
         logger.info(f"Added frame transform sensor (index={idx}, shapes={len(shapes)})")
