@@ -24,6 +24,7 @@ from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
 from ..renderers.render_context import RenderContext
 from ..renderers.renderer_cfg import RendererCfg
 from ..scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataProvider
+from ..utils import instantiate
 from ..utils.string import clear_resolve_matching_names_cache
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
@@ -681,7 +682,7 @@ class SimulationContext:
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
-            self._pending_visualizers.append(cfg.class_type(cfg))
+            self._pending_visualizers.append(instantiate(cfg))
 
     def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Bind constructed visualizers, optionally selecting only pre-capture consumers."""
@@ -977,7 +978,7 @@ class SimulationContext:
         before registration and treat them as read-only afterward; use a new cfg for new settings.
 
         Args:
-            cfg: Construction inputs. A cache miss constructs ``cfg.class_type(cfg)``.
+            cfg: Construction inputs. A cache miss constructs ``instantiate(cfg)``.
 
         Returns:
             The existing or newly constructed resource.
@@ -987,7 +988,7 @@ class SimulationContext:
                 return resource
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
-        resource = cfg.class_type(cfg)
+        resource = instantiate(cfg)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):
             self._render_context.register_renderer(cfg, resource)

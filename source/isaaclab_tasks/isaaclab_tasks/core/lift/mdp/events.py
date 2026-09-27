@@ -17,6 +17,7 @@ from tqdm import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -314,9 +315,7 @@ class conditional_reset(ManagerTermBase):
                 self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
             if success_monitor is not None:
                 # one monitored slot per banked state, partitioned exactly like the bank
-                self._monitor = success_monitor.class_type(
-                    success_monitor, num_groups, buffer_size_per_group, env.device
-                )
+                self._monitor = instantiate(success_monitor, num_groups, buffer_size_per_group, env.device)
             self._prefilled = True
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()

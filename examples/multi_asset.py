@@ -42,7 +42,7 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer, configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -240,7 +240,7 @@ def main():
             scene_cfg.object.spawn.assets_cfg = scene_cfg.object.spawn.assets_cfg[1:2]
             scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
         with Timer("[INFO] Time to create scene: "):
-            scene = scene_cfg.class_type(scene_cfg)
+            scene = instantiate(scene_cfg)
 
         # Play the simulator
         sim.reset()

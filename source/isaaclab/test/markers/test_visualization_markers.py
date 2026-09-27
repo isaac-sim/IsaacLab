@@ -6,6 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import clone
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -270,7 +271,7 @@ def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototyp
 def test_usd_marker(sim):
     """Test with marker from a USD."""
     # create a marker
-    config = FRAME_MARKER_CFG.copy()
+    config = clone(FRAME_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_frames"
     test_marker = VisualizationMarkers(config)
 
@@ -290,7 +291,7 @@ def test_usd_marker(sim):
 def test_visualization_skips_updates_when_invisible(sim):
     """When invisible, visualize should not update marker state."""
     # create a marker
-    config = POSITION_GOAL_MARKER_CFG.copy()
+    config = clone(POSITION_GOAL_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_protos"
     test_marker = VisualizationMarkers(config)
 
@@ -322,7 +323,7 @@ def test_visualization_skips_updates_when_invisible(sim):
 def test_newton_marker_backend_registers_and_updates_state_without_frame_capture(sim):
     """Newton marker backend state should be registered and ready for Newton-family viewers."""
     sim._visualizers.append(_FakeMarkerVisualizer(pumps_app_update=False))
-    config = POSITION_GOAL_MARKER_CFG.copy()
+    config = clone(POSITION_GOAL_MARKER_CFG)
     config.prim_path = "/World/Visuals/newton_marker_state"
     test_marker = VisualizationMarkers(config)
     translations = torch.arange(6, dtype=torch.float32, device=sim.device).reshape(2, 3)

@@ -8,6 +8,7 @@ from collections import namedtuple
 import pytest
 
 from isaaclab.envs.mdp import NullCommandCfg
+from isaaclab.utils import instantiate
 
 pytestmark = pytest.mark.unit
 
@@ -21,14 +22,14 @@ def env():
 def test_str(env):
     """Test the string representation of the command manager."""
     cfg = NullCommandCfg()
-    command_term = cfg.class_type(cfg, env)
+    command_term = instantiate(cfg, env)
     assert "NullCommand" in str(command_term)
 
 
 def test_compute(env):
     """Test the compute function. For null command generator, it does nothing."""
     cfg = NullCommandCfg()
-    command_term = cfg.class_type(cfg, env)
+    command_term = instantiate(cfg, env)
 
     # test the reset function
     command_term.reset()

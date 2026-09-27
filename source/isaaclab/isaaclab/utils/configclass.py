@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
+"""Configuration dataclasses and construction of their selected implementations."""
 
 import dataclasses
 import inspect
@@ -12,11 +12,13 @@ import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
-from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, ClassVar
+from dataclasses import MISSING, Field, dataclass, field
+from typing import Any, ClassVar, TypeVar
 
-from .dict import class_to_dict, update_class_from_dict
+from .dict import to_dict, update_from_dict
 from .string import ResolvableString
+
+_ConfigT = TypeVar("_ConfigT")
 
 _CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
 _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
@@ -49,7 +51,7 @@ def configclass(cls, **kwargs):
     conversion and easily copying class instances.
 
     Fields declared with ``field(metadata={"copy": False})`` retain their supplied value by reference
-    during construction, :meth:`copy`, and :meth:`replace`. Use this for borrowed native inputs that
+    during construction, :func:`clone`, and :func:`replace`. Use this for borrowed native inputs that
     must not be duplicated; ordinary configuration fields remain independently copied.
 
     Usage:
@@ -58,7 +60,7 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING
 
-        from isaaclab.utils import configclass
+        from isaaclab.utils import clone, configclass, replace, to_dict
 
 
         @configclass
@@ -78,13 +80,13 @@ def configclass(cls, **kwargs):
         env_cfg = EnvCfg(num_envs=24)
 
         # print information as a dictionary
-        print(env_cfg.to_dict())
+        print(to_dict(env_cfg))
 
         # create a copy of the configuration
-        env_cfg_copy = env_cfg.copy()
+        env_cfg_copy = clone(env_cfg)
 
         # replace arbitrary fields using keyword arguments
-        env_cfg_copy = env_cfg_copy.replace(num_envs=32)
+        env_cfg_copy = replace(env_cfg_copy, num_envs=32)
 
     Args:
         cls: The class to wrap around.
@@ -111,10 +113,10 @@ def configclass(cls, **kwargs):
     else:
         setattr(cls, "__post_init__", _custom_post_init)
     # add helper functions for dictionary conversion
-    setattr(cls, "to_dict", _class_to_dict)
-    setattr(cls, "from_dict", _update_class_from_dict)
-    setattr(cls, "replace", _replace_class_with_kwargs)
-    setattr(cls, "copy", _copy_class)
+    setattr(cls, "to_dict", to_dict)
+    setattr(cls, "from_dict", update_from_dict)
+    setattr(cls, "replace", replace)
+    setattr(cls, "copy", clone)
     setattr(cls, "validate", _validate)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
@@ -122,72 +124,63 @@ def configclass(cls, **kwargs):
     return cls
 
 
-"""
-Dictionary <-> Class operations.
-
-These are redefined here to add new docstrings.
-"""
-
-
-def _class_to_dict(obj: object) -> dict[str, Any]:
-    """Convert an object into dictionary recursively.
+def instantiate(cfg: Any, *args: Any, **kwargs: Any) -> Any:
+    """Construct ``cfg.class_type`` with the configuration as its first argument.
 
     Args:
-        obj: The object to convert.
+        cfg: Configuration declaring a callable ``class_type``, including a lazy
+            :class:`~isaaclab.utils.string.ResolvableString` supplied by :func:`configclass`.
+        *args: Additional positional constructor arguments.
+        **kwargs: Additional keyword constructor arguments.
 
     Returns:
-        Converted dictionary mapping.
+        The constructed instance. Configuration and arguments are passed through without copying.
     """
-    return class_to_dict(obj)
+    return cfg.class_type(cfg, *args, **kwargs)
 
 
-def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
-    """Reads a dictionary and sets object variables recursively.
+def replace(cfg: _ConfigT, /, **changes: Any) -> _ConfigT:
+    """Copy a configuration with selected fields replaced.
 
-    This function performs in-place update of the class member attributes.
+    Ordinary fields are independently copied by :func:`configclass`. Fields with
+    ``metadata={"copy": False}`` retain their supplied values by reference.
 
     Args:
-        obj: The object to update.
-        data: Input (nested) dictionary to update from.
+        cfg: Configuration to copy.
+        **changes: Field names and their replacement values.
+
+    Returns:
+        A new configuration of the same type. The original is unchanged.
+    """
+    return dataclasses.replace(cfg, **changes)
+
+
+def clone(cfg: _ConfigT) -> _ConfigT:
+    """Copy a configuration using the same field-copying rules as :func:`replace`.
+
+    Args:
+        cfg: Configuration to copy.
+
+    Returns:
+        A new configuration of the same type, equivalent to ``cfg.copy()``.
+    """
+    return dataclasses.replace(cfg)
+
+
+def validate(cfg: Any) -> Any:
+    """Run configuration validation, preserving custom ``validate`` implementations.
+
+    Args:
+        cfg: Configuration to validate.
+
+    Returns:
+        The result of ``cfg.validate()``; configclasses return an empty list on success.
 
     Raises:
-        TypeError: When input is not a dictionary.
-        ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist in the default config type.
+        TypeError: If required fields are missing.
+        ValueError: If a configuration's validation hook rejects its values.
     """
-    update_class_from_dict(obj, data, _ns="")
-
-
-def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
-    """Return a new object replacing specified fields with new values.
-
-    This is especially useful for frozen classes.  Example usage:
-
-    .. code-block:: python
-
-        @configclass(frozen=True)
-        class C:
-            x: int
-            y: int
-
-
-        c = C(1, 2)
-        c1 = c.replace(x=3)
-        assert c1.x == 3 and c1.y == 2
-
-    Args:
-        obj: The object to replace.
-        **kwargs: The fields to replace and their new values.
-
-    Returns:
-        The new object.
-    """
-    return replace(obj, **kwargs)
-
-
-def _copy_class(obj: object) -> object:
-    """Return a new object with the same fields as the original."""
-    return replace(obj)
+    return cfg.validate()
 
 
 def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
@@ -327,11 +320,7 @@ def _add_annotation_types(cls):
     cls.__annotations__ = hints
 
 
-def _validate(
-    obj: object,
-    prefix: str = "",
-    _custom_validators: list[Callable[[], None]] | None = None,
-) -> list[str]:
+def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[], None]] | None = None) -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING

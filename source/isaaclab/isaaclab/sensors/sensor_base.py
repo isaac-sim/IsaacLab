@@ -21,6 +21,8 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
+from isaaclab.utils import clone, validate
+
 from .. import sim as sim_utils
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
@@ -52,9 +54,9 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        cfg.validate()
+        validate(cfg)
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         self._is_initialized = False
         self._is_visualizing = False
         self.stage = sim_utils.get_current_stage()
