@@ -130,12 +130,7 @@ class SceneEntityCfg:
 
     @property
     def joint_ids_torch(self) -> torch.Tensor | list[int] | slice:
-        """Cached device selector for :attr:`joint_ids` after :meth:`resolve`.
-
-        Before resolution, returns the configured host selector for direct term calls.
-        Full selections stay slices; partial slices become tensors. Treat cached tensors
-        as read-only and resolve again after changing the configured selection.
-        """
+        """Cached device selector for :attr:`joint_ids` after :meth:`resolve`; otherwise host indices."""
         return self.joint_ids if self._joint_ids_torch is None else self._joint_ids_torch
 
     _fixed_tendon_ids_torch: torch.Tensor | slice | None = field(
@@ -144,12 +139,7 @@ class SceneEntityCfg:
 
     @property
     def fixed_tendon_ids_torch(self) -> torch.Tensor | list[int] | slice:
-        """Cached device selector for :attr:`fixed_tendon_ids` after :meth:`resolve`.
-
-        Before resolution, returns the configured host selector for direct term calls.
-        Full selections stay slices; partial slices become tensors. Treat cached tensors
-        as read-only and resolve again after changing the configured selection.
-        """
+        """Cached device selector for :attr:`fixed_tendon_ids` after :meth:`resolve`; otherwise host indices."""
         return self.fixed_tendon_ids if self._fixed_tendon_ids_torch is None else self._fixed_tendon_ids_torch
 
     _body_ids_torch: torch.Tensor | slice | None = field(
@@ -158,12 +148,7 @@ class SceneEntityCfg:
 
     @property
     def body_ids_torch(self) -> torch.Tensor | list[int] | slice:
-        """Cached device selector for :attr:`body_ids` after :meth:`resolve`.
-
-        Before resolution, returns the configured host selector for direct term calls.
-        Full selections stay slices; partial slices become tensors. Treat cached tensors
-        as read-only and resolve again after changing the configured selection.
-        """
+        """Cached device selector for :attr:`body_ids` after :meth:`resolve`; otherwise host indices."""
         return self.body_ids if self._body_ids_torch is None else self._body_ids_torch
 
     _object_collection_ids_torch: torch.Tensor | slice | None = field(
@@ -172,12 +157,7 @@ class SceneEntityCfg:
 
     @property
     def object_collection_ids_torch(self) -> torch.Tensor | list[int] | slice:
-        """Cached device selector for :attr:`object_collection_ids` after :meth:`resolve`.
-
-        Before resolution, returns the configured host selector for direct term calls.
-        Full selections stay slices; partial slices become tensors. Treat cached tensors
-        as read-only and resolve again after changing the configured selection.
-        """
+        """Cached device selector for :attr:`object_collection_ids` after :meth:`resolve`; otherwise host indices."""
         return (
             self.object_collection_ids
             if self._object_collection_ids_torch is None
