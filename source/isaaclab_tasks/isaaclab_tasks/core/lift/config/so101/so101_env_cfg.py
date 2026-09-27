@@ -27,7 +27,7 @@ from isaaclab_tasks.utils import preset
 from isaaclab_assets.robots.so101 import SO101_CFG
 
 from ... import lift_env_cfg as lift
-from . import mdp as so101_mdp
+from ... import mdp as lift_mdp
 
 
 @configclass
@@ -92,7 +92,9 @@ class SO101StateObservationCfg:
         joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
         object_pos_b = ObsTerm(func=object_position_in_robot_root_frame)
         object_quat_w = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
-        gripper_to_object_b = ObsTerm(func=so101_mdp.gripper_to_object_b)
+        gripper_to_object_b = ObsTerm(
+            func=lift_mdp.ee_to_object_b, params={"ee_frame_cfg": SceneEntityCfg("grasp_frame")}
+        )
         gripper_quat_w = ObsTerm(func=ee_frame_quat, params={"ee_frame_cfg": SceneEntityCfg("grasp_frame")})
         last_action = ObsTerm(func=mdp.last_action)
 
@@ -147,7 +149,19 @@ class SO101LiftRewardCfg:
         func=object_ee_distance, weight=1.0, params={"std": 0.06, "ee_frame_cfg": SceneEntityCfg("grasp_frame")}
     )
     lift = RewTerm(
-        func=so101_mdp.LiftReward, weight=10.0, params={"resting_height": 0.27, "lift_height": 0.08, "speed_std": 0.5}
+        func=lift_mdp.ObjectLiftAndHold,
+        weight=10.0,
+        params={
+            "resting_height": 0.27,
+            "lift_height": 0.08,
+            "speed_std": 0.5,
+            "distance_threshold": 0.055,
+            "success_height": 0.05,
+            "success_speed": 0.2,
+            "hold_time": 0.5,
+            "final_hold_time": 1.0,
+            "ee_frame_cfg": SceneEntityCfg("grasp_frame"),
+        },
     )
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
 
