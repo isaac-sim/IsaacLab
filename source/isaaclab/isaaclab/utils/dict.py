@@ -31,15 +31,9 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     Args:
         obj: An instance of a class to convert.
 
-    Raises:
-        ValueError: When input argument is not an object.
-
     Returns:
         Converted dictionary mapping.
     """
-    # check that input data is class instance
-    if not hasattr(obj, "__class__"):
-        raise ValueError(f"Expected a class instance. Received: {type(obj)}.")
     # ResolvableString is a str subclass — serialize as plain str so OmegaConf accepts it.
     if isinstance(obj, ResolvableString):
         return str(obj)
@@ -86,6 +80,9 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     """Reads a dictionary and sets object variables recursively.
 
     This function performs in-place update of the class member attributes.
+    Sequences containing mappings are merged element by element, preserving existing nested
+    objects and the destination list or tuple type. Other elements are replaced. Such sequences
+    must match the existing length; sequences without mappings may replace a different-length value.
 
     Args:
         obj: An instance of a class to update.
@@ -143,19 +140,16 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                         f" Expected: {len(obj_mem)}, Received: {len(value)}."
                     )
 
-                # ---- 2d) keep tuple/list parity & recurse ----------
-                if isinstance(obj_mem, tuple):
-                    value = tuple(value)
-                else:
-                    set_obj = True
-                    # recursively call if iterable contains Mappings
-                    for i in range(len(obj_mem)):
-                        if isinstance(value[i], Mapping):
-                            update_class_from_dict(obj_mem[i], value[i], _ns=key_ns)
-                            set_obj = False
-                    # do not set value to obj, otherwise it overwrites the cfg class with the dict
-                    if not set_obj:
-                        continue
+                # Keep nested objects while also applying non-mapping replacements.
+                merged_value = list(value)
+                for i, item in enumerate(merged_value):
+                    if isinstance(item, Mapping):
+                        update_class_from_dict(obj_mem[i], item, _ns=f"{key_ns}/{i}")
+                        merged_value[i] = obj_mem[i]
+                if isinstance(obj_mem, list):
+                    obj_mem[:] = merged_value
+                    continue
+                value = tuple(merged_value) if isinstance(obj_mem, tuple) else merged_value
 
             # -- 3) callable attribute → keep string lazily resolvable --------------
             elif callable(obj_mem):
@@ -209,16 +203,9 @@ def dict_to_md5_hash(data: object) -> str:
     Returns:
         A string object of double length containing only hexadecimal digits.
     """
-    # convert to dictionary
-    if isinstance(data, dict):
-        encoded_buffer = json.dumps(data, sort_keys=True).encode()
-    else:
-        encoded_buffer = json.dumps(class_to_dict(data), sort_keys=True).encode()
-    # compute hash using MD5
-    data_hash = hashlib.md5()
-    data_hash.update(encoded_buffer)
-    # return the hash key
-    return data_hash.hexdigest()
+    if not isinstance(data, dict):
+        data = class_to_dict(data)
+    return hashlib.md5(json.dumps(data, sort_keys=True).encode()).hexdigest()
 
 
 """
@@ -286,7 +273,7 @@ def convert_dict_to_backend(
             # convert the data to the desired backend.
             output_dict[key] = tensor_type_conversions[data_type](value)
         # -- nested dictionaries
-        elif isinstance(data[key], dict):
+        elif isinstance(value, dict):
             output_dict[key] = convert_dict_to_backend(value, backend=backend, array_types=array_types)
         # -- everything else
         else:

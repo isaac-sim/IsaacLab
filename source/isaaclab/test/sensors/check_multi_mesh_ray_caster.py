@@ -211,7 +211,9 @@ def main():
         # Step simulation
         sim.step()
         # Update the ray-caster
-        with Timer(f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays"):
+        with Timer(
+            f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays", synchronize="both", device=sim.device
+        ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1
