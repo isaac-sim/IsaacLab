@@ -26,3 +26,7 @@ Fixed
   Preserved imported cloth rest angles during asset initialization.
 
 * Preserved imported robot bodies selected by sensors that opted out of cloning.
+
+* Kept source labels and material references unchanged during world composition, naming only
+  appended instances. Used imported static geometry for collider visibility instead of traversing
+  USD subtrees, and preserved Newton's visual meshes and material bindings for approximated colliders.

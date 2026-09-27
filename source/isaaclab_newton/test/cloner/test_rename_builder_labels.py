@@ -408,7 +408,19 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
         positions = np.zeros((len(env_ids), 3), dtype=np.float32)
         quaternions = np.tile([0, 0, 0, 1], (len(env_ids), 1)).astype(np.float32)
         assets = {self._SRC: source, sibling_material: newton.ModelBuilder()}
-        replicate_builder_mapping(builder, plan, positions, quaternions, assets, env_ids=env_ids)
+        add_builder = newton.ModelBuilder.add_builder
+        source_paths = {name: attr.values.copy() for name, attr in attributes.items() if attr.dtype is str}
+
+        def append_copy(destination, asset, **kwargs):
+            if asset is source:
+                for name, labels in original.items():
+                    self.assertEqual(getattr(asset, name), labels)
+                for name, values in source_paths.items():
+                    self.assertEqual(asset.custom_attributes[name].values, values)
+            return add_builder(destination, asset, **kwargs)
+
+        with mock.patch.object(newton.ModelBuilder, "add_builder", append_copy):
+            replicate_builder_mapping(builder, plan, positions, quaternions, assets, env_ids=env_ids)
         for name, source_labels in original.items():
             expected = [
                 label.replace(self._SRC, f"{self._ENV.format(i)}/Robot", 1) for i in env_ids for label in source_labels
@@ -428,6 +440,16 @@ class TestReplicationNamesItsCopies(unittest.TestCase):
             builder.custom_attributes["syn:shape_note"].values,
             {index * 3: self._SRC + "/Looks/material" for index in range(len(env_ids))},
         )
+
+        # Declaring the environment root must produce the same names as declaring its assets.
+        root = self._ENV.format(0)
+        plan = make_clone_plan((AssetBaseCfg(prim_path=root),), ((0,),), len(env_ids))
+        rooted = newton.ModelBuilder()
+        replicate_builder_mapping(rooted, plan, positions, quaternions, {root: source}, env_ids=env_ids)
+        for name in label_names:
+            self.assertEqual(getattr(rooted, name), getattr(builder, name))
+        for name in source_paths:
+            self.assertEqual(rooted.custom_attributes[name].values, builder.custom_attributes[name].values)
 
     def test_hook_labels_are_rewritten_after_the_slow_path(self):
         source = newton.ModelBuilder()

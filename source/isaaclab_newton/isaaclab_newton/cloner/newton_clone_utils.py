@@ -5,15 +5,14 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator, Sequence
-from contextlib import contextmanager
+from collections.abc import Callable, Sequence
 from typing import Any
 
 import numpy as np
 import warp as wp
-from newton import GeoType, JointType, ModelBuilder, ShapeFlags
+from newton import JointType, ModelBuilder, ShapeFlags
 
-from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as clone_path
@@ -87,88 +86,6 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
     return geometry
 
 
-def _has_visible_non_collision_geometry(stage: Usd.Stage, prim_path: str) -> bool:
-    """Return whether a prim hierarchy contains visible geometry without collision."""
-    root_prim = stage.GetPrimAtPath(prim_path)
-    if not root_prim:
-        return False
-    for prim in Usd.PrimRange(root_prim):
-        if not prim.IsA(UsdGeom.Gprim) or prim.HasAPI(UsdPhysics.CollisionAPI):
-            continue
-        imageable = UsdGeom.Imageable(prim)
-        is_visible = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-        if is_visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
-            return True
-    return False
-
-
-def _static_collider_owner_path(stage: Usd.Stage, collider_path: str) -> str:
-    """Return the nearest rigid-body ancestor or the collider's immediate parent."""
-    collider_prim = stage.GetPrimAtPath(collider_path)
-    prim = collider_prim.GetParent() if collider_prim else None
-    while prim and not prim.IsPseudoRoot():
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            return str(prim.GetPath())
-        prim = prim.GetParent()
-    return collider_path.rpartition("/")[0]
-
-
-def _restore_visible_colliders_without_visual_shapes(
-    builder: ModelBuilder,
-    stage: Usd.Stage,
-    path_shape_map: dict[str, int] | None,
-    load_visual_shapes: bool = True,
-) -> None:
-    """Show viewport-visible colliders on bodies without separate visual shapes.
-
-    Newton groups static colliders under the world body, where unrelated visual
-    geometry can hide them. Isaac Lab procedural shapes use one default-purpose USD
-    geometry for both collision and visualization. Imported collision meshes,
-    guide-purpose geometry, and colliders with separate visuals remain hidden.
-
-    With ``load_visual_shapes=False`` the pass is skipped: Newton never hides a collider
-    when the model holds no visual-only shapes, so every flag it would set is already set,
-    and nothing draws them in a run that opted out of visual geometry. The skipped USD
-    visibility/purpose resolution is per collider shape, so it is worth avoiding.
-    """
-    if not path_shape_map or not load_visual_shapes:
-        return
-    # Newton may synthesize a visible ``*_visual`` mesh for a proxy-purpose collider.
-    # It is not an authored USD prim and must remain hidden alongside its source collider.
-    for index, path in enumerate(builder.shape_label):
-        if not path.endswith("_visual") or stage.GetPrimAtPath(path):
-            continue
-        collider_prim = stage.GetPrimAtPath(path.removesuffix("_visual"))
-        if collider_prim and collider_prim.HasAPI(UsdPhysics.CollisionAPI):
-            builder.shape_flags[index] &= ~ShapeFlags.VISIBLE
-    bodies_with_visual_shapes = set()
-    for body, flags in zip(builder.shape_body, builder.shape_flags, strict=True):
-        is_visible = flags & ShapeFlags.VISIBLE
-        is_collider = flags & ShapeFlags.COLLIDE_SHAPES
-        if body >= 0 and is_visible and not is_collider:
-            bodies_with_visual_shapes.add(body)
-    # Resolved on first use: a static parent whose colliders are all filtered out below is
-    # never traversed at all.
-    static_owners_with_visual_shapes: dict[str, bool] = {}
-    for path, index in path_shape_map.items():
-        flags, body_index = builder.shape_flags[index], builder.shape_body[index]
-        is_collider = bool(flags & ShapeFlags.COLLIDE_SHAPES)
-        is_mesh = builder.shape_type[index] == GeoType.MESH
-        has_visuals = body_index in bodies_with_visual_shapes
-        if not is_collider or is_mesh or has_visuals:
-            continue
-        if body_index < 0:
-            owner_path = _static_collider_owner_path(stage, path)
-            if owner_path not in static_owners_with_visual_shapes:
-                static_owners_with_visual_shapes[owner_path] = _has_visible_non_collision_geometry(stage, owner_path)
-            if static_owners_with_visual_shapes[owner_path]:
-                continue
-        imageable = UsdGeom.Imageable(stage.GetPrimAtPath(path))
-        is_visible = imageable and imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
-        if is_visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
-            builder.shape_flags[index] = flags | ShapeFlags.VISIBLE
-
-
 def build_source_builders(
     stage: Usd.Stage,
     sources: Sequence[str],
@@ -216,11 +133,36 @@ def build_source_builders(
             ],
             return_deformable_results=True,
         )
-        _restore_visible_colliders_without_visual_shapes(
-            builder, stage, import_result["path_shape_map"], load_visual_shapes
-        )
         replace_newton_builder_shape_colors(builder, stage)
         if load_visual_shapes:
+            # Newton groups all static shapes under body -1. Use imported visual paths to
+            # keep an unrelated static visual from hiding a procedural primitive collider.
+            shapes = import_result["path_shape_map"]
+            static_shapes = {path: index for path, index in shapes.items() if builder.shape_body[index] == -1}
+            visual_ancestors = set()
+            for path, index in static_shapes.items():
+                flags = builder.shape_flags[index]
+                if flags & ShapeFlags.VISIBLE and not flags & ShapeFlags.COLLIDE_SHAPES:
+                    visual_ancestors.update(Sdf.Path(path).GetPrefixes())
+            for path, index in static_shapes.items():
+                flags = builder.shape_flags[index]
+                if flags & ShapeFlags.VISIBLE or not flags & ShapeFlags.COLLIDE_SHAPES:
+                    continue
+                prim = stage.GetPrimAtPath(path)
+                if prim.IsA(UsdGeom.Mesh):
+                    continue
+                owner, ancestor = prim.GetParent(), prim.GetParent()
+                while ancestor and not ancestor.IsPseudoRoot():
+                    if ancestor.HasAPI(UsdPhysics.RigidBodyAPI):
+                        owner = ancestor
+                        break
+                    ancestor = ancestor.GetParent()
+                if owner.GetPath() in visual_ancestors:
+                    continue
+                imageable = UsdGeom.Imageable(prim)
+                visible = imageable.ComputeVisibility() != UsdGeom.Tokens.invisible
+                if visible and imageable.ComputePurpose() in (UsdGeom.Tokens.default_, UsdGeom.Tokens.proxy):
+                    builder.shape_flags[index] |= ShapeFlags.VISIBLE
             import_builder_visual_material_paths(builder, stage)
         _name_root_joints_after_their_body(builder)
         builders[source] = builder
@@ -287,55 +229,55 @@ def _label_groups(builder: ModelBuilder) -> dict[str, list]:
     return groups
 
 
-@contextmanager
-def _rebase_builder_paths(
-    builder: ModelBuilder, source: str, destination: str, prefix: str, reference_paths: Sequence[tuple[str, str]]
-) -> Iterator[None]:
-    """Borrow one prototype with instance-relative labels, restoring its names after the copy."""
-    builder._resolve_custom_frequency_articulation_owners()
-    labels = _label_groups(builder)
-    world_frequencies = {attr.frequency for attr in builder.custom_attributes.values() if attr.references == "world"}
-    paths = []
-    for attr in builder.custom_attributes.values():
-        if attr.dtype is not str:
-            continue
-        is_world_path = attr.frequency in world_frequencies
-        is_material_path = attr.namespace == "isaaclab" and attr.name == "visual_material_path"
-        if (is_world_path or is_material_path) and not any(attr.values is values for values in labels.values()):
-            paths.append(attr)
-    original_labels = {name: list(values) for name, values in labels.items()}
-    original_paths = [attr.values.copy() for attr in paths]
-    source, destination = source.rstrip("/") or "/", destination.rstrip("/") or "/"
+def _add_asset_builder(
+    builder: ModelBuilder,
+    asset: ModelBuilder,
+    source: str,
+    destination: str,
+    prefix: str,
+    reference_paths: Sequence[tuple[str, str]],
+    xform: np.ndarray,
+) -> None:
+    """Copy one asset into a world prototype without mutating the imported source paths."""
+    offsets, tet_start = ModelBuilder._builder_merge_counts(builder), builder.tet_count
+    builder.add_builder(asset, xform=xform)
+    # Name only the appended copy. The imported asset keeps its labels and references;
+    # native replication later adds world prefixes to this composed builder.
+    labels, copied_labels = _label_groups(asset), _label_groups(builder)
+    target = destination[len(prefix) :]
+    for name, values in labels.items():
+        copied = copied_labels[name]
+        for index, label in enumerate(values, len(copied) - len(values)):
+            if not isinstance(label, str) or not label.startswith("/"):
+                continue
+            suffix = clone_path.relative_to(label, source)
+            if suffix is None and label.startswith(source + "_"):
+                suffix = label[len(source) :]
+            if suffix is None or not target + suffix:
+                raise ValueError(f"Newton label {label!r} cannot be cloned from {source!r} to {destination!r}.")
+            copied[index] = (target + suffix).lstrip("/") if prefix else target + suffix
     destinations = dict(reference_paths)
     destinations[source] = destination
-    sources = sorted(destinations, key=len, reverse=True)
-    try:
-        for values in labels.values():
-            for index, label in enumerate(values):
-                if not isinstance(label, str) or not label.startswith("/"):
-                    continue
-                suffix = clone_path.relative_to(label, source)
-                if suffix is None:
-                    suffix = label[len(source) :] if label.startswith(source + "_") else None
-                if suffix is None:
-                    raise ValueError(f"Newton label {label!r} is outside clone source {source!r}.")
-                values[index] = (destination[len(prefix) :] + suffix).lstrip("/") if prefix else destination + suffix
-                if not values[index]:
-                    raise ValueError(f"Newton label {label!r} cannot be prefixed by destination {destination!r}.")
-        for attr in paths:
-            for index in attr.values if isinstance(attr.values, dict) else range(len(attr.values)):
-                value = attr.values[index]
-                if isinstance(value, str):
-                    for root in sources:
-                        if (suffix := clone_path.relative_to(value, root)) is not None:
-                            attr.values[index] = destinations[root].rstrip("/") + suffix or "/"
-                            break
-        yield
-    finally:
-        for name, values in original_labels.items():
-            labels[name][:] = values
-        for attr, values in zip(paths, original_paths, strict=True):
-            attr.values = values
+    roots = sorted(destinations, key=len, reverse=True)
+    attrs = asset.custom_attributes
+    world_frequencies = {attr.frequency for attr in attrs.values() if attr.references == "world"}
+    for name, attr in attrs.items():
+        if attr.dtype is not str or any(attr.values is values for values in labels.values()):
+            continue
+        if attr.frequency not in world_frequencies and name != "isaaclab:visual_material_path":
+            continue
+        copied = builder.custom_attributes[name].values
+        if isinstance(attr.values, dict):
+            offset, items = offsets[attr.frequency.name.lower()], attr.values.items()
+        else:
+            offset, items = len(copied) - len(attr.values), enumerate(attr.values)
+        for index, value in items:
+            if isinstance(value, str):
+                for root in roots:
+                    if (suffix := clone_path.relative_to(value, root)) is not None:
+                        copied[offset + index] = destinations[root].rstrip("/") + suffix or "/"
+                        break
+    _rotate_builder_particles(builder, asset, offsets["particle"], tet_start, xform)
 
 
 def replicate_builder_mapping(
@@ -382,13 +324,10 @@ def replicate_builder_mapping(
                 )
             asset = source_builders[source]
             asset_offsets.append((prototype.shape_count, prototype.particle_count))
-            tet_start = prototype.tet_count
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
             prefix = "" if prototype_id == -1 else env_template
-            with _rebase_builder_paths(asset, source, destination, prefix, reference_paths):
-                prototype.add_builder(asset, xform=source_inverse[source])
-            _rotate_builder_particles(prototype, asset, asset_offsets[-1][1], tet_start, source_inverse[source])
+            _add_asset_builder(prototype, asset, source, destination, prefix, reference_paths, source_inverse[source])
         if prototype_id == -1:
             for label, indices in sites.items():
                 local_site_map[label] = np.tile(indices, (num_worlds, 1)).tolist()
