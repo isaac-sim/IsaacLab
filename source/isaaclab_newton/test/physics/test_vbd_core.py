@@ -11,7 +11,8 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
+from isaaclab_newton.physics.newton_manager import NewtonBackend
 from newton import ModelBuilder
 
 from isaaclab.sim import SimulationContext
@@ -21,17 +22,17 @@ from isaaclab.sim import SimulationContext
 @pytest.mark.parametrize(
     ("soft_contact_cfg", "expected", "simulation"),
     [
-        pytest.param(None, (7.0, 8.0, 9.0), True, id="preserve-physics"),
+        pytest.param(None, (7.0, 8.0, 9.0), False, id="preserve-render"),
         pytest.param(
             NewtonSoftContactCfg(soft_contact_ke=11.0, soft_contact_kd=12.0, soft_contact_mu=13.0),
             (11.0, 12.0, 13.0),
-            False,
-            id="override-render",
+            True,
+            id="override-physics",
         ),
     ],
 )
 def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, simulation):
-    """Registry construction shares the builder and applies model options before native allocation."""
+    """Construction applies physics settings before state allocation, then registers the completed resource."""
     state_values = []
 
     class Model:
@@ -60,13 +61,15 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
 
     model = Model()
     builder = Builder()
-    cfg = NewtonBackendCfg(builder=builder, device="cpu", soft_contact_cfg=soft_contact_cfg, simulation=simulation)
+    physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else None
+    cfg = NewtonBackendCfg(physics_cfg=physics_cfg)
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
-    backend = sim.get_or_create_backend(cfg)
+    backend = NewtonBackend(cfg, builder=builder, device="cpu")
+    sim.register_backend(cfg, backend)
     assert all(name not in vars(NewtonManager) for name in ("_backend", "_model", "_state_0", "_state_1", "_control"))
-    assert cfg.builder is builder
-    assert backend is sim.get_or_create_backend(cfg)
+    assert cfg.physics_cfg is physics_cfg
+    assert backend is sim.get_backend(cfg.replace())
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
     assert state_values == [expected] * (2 if simulation else 1)
     assert (backend.state_1 is not None) == simulation

@@ -59,6 +59,8 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
+.. autofunction:: resolve_newton_backend_cfg
+
 .. autoclass:: NewtonSoftContactCfg
   :members:
   :show-inheritance:

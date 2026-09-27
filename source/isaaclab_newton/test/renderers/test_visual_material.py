@@ -36,7 +36,7 @@ def _material_backend(material_paths: list[str]):
             material = UsdShade.Material.Define(stage, material_path)
             UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(material)
     import_builder_visual_material_paths(builder, stage)
-    return NewtonBackend(NewtonBackendCfg(builder=builder, device="cpu", simulation=False))
+    return NewtonBackend(NewtonBackendCfg(), builder=builder, device="cpu")
 
 
 def test_import_captures_effective_material_binding() -> None:

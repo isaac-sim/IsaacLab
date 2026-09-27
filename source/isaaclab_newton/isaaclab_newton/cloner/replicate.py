@@ -20,7 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.cloner import path as cloner_path
-from isaaclab.physics import PhysicsEvent, PhysicsManager
+from isaaclab.physics import PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -37,6 +37,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     replicate_builder_mapping,
 )
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics.newton_manager import NewtonBackend
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 if TYPE_CHECKING:
@@ -107,7 +108,7 @@ def _replicate_newton(
     positions: np.ndarray | None = None,
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
-) -> tuple[ModelBuilder, object, dict]:
+) -> tuple[ModelBuilder, object, dict, dict[str, int]]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
     cfg = sim.cfg.physics
     sources = cloner_path.get_asset_prototype_paths(plan)
@@ -253,10 +254,7 @@ def _replicate_newton(
         NewtonManager._cl_protos = source_builders
         NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(env_ids)
-    else:
-        cfg = NewtonBackendCfg(builder=builder, device=sim.device, simulation=False, geometry_offsets=geometry_offsets)
-        sim.physics_manager.dispatch_event(PhysicsEvent.BACKEND_CFG_READY, cfg)
-    return builder, stage_info, site_index_map
+    return builder, stage_info, site_index_map, geometry_offsets
 
 
 class NewtonReplicateContext:
@@ -273,7 +271,14 @@ class NewtonReplicateContext:
         """Build and publish a Newton model from this context's source declarations."""
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         options = dict(plan=plan, asset_prototype_ids=asset_prototype_ids, positions=plan.positions)
-        return _replicate_newton(self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options)
+        builder, stage_info, sites, offsets = _replicate_newton(
+            self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options
+        )
+        if not isinstance(self._sim.cfg.physics, NewtonCfg):
+            cfg = NewtonBackendCfg()
+            backend = NewtonBackend(cfg, builder=builder, device=self._sim.device, geometry_offsets=offsets)
+            self._sim.register_backend(cfg, backend)
+        return builder, stage_info, sites
 
 
 def newton_physics_replicate(
@@ -320,5 +325,5 @@ def newton_physics_replicate(
     plan = ClonePlan(topology, asset_cfgs=assets, env_template=env_template, positions=positions)
     options = dict(plan=plan, asset_prototype_ids=range(len(assets)), positions=positions)
     options.update(up_axis=up_axis, quaternions=quaternions)
-    builder, stage_info, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
+    builder, stage_info, _, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
     return builder, stage_info

@@ -214,7 +214,7 @@ def test_imported_deformables_follow_plan_and_publish_geometry(heterogeneous):
         )
         sim.set_clone_plan(plan)
         options = dict(plan=plan, asset_prototype_ids=(0, 1, 2), positions=positions, quaternions=rotations)
-        builder, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
+        builder, _, _, _ = replicate_module._replicate_newton(stage, np.arange(3), sim, **options)
         sim.reset()
         native = NewtonManager.backend
         stage.RemovePrim("/World")

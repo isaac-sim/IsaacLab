@@ -32,6 +32,7 @@ __all__ = [
     "VBDSolverCfg",
     "NewtonXPBDManager",
     "XPBDSolverCfg",
+    "resolve_newton_backend_cfg",
 ]
 
 from .featherstone_manager import NewtonFeatherstoneManager
@@ -60,6 +61,7 @@ from .newton_manager_cfg import (
     NewtonShapeCfg,
     NewtonSoftContactCfg,
     NewtonSolverCfg,
+    resolve_newton_backend_cfg,
 )
 from .vbd_manager import NewtonVBDManager
 from .vbd_manager_cfg import VBDSolverCfg

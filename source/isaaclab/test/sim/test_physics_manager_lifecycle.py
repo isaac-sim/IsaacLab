@@ -30,6 +30,7 @@ def test_backend_registry_identity_and_lifecycle():
     assert not hasattr(SimulationContext, "services")
     assert issubclass(RendererCfg, BackendCfg)
     assert not hasattr(RenderContext, "get_renderer")
+    assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
     assert "_renderer_entries" not in RenderContext.__slots__
     assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
     assert all(
@@ -69,6 +70,7 @@ def test_backend_registry_identity_and_lifecycle():
 
     first = context.get_or_create_backend(cfg)
     assert first.cfg is cfg
+    assert context.get_backend(cfg) is first
     different_cfg = replace(cfg, values=[1, 2])
     second = context.get_or_create_backend(different_cfg)
     other_cfg = context.get_or_create_backend(OtherCfg(class_type=Backend, values=[1]))
@@ -78,8 +80,12 @@ def test_backend_registry_identity_and_lifecycle():
 
     context.close_backend(first)
     first.close.assert_called_once_with()
+    with pytest.raises(KeyError):
+        context.get_backend(cfg)
     assert all(resource.close.call_count == 0 for resource in (second, other_cfg, other_type))
-    replacement = context.get_or_create_backend(cfg)
+    replacement = Backend(cfg)
+    context.register_backend(cfg, replacement)
+    assert context.get_or_create_backend(cfg) is replacement
     assert replacement is not first
     with pytest.raises(KeyError):
         context.close_backend(first)
@@ -253,8 +259,6 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
                 raise RuntimeError("STOP failed")
 
     class Resource:
-        bind_backend_cfg = Mock()
-
         def __init__(self, name, error=None):
             self.name = name
             self.error = error

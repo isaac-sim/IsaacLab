@@ -146,34 +146,46 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
 class NewtonBackend:
     """Own one finalized Newton model and its native state and control buffers."""
 
-    def __init__(self, cfg: NewtonBackendCfg):
-        self.model = cfg.builder.finalize(device=cfg.device)
-        self.particle_ranges = cfg.particle_ranges
+    def __init__(
+        self,
+        cfg: NewtonBackendCfg,
+        *,
+        builder: ModelBuilder,
+        device: str,
+        particle_ranges: dict[str, tuple[int, int]] | None = None,
+        geometry_offsets: dict[str, int] | None = None,
+        num_envs: int | None = None,
+        gravity: tuple[float, float, float] | None = None,
+        contact_attributes: tuple[str, ...] = (),
+    ):
+        self.model = builder.finalize(device=device)
+        self.particle_ranges = {} if particle_ranges is None else particle_ranges
         # Newton 1.6 preserves groups through builder replication but not finalization.
         # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
         self.deformable_ranges = {
             label: (start, end - start, kind)
             for family, kind in (("cloth", "surface"), ("soft", "volume"))
             for label, start, end in zip(
-                getattr(cfg.builder, f"_{family}_label"),
-                getattr(cfg.builder, f"_{family}_particle_start"),
-                getattr(cfg.builder, f"_{family}_particle_end"),
+                getattr(builder, f"_{family}_label"),
+                getattr(builder, f"_{family}_particle_start"),
+                getattr(builder, f"_{family}_particle_end"),
                 strict=True,
             )
         }
-        self.model.num_envs = self.model.world_count if cfg.num_envs is None else cfg.num_envs
-        if cfg.gravity is not None:
-            self.model.set_gravity(cfg.gravity)
-        if cfg.soft_contact_cfg is not None:
-            self.model.soft_contact_ke = float(cfg.soft_contact_cfg.soft_contact_ke)
-            self.model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
-            self.model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
-        if cfg.contact_attributes:
-            self.model.request_contact_attributes(*cfg.contact_attributes)
+        self.model.num_envs = self.model.world_count if num_envs is None else num_envs
+        if gravity is not None:
+            self.model.set_gravity(gravity)
+        soft_contact = None if cfg.physics_cfg is None else cfg.physics_cfg.soft_contact_cfg
+        if soft_contact is not None:
+            self.model.soft_contact_ke = float(soft_contact.soft_contact_ke)
+            self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
+            self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
+        if contact_attributes:
+            self.model.request_contact_attributes(*contact_attributes)
         self.state_0 = self.model.state()
-        self.state_1 = self.model.state() if cfg.simulation else None
-        self.control = self.model.control() if cfg.simulation else None
-        self.geometry_offsets = cfg.geometry_offsets
+        self.state_1 = self.model.state() if cfg.physics_cfg is not None else None
+        self.control = self.model.control() if cfg.physics_cfg is not None else None
+        self.geometry_offsets = {} if geometry_offsets is None else geometry_offsets
         self.bvh_refit = TimestampedBuffer()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
@@ -1133,18 +1145,18 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=device,
         ):
-            cfg = NewtonBackendCfg(
+            cfg = NewtonBackendCfg(physics_cfg=PhysicsManager._cfg)
+            NewtonManager.backend = NewtonBackend(
+                cfg,
                 builder=cls._builder,
                 particle_ranges=cls._particle_ranges,
                 device=device,
                 num_envs=cls._num_envs,
                 gravity=cls._gravity_vector,
-                soft_contact_cfg=PhysicsManager._cfg.soft_contact_cfg,
                 contact_attributes=tuple(sorted(cls._pending_extended_contact_attributes)),
             )
             sim = SimulationContext.instance()
-            NewtonManager.backend = sim.get_or_create_backend(cfg)
-            cls.dispatch_event(PhysicsEvent.BACKEND_CFG_READY, cfg)
+            sim.register_backend(cfg, NewtonManager.backend)
             NewtonManager._num_envs = cls.backend.model.num_envs
         NewtonManager._pending_extended_contact_attributes = set()
         # The initial body-state update from joint coordinates is deferred to the tail of

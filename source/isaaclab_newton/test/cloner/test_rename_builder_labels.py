@@ -106,8 +106,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
             cfg=SimpleNamespace(physics=object()),
             device="cpu",
             stage=None,
-            physics_manager=SimpleNamespace(dispatch_event=mock.Mock()),
+            register_backend=mock.Mock(),
         )
+
+    def tearDown(self):
+        for call in self.sim.register_backend.call_args_list:
+            call.args[1].close()
 
     @staticmethod
     def _define_xform(stage, path, translation=None):
@@ -325,10 +329,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 ) as add_cloth:
                     options = dict(plan=plan, asset_prototype_ids=range(4))
                     options.update(positions=positions, quaternions=quaternions)
-                    builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
+                    builder, _, _, offsets = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
                 self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
-                offsets = self.sim.physics_manager.dispatch_event.call_args.args[1].geometry_offsets
                 expected = {"/Shared/sim": vertices[:3]}
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):

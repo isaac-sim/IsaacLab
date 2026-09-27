@@ -22,13 +22,13 @@ from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
 @configclass
 class BackendCfg:
-    """Construction inputs and value identity for a simulation-owned resource.
+    """Declarative settings and value identity for a simulation-owned resource.
 
     Finalize all fields before registration and treat them as read-only afterward.
     """
 
     class_type: type = MISSING
-    """Resource class constructed as ``class_type(cfg)``; must implement ``close()``."""
+    """Resource class; must implement ``close()``. Directly constructible resources use ``class_type(cfg)``."""
 
 
 @configclass

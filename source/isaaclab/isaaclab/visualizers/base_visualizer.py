@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..scene_data import SceneDataProvider
-    from ..sim import BackendCfg
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -61,13 +60,6 @@ class BaseVisualizer(ABC):
         one environment-id device array for partial writes, and provides an idempotent ``close()``.
         """
         return None
-
-    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
-        """Receive completed native inputs before initialization; ignore resources this viewer does not use.
-
-        Args:
-            cfg: Completed allocation inputs, also delivered when a native resource is replaced.
-        """
 
     @abstractmethod
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:

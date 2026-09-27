@@ -78,7 +78,7 @@ The concrete ``close()`` implementation dispatches the ``STOP`` event.
 ``get_or_create_backend(backend_cfg)``
 reuses one resource for equal configurations of the same concrete type; a cache miss
 constructs ``backend_cfg.class_type(backend_cfg)``.
-:class:`~isaaclab.sim.BackendCfg` describes resource construction inputs, and
+:class:`~isaaclab.sim.BackendCfg` describes resource settings and identity, and
 :class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
 ``PhysicsCfg`` selects a physics manager. Finalize configurations before
 registration and treat them, including nested values, as read-only afterward.
@@ -97,11 +97,13 @@ Exposing native handles does not replace SDP transport.
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
 
-Newton cloning and physics preparation deliver completed allocation inputs through
-``PhysicsEvent.BACKEND_CFG_READY`` before consumers initialize. Each consumer retains
-the cfg and calls ``sim.get_or_create_backend(self.newton_cfg)``. Hard resets deliver
-the replacement cfg before rebinding. ``SimulationContext`` has no backend-specific cfg fields,
-and consumers do not access clone contexts.
+Clone-built resources use ``register_backend(cfg, backend)`` after construction and
+``get_backend(cfg)`` during consumer initialization. Lookup never constructs a missing resource.
+Newton's cfg contains physics settings, or ``None`` for a foreign-physics rendering representation;
+builders and geometry ranges stay construction inputs. Omitted consumer ``newton_cfg`` values
+select the active representation; explicit declarations take precedence.
+Hard resets register a replacement under the same cfg before consumers rebind.
+``SimulationContext`` has no backend-specific cfg fields, and consumers do not access clone contexts.
 Physics, cameras, raycasters, and viewers borrow that
 resource's model and state. Consumers request body transforms and visual points
 directly through SDP; NewtonManager is not their model/state gateway. Queries run

@@ -39,14 +39,6 @@ class PhysicsEvent(Enum):
     physics representations (rigid bodies, joints, constraints) with the solver.
     """
 
-    BACKEND_CFG_READY = "backend_cfg_ready"
-    """A completed native allocation cfg is available as the event payload.
-
-    Clone/import or physics preparation publishes this before consumers initialize.
-    Consumers retain the cfg and acquire their resource through the simulation registry.
-    Native-resource replacement publishes a new cfg before reinitialization.
-    """
-
     PHYSICS_READY = "physics_ready"
     """Physics is initialized and queryable.
     Fired after all physics data structures are created and the simulation is

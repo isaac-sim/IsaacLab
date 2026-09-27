@@ -1,8 +1,8 @@
 Changed
 ^^^^^^^
 
-* Delivered completed native allocation configurations to consumers before initialization and on
-  hard reset. Renderers and visualizers retained their own cfg through ``bind_backend_cfg(cfg)``;
+* Added ``SimulationContext.register_backend(cfg, backend)`` for completed native resources and
+  ``get_backend(cfg)`` for lookup without construction. Consumers retained declarative configurations;
   ``SimulationContext`` did not expose backend-specific configuration fields.
 * Reused SDP transform mappings for matching source and destination layouts, allowing independent
   consumers to share converted buffers without retaining SDP bindings on a native backend.

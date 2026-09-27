@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import MISSING, field
+from dataclasses import field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
@@ -18,8 +18,6 @@ from isaaclab.utils import configclass
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
-    from newton import ModelBuilder
-
     from isaaclab_newton.physics import NewtonManager
 
     from .newton_manager import NewtonBackend
@@ -27,29 +25,32 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def resolve_newton_backend_cfg(cfg: NewtonBackendCfg | None, physics_cfg: PhysicsCfg) -> NewtonBackendCfg:
+    """Resolve an omitted consumer dependency from the selected physics configuration.
+
+    Args:
+        cfg: Explicit declaration, which takes precedence over the default.
+        physics_cfg: Selected physics configuration; no runtime resource is inspected.
+
+    Returns:
+        The explicit declaration, or the active Newton/foreign-physics representation declaration.
+    """
+    if cfg is not None:
+        return cfg
+    return NewtonBackendCfg(physics_cfg=physics_cfg if isinstance(physics_cfg, NewtonCfg) else None)
+
+
 @configclass
 class NewtonBackendCfg(BackendCfg):
-    """Native allocation inputs; the populated builder is borrowed without copying."""
+    """Declarative identity of a Newton representation within one simulation.
+
+    Builders and imported geometry ranges belong to construction, not configuration.
+    Consumers acquire the completed resource with ``sim.get_backend(cfg)``.
+    """
 
     class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
-    builder: ModelBuilder = field(kw_only=True, metadata={"copy": False})
-    """Populated clone builder. Reusing this builder and matching settings shares one resource."""
-    particle_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)
-    """Imported point paths to native particle offsets and counts, retained until Newton exposes composed ranges."""
-    geometry_offsets: dict[str, int] = field(default_factory=dict)
-    """SDP geometry paths to particle offsets in a render-only model."""
-    device: str = MISSING
-    """Allocation device, such as ``cpu`` or ``cuda:0``."""
-    num_envs: int | None = None
-    """Environment count; None uses the finalized model's world count."""
-    gravity: tuple[float, float, float] | None = None
-    """Gravity [m/s^2]; None preserves the builder's authored gravity."""
-    soft_contact_cfg: NewtonSoftContactCfg | None = None
-    """Optional soft-contact settings applied before state allocation."""
-    contact_attributes: tuple[str, ...] = ()
-    """Additional contact attributes requested before state allocation."""
-    simulation: bool = True
-    """Allocate two states and control for physics, or one state for rendering only."""
+    physics_cfg: NewtonCfg | None = field(default=None, metadata={"copy": False})
+    """Physics model settings, or None for the render-only representation of foreign physics."""
 
 
 @configclass

@@ -20,11 +20,11 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import NewtonBackendCfg, resolve_newton_backend_cfg
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sim import BackendCfg, SimulationContext
+from isaaclab.sim import SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -62,12 +62,12 @@ def _preload_ovrtx_native_deps() -> None:
             ctypes.CDLL(str(lib))
 
 
-def _resolve_streaming_renderer_cfg(renderer_name: str | None):
+def _resolve_streaming_renderer_cfg(renderer_name: str | None, newton_cfg: NewtonBackendCfg | None = None):
     """Return a renderer cfg for the auto-created streaming camera."""
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     if renderer_name is None or renderer_name == "newton_warp":
-        return NewtonWarpRendererCfg()
+        return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
     if renderer_name == "ovrtx":
         _preload_ovrtx_native_deps()
         from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -84,7 +84,7 @@ def _resolve_streaming_renderer_cfg(renderer_name: str | None):
             logger.info(
                 "[RerunVisualizer] streaming_cam_renderer='isaac_rtx' unavailable (kitless); using newton_warp."
             )
-            return NewtonWarpRendererCfg()
+            return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
     raise ValueError(
         f"streaming_cam_renderer={renderer_name!r} unsupported. Use 'newton_warp', 'ovrtx', 'isaac_rtx', or None."
     )
@@ -337,15 +337,6 @@ class RerunVisualizer(BaseVisualizer):
         self._streaming_camera_key: tuple | None = None
         self._last_streaming_composite: np.ndarray | None = None
 
-    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
-        """Pass the completed Newton allocation inputs to the viewer and its streaming renderer."""
-        if isinstance(cfg, NewtonBackendCfg):
-            self.newton_cfg = cfg
-            if self.cfg.streaming_view:
-                renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
-                renderer = SimulationContext.instance().get_or_create_backend(renderer_cfg)
-                renderer.bind_backend_cfg(cfg)
-
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
 
@@ -359,7 +350,8 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(self.newton_cfg)
+        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg.physics)
+        self.backend = sim.get_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         grpc_port = int(self.cfg.grpc_port)
@@ -491,7 +483,7 @@ class RerunVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(self.newton_cfg)
+        backend = sim.get_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend
@@ -583,7 +575,7 @@ class RerunVisualizer(BaseVisualizer):
         # Auto-detect fallback: with Newton MJWarp replicate_physics=True, post-init prim
         # spawning only survives at env_0. Reuse the first scene camera with matching
         # renderer_type (or any scene camera with the right count as secondary fallback).
-        renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
+        renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer, self.cfg.newton_cfg)
         renderer_type = getattr(renderer_cfg, "renderer_type", None)
         scene_cameras = self._scene_data_provider.get_camera_sensors()
         _fallback_cam = None

@@ -16,6 +16,8 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonBackendCfg
+
     from .newton_warp_renderer import NewtonWarpRenderer
 
 
@@ -30,6 +32,9 @@ class NewtonWarpRendererCfg(RendererCfg):
     """Type identifier for Newton Warp renderer."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    newton_cfg: NewtonBackendCfg | None = None
+    """Shared model declaration; None selects the active Newton or foreign-physics representation."""
 
     use_cuda_graph: bool = True
     """Capture camera queries independently of the physics solver's graph setting."""

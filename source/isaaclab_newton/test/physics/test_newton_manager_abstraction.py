@@ -271,7 +271,7 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
     builder = ModelBuilder()
     builder.add_shape_sphere(builder.add_body(label="/Object"))
     builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
-    backend = NewtonBackend(NewtonBackendCfg(builder=builder, device="cpu", geometry_offsets={"/Cloth": 0}))
+    backend = NewtonBackend(NewtonBackendCfg(), builder=builder, device="cpu", geometry_offsets={"/Cloth": 0})
     transforms, points = SceneDataFormat.Transform(), SceneDataFormat.Points()
     transforms.transforms = wp.array([wp.transform_identity()], dtype=wp.transform, device="cpu")
     points.points = wp.array([wp.vec3(1.0, 2.0, 3.0)], dtype=wp.vec3, device="cpu")
@@ -1180,15 +1180,21 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
 
         def on_physics_ready(_):
             events.append("ready")
-            assert sim.get_or_create_backend(allocations[-1]) is NewtonManager.backend
+            backend = sim.get_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics))
+            assert backend is NewtonManager.backend
+            allocations.append(backend)
             assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
+            different = NewtonCfg(
+                solver_cfg=MJWarpSolverCfg(), load_visual_shapes=not sim.cfg.physics.load_visual_shapes
+            )
+            with pytest.raises(KeyError):
+                sim.get_backend(NewtonBackendCfg(physics_cfg=different))
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
         builder = sim.physics_manager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
-        sim.physics_manager.register_callback(allocations.append, PhysicsEvent.BACKEND_CFG_READY, wrap_weak_ref=False)
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
         sim.physics_manager.register_callback(
             on_physics_ready,

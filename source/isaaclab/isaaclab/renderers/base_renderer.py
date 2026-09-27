@@ -21,7 +21,6 @@ if TYPE_CHECKING:
     import warp as wp
 
     from ..sensors.camera.camera_data import CameraData
-    from ..sim import BackendCfg
     from ..utils.warp import ProxyArray
 
 
@@ -38,13 +37,6 @@ class VisualMaterialBatch:
 
 class BaseRenderer(ABC):
     """Abstract base class for renderer implementations."""
-
-    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
-        """Receive completed native inputs before initialization; ignore resources this renderer does not use.
-
-        Args:
-            cfg: Completed allocation inputs, also delivered when a native resource is replaced.
-        """
 
     def initialize(self) -> None:
         """Post-physics one-time initialization hook. Called only once."""
