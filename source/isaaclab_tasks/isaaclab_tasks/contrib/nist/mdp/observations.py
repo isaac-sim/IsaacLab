@@ -13,7 +13,6 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import torch_index
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -40,8 +39,8 @@ def target_asset_pose_in_root_asset_frame(
     target_asset: RigidObject | Articulation = env.scene[target_asset_cfg.name]
     root_asset: RigidObject | Articulation = env.scene[root_asset_cfg.name]
 
-    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else torch_index(target_asset_cfg.body_ids)
-    root_body_idx = 0 if isinstance(root_asset_cfg.body_ids, slice) else torch_index(root_asset_cfg.body_ids)
+    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else target_asset_cfg.body_ids
+    root_body_idx = 0 if isinstance(root_asset_cfg.body_ids, slice) else root_asset_cfg.body_ids
 
     target_pos = target_asset.data.body_link_pos_w.torch[:, target_body_idx].view(-1, 3)
     target_quat = target_asset.data.body_link_quat_w.torch[:, target_body_idx].view(-1, 4)
@@ -69,7 +68,7 @@ def asset_link_velocity_in_root_asset_frame(
     target_asset: RigidObject | Articulation = env.scene[target_asset_cfg.name]
     root_asset: RigidObject | Articulation = env.scene[root_asset_cfg.name]
 
-    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else torch_index(target_asset_cfg.body_ids)
+    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else target_asset_cfg.body_ids
 
     root_quat = root_asset.data.root_quat_w.torch
     lin_vel_w = target_asset.data.body_lin_vel_w.torch[:, target_body_idx].view(-1, 3)

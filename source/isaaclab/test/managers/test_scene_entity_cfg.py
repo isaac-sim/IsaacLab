@@ -6,7 +6,6 @@
 """Scene selections resolve on the host, then finalize to device indices used without synchronization."""
 
 import copy
-import json
 from functools import partial
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -18,9 +17,8 @@ from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import index_fill_, replace_slices_with_strings, torch_index
+from isaaclab.utils import index_fill_
 from isaaclab.utils.string import resolve_matching_names
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -54,7 +52,7 @@ def scene():
 
 @pytest.mark.parametrize("device", test_devices())
 def test_finalize_moves_resolved_selections_to_device(scene, device):
-    """Ordering, slices, and empty selections survive finalization, copies, and serialization."""
+    """Ordering, slices, and empty selections survive finalization and copies."""
     cfg = SceneEntityCfg(
         "robot",
         joint_names=["part_2", "part_0"],
@@ -71,23 +69,18 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
     joint_ids = cfg.joint_ids
     cfg.finalize(device)
     assert cfg.joint_ids is joint_ids
-    assert isinstance(cfg.body_ids, ProxyArray)
-    assert cfg.body_ids.torch.dtype == torch.long
-    assert cfg.body_ids.torch.device == torch.device(device)
+    assert isinstance(cfg.body_ids, torch.Tensor)
+    assert cfg.body_ids.dtype == torch.long
+    assert cfg.body_ids.device == torch.device(device)
     assert cfg.fixed_tendon_ids == slice(None)
     values = torch.arange(4, device=device)
-    assert values[torch_index(cfg.joint_ids)].tolist() == [2, 0]
-    assert values[torch_index(cfg.body_ids)].tolist() == [3, 1]
-    assert values[torch_index(cfg.fixed_tendon_ids)].tolist() == [0, 1, 2, 3]
-    assert values[torch_index(cfg.object_collection_ids)].numel() == 0
+    assert values[cfg.joint_ids].tolist() == [2, 0]
+    assert values[cfg.body_ids].tolist() == [3, 1]
+    assert values[cfg.fixed_tendon_ids].tolist() == [0, 1, 2, 3]
+    assert values[cfg.object_collection_ids].numel() == 0
 
-    snapshot = cfg.to_dict()
-    assert snapshot["joint_ids"] == [2, 0]
-    assert snapshot["body_ids"] == [3, 1]
-    json.dumps(replace_slices_with_strings(snapshot))
     for copied in (cfg.copy(), copy.deepcopy(cfg)):
-        assert isinstance(copied.body_ids, ProxyArray)
-        assert values[torch_index(copied.body_ids)].tolist() == [3, 1]
+        assert values[copied.body_ids].tolist() == [3, 1]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -107,7 +100,7 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     torch.cuda.set_sync_debug_mode("error")
     try:
         observed = joint_pos(env, cfg)
-        indices = torch_index(cfg.joint_ids)
+        indices = cfg.joint_ids
         selected = torch.index_select(values, dim=1, index=indices)
         first = values[:, indices][:, 0]
         destination[:, indices] = replacements

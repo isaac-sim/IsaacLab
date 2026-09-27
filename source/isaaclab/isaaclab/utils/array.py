@@ -15,8 +15,6 @@ import numpy as np
 import torch
 import warp as wp
 
-from .warp.proxy_array import ProxyArray
-
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
@@ -76,21 +74,6 @@ def index_fill_(
             data.masked_fill_(indices.reshape(shape), value)
         else:
             data.index_fill_(dim, indices.to(dtype=torch.long), value)
-
-
-def torch_index(indices: Sequence[int] | slice | ProxyArray) -> Sequence[int] | slice | torch.Tensor:
-    """Return a Torch index for an index selection, such as a resolved scene-entity selection.
-
-    Finalized selections are :class:`~isaaclab.utils.warp.ProxyArray` objects; their cached device tensor is
-    returned so indexing does not upload or synchronize. Slices and host sequences are returned unchanged.
-
-    Args:
-        indices: Index selection.
-
-    Returns:
-        The selection in a form accepted by Torch indexing and asset index arguments.
-    """
-    return indices.torch if isinstance(indices, ProxyArray) else indices
 
 
 def convert_to_torch(

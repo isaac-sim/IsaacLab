@@ -11,8 +11,6 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils import torch_index
-
 from ..selection_utils import SceneEntitySelectionCfg
 from .rewards import reach_orientation_error, reach_position_error
 
@@ -78,9 +76,9 @@ def articulation_state_invalid(
         joint_position_margin: Allowed distance beyond soft position limits [m or rad, depending on joint type].
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_pos = asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)]
-    joint_vel = asset.data.joint_vel.torch[:, torch_index(asset_cfg.joint_ids)]
-    limits = asset.data.soft_joint_pos_limits.torch[:, torch_index(asset_cfg.joint_ids)]
+    joint_pos = asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+    joint_vel = asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    limits = asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids]
     invalid = ~torch.isfinite(joint_pos).all(dim=-1) | ~torch.isfinite(joint_vel).all(dim=-1)
     invalid |= torch.any(torch.abs(joint_vel) > max_joint_velocity, dim=-1)
     invalid |= torch.any(

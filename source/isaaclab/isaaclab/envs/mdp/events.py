@@ -22,7 +22,7 @@ import torch
 
 from ... import sim as sim_utils
 from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from ...utils import convert_to_torch, torch_index
+from ...utils import convert_to_torch
 from ...utils import math as math_utils
 
 if TYPE_CHECKING:
@@ -312,9 +312,7 @@ class randomize_rigid_body_mass(ManagerTermBase):
                 self.asset_cfg.body_ids
             ]
         else:
-            body_ids = convert_to_torch(
-                torch_index(self.asset_cfg.body_ids), dtype=torch.int32, device=self.asset.device
-            )
+            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get the current masses of the bodies (num_assets, num_bodies)
         masses = self.asset.data.body_mass.torch.clone()
@@ -454,9 +452,7 @@ class randomize_rigid_body_inertia(ManagerTermBase):
                 self.asset_cfg.body_ids
             ]
         else:
-            body_ids = convert_to_torch(
-                torch_index(self.asset_cfg.body_ids), dtype=torch.int32, device=self.asset.device
-            )
+            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get default inertias for affected envs/bodies (advanced indexing creates a copy)
         # shape: (len(env_ids), len(body_ids), 9)
@@ -539,7 +535,7 @@ class randomize_rigid_body_com(ManagerTermBase):
                 self.asset_cfg.body_ids
             ]
         else:
-            body_ids = convert_to_torch(torch_index(self.asset_cfg.body_ids), dtype=torch.int, device=self.asset.device)
+            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
 
         # sample random CoM values
         range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
@@ -787,14 +783,12 @@ class randomize_actuator_gains(ManagerTermBase):
             elif isinstance(group_joint_indices, slice):
                 # we take the joints defined in the asset config
                 global_indices = actuator_indices = convert_to_torch(
-                    torch_index(self.asset_cfg.joint_ids), dtype=torch.long, device=self.asset.device
+                    self.asset_cfg.joint_ids, dtype=torch.long, device=self.asset.device
                 )
             else:
                 # we take the intersection of the actuator joints and the asset config joints
                 actuator_joint_indices = group_joint_indices
-                asset_joint_ids = convert_to_torch(
-                    torch_index(self.asset_cfg.joint_ids), dtype=torch.long, device=self.asset.device
-                )
+                asset_joint_ids = convert_to_torch(self.asset_cfg.joint_ids, dtype=torch.long, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
                 if len(actuator_indices) == 0:
@@ -939,9 +933,7 @@ class randomize_joint_parameters(ManagerTermBase):
         if isinstance(self.asset_cfg.joint_ids, slice):
             joint_ids = self.asset_cfg.joint_ids  # for optimization purposes
         else:
-            joint_ids = convert_to_torch(
-                torch_index(self.asset_cfg.joint_ids), dtype=torch.int, device=self.asset.device
-            )
+            joint_ids = convert_to_torch(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
 
         if not isinstance(env_ids, slice) and not isinstance(joint_ids, slice):
             env_ids_for_slice = env_ids[:, None]
@@ -1116,9 +1108,7 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         if isinstance(self.asset_cfg.fixed_tendon_ids, slice):
             tendon_ids = self.asset_cfg.fixed_tendon_ids  # for optimization purposes
         else:
-            tendon_ids = convert_to_torch(
-                torch_index(self.asset_cfg.fixed_tendon_ids), dtype=torch.int, device=self.asset.device
-            )
+            tendon_ids = convert_to_torch(self.asset_cfg.fixed_tendon_ids, dtype=torch.int, device=self.asset.device)
         # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
         env_ids_for_slice = (
             env_ids[:, None] if not isinstance(env_ids, slice) and isinstance(tendon_ids, torch.Tensor) else env_ids
@@ -1267,7 +1257,7 @@ def apply_external_force_torque(
     asset.permanent_wrench_composer.set_forces_and_torques_index(
         forces=forces,
         torques=torques,
-        body_ids=torch_index(body_ids),
+        body_ids=body_ids,
         env_ids=env_ids,
     )
 
@@ -1501,22 +1491,22 @@ def reset_joints_by_scale(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)].clone()
-    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)].clone()
+    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # scale these values randomly
     joint_pos *= math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel *= math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)]
+    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_ids = torch_index(asset_cfg.joint_ids)
+    joint_ids = asset_cfg.joint_ids
     asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=joint_ids, env_ids=env_ids)
 
@@ -1542,22 +1532,22 @@ def reset_joints_by_offset(
         iter_env_ids = env_ids
 
     # get default joint state
-    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)].clone()
-    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)].clone()
+    joint_pos = asset.data.default_joint_pos.torch[iter_env_ids, asset_cfg.joint_ids].clone()
+    joint_vel = asset.data.default_joint_vel.torch[iter_env_ids, asset_cfg.joint_ids].clone()
 
     # bias these values randomly
     joint_pos += math_utils.sample_uniform(*position_range, joint_pos.shape, joint_pos.device)
     joint_vel += math_utils.sample_uniform(*velocity_range, joint_vel.shape, joint_vel.device)
 
     # clamp joint pos to limits
-    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)]
+    joint_pos_limits = asset.data.soft_joint_pos_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_pos = joint_pos.clamp_(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
     # clamp joint vel to limits
-    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, torch_index(asset_cfg.joint_ids)]
+    joint_vel_limits = asset.data.soft_joint_vel_limits.torch[iter_env_ids, asset_cfg.joint_ids]
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_ids = torch_index(asset_cfg.joint_ids)
+    joint_ids = asset_cfg.joint_ids
     asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=joint_ids, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=joint_ids, env_ids=env_ids)
 

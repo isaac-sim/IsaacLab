@@ -10,10 +10,9 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import warp as wp
+import torch
 
 from ..utils import configclass
-from ..utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ..assets import Articulation, RigidObject, RigidObjectCollection
@@ -29,9 +28,8 @@ class SceneEntityCfg:
 
     Selections follow a build-then-finalize lifecycle. :meth:`resolve` fills the ``*_ids`` fields with
     host lists, which class-based terms may read during construction. :meth:`finalize` then replaces each
-    list with a read-only :class:`~isaaclab.utils.warp.ProxyArray` of ``int64`` indices on the device.
-    Slices stay slices. Managers finalize their term configurations once all terms are constructed, so
-    term calls receive device selections; use :func:`~isaaclab.utils.torch_index` to index with them.
+    list with a ``torch.long`` tensor on the device. Slices stay slices. Managers finalize their term
+    configurations once all terms are constructed, so term calls index with device selections directly.
     """
 
     name: str = MISSING
@@ -50,7 +48,7 @@ class SceneEntityCfg:
     function as joint indices under :attr:`joint_ids`.
     """
 
-    joint_ids: list[int] | slice | ProxyArray = slice(None)
+    joint_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the joints from the asset required by the term. Defaults to slice(None), which means
     all the joints in the asset (if present).
 
@@ -67,7 +65,7 @@ class SceneEntityCfg:
     function as fixed tendon indices under :attr:`fixed_tendon_ids`.
     """
 
-    fixed_tendon_ids: list[int] | slice | ProxyArray = slice(None)
+    fixed_tendon_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means
     all the fixed tendons in the asset (if present).
 
@@ -84,7 +82,7 @@ class SceneEntityCfg:
     function as body indices under :attr:`body_ids`.
     """
 
-    body_ids: list[int] | slice | ProxyArray = slice(None)
+    body_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the bodies from the asset required by the term. Defaults to slice(None), which means
     all the bodies in the asset.
 
@@ -101,7 +99,7 @@ class SceneEntityCfg:
     function as object indices under :attr:`object_collection_ids`.
     """
 
-    object_collection_ids: list[int] | slice | ProxyArray = slice(None)
+    object_collection_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
     which means all the objects in the collection.
 
@@ -160,8 +158,8 @@ class SceneEntityCfg:
     def finalize(self, device: str) -> None:
         """Move resolved index selections to the device.
 
-        Each non-slice ``*_ids`` selection becomes a :class:`~isaaclab.utils.warp.ProxyArray` of ``int64``
-        indices, so Torch indexing uses it without a host-to-device upload. Slices are kept. Finalization is
+        Each non-slice ``*_ids`` selection becomes a ``torch.long`` tensor, so indexing and asset write
+        methods use it without a host-to-device upload. Treat the tensor as read-only. Slices are kept. Finalization is
         one-way: call :meth:`resolve` before this method, not after it. Calling this method again is a no-op.
 
         Args:
@@ -169,8 +167,8 @@ class SceneEntityCfg:
         """
         for field_name in _INDEX_FIELDS:
             indices = getattr(self, field_name)
-            if not isinstance(indices, (slice, ProxyArray)):
-                setattr(self, field_name, ProxyArray(wp.array(list(indices), dtype=wp.int64, device=device)))
+            if not isinstance(indices, (slice, torch.Tensor)):
+                setattr(self, field_name, torch.tensor(list(indices), dtype=torch.long, device=device))
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex

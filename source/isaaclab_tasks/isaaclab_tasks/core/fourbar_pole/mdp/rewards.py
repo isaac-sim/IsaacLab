@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import index_fill_, torch_index
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -41,7 +41,7 @@ class pole_upright(ManagerTermBase):
     def __call__(
         self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float, hold_time_s: float = 0.5
     ) -> torch.Tensor:
-        cos_pole = torch.cos(env.scene[asset_cfg.name].data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)])
+        cos_pole = torch.cos(env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids])
         upright = (cos_pole > success_threshold).all(dim=1)
         self._consecutive_upright = torch.where(
             upright, self._consecutive_upright + 1.0, torch.zeros_like(self._consecutive_upright)

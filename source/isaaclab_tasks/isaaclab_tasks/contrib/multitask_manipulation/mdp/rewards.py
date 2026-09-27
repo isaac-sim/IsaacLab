@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
-from isaaclab.utils import index_fill_, torch_index
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
@@ -242,7 +242,7 @@ def cabinet_grasp_handle(
     robot: Articulation = env.scene[robot_cfg.name]
     distance = torch.linalg.norm(handle_pos - ee_pos, dim=-1)
     reward = (distance <= threshold) * torch.sum(
-        open_joint_pos - robot.data.joint_pos.torch[:, torch_index(robot_cfg.joint_ids)], dim=-1
+        open_joint_pos - robot.data.joint_pos.torch[:, robot_cfg.joint_ids], dim=-1
     )
     return robot_cfg.scatter_to_envs(torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0))
 
@@ -276,8 +276,8 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
     ) -> torch.Tensor:
         """Compute drawer displacement with a grasp-alignment multiplier."""
         cabinet: Articulation = env.scene[cabinet_cfg.name]
-        drawer_pos = cabinet.data.joint_pos.torch[:, torch_index(cabinet_cfg.joint_ids)][:, 0]
-        drawer_limits = cabinet.data.soft_joint_pos_limits.torch[:, torch_index(cabinet_cfg.joint_ids)][:, 0]
+        drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids][:, 0]
+        drawer_limits = cabinet.data.soft_joint_pos_limits.torch[:, cabinet_cfg.joint_ids][:, 0]
         drawer_pos = torch.nan_to_num(drawer_pos, nan=0.0, posinf=0.0, neginf=0.0)
         drawer_pos = torch.maximum(torch.minimum(drawer_pos, drawer_limits[:, 1]), drawer_limits[:, 0])
         env_ids, graspable, _, _ = _cabinet_grasp_alignment(env, robot_cfg, cabinet_cfg)
@@ -293,7 +293,7 @@ def cabinet_multi_stage_open(
 ) -> torch.Tensor:
     """Reward easy, medium, and hard drawer-opening milestones."""
     cabinet: Articulation = env.scene[cabinet_cfg.name]
-    drawer_pos = cabinet.data.joint_pos.torch[:, torch_index(cabinet_cfg.joint_ids)][:, 0]
+    drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids][:, 0]
     _, graspable, _, _ = _cabinet_grasp_alignment(env, robot_cfg, cabinet_cfg)
     reward = (drawer_pos > 0.01) * 0.5
     reward += (drawer_pos > 0.2) * graspable
@@ -308,9 +308,7 @@ def reach_position_error(env: ManagerBasedRLEnv, robot_cfg: SceneEntitySelection
     goal_pos_w, _ = math_utils.combine_frame_transforms(
         robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
     )
-    error = torch.linalg.norm(
-        robot.data.body_pos_w.torch[:, torch_index(robot_cfg.body_ids)][:, 0] - goal_pos_w, dim=-1
-    )
+    error = torch.linalg.norm(robot.data.body_pos_w.torch[:, robot_cfg.body_ids][:, 0] - goal_pos_w, dim=-1)
     return robot_cfg.scatter_to_envs(error)
 
 
@@ -321,9 +319,7 @@ def reach_orientation_error(
     robot: Articulation = env.scene[robot_cfg.name]
     command = env.command_manager.get_command(command_name)[robot_cfg.env_ids]
     goal_quat_w = math_utils.quat_mul(robot.data.root_quat_w.torch, command[:, 3:7])
-    error = math_utils.quat_error_magnitude(
-        robot.data.body_quat_w.torch[:, torch_index(robot_cfg.body_ids)][:, 0], goal_quat_w
-    )
+    error = math_utils.quat_error_magnitude(robot.data.body_quat_w.torch[:, robot_cfg.body_ids][:, 0], goal_quat_w)
     return robot_cfg.scatter_to_envs(error)
 
 
@@ -362,7 +358,7 @@ def selected_joint_vel_l2(
         max_velocity: Optional absolute velocity bound [m/s or rad/s, depending on joint type].
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_vel = torch.nan_to_num(asset.data.joint_vel.torch[:, torch_index(asset_cfg.joint_ids)])
+    joint_vel = torch.nan_to_num(asset.data.joint_vel.torch[:, asset_cfg.joint_ids])
     if max_velocity is not None:
         joint_vel = joint_vel.clamp(-max_velocity, max_velocity)
     values = torch.sum(torch.square(joint_vel), dim=-1)

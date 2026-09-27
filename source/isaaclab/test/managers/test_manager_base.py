@@ -25,7 +25,6 @@ from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, SceneEntityCf
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils import configclass, modifiers
-from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -325,5 +324,5 @@ def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing)
 
     term_cfg = manager._term_cfgs[0][1]
     assert term_cfg.func.init_joint_ids == [2, 0]
-    assert isinstance(term_cfg.params["asset_cfg"].joint_ids, ProxyArray)
-    assert term_cfg.params["asset_cfg"].joint_ids.torch.tolist() == [2, 0]
+    assert isinstance(term_cfg.params["asset_cfg"].joint_ids, torch.Tensor)
+    assert term_cfg.params["asset_cfg"].joint_ids.tolist() == [2, 0]

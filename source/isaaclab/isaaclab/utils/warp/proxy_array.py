@@ -174,15 +174,6 @@ class ProxyArray:
         """Return a string representation of the ProxyArray."""
         return f"ProxyArray(shape={self.shape}, dtype={self.dtype}, device={self.device})"
 
-    # Defined explicitly so copying does not fall through to the torch view via ``__getattr__``.
-    def __copy__(self) -> ProxyArray:
-        """Return a wrapper sharing the same warp array."""
-        return ProxyArray(self._warp)
-
-    def __deepcopy__(self, memo: dict) -> ProxyArray:
-        """Return a wrapper around a clone of the warp array."""
-        return ProxyArray(wp.clone(self._warp))
-
     # ------------------------------------------------------------------
     # Warp kernel interop
     # ------------------------------------------------------------------

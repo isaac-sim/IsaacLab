@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING
 import torch
 
 from ...managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
-from ...utils import torch_index
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -98,13 +97,9 @@ def joint_pos_out_of_limit(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = S
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
 
-    limits = asset.data.soft_joint_pos_limits.torch[:, torch_index(asset_cfg.joint_ids)]
-    out_of_upper_limits = torch.any(
-        asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)] > limits[..., 1], dim=1
-    )
-    out_of_lower_limits = torch.any(
-        asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)] < limits[..., 0], dim=1
-    )
+    limits = asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids]
+    out_of_upper_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] > limits[..., 1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] < limits[..., 0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -120,8 +115,8 @@ def joint_pos_out_of_manual_limit(
     if asset_cfg.joint_ids is None:
         asset_cfg.joint_ids = slice(None)
     # compute any violations
-    out_of_upper_limits = torch.any(asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)] > bounds[1], dim=1)
-    out_of_lower_limits = torch.any(asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)] < bounds[0], dim=1)
+    out_of_upper_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] > bounds[1], dim=1)
+    out_of_lower_limits = torch.any(asset.data.joint_pos.torch[:, asset_cfg.joint_ids] < bounds[0], dim=1)
     return torch.logical_or(out_of_upper_limits, out_of_lower_limits)
 
 
@@ -150,7 +145,7 @@ def joint_vel_out_of_manual_limit(
 ) -> torch.Tensor:
     """Terminate when the asset's joint velocities are outside the provided limits."""
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.any(torch.abs(asset.data.joint_vel.torch[:, torch_index(asset_cfg.joint_ids)]) > max_velocity, dim=1)
+    return torch.any(torch.abs(asset.data.joint_vel.torch[:, asset_cfg.joint_ids]) > max_velocity, dim=1)
 
 
 def joint_effort_out_of_limit(
@@ -165,8 +160,8 @@ def joint_effort_out_of_limit(
     asset: Articulation = env.scene[asset_cfg.name]
     # check if any joint effort is out of limit
     out_of_limits = ~torch.isclose(
-        asset.actuators.computed_effort.torch[:, torch_index(asset_cfg.joint_ids)],
-        asset.actuators.applied_effort.torch[:, torch_index(asset_cfg.joint_ids)],
+        asset.actuators.computed_effort.torch[:, asset_cfg.joint_ids],
+        asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids],
     )
     return torch.any(out_of_limits, dim=1)
 
@@ -182,7 +177,6 @@ def illegal_contact(env: ManagerBasedRLEnv, threshold: float, sensor_cfg: SceneE
     net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     # check if any contact force exceeds the threshold
     return torch.any(
-        torch.max(torch.linalg.norm(net_contact_forces[:, :, torch_index(sensor_cfg.body_ids)], dim=-1), dim=1)[0]
-        > threshold,
+        torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold,
         dim=1,
     )

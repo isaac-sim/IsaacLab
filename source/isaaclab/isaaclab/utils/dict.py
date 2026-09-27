@@ -16,7 +16,6 @@ import torch
 
 from .array import TENSOR_TYPE_CONVERSIONS, TENSOR_TYPES
 from .string import ResolvableString, callable_to_string, string_to_slice
-from .warp.proxy_array import ProxyArray
 
 """
 Dictionary <-> Class operations.
@@ -60,11 +59,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
         # disregard builtin attributes
         if key.startswith("__"):
             continue
-        # Finalized index selections serialize as host lists.
-        if isinstance(value, ProxyArray):
-            data[key] = value.warp.numpy().tolist()
         # Keep lazy callable references as strings; don't force callable introspection.
-        elif isinstance(value, ResolvableString):
+        if isinstance(value, ResolvableString):
             data[key] = str(value)
         # check if attribute is callable -- function
         elif callable(value):

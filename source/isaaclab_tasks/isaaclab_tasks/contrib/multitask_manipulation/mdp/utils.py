@@ -12,7 +12,6 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.utils import math as math_utils
-from isaaclab.utils import torch_index
 
 from ..selection_utils import SceneEntitySelectionCfg
 
@@ -41,7 +40,7 @@ def offset_body_pose(
         Global environment IDs, positions [m], and quaternions for the selected view rows.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_link_pose_w.torch[:, torch_index(asset_cfg.body_ids)][:, body_index]
+    pose = asset.data.body_link_pose_w.torch[:, asset_cfg.body_ids][:, body_index]
     pos = pose.new_tensor(offset_pos).expand(len(pose), -1)
     quat = math_utils.convert_quat(pose.new_tensor(offset_quat).expand(len(pose), -1), to="wxyz")
     pos_w, quat_w = math_utils.combine_frame_transforms(pose[:, :3], pose[:, 3:7], pos, quat)

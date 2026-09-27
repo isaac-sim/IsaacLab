@@ -16,8 +16,7 @@ import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
-from ...utils import configclass, torch_index
-from ...utils.warp import ProxyArray
+from ...utils import configclass
 
 if TYPE_CHECKING:
     import torch
@@ -313,9 +312,9 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODes
     joint_ids = kwargs["asset_cfg"].joint_ids
     if isinstance(joint_ids, slice):
         joint_ids = range(len(asset.joint_names))[joint_ids]
-    elif isinstance(joint_ids, ProxyArray):
+    elif not isinstance(joint_ids, list):
         # inspection runs outside stepping, so a host copy of finalized indices is acceptable
-        joint_ids = joint_ids.warp.numpy().tolist()
+        joint_ids = joint_ids.tolist()
     descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
 
 
@@ -333,9 +332,9 @@ def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODesc
     body_ids = kwargs["asset_cfg"].body_ids
     if isinstance(body_ids, slice):
         body_ids = range(len(asset.body_names))[body_ids]
-    elif isinstance(body_ids, ProxyArray):
+    elif not isinstance(body_ids, list):
         # inspection runs outside stepping, so a host copy of finalized indices is acceptable
-        body_ids = body_ids.warp.numpy().tolist()
+        body_ids = body_ids.tolist()
     descriptor.body_names = [asset.body_names[i] for i in body_ids]
 
 
@@ -353,7 +352,7 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservatio
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_pos_offsets = asset.data.default_joint_pos.torch[:, torch_index(ids)][0]
+    descriptor.joint_pos_offsets = asset.data.default_joint_pos.torch[:, ids][0]
 
 
 def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservationIODescriptor, **kwargs):
@@ -370,7 +369,7 @@ def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservatio
     ids = kwargs["asset_cfg"].joint_ids
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
-    descriptor.joint_vel_offsets = asset.data.default_joint_vel.torch[:, torch_index(ids)][0]
+    descriptor.joint_vel_offsets = asset.data.default_joint_vel.torch[:, ids][0]
 
 
 def export_articulations_data(env: ManagerBasedEnv) -> dict[str, dict[str, list[float]]]:
