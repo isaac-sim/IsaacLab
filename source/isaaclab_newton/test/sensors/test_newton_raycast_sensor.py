@@ -136,11 +136,11 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
     The generic row uses the backend-dispatching :class:`RayCasterCfg` with ``global_world_only=True``,
     which must select the Newton BVH implementation.
     """
+    # Another consumer may acquire the shared builder before this sensor is constructed.
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     scene_cfg = GenericRaycastTestSceneCfg(num_envs=2) if generic_cfg else RaycastTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
-    assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
-    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     assert builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)

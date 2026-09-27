@@ -20,7 +20,7 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager, resolve_newton_backend_cfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonManager
 from isaaclab_newton.sim.queries import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
@@ -99,7 +99,7 @@ class _NewtonRayCasterPoseMixin:
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
         sim = sim_utils.SimulationContext.instance()
-        self.newton_cfg = resolve_newton_backend_cfg(None, sim.cfg)
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
@@ -284,8 +284,10 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
     def __init__(self, cfg: NewtonRaycastSensorCfg):
         if cfg.max_distance <= 0.0:
             raise ValueError(f"max_distance must be positive, received {cfg.max_distance}.")
-        NewtonManager._sensor_bvh_shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         super().__init__(cfg)
+        sim = sim_utils.SimulationContext.instance()
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        builder.default_bvh_cfg.shape_flags |= newton.ShapeFlags.COLLIDE_SHAPES
         self._data = NewtonRaycastSensorData()
         self._graph = None
 

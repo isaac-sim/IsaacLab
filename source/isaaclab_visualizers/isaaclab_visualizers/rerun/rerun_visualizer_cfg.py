@@ -13,8 +13,6 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonBackendCfg
-
     from .rerun_visualizer import RerunVisualizer
 
 
@@ -29,9 +27,6 @@ class RerunVisualizerCfg(VisualizerCfg):
     """Type identifier for Rerun visualizer."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    newton_cfg: NewtonBackendCfg | None = None
-    """Shared model declaration; None selects the active Newton or foreign-physics representation."""
 
     app_id: str = "isaaclab-simulation"
     """Application identifier shown in viewer title."""

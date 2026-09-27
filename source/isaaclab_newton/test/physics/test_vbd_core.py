@@ -48,24 +48,18 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
         def control(self):
             return object()
 
-    class Builder(ModelBuilder):
-        def finalize(self, *, device):
-            return model
-
-        def __deepcopy__(self, memo):
-            pytest.fail("A native builder must be borrowed without copying.")
-
     model = Model()
-    builder = Builder()
-    physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else None
-    builder_cfg = NewtonBuilderCfg(class_type=lambda cfg: builder, physics_cfg=physics_cfg)
-    cfg = NewtonBackendCfg(builder_cfg=builder_cfg, device="cpu")
+    monkeypatch.setattr(ModelBuilder, "finalize", lambda self, device: model)
+    physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else object()
+    builder_cfg = NewtonBuilderCfg(physics_cfg=physics_cfg)
+    cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu")
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    builder = sim.get_or_create_backend(builder_cfg)
     backend = sim.get_or_create_backend(cfg)
     assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
-    assert cfg.builder_cfg.physics_cfg is physics_cfg
+    assert cfg.physics_cfg is physics_cfg
     assert backend is sim.get_or_create_backend(cfg.replace())
     assert builder is sim.get_or_create_backend(builder_cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected

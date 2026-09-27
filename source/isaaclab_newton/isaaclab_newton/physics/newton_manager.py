@@ -59,7 +59,6 @@ from isaaclab_newton.physics.newton_manager_cfg import (
     NewtonCfg,
     NewtonShapeCfg,
     NewtonSolverCfg,
-    resolve_newton_backend_cfg,
 )
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
@@ -154,21 +153,21 @@ def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
     """Construct a native builder through the selected physics manager's factory.
 
     Args:
-        cfg: Physics settings, or a render-only builder declaration.
+        cfg: The selected physics configuration.
 
     Returns:
         An empty builder with the selected solver schemas and shape/BVH defaults.
     """
-    if cfg.physics_cfg is None:
-        return ModelBuilder()
-    return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+    if isinstance(cfg.physics_cfg, NewtonCfg):
+        return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+    return ModelBuilder()
 
 
 class NewtonBackend:
     """Own one finalized Newton model and its native state and control buffers."""
 
     def __init__(self, cfg: NewtonBackendCfg):
-        builder = SimulationContext.instance().get_or_create_backend(cfg.builder_cfg)
+        builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         self.model = builder.finalize(device=cfg.device)
         self.particle_ranges: dict[str, tuple[int, int]] = {}
         # Newton 1.6 preserves groups through builder replication but not finalization.
@@ -184,16 +183,18 @@ class NewtonBackend:
             )
         }
         self.model.num_envs = self.model.world_count
-        physics_cfg = cfg.builder_cfg.physics_cfg
-        soft_contact = None if physics_cfg is None else physics_cfg.soft_contact_cfg
+        simulation = isinstance(cfg.physics_cfg, NewtonCfg)
+        soft_contact = cfg.physics_cfg.soft_contact_cfg if simulation else None
         if soft_contact is not None:
             self.model.soft_contact_ke = float(soft_contact.soft_contact_ke)
             self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
             self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
         self.state_0 = self.model.state()
-        self.state_1 = self.model.state() if physics_cfg is not None else None
-        self.control = self.model.control() if physics_cfg is not None else None
-        self.geometry_offsets: dict[str, int] = {}
+        self.state_1 = self.model.state() if simulation else None
+        self.control = self.model.control() if simulation else None
+        self.geometry_offsets = (
+            {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
+        )
         self.bvh_refit = TimestampedBuffer()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
@@ -409,8 +410,6 @@ class NewtonManager(PhysicsManager):
     # CUDA graphing
     _graph = None
     _graph_capture_pending: bool = False
-
-    _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
 
     # Native scene-data publication.
     transforms_may_change_on_graph_replay: bool = False
@@ -750,7 +749,6 @@ class NewtonManager(PhysicsManager):
         NewtonManager.kinematics_dirty = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
-        NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
         NewtonManager.transforms_may_change_on_graph_replay = False
         NewtonManager._cable_bindings = {}
         NewtonManager._particle_ranges = {}
@@ -802,7 +800,7 @@ class NewtonManager(PhysicsManager):
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
-            shape_flags=cls._sensor_bvh_shape_flags,
+            shape_flags=ShapeFlags.VISIBLE,
         )
 
         cls._register_builder_attributes(builder)
@@ -1104,8 +1102,8 @@ class NewtonManager(PhysicsManager):
         we determine whether the solver needs external collision detection.
         """
         sim = SimulationContext.instance()
-        cfg = resolve_newton_backend_cfg(None, sim.cfg)
-        builder = sim.get_or_create_backend(cfg.builder_cfg)
+        cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         cls._drain_stale_cuda_error()
 
         logger.info("Dispatching MODEL_INIT callbacks")
@@ -1678,7 +1676,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def create_visual_material_writer(cls, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
-        return VisualMaterialWriter(cls.get_model(), batches)
+        return cls.backend.create_visual_material_writer(batches)
 
     @classmethod
     def create_visual_shape_color_writer(

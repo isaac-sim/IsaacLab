@@ -60,8 +60,6 @@ Physics Configuration
   :show-inheritance:
   :exclude-members: __init__
 
-.. autofunction:: resolve_newton_backend_cfg
-
 .. autoclass:: NewtonBuilderCfg
   :members:
   :show-inheritance:

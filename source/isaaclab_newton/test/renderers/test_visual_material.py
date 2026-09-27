@@ -7,7 +7,7 @@
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
@@ -31,8 +31,8 @@ def _material_backend(material_paths: list[str], monkeypatch):
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    cfg = NewtonBackendCfg(device="cpu")
-    builder = sim.get_or_create_backend(cfg.builder_cfg)
+    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     for index, material_path in enumerate(material_paths):
         shape = UsdGeom.Cube.Define(stage, f"/World/shape_{index}")
         builder.add_shape_box(-1, label=str(shape.GetPath()))

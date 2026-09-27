@@ -105,12 +105,12 @@ Newton builders use the same registry as finalized models:
     builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
     builder = sim.get_or_create_backend(builder_cfg)
     # Clone/import populates this builder before model allocation.
-    model_cfg = NewtonBackendCfg(builder_cfg=builder_cfg, device=sim.device)
+    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
     backend = sim.get_or_create_backend(model_cfg)
 
-``NewtonBuilderCfg(physics_cfg=None)`` selects a foreign-physics rendering representation.
-Omitted consumer ``newton_cfg`` values select the active representation; explicit declarations
-take precedence. Hard resets close and reacquire the model under the same cfg, reusing the builder.
+Both configurations use the selected physics cfg. With non-Newton physics, the builder holds
+a render-only Newton representation. Cloning populates the builder; consumer initialization
+allocates the model. Hard resets close and reacquire the model under the same cfg, reusing the builder.
 ``SimulationContext`` has no backend-specific cfg fields, and consumers do not access clone contexts.
 Physics, cameras, raycasters, and viewers borrow that
 resource's model and state. Consumers request body transforms and visual points

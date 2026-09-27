@@ -678,8 +678,7 @@ class SimulationContext:
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
-            visualizer = cfg.class_type(cfg)
-            self._pending_visualizers.append(visualizer)
+            self._pending_visualizers.append(cfg.class_type(cfg))
 
     def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Bind constructed visualizers, optionally selecting only pre-capture consumers."""

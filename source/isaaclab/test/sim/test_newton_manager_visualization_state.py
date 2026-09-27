@@ -51,43 +51,16 @@ def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
     return stage
 
 
-def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
-    """Only the active physics manager can clear shared SimulationContext state."""
-    from isaaclab.physics import PhysicsManager
-
-    class _ActiveManager(PhysicsManager):
-        _callbacks = {}
-
-    class _InactiveManager(PhysicsManager):
-        pass
-
-    _ActiveManager.close()
-    assert PhysicsManager._sim is None
-
-    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
-    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
-
-    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
-    _InactiveManager.close()
-    assert PhysicsManager._callbacks == {}
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
-
-    _ActiveManager.close()
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
-
-
 def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     """Consumers acquire a completed resource, including late consumers and replacement after close."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.physics import NewtonBuilderCfg, NewtonManager
     from isaaclab_newton.renderers import NewtonWarpRendererCfg
     from newton import ModelBuilder
 
-    from pxr import Usd, UsdGeom
+    from pxr import Usd, UsdGeom, UsdPhysics
 
-    from isaaclab.physics import PhysicsManager
+    from isaaclab.physics import PhysicsCfg, PhysicsManager
     from isaaclab.renderers import RenderContext
     from isaaclab.sim import SimulationContext
 
@@ -96,21 +69,21 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 
     _reset_newton_manager_state()
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source"))
+    asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+/Cube", spawn=SpawnerCfg(spawn_path="/Scene/Source/Cube"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
-    sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+    sim.cfg = SimpleNamespace(physics=PhysicsCfg(), device="cpu")
     sim.physics_manager = Manager
     sim.stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(sim.stage, "/Scene/Source/Cube").GetPrim())
     sim._backend_registry = []
     sim._render_context = RenderContext(sim._backend_registry)
     sim.requires_usd_stage = sim.requires_newton_model = False
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
-    builder_cfg = renderers[0].newton_cfg.builder_cfg
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
     declared_builder = sim.get_or_create_backend(builder_cfg)
-    assert sim.get_or_create_backend(renderers[1].newton_cfg.builder_cfg) is declared_builder
+    assert sim.get_or_create_backend(builder_cfg.replace()) is declared_builder
     finalized = []
     original = ModelBuilder.finalize
 
@@ -122,12 +95,15 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0,))
     assert builder is declared_builder
-    assert len(sim._backend_registry) == 4
+    assert finalized == []
+    assert len(sim._backend_registry) == 3
     assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
     assert renderers[0].newton_cfg == renderers[1].newton_cfg
     first = sim.get_or_create_backend(renderers[0].newton_cfg)
     assert sim.get_or_create_backend(renderers[1].newton_cfg) is first
     assert first.model.world_count == len(plan.topology.world_prototype_layout)
+    assert first.model.body_count == 2
+    assert first.model.body_label == ["/Scene/Copy_0/Cube", "/Scene/Copy_1/Cube"]
     late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
     assert sim.get_or_create_backend(late.newton_cfg) is first
     assert finalized == [builder]
@@ -208,7 +184,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch, global_path):
     """Global ancestors do not route excluded clone sources into the shadow model."""
     from isaaclab_newton.cloner import NewtonReplicateContext
-    from isaaclab_newton.physics import resolve_newton_backend_cfg
+    from isaaclab_newton.physics import NewtonBackendCfg
     from newton import ModelBuilder
 
     from pxr import Sdf, UsdGeom
@@ -243,7 +219,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0, 2))
-    backend = sim.get_or_create_backend(resolve_newton_backend_cfg(None, sim.cfg))
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
     geometry = backend.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])

@@ -21,8 +21,6 @@ from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipeline
 if TYPE_CHECKING:
     from newton import ModelBuilder
 
-    from isaaclab.sim import SimulationCfg
-
     from isaaclab_newton.physics import NewtonManager
 
     from .newton_manager import NewtonBackend
@@ -30,41 +28,20 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def resolve_newton_backend_cfg(cfg: NewtonBackendCfg | None, sim_cfg: SimulationCfg) -> NewtonBackendCfg:
-    """Resolve an omitted consumer dependency from the selected physics configuration.
-
-    Args:
-        cfg: Explicit declaration, which takes precedence over the default.
-        sim_cfg: Selected physics and device configuration; no runtime resource is inspected.
-
-    Returns:
-        The explicit declaration, or the active Newton/foreign-physics representation declaration.
-    """
-    if cfg is not None:
-        return cfg
-    physics_cfg = sim_cfg.physics if isinstance(sim_cfg.physics, NewtonCfg) else None
-    return NewtonBackendCfg(builder_cfg=NewtonBuilderCfg(physics_cfg=physics_cfg), device=sim_cfg.device)
-
-
 @configclass
 class NewtonBuilderCfg(BackendCfg):
-    """Construction settings for one shared native Newton builder."""
+    """Shared Newton builder for the selected physics configuration."""
 
     class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
-    physics_cfg: NewtonCfg | None = field(default=None, metadata={"copy": False})
-    """Physics model settings, or None for a foreign-physics rendering representation."""
+    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
+    """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
 
 
 @configclass
-class NewtonBackendCfg(BackendCfg):
-    """Declarative identity of a Newton representation within one simulation.
-
-    The builder dependency is itself cfg-keyed; no native handles are stored in this declaration.
-    """
+class NewtonBackendCfg(NewtonBuilderCfg):
+    """Allocate a native model from the matching clone-populated builder."""
 
     class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
-    builder_cfg: NewtonBuilderCfg = field(default_factory=NewtonBuilderCfg, metadata={"copy": False})
-    """Shared builder populated by cloning before this model is constructed."""
     device: str = MISSING
     """Device on which to allocate the model and native buffers."""
 

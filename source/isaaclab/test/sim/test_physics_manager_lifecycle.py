@@ -255,8 +255,6 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     events = []
 
     class Manager:
-        register_callback = Mock()
-
         @classmethod
         def close(cls):
             events.append("physics")

@@ -55,12 +55,11 @@ from isaaclab_newton.physics import (
     NewtonXPBDManager,
     VBDSolverCfg,
     XPBDSolverCfg,
-    resolve_newton_backend_cfg,
 )
 from isaaclab_newton.physics.mpm_manager import _make_solver_config
 from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
-from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
+from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags
 from newton.actuators import DrivePID
 from newton.selection import ArticulationView
 from newton.solvers import SolverFeatherstone, SolverImplicitMPM, SolverKamino, SolverMuJoCo, SolverVBD, SolverXPBD
@@ -272,8 +271,8 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    cfg = NewtonBackendCfg(device="cpu")
-    builder = sim.get_or_create_backend(cfg.builder_cfg)
+    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     builder.add_shape_sphere(builder.add_body(label="/Object"))
     builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
     backend = sim.get_or_create_backend(cfg)
@@ -331,24 +330,6 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
     assert not hasattr(query_module, "update_scene_data")
     assert not hasattr(backend, "transforms")
     backend.close()
-
-
-def test_sensor_bvh_shape_flags_are_fixed_before_builder_creation(monkeypatch):
-    """Builder finalization includes collision-only shapes without a later BVH rebuild."""
-    import newton
-
-    flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
-    monkeypatch.setattr(NewtonManager, "_sensor_bvh_shape_flags", flags)
-    monkeypatch.setattr(PhysicsManager, "_cfg", NewtonCfg())
-    builder = NewtonManager.create_builder()
-    body = builder.add_body()
-    builder.add_shape_sphere(body, cfg=newton.ModelBuilder.ShapeConfig(is_visible=False))
-
-    model = builder.finalize(device="cpu")
-
-    assert builder.default_bvh_cfg.shape_flags == flags
-    assert model.bvh_shape_count_enabled == 1
-    assert model.bvh_shapes is not None
 
 
 def test_newton_shape_cfg_defaults_match_newton_shape_config():
@@ -1112,13 +1093,11 @@ def test_forward_dispatches_active_mpm_reset_hook_through_base_manager(monkeypat
 def test_clear_resets_rigid_body_force_capability(monkeypatch):
     """Teardown clears the canonical solver capability without subclass shadowing."""
     monkeypatch.setattr(NewtonManager, "_supports_rigid_body_force_input", True)
-    monkeypatch.setattr(NewtonManager, "_sensor_bvh_shape_flags", ShapeFlags.COLLIDE_SHAPES)
     monkeypatch.setattr(NewtonManager, "_num_envs", 4)
 
     NewtonManager.clear()
 
     assert NewtonManager._supports_rigid_body_force_input is False
-    assert NewtonManager._sensor_bvh_shape_flags == ShapeFlags.VISIBLE
     assert NewtonManager._num_envs is None
     for manager in (
         NewtonMJWarpManager,
@@ -1179,7 +1158,7 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
 
         def on_physics_ready(_):
             events.append("ready")
-            backend = sim.get_or_create_backend(resolve_newton_backend_cfg(None, sim.cfg))
+            backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
             assert backend is NewtonManager.backend
             allocations.append(backend)
             assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")

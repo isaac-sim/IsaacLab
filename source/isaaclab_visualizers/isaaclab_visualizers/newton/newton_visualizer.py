@@ -32,7 +32,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     del _pyglet_headless_init
 
 import newton
-from isaaclab_newton.physics import NewtonManager, resolve_newton_backend_cfg
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -1048,7 +1048,6 @@ class NewtonVisualizer(BaseVisualizer):
         self._step_counter = 0
         self._runtime_headless: bool = False
         self.backend = None
-        self._update_frequency = cfg.update_frequency
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
@@ -1110,7 +1109,7 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg)
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -1228,8 +1227,7 @@ class NewtonVisualizer(BaseVisualizer):
         if self._runtime_headless or self._viewer is None:
             return
 
-        update_frequency = self._viewer._update_frequency if self._viewer else self._update_frequency
-        if self._step_counter % update_frequency != 0:
+        if self._step_counter % self._viewer._update_frequency != 0:
             return
 
         self._pre_step()
@@ -1245,25 +1243,23 @@ class NewtonVisualizer(BaseVisualizer):
                     provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
                 self._viewer.begin_frame(self._sim_time)
                 try:
-                    if self.backend.state_0 is not None:
-                        body_q = getattr(self.backend.state_0, "body_q", None)
-                        if hasattr(body_q, "shape") and body_q.shape[0] == 0:
-                            self._log_pending_meshes()
-                            return
-                        self._viewer.log_state(self.backend.state_0)
-                        contacts = NewtonManager.get_contacts()
-                        if contacts is not None:
-                            self._viewer.log_contacts(contacts, self.backend.state_0)
-                        else:
-                            self._log_scene_contact_sensor_arrows(num_envs)
-                        if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
-                            # ViewerRTX uses a USD stage whose prim paths are not set up
-                            # for the debug mesh overlays that markers require; skip for RTX.
-                            render_newton_visualization_markers(
-                                self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
-                            )
-                        self._log_streaming_image()
-                        self._render_live_plots()
+                    state = backend.state_0
+                    if state.body_q is not None and state.body_q.shape[0] == 0:
+                        self._log_pending_meshes()
+                        return
+                    self._viewer.log_state(state)
+                    contacts = NewtonManager.get_contacts()
+                    if contacts is not None:
+                        self._viewer.log_contacts(contacts, state)
+                    else:
+                        self._log_scene_contact_sensor_arrows(num_envs)
+                    if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
+                        # RTX's USD scene does not support the GL marker overlays.
+                        render_newton_visualization_markers(
+                            self._viewer, self._resolved_visible_env_ids, num_envs=num_envs
+                        )
+                    self._log_streaming_image()
+                    self._render_live_plots()
                     self._log_pending_meshes()
                 finally:
                     self._viewer.end_frame()
@@ -1564,7 +1560,7 @@ class NewtonVisualizer(BaseVisualizer):
 
     def _render_headless_frame(self) -> None:
         """Render on demand, borrowing current SDP arrays and preserving paused frames."""
-        if not self._runtime_headless or self.backend.state_0 is None or self._viewer.is_paused():
+        if not self._runtime_headless or self._viewer.is_paused():
             return
         backend, provider = self.backend, self._scene_data_provider
         poses = SceneDataFormat.Transform()
@@ -1744,7 +1740,7 @@ class NewtonVisualizer(BaseVisualizer):
                 f"[{type(self).__name__}] streaming_cam_renderer={renderer_name!r} is not supported. "
                 "Valid values for Newton visualizers: 'newton_warp', 'ovrtx', None."
             )
-        renderer_cfg = resolve_streaming_renderer_cfg(renderer_name, self.cfg.newton_cfg)
+        renderer_cfg = resolve_streaming_renderer_cfg(renderer_name)
         count = max(1, len(env_ids))
         tile_w, tile_h = compute_tile_resolution(
             self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)

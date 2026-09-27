@@ -13,8 +13,6 @@ from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
-    from isaaclab_newton.physics import NewtonBackendCfg
-
     from .viser_visualizer import ViserVisualizer
 
 
@@ -29,9 +27,6 @@ class ViserVisualizerCfg(VisualizerCfg):
     """Type identifier for Viser visualizer."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    newton_cfg: NewtonBackendCfg | None = None
-    """Shared model declaration; None selects the active Newton or foreign-physics representation."""
 
     port: int = 8080
     """Port of the local viser web server."""

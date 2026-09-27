@@ -37,19 +37,14 @@ from isaaclab.sim import SimulationContext
 
 
 @pytest.mark.parametrize("renderer", [None, "newton_warp", "ovrtx", "isaac_rtx", "invalid"])
-def test_streaming_renderer_cfg_preserves_shared_model_and_kitless_defaults(monkeypatch, renderer):
-    from isaaclab_newton.physics import NewtonBackendCfg
-
+def test_streaming_renderer_cfg_preserves_kitless_defaults(monkeypatch, renderer):
     monkeypatch.setitem(sys.modules, "omni.replicator.core", None)
-    cfg = NewtonBackendCfg(device="cpu")
     if renderer == "invalid":
         with pytest.raises(ValueError, match="unsupported"):
-            resolve_streaming_renderer_cfg(renderer, cfg)
+            resolve_streaming_renderer_cfg(renderer)
         return
-    resolved = resolve_streaming_renderer_cfg(renderer, cfg)
+    resolved = resolve_streaming_renderer_cfg(renderer)
     assert resolved.renderer_type == ("ovrtx" if renderer == "ovrtx" else "newton_warp")
-    if resolved.renderer_type == "newton_warp":
-        assert resolved.newton_cfg == cfg
 
 
 @pytest.mark.parametrize(
@@ -671,7 +666,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
-    cfg = visualizer.newton_cfg = NewtonBackendCfg(device="cpu")
+    cfg = visualizer.newton_cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
     visualizer._resolved_visible_env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)

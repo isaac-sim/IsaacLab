@@ -5,11 +5,13 @@ Changed
   requested transforms and geometry directly through SDP and shared native BVH refits while owning
   their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
   capture independently of physics capture.
-* **Breaking:** Replaced the native builder input on ``NewtonBackendCfg`` with a ``NewtonBuilderCfg``
-  dependency. Acquired builders and finalized models through ``sim.get_or_create_backend(cfg)``.
-  Use ``NewtonBuilderCfg(physics_cfg=sim.cfg.physics)`` for Newton physics, or ``physics_cfg=None``
-  for a foreign-physics rendering representation, then declare
-  ``NewtonBackendCfg(builder_cfg=builder_cfg, device=sim.device)`` for its native model and state.
+* Applied ray-cast BVH requirements to the shared builder before finalization, including when
+  another consumer acquired the builder first.
+* **Breaking:** Replaced the native builder input on ``NewtonBackendCfg`` with the selected physics
+  configuration. Acquired builders through ``NewtonBuilderCfg(physics_cfg=sim.cfg.physics)`` and
+  finalized models through ``NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)``
+  using ``sim.get_or_create_backend(cfg)``. Non-Newton physics selected a render-only representation;
+  model allocation followed cloning rather than occurring inside it.
 
 Removed
 ^^^^^^^

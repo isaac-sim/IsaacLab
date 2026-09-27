@@ -16,6 +16,7 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.physics import NewtonBackendCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -338,7 +339,10 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 ) as add_cloth:
                     options = dict(plan=plan, asset_prototype_ids=range(4))
                     options.update(positions=positions, quaternions=quaternions)
-                    builder, _, _, offsets = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
+                    builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
+                cfg = NewtonBackendCfg(physics_cfg=self.sim.cfg.physics, device=self.sim.device)
+                backend = self.sim.get_or_create_backend(cfg)
+                offsets = backend.geometry_offsets
                 self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
                 expected = {"/Shared/sim": vertices[:3]}
@@ -355,7 +359,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 self.assertEqual(set(offsets), set(expected))
                 for path, points in expected.items():
                     start = offsets[path]
-                    np.testing.assert_allclose(builder.particle_q[start : start + len(points)], points, atol=1e-5)
+                    native = backend.state_0.particle_q.numpy()[start : start + len(points)]
+                    np.testing.assert_allclose(native, points, atol=1e-5)
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
 
 

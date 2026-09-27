@@ -20,7 +20,7 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
-from isaaclab_newton.physics import resolve_newton_backend_cfg
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
@@ -303,7 +303,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
-        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg)
+        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -528,7 +528,7 @@ class RerunVisualizer(BaseVisualizer):
         # Auto-detect fallback: with Newton MJWarp replicate_physics=True, post-init prim
         # spawning only survives at env_0. Reuse the first scene camera with matching
         # renderer_type (or any scene camera with the right count as secondary fallback).
-        renderer_cfg = resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer, self.cfg.newton_cfg)
+        renderer_cfg = resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
         renderer_type = getattr(renderer_cfg, "renderer_type", None)
         scene_cameras = self._scene_data_provider.get_camera_sensors()
         _fallback_cam = None
