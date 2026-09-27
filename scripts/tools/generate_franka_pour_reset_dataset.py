@@ -1312,7 +1312,7 @@ class _Generator:
             supported = ((xy >= supported_lower) & (xy <= supported_upper)).all(-1)
             accepted = rows[supported]
             target_position[accepted, :2] = xy[supported]
-            unresolved[accepted] = False
+            index_fill_(unresolved, accepted, False)
         if bool(unresolved.any()):
             raise RuntimeError("Could not sample a supported source/receiver pair.")
         return source_position, source_quaternion, target_position
