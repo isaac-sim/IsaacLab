@@ -88,6 +88,7 @@ class _FakeBodyView:
         indices: wp.array(dtype=wp.int32) | None = None,
         mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
+        assert indices is None or indices.is_contiguous  # Required by the OVPhysX DLPack binding.
         self.last_indices = indices
         if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
             self.position_write_count += 1
@@ -242,8 +243,9 @@ def test_indexed_full_data_write_preserves_retained_aliased_edits(
         ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "velocities", -100.0),
     ],
 )
+@pytest.mark.parametrize("env_ids", [slice(1, 2), slice(None, None, 2)], ids=["contiguous", "strided"])
 def test_indexed_partial_write_preserves_retained_aliased_slice(
-    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float
+    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float, env_ids: slice
 ) -> None:
     """A retained selected slice survives hydration of stale unselected rows."""
     asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
@@ -254,15 +256,15 @@ def test_indexed_partial_write_preserves_retained_aliased_slice(
     latest = torch.arange(18, dtype=torch.float32, device=asset.device).reshape(3, 2, 3)
     setattr(asset.root_view, simulator_attribute, wp.from_torch(latest.contiguous(), dtype=wp.float32))
     asset.update(0.1)
-    selected = retained.torch[1:2]
+    selected = retained.torch[env_ids]
     selected.fill_(command_value)
 
-    getattr(asset, write_method_name)(selected, env_ids=[1])
-    # Only the selected environment is written back to the simulator.
-    assert asset.root_view.last_indices.numpy().tolist() == [1]
+    getattr(asset, write_method_name)(selected, env_ids=env_ids)
+    # Only the selected environments are written back to the simulator.
+    assert asset.root_view.last_indices.numpy().tolist() == list(range(3)[env_ids])
 
     expected = latest.clone()
-    expected[1].fill_(command_value)
+    expected[env_ids].fill_(command_value)
     assert getattr(asset.data, property_name) is retained
     torch.testing.assert_close(retained.torch, expected)
 

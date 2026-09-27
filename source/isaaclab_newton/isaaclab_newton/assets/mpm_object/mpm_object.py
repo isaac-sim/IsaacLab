@@ -16,7 +16,6 @@ import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object import BaseDeformableObject
 from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner.query import iter_sources
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
@@ -418,26 +417,25 @@ class MPMObject(BaseDeformableObject):
             return
 
         plan = SimulationContext.instance().get_clone_plan()
-        source = self.cfg.spawn.spawn_path
-        asset_prim_paths = [
-            cloner_path.rebase(source, root, template.format(env_id))
-            for root, template, source_path, env_ids in iter_sources(plan, self.cfg.prim_path)
-            if source_path == source
-            for env_id in env_ids
-        ]
-        if not asset_prim_paths and any(cloner_path.under(source, root) for root in plan.global_paths):
-            asset_prim_paths.append(source)
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        asset_ids = {index for index, source in enumerate(sources) if source == self.cfg.spawn.spawn_path}
+        templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
+        asset_prim_paths = []
+        for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+            for index in range(*starts[prototype + 1 : prototype + 3]):
+                if plan.topology.world_prototypes[index] in asset_ids:
+                    asset_prim_paths.append(templates[index].format(world))
         for prim_path, offset in zip(asset_prim_paths, self._recorded_particle_offsets, strict=True):
             SimulationManager.register_particle_visual_prim(
-                f"{prim_path}/Particles",
-                particle_offset=offset,
-                particle_count=self._particles_per_object,
+                f"{prim_path}/Particles", particle_offset=offset, particle_count=self._particles_per_object
             )
         logger.info("MPM particle visualization initialized for: %s", self.cfg.prim_path)
 
     def _resolve_env_ids(self, env_ids):
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             return wp.from_torch(env_ids.to(device=self.device, dtype=torch.int32), dtype=wp.int32)
         if isinstance(env_ids, Sequence):

@@ -180,6 +180,10 @@ class NewtonCfg(PhysicsCfg):
     use_cuda_graph: bool = True
     """Whether to use CUDA graphing when simulating.
 
+    Graphs are captured immediately before the first physics step, after reset and decimation
+    setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
+    capture mode; kitless simulation uses Warp's standard capture mode.
+
     If set to False, the simulation performance will be severely degraded.
     """
 

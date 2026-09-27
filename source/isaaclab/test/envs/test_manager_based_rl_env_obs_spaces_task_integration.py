@@ -40,7 +40,7 @@ def test_obs_space_follows_clip_constraint(device):
     sim_utils.create_new_stage()
 
     env_cfg, _ = resolve_task_config("IsaacContrib-Velocity-Rough-AnymalC", "", overrides=())
-    env_cfg.scene.num_envs = 2  # keep num_envs small for testing
+    env_cfg.scene.num_envs = 4  # keep num_envs small for testing
     for group_cfg in vars(env_cfg.observations).values():
         if isinstance(group_cfg, ObservationGroupCfg):
             group_cfg.concatenate_terms = False
@@ -69,5 +69,13 @@ def test_obs_space_follows_clip_constraint(device):
         action = torch.tensor(env.action_space.sample(), device=env.device)
         obs, _, _, _, _ = env.step(action)
         assert list(obs["policy"]) == expected_policy_terms
+        robot = env.scene["robot"]
+        root_before = robot.data.root_state_w.torch.clone()
+        joint_before = robot.data.joint_pos.torch.clone()
+        default_before = robot.data.default_joint_pos.torch.clone()
+        env.reset(slice(1, None, 2))
+        torch.testing.assert_close(robot.data.root_state_w.torch[::2], root_before[::2])
+        torch.testing.assert_close(robot.data.joint_pos.torch[::2], joint_before[::2])
+        torch.testing.assert_close(robot.data.default_joint_pos.torch, default_before)
     finally:
         env.close()

@@ -391,12 +391,14 @@ def resolve_matching_prims_from_source(
     """Resolve matching prims from a single(source) instance when multiple instances are present.
 
     The returned prims come from the stage source instance, while each destination expression
-    keeps the multi-instance pattern that callers can pass to simulation views.
+    keeps the multi-instance pattern that callers can pass to simulation views. Each source
+    prim appears once, in first-match order, even when matching ancestor subtrees overlap.
+    Uniqueness is resolved here before counting matches, rather than by individual callers.
 
     Args:
         path_expr: Prim path expression to resolve. It may contain regex wildcards.
         predicate: Optional descendant filter; returned expressions include the matching descendant suffix.
-        expected_num_matches: Optional exact result count.
+        expected_num_matches: Optional exact count of unique source prims.
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
@@ -409,15 +411,25 @@ def resolve_matching_prims_from_source(
         RuntimeError: If no prim matches ``path_expr`` and ``raise_if_no_matches`` is True.
     """
     plan = SimulationContext.instance().get_clone_plan()
-    resolved = cloner.query.path_to_source(plan, path_expr) if plan is not None else None
-    if resolved is not None:
-        source_path, dest_expr, asset_suffix = resolved
-        source_expr = source_path + asset_suffix
+    matches = []
+    if plan is not None:
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        for group in range(1, len(starts) - 1):
+            targets = worlds[world_starts[group] : world_starts[group + 1]]
+            for index in range(starts[group], starts[group + 1]):
+                matched = cloner.path.match(path_expr, templates[index])
+                if matched is not None and any(re.fullmatch(matched.instance, str(world)) for world in targets):
+                    matches.append((index, matched))
+    if matches:
+        index, matched = min(matches, key=lambda item: len(item[1].suffix))
+        source_path, destination = sources[plan.topology.world_prototypes[index]], templates[index]
+        dest_expr = destination.format("[^/]+")
         source_prim = get_current_stage().GetPrimAtPath(source_path)
-        results = [
-            (prim, dest_expr + prim.GetPath().pathString[len(source_path) :])
-            for prim in _iter_matching_prims_in_subtree(source_expr, source_prim)
-        ]
+        prims = _iter_matching_prims_in_subtree(source_path + matched.suffix, source_prim)
+        results = [(prim, dest_expr + prim.GetPath().pathString[len(source_path) :]) for prim in prims]
     else:
         # No clone plan, or ``path_expr`` is not owned by any plan row. Resolve from the stage
         # in two phases (mirroring the clone-plan branch above): (1) locate ONE instance root to
@@ -451,20 +463,23 @@ def resolve_matching_prims_from_source(
             instance_root = "/" + "/".join(match_segments[: instance_seg + 1])
             trailing = segments[instance_seg + 1 :]
             walk_root = instance_root + ("/" + "/".join(trailing) if trailing else "")
-            results = [
-                (prim, instance_expr + prim.GetPath().pathString[len(instance_root) :])
-                for prim in find_matching_prims(walk_root)
-                if prim.GetPath().pathString == instance_root
-                or prim.GetPath().pathString.startswith(instance_root + "/")
-            ]
+            results = []
+            for prim in find_matching_prims(walk_root):
+                path = prim.GetPath().pathString
+                if path == instance_root or path.startswith(instance_root + "/"):
+                    results.append((prim, instance_expr + path[len(instance_root) :]))
     if predicate is not None:
-        results = [
-            (child, dest + child.GetPath().pathString[len(source.GetPath().pathString) :])
-            for source, dest in results
-            for child in get_all_matching_child_prims(
-                source.GetPath(), predicate, traverse_instance_prims=traverse_instance_prims
+        # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
+        unique_matches = {}
+        for source, dest in results:
+            source_path = source.GetPath().pathString
+            children = get_all_matching_child_prims(
+                source_path, predicate, traverse_instance_prims=traverse_instance_prims
             )
-        ]
+            for child in children:
+                child_path = child.GetPath().pathString
+                unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
+        results = list(unique_matches.values())
 
     if expected_num_matches is not None and len(results) != expected_num_matches:
         raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")

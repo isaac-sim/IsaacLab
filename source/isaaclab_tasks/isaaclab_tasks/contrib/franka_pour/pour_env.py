@@ -620,8 +620,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
 
         particle_count = self._num_particles
-        local_position = self._reset_particle_local_position[None].expand(len(env_ids), -1, -1)
-        local_velocity = self._reset_particle_local_velocity[None].expand(len(env_ids), -1, -1)
+        local_position = self._reset_particle_local_position[None].expand(rows.shape[0], -1, -1)
+        local_velocity = self._reset_particle_local_velocity[None].expand(rows.shape[0], -1, -1)
         source_quat = source_pose[:, None, 3:7].expand(-1, particle_count, -1)
         particle_position = math_utils.quat_apply(source_quat, local_position) + source_pose[:, None, :3]
         particle_velocity = math_utils.quat_apply(source_quat, local_velocity)
@@ -646,10 +646,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
 
     def reset_pour_scene(self, env_ids: torch.Tensor) -> None:
         """Restore selected environments from reset-dataset rows."""
-        if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
-        env_ids = env_ids.to(device=self.device, dtype=torch.long).flatten()
-        if env_ids.numel() == 0:
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)

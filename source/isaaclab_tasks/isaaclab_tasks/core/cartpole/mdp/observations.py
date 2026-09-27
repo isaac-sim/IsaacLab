@@ -7,66 +7,44 @@
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import torch
+from typing_extensions import deprecated
 
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.images import is_rgb_like, normalize_camera_image
+from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import Camera
 
 
+@deprecated(
+    "CameraImageStack is deprecated; use isaaclab.envs.mdp.image_rgb, image_depth or image_segmentation with"
+    " channel_first=True and frame_stack instead. CameraImageStack will be removed in a future release."
+)
 class CameraImageStack(ManagerTermBase):
-    """Return normalized channel-first camera images with optional frame stacking."""
+    """Return normalized channel-first camera images with optional frame stacking.
+
+    .. deprecated::
+        Use :class:`~isaaclab.envs.mdp.image_rgb`, :class:`~isaaclab.envs.mdp.image_depth` or
+        :class:`~isaaclab.envs.mdp.image_segmentation` with ``channel_first=True`` and ``frame_stack``.
+    """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-
-        frame_stack = max(1, env.cfg.frame_stack)
-        env.cfg.frame_stack = frame_stack
-
-        self._stack = None
-        if frame_stack > 1:
-            self._stack = CircularBuffer(
-                max_len=frame_stack,
-                batch_size=env.num_envs,
-                device=env.device,
-                stack_dim=1,
-            )
+        frame_stack = max(1, getattr(env.cfg, "frame_stack", 1))
+        self._frames = CameraFrameStack(env.num_envs, env.device, frame_stack=frame_stack, channel_first=True)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        if self._stack is not None:
-            self._stack.reset(env_ids)
+        self._frames.reset(env_ids)
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, data_type: str) -> torch.Tensor:
         camera: Camera = env.scene.sensors[sensor_cfg.name]
-        camera_data = camera.data.output[data_type].torch
-
-        rgb_like = is_rgb_like(data_type)
-        segmentation = data_type == "semantic_segmentation"
-        # Colorized segmentation is uint8 RGBA, so it can ride the same deferred-normalize path as
-        # the RGB-like types; non-colorized segmentation is an int32 label map that cannot.
-        defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
+        images = camera.data.output[data_type].torch
         if data_type == "albedo":
-            camera_data = camera_data[..., :3]
-        if (rgb_like or segmentation) and not defer_normalize:
-            # normalize straight into the channel-first layout
-            observation = normalize_camera_image(camera_data, data_type, output_channel_dim=1)
-        else:
-            if data_type == "depth":
-                camera_data[camera_data == float("inf")] = 0
-            observation = camera_data.permute(0, 3, 1, 2).contiguous()
-        if self._stack is not None:
-            self._stack.append(observation)
-            observation = self._stack.stacked
-
-        if defer_normalize:
-            observation = normalize_camera_image(observation, data_type, channel_dim=1)
-        elif self._stack is not None:
-            observation = observation.clone()
-        return observation
+            images = images[..., :3]
+        return self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))

@@ -148,8 +148,6 @@ def main() -> None:
         sim.set_camera_view(eye=(0.0, -18.0, 15.0), target=(0.0, 0.0, 0.0))
         _scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))
         _apply_display_colors()
-        if NewtonManager._builder is None:
-            NewtonManager.instantiate_builder_from_stage()
         NewtonManager._builder.rigid_gap = 0.001
         sim.reset()
         print(

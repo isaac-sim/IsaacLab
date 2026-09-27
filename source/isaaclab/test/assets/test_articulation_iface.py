@@ -64,16 +64,24 @@ _production_backends = pytest.mark.parametrize(
 class TestArticulationIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
-    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
-        art, _ = get_articulation(backend, num_instances=4, device="cpu")
+    @_production_backends
+    @_devices
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
+        art, _ = get_articulation(backend, num_instances=4, device=device)
 
-        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        env_ids = torch.arange(4, dtype=torch.int32, device=device)
         resolved_full = art._resolve_env_ids(env_ids)
         resolved_view = art._resolve_env_ids(env_ids[:2])
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+        # Native indexed writers can use a strided view of cached IDs without copying or uploading them.
+        cached = wp.to_torch(art._ALL_INDICES)
+        for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+            resolved = wp.to_torch(art._resolve_env_ids(selection))
+            torch.testing.assert_close(resolved, cached[selection])
+            assert resolved.data_ptr() == cached[selection].data_ptr()
+            assert resolved.stride() == cached[selection].stride()
 
     @_index_resolution_backends
     def test_resolve_joint_ids_handles_tensor_view_shape(self, backend):
@@ -333,7 +341,20 @@ class TestArticulationDataProperties:
     @_devices
     def test_articulation_data_property_contract(self, backend, device):
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device=device)
+        if backend == "newton":
+            # Native selections may stride over other articulations in each world.
+            for name in ("root_link_pose_w", "root_com_vel_w", "body_link_pose_w", "body_com_vel_w"):
+                binding = getattr(art.data, "_sim_bind_" + name)
+                storage = wp.empty((2 * binding.shape[0], *binding.shape[1:]), dtype=binding.dtype, device=device)
+                view = storage[::2]
+                view.assign(binding)
+                setattr(art.data, "_sim_bind_" + name, view)
+            art.data._pin_proxy_arrays()
         art.data.update(dt=0.01)
+        if backend == "newton":
+            names = ("root_link_vel_w", "body_link_vel_w", "body_com_pose_b", "root_com_pose_w")
+            for name in (*names, "body_com_pose_w", "projected_gravity_b", "heading_w"):
+                assert getattr(art.data, "_" + name).data is None
         shapes = {
             "N": (_NUM_INSTANCES,),
             "NB": (_NUM_INSTANCES, _NUM_BODIES),
@@ -348,6 +369,15 @@ class TestArticulationDataProperties:
             else:
                 value = getattr(art.data, name)
             _check_proxy_array(value, expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name)
+
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(art.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(art.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
 
     @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
     def test_physx_set_coms_index_updates_body_com_pose_b_cache(self):
@@ -393,30 +423,24 @@ class TestArticulationDataProperties:
 
         assert num_get_coms_calls == 1
 
-    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
-    def test_physx_identity_ordering_reuses_dynamics_proxy_array_across_refreshes(self):
-        """With identity ordering (the default), ``body_com_jacobian_w``, ``mass_matrix``, and
-        ``gravity_compensation_forces`` alias stable, pre-allocated PhysX buffers, so their
-        ``ProxyArray`` wrapper must be created once and reused on every subsequent refresh —
-        matching the pattern already used by, e.g., ``root_link_pose_w``. Rebuilding the wrapper
-        on every step forces a redundant ``.torch`` view rebuild even though the underlying
-        device pointer never changes.
-        """
-        art, _ = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
-
+    @pytest.mark.parametrize("backend", [name for name in ("physx", "ovphysx") if name in BACKENDS])
+    @_devices
+    def test_dynamics_buffers_allocate_on_read_and_reuse_across_refreshes(self, backend, device):
+        """Optional dynamics allocate independently on demand and retain stable public views."""
+        art, _ = get_articulation(backend, num_instances=2, num_joints=3, num_bodies=4, device=device)
+        names = ("body_com_jacobian_w", "mass_matrix", "gravity_compensation_forces")
         art.data.update(dt=0.01)
-        jacobian_wrapper_a = art.data.body_com_jacobian_w
-        mass_matrix_wrapper_a = art.data.mass_matrix
-        gravity_wrapper_a = art.data.gravity_compensation_forces
-
+        for index, name in enumerate(names):
+            for unread in names[index:]:
+                assert getattr(art.data, "_" + unread).data is None
+            wrapper = getattr(art.data, name)
+            assert wrapper is getattr(art.data, "_" + name).data
+            art.data.update(dt=0.01)
+            assert getattr(art.data, name) is wrapper
+            assert art.data._body_link_jacobian_w is None
+        wrapper = art.data.body_link_jacobian_w
         art.data.update(dt=0.01)
-        jacobian_wrapper_b = art.data.body_com_jacobian_w
-        mass_matrix_wrapper_b = art.data.mass_matrix
-        gravity_wrapper_b = art.data.gravity_compensation_forces
-
-        assert jacobian_wrapper_a is jacobian_wrapper_b
-        assert mass_matrix_wrapper_a is mass_matrix_wrapper_b
-        assert gravity_wrapper_a is gravity_wrapper_b
+        assert art.data.body_link_jacobian_w is wrapper
 
     @_production_backends
     def test_actuator_compatibility_projections_are_stable(self, backend):

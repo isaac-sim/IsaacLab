@@ -1,0 +1,1 @@
+Extended the existing Fabric pose-write regression to cover headless video capture without a physics step.

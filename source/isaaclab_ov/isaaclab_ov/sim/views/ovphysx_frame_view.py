@@ -11,6 +11,7 @@ import logging
 import re
 from typing import Any
 
+import numpy as np
 import warp as wp
 
 from pxr import Gf, Usd, UsdGeom, UsdPhysics
@@ -21,6 +22,7 @@ from isaaclab.physics import PhysicsEvent
 from isaaclab.sim.views.base_frame_view import BaseFrameView
 from isaaclab.sim.views.usd_frame_view import UsdFrameView
 from isaaclab.sim.views.xform_space_writer import FrameViewLocalSpaceWriter, FrameViewWorldSpaceWriter
+from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_ov.physics import OvPhysxManager
@@ -316,19 +318,38 @@ class OvPhysxFrameView(BaseFrameView):
         sim = sim_utils.SimulationContext.instance()
         plan = sim.get_clone_plan() if sim is not None else None
         self._clone_plan = plan
-        source_matches = tuple(cloner.query.iter_sources(plan, prim_path)) if plan is not None else ()
-        self._source_records = []
-        self._prims: list[Usd.Prim] = []
-        for source_root, destination_template, source_path, env_ids in source_matches:
-            source_pattern = re.compile(source_path)
-            source_prims = sim_utils.get_all_matching_child_prims(
-                source_root,
-                lambda prim: source_pattern.fullmatch(prim.GetPath().pathString) is not None,
-                stage=stage,
+        matches = []
+        if plan is not None:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
             )
-            self._prims.extend(source_prims)
-            self._source_records.extend((source_root, destination_template, prim, env_ids) for prim in source_prims)
-        if not source_matches:
+            # Resolve frame expressions through the closest declared asset, then inspect only its prototype subtree.
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(prim_path, templates[index])) is not None:
+                        matches.append((group, index, matched))
+        self._source_sites = []
+        self._prims: list[Usd.Prim] = []
+        if matches:
+            suffix = min((matched.suffix for _, _, matched in matches), key=len)
+            for group, index, matched in matches:
+                if matched.suffix != suffix:
+                    continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+                env_ids = env_ids[
+                    resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                ]
+                if not len(env_ids):
+                    continue
+                root, template = sources[plan.topology.world_prototypes[index]], templates[index]
+                pattern = re.compile(root + suffix)
+                prims = sim_utils.get_all_matching_child_prims(
+                    root, lambda prim: pattern.fullmatch(prim.GetPath().pathString) is not None, stage=stage
+                )
+                self._prims.extend(prims)
+                self._source_sites.extend((root, template, prim, env_ids) for prim in prims)
+        else:
             self._prims = sim_utils.find_matching_prims(prim_path, stage=stage)
         if not self._prims:
             raise ValueError(f"OvPhysxFrameView: pattern {prim_path!r} matched zero prims.")
@@ -337,7 +358,7 @@ class OvPhysxFrameView(BaseFrameView):
         self._usd_view: UsdFrameView | None = None
 
         # Try synchronous init; defer to PHYSICS_READY if the PhysX instance is not yet alive.
-        physx = self._try_get_physx()
+        physx = OvPhysxManager.get_physx_instance()
         if physx is not None:
             self._initialize_impl(physx)
         else:
@@ -347,14 +368,9 @@ class OvPhysxFrameView(BaseFrameView):
                 name=f"ovphysx_frame_view_{prim_path}",
             )
 
-    @staticmethod
-    def _try_get_physx() -> Any | None:
-        """Return the active OVPhysX ``PhysX`` instance, or ``None`` if not yet created."""
-        return OvPhysxManager.get_physx_instance()
-
     def _on_physics_ready(self, _event) -> None:
         """Replace any prior root view when the OVPhysX ``PhysX`` instance becomes ready."""
-        physx = self._try_get_physx()
+        physx = OvPhysxManager.get_physx_instance()
         if physx is None:
             raise RuntimeError("OvPhysxFrameView: PHYSICS_READY fired but OvPhysxManager has no PhysX instance.")
         previous_root_view = getattr(self, "_root_view", None)
@@ -518,27 +534,22 @@ class OvPhysxFrameView(BaseFrameView):
         self, xform_cache: UsdGeom.XformCache
     ) -> list[tuple[int, Usd.Prim, list[float], list[float], str]]:
         """Return plan-ordered source prims and projected poses for source-only world sites."""
-        if sum(len(env_ids) for _, _, _, env_ids in self._source_records) <= len(self._prims):
+        if not self._source_sites:
             return []
         plan = self._clone_plan
-        if plan is None:
-            raise RuntimeError("OvPhysxFrameView requires a clone plan for source-only world sites.")
-        plan_env_ids = range(plan.clone_mask.shape[1]) if plan.env_ids is None else plan.env_ids
-        column_by_env_id = {int(env_id): column for column, env_id in enumerate(plan_env_ids)}
 
-        records: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
-        for source_root, destination_template, source_prim, env_ids in self._source_records:
+        sites: list[tuple[int, Usd.Prim, list[float], list[float], str]] = []
+        for source_root, destination_template, source_prim, env_ids in self._source_sites:
             source_prim_path = source_prim.GetPath().pathString
             suffix = cloner.path.relative_to(source_prim_path, source_root)
             if suffix is None:
                 raise RuntimeError(f"OvPhysxFrameView source prim {source_prim_path!r} is not under {source_root!r}.")
             source_world = xform_cache.GetLocalToWorldTransform(source_prim)
             source_parent_world = xform_cache.GetLocalToWorldTransform(source_prim.GetParent())
-            source_match = cloner.path.match(source_root, destination_template)
+            source_match = cloner.path.match(source_root, plan.env_template)
             source_anchor_world = Gf.Matrix4d(1.0)
             if source_match is not None:
-                template_prefix, _ = cloner.path.split(destination_template)
-                source_anchor_path = template_prefix + source_match.instance
+                source_anchor_path = plan.env_template.format(source_match.instance)
                 source_anchor = self._stage.GetPrimAtPath(source_anchor_path)
                 if not source_anchor.IsValid():
                     raise RuntimeError(f"OvPhysxFrameView source anchor {source_anchor_path!r} is not on the stage.")
@@ -550,13 +561,13 @@ class OvPhysxFrameView(BaseFrameView):
                 destination_root = destination_template.format(env_id)
                 destination_world = Gf.Matrix4d(1.0)
                 if plan.positions is not None:
-                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[column_by_env_id[env_id]])))
+                    destination_world.SetTranslateOnly(Gf.Vec3d(*map(float, plan.positions[env_id])))
                 site_world = _gf_matrix_to_xform7(source_world * source_inverse * destination_world)
                 parent_world = _gf_matrix_to_xform7(source_parent_world * source_inverse * destination_world)
-                records.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
+                sites.append((env_id, source_prim, site_world, parent_world, destination_root + suffix))
 
-        records.sort(key=lambda record: column_by_env_id[record[0]])
-        return records
+        sites.sort(key=lambda site: site[0])
+        return sites
 
     def _resolve_rigid_body_ancestor(
         self,
