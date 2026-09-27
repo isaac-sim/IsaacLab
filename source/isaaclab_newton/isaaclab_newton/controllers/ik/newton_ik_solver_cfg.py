@@ -25,7 +25,7 @@ class NewtonIKSolverCfg:
     class_type: type | str = "isaaclab_newton.controllers.ik.newton_ik_solver:NewtonIKSolver"
     """Solver implementation, as a type or a ``"module:Class"`` string.
 
-    Instantiated as ``class_type(cfg, model=..., num_envs=..., device=...,
+    Instantiated as ``instantiate(cfg, model=..., num_envs=..., device=...,
     objectives=..., link_resolver=...)``.
     """
 

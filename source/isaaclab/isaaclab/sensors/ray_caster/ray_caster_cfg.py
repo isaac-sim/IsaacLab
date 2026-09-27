@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Literal
 from ...markers import VisualizationMarkersCfg
 from ...markers.config import RAY_CASTER_MARKER_CFG
 from ...sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from ...utils import configclass
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
 
@@ -104,7 +104,7 @@ class RayCasterCfg(SensorBaseCfg):
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+    visualizer_cfg: VisualizationMarkersCfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster")
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
     .. note::

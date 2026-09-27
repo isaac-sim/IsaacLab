@@ -28,6 +28,7 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 ##
@@ -73,7 +74,7 @@ Newton MJWarp backend. Preset-aware multi-backend tasks select ``physx`` when us
 """
 
 
-SO101_HIGH_PD_CFG = SO101_CFG.copy()
+SO101_HIGH_PD_CFG = clone(SO101_CFG)
 SO101_HIGH_PD_CFG.spawn.rigid_props.disable_gravity = True
 SO101_HIGH_PD_CFG.actuators = {
     "arm": ImplicitActuatorCfg(

@@ -15,6 +15,7 @@ import pytest
 from pink.exceptions import FrameNotFound
 
 from isaaclab.controllers.pink_ik.pink_kinematics_configuration import PinkKinematicsConfiguration
+from isaaclab.utils import clone
 
 pytestmark = pytest.mark.integration
 
@@ -298,7 +299,7 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
 
     import isaaclab_assets
 
-    robot_cfg = getattr(isaaclab_assets, robot_name).copy()
+    robot_cfg = clone(getattr(isaaclab_assets, robot_name))
     robot_cfg.spawn.rigid_props.disable_gravity = disable_gravity
     num_base_dofs = 0 if fixed_base else 6
     forces = torch.arange(2 * (3 + num_base_dofs), dtype=torch.float32).reshape(2, -1)

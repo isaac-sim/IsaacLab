@@ -15,6 +15,7 @@ import torch
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils import math as math_utils
 
 from ..assembly_keypoints import NIST_BOARD_CFG
@@ -121,7 +122,7 @@ class reset_held_asset_on_fixed_asset(ManagerTermBase):
     def __init__(self, cfg: EventTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         profile_cfg: AssemblyProfileCfg = cfg.params["assembly_profile"]
-        self.profile = profile_cfg.class_type(profile_cfg)
+        self.profile = instantiate(profile_cfg)
 
     def __call__(
         self,
@@ -251,7 +252,7 @@ class reset_end_effector_around_asset(ManagerTermBase):
         ik_iterations: tuple[int, int] = (5, 10),
     ) -> None:
         if self.solver is None:
-            self.solver = self.robot_ik_solver_cfg.class_type(self.robot_ik_solver_cfg, env)
+            self.solver = instantiate(self.robot_ik_solver_cfg, env)
         fixed_tip_pos_w, fixed_tip_quat_w = self.fixed_asset_offset.apply(self.fixed_asset)
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         samples = math_utils.sample_uniform(self.ranges[:, 0], self.ranges[:, 1], (num_envs, 6), device=env.device)

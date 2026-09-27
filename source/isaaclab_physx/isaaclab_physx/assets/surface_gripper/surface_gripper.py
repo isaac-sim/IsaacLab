@@ -15,6 +15,7 @@ import warp as wp
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
+from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        self._cfg = cfg.copy()
+        self._cfg = clone(cfg)
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
         if has_kit() and get_isaac_sim_version().major < 5:

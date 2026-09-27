@@ -43,8 +43,10 @@ import contextlib
 import sys
 from typing import TYPE_CHECKING
 
-# Isaac Lab AppLauncher
 from isaaclab.app import AppLauncher
+
+# Isaac Lab AppLauncher
+from isaaclab.utils import replace
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 from isaaclab_tasks.utils import setup_preset_cli
@@ -356,7 +358,7 @@ def create_environment_config(
     # terms that reference "success" can still resolve it during initialization.
     success_term = getattr(env_cfg.terminations, "success", None)
     if success_term is not None:
-        env_cfg.terminations.success = success_term.replace(func=_never_terminate, params={})
+        env_cfg.terminations.success = replace(success_term, func=_never_terminate, params={})
     else:
         logger.warning(
             "No success termination term was found in the environment."

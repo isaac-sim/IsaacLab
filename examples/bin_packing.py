@@ -65,7 +65,7 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer, configclass, index_fill_
+from isaaclab.utils import Timer, configclass, index_fill_, instantiate
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -406,7 +406,7 @@ def main():
         layouts = [combination.assets for combination in scene_cfg.clone_cfg.clone_combinations]
         print(f"[INFO] Drawn bin layouts (objects per layout): {[len(layout) for layout in layouts]}")
         with Timer("[INFO] Time to create scene: "):
-            scene = scene_cfg.class_type(scene_cfg)
+            scene = instantiate(scene_cfg)
 
         # Play the simulator
         sim.reset()

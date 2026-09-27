@@ -24,7 +24,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg, mdp
 from isaaclab.managers import EventTermCfg, ObservationGroupCfg, ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 pytestmark = pytest.mark.isaacsim_ci
 
@@ -65,7 +65,8 @@ def env(request: pytest.FixtureRequest) -> Iterator[ManagerBasedEnv]:
         init_state=ArticulationCfg.InitialStateCfg(pos=(-1.0, 0.0, 0.0)),
     )
     scene.identity = robot
-    scene.reordered = robot.replace(
+    scene.reordered = replace(
+        robot,
         prim_path="{ENV_REGEX_NS}/reordered",
         init_state=ArticulationCfg.InitialStateCfg(pos=(1.0, 0.0, 0.0)),
         body_ordering=("base", "right_tip", "right_upper", "left_tip", "left_upper"),

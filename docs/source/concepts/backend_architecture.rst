@@ -76,7 +76,7 @@ The concrete ``close()`` implementation dispatches the ``STOP`` event.
 ``SimulationContext`` owns native resources and renderer instances in one registry.
 ``get_or_create_backend(backend_cfg)``
 reuses one resource for equal configurations of the same concrete type; a cache miss
-constructs ``backend_cfg.class_type(backend_cfg)``.
+constructs ``instantiate(backend_cfg)``.
 :class:`~isaaclab.sim.BackendCfg` describes resource construction inputs, and
 :class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
 ``PhysicsCfg`` selects a physics manager. Finalize configurations before

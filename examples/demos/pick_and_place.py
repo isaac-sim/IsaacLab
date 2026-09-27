@@ -47,7 +47,7 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass, index_fill_
+from isaaclab.utils import configclass, index_fill_, replace
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
@@ -57,7 +57,7 @@ from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 class PickAndPlaceSceneCfg(InteractiveSceneCfg):
     """Assets for the pick-and-place example."""
 
-    robot: ArticulationCfg = PICK_AND_PLACE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(PICK_AND_PLACE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Cube",
         spawn=sim_utils.CuboidCfg(
@@ -82,7 +82,7 @@ class PickAndPlaceSceneCfg(InteractiveSceneCfg):
     light: AssetBaseCfg = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-    goal_position = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_position")
+    goal_position = replace(SPHERE_MARKER_CFG, prim_path="/Visuals/Command/goal_position")
     goal_position.markers["sphere"].radius = 0.25
 
 
