@@ -130,8 +130,15 @@ dedicated ``test-curobo`` and ``test-contrib-environments`` CI jobs which use th
 Docker image.
 """
 
-QUARANTINED_TESTS: list[str] = []
-"""A list of tests that are quarantined due to known instability.
+QUARANTINED_TESTS: list[str] = [
+    # Mimic dataset generation needs several Kit launches and minutes of GPU time.
+    # Keep these integration tests available for manual runs while Mimic is being deprecated.
+    "test_generate_dataset_franka_state.py",
+    "test_generate_dataset_franka_visuomotor.py",
+    "test_generate_dataset_gr1t2_nutpour.py",
+    "test_generate_dataset_gr1t2_pickplace.py",
+]
+"""A list of tests quarantined due to known instability or excessive CI cost.
 
 These tests are skipped in normal CI runs. When the ``test-quarantined``
 CI job is enabled (gated by the ``RUN_QUARANTINED_TESTS`` repository

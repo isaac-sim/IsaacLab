@@ -5,15 +5,11 @@
 
 """Test dataset generation for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
 
+import h5py
 import pytest
 from mimic_test_utils import run_script
 
@@ -155,6 +151,9 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     assert expected_output in combined_output, (
         f"Could not find '{expected_output}' in output.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+    with h5py.File(output_file) as dataset:
+        assert len(dataset["data"]) > 0, "The generated dataset contains no demonstrations."
 
 
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):

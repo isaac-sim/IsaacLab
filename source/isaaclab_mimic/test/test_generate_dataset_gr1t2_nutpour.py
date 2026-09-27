@@ -5,11 +5,6 @@
 
 """Test dataset generation for Isaac-NutPour-GR1T2-Pink-IK-Abs-Mimic-v0."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
