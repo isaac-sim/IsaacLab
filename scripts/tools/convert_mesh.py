@@ -43,7 +43,7 @@ optional arguments:
 import argparse
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import class_to_dict
+from isaaclab.utils import to_dict
 
 # Define collision approximation choices (must be defined before parser)
 _valid_collision_approx = [
@@ -168,7 +168,7 @@ def main():
     print("-" * 80)
     print(f"Input Mesh file: {mesh_path}")
     print("Mesh importer config:")
-    print_dict(class_to_dict(mesh_converter_cfg), nesting=0)
+    print_dict(to_dict(mesh_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

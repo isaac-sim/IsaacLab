@@ -346,13 +346,13 @@ Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected
 
 .. code-block:: python
 
-   from isaaclab.utils import class_to_dict, clone, instantiate, replace, update_class_from_dict, validate
+   from isaaclab.utils import clone, instantiate, replace, to_dict, update_from_dict, validate
 
    robot_cfg = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
    other_cfg = clone(robot_cfg)
-   update_class_from_dict(other_cfg, {"init_state": {"pos": (1.0, 0.0, 0.0)}})
+   update_from_dict(other_cfg, {"init_state": {"pos": (1.0, 0.0, 0.0)}})
    validate(other_cfg)
-   settings = class_to_dict(other_cfg)
+   settings = to_dict(other_cfg)
    robot = instantiate(robot_cfg)
    action = instantiate(action_cfg, env)
 
@@ -361,10 +361,11 @@ arguments. It does not copy configs, construct nested configs, or cache instance
 sharing remains the responsibility of ``SimulationContext.get_or_create_backend``.
 
 ``clone`` and ``replace`` return new configurations, preserving fields explicitly marked as borrowed.
-``update_class_from_dict`` updates an existing configuration in place. ``validate`` checks required
+``update_from_dict`` updates an existing configuration in place. ``validate`` checks required
 fields and runs nested ``validate_config`` hooks. Prefer these functions in new code; the existing
 ``cfg.copy()``, ``cfg.replace(...)``, ``cfg.validate()``, ``cfg.to_dict()``, ``cfg.from_dict(...)``, and
 ``cfg.class_type(cfg, ...)`` calls remain supported without deprecation.
+The longer function names ``class_to_dict`` and ``update_class_from_dict`` also remain supported.
 
 Lazy Loading & Module Exports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

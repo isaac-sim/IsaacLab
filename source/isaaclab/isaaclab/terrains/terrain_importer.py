@@ -15,7 +15,7 @@ import trimesh
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
 from ..markers.config import FRAME_MARKER_CFG
-from ..utils import class_to_dict, instantiate, replace, validate
+from ..utils import instantiate, replace, to_dict, validate
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -214,7 +214,7 @@ class TerrainImporter:
         # obtain ground plane color from the configured visual material
         color = None
         if self.cfg.visual_material is not None:
-            material = class_to_dict(self.cfg.visual_material)
+            material = to_dict(self.cfg.visual_material)
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:

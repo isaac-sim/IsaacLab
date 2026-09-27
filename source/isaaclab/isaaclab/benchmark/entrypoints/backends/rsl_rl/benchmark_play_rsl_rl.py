@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 import argparse
 import sys
 
-from isaaclab.utils import class_to_dict
+from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints import common
 
@@ -195,9 +195,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
             if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, class_to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, class_to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
+                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             runner.load(resume_path)

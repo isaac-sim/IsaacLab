@@ -13,7 +13,7 @@ import numpy as np
 import torch
 import trimesh
 
-from ..utils import class_to_dict, clone
+from ..utils import clone, to_dict
 from ..utils.dict import dict_to_md5_hash
 from ..utils.io import dump_yaml
 from ..utils.timer import Timer
@@ -361,7 +361,7 @@ class TerrainGenerator:
         cfg.difficulty = float(difficulty)
         cfg.seed = self.cfg.seed
         # generate hash for the sub-terrain
-        sub_terrain_hash = dict_to_md5_hash(class_to_dict(cfg))
+        sub_terrain_hash = dict_to_md5_hash(to_dict(cfg))
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
         sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.obj")

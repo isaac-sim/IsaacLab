@@ -18,7 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.utils import class_to_dict, clone, replace
+from isaaclab.utils import clone, replace, to_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -741,7 +741,7 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
 
     presets = {"env": collect_presets(env_cfg)}
     global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": class_to_dict(env_cfg)}
+    hydra_cfg = {"env": to_dict(env_cfg)}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
 

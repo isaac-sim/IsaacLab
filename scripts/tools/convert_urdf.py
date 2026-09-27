@@ -38,7 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
-from isaaclab.utils import class_to_dict, instantiate
+from isaaclab.utils import instantiate, to_dict
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
@@ -185,7 +185,7 @@ def main():
     print("-" * 80)
     print(f"Input URDF file: {urdf_path}")
     print("URDF importer config:")
-    print_dict(class_to_dict(urdf_converter_cfg), nesting=0)
+    print_dict(to_dict(urdf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

@@ -23,7 +23,7 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
-from isaaclab.utils import DelayBuffer, class_to_dict, configclass, modifiers, noise, update_class_from_dict, validate
+from isaaclab.utils import DelayBuffer, configclass, modifiers, noise, to_dict, update_from_dict, validate
 
 pytestmark = pytest.mark.unit
 
@@ -804,7 +804,7 @@ def test_class_modifier_roundtrip_preserves_func_and_params():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=StatefulBiasModifier, params={"value": 2.0})]
-    update_class_from_dict(cfg, class_to_dict(cfg))
+    update_from_dict(cfg, to_dict(cfg))
     term_cfg = cfg.policy.dummy
     assert term_cfg.modifiers is not None
     modifier_cfg = term_cfg.modifiers[0]
@@ -830,7 +830,7 @@ def test_stateless_modifier_cfg_roundtrip_preserves_signature_validation():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=modifiers.bias, params={"value": 2.0})]
-    update_class_from_dict(cfg, class_to_dict(cfg))
+    update_from_dict(cfg, to_dict(cfg))
 
     env = DummyEnv()
     manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
@@ -843,7 +843,7 @@ def test_class_modifier_validates_constructed_instance():
     cfg = HistoryObservationsCfg()
     cfg.policy.history_length = None
     cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=InvalidModifier)]
-    update_class_from_dict(cfg, class_to_dict(cfg))
+    update_from_dict(cfg, to_dict(cfg))
 
     with pytest.raises(TypeError, match="is not an instance of 'ModifierBase'"):
         ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))

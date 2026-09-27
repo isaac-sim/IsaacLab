@@ -36,6 +36,8 @@
       clone
       replace
       validate
+      to_dict
+      update_from_dict
 
 Configuration class
 ~~~~~~~~~~~~~~~~~~~

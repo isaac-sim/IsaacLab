@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import class_to_dict, instantiate, modifiers, noise
+from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -512,7 +512,7 @@ class ObservationManager(ManagerBase):
                 term_name: (
                     term_cfg.func.serialize()
                     if isinstance(term_cfg.func, ManagerTermBase)
-                    else {"cfg": class_to_dict(term_cfg)}
+                    else {"cfg": to_dict(term_cfg)}
                 )
                 for term_name, term_cfg in zip(
                     self._group_obs_term_names[group_name],

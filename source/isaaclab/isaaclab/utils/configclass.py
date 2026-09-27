@@ -15,7 +15,7 @@ from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field
 from typing import Any, ClassVar, TypeVar
 
-from .dict import class_to_dict, update_class_from_dict
+from .dict import to_dict, update_from_dict
 from .string import ResolvableString
 
 _ConfigT = TypeVar("_ConfigT")
@@ -60,7 +60,7 @@ def configclass(cls, **kwargs):
 
         from dataclasses import MISSING
 
-        from isaaclab.utils import class_to_dict, clone, configclass, replace
+        from isaaclab.utils import clone, configclass, replace, to_dict
 
 
         @configclass
@@ -80,7 +80,7 @@ def configclass(cls, **kwargs):
         env_cfg = EnvCfg(num_envs=24)
 
         # print information as a dictionary
-        print(class_to_dict(env_cfg))
+        print(to_dict(env_cfg))
 
         # create a copy of the configuration
         env_cfg_copy = clone(env_cfg)
@@ -113,8 +113,8 @@ def configclass(cls, **kwargs):
     else:
         setattr(cls, "__post_init__", _custom_post_init)
     # add helper functions for dictionary conversion
-    setattr(cls, "to_dict", class_to_dict)
-    setattr(cls, "from_dict", update_class_from_dict)
+    setattr(cls, "to_dict", to_dict)
+    setattr(cls, "from_dict", update_from_dict)
     setattr(cls, "replace", replace)
     setattr(cls, "copy", clone)
     setattr(cls, "validate", _validate)

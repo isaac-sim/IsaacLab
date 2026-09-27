@@ -7,7 +7,7 @@
 
 import pytest
 
-from isaaclab.utils import update_class_from_dict, validate
+from isaaclab.utils import update_from_dict, validate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
@@ -84,7 +84,7 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     solver = _resolve_pour_solver_tree(cfg)
     reset_contract = _reset_dataset_task_contract(cfg)
 
-    update_class_from_dict(
+    update_from_dict(
         cfg,
         {
             "scene": {"source_cup": {"init_state": {"pos": [0.6, 0.0, 0.0]}}},

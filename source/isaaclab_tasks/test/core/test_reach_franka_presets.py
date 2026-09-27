@@ -14,7 +14,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils import class_to_dict, replace, validate
+from isaaclab.utils import replace, to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
@@ -39,7 +39,7 @@ def _load_reach_env_cfg(task: str, *presets: str):
 
 
 def _without_controller_dependent_cfg(cfg):
-    cfg_dict = class_to_dict(cfg)
+    cfg_dict = to_dict(cfg)
     cfg_dict.pop("actions")
     cfg_dict.pop("teleop_devices")
     for rigid_props in cfg_dict["scene"]["robot"]["spawn"]["rigid_props"]:
@@ -57,7 +57,7 @@ def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
 
     canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
     legacy_cfg = resolve_presets(legacy_cfg)
-    assert class_to_dict(legacy_cfg) == class_to_dict(canonical_cfg)
+    assert to_dict(legacy_cfg) == to_dict(canonical_cfg)
 
 
 _REACH_PRESET_CASES = [
@@ -95,8 +95,8 @@ def test_reach_ur10_physics_presets_change_only_physics():
     physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
     newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
 
-    physx_cfg = class_to_dict(physx)
-    newton_cfg = class_to_dict(newton)
+    physx_cfg = to_dict(physx)
+    newton_cfg = to_dict(newton)
     physx_cfg["sim"].pop("physics")
     newton_cfg["sim"].pop("physics")
     assert physx_cfg == newton_cfg
@@ -109,7 +109,7 @@ def test_reach_action_presets_preserve_controller_independent_configuration():
     diffik_newton = _load_env_cfg("diffik", "newton_mjwarp")
     newton_ik = _load_env_cfg("newton_ik", "newton_mjwarp")
 
-    assert class_to_dict(_load_env_cfg().actions.arm_action) == class_to_dict(joint_pos_newton.actions.arm_action)
+    assert to_dict(_load_env_cfg().actions.arm_action) == to_dict(joint_pos_newton.actions.arm_action)
     assert _without_controller_dependent_cfg(joint_pos_physx) == _without_controller_dependent_cfg(diffik_physx)
     assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(diffik_newton)
     assert _without_controller_dependent_cfg(joint_pos_newton) == _without_controller_dependent_cfg(newton_ik)
@@ -253,7 +253,7 @@ def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
         validate(alias_cfg)
 
     assert type(alias_cfg.rewards.action_magnitude.weight) is float
-    assert class_to_dict(alias_cfg) == class_to_dict(default_cfg)
+    assert to_dict(alias_cfg) == to_dict(default_cfg)
 
 
 def test_reach_newton_ik_rejects_physx():
