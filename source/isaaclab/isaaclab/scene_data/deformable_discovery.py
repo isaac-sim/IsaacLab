@@ -94,11 +94,6 @@ def deformable_geometry_batches(
     return batches
 
 
-def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
-    """Apply a USD row-vector affine transform to points [m], returning float32."""
-    return (points @ matrix[:3, :3] + matrix[3, :3]).astype(np.float32)
-
-
 def _usd_points_to_numpy(points) -> np.ndarray:
     """Convert USD point arrays to ``(N, 3)`` float32."""
     if not points:
@@ -218,13 +213,14 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
     xform_cache = UsdGeom.XformCache()
     parent_transform = xform_cache.GetLocalToWorldTransform(root_prim.GetParent())
     world_to_parent = parent_transform.GetInverse()
-    mesh_to_parent_frame = np.asarray(xform_cache.GetLocalToWorldTransform(sim_mesh_prim) * world_to_parent)
-    vertices = _transform_points(mesh_to_parent_frame, _usd_points_to_numpy(pts))
+    mesh_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(sim_mesh_prim) * world_to_parent)
+    # USD affine transforms multiply row vectors.
+    vertices = (_usd_points_to_numpy(pts) @ mesh_to_parent[:3, :3] + mesh_to_parent[3, :3]).astype(np.float32)
     vis_vertices = vertices
     if vis_mesh_prim != sim_mesh_prim:
         vis_pts = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
         vis_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(vis_mesh_prim) * world_to_parent)
-        vis_vertices = _transform_points(vis_to_parent, _usd_points_to_numpy(vis_pts))
+        vis_vertices = (_usd_points_to_numpy(vis_pts) @ vis_to_parent[:3, :3] + vis_to_parent[3, :3]).astype(np.float32)
 
     vis_indices = np.empty(0, dtype=np.int32)
     if vis_mesh_prim.GetTypeName() == "Mesh":
