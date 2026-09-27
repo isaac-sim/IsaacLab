@@ -3,17 +3,14 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-This script tests the functionality of texture randomization applied to the cartpole scene.
-"""
+"""Replicator texture and color events on a cartpole scene."""
 
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
 
-# launch omniverse app
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+simulation_app = AppLauncher(headless=True, enable_cameras=True, device=resolve_test_sim_device()).app
 
 """Rest everything follows."""
 
@@ -30,7 +27,6 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.integration_scene_cfgs import CartpoleTestSceneCfg
-from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import configclass
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
@@ -52,7 +48,6 @@ class ObservationsCfg:
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        # observation terms (order preserved)
         joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
 
@@ -60,7 +55,6 @@ class ObservationsCfg:
             self.enable_corruption = False
             self.concatenate_terms = True
 
-    # observation groups
     policy: PolicyCfg = PolicyCfg()
 
 
@@ -68,9 +62,7 @@ class ObservationsCfg:
 class EventCfg:
     """Configuration for events."""
 
-    # on prestartup apply a new set of textures
-    # note from @mayank: Changed from 'reset' to 'prestartup' to make test pass.
-    #   The error happens otherwise on Kit thread which is not the main thread.
+    # Author the cart texture before Kit starts simulation.
     cart_texture_randomizer = EventTerm(
         func=mdp.randomize_visual_texture_material,
         mode="prestartup",
@@ -89,7 +81,6 @@ class EventCfg:
         },
     )
 
-    # on reset apply a new set of textures
     pole_texture_randomizer = EventTerm(
         func=mdp.randomize_visual_texture_material,
         mode="reset",
@@ -133,44 +124,35 @@ class EventCfg:
 class CartpoleEnvCfg(ManagerBasedEnvCfg):
     """Configuration for the cartpole environment."""
 
-    # Scene settings
     scene = CartpoleTestSceneCfg(env_spacing=2.5)
 
-    # Basic settings
     actions = ActionsCfg()
     observations = ObservationsCfg()
     events = EventCfg()
 
     def __post_init__(self):
         """Post initialization."""
-        # viewer settings
         self.viewer.eye = [4.5, 0.0, 6.0]
         self.viewer.lookat = [0.0, 0.0, 2.0]
-        # step settings
-        self.decimation = 4  # env step every 4 sim steps: 200Hz / 4 = 50Hz
-        # simulation settings
-        self.sim.dt = 0.005  # sim step every 5ms: 200Hz
+        self.decimation = 4
+        self.sim.dt = 0.005
 
 
 # Texture authoring through Replicator is device independent, so one device covers it.
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_texture_randomization(device):
     """Test texture randomization for cartpole environment."""
-    # Create a new stage
     sim_utils.create_new_stage()
 
     try:
-        # Set the arguments
         env_cfg = CartpoleEnvCfg()
-        env_cfg.scene.num_envs = 16
+        env_cfg.scene.num_envs = 2
         env_cfg.scene.replicate_physics = False
         env_cfg.sim.device = device
 
-        # Setup base environment
         env = ManagerBasedEnv(cfg=env_cfg)
 
         try:
-            # the prestartup term applied cart textures; the reset term applies pole textures
             env.reset()
             env.step(torch.randn_like(env.action_manager.action))
             for term_name in ("cart_texture_randomizer", "pole_texture_randomizer"):
@@ -200,25 +182,22 @@ def test_texture_randomization(device):
         finally:
             env.close()
     finally:
-        # Clean up stage
         sim_utils.close_stage()
 
 
-def test_texture_randomization_failure_replicate_physics():
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_texture_randomization_failure_replicate_physics(device):
     """Test texture randomization failure when replicate physics is set to True."""
-    # Create a new stage
     sim_utils.create_new_stage()
 
     try:
-        # Set the arguments
         cfg_failure = CartpoleEnvCfg()
-        cfg_failure.scene.num_envs = 16
+        cfg_failure.scene.num_envs = 2
         cfg_failure.scene.replicate_physics = True
+        cfg_failure.sim.device = device
 
-        # Test that creating the environment raises RuntimeError
         with pytest.raises(RuntimeError, match="Scene replication is enabled"):
             env = ManagerBasedEnv(cfg_failure)
             env.close()
     finally:
-        # Clean up stage
         sim_utils.close_stage()

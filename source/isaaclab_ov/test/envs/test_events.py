@@ -12,73 +12,82 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import UsdGeom, UsdPhysics
+from pxr import Usd, UsdGeom, UsdPhysics
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT
-from isaaclab_ov.assets import Articulation, RigidObject
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.envs.mdp import randomize_rigid_body_collider_offsets, randomize_rigid_body_material
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg, VisualMaterialCfg
+from isaaclab.envs.mdp import (
+    randomize_rigid_body_collider_offsets,
+    randomize_rigid_body_material,
+    randomize_visual_material,
+)
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
-class _Scene(dict):
-    num_envs = 2
-
-
-@pytest.fixture
-def event_env():
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device="cpu", gravity=(0.0, 0.0, 0.0))
-    with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
-        body_names = ["base", "left_upper", "left_tip", "right_upper", "right_tip"]
-        for index in range(2):
-            sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 10.0, 0.0, 0.0))
-        robot = Articulation(
-            ArticulationCfg(
-                prim_path="/World/Env_[^/]*/Robot",
-                spawn=sim_utils.UsdFileCfg(
-                    usd_path=str(Path(__file__).parents[1] / "assets/data/articulation_ordering_branching.usda")
-                ),
-                actuators={},
-                body_ordering=list(reversed(body_names)),
-            )
+@pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
+def event_env(request, tmp_path_factory):
+    device = request.param
+    source = Usd.Stage.Open(str(Path(__file__).parents[1] / "assets/data/articulation_ordering_branching.usda"))
+    asset_path = tmp_path_factory.mktemp("event_assets") / "robot.usda"
+    source.GetRootLayer().Export(str(asset_path))
+    stage = Usd.Stage.Open(str(asset_path))
+    bodies = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.RigidBodyAPI)]
+    for index, body in enumerate(bodies):
+        collider = UsdGeom.Cube.Define(stage, body.GetPath().AppendChild("Collider"))
+        collider.CreateSizeAttr(0.1)
+        UsdGeom.Xformable(collider).AddTranslateOp().Set((0.0, index * 0.5, 0.0))
+        UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
+    stage.GetRootLayer().Save()
+    scene_cfg = InteractiveSceneCfg(num_envs=2, env_spacing=10.0)
+    scene_cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=sim_utils.UsdFileCfg(usd_path=str(asset_path)),
+        actuators={},
+        body_ordering=[body.GetName() for body in reversed(bodies)],
+    )
+    scene_cfg.cube = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
+    )
+    for name in ("body", "legs"):
+        setattr(
+            scene_cfg,
+            name,
+            VisualMaterialCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Robot/{name}",
+                spawn=sim_utils.PreviewSurfaceCfg(),
+            ),
         )
-        for index in range(2):
-            for body_index, name in enumerate(body_names):
-                cube = UsdGeom.Cube.Define(sim.stage, f"/World/Env_{index}/Robot/{name}/Collider")
-                cube.CreateSizeAttr(0.1)
-                UsdGeom.Xformable(cube).AddTranslateOp().Set((0.0, body_index * 0.5, 0.0))
-                UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
-        cube = RigidObject(
-            RigidObjectCfg(
-                prim_path="/World/Env_[^/]*/Cube",
-                spawn=sim_utils.CuboidCfg(
-                    size=(0.1, 0.1, 0.1),
-                    rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-                    collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-                    mass_props=sim_utils.MassCfg(mass=1.0),
-                ),
-                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 2.0)),
-            )
-        )
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
+        scene = InteractiveScene(scene_cfg)
         sim.reset()
-        yield SimpleNamespace(sim=sim, scene=_Scene(robot=robot, cube=cube), num_envs=2, device="cpu")
+        yield SimpleNamespace(sim=sim, scene=scene, num_envs=scene.num_envs, device=sim.device)
 
 
 def test_material_body_and_environment_selection(event_env):
     env = event_env
     robot = env.scene["robot"]
     body_names = robot.body_names
-    paths = [f"/World/Env_{index}/Robot/{name}" for index in range(2) for name in body_names]
-    view = OvPhysxView(robot._ovphysx, prim_paths=paths, device="cpu")
+    paths = [f"{path}/Robot/{name}" for path in env.scene.env_prim_paths for name in body_names]
+    view = OvPhysxView(robot._ovphysx, prim_paths=paths, device=env.device)
     binding = view.binding_for(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)
-    selected_path = f"/World/Env_1/Robot/{body_names[0]}"
+    selected_path = f"{env.scene.env_prim_paths[-1]}/Robot/{body_names[0]}"
     selected_row = binding.prim_paths.index(selected_path)
     before = wp.to_torch(view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)).clone()
     assert before.shape[1] == 1
@@ -108,6 +117,23 @@ def test_material_body_and_environment_selection(event_env):
         wp.to_torch(view.get_attribute(TT.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION)),
         torch.tensor([0.4, 0.4, 0.3]).expand_as(before),
     )
+
+
+def test_visual_material_environment_selection(event_env):
+    env = event_env
+    materials = [env.scene[name] for name in ("body", "legs")]
+    env.sim.render_context.finalize_consumers([])
+    visual_params = {
+        "materials": [SceneEntityCfg(name) for name in ("body", "legs")],
+        "channels": {"color": ((0.25, 0.5, 0.75), (0.25, 0.5, 0.75))},
+    }
+    visual_term = randomize_visual_material(EventTermCfg(func=randomize_visual_material, params=visual_params), env)
+    for selection in (slice(1, None, 2), slice(0, 0), slice(None)):
+        expected_colors = [material.data["color"].clone() for material in materials]
+        visual_term(env, selection, **visual_params)
+        for material, expected_color in zip(materials, expected_colors, strict=True):
+            expected_color[selection] = torch.tensor(visual_params["channels"]["color"][0], device=env.device)
+            torch.testing.assert_close(material.data["color"], expected_color)
 
 
 def test_collider_offsets_preserve_unselected_state(event_env):

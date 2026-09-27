@@ -21,12 +21,14 @@ from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.managers import EventTermCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 
-def test_gravity_event_changes_rigid_body_motion():
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_gravity_event_changes_rigid_body_motion(device):
     """The gravity event must dispatch through OvStage and change motion in OvPhysX."""
-    sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device="cpu", dt=1.0 / 60.0)
-    with build_simulation_context(device="cpu", sim_cfg=sim_cfg) as sim:
+    sim_cfg = SimulationCfg(physics=PhysxAutoCfg(ovphysx=OvPhysxCfg()), device=device, dt=1.0 / 60.0)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg) as sim:
         cube = RigidObject(
             RigidObjectCfg(
                 prim_path="/World/Cube",
