@@ -416,7 +416,8 @@ class ObservationManager(ManagerBase):
             )
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
-        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+        term_cfgs = self._group_obs_term_cfgs[group_name]
+        obs_terms = zip(group_term_names, term_cfgs)
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
@@ -490,6 +491,11 @@ class ObservationManager(ManagerBase):
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
                 return next(iter(group_obs.values()))
+            if self._group_obs_time_major[group_name]:
+                history_length = term_cfgs[0].history_length
+                return torch.cat(
+                    [obs.reshape(self._env.num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
+                ).reshape(self._env.num_envs, -1)
             # set the concatenate dimension, account for the batch dimension if positive dimension is given
             return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
@@ -547,6 +553,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
+        self._group_obs_time_major: dict[str, bool] = {}
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
@@ -594,6 +601,14 @@ class ObservationManager(ManagerBase):
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
+            self._group_obs_time_major[group_name] = (
+                group_cfg.history_order == "time"
+                and group_cfg.history_length is not None
+                and group_cfg.history_length > 0
+                and group_cfg.flatten_history_dim
+                and group_cfg.concatenate_terms
+                and group_cfg.concatenate_dim == -1
+            )
 
             # check if config is dict already
             if isinstance(group_cfg, dict):
@@ -608,6 +623,7 @@ class ObservationManager(ManagerBase):
                     "concatenate_terms",
                     "history_length",
                     "flatten_history_dim",
+                    "history_order",
                     "concatenate_dim",
                 ]:
                     continue
