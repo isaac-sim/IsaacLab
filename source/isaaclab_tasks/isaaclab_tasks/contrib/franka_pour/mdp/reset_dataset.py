@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.managers import CurriculumTermCfg
 from isaaclab.managers.manager_base import ManagerTermBase
+from isaaclab.utils import index_fill_
 
 from ..reset_sampler import ResetDatasetSampler, ResetDatasetSamplerCfg
 
@@ -91,7 +92,7 @@ class PourResetDatasetCurriculum(ManagerTermBase):
                 raise RuntimeError("Adaptive sampler returned invalid reset-row IDs.")
 
         env.reset_dataset_row_id[env_ids] = rows
-        env.pour_target_frac[env_ids] = float(env.cfg.pour_target_frac)
+        index_fill_(env.pour_target_frac, env_ids, float(env.cfg.pour_target_frac))
 
         if not env.cfg.curriculum_freeze:
             self._local_reset_assignments_since_metrics += num_envs

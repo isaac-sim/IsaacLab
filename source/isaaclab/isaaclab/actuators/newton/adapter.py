@@ -29,6 +29,7 @@ from newton._src.utils.selection import FrequencyLayout
 from newton.actuators import Actuator, Clamping, Delay
 from newton.selection import ArticulationView
 
+from ...utils import index_fill_
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
@@ -393,7 +394,7 @@ def write_group_parameter(
     if env_ids is not None and env_ids != slice(None):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
         mask_torch = torch.zeros(collection.num_instances, dtype=torch.bool, device=device)
-        mask_torch[env_rows] = True
+        index_fill_(mask_torch, env_ids, True)
         mask = wp.from_torch(mask_torch, dtype=wp.bool)
     values = values.to(device)
     for actuator, owner in owners:

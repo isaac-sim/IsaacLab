@@ -11,6 +11,7 @@ from collections.abc import Sequence
 import torch
 
 from isaaclab.envs import DirectMARLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import sample_uniform
 
 from .pendulum_marl_env_cfg import PendulumMARLEnvCfg
@@ -131,7 +132,7 @@ class PendulumMARLEnv(DirectMARLEnv):
                 self._success_required_steps,
             )
             self.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean().item()
-            self._consecutive_upright_steps[env_ids] = 0
+            index_fill_(self._consecutive_upright_steps, env_ids, 0)
         super()._reset_idx(env_ids)
 
         joint_pos = self.robot.data.default_joint_pos.torch[env_ids]

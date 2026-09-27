@@ -15,6 +15,7 @@ import torch
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 
 from isaaclab_tasks.core.reorient.utils import EpisodeErrorRecorder
 
@@ -66,7 +67,7 @@ class HandoverCommand(CommandTerm):
             (self.metrics["goal_distance"][env_ids] < self.cfg.success_distance_threshold) & self._succeeded[env_ids]
         ).float()
         extras = super().reset(env_ids)
-        self._succeeded[env_ids] = False
+        index_fill_(self._succeeded, env_ids, False)
         log = self._env.extras.setdefault("log", {})
         # Route success_rate to the unified ``Metrics/success_rate`` path (shared TensorBoard
         # card across tasks); pop it from the returned dict so CommandManager does not
