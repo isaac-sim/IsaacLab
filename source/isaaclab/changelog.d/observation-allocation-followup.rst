@@ -1,3 +1,10 @@
+Added
+^^^^^
+
+* Added ``ObservationTermBase.compute_into`` for terms that write into manager-allocated outputs.
+  RGB observations used this interface automatically to avoid copying normalized uint8 images,
+  including stacked frames, while preserving independent observation snapshots.
+
 Fixed
 ^^^^^
 

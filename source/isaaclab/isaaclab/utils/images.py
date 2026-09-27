@@ -309,7 +309,6 @@ class CameraFrameStack:
         self._buffer.append(frame)
         stacked = self._buffer.stacked
         if defer_normalize:
-            # no ``out=``: each call allocates, so the trainer's previous observation stays intact
             return normalize(stacked, channel_dim=self._channel_dim, output_channel_dim=None)
         # ``stacked`` views the ring buffer, which the next step overwrites
         return stacked.clone()

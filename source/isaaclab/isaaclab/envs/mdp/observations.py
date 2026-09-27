@@ -21,6 +21,7 @@ from typing_extensions import deprecated
 from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import ObservationTermCfg
+from ...managers.observation_manager import ObservationTermBase
 from ...utils import math as math_utils
 from ...utils.images import (
     CameraFrameStack,
@@ -416,7 +417,7 @@ class _camera_image(ManagerTermBase):
         raise NotImplementedError
 
 
-class image_rgb(_camera_image):
+class image_rgb(_camera_image, ObservationTermBase):
     """Color images from a camera sensor.
 
     Reads an RGB-like output (``"rgb"``, ``"albedo"``, ``"simple_shading_*"``) and keeps its first three
@@ -454,6 +455,28 @@ class image_rgb(_camera_image):
     ) -> torch.Tensor:
         images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
         return self._frames(images, functools.partial(normalize_rgb, mean=mean) if normalize else None)
+
+    def compute_into(
+        self,
+        env: ManagerBasedEnv,
+        out: torch.Tensor,
+        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
+        data_type: str = "rgb",
+        normalize: bool = True,
+        mean: float | None = None,
+        channel_first: bool = False,
+        frame_stack: int = 1,
+    ) -> None:
+        """Write RGB observations into a manager-provided destination.
+
+        Normalized uint8 images, including stacked frames, are written directly by the fused
+        normalizer. Other input uses the ordinary frame processing followed by a copy into
+        ``out``. Parameters match :meth:`__call__`, with the additional destination ``out``.
+        """
+        images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
+        result = self._frames(images, functools.partial(normalize_rgb, mean=mean, out=out) if normalize else None)
+        if result is not out:
+            out.copy_(result)
 
 
 class image_depth(_camera_image):

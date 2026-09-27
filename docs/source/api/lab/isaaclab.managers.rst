@@ -12,6 +12,7 @@
     ManagerTermBase
     ManagerTermBaseCfg
     ObservationManager
+    ObservationTermBase
     ObservationGroupCfg
     ObservationTermCfg
     ActionManager
@@ -100,6 +101,19 @@ mutation or retention. Term and custom callback outputs are treated conservative
 or task-level copy settings. Clipping and scaling create independent storage when needed, which later
 processing can reuse. A term that already returns an independent tensor may still be copied when the
 pipeline cannot establish ownership itself.
+
+For terms that can write into a destination, subclass :class:`ObservationTermBase` and implement
+``compute_into(env, out, ...)`` alongside ``__call__(env, ...)`` with the same term parameters.
+The manager probes ``__call__`` at initialization, then allocates a fresh contiguous output of that
+shape, dtype and device for each ``compute_into`` call. The term must fill the destination completely
+without retaining it or replacing its storage. Custom modifiers, noise and history retain their
+usual snapshot protections. Built-in :class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this
+interface automatically: normalized uint8 images write directly into the destination, avoiding a
+second full-image copy. Existing observation configurations require no changes.
+
+.. autoclass:: ObservationTermBase
+    :members:
+    :show-inheritance:
 
 .. autoclass:: ObservationManager
     :members:

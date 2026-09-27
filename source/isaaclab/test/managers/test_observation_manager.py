@@ -20,6 +20,7 @@ from isaaclab.managers import (
     ManagerTermBase,
     ObservationGroupCfg,
     ObservationManager,
+    ObservationTermBase,
     ObservationTermCfg,
     RewardTermCfg,
 )
@@ -331,6 +332,33 @@ def test_compute(setup_env):
     assert torch.equal(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
 
+class DestinationPosition(ObservationTermBase):
+    """Exercise a float64 destination and parameter forwarding independently of camera processing."""
+
+    def __call__(self, env, bias: float = 0.0):
+        return env.data.pos_w + bias
+
+    def compute_into(self, env, out: torch.Tensor, bias: float = 0.0):
+        out.copy_(env.data.pos_w)
+        out.add_(bias)
+
+
+def test_destination_output_preserves_snapshots(setup_env):
+    """Fresh destinations preserve dtype, parameter values and retained observations."""
+    env = setup_env
+    cfg = ObservationGroupCfg()
+    env.data.pos_w = env.data.pos_w.double()
+    cfg.position = ObservationTermCfg(func=DestinationPosition, params={"bias": 0.25})
+    manager = ObservationManager({"policy": cfg}, env)
+    expected = env.data.pos_w.double() + 0.25
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(result, expected)
+    env.data.pos_w.zero_()
+    torch.testing.assert_close(manager.compute()["policy"], torch.full_like(expected, 0.25))
+    manager.reset()
+    torch.testing.assert_close(result, expected)
+
+
 def test_compute_preserves_shared_scratch_outputs(setup_env):
     """Term results are secured before the next term overwrites shared scratch storage."""
     env = setup_env
@@ -483,7 +511,8 @@ def test_non_callable_class_term(setup_env):
         ObservationManager(cfg, env)
 
 
-def test_modifier_compute(setup_env):
+@pytest.mark.parametrize("position_term", [pos_w_data, DestinationPosition])
+def test_modifier_compute(setup_env, position_term):
     env = setup_env
     """Test the observation computation with modifiers."""
 
@@ -501,19 +530,19 @@ def test_modifier_compute(setup_env):
             """Test config class for policy observation group."""
 
             concatenate_terms = False
-            term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
-            term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
-            term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
+            term_1 = ObservationTermCfg(func=position_term, modifiers=[])
+            term_2 = ObservationTermCfg(func=position_term, modifiers=[modifier_1])
+            term_3 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_4])
 
         @configclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group"""
 
             concatenate_terms = False
-            term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
-            term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
-            term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2])
-            term_4 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3])
+            term_1 = ObservationTermCfg(func=position_term, modifiers=[])
+            term_2 = ObservationTermCfg(func=position_term, modifiers=[modifier_1])
+            term_3 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_2])
+            term_4 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_2, modifier_3])
 
         policy: ObservationGroupCfg = PolicyCfg()
         critic: ObservationGroupCfg = CriticCfg()

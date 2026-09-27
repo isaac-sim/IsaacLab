@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import inspect
+from abc import abstractmethod
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -23,6 +24,31 @@ from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
+
+
+class ObservationTermBase(ManagerTermBase):
+    """Observation term that writes into storage allocated by :class:`ObservationManager`.
+
+    Implement both ``__call__`` and :meth:`compute_into` with the same term parameters.
+    The manager calls ``__call__`` once during initialization to infer the output shape,
+    dtype and device, then supplies a fresh, contiguous destination on each computation.
+    These output properties must remain constant for the lifetime of the manager.
+    Ordinary function terms and :class:`ManagerTermBase` terms remain supported.
+    """
+
+    @abstractmethod
+    def compute_into(self, env: ManagerBasedEnv, out: torch.Tensor, **kwargs) -> None:
+        """Write the complete observation into the supplied destination.
+
+        Implementations must not retain or later mutate the destination, resize it, or
+        replace its storage. The result must match ``__call__(env, **kwargs)``.
+
+        Args:
+            env: The environment instance.
+            out: Fresh contiguous output with the shape, dtype and device inferred at initialization.
+            **kwargs: Parameters from :attr:`ObservationTermCfg.params`.
+        """
+        raise NotImplementedError
 
 
 class ObservationManager(ManagerBase):
@@ -64,8 +90,9 @@ class ObservationManager(ManagerBase):
 
     Returned observations are independent snapshots, including dictionary entries and history.
     Copies are made before mutating borrowed storage or retaining it across term evaluations.
-    Term and custom callback outputs are treated as borrowed. Clipping and scaling establish
-    ownership through an out-of-place operation, allowing subsequent processing to reuse that storage.
+    Ordinary term and custom callback outputs are treated as borrowed. Terms implementing
+    :class:`ObservationTermBase` write into a fresh manager allocation. Clipping and scaling create
+    independent storage when needed, allowing subsequent processing to reuse that storage.
     """
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
@@ -419,10 +446,17 @@ class ObservationManager(ManagerBase):
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
+            owned = isinstance(term_cfg.func, ObservationTermBase)
+            if owned:
+                shape, dtype, device = self._term_output_specs[group_name, term_name]
+                obs = torch.empty(shape, dtype=dtype, device=device)
+                term_cfg.func.compute_into(self._env, obs, **term_cfg.params)
+            else:
+                obs = term_cfg.func(self._env, **term_cfg.params)
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
+                    owned = False
                     # Custom callbacks may modify or retain their input.
                     obs = obs.clone()
                     if isinstance(modifier.func, modifiers.ModifierBase):
@@ -431,12 +465,16 @@ class ObservationManager(ManagerBase):
                         obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
                 obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
+                owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
                 obs = term_cfg.noise.func(obs.clone())
-            # Only allocations made by the pipeline are known to be independent.
-            owned = False
+                owned = False
             if term_cfg.clip:
-                obs = obs.clip(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                obs = (
+                    obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                    if owned
+                    else obs.clip(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                )
                 owned = True
             if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale) if owned else obs * term_cfg.scale
@@ -510,6 +548,7 @@ class ObservationManager(ManagerBase):
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
+        self._term_output_specs: dict[tuple[str, str], tuple[tuple[int, ...], torch.dtype, torch.device]] = {}
         self._group_obs_term_names: dict[str, list[str]] = {}
         self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
@@ -604,7 +643,10 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
                 # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                sample = term_cfg.func(self._env, **term_cfg.params)
+                obs_dims = tuple(sample.shape)
+                self._term_output_specs[group_name, term_name] = (obs_dims, sample.dtype, sample.device)
+                del sample
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
