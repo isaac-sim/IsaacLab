@@ -21,8 +21,7 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from ..physics import NewtonBackendCfg
-from ..sim.queries import run_query
+from ..physics import NewtonBackendCfg, NewtonQueries
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
@@ -629,7 +628,7 @@ class NewtonWarpRenderer(BaseRenderer):
             backend.state_0.body_q = poses.transforms
         if backend.geometry_offsets:
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        render_data.graph = run_query(
+        render_data.graph = NewtonQueries.run_query(
             self.backend,
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             partial(self._launch_render, render_data),

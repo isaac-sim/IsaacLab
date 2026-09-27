@@ -5,6 +5,8 @@ Changed
   requested transforms and geometry directly through SDP and shared native BVH refits while owning
   their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
   capture independently of physics capture.
+  Stateless query and capture functions lived in ``NewtonQueries`` alongside ``NewtonManager``;
+  the container retained no model or scheduling state.
 * Applied ray-cast BVH requirements to the shared builder before finalization, including when
   another consumer acquired the builder first.
 * **Breaking:** Replaced the native builder input in ``NewtonBackendCfg`` with the selected physics

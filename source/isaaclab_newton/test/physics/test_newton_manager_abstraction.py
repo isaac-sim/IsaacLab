@@ -26,7 +26,6 @@ import logging
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
-import isaaclab_newton.sim.queries as query_module
 import numpy as np
 import pytest
 import warp as wp
@@ -50,6 +49,7 @@ from isaaclab_newton.physics import (
     NewtonManager,
     NewtonMJWarpManager,
     NewtonMPMManager,
+    NewtonQueries,
     NewtonShapeCfg,
     NewtonVBDManager,
     NewtonXPBDManager,
@@ -326,8 +326,8 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
     # Render/query consumers may not restore a manager gateway or another state-update wrapper.
     for name in ("_register_sensor_task", "get_state", "update_visualization_state"):
         assert not hasattr(NewtonManager, name)
-    assert not hasattr(query_module, "get_state")
-    assert not hasattr(query_module, "update_scene_data")
+    assert not hasattr(NewtonQueries, "get_state")
+    assert not hasattr(NewtonQueries, "update_scene_data")
     assert not hasattr(backend, "transforms")
     backend.close()
 
