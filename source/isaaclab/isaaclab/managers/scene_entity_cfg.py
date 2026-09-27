@@ -30,6 +30,7 @@ class SceneEntityCfg:
     host lists, which class-based terms may read during construction. :meth:`finalize` then replaces each
     list with a ``torch.long`` tensor on the device. Slices stay slices. Managers finalize their term
     configurations once all terms are constructed, so term calls index with device selections directly.
+    Tensors are only produced by :meth:`finalize`; configure selections with names, integer lists, or slices.
     """
 
     name: str = MISSING
@@ -158,8 +159,9 @@ class SceneEntityCfg:
     def finalize(self, device: str) -> None:
         """Move resolved index selections to the device.
 
-        Each non-slice ``*_ids`` selection becomes a read-only ``torch.long`` tensor, so indexing and asset
-        write methods use it without a host-to-device upload. Slices are kept. Finalization is one-way and
+        Each non-slice ``*_ids`` selection becomes a ``torch.long`` tensor, so indexing and asset write
+        methods use it without a host-to-device upload. Terms share the tensor, so callers must not modify
+        it in place. Slices are kept. Finalization is one-way and
         must follow :meth:`resolve`; calling it again is a no-op.
 
         Args:

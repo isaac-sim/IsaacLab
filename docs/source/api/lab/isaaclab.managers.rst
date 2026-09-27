@@ -45,8 +45,8 @@ Scene-entity selections follow a build-then-finalize lifecycle, similar to Newto
 Managers call :meth:`SceneEntityCfg.resolve` while preparing terms, which fills ``joint_ids``,
 ``body_ids``, ``fixed_tendon_ids``, and ``object_collection_ids`` with host lists. Class-based terms
 can read these lists in ``__init__``. Once every term is constructed, managers call
-:meth:`SceneEntityCfg.finalize`, which replaces each list with a read-only ``torch.long`` tensor on
-the simulation device. Slices stay slices. Finalization is one-way.
+:meth:`SceneEntityCfg.finalize`, which replaces each list with a ``torch.long`` tensor on the simulation
+device. Terms share this tensor, so do not modify it in place. Slices stay slices. Finalization is one-way.
 
 .. code-block:: python
 
