@@ -1,0 +1,1 @@
+Routed the rigid object and rigid object collection deprecation warnings through shared helpers; messages are unchanged.

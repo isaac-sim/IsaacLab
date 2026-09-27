@@ -15,6 +15,7 @@ import warp as wp
 
 from ...utils.warp import ProxyArray
 from ...utils.wrench_composer import WrenchComposer
+from .._deprecation import warn_renamed_function, warn_renamed_member
 from ..asset_base import AssetBase
 
 if TYPE_CHECKING:
@@ -757,21 +758,13 @@ class BaseRigidObjectCollection(AssetBase):
     @property
     def num_objects(self) -> int:
         """Deprecated property. Please use :attr:`num_bodies` instead."""
-        warnings.warn(
-            "The `num_objects` property will be deprecated in a future release. Please use `num_bodies` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("num_objects", "num_bodies", kind="property")
         return self.num_bodies
 
     @property
     def object_names(self) -> list[str]:
         """Deprecated property. Please use :attr:`body_names` instead."""
-        warnings.warn(
-            "The `object_names` property will be deprecated in a future release. Please use `body_names` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("object_names", "body_names", kind="property")
         return self.body_names
 
     @abstractmethod
@@ -814,12 +807,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_pose_to_sim", "write_body_pose_to_sim_index")
         self.write_body_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_pose_to_sim(
@@ -829,12 +817,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_link_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_link_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_link_pose_to_sim", "write_body_link_pose_to_sim_index")
         self.write_body_link_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_pose_to_sim(
@@ -844,12 +827,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_com_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_com_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_com_pose_to_sim", "write_body_com_pose_to_sim_index")
         self.write_body_com_pose_to_sim_index(body_poses=body_poses, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_velocity_to_sim(
@@ -859,12 +837,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_velocity_to_sim", "write_body_velocity_to_sim_index")
         self.write_body_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_com_velocity_to_sim(
@@ -874,12 +847,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_com_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_com_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_com_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_com_velocity_to_sim", "write_body_com_velocity_to_sim_index")
         self.write_body_com_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def write_body_link_velocity_to_sim(
@@ -889,12 +857,7 @@ class BaseRigidObjectCollection(AssetBase):
         body_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_body_link_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_body_link_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_body_link_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_body_link_velocity_to_sim", "write_body_link_velocity_to_sim_index")
         self.write_body_link_velocity_to_sim_index(body_velocities=body_velocities, env_ids=env_ids, body_ids=body_ids)
 
     def set_masses(
@@ -904,11 +867,7 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
-        warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_masses", "set_masses_index")
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
@@ -918,11 +877,7 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
-        warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_coms", "set_coms_index")
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
@@ -932,12 +887,7 @@ class BaseRigidObjectCollection(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
-        warnings.warn(
-            "The function 'set_inertias' will be deprecated in a future release. Please"
-            " use 'set_inertias_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_inertias", "set_inertias_index")
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(
@@ -1018,12 +968,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_pose_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_pose_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_pose_to_sim", "write_body_pose_to_sim_index", kind="method")
         self.write_body_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_pose_to_sim(
@@ -1033,12 +978,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_pose_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_link_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_pose_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_link_pose_to_sim", "write_body_link_pose_to_sim_index", kind="method")
         self.write_body_link_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_pose_to_sim(
@@ -1048,12 +988,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_pose_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_com_pose_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_pose_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_com_pose_to_sim", "write_body_com_pose_to_sim_index", kind="method")
         self.write_body_com_pose_to_sim_index(body_poses=object_pose, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_velocity_to_sim(
@@ -1063,12 +998,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_velocity_to_sim", "write_body_com_velocity_to_sim_index", kind="method")
         self.write_body_com_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_com_velocity_to_sim(
@@ -1078,12 +1008,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_com_velocity_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_com_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_com_velocity_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_com_velocity_to_sim", "write_body_com_velocity_to_sim_index", kind="method")
         self.write_body_com_velocity_to_sim_index(body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids)
 
     def write_object_link_velocity_to_sim(
@@ -1093,12 +1018,7 @@ class BaseRigidObjectCollection(AssetBase):
         object_ids: slice | torch.Tensor | None = None,
     ) -> None:
         """Deprecated method. Please use :meth:`write_body_link_velocity_to_sim_index` instead."""
-        warnings.warn(
-            "The `write_object_link_velocity_to_sim` method will be deprecated in a future release. Please use"
-            " `write_body_link_velocity_to_sim_index` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("write_object_link_velocity_to_sim", "write_body_link_velocity_to_sim_index", kind="method")
         self.write_body_link_velocity_to_sim_index(
             body_velocities=object_velocity, env_ids=env_ids, body_ids=object_ids
         )
@@ -1120,9 +1040,5 @@ class BaseRigidObjectCollection(AssetBase):
         Returns:
             Matched object indices and names.
         """
-        warnings.warn(
-            "The `find_objects` method will be deprecated in a future release. Please use `find_bodies` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_member("find_objects", "find_bodies", kind="method")
         return self.find_bodies(name_keys, preserve_order, as_proxy=as_proxy)
