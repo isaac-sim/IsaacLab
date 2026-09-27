@@ -15,6 +15,7 @@ import torch
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 from isaaclab.utils.leapp import POSE7_ELEMENT_NAMES
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_from_euler_xyz, quat_unique
 
@@ -160,7 +161,7 @@ class UniformPoseCommand(CommandTerm):
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
                 self._succeeded[env_ids].float().mean().item()
             )
-            self._succeeded[env_ids] = False
+            index_fill_(self._succeeded, env_ids, False)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):

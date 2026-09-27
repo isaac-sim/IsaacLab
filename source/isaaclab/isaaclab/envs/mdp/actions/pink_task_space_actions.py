@@ -16,6 +16,7 @@ from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.pink_ik import PinkIKController
 from isaaclab.controllers.pink_ik.pink_tasks import LocalFrameTask
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -365,4 +366,4 @@ class PinkInverseKinematicsAction(ActionTerm):
         Args:
             env_ids: A list of environment IDs to reset. If None, all environments are reset.
         """
-        self._raw_actions[env_ids] = torch.zeros(self.action_dim, device=self.device)
+        index_fill_(self._raw_actions, env_ids, 0.0)

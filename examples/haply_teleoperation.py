@@ -312,7 +312,7 @@ def run_simulator(
         # Update joints: 6 from IK + 1 from button control (correct by design)
         joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # panda_joint1-6 from IK
         joint_pos_target[6] = ee_rotation_angle  # panda_joint7 - end-effector rotation (button C)
-        joint_pos_target[[-2, -1]] = gripper_target  # gripper
+        joint_pos_target[-2:].fill_(gripper_target)  # gripper
 
         robot.set_joint_position_target_index(target=joint_pos_target.unsqueeze(0))
 

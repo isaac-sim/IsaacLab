@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import EventTermCfg
 
@@ -247,8 +248,8 @@ class EventManager(ManagerBase):
                 # We bypass the trigger mechanism if min_step_count is zero, i.e. apply term on every reset call.
                 # This should avoid the overhead of checking the trigger condition.
                 if min_step_count == 0:
-                    self._reset_term_last_triggered_step_id[index][env_ids] = global_env_step_count
-                    self._reset_term_last_triggered_once[index][env_ids] = True
+                    index_fill_(self._reset_term_last_triggered_step_id[index], env_ids, global_env_step_count)
+                    index_fill_(self._reset_term_last_triggered_once[index], env_ids, True)
                     term_cfg.func(self._env, env_ids, **term_cfg.params)
                 else:
                     last_triggered_step = self._reset_term_last_triggered_step_id[index][env_ids]
@@ -271,8 +272,10 @@ class EventManager(ManagerBase):
 
                     # reset the last reset step for each environment to the current env step count
                     if len(valid_env_ids) > 0:
-                        self._reset_term_last_triggered_once[index][valid_env_ids] = True
-                        self._reset_term_last_triggered_step_id[index][valid_env_ids] = global_env_step_count
+                        index_fill_(self._reset_term_last_triggered_once[index], valid_env_ids, True)
+                        index_fill_(
+                            self._reset_term_last_triggered_step_id[index], valid_env_ids, global_env_step_count
+                        )
 
                         # call the event term
                         term_cfg.func(self._env, valid_env_ids, **term_cfg.params)

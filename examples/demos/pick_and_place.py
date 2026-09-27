@@ -47,7 +47,7 @@ from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, index_fill_
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
@@ -338,7 +338,7 @@ class PickAndPlaceEnv(DirectRLEnv):
             num_resets,
             self.device,
         )
-        self.target_pos[env_ids, 2] = self.cfg.target_z_pos
+        index_fill_(self.target_pos[:, 2], env_ids, self.cfg.target_z_pos)
 
         # Set the initial position of the cube
         cube_pos = self.cube.data.default_root_pose.torch[env_ids]

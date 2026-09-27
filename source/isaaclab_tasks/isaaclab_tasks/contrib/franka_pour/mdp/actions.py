@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs.mdp.actions import BinaryJointPositionAction, RelativeJointPositionAction
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -47,10 +48,9 @@ class EMARelativeJointPositionAction(RelativeJointPositionAction):
 
     def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None = None) -> None:
         """Clear selected command history so a reset pose receives exactly zero delta."""
-        selected = slice(None) if env_ids is None else env_ids
-        super().reset(selected)
-        self._processed_actions[selected] = 0.0
-        self._previous_delta[selected] = 0.0
+        super().reset(env_ids)
+        index_fill_(self._processed_actions, env_ids, 0.0)
+        index_fill_(self._previous_delta, env_ids, 0.0)
 
 
 class CurriculumGripperPositionAction(BinaryJointPositionAction):
