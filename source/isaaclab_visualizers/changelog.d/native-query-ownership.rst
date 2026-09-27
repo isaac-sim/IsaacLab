@@ -5,3 +5,4 @@ Changed
   physics manager. Viewers requested transforms and geometry directly through SDP; headless GL
   and RTX captures requested current arrays only when a frame was requested.
 * Rebound GL, RTX, Rerun, and Viser resources after hard resets, including when picking was disabled.
+* Passed the completed Newton allocation cfg to streaming-camera renderers before initialization.

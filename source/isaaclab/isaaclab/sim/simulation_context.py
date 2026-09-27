@@ -218,14 +218,6 @@ class SimulationContext:
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
-        self.newton_cfg: BackendCfg | None = None
-        """Completed Newton allocation inputs, published before consumers initialize."""
-        self.fabric_cfg: BackendCfg | None = None
-        """Native Fabric stage/device configuration, or None without Kit."""
-        if use_isaac_sim:
-            from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415
-
-            self.fabric_cfg = FabricBackendCfg(stage=self.stage, device=self.device)
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._reset_requested: bool = False
@@ -686,7 +678,9 @@ class SimulationContext:
                 self.requires_usd_stage |= requires_stage
                 self.requires_newton_model |= requires_model
             self._render_context.clone_contexts.update(cfg.cloning_contexts)
-            self._pending_visualizers.append(cfg.class_type(cfg))
+            visualizer = cfg.class_type(cfg)
+            self.physics_manager.register_callback(visualizer.bind_backend_cfg, PhysicsEvent.BACKEND_CFG_READY)
+            self._pending_visualizers.append(visualizer)
 
     def _initialize_visualizers(self, config_filter: Callable[[Any], bool] | None = None) -> None:
         """Bind constructed visualizers, optionally selecting only pre-capture consumers."""
@@ -995,6 +989,7 @@ class SimulationContext:
         resource = cfg.class_type(cfg)
         self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):
+            self.physics_manager.register_callback(resource.bind_backend_cfg, PhysicsEvent.BACKEND_CFG_READY)
             self._render_context.register_renderer(cfg, resource)
         return resource
 

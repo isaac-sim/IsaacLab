@@ -32,7 +32,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     del _pyglet_headless_init
 
 import newton
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
@@ -56,7 +56,7 @@ from isaaclab.envs.utils.camera_view import (
     resolve_streaming_envs,
 )
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
@@ -1068,6 +1068,14 @@ class NewtonVisualizer(BaseVisualizer):
         self._active_camera_idx: int = 0
         self._pending_mesh_submissions: dict[str, _MeshSubmission] = {}
 
+    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
+        """Pass the completed Newton allocation inputs to the viewer and its streaming renderer."""
+        if isinstance(cfg, NewtonBackendCfg):
+            self.newton_cfg = cfg
+            if self.cfg.streaming_view:
+                renderer = SimulationContext.instance().get_or_create_backend(self._resolve_streaming_renderer_cfg())
+                renderer.bind_backend_cfg(cfg)
+
     # ------------------------------------------------------------------
     # Shared lifecycle
     # ------------------------------------------------------------------
@@ -1110,7 +1118,7 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self.backend = sim.get_or_create_backend(sim.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         runtime_headless = self.cfg.headless or (
@@ -1308,7 +1316,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(sim.newton_cfg)
+        backend = sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

@@ -536,9 +536,12 @@ class NewtonManager(PhysicsManager):
     def sync_transforms_to_fabric(cls) -> None:
         """Publish rigid-body poses through SDP to Fabric, leaving authored USD untouched."""
         sim = PhysicsManager._sim
-        if sim.fabric_cfg is None or cls.backend is None:
+        if not has_kit() or cls.backend is None:
             return
-        sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        fabric.update_transforms(sim.get_scene_data_provider())
 
     @classmethod
     def sync_transforms_to_usd(cls) -> None:
@@ -1140,8 +1143,8 @@ class NewtonManager(PhysicsManager):
                 contact_attributes=tuple(sorted(cls._pending_extended_contact_attributes)),
             )
             sim = SimulationContext.instance()
-            sim.newton_cfg = cfg
             NewtonManager.backend = sim.get_or_create_backend(cfg)
+            cls.dispatch_event(PhysicsEvent.BACKEND_CFG_READY, cfg)
             NewtonManager._num_envs = cls.backend.model.num_envs
         NewtonManager._pending_extended_contact_attributes = set()
         # The initial body-state update from joint coordinates is deferred to the tail of

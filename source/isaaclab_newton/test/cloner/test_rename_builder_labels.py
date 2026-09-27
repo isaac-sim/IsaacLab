@@ -106,7 +106,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
             cfg=SimpleNamespace(physics=object()),
             device="cpu",
             stage=None,
-            physics_manager=SimpleNamespace(register_callback=mock.Mock()),
+            physics_manager=SimpleNamespace(dispatch_event=mock.Mock()),
         )
 
     @staticmethod
@@ -328,7 +328,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
                 self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
-                offsets = self.sim.newton_cfg.geometry_offsets
+                offsets = self.sim.physics_manager.dispatch_event.call_args.args[1].geometry_offsets
                 expected = {"/Shared/sim": vertices[:3]}
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):

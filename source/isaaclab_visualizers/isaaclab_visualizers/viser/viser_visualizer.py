@@ -18,10 +18,11 @@ from typing import TYPE_CHECKING, Any
 
 import newton
 import numpy as np
+from isaaclab_newton.physics import NewtonBackendCfg
 from newton.viewer import ViewerViser
 
 from isaaclab.scene_data import SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
@@ -400,6 +401,15 @@ class ViserVisualizer(BaseVisualizer):
         self._streaming_camera_key: tuple | None = None
         self._last_streaming_composite: np.ndarray | None = None
 
+    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
+        """Pass the completed Newton allocation inputs to the viewer and its streaming renderer."""
+        if isinstance(cfg, NewtonBackendCfg):
+            self.newton_cfg = cfg
+            if self.cfg.streaming_view:
+                renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
+                renderer = SimulationContext.instance().get_or_create_backend(renderer_cfg)
+                renderer.bind_backend_cfg(cfg)
+
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
 
@@ -415,7 +425,7 @@ class ViserVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._active_record_path = self.cfg.record_to_viser
@@ -671,7 +681,7 @@ class ViserVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(sim.newton_cfg)
+        backend = sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

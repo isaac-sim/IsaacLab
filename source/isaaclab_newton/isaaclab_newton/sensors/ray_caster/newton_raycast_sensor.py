@@ -15,12 +15,13 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.cloner.cloner_cfg import DEFAULT_ENV_TEMPLATE
+from isaaclab.physics import PhysicsEvent
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from isaaclab_newton.sim.queries import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
@@ -98,6 +99,12 @@ class _NewtonRayCasterPoseMixin:
         """Register the sensor site before Newton model finalization."""
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
+        sim = sim_utils.SimulationContext.instance()
+        sim.physics_manager.register_callback(self._set_newton_cfg, PhysicsEvent.BACKEND_CFG_READY)
+
+    def _set_newton_cfg(self, cfg: sim_utils.BackendCfg) -> None:
+        if isinstance(cfg, NewtonBackendCfg):
+            self.newton_cfg = cfg
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
@@ -128,7 +135,7 @@ class _NewtonRayCasterPoseMixin:
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         sim = sim_utils.SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)

@@ -46,6 +46,7 @@ def sim():
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     sim._render_context = RenderContext(sim._backend_registry)
+    sim.physics_manager = SimpleNamespace(register_callback=Mock())
     return sim
 
 

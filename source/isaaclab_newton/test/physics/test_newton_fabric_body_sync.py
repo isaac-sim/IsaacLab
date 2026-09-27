@@ -301,7 +301,8 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
 
             sim.reset()
             scene.reset()
-            sim.get_or_create_backend(sim.fabric_cfg).bind_transforms(sim.get_scene_data_provider())
+            fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+            fabric.bind_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
@@ -314,7 +315,7 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
             scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
             if isinstance(renderer_cfg, NewtonWarpRendererCfg):
                 assert not sim.visualizers
-                sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
+                fabric.update_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)
@@ -393,7 +394,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
                 get_geometry_batches=lambda _format=SceneDataFormat.Points: batches,
             )
         )
-        fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         fabric.update_geometries(provider, 0)
         simulation_app.update()
         wp.synchronize_device(sim.device)

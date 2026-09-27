@@ -201,7 +201,9 @@ class KitVisualizer(BaseVisualizer):
         self._setup_streaming_view(num_envs)
 
         sim = SimulationContext.instance()
-        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()

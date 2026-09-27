@@ -17,6 +17,7 @@ import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 import warp as wp
+from isaaclab_newton.physics import NewtonBackendCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
     NewtonGLVisualizerCfg,
@@ -25,6 +26,7 @@ from isaaclab_visualizers.newton.newton_visualizer_cfg import (
 )
 from isaaclab_visualizers.rerun.rerun_visualizer_cfg import RerunVisualizerCfg
 from isaaclab_visualizers.viser.viser_visualizer_cfg import ViserVisualizerCfg
+from newton import ModelBuilder
 
 from isaaclab.markers.vis_marker_registry import VisMarkerRegistry
 from isaaclab.sim.simulation_context import SimulationContext
@@ -351,7 +353,6 @@ def web_backend(monkeypatch):
     model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
-        newton_cfg=object(),
         get_or_create_backend=Mock(return_value=backend),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
@@ -392,6 +393,8 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
     monkeypatch.setattr(viser_visualizer.ViserVisualizer, "_setup_isaaclab_sidebar", lambda self, server: None)
 
     visualizer = viser_visualizer.ViserVisualizer(ViserVisualizerCfg())
+    cfg = NewtonBackendCfg(builder=ModelBuilder(), device="cpu")
+    visualizer.bind_backend_cfg(cfg)
     visualizer.initialize(cast(Any, provider))
     visualizer.step(0.25)
 
@@ -406,11 +409,14 @@ def test_viser_visualizer_reads_sdp_and_rebinds_native_resource(monkeypatch, web
     assert viewer.calls[2] == ("end_frame",)
     replacement = SimpleNamespace(model=backend.model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     web_backend.get_or_create_backend.return_value = replacement
+    cfg = cfg.replace(num_envs=4)
+    visualizer.bind_backend_cfg(cfg)
     visualizer.reset(soft=True)
     assert visualizer.backend is backend
     visualizer.reset()
     visualizer.reset()
     viewer.set_model.assert_called_once_with(replacement.model)
+    web_backend.get_or_create_backend.assert_called_with(cfg)
     visualizer.step(0.25)
     assert viewer.calls[-2] == ("log_state", replacement.state_0)
 
@@ -561,6 +567,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
         randomly_sample_visible_envs=False,
     )
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
+    backend_cfg = NewtonBackendCfg(builder=ModelBuilder(), device="cpu")
+    visualizer.bind_backend_cfg(backend_cfg)
     visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()))
 
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
@@ -568,8 +576,11 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
     replacement = SimpleNamespace(model=SimpleNamespace(body_label=["/Replacement"]))
     web_backend.get_or_create_backend.return_value = replacement
+    backend_cfg = backend_cfg.replace(num_envs=4)
+    visualizer.bind_backend_cfg(backend_cfg)
     visualizer.reset()
     assert visualizer.backend is replacement
+    web_backend.get_or_create_backend.assert_called_with(backend_cfg)
     assert captured["set_model"] is replacement.model
     assert captured["visible_worlds"] == expected_visible
 
@@ -841,6 +852,7 @@ def _make_context_with_settings(
     ctx._visualizers = []
     ctx._pending_visualizers = []
     ctx._render_context = SimpleNamespace(clone_contexts=set())
+    ctx.physics_manager = SimpleNamespace(register_callback=Mock())
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False

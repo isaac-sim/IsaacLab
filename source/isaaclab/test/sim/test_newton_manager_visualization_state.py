@@ -82,34 +82,50 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     """Cloning produces inputs; consumers acquire one native resource without rebuilding the scene."""
     from isaaclab_newton.cloner import NewtonReplicateContext
     from isaaclab_newton.physics import NewtonManager
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
     from pxr import Usd, UsdGeom
 
+    from isaaclab.physics import PhysicsEvent, PhysicsManager
+    from isaaclab.renderers import RenderContext
     from isaaclab.sim import SimulationContext
 
+    class Manager(PhysicsManager):
+        _callbacks = {}
+
     _reset_newton_manager_state()
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+", spawn=SpawnerCfg(spawn_path="/Scene/Source"))
     plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
     sim = object.__new__(SimulationContext)
     sim.cfg = SimpleNamespace(physics=object(), device="cpu")
-    sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+    sim.physics_manager = Manager
     sim.stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(sim.stage, "/Scene/Source")
     sim._backend_registry = []
+    sim._render_context = RenderContext(sim._backend_registry)
+    sim.requires_usd_stage = sim.requires_newton_model = False
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0,))
-    assert not sim._backend_registry
+    assert len(sim._backend_registry) == 2  # Renderer objects only; native allocation waits for initialization.
+    assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
+    assert renderers[0].newton_cfg is renderers[1].newton_cfg
     finalize = Mock(wraps=builder.finalize)
     monkeypatch.setattr(builder, "finalize", finalize)
-    first = sim.get_or_create_backend(sim.newton_cfg)
-    assert sim.get_or_create_backend(sim.newton_cfg) is first
+    first = sim.get_or_create_backend(renderers[0].newton_cfg)
+    assert sim.get_or_create_backend(renderers[1].newton_cfg) is first
     assert first.model.world_count == len(plan.topology.world_prototype_layout)
     finalize.assert_called_once_with(device="cpu")
     assert NewtonManager.backend is None
     sim.close_backend(first)
-    assert not sim._backend_registry
+    assert len(sim._backend_registry) == 2
     assert first.model is first.state_0 is None
-    second = sim.get_or_create_backend(sim.newton_cfg)
+    replacement_cfg = renderers[0].newton_cfg.replace(num_envs=2)
+    Manager.dispatch_event(PhysicsEvent.BACKEND_CFG_READY, replacement_cfg)
+    assert all(renderer.newton_cfg is replacement_cfg for renderer in renderers)
+    second = sim.get_or_create_backend(renderers[1].newton_cfg)
     assert second is not first
     assert finalize.call_count == 2
     sim.close_backend(second)
@@ -200,7 +216,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
         cfg=SimpleNamespace(physics=object()),
         device="cpu",
         stage=stage,
-        physics_manager=SimpleNamespace(register_callback=Mock()),
+        physics_manager=SimpleNamespace(dispatch_event=Mock()),
     )
     usd_imports = []
     add_usd = ModelBuilder.add_usd
@@ -213,7 +229,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0, 2))
-    geometry = sim.newton_cfg.geometry_offsets
+    geometry = sim.physics_manager.dispatch_event.call_args.args[1].geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
     assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}

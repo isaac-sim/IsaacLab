@@ -18,9 +18,10 @@ import warp as wp
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import BackendCfg, SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
+from ..physics import NewtonBackendCfg
 from ..sim.queries import run_query
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
@@ -478,10 +479,15 @@ class NewtonWarpRenderer(BaseRenderer):
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model
 
+    def bind_backend_cfg(self, cfg: BackendCfg) -> None:
+        """Keep the clone-built allocation inputs without allocating native state yet."""
+        if isinstance(cfg, NewtonBackendCfg):
+            self.newton_cfg = cfg
+
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
         sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 

@@ -244,6 +244,8 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
     events = []
 
     class Manager:
+        register_callback = Mock()
+
         @classmethod
         def close(cls):
             events.append("physics")
@@ -251,6 +253,8 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
                 raise RuntimeError("STOP failed")
 
     class Resource:
+        bind_backend_cfg = Mock()
+
         def __init__(self, name, error=None):
             self.name = name
             self.error = error

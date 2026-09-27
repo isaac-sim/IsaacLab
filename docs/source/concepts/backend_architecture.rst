@@ -97,9 +97,11 @@ Exposing native handles does not replace SDP transport.
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
 
-Newton cloning and physics preparation publish completed allocation inputs as
-``sim.newton_cfg`` before consumers initialize. Consumers call
-``sim.get_or_create_backend(sim.newton_cfg)`` without accessing clone contexts.
+Newton cloning and physics preparation deliver completed allocation inputs through
+``PhysicsEvent.BACKEND_CFG_READY`` before consumers initialize. Each consumer retains
+the cfg and calls ``sim.get_or_create_backend(self.newton_cfg)``. Hard resets deliver
+the replacement cfg before rebinding. ``SimulationContext`` has no backend-specific cfg fields,
+and consumers do not access clone contexts.
 Physics, cameras, raycasters, and viewers borrow that
 resource's model and state. Consumers request body transforms and visual points
 directly through SDP; NewtonManager is not their model/state gateway. Queries run

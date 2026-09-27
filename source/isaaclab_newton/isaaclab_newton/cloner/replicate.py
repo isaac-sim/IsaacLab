@@ -20,7 +20,7 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.cloner import path as cloner_path
-from isaaclab.physics import PhysicsManager
+from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.scene_data.deformable_discovery import (
     deformable_geometry_batches,
@@ -254,9 +254,8 @@ def _replicate_newton(
         NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(env_ids)
     else:
-        sim.newton_cfg = NewtonBackendCfg(
-            builder=builder, device=sim.device, simulation=False, geometry_offsets=geometry_offsets
-        )
+        cfg = NewtonBackendCfg(builder=builder, device=sim.device, simulation=False, geometry_offsets=geometry_offsets)
+        sim.physics_manager.dispatch_event(PhysicsEvent.BACKEND_CFG_READY, cfg)
     return builder, stage_info, site_index_map
 
 

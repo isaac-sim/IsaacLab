@@ -1169,6 +1169,7 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
 def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
     """Initial and hard resets realize native layouts before consumers and picking."""
     events: list[str] = []
+    allocations = []
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
         device="cpu",
@@ -1179,12 +1180,15 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
 
         def on_physics_ready(_):
             events.append("ready")
+            assert sim.get_or_create_backend(allocations[-1]) is NewtonManager.backend
+            assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
             sim.get_scene_data_provider().get_transforms(SceneDataFormat.Transform())
 
         builder = sim.physics_manager.create_builder()
         body = builder.add_body(mass=1.0)
         builder.add_joint_revolute(parent=-1, child=body, axis=(0, 0, 1))
         NewtonManager.set_builder(builder)
+        sim.physics_manager.register_callback(allocations.append, PhysicsEvent.BACKEND_CFG_READY, wrap_weak_ref=False)
         monkeypatch.setattr(sim, "_prepare_newton_visualizer_for_capture", lambda: events.append("prepare"))
         sim.physics_manager.register_callback(
             on_physics_ready,
@@ -1196,6 +1200,7 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
         sim.reset()
 
     assert events == ["ready", "prepare"] * 2
+    assert len(allocations) == 2 and allocations[0] is not allocations[1]
 
 
 # ---------------------------------------------------------------------------
