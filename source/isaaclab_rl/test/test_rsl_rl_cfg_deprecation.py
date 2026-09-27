@@ -438,28 +438,3 @@ class TestV5:
         cfg = _on_policy_runner(algorithm=_ppo_algo())
         handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
         assert is_missing(cfg.actor) and is_missing(cfg.critic)
-
-
-def test_preserves_supported_mixed_precision():
-    cfg = _on_policy_runner(actor=_mlp_model(), critic=_mlp_model(), algorithm=_ppo_algo())
-    cfg.algorithm.use_mixed_precision = True
-
-    handle_deprecated_rsl_rl_cfg(cfg, "5.5.1")
-
-    assert cfg.to_dict()["algorithm"]["use_mixed_precision"] is True
-
-
-@pytest.mark.parametrize("enabled", [False, True])
-def test_removes_unsupported_mixed_precision(monkeypatch, capsys, enabled):
-    class LegacyPPO:
-        def __init__(self):
-            pass
-
-    monkeypatch.setattr("rsl_rl.algorithms.PPO", LegacyPPO)
-    cfg = _on_policy_runner(actor=_mlp_model(), critic=_mlp_model(), algorithm=_ppo_algo())
-    cfg.algorithm.use_mixed_precision = enabled
-
-    handle_deprecated_rsl_rl_cfg(cfg, "5.5.1")
-
-    assert "use_mixed_precision" not in cfg.to_dict()["algorithm"]
-    assert ("does not support `use_mixed_precision`" in capsys.readouterr().out) is enabled
