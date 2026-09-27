@@ -132,7 +132,7 @@ class CommandTermCfg:
 class CurriculumTermCfg(ManagerTermBaseCfg):
     """Configuration for a curriculum term."""
 
-    func: Callable[..., float | dict[str, float] | None] = MISSING
+    func: Callable[..., float | dict[str, float] | None] | type[ManagerTermBase] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object, an environment slice or device-resident indices
@@ -151,7 +151,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
 class ObservationTermCfg(ManagerTermBaseCfg):
     """Configuration for an observation term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -300,7 +300,7 @@ class ObservationGroupCfg:
 class EventTermCfg(ManagerTermBaseCfg):
     """Configuration for a event term."""
 
-    func: Callable[..., None] = MISSING
+    func: Callable[..., None] | type[ManagerTermBase] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object, an environment slice or device-resident indices
@@ -379,7 +379,7 @@ class EventTermCfg(ManagerTermBaseCfg):
 class RewardTermCfg(ManagerTermBaseCfg):
     """Configuration for a reward term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
@@ -407,7 +407,7 @@ class RewardTermCfg(ManagerTermBaseCfg):
 class TerminationTermCfg(ManagerTermBaseCfg):
     """Configuration for a termination term."""
 
-    func: Callable[..., torch.Tensor | None] = MISSING
+    func: Callable[..., torch.Tensor | None] | type[ManagerTermBase] = MISSING
     """The name of the function to be called.
 
     This function should take the environment object and any other parameters
