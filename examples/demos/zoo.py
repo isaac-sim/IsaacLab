@@ -64,15 +64,6 @@ _RIGID_PROPS = {
 _HAND_CFG = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
 
 
-def _prop_cfg(spawn: sim_utils.RigidObjectSpawnerCfg, position: tuple[float, float, float]) -> RigidObjectCfg:
-    """Create a dynamic prop configuration."""
-    return RigidObjectCfg(
-        prim_path="",
-        spawn=spawn,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
-    )
-
-
 @configclass
 class ZooSceneCfg(InteractiveSceneCfg):
     """Configuration for the robot zoo."""
@@ -83,62 +74,48 @@ class ZooSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     )
 
-    arm: ArticulationCfg = replace(
-        UR10e_CFG, prim_path="{ENV_REGEX_NS}/Arm", init_state=replace(UR10e_CFG.init_state, pos=(-2.2, 1.4, 0.0))
-    )
-    biped: ArticulationCfg = replace(
-        G1_CFG, prim_path="{ENV_REGEX_NS}/Biped", init_state=replace(G1_CFG.init_state, pos=(0.0, 1.5, 0.74))
-    )
+    arm: ArticulationCfg = replace(UR10e_CFG, prim_path="{ENV_REGEX_NS}/Arm")
+    arm.init_state.pos = (-2.2, 1.4, 0.0)
+    biped: ArticulationCfg = replace(G1_CFG, prim_path="{ENV_REGEX_NS}/Biped")
+    biped.init_state.pos = (0.0, 1.5, 0.74)
     quadruped: ArticulationCfg = replace(
-        ANYMAL_D_CFG,
-        prim_path="{ENV_REGEX_NS}/Quadruped",
-        init_state=replace(ANYMAL_D_CFG.init_state, pos=(2.2, 1.4, 0.6)),
-        actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
+        ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Quadruped", actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG}
     )
-    hand: ArticulationCfg = replace(
-        _HAND_CFG, prim_path="{ENV_REGEX_NS}/Hand", init_state=replace(_HAND_CFG.init_state, pos=(-1.4, -1.3, 0.5))
-    )
-    drone: ArticulationCfg = replace(
-        CRAZYFLIE_CFG,
-        prim_path="{ENV_REGEX_NS}/Drone",
-        init_state=replace(CRAZYFLIE_CFG.init_state, pos=(1.5, -1.4, 1.3)),
-    )
+    quadruped.init_state.pos = (2.2, 1.4, 0.6)
+    hand: ArticulationCfg = replace(_HAND_CFG, prim_path="{ENV_REGEX_NS}/Hand")
+    hand.init_state.pos = (-1.4, -1.3, 0.5)
+    drone: ArticulationCfg = replace(CRAZYFLIE_CFG, prim_path="{ENV_REGEX_NS}/Drone")
+    drone.init_state.pos = (1.5, -1.4, 1.3)
 
     props: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            "cube": replace(
-                _prop_cfg(
-                    sim_utils.CuboidCfg(
-                        size=(0.3, 0.3, 0.3),
-                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.55, 0.95)),
-                        **_RIGID_PROPS,
-                    ),
-                    (0.0, -0.6, 2.0),
-                ),
+            "cube": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Props/Cube",
-            ),
-            "sphere": replace(
-                _prop_cfg(
-                    sim_utils.SphereCfg(
-                        radius=0.18,
-                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.15)),
-                        **_RIGID_PROPS,
-                    ),
-                    (0.4, -0.6, 2.5),
+                spawn=sim_utils.CuboidCfg(
+                    size=(0.3, 0.3, 0.3),
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.55, 0.95)),
+                    **_RIGID_PROPS,
                 ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.6, 2.0)),
+            ),
+            "sphere": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Props/Sphere",
-            ),
-            "cylinder": replace(
-                _prop_cfg(
-                    sim_utils.CylinderCfg(
-                        radius=0.16,
-                        height=0.4,
-                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.8, 0.25)),
-                        **_RIGID_PROPS,
-                    ),
-                    (-0.4, -0.6, 3.0),
+                spawn=sim_utils.SphereCfg(
+                    radius=0.18,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.15)),
+                    **_RIGID_PROPS,
                 ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.6, 2.5)),
+            ),
+            "cylinder": RigidObjectCfg(
                 prim_path="{ENV_REGEX_NS}/Props/Cylinder",
+                spawn=sim_utils.CylinderCfg(
+                    radius=0.16,
+                    height=0.4,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.8, 0.25)),
+                    **_RIGID_PROPS,
+                ),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.4, -0.6, 3.0)),
             ),
         }
     )
