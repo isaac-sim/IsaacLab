@@ -354,14 +354,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 self._groups[actuator_name] = instantiate(actuator_cfg, **actuator_kwargs)
             if self._debug_value_resolution:
                 self._joint_property_resolution_rows[actuator_name] = table_rows
-            construction_records.append(
-                (
-                    properties,
-                    actuator_joint_ids,
-                    implicit,
-                    native_managed,
-                )
-            )
+            construction_records.append((properties, actuator_joint_ids, implicit, native_managed))
 
         for properties, joint_ids, implicit, native_managed in construction_records:
             self._control.write_resolved_joint_properties(
@@ -426,13 +419,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             value = self._resolve_joint_property(cfg_value, default_value, joint_names)
             values[cfg_name] = value
             if self._debug_value_resolution:
-                rows = self._joint_property_resolution_rows_for(
-                    cfg_value,
-                    value,
-                    default_value,
-                    joint_names,
-                    joint_ids,
-                )
+                rows = self._joint_property_resolution_rows_for(cfg_value, value, default_value, joint_names, joint_ids)
                 if rows:
                     resolution_rows[cfg_name] = rows
 

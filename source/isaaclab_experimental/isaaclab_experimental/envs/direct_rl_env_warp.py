@@ -52,20 +52,14 @@ DEBUG_TIMERS = os.environ.get("DEBUG_TIMERS", "0") == "1"
 
 
 @wp.kernel
-def zero_mask_int32(
-    mask: wp.array(dtype=wp.bool),
-    data: wp.array(dtype=wp.int32),
-):
+def zero_mask_int32(mask: wp.array(dtype=wp.bool), data: wp.array(dtype=wp.int32)):
     env_index = wp.tid()
     if mask[env_index]:
         data[env_index] = 0
 
 
 @wp.kernel
-def add_to_env(
-    data: wp.array(dtype=wp.int32),
-    value: wp.int32,
-):
+def add_to_env(data: wp.array(dtype=wp.int32), value: wp.int32):
     env_index = wp.tid()
     data[env_index] += value
 
@@ -474,14 +468,7 @@ class DirectRLEnvWarp(DirectRLEnv):
 
     def _step_warp_end_pre(self) -> None:
         """Capturable portion before write_data_to_sim (pure warp kernels)."""
-        wp.launch(
-            add_to_env,
-            dim=self.num_envs,
-            inputs=[
-                self._episode_length_buf_wp,
-                1,
-            ],
-        )
+        wp.launch(add_to_env, dim=self.num_envs, inputs=[self._episode_length_buf_wp, 1])
         self._get_dones()
         self._get_rewards()
 
@@ -714,14 +701,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         #    self._observation_noise_model.reset(env_ids)
 
         # reset the episode length buffer
-        wp.launch(
-            zero_mask_int32,
-            dim=self.num_envs,
-            inputs=[
-                mask,
-                self._episode_length_buf_wp,
-            ],
-        )
+        wp.launch(zero_mask_int32, dim=self.num_envs, inputs=[mask, self._episode_length_buf_wp])
 
     """
     Implementation-specific functions.

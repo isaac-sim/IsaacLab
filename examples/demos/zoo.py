@@ -66,11 +66,7 @@ _HAND_CFG = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else S
 
 def _prop_cfg(spawn: sim_utils.RigidObjectSpawnerCfg, position: tuple[float, float, float]) -> RigidObjectCfg:
     """Create a dynamic prop configuration."""
-    return RigidObjectCfg(
-        prim_path="",
-        spawn=spawn,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
-    )
+    return RigidObjectCfg(prim_path="", spawn=spawn, init_state=RigidObjectCfg.InitialStateCfg(pos=position))
 
 
 @configclass

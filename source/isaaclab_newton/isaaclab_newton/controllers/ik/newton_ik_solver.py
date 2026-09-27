@@ -97,10 +97,5 @@ class NewtonIKSolver:
         Returns the solver's output buffer, overwritten on the next solve -- consume
         or copy it before solving again.
         """
-        self.solver.step(
-            joint_pos,
-            self.joint_q_out,
-            iterations=self.cfg.iterations,
-            step_size=self.cfg.step_size,
-        )
+        self.solver.step(joint_pos, self.joint_q_out, iterations=self.cfg.iterations, step_size=self.cfg.step_size)
         return self.joint_q_out
