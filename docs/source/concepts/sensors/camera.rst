@@ -320,11 +320,11 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
    renderer leaves authored camera exposure unchanged.
 
-Run ``scripts/demos/sensors/ppisp_camera.py`` for a complete PPISP workflow:
+Run the ``ppisp-camera`` example for a complete PPISP workflow:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
+   uv run --extra isaacsim isaaclab example ppisp-camera \
       --renderer newton_renderer --max_steps 60
 
 Performance and validation
@@ -340,11 +340,11 @@ cost of the de-tiled outputs or downstream vision models. The camera follows the
 ``update_period`` contract; choose a period that matches the observation cadence instead of rendering
 at every physics step by default.
 
-A runnable camera example is available in ``scripts/demos/sensors/cameras.py``:
+A runnable camera example is available as ``camera``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/cameras.py
+   uv run --extra isaacsim isaaclab example camera
 
 For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
 and customization, see :doc:`/source/how-to/configure_rendering`.

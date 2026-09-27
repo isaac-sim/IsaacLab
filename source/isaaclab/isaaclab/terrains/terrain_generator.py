@@ -13,11 +13,10 @@ import numpy as np
 import torch
 import trimesh
 
-from isaaclab.utils.dict import dict_to_md5_hash
-from isaaclab.utils.io import dump_yaml
-from isaaclab.utils.timer import Timer
-from isaaclab.utils.warp import convert_to_warp_mesh
-
+from ..utils.dict import dict_to_md5_hash
+from ..utils.io import dump_yaml
+from ..utils.timer import Timer
+from ..utils.warp import convert_to_warp_mesh
 from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
 
@@ -25,7 +24,6 @@ if TYPE_CHECKING:
     from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
     from .terrain_generator_cfg import TerrainGeneratorCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +148,7 @@ class TerrainGenerator:
         # buffer for storing valid patches
         self.flat_patches = {}
         # create a list of all sub-terrains
-        self.terrain_meshes = list()
+        self.terrain_meshes = []
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
 
         # parse configuration and add sub-terrains

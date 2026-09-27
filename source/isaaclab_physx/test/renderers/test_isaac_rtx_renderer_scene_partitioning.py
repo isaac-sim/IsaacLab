@@ -62,44 +62,38 @@ def _isolation_renderer_cfg() -> IsaacRtxRendererCfg:
 
 
 @pytest.mark.isaacsim_ci
-def test_partitioning_enabled_by_default(monkeypatch):
-    """``primvars:omni:scenePartition`` must be authored when the environment variable is absent."""
+@pytest.mark.parametrize(
+    ("cfg_enabled", "environment_value", "expected"),
+    [(True, "0", True), (False, "1", False), (None, None, True)],
+    ids=["cfg-enabled", "cfg-disabled", "default"],
+)
+def test_partitioning_cfg_overrides_legacy_environment_variable(
+    monkeypatch, cfg_enabled: bool | None, environment_value: str | None, expected: bool
+):
+    """The renderer configuration should take precedence over the legacy environment variable.
+
+    Without either, ``primvars:omni:scenePartition`` is authored by default.
+    """
     from pxr import Usd
 
-    monkeypatch.delenv(_ENV_VAR, raising=False)
+    if environment_value is None:
+        monkeypatch.delenv(_ENV_VAR, raising=False)
+    else:
+        monkeypatch.setenv(_ENV_VAR, environment_value)
 
     stage = Usd.Stage.CreateInMemory()
     world = stage.DefinePrim("/World", "Xform")  # noqa: F841
     env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
 
     renderer = object.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
+    if cfg_enabled is None:
+        renderer.cfg = IsaacRtxRendererCfg()
+    else:
+        renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
     renderer.prepare_stage(stage, num_envs=1)
 
     prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert prim.HasAttribute("primvars:omni:scenePartition"), (
-        "primvars:omni:scenePartition must be authored when partitioning uses its default."
-    )
-
-
-@pytest.mark.isaacsim_ci
-@pytest.mark.parametrize(("cfg_enabled", "environment_value"), [(True, "0"), (False, "1")])
-def test_partitioning_cfg_overrides_legacy_environment_variable(monkeypatch, cfg_enabled: bool, environment_value: str):
-    """The renderer configuration should take precedence over the legacy environment variable."""
-    from pxr import Usd
-
-    monkeypatch.setenv(_ENV_VAR, environment_value)
-
-    stage = Usd.Stage.CreateInMemory()
-    world = stage.DefinePrim("/World", "Xform")  # noqa: F841
-    env0 = stage.DefinePrim("/World/envs/env_0", "Xform")  # noqa: F841
-
-    renderer = object.__new__(IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg(enable_scene_partitioning=cfg_enabled)
-    renderer.prepare_stage(stage, num_envs=1)
-
-    prim = stage.GetPrimAtPath("/World/envs/env_0")
-    assert prim.HasAttribute("primvars:omni:scenePartition") is cfg_enabled
+    assert prim.HasAttribute("primvars:omni:scenePartition") is expected
 
 
 @pytest.mark.isaacsim_ci

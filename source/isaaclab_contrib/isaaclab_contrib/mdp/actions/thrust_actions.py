@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -198,7 +199,7 @@ class ThrustAction(ActionTerm):
         Args:
             env_ids: Environment indices to reset. Defaults to None (all environments).
         """
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     def process_actions(self, actions: torch.Tensor):
         r"""Process actions by applying scaling, offset, and clipping.
@@ -381,8 +382,5 @@ class NavigationAction(ThrustAction):
         # Reset controller internal states
         self._lc.reset_idx(env_ids)
 
-        if env_ids is None:
-            env_ids = slice(None)
-
-        self._commands[env_ids] = 0.0
-        self._prev_commands[env_ids] = 0.0
+        index_fill_(self._commands, env_ids, 0.0)
+        index_fill_(self._prev_commands, env_ids, 0.0)

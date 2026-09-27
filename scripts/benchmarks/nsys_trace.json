@@ -89,6 +89,7 @@
         "color": "0xFFC107",
         "module": "isaaclab.renderers.render_context",
         "functions": [
+            {"function": "RenderContext.render_into_cameras", "color": "0xFFC107"},
             {"function": "RenderContext.render_into_camera", "color": "0xFFC107"},
             {"function": "RenderContext.update_scene_state", "color": "0xFFD54F"},
             {"function": "RenderContext.ensure_initialize", "color": "0xFFE082"},
@@ -266,6 +267,7 @@
             "OVRTXRenderer.update_geometries",
             "OVRTXRenderer.update_camera",
             "OVRTXRenderer.render",
+            "OVRTXRenderer.render_batch",
             "OVRTXRenderer.read_output",
             {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "create_scene_partition_attributes"},
             {"module": "isaaclab_ov.renderers.ovrtx_usd", "function": "export_stage_to_string"}

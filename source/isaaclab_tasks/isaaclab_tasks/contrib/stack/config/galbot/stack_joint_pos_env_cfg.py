@@ -224,12 +224,8 @@ class ObservationGalbotLeftArmGripperCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
-        )
-        wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
-        )
+        table_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("table_cam"), "normalize": False})
+        wrist_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "normalize": False})
 
         def __post_init__(self):
             self.enable_corruption = False

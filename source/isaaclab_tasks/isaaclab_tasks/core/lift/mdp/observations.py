@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -15,6 +16,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
 from .utils import sample_object_point_cloud
@@ -195,9 +197,11 @@ def fingers_contact_force_b(
 class vision_camera(ManagerTermBase):
     """Normalized, channel-first camera images from a single-data-type camera sensor.
 
-    RGB-like images are mapped to ``[-0.5, 0.5)``. Depth images are mapped onto the same span with
-    ``tanh(depth / 2) - 0.5``: a wider depth range would double the encoder's effective input scale
-    and halve the stable learning-rate budget.
+    The data type is read from the sensor, so one term serves every camera preset. Color-like images
+    are mapped to ``[-0.5, 0.5)`` with a constant center (:func:`~isaaclab.utils.images.normalize_rgb`
+    with ``mean=0.5``). Depth is mapped onto the same span with ``tanh(depth / 2) - 0.5``
+    (:func:`~isaaclab.utils.images.normalize_depth`), with invalid pixels treated as far away: a wider
+    depth range would double the encoder's effective input scale and halve the stable learning-rate budget.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -205,18 +209,15 @@ class vision_camera(ManagerTermBase):
         sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
         self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
         self.sensor_type = self.sensor.cfg.data_types[0]
-        self._is_depth = self.sensor_type in ("distance_to_image_plane", "depth")
+        if is_depth_like(self.sensor_type):
+            self._normalize = functools.partial(normalize_depth, invalid_value=float("inf"), tanh_scale=2.0)
+        else:
+            self._normalize = functools.partial(normalize_rgb, mean=0.5)
+        self._frames = CameraFrameStack(env.num_envs, env.device, channel_first=True)
 
     def __call__(self, env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, normalize: bool = True) -> torch.Tensor:
-        images = self.sensor.data.output[self.sensor_type]
-        torch.nan_to_num_(images, nan=1e6)
-        if normalize:
-            if self._is_depth:
-                images = torch.tanh(images / 2) - 0.5
-            else:
-                images = images.float() / 255.0 - 0.5
-            images = images.permute(0, 3, 1, 2).contiguous()
-        return images
+        images = self.sensor.data.output[self.sensor_type].torch
+        return self._frames(images, self._normalize if normalize else None)
 
 
 def deformable_com_in_robot_root_frame(
@@ -265,13 +266,11 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
         self.node_ids = torch.empty(env.num_envs, self.num_points, dtype=torch.long, device=env.device)
         self.reset()
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> None:
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
         """Resample observed deformable nodes for the selected environments."""
         if env_ids is None:
             env_ids = slice(None)
-            num_envs = self.num_envs
-        else:
-            num_envs = len(env_ids)
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
 
         if self.num_points <= self.num_nodes:
             self.node_ids[env_ids] = (

@@ -16,14 +16,14 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
-
+from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
+from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBase
-    from isaaclab.envs import ManagerBasedEnv
+    from ..assets import AssetBase
+    from ..envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):
@@ -366,12 +366,9 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
         # reset the action history
-        self._prev_action[env_ids] = 0.0
-        self._action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._action, env_ids, 0.0)
         # reset all action terms
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
@@ -435,8 +432,8 @@ class ActionManager(ManagerBase):
 
     def _prepare_terms(self):
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._terms: dict[str, ActionTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, ActionTerm] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):

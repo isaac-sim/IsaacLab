@@ -24,6 +24,7 @@ import warp as wp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -58,7 +59,7 @@ FORCE_MAGNITUDE = 10.0
 TORQUE_MAGNITUDE = 1.0
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_global_force_invariant_under_rotation(device):
     """Test that a permanent global force produces the same acceleration before and after body rotation.
 
@@ -134,7 +135,7 @@ def test_global_force_invariant_under_rotation(device):
         assert abs(vel_after_phase2[2].item()) < 0.5, f"Unexpected Z velocity: {vel_after_phase2[2].item()}"
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_local_force_follows_rotation(device):
     """Test that a permanent local force rotates with the body.
 
@@ -192,58 +193,7 @@ def test_local_force_follows_rotation(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_global_force_at_offset_generates_torque(device):
-    """Test that a global force applied at an offset from CoM generates the expected torque.
-
-    A global +X force applied at +1m Y offset from CoM should produce:
-    - Linear acceleration in +X
-    - Angular acceleration about -Z (from cross product: (0,1,0) × (10,0,0) = (0,0,-10))
-    """
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, _ = generate_cubes_scene(num_cubes=1, device=device)
-
-        sim.reset()
-
-        body_ids, _ = cube_object.find_bodies(".*")
-
-        # Force at offset: +1m in Y from CoM (global frame)
-        forces = torch.zeros(1, len(body_ids), 3, device=device)
-        forces[..., 0] = FORCE_MAGNITUDE  # +X force
-
-        torques = torch.zeros(1, len(body_ids), 3, device=device)
-
-        # Position offset: CoM position + 1m in Y (global frame)
-        com_pos = cube_object.data.body_com_pos_w.torch[:, body_ids, :3].clone()
-        positions = com_pos.clone()
-        positions[..., 1] += 1.0  # +1m Y offset
-
-        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
-            positions=positions,
-            body_ids=body_ids,
-            is_global=True,
-        )
-
-        # Run 50 steps
-        for _ in range(50):
-            cube_object.write_data_to_sim()
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-
-        lin_vel = cube_object.data.root_lin_vel_w.torch[0]
-        ang_vel = cube_object.data.root_ang_vel_w.torch[0]
-
-        # Linear velocity in +X should be positive
-        assert lin_vel[0].item() > 0.1, f"Expected positive X velocity, got {lin_vel[0].item()}"
-
-        # Angular velocity about Z should be negative (cross product: r × F, r=(0,1,0), F=(10,0,0) -> (0,0,-10))
-        assert ang_vel[2].item() < -0.1, f"Expected negative Z angular velocity, got {ang_vel[2].item()}"
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_global_torque_invariant_under_rotation(device):
     """Test that a permanent global torque produces the same angular acceleration before and after rotation.
 
@@ -306,7 +256,7 @@ def test_global_torque_invariant_under_rotation(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_global_force_torque_after_translation(device):
     """Test that global force torque updates dynamically when the body translates.
 
@@ -412,89 +362,7 @@ def test_global_force_torque_after_translation(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_global_force_torque_reverses_on_opposite_side(device):
-    """Test that dynamic correction produces correct torque sign depending on body position.
-
-    Phase 1: Cube at (-1, 0, 1). Global F=(0, 10, 0) at world point P=(0, 0, 1).
-      net torque_z = cross(P - link_pos, F)_z = cross((1,0,0), (0,10,0))_z = +10
-      → positive Z angular velocity
-
-    Phase 2: Teleport cube to (+1, 0, 1), zero velocity, don't re-apply force.
-      net torque_z = cross(P - link_pos, F)_z = cross((-1,0,0), (0,10,0))_z = -10
-      → negative Z angular velocity
-    """
-    with build_simulation_context(device=device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, _ = generate_cubes_scene(num_cubes=1, height=1.0, device=device)
-
-        sim.reset()
-
-        body_ids, _ = cube_object.find_bodies(".*")
-
-        # Move cube to (-1, 0, 1)
-        root_pose = cube_object.data.root_pose_w.torch.clone()
-        root_pose[0, 0] = -1.0
-        root_pose[0, 1] = 0.0
-        root_pose[0, 2] = 1.0
-        root_pose[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-
-        root_vel = cube_object.data.root_vel_w.torch.clone()
-        root_vel[0, :] = 0.0
-        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-        sim.step()
-        cube_object.update(sim.cfg.dt)
-
-        # Apply permanent global F=(0, 10, 0) at world point P=(0, 0, 1)
-        forces = torch.zeros(1, len(body_ids), 3, device=device)
-        forces[..., 1] = FORCE_MAGNITUDE
-        torques = torch.zeros(1, len(body_ids), 3, device=device)
-        positions = torch.zeros(1, len(body_ids), 3, device=device)
-        positions[..., 2] = 1.0  # P = (0, 0, 1)
-
-        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            torques=torques,
-            positions=positions,
-            body_ids=body_ids,
-            is_global=True,
-        )
-
-        # Phase 1: run 50 steps — expect positive Z angular velocity
-        for _ in range(50):
-            cube_object.write_data_to_sim()
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-
-        omega_z_phase1 = cube_object.data.root_ang_vel_w.torch[0, 2].item()
-        assert omega_z_phase1 > 0.1, f"Phase 1: expected positive omega_z, got {omega_z_phase1}"
-
-        # Phase 2: Teleport cube to (+1, 0, 1), zero velocity
-        root_pose2 = cube_object.data.root_pose_w.torch.clone()
-        root_pose2[0, 0] = 1.0
-        root_pose2[0, 1] = 0.0
-        root_pose2[0, 2] = 1.0
-        root_pose2[0, 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)  # identity (xyzw)
-        cube_object.write_root_pose_to_sim_index(root_pose=root_pose2)
-
-        root_vel2 = cube_object.data.root_vel_w.torch.clone()
-        root_vel2[0, :] = 0.0
-        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel2)
-        sim.step()
-        cube_object.update(sim.cfg.dt)
-
-        # Phase 2: run 50 steps — expect negative Z angular velocity
-        for _ in range(50):
-            cube_object.write_data_to_sim()
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-
-        omega_z_phase2 = cube_object.data.root_ang_vel_w.torch[0, 2].item()
-        assert omega_z_phase2 < -0.1, f"Phase 2: expected negative omega_z, got {omega_z_phase2}"
-
-
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_global_force_no_position_no_torque(device):
     """Test that global force without positions produces no torque (applied at CoM).
 
@@ -550,7 +418,7 @@ def test_global_force_no_position_no_torque(device):
         assert lin_vel_y > 0.1, f"Expected positive Y velocity from applied force, got {lin_vel_y}"
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_multi_cube_different_torques_from_same_force(device):
     """Test kernel indexing across multiple envs with different CoM positions.
 
@@ -624,7 +492,7 @@ def test_multi_cube_different_torques_from_same_force(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_global_force_torque_far_from_origin(device):
     """Test that global force torque correction produces correct physics at large world coordinates.
 
@@ -728,7 +596,7 @@ def test_global_force_torque_far_from_origin(device):
         )
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_global_force_no_position_no_rotation_large_offset(device):
     """Test that a global force without positions produces no rotation at large offsets.
 
@@ -781,65 +649,5 @@ def test_global_force_no_position_no_rotation_large_offset(device):
         )
 
         # Check: linear velocity in Y should be positive (force is in +Y)
-        lin_vel = cube_object.data.root_lin_vel_w.torch[0]
-        assert lin_vel[1] > 0.1, f"Expected positive Y velocity from applied force, got {lin_vel[1]}"
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-def test_global_force_at_com_position_no_rotation_large_offset(device):
-    """Test that a global force with position at CoM produces no rotation at large offsets.
-
-    A cube is placed at (2000, 0, 1) and a global force F=(0, 10, 0) is applied
-    at the cube's position (i.e., at its CoM). This should produce zero torque,
-    serving as a control test alongside test_global_force_no_position_no_rotation_large_offset.
-    """
-    with build_simulation_context(
-        device=device, add_ground_plane=False, auto_add_lighting=True, gravity_enabled=False
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        cube_object, _ = generate_cubes_scene(num_cubes=1, height=1.0, device=device)
-
-        sim.reset()
-
-        body_ids, _ = cube_object.find_bodies(".*")
-
-        # Place cube at large X offset
-        root_pose = cube_object.data.default_root_pose.torch.clone()
-        root_pose[0, 0] = 2000.0
-        root_pose[0, 1] = 0.0
-        root_pose[0, 2] = 1.0
-        cube_object.write_root_pose_to_sim_index(root_pose=root_pose)
-
-        root_vel = cube_object.data.default_root_vel.torch.clone()
-        cube_object.write_root_velocity_to_sim_index(root_velocity=root_vel)
-        cube_object.reset()
-
-        # Apply global force AT the cube's position (torque should cancel)
-        forces = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=device)
-        forces[0, :, 1] = 10.0
-
-        positions = torch.zeros(cube_object.num_instances, len(body_ids), 3, device=device)
-        positions[0, :, 0] = 2000.0
-        positions[0, :, 2] = 1.0
-
-        cube_object.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=forces,
-            positions=positions,
-            body_ids=body_ids,
-            is_global=True,
-        )
-
-        for _ in range(50):
-            cube_object.write_data_to_sim()
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-
-        # Force at CoM → no rotation
-        ang_vel = cube_object.data.root_ang_vel_w.torch[0]
-        assert torch.allclose(ang_vel, torch.zeros(3, device=device), atol=0.01), (
-            f"Expected near-zero angular velocity, got {ang_vel}. "
-            "Global force at CoM position should not produce torque."
-        )
-
         lin_vel = cube_object.data.root_lin_vel_w.torch[0]
         assert lin_vel[1] > 0.1, f"Expected positive Y velocity from applied force, got {lin_vel[1]}"

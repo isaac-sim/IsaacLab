@@ -195,17 +195,16 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         if inst.active:
             if perm.active:
                 inst.add_raw_buffers_from(perm)
-            force_b = inst.out_force_b.warp
-            torque_b = inst.out_torque_b.warp
+            composer = inst
         else:
-            force_b = perm.out_force_b.warp
-            torque_b = perm.out_torque_b.warp
+            composer = perm
+        force_in, torque_in, is_global = composer.get_forces_and_torques()
 
         poses = self._data.body_link_pose_w.warp  # (N, B) wp.transformf
         wp.launch(
             _body_wrench_to_world,
             dim=(self._num_instances, self._num_bodies),
-            inputs=[force_b, torque_b, poses],
+            inputs=[force_in, torque_in, poses, is_global],
             outputs=[self._wrench_buf],
             device=self._device,
         )
@@ -405,11 +404,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, False],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Mark the link pose fresh so reads within the same step return the
@@ -419,6 +414,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -458,11 +454,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, True],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Invalidate dependent timestamps
@@ -470,6 +462,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -516,6 +509,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -570,6 +564,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_velocity_to_sim_index(
         self,
@@ -1193,8 +1188,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         # The fused LINK_WRENCH binding writes from a single (N, B, 9) buffer.
         self._wrench_buf = wp.zeros((N, B, 9), dtype=wp.float32, device=self._device)
 
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # set information about rigid body into data
         self._data.body_names = self._body_names_list
@@ -1394,6 +1389,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         if isinstance(env_ids, torch.Tensor):

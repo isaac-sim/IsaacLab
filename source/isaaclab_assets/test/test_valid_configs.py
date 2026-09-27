@@ -22,6 +22,7 @@ import pytest
 
 from isaaclab.assets import AssetBase, AssetBaseCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_assets as lab_assets  # noqa: F401
 
@@ -41,8 +42,8 @@ def registered_entities():
     return registered_entities
 
 
-# Add parameterization for the device
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# config validity (USD paths, joint/body names, actuator patterns) does not depend on the device
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_asset_configs(registered_entities, device):
     """Check all registered asset configurations."""
     # iterate over all registered assets

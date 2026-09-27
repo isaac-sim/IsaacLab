@@ -272,6 +272,10 @@ Note that ``__init__.py`` files are an exception to the above: they use
 :func:`~isaaclab.utils.module.lazy_export` instead of traditional imports.
 See the `Lazy Loading & Module Exports`_ section for details.
 
+Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
+parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
+``data``. Use explicit native access only where the receiving API requires it.
+
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -713,10 +717,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
 
@@ -726,10 +730,10 @@ Please make sure that you add tests for your changes.
                ./isaaclab.sh --test  # or "./isaaclab.sh -t"
 
                # Run all tests in a particular file
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               ./isaaclab.sh -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               ./isaaclab.sh -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
@@ -744,10 +748,10 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               uv run python -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
 
          .. tab-item:: isaaclab.sh / isaaclab.bat
@@ -758,10 +762,10 @@ Please make sure that you add tests for your changes.
                isaaclab.bat --test  # or "isaaclab.bat -t"
 
                # Run all tests in a particular file
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
                # Run a particular test
-               isaaclab.bat -p -m pytest source/isaaclab/test/deps/test_torch.py::test_array_slicing
+               isaaclab.bat -p -m pytest source/isaaclab/test/utils/test_circular_buffer.py::test_reset
 
 All of these commands exit with a nonzero code when tests fail, so a test
 failure fails the invoking shell or CI step as well.

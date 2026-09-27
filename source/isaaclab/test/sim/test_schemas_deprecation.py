@@ -25,7 +25,6 @@ import pytest
 from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim.schemas as schemas
-import isaaclab.sim.schemas.schemas as schemas_impl
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
@@ -299,11 +298,16 @@ def test_legacy_cfg_keeps_init_signature():
 
 def test_legacy_cfg_keeps_field_alias_forwarding():
     """The renamed-field aliases on the legacy joint-drive cfg still forward."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", DeprecationWarning)
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         cfg = schemas_cfg.JointDriveBaseCfg(max_effort=80.0, max_velocity=5.0)
+    messages = [str(w.message) for w in caught if issubclass(w.category, DeprecationWarning)]
+    assert any("max_effort" in message for message in messages)
+    assert any("max_velocity" in message for message in messages)
     assert cfg.max_force == 80.0
     assert cfg.max_joint_velocity == 5.0
+    # the aliases are cleared once forwarded, so writers only see the canonical fields
+    assert cfg.max_velocity is None and cfg.max_effort is None
 
 
 def test_legacy_cfg_subclass_warns_only_for_itself():
@@ -399,12 +403,6 @@ def test_apply_mass_properties_does_not_warn():
     deprecations = _deprecations(lambda: schemas.apply_mass_properties(prim_path, [fragment], stage=stage))
     assert deprecations == []
     assert stage.GetPrimAtPath(prim_path).GetAttribute("physics:mass").Get() == pytest.approx(5.0)
-
-
-def test_legacy_writers_do_not_track_warning_depth():
-    """Keep deprecation at public entry points, without custom nesting state."""
-    for name in ("_deprecated_schema_writer", "_legacy_writer_state", "_legacy_writer_depth"):
-        assert not hasattr(schemas_impl, name)
 
 
 """

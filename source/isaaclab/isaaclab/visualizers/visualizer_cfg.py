@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer

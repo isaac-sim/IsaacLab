@@ -19,8 +19,7 @@ import logging
 import numpy as np
 import torch
 
-import isaaclab.sim as sim_utils
-
+from .. import sim as sim_utils
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)

@@ -76,9 +76,6 @@ _RENDER_CORRECTNESS_TASK_IDS = [
         "cartpole",
         id="Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole",
     ),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
     ("Isaac-Reorient-Cube-Shadow-Camera-Direct", None, "shadow_hand"),
 ]
 

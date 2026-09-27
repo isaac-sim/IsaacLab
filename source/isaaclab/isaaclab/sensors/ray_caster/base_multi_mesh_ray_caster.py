@@ -15,20 +15,18 @@ import warp as wp
 
 from pxr import Usd, UsdPhysics
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.sim.simulation_context import SimulationContext
-from isaaclab.utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
-from isaaclab.utils.warp import ProxyArray, convert_to_warp_mesh
-from isaaclab.utils.warp import kernels as warp_kernels
-
+from ... import cloner
+from ... import sim as sim_utils
+from ...sim.simulation_context import SimulationContext
+from ...utils.mesh import PRIMITIVE_MESH_TYPES, create_trimesh_from_geom_mesh, create_trimesh_from_geom_shape
+from ...utils.string import resolve_matching_names
+from ...utils.warp import ProxyArray, convert_to_warp_mesh
+from ...utils.warp import kernels as warp_kernels
 from .base_ray_caster import BaseRayCaster
 from .kernels import copy_mesh_poses_to_table_kernel, fill_ray_hits_distance_inf_kernel
 from .multi_mesh_ray_caster_data import MultiMeshRayCasterData
 
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
-
     from .multi_mesh_ray_caster_cfg import MultiMeshRayCasterCfg
 
 logger = logging.getLogger(__name__)
@@ -200,7 +198,7 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
     def _build_mesh_records(
         self,
         target_cfg: MultiMeshRayCasterCfg.RaycastTargetCfg,
-        plan: ClonePlan | None,
+        plan: cloner.ClonePlan | None,
         dummy_mesh_id: int | None,
     ):
         """Build mesh records for the target configuration."""
@@ -210,9 +208,29 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
         has_rigid_body_api = lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI)  # noqa: E731
         # Prefer ClonePlan data for env-scoped targets; destination USD prims may not exist.
         if plan is not None and target_cfg.track_mesh_transforms:
+            sources = cloner.path.get_asset_prototype_paths(plan)
+            templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+                plan, include_world_indices=True
+            )
             plan_tracked_target_exprs: list[str] = []
-            prim_expr = target_cfg.prim_expr
-            for source_root, destination_template, source_path, env_ids in cloner.query.iter_sources(plan, prim_expr):
+            matches = []
+            # Match populated world prototypes, excluding the shared-world slice.
+            for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+                for index in range(*starts[group : group + 2]):
+                    if (matched := cloner.path.match(target_cfg.prim_expr, templates[index])) is not None:
+                        matches.append((group, index, matched))
+            suffix = min((matched.suffix for _, _, matched in matches), key=len, default=None)
+            for group, index, matched in matches:
+                if matched.suffix != suffix:
+                    continue
+                env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+                env_ids = env_ids[
+                    resolve_matching_names(matched.instance, env_ids.astype(str), raise_when_no_match=False)[0]
+                ]
+                if not len(env_ids):
+                    continue
+                source_root, destination_template = sources[plan.topology.world_prototypes[index]], templates[index]
+                source_path = source_root + suffix
                 target_in_plan = True
 
                 # Load meshes from the authored source entry.
@@ -250,11 +268,8 @@ class BaseMultiMeshRayCaster(BaseRayCaster):
                         dummy_mesh_id = mesh_id if dummy_mesh_id is None else dummy_mesh_id
                         mesh_ids.append(mesh_id)
                         owner_path = str(owner_prim.GetPath())
-                        if owner_path == source_root:
-                            owner_suffix = ""
-                        elif owner_path.startswith(source_root + "/"):
-                            owner_suffix = owner_path[len(source_root) :]
-                        else:
+                        owner_suffix = cloner.path.relative_to(owner_path, source_root)
+                        if owner_suffix is None:
                             raise RuntimeError(
                                 f"Tracked target owner '{owner_path}' is not under ClonePlan source root "
                                 f"'{source_root}'."

@@ -13,16 +13,12 @@ simulation_app = AppLauncher(headless=True, enable_cameras=True).app
 
 """Rest everything follows."""
 
-import ast
-import inspect
-import textwrap
 
 import pytest
 
-from pxr import UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import queries
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -127,22 +123,6 @@ def test_find_matching_prims_uses_unbounded_full_path_regex():
     assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
     matches = sim_utils.find_matching_prims(r"/World/[^/]+/foo")
     assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/A/foo", "/World/B/foo"]
-
-
-def test_find_matching_prims_has_no_inferred_traversal_bounds():
-    """The query must not narrow or prune USD traversal from the user's regex."""
-    sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
-    tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
-    called_methods = {
-        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    called_functions = {
-        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-
-    assert "GetPrimAtPath" not in called_methods
-    assert "PruneChildren" not in called_methods
-    assert "_bound_search" not in called_functions
 
 
 def test_find_matching_prims_fullmatches_top_level_alternation():
@@ -275,6 +255,7 @@ def test_find_global_fixed_joint_prim():
     assert sim_utils.find_global_fixed_joint_prim("/World/ANYmal") is None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka") is not None
     assert sim_utils.find_global_fixed_joint_prim("/World/Franka_Isaac") is not None
+    assert sim_utils.find_global_fixed_joint_prim(Sdf.Path("/World/Franka")) is not None
 
     # make fixed joint disabled manually
     joint_prim = sim_utils.find_global_fixed_joint_prim("/World/Franka")

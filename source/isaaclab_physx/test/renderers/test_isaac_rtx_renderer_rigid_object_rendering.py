@@ -31,8 +31,8 @@ from rigid_object_rendering_contract import (  # noqa: E402
 pytestmark = [pytest.mark.integration, pytest.mark.rendering, pytest.mark.isaacsim_ci]
 
 
-@pytest.mark.parametrize("with_articulation", [False, True])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# The articulation scene is a superset of the plain scene, so each device builds one of them.
+@pytest.mark.parametrize(("device", "with_articulation"), [("cuda:0", True), ("cpu", False)])
 def test_kinematic_rigid_object_scale_and_pose_are_rendered(device: str, with_articulation: bool) -> None:
     """Kinematic PhysX transforms and root scale must reach Isaac RTX."""
     run_rigid_object_scale_and_pose_rendering_contract(

@@ -265,7 +265,7 @@ class Multirotor(Articulation):
         # reset multirotor-specific data
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        elif not isinstance(env_ids, torch.Tensor):
+        elif not isinstance(env_ids, (torch.Tensor, slice)):
             env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
 
         # reset thruster targets to default values

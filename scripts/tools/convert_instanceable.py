@@ -126,14 +126,14 @@ def main():
             ):
                 # Mass properties
                 if args_cli.mass is not None:
-                    mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)
-                    rigid_props = schemas_cfg.RigidBodyPropertiesCfg()
+                    mass_props = schemas_cfg.MassCfg(mass=args_cli.mass)
+                    rigid_props = schemas_cfg.UsdPhysicsRigidBodyCfg()
                 else:
                     mass_props = None
                     rigid_props = None
 
                 # Collision properties
-                collision_props = schemas_cfg.CollisionPropertiesCfg(
+                collision_props = schemas_cfg.UsdPhysicsCollisionCfg(
                     collision_enabled=args_cli.collision_approximation != "none"
                 )
                 # Mesh converter call

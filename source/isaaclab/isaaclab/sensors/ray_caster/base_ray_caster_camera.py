@@ -14,11 +14,11 @@ import warp as wp
 
 from pxr import UsdGeom
 
-import isaaclab.utils.math as math_utils
-from isaaclab.sensors.camera import CameraData
-from isaaclab.utils.warp import ProxyArray
-from isaaclab.utils.warp.kernels import raycast_mesh_masked_kernel
-
+from ...utils import index_fill_
+from ...utils import math as math_utils
+from ...utils.warp import ProxyArray
+from ...utils.warp.kernels import raycast_mesh_masked_kernel
+from ..camera import CameraData
 from ..sensor_base import SensorBase
 from . import kernels as ray_caster_kernels
 from .base_ray_caster import BaseRayCaster
@@ -196,7 +196,7 @@ class BaseRayCasterCamera(BaseRayCaster):
             self._target_env_ids_torch = torch.as_tensor(env_ids, dtype=torch.int32, device=self._device).reshape(-1)
             env_ids_wp = wp.from_torch(self._target_env_ids_torch, dtype=wp.int32)
             self._reset_mask.zero_()
-            self._reset_mask_torch[self._target_env_ids_torch.to(dtype=torch.long)] = True
+            index_fill_(self._reset_mask_torch, self._target_env_ids_torch, True)
             env_mask = self._reset_mask
             count = self._target_env_ids_torch.numel()
             use_env_ids = True

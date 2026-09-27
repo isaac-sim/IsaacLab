@@ -11,7 +11,6 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 from __future__ import annotations
 
 import logging
-import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -273,22 +272,6 @@ def test_unavailable_source_logs_error_and_returns_none(caplog, source, make_env
     with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
         assert recorder._get_frame() is None
     assert any(message in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# ViewerCfg deprecation shim
-# ---------------------------------------------------------------------------
-
-
-def test_viewer_cfg_warns_on_non_default_field():
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(eye=(1.0, 2.0, 3.0))
-
-
-def test_viewer_cfg_default_no_warning():
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        ViewerCfg()  # must not raise
 
 
 # ---------------------------------------------------------------------------

@@ -2352,25 +2352,22 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
      - ``write_body_link_velocity_to_sim_index`` / ``write_body_link_velocity_to_sim_mask``
 
 
-.. rubric:: TimestampedBufferWarp
+.. rubric:: Timestamped buffers
 
-If you have custom asset or sensor data classes that subclass the Isaac Lab base data classes,
-note that internal buffers have changed from :class:`~isaaclab.utils.buffers.TimestampedBuffer`
-to :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`. The new class takes ``(shape, device,
-wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
+Custom asset and sensor data classes use :class:`~isaaclab.utils.buffers.TimestampedBuffer`
+with explicitly allocated Torch or Warp storage. The separate ``TimestampedBufferWarp``
+allocator was removed; replace it with ``TimestampedBuffer(wp.zeros(...))``.
 
 .. code-block:: python
 
    import warp as wp
-   from isaaclab.utils.buffers import TimestampedBufferWarp
+   from isaaclab.utils.buffers import TimestampedBuffer
 
    # Before (Isaac Lab 2.x)
    self._data.root_pos_w = TimestampedBuffer(torch.zeros(num_envs, 3, device=device))
 
    # After (Isaac Lab 3.x)
-   self._data.root_pos_w = TimestampedBufferWarp(
-       shape=(num_envs,), device=device, wp_dtype=wp.vec3f
-   )
+   self._data.root_pos_w = TimestampedBuffer(wp.zeros(num_envs, dtype=wp.vec3f, device=device))
 
 
 Reinforcement Learning

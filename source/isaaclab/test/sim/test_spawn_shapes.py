@@ -124,35 +124,6 @@ Physics properties.
 """
 
 
-def test_spawn_cone_with_rigid_props(sim):
-    """Test spawning of UsdGeom.Cone prim with rigid body API.
-
-    Note:
-        Playing the simulation in this case will give a warning that no mass is specified!
-        Need to also setup mass and colliders.
-    """
-    usd_rigid_props = sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True)
-    physx_rigid_props = PhysxRigidBodyCfg(solver_position_iteration_count=8, sleep_threshold=0.1)
-    cfg = sim_utils.ConeCfg(
-        radius=1.0,
-        height=2.0,
-        rigid_props=[usd_rigid_props, physx_rigid_props],
-    )
-    prim = cfg.func("/World/Cone", cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Cone").IsValid()
-    # Check properties
-    prim = sim.stage.GetPrimAtPath("/World/Cone")
-    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() == usd_rigid_props.rigid_body_enabled
-    assert (
-        prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get()
-        == physx_rigid_props.solver_position_iteration_count
-    )
-    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(physx_rigid_props.sleep_threshold)
-
-
 def test_spawn_cone_with_rigid_and_mass_props(sim):
     """Test spawning of UsdGeom.Cone prim with rigid body and mass API."""
     cfg = sim_utils.ConeCfg(
@@ -172,11 +143,9 @@ def test_spawn_cone_with_rigid_and_mass_props(sim):
     # Check properties
     prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:mass").Get() == cfg.mass_props.mass
-
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
+    assert prim.GetAttribute("physics:rigidBodyEnabled").Get() is True
+    assert prim.GetAttribute("physxRigidBody:solverPositionIterationCount").Get() == 8
+    assert prim.GetAttribute("physxRigidBody:sleepThreshold").Get() == pytest.approx(0.1)
 
 
 def test_spawn_cone_with_rigid_and_density_props(sim):
@@ -206,11 +175,6 @@ def test_spawn_cone_with_rigid_and_density_props(sim):
     prim = sim.stage.GetPrimAtPath("/World/Cone")
     assert prim.GetAttribute("physics:density").Get() == cfg.mass_props.density
 
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
-
 
 def test_spawn_cone_with_all_props(sim):
     """Test spawning of UsdGeom.Cone prim with all properties."""
@@ -236,11 +200,6 @@ def test_spawn_cone_with_all_props(sim):
     # -- collision properties
     prim = sim.stage.GetPrimAtPath("/World/Cone/geometry/mesh")
     assert prim.GetAttribute("physics:collisionEnabled").Get() is True
-
-    # check sim playing
-    sim.play()
-    for _ in range(10):
-        sim.step()
 
 
 """

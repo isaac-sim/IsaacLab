@@ -7,10 +7,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import RED_ARROW_X_MARKER_CFG
-from isaaclab.utils import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import RED_ARROW_X_MARKER_CFG
+from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:

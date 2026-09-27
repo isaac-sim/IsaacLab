@@ -75,10 +75,8 @@ class UiVisualizerBase:
             Whether the environment selection was successfully set. False if the component
             does not support environment selection.
         """
-        # check if environment selection is supported
         if not self.has_env_selection_implementation:
             return False
-        # set environment selection
         self._set_env_selection_impl(env_selection)
         return True
 
@@ -95,10 +93,8 @@ class UiVisualizerBase:
             Whether the window was successfully set. False if the component
             does not support this functionality.
         """
-        # check if window is supported
         if not self.has_window_implementation:
             return False
-        # set window
         self._set_window_impl(window)
         return True
 
@@ -115,10 +111,8 @@ class UiVisualizerBase:
             Whether the debug visualization frame was successfully set. False if the component
             does not support debug visualization.
         """
-        # check if debug visualization is supported
         if not self.has_vis_frame_implementation:
             return False
-        # set debug visualization frame
         self._set_vis_frame_impl(vis_frame)
         return True
 

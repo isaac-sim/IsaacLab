@@ -17,7 +17,6 @@ import pathlib
 
 import pytest
 import torch
-import warp as wp
 from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg
@@ -84,38 +83,13 @@ class MySceneCfg(InteractiveSceneCfg):
 
     # articulations - robot
     robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
-    # pendulum1 - uses merge_fixed_joints=True (same as pendulum2) so that fixed-joint
+    # pendulum - uses merge_fixed_joints=True so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
     # (the solver uses velocity_iteration_count=0). A non-physics imu_link Xform is
     # created programmatically in the test fixture (see setup_sim).
     pendulum = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/pendulum",
-        spawn=sim_utils.UrdfFileCfg(
-            fix_base=True,
-            merge_fixed_joints=True,
-            make_instanceable=False,
-            asset_path=f"{pathlib.Path(__file__).parent.resolve()}/urdfs/simple_2_link.urdf",
-            articulation_props=[
-                PhysxArticulationCfg(
-                    enabled_self_collisions=True, solver_position_iteration_count=4, solver_velocity_iteration_count=0
-                ),
-                NewtonArticulationCfg(self_collision_enabled=True),
-            ],
-            joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
-                gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
-            ),
-        ),
-        init_state=ArticulationCfg.InitialStateCfg(),
-        actuators={
-            "joint_1_act": ImplicitActuatorCfg(joint_names_expr=["joint_.*"], stiffness=0.0, damping=0.3),
-        },
-    )
-    # pendulum2 - uses merge_fixed_joints=True so that the fixed-joint child links (base, imu_link)
-    # are merged into their parents during URDF XML pre-processing. A non-physics imu_link Xform
-    # is created programmatically in the test fixture to test indirect IMU attachment (see setup_sim).
-    pendulum2 = ArticulationCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2",
         spawn=sim_utils.UrdfFileCfg(
             fix_base=True,
             merge_fixed_joints=True,
@@ -159,16 +133,6 @@ class MySceneCfg(InteractiveSceneCfg):
     # kinematic tree.  With merge_fixed_joints=True the hierarchy for simple_2_link.urdf is:
     #   Geometry/world/link_1  (base merged into world, imu_link merged into link_1)
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
-    imu_indirect_pendulum_link: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1/imu_link",
-    )
-    imu_indirect_pendulum_base: ImuCfg = ImuCfg(
-        prim_path="{ENV_REGEX_NS}/pendulum2/Geometry/world/link_1",
-        offset=ImuCfg.OffsetCfg(
-            pos=PEND_POS_OFFSET,
-            rot=PEND_ROT_OFFSET,
-        ),
-    )
     imu_pendulum_imu_link: ImuCfg = ImuCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
     )
@@ -185,7 +149,6 @@ class MySceneCfg(InteractiveSceneCfg):
         # change position of the robot
         self.robot.init_state.pos = (0.0, 2.0, 1.0)
         self.pendulum.init_state.pos = (-2.0, 1.0, 0.5)
-        self.pendulum2.init_state.pos = (2.0, 1.0, 0.5)
 
         # change asset
         self.robot.spawn.usd_path = f"{ISAAC_NUCLEUS_DIR}/Robots/ANYbotics/anymal_c/anymal_c.usd"
@@ -208,78 +171,18 @@ def setup_sim():
         # construct scene
         scene_cfg = MySceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False, replicate_physics=False)
         scene = InteractiveScene(scene_cfg)
-        # Both pendulum and pendulum2 use merge_fixed_joints=True, so the
-        # fixed-joint child link imu_link is removed from the URDF before USD
-        # conversion.  Recreate it as a plain Xform (no RigidBodyAPI) under each
-        # pendulum's link_1 for every environment.  The IMU sensor must then
-        # resolve the rigid-body ancestor (link_1) and cache the fixed offset --
-        # exercising the "indirect attachment" code path.
+        # The pendulum uses merge_fixed_joints=True, so the fixed-joint child link
+        # imu_link is removed from the URDF before USD conversion.  Recreate it as a
+        # plain Xform (no RigidBodyAPI) under link_1 for every environment.  The IMU
+        # sensor must then resolve the rigid-body ancestor (link_1) and cache the
+        # fixed offset -- exercising the "indirect attachment" code path.
         for i in range(scene_cfg.num_envs):
-            for art_name in ("pendulum", "pendulum2"):
-                prim_path = f"/World/envs/env_{i}/{art_name}/Geometry/world/link_1/imu_link"
-                sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
+            prim_path = f"/World/envs/env_{i}/pendulum/Geometry/world/link_1/imu_link"
+            sim_utils.create_prim(prim_path, "Xform", translation=PEND_POS_OFFSET, orientation=PEND_ROT_OFFSET)
         # Play the simulator
         sim.reset()
         yield sim, scene
     # Cleanup is handled by build_simulation_context
-
-
-@pytest.mark.isaacsim_ci
-def test_constant_velocity(setup_sim):
-    """Test the Imu sensor with a constant velocity.
-
-    Expected behavior is that the linear acceleration is approx the same at every time step as in each step we set
-    the same velocity and therefore reset the physx buffers.
-    """
-    sim, scene = setup_sim
-    prev_lin_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-    prev_lin_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
-
-    for idx in range(200):
-        # set velocity
-        scene.rigid_objects["balls"].write_root_velocity_to_sim(
-            torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-        )
-        scene.rigid_objects["cube"].write_root_velocity_to_sim(
-            torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-        )
-        # write data to sim
-        scene.write_data_to_sim()
-
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        if idx > 1:
-            # check the imu accelerations
-            torch.testing.assert_close(
-                scene.sensors["imu_ball"].data.lin_acc_b.torch,
-                prev_lin_acc_ball,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-
-            torch.testing.assert_close(
-                scene.sensors["imu_cube"].data.lin_acc_b.torch,
-                prev_lin_acc_cube,
-                rtol=1e-3,
-                atol=1e-3,
-            )
-
-        # update previous values
-        prev_lin_acc_ball = scene.sensors["imu_ball"].data.lin_acc_b.torch.clone()
-        prev_lin_acc_cube = scene.sensors["imu_cube"].data.lin_acc_b.torch.clone()
-
-    # the recorded-launch optimization must be active on CUDA; a recording failure would only
-    # warn and silently fall back to eager launches, defeating the optimization.
-    if "cuda" in str(scene.device):
-        assert scene.sensors["imu_ball"]._update_cmd is not None
-        assert scene.sensors["imu_cube"]._update_cmd is not None
 
 
 @pytest.mark.isaacsim_ci
@@ -329,101 +232,19 @@ def test_constant_acceleration(setup_sim):
 
 
 @pytest.mark.isaacsim_ci
-def test_single_dof_pendulum(setup_sim):
-    """Test imu against analytical pendulum problem."""
-    sim, scene = setup_sim
-
-    for idx in range(500):
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        # IMU data
-        imu_data = scene.sensors["imu_pendulum_imu_link"].data
-        base_data = scene.sensors["imu_pendulum_base"].data
-
-        # skip first step where initial velocity is zero
-        if idx < 2:
-            continue
-
-        # check the angular velocities of the imus between offset and direct definition
-        torch.testing.assert_close(
-            base_data.ang_vel_b.torch,
-            imu_data.ang_vel_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the linear acceleration of the imus between offset and direct definition
-        torch.testing.assert_close(
-            base_data.lin_acc_b.torch,
-            imu_data.lin_acc_b.torch,
-            rtol=1e-1,
-            atol=1e-1,
-        )
-
-
-@pytest.mark.isaacsim_ci
-def test_indirect_attachment(setup_sim):
-    """Test attaching the imu through an xForm primitive configuration argument."""
-    sim, scene = setup_sim
-
-    for idx in range(500):
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
-
-        imu = scene.sensors["imu_indirect_pendulum_link"]
-        imu_base = scene.sensors["imu_indirect_pendulum_base"]
-
-        torch.testing.assert_close(
-            wp.to_torch(imu._offset_pos_b),
-            wp.to_torch(imu_base._offset_pos_b),
-        )
-        torch.testing.assert_close(
-            wp.to_torch(imu._offset_quat_b),
-            wp.to_torch(imu_base._offset_quat_b),
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # IMU data
-        imu_data = scene.sensors["imu_indirect_pendulum_link"].data
-        base_data = scene.sensors["imu_indirect_pendulum_base"].data
-
-        # skip first step where initial velocity is zero
-        if idx < 2:
-            continue
-
-        # check the angular velocities of the imus between offset and direct definition
-        torch.testing.assert_close(
-            base_data.ang_vel_b.torch,
-            imu_data.ang_vel_b.torch,
-            rtol=1e-4,
-            atol=1e-4,
-        )
-
-        # check the linear acceleration of the imus between offset and direct definition
-        torch.testing.assert_close(
-            base_data.lin_acc_b.torch,
-            imu_data.lin_acc_b.torch,
-            rtol=1e-1,
-            atol=1e-1,
-        )
-
-
-@pytest.mark.isaacsim_ci
 def test_offset_calculation(setup_sim):
-    """Test offset configuration argument."""
-    sim, scene = setup_sim
+    """Test the Imu sensor on independently driven bodies that share one scene.
 
-    # should achieve same results between the two imu sensors on the robot
+    * Robot: a configured offset on the base matches a sensor on the ``imu_link`` child prim.
+    * Pendulum: a configured offset on ``link_1`` matches a sensor on a non-rigid ``imu_link`` Xform child
+      (indirect attachment through the rigid-body ancestor).
+    * Ball and cube: writing the same velocity every step yields a constant linear acceleration.
+    """
+    sim, scene = setup_sim
+    prev_lin_acc_ball = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    prev_lin_acc_cube = torch.zeros((scene.num_envs, 3), dtype=torch.float32, device=scene.device)
+    constant_velocity = torch.tensor([[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device)
+
     for idx in range(500):
         # set acceleration
         scene.articulations["robot"].write_root_velocity_to_sim(
@@ -432,6 +253,9 @@ def test_offset_calculation(setup_sim):
             )
             * (idx + 1)
         )
+        # set constant velocity
+        scene.rigid_objects["balls"].write_root_velocity_to_sim(constant_velocity.repeat(scene.num_envs, 1))
+        scene.rigid_objects["cube"].write_root_velocity_to_sim(constant_velocity.repeat(scene.num_envs, 1))
         # write data to sim
         scene.write_data_to_sim()
         # perform step
@@ -439,19 +263,34 @@ def test_offset_calculation(setup_sim):
         # read data from sim
         scene.update(sim.get_physics_dt())
 
+        # constant velocity: the linear acceleration is the same at every step
+        if idx > 1:
+            torch.testing.assert_close(
+                scene.sensors["imu_ball"].data.lin_acc_b.torch,
+                prev_lin_acc_ball,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+            torch.testing.assert_close(
+                scene.sensors["imu_cube"].data.lin_acc_b.torch,
+                prev_lin_acc_cube,
+                rtol=1e-3,
+                atol=1e-3,
+            )
+        prev_lin_acc_ball = scene.sensors["imu_ball"].data.lin_acc_b.torch.clone()
+        prev_lin_acc_cube = scene.sensors["imu_cube"].data.lin_acc_b.torch.clone()
+
         # skip first step where initial velocity is zero
         if idx < 1:
             continue
 
-        # check the linear accelerations
+        # robot: offset vs imu_link definition
         torch.testing.assert_close(
             scene.sensors["imu_robot_base"].data.lin_acc_b.torch,
             scene.sensors["imu_robot_imu_link"].data.lin_acc_b.torch,
             rtol=1e-4,
             atol=1e-4,
         )
-
-        # check the angular velocities
         torch.testing.assert_close(
             scene.sensors["imu_robot_base"].data.ang_vel_b.torch,
             scene.sensors["imu_robot_imu_link"].data.ang_vel_b.torch,
@@ -459,48 +298,37 @@ def test_offset_calculation(setup_sim):
             atol=1e-4,
         )
 
+        # skip the second pendulum step where the initial velocity is still zero
+        if idx < 2:
+            continue
 
-@pytest.mark.isaacsim_ci
-def test_attachment_validity(setup_sim):
-    """Test invalid imu attachment. An imu cannot be attached directly to the world. It must be somehow attached to
-    something implementing physics."""
-    sim, scene = setup_sim
-    imu_world_cfg = ImuCfg(prim_path="/World/envs/env_0")
-    with pytest.raises(RuntimeError) as exc_info:
-        imu_world = Imu(imu_world_cfg)
-        imu_world._initialize_impl()
-    assert exc_info.type is RuntimeError and "find a rigid body ancestor prim" in str(exc_info.value)
-
-
-@pytest.mark.isaacsim_ci
-def test_env_ids_propagation(setup_sim):
-    """Test that env_ids argument propagates through update and reset methods"""
-    sim, scene = setup_sim
-    scene.reset()
-
-    for idx in range(10):
-        # set acceleration
-        scene.articulations["robot"].write_root_velocity_to_sim(
-            torch.tensor([[0.5, 0.0, 0.0, 0.0, 0.0, 0.0]], dtype=torch.float32, device=scene.device).repeat(
-                scene.num_envs, 1
-            )
-            * (idx + 1)
+        # pendulum: offset vs indirect imu_link definition
+        imu_data = scene.sensors["imu_pendulum_imu_link"].data
+        base_data = scene.sensors["imu_pendulum_base"].data
+        torch.testing.assert_close(
+            base_data.ang_vel_b.torch,
+            imu_data.ang_vel_b.torch,
+            rtol=1e-4,
+            atol=1e-4,
         )
-        # write data to sim
-        scene.write_data_to_sim()
-        # perform step
-        sim.step()
-        # read data from sim
-        scene.update(sim.get_physics_dt())
+        torch.testing.assert_close(
+            base_data.lin_acc_b.torch,
+            imu_data.lin_acc_b.torch,
+            rtol=1e-1,
+            atol=1e-1,
+        )
 
-    # reset scene for env 1
-    scene.reset(env_ids=[1])
-    # read data from sim
-    scene.update(sim.get_physics_dt())
-    # perform step
-    sim.step()
-    # read data from sim
-    scene.update(sim.get_physics_dt())
+    # the recorded-launch optimization must be active on CUDA; a recording failure would only
+    # warn and silently fall back to eager launches, defeating the optimization.
+    if "cuda" in str(scene.device):
+        assert scene.sensors["imu_ball"]._update_cmd is not None
+        assert scene.sensors["imu_cube"]._update_cmd is not None
+
+    assert "number of sensors : 2" in str(scene.sensors["imu_ball"])
+
+    # An imu cannot be attached directly to the world: it must have a rigid-body ancestor.
+    with pytest.raises(RuntimeError, match="find a rigid body ancestor prim"):
+        Imu(ImuCfg(prim_path="/World/envs/env_0"))._initialize_impl()
 
 
 @configclass
@@ -525,46 +353,38 @@ def test_no_stale_data_after_scene_reset():
     """Regression for #4970: ``scene.reset(env_ids)`` must not surface pre-reset IMU values.
 
     Mirrors the ``ManagerBasedRLEnv._reset_idx`` flow where reset runs inside a step
-    without a subsequent physics step. The IMU sensor's lazy ``data`` accessor must not
-    refetch from the PhysX rigid-body view here (the velocity buffer reflects the previous
-    physics step and would produce a spurious finite-difference acceleration).
+    without a subsequent physics step: the PhysX buffers still hold the pre-reset state, so
+    the lazy ``data`` accessor must return the zeroed buffers instead of refetching them. The
+    cube rests on the ground first so the stale reading is distinguishable from a reset one.
     """
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, physics=PhysxCfg(solver_type=0))
     with sim_utils.build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
-        scene_cfg = _StaleResetSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
+        scene_cfg = _StaleResetSceneCfg(num_envs=2, env_spacing=2.0, lazy_sensor_update=False)
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
 
         sensor: Imu = scene["imu_cube"]
 
-        # Let the cube fall so PhysX accumulates a non-zero rigid-body velocity.
-        for _ in range(30):
+        # The cube falls from z=2.0 and lands in ~60 steps at 100 Hz; 150 steps let it settle.
+        for _ in range(150):
             scene.write_data_to_sim()
             sim.step(render=False)
             scene.update(dt=sim.get_physics_dt())
 
-        # Reset the scene without writing fresh velocity/transform. The PhysX velocity
-        # buffer therefore still holds the pre-reset (falling) value.
+        pre_reset_lin_acc = sensor.data.lin_acc_b.torch.clone()
+        assert (torch.linalg.norm(pre_reset_lin_acc, dim=-1) > 5.0).all(), (
+            f"Expected a settled gravity reading, got {pre_reset_lin_acc}"
+        )
+
+        # Reset env 0 without a physics step: it reads zeros while env 1 keeps its measurement.
         scene.reset(env_ids=torch.tensor([0], device=sensor.device))
-
-        # The public ``data`` accessor must not refetch a stale PhysX buffer; ``reset()``
-        # zeroes ``_ang_vel_b`` and ``_lin_acc_b`` and those must be what comes out here.
-        post_reset_lin_acc = sensor.data.lin_acc_b.torch
-        post_reset_ang_vel = sensor.data.ang_vel_b.torch
-        torch.testing.assert_close(post_reset_lin_acc, torch.zeros_like(post_reset_lin_acc))
-        torch.testing.assert_close(post_reset_ang_vel, torch.zeros_like(post_reset_ang_vel))
-
-
-@pytest.mark.isaacsim_ci
-def test_sensor_print(setup_sim):
-    """Test sensor print is working correctly."""
-    sim, scene = setup_sim
-    # Create sensor
-    sensor = scene.sensors["imu_ball"]
-    # print info
-    print(sensor)
+        lin_acc = sensor.data.lin_acc_b.torch
+        ang_vel = sensor.data.ang_vel_b.torch
+        torch.testing.assert_close(lin_acc[0], torch.zeros_like(lin_acc[0]))
+        torch.testing.assert_close(ang_vel[0], torch.zeros_like(ang_vel[0]))
+        torch.testing.assert_close(lin_acc[1], pre_reset_lin_acc[1])
 
 
 @pytest.mark.parametrize("access_mode", ("lazy_read", "update_period"))

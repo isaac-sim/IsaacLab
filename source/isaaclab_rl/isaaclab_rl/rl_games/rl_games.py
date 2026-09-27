@@ -296,7 +296,7 @@ class RlGamesVecEnvWrapper(IVecEnv):
 
     def step(self, actions):  # noqa: D102
         # move actions to sim-device
-        actions = actions.detach().clone().to(device=self._sim_device)
+        actions = actions.detach().to(device=self._sim_device)
         # clip the actions
         actions = torch.clamp(actions, -self._clip_actions, self._clip_actions)
         # perform environment step

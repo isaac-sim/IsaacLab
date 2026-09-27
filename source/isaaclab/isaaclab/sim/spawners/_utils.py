@@ -48,7 +48,7 @@ def fragment_mapping(value, default_pattern: str = "") -> dict | None:
     Returns:
         The equivalent target-pattern mapping, or None when the value is a legacy configuration.
     """
-    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+    from ..schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
 
     if isinstance(value, dict):
         return value
@@ -74,7 +74,7 @@ def bare_fragments(value) -> bool:
     Returns:
         True when the value is a bare fragment or a sequence of fragments.
     """
-    from isaaclab.sim.schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
+    from ..schemas.schemas_cfg import SchemaFragment  # noqa: PLC0415
 
     if isinstance(value, SchemaFragment):
         return True

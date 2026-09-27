@@ -80,7 +80,8 @@ def _spawn_robot(tmp_path, prim_path: str, **cfg_kwargs):
 
 
 def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
-    """Fragment ``rigid_props`` on a USD robot must modify the existing link bodies in place.
+    """Fragment ``rigid_props``, ``collision_props``, and ``mass_props`` on a USD robot must modify
+    the existing link bodies, colliders, and mass prims in place.
 
     Force-applying ``RigidBodyAPI`` on the spawn prim would invent a body the asset's joints
     never reference and change the asset's dynamics. The fragment path must match the legacy
@@ -91,48 +92,27 @@ def test_rigid_body_fragments_target_existing_bodies_on_usd_asset(tmp_path):
         tmp_path,
         "/World/RobotA",
         rigid_props={"(/.*)?": [PhysxRigidBodyCfg(max_depenetration_velocity=5.0)]},
+        collision_props={"(/.*)?": [PhysxCollisionCfg(contact_offset=0.02)]},
+        mass_props={"(/.*)?": [MassCfg(mass=2.0)]},
     )
     spawn_prim = stage.GetPrimAtPath("/World/RobotA")
     # the spawn prim keeps its articulation root and gains NO rigid-body anchor or attrs
     assert spawn_prim.HasAPI(UsdPhysics.ArticulationRootAPI)
     assert not spawn_prim.HasAPI(UsdPhysics.RigidBodyAPI)
     assert not spawn_prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    assert not spawn_prim.HasAPI(UsdPhysics.CollisionAPI)
+    assert not spawn_prim.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
+    assert not spawn_prim.HasAPI(UsdPhysics.MassAPI)
+    assert not spawn_prim.GetAttribute("physics:mass").HasAuthoredValue()
     # every existing link body received the fragment's attribute, including the nested one
     for link_name in LINK_REL_PATHS:
         link = stage.GetPrimAtPath(f"/World/RobotA/{link_name}")
         assert link.HasAPI(UsdPhysics.RigidBodyAPI)
         assert link.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(5.0), link_name
-
-
-def test_collision_fragments_target_existing_colliders_on_usd_asset(tmp_path):
-    """Fragment ``collision_props`` must modify the asset's existing collider prims in place."""
-    stage = _spawn_robot(
-        tmp_path,
-        "/World/RobotB",
-        collision_props={"(/.*)?": [PhysxCollisionCfg(contact_offset=0.02)]},
-    )
-    spawn_prim = stage.GetPrimAtPath("/World/RobotB")
-    assert not spawn_prim.HasAPI(UsdPhysics.CollisionAPI)
-    assert not spawn_prim.GetAttribute("physxCollision:contactOffset").HasAuthoredValue()
-    for link_name in LINK_REL_PATHS:
-        collider = stage.GetPrimAtPath(f"/World/RobotB/{link_name}/collider")
+        assert link.GetAttribute("physics:mass").Get() == pytest.approx(2.0), link_name
+        collider = stage.GetPrimAtPath(f"/World/RobotA/{link_name}/collider")
         assert collider.HasAPI(UsdPhysics.CollisionAPI)
         assert collider.GetAttribute("physxCollision:contactOffset").Get() == pytest.approx(0.02), link_name
-
-
-def test_mass_fragments_target_existing_mass_prims_on_usd_asset(tmp_path):
-    """Fragment ``mass_props`` must modify the asset's existing mass-bearing link prims in place."""
-    stage = _spawn_robot(
-        tmp_path,
-        "/World/RobotC",
-        mass_props={"(/.*)?": [MassCfg(mass=2.0)]},
-    )
-    spawn_prim = stage.GetPrimAtPath("/World/RobotC")
-    assert not spawn_prim.HasAPI(UsdPhysics.MassAPI)
-    assert not spawn_prim.GetAttribute("physics:mass").HasAuthoredValue()
-    for link_name in LINK_REL_PATHS:
-        link = stage.GetPrimAtPath(f"/World/RobotC/{link_name}")
-        assert link.GetAttribute("physics:mass").Get() == pytest.approx(2.0), link_name
 
 
 def test_fragment_and_legacy_paths_place_apis_identically_on_usd_asset(tmp_path):
@@ -211,76 +191,83 @@ def test_fragment_dicts_target_and_override_in_insertion_order(tmp_path):
 # -------------------------------------------------------------------------------------
 
 
-def test_rigid_body_fragments_create_on_bare_prim():
-    """With ``create_if_missing`` and one non-carrier match, the writer anchors that prim."""
-    from isaaclab.sim.schemas import apply_rigid_body_properties
+def _family_writer(family: str):
+    """Return ``(writer, carrier API, fragment, authored attribute, value)`` for a fragment family.
 
-    sim_utils.create_new_stage()
-    SimulationContext(SimulationCfg(dt=0.01))
-    stage = sim_utils.get_current_stage()
-    UsdGeom.Xform.Define(stage, "/World/Bare")
-    result = apply_rigid_body_properties(
-        "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
-    )
-    prim = stage.GetPrimAtPath("/World/Bare")
-    assert result is True
-    assert prim.HasAPI(UsdPhysics.RigidBodyAPI)
-    assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0)
+    The rigid-body, collision, and mass writers share the targeting logic but each carries its
+    own copy, so the targeting tests run once per family.
+    """
+    from isaaclab.sim.schemas import apply_collision_properties, apply_mass_properties, apply_rigid_body_properties
+
+    return {
+        "rigid_body": (
+            apply_rigid_body_properties,
+            UsdPhysics.RigidBodyAPI,
+            PhysxRigidBodyCfg(max_depenetration_velocity=3.0),
+            "physxRigidBody:maxDepenetrationVelocity",
+            3.0,
+        ),
+        "collision": (
+            apply_collision_properties,
+            UsdPhysics.CollisionAPI,
+            PhysxCollisionCfg(contact_offset=0.02),
+            "physxCollision:contactOffset",
+            0.02,
+        ),
+        "mass": (apply_mass_properties, UsdPhysics.MassAPI, MassCfg(mass=1.0), "physics:mass", 1.0),
+    }[family]
 
 
-def test_rigid_body_fragments_create_on_every_matched_prim():
-    """Creation applies ``RigidBodyAPI`` to every matched prim lacking it; the expression is trusted."""
-    from isaaclab.sim.schemas import apply_rigid_body_properties
+@pytest.mark.parametrize("family", ["rigid_body", "collision"])
+def test_family_fragments_create_on_every_matched_prim(family):
+    """Creation applies the carrier API to every matched prim lacking it; the expression is trusted."""
+    writer, api, fragment, attr, value = _family_writer(family)
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
         UsdGeom.Xform.Define(stage, path)
-    result = apply_rigid_body_properties(
-        "/World/Grp(/.*)?", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], create_if_missing=True, stage=stage
-    )
+    result = writer("/World/Grp(/.*)?", [fragment], create_if_missing=True, stage=stage)
     assert result is True
     for path in ("/World/Grp", "/World/Grp/a", "/World/Grp/b"):
         prim = stage.GetPrimAtPath(path)
-        assert prim.HasAPI(UsdPhysics.RigidBodyAPI), path
-        assert prim.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(3.0), path
+        assert prim.HasAPI(api), path
+        assert prim.GetAttribute(attr).Get() == pytest.approx(value), path
 
 
-def test_rigid_body_fragments_pattern_narrows_targets():
+@pytest.mark.parametrize("family", ["rigid_body", "collision"])
+def test_family_fragments_pattern_narrows_targets(family):
     """An expression targets only the carriers it matches."""
-    from isaaclab.sim.schemas import apply_rigid_body_properties
+    writer, api, fragment, attr, value = _family_writer(family)
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     for path in ("/World/Bot/armL", "/World/Bot/armR"):
         prim = UsdGeom.Xform.Define(stage, path).GetPrim()
-        UsdPhysics.RigidBodyAPI.Apply(prim)
-    result = apply_rigid_body_properties(
-        "/World/Bot/armL", [PhysxRigidBodyCfg(max_depenetration_velocity=7.0)], stage=stage
-    )
+        api.Apply(prim)
+    result = writer("/World/Bot/armL", [fragment], stage=stage)
     assert result is True
     left = stage.GetPrimAtPath("/World/Bot/armL")
     right = stage.GetPrimAtPath("/World/Bot/armR")
-    assert left.GetAttribute("physxRigidBody:maxDepenetrationVelocity").Get() == pytest.approx(7.0)
-    assert not right.GetAttribute("physxRigidBody:maxDepenetrationVelocity").HasAuthoredValue()
+    assert left.GetAttribute(attr).Get() == pytest.approx(value)
+    assert not right.GetAttribute(attr).HasAuthoredValue()
 
 
-def test_rigid_body_fragments_zero_targets_warn_and_return_false(caplog):
+@pytest.mark.parametrize("family", ["rigid_body", "collision", "mass"])
+def test_family_fragments_zero_targets_warn_and_return_false(family, caplog):
     """No carrier matched and no creation requested: warn, author nothing, report failure."""
-    from isaaclab.sim.schemas import apply_rigid_body_properties
+    writer, api, fragment, _, _ = _family_writer(family)
 
     sim_utils.create_new_stage()
     SimulationContext(SimulationCfg(dt=0.01))
     stage = sim_utils.get_current_stage()
     UsdGeom.Xform.Define(stage, "/World/Bare")
     with caplog.at_level("WARNING"):
-        result = apply_rigid_body_properties(
-            "/World/Bare", [PhysxRigidBodyCfg(max_depenetration_velocity=3.0)], stage=stage
-        )
+        result = writer("/World/Bare", [fragment], stage=stage)
     assert result is False
-    assert not stage.GetPrimAtPath("/World/Bare").HasAPI(UsdPhysics.RigidBodyAPI)
+    assert not stage.GetPrimAtPath("/World/Bare").HasAPI(api)
     assert "/World/Bare" in caplog.text
 
 

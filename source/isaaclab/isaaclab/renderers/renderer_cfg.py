@@ -9,9 +9,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.sim.simulation_cfg import BackendCfg
-from isaaclab.utils import configclass
-
+from ..sim.simulation_cfg import BackendCfg
+from ..utils import configclass
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:

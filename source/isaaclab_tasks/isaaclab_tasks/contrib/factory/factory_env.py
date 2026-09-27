@@ -10,6 +10,7 @@ import carb
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as torch_utils
 
 from . import factory_control, factory_utils
@@ -176,8 +177,8 @@ class FactoryEnv(DirectRLEnv):
 
     def _reset_buffers(self, env_ids):
         """Reset buffers."""
-        self.ep_succeeded[env_ids] = 0
-        self.ep_success_times[env_ids] = 0
+        index_fill_(self.ep_succeeded, env_ids, 0)
+        index_fill_(self.ep_success_times, env_ids, 0)
 
     def _pre_physics_step(self, action):
         """Apply policy actions with smoothing."""
@@ -781,7 +782,7 @@ class FactoryEnv(DirectRLEnv):
 
         grasp_time = 0.0
         while grasp_time < 0.25:
-            self.ctrl_target_joint_pos[env_ids, 7:] = 0.0  # Close gripper.
+            index_fill_(self.ctrl_target_joint_pos[:, 7:], env_ids, 0.0)  # Close gripper.
             self.close_gripper_in_place()
             self.step_sim_no_action()
             grasp_time += self.sim.get_physics_dt()

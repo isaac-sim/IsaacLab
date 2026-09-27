@@ -140,9 +140,9 @@ def design_scene() -> dict:
         # choose random prim type
         prim_type = random.choice(["Cube", "Cone", "Cylinder"])
         common_properties = {
-            "rigid_props": sim_utils.RigidBodyPropertiesCfg(),
-            "mass_props": sim_utils.MassPropertiesCfg(mass=5.0),
-            "collision_props": sim_utils.CollisionPropertiesCfg(),
+            "rigid_props": sim_utils.UsdPhysicsRigidBodyCfg(),
+            "mass_props": sim_utils.MassCfg(mass=5.0),
+            "collision_props": sim_utils.UsdPhysicsCollisionCfg(),
             "visual_material": sim_utils.PreviewSurfaceCfg(diffuse_color=color, metallic=0.5),
             "semantic_tags": [("class", prim_type)],
         }

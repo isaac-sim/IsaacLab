@@ -9,11 +9,13 @@ from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 from pxr import Usd
 
-from isaaclab.managers import CommandTerm
+from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import select_usd_variants
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
@@ -86,26 +88,26 @@ def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
-def _make_vision_camera(data_type: str, images: torch.Tensor) -> mdp.vision_camera:
+def _make_vision_camera(data_type: str, images: torch.Tensor) -> tuple[mdp.vision_camera, SimpleNamespace]:
     """Build a ``vision_camera`` term around a fake single-data-type camera sensor."""
     sensor = SimpleNamespace(
-        cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
+        cfg=SimpleNamespace(data_types=[data_type]),
+        data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(images))}),
     )
-    term = object.__new__(mdp.vision_camera)
-    term.sensor = sensor
-    term.sensor_type = data_type
-    term._is_depth = data_type in ("distance_to_image_plane", "depth")
-    return term
+    env = SimpleNamespace(num_envs=images.shape[0], device="cpu", scene=SimpleNamespace(sensors={"camera": sensor}))
+    cfg = ObservationTermCfg(func=mdp.vision_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+    return mdp.vision_camera(cfg, env), env
 
 
 def test_camera_normalization_is_stationary() -> None:
     """RGB and depth normalization must map fixed inputs to fixed outputs, independent of per-frame statistics."""
     rgb = torch.tensor([0.0, 127.5, 255.0]).view(1, 1, 1, 3)
     depth = torch.tensor([0.0, 2.0]).view(1, 1, 2, 1)
-    env = SimpleNamespace()
+    rgb_term, rgb_env = _make_vision_camera("rgb", rgb)
+    depth_term, depth_env = _make_vision_camera("depth", depth)
 
-    rgb_obs = _make_vision_camera("rgb", rgb)(env, sensor_cfg=None)
-    depth_obs = _make_vision_camera("depth", depth)(env, sensor_cfg=None)
+    rgb_obs = rgb_term(rgb_env, sensor_cfg=None)
+    depth_obs = depth_term(depth_env, sensor_cfg=None)
 
     # channel-first output with the value range mapped to [-0.5, 0.5)
     assert rgb_obs.shape == (1, 3, 1, 1)

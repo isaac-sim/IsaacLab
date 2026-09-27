@@ -18,8 +18,7 @@ import carb
 import carb.input
 import omni
 
-from isaaclab.app.settings_manager import get_settings_manager
-
+from ...app.settings_manager import get_settings_manager
 from ..device_base import DeviceBase
 
 if TYPE_CHECKING:
@@ -91,7 +90,7 @@ class Se2Gamepad(DeviceBase):
         # (positive, negative), (x, y, yaw)
         self._base_command_raw = np.zeros([2, 3])
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
 
     def __del__(self):
         """Unsubscribe from gamepad events."""

@@ -34,6 +34,8 @@ class NewtonBackendCfg(BackendCfg):
     class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
     builder: ModelBuilder = field(kw_only=True, metadata={"copy": False})
     """Populated clone builder. Reusing this builder and matching settings shares one resource."""
+    particle_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)
+    """Imported point paths to native particle offsets and counts, retained until Newton exposes composed ranges."""
     device: str = MISSING
     """Allocation device, such as ``cpu`` or ``cuda:0``."""
     num_envs: int | None = None
@@ -179,6 +181,10 @@ class NewtonCfg(PhysicsCfg):
 
     use_cuda_graph: bool = True
     """Whether to use CUDA graphing when simulating.
+
+    Graphs are captured immediately before the first physics step, after reset and decimation
+    setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
+    capture mode; kitless simulation uses Warp's standard capture mode.
 
     If set to False, the simulation performance will be severely degraded.
     """

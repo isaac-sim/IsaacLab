@@ -208,7 +208,7 @@ def build_render_scope_usd(
     if spec.cfg.isp_cfg is not None and "rgb_hdr" not in data_types:
         data_types.append("rgb_hdr")
     tiled_width, tiled_height = _tiled_resolution(spec.num_instances, spec.cfg.width, spec.cfg.height)
-    camera_path = f"/World/envs/env_0/{spec.camera_path_relative_to_env_0}"
+    camera_path = spec.camera_prim_paths[0]
     render_var_configs = get_render_var_configs(data_types, render_data.render_scope_name)
     minimal_mode = next(
         (_RTX_MINIMAL_MODES[data_type] for data_type in data_types if data_type in _RTX_MINIMAL_MODES), None

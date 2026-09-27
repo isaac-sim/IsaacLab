@@ -205,7 +205,7 @@ def randomize_object_pose(
         return
 
     # Randomize poses in each environment independently
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),
             min_separation=min_separation,
@@ -246,7 +246,7 @@ def randomize_rigid_objects_in_focus(
     # List of rigid objects in focus for each env (dim = [num_envs, num_rigid_objects])
     env.rigid_objects_in_focus = []
 
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         # Sample in focus object poses
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),

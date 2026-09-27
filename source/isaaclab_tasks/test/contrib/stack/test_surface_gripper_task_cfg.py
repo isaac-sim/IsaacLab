@@ -17,18 +17,12 @@ _SURFACE_GRIPPER_TASKS = [
 
 @pytest.mark.parametrize("task_name", _SURFACE_GRIPPER_TASKS)
 def test_surface_gripper_tasks_default_to_cpu(task_name: str) -> None:
-    """Surface-gripper tasks should select their only supported simulation device."""
+    """Surface-gripper tasks select their only supported simulation device and reject a GPU override."""
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
 
     assert env_cfg.sim.device == "cpu"
     env_cfg.validate()
 
-
-@pytest.mark.parametrize("task_name", _SURFACE_GRIPPER_TASKS)
-def test_surface_gripper_tasks_reject_gpu_override(task_name: str) -> None:
-    """An explicit unsupported GPU device should fail during config validation."""
-    env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
     env_cfg.sim.device = "cuda:0"
-
     with pytest.raises(ValueError, match="only supported on the CPU simulation device"):
         env_cfg.validate()

@@ -163,7 +163,7 @@ def reset_hand(
 
             delta_max = upper_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
             delta_min = lower_limits[env_id, dof_id] - default_joint_pos[env_id, dof_id]
-            rand_delta = delta_min + (delta_max - delta_min) * 0.5 * dof_pos_noise
+            rand_delta = delta_min + (delta_max - delta_min) * 0.5 * (dof_pos_noise + wp.float32(1.0))
             pos = default_joint_pos[env_id, dof_id] + reset_dof_pos_noise * rand_delta
 
             dof_vel_noise = wp.randf(rng_state[env_id], wp.float32(-1.0), wp.float32(1.0))
