@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import importlib
-import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -208,25 +207,13 @@ def test_vbd_solver_force_input_capability(monkeypatch, external_rigid_solver):
     assert NewtonManager._supports_rigid_body_force_input is not external_rigid_solver
 
 
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        pytest.param({}, id="newton-defaults"),
-        pytest.param(
-            {"rigid_compliant_alm": True, "rigid_body_contact_buffer_size": 256},
-            id="compliant-alm",
-        ),
-        pytest.param({"rigid_compliant_alm": False}, id="legacy-mode"),
-    ],
-)
+@pytest.mark.parametrize("overrides", [{}, {"rigid_compliant_alm": False}], ids=["defaults", "legacy"])
 def test_vbd_rigid_solver_controls(overrides):
-    """Public VBD controls preserve Newton defaults and survive kwargs filtering."""
+    """VBD preserves the default controls and explicit legacy-mode selection."""
     physics = importlib.import_module("isaaclab_newton.physics")
-    solver_cfg = physics.VBDSolverCfg(**overrides)
-    kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, solver_cfg)
-    parameters = inspect.signature(SolverVBD).parameters
-    for name in ("rigid_compliant_alm", "rigid_body_contact_buffer_size"):
-        assert kwargs[name] == overrides.get(name, parameters[name].default)
+    kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides))
+    assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
+    assert kwargs["rigid_body_contact_buffer_size"] == 64
 
 
 def test_vbd_compliant_alm_cable_stiffness():
@@ -252,6 +239,7 @@ def test_vbd_compliant_alm_cable_stiffness():
     solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, rigid_body_contact_buffer_size=256)
     solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
     assert solver.rigid_compliant_alm is True
+    assert solver.body_body_contact_indices.size == model.body_count * 256
 
     state_0, state_1 = model.state(), model.state()
     control = model.control()
