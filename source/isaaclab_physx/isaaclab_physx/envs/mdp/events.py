@@ -21,7 +21,7 @@ from isaaclab import sim as sim_utils
 from isaaclab.envs.mdp.events import _GravityRandomization, _randomize_prop_by_op
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
-from isaaclab.utils.version import compare_versions
+from isaaclab.utils.version import compare_versions, has_kit
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation, RigidObject
@@ -473,6 +473,8 @@ class randomize_visual_texture_material(ManagerTermBase):
 
 def _get_replicator() -> ModuleType:
     """Import Replicator after enabling its Kit extension."""
+    if not has_kit():
+        raise NotImplementedError("Replicator visual events require Isaac Sim (Omniverse Kit).")
     sim_utils.enable_extension("omni.replicator.core")
     import omni.replicator.core as rep
 

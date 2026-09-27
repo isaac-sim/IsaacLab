@@ -62,7 +62,7 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         if isinstance(asset, assets.BaseArticulation):
             self._material_type = ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
-            if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
+            if asset_cfg.body_ids != slice(None) and sorted(asset_cfg.body_ids) != list(range(asset.num_bodies)):
                 body_ids = [int(body_id) for body_id in asset_cfg.body_ids]
                 if len(body_ids) == 0:
                     self._material_view = None
@@ -150,7 +150,7 @@ class randomize_rigid_body_material(ManagerTermBase):
                 ).reshape(asset.num_instances, len(selected_body_names))
         else:
             self._material_type = ovphysx_tt.RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION
-            if not _is_all_body_selection(asset_cfg.body_ids, asset.num_bodies):
+            if asset_cfg.body_ids != slice(None) and sorted(asset_cfg.body_ids) != list(range(asset.num_bodies)):
                 raise NotImplementedError(
                     "randomize_rigid_body_material on the OVPhysX backend cannot apply per-body selection to a "
                     "standalone rigid object. Use the default body selection."
@@ -335,10 +335,3 @@ class randomize_physics_scene_gravity(_GravityRandomization):
         gravity = torch.tensor(env.sim.cfg.gravity, device="cpu").unsqueeze(0)
         gravity = self._sample_gravity(gravity, gravity_distribution_params, operation)[0].tolist()
         self._manager.set_gravity(tuple(gravity))
-
-
-def _is_all_body_selection(body_ids: list[int] | slice, num_bodies: int) -> bool:
-    """Return whether a body selector covers the entire asset."""
-    if body_ids == slice(None):
-        return True
-    return sorted(body_ids) == list(range(num_bodies))

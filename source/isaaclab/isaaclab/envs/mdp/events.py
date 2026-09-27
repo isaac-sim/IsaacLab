@@ -19,15 +19,10 @@ from types import ModuleType
 from typing import TYPE_CHECKING, Literal
 
 import torch
-from isaaclab_newton.physics import NewtonCfg
-from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
-from ... import assets
 from ... import sim as sim_utils
 from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from ...utils import math as math_utils
-from ...utils.version import has_kit
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import DeformableObject
@@ -202,7 +197,9 @@ class randomize_rigid_body_material(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (assets.BaseRigidObject, assets.BaseArticulation)):
+        from ...assets import BaseArticulation, BaseRigidObject  # noqa: PLC0415
+
+        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_material' not supported for asset: '{self.asset_cfg.name}'"
                 f" with type: '{type(self.asset)}'."
@@ -587,7 +584,9 @@ class randomize_rigid_body_collider_offsets(ManagerTermBase):
         self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
 
-        if not isinstance(self.asset, (assets.BaseRigidObject, assets.BaseArticulation)):
+        from ...assets import BaseArticulation, BaseRigidObject  # noqa: PLC0415
+
+        if not isinstance(self.asset, (BaseRigidObject, BaseArticulation)):
             raise ValueError(
                 f"Randomization term 'randomize_rigid_body_collider_offsets' not supported for asset:"
                 f" '{self.asset_cfg.name}' with type: '{type(self.asset)}'."
@@ -1804,7 +1803,9 @@ class randomize_visual_texture_material(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        self._impl = _get_isaac_sim_events().randomize_visual_texture_material(cfg, env)
+        from isaaclab_physx.envs.mdp import events
+
+        self._impl = events.randomize_visual_texture_material(cfg, env)
 
     def __call__(
         self,
@@ -1855,7 +1856,9 @@ class randomize_visual_color(ManagerTermBase):
             env: Environment owning this term.
         """
         super().__init__(cfg, env)
-        self._impl = _get_isaac_sim_events().randomize_visual_color(cfg, env)
+        from isaaclab_physx.envs.mdp import events
+
+        self._impl = events.randomize_visual_color(cfg, env)
 
     def __call__(
         self,
@@ -1993,26 +1996,29 @@ def _validate_scale_range(
         raise ValueError(f"{name}: upper bound ({high}) must be ≥ lower bound ({low}).")
 
 
-def _get_isaac_sim_events() -> ModuleType:
-    """Load USD visual events independently of the physics backend."""
-    if not has_kit():
-        raise NotImplementedError("Replicator visual events require Isaac Sim (Omniverse Kit).")
-    from isaaclab_physx.envs.mdp import events
-
-    return events
-
-
 def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:
     """Select event implementations from the simulation's resolved physics configuration."""
-    # Import only the selected runtime, after this module and the simulation are initialized.
     physics_cfg = env.sim.cfg.physics
-    if isinstance(physics_cfg, NewtonCfg):
+    # Task-specific subclasses may live outside the backend package.
+    physics_cfg_modules = {cls.__module__.split(".")[0] for cls in type(physics_cfg).__mro__}
+    if "isaaclab_newton" in physics_cfg_modules:
         from isaaclab_newton.envs.mdp import events
-    elif isinstance(physics_cfg, OvPhysxCfg):
+        from isaaclab_newton.physics import NewtonCfg
+
+        expected_cfg_type = NewtonCfg
+    elif "isaaclab_ov" in physics_cfg_modules:
         from isaaclab_ov.envs.mdp import events
-    elif isinstance(physics_cfg, PhysxCfg):
+        from isaaclab_ov.physics import OvPhysxCfg
+
+        expected_cfg_type = OvPhysxCfg
+    elif "isaaclab_physx" in physics_cfg_modules:
         from isaaclab_physx.envs.mdp import events
+        from isaaclab_physx.physics import PhysxCfg
+
+        expected_cfg_type = PhysxCfg
     else:
+        raise NotImplementedError(f"Physics randomization is unsupported for {type(physics_cfg).__name__}.")
+    if not isinstance(physics_cfg, expected_cfg_type):
         raise NotImplementedError(f"Physics randomization is unsupported for {type(physics_cfg).__name__}.")
     return events
 

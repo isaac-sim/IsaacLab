@@ -5,6 +5,8 @@
 
 """Construction errors for unsupported event backends and runtimes."""
 
+import subprocess
+import sys
 from types import SimpleNamespace
 
 import pytest
@@ -16,6 +18,24 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
+
+
+def test_shared_events_import_without_backend_packages() -> None:
+    """Importing shared terms must not require an unused physics backend."""
+    script = """
+import importlib.abc
+import sys
+
+class BlockBackends(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split(".")[0] in {"isaaclab_newton", "isaaclab_ov", "isaaclab_physx"}:
+            raise ModuleNotFoundError(fullname)
+
+sys.meta_path.insert(0, BlockBackends())
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
+"""
+    result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize(
