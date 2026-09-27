@@ -61,8 +61,7 @@ slices.
 Term calls should not read selections on the host. For a single selected body, gather and select
 on the device, for example ``data[:, torch_index(cfg.body_ids)][:, 0]``. Pass
 ``torch_index(cfg.joint_ids)`` to asset write methods. Outside stepping, ``ids.warp.numpy()``
-returns a host copy. Serialization writes host lists, and :meth:`SceneEntityCfg.resolve` returns a
-finalized configuration to host lists.
+returns a host copy. Serialization writes host lists. Finalization is one-way.
 
 Manager Base
 ------------

@@ -145,12 +145,6 @@ class SceneEntityCfg:
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
-        # re-resolution starts from host selections; reading finalized indices back is setup-time only
-        for field_name in _INDEX_FIELDS:
-            indices = getattr(self, field_name)
-            if isinstance(indices, ProxyArray):
-                setattr(self, field_name, indices.warp.numpy().tolist())
-
         # convert joint names to indices based on regex
         self._resolve_joint_names(scene)
 
@@ -167,8 +161,8 @@ class SceneEntityCfg:
         """Move resolved index selections to the device.
 
         Each non-slice ``*_ids`` selection becomes a :class:`~isaaclab.utils.warp.ProxyArray` of ``int64``
-        indices, so Torch indexing uses it without a host-to-device upload. Slices are kept. Calling this
-        method again is a no-op; call :meth:`resolve` to return the selections to host lists.
+        indices, so Torch indexing uses it without a host-to-device upload. Slices are kept. Finalization is
+        one-way: call :meth:`resolve` before this method, not after it. Calling this method again is a no-op.
 
         Args:
             device: Device on which to allocate the index arrays.

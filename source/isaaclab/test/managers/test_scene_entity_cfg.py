@@ -89,11 +89,6 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
         assert isinstance(copied.body_ids, ProxyArray)
         assert values[torch_index(copied.body_ids)].tolist() == [3, 1]
 
-    # re-resolution returns to host selections
-    cfg.resolve(scene)
-    assert cfg.joint_ids == [2, 0]
-    assert cfg.body_ids == [3, 1]
-
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_finalized_indices_do_not_upload_or_read_back(scene, device):
