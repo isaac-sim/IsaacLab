@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING
 import torch
 from typing_extensions import deprecated
 
-from ...managers import SceneEntityCfg, observation_output_owned
+from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import ObservationTermCfg
 from ...utils import math as math_utils
@@ -211,7 +211,6 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_pos_offsets],
     units="rad",
 )
-@observation_output_owned
 def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
     """The joint positions of the asset w.r.t. the default joint positions.
 
@@ -256,7 +255,6 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     on_inspect=[record_joint_names, record_dtype, record_shape, record_joint_vel_offsets],
     units="rad/s",
 )
-@observation_output_owned
 def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")):
     """The joint velocities of the asset w.r.t. the default joint velocities.
 
@@ -292,7 +290,6 @@ Sensors.
 """
 
 
-@observation_output_owned
 def height_scan(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg, offset: float = 0.5) -> torch.Tensor:
     """Height scan from the given sensor w.r.t. the sensor's frame.
 
@@ -389,7 +386,6 @@ def _read_camera_output(
     return images
 
 
-@observation_output_owned
 class _camera_image(ManagerTermBase):
     """Base for camera image terms: validates the data type and owns the frame stack.
 

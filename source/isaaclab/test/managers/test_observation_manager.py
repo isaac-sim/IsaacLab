@@ -22,7 +22,6 @@ from isaaclab.managers import (
     ObservationManager,
     ObservationTermCfg,
     RewardTermCfg,
-    observation_output_owned,
 )
 from isaaclab.utils import DelayBuffer, configclass, modifiers, noise
 
@@ -32,7 +31,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 
 
-@observation_output_owned
 def grilled_chicken(env):
     return torch.ones(env.num_envs, 4, device=env.device)
 
@@ -57,7 +55,6 @@ def grilled_chicken_image(env, bland: float, channel: int = 1):
     return bland * torch.ones(env.num_envs, 128, 256, channel, device=env.device)
 
 
-@observation_output_owned
 class complex_function_class(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: object):
         self.cfg = cfg

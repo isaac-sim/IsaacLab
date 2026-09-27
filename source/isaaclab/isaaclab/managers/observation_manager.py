@@ -8,8 +8,8 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Sequence
-from typing import TYPE_CHECKING, TypeVar
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
@@ -23,29 +23,6 @@ from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
-
-
-_ObservationCallable = TypeVar("_ObservationCallable", bound=Callable)
-
-
-def observation_output_owned(func: _ObservationCallable) -> _ObservationCallable:
-    """Declare that an observation function or callable class transfers ownership of its output.
-
-    The caller may modify the returned tensor, and subsequent calls or resets must not change it.
-    This guarantee must hold for every supported parameter combination, including subclass overrides.
-    Views of fresh storage are allowed, but views of sensor data or reusable buffers are not.
-
-    The observation manager uses this guarantee to avoid redundant copies. Unmarked terms are
-    treated conservatively. This decorator preserves the callable and its tensor return type.
-
-    Args:
-        func: Observation function or callable class providing the ownership guarantee.
-
-    Returns:
-        The unchanged callable with its output ownership declared.
-    """
-    setattr(func, "_isaaclab_observation_output_owned", True)
-    return func
 
 
 class ObservationManager(ManagerBase):
@@ -87,8 +64,8 @@ class ObservationManager(ManagerBase):
 
     Returned observations are independent snapshots, including dictionary entries and history.
     Copies are made before mutating borrowed storage or retaining it across term evaluations.
-    Terms decorated with :func:`observation_output_owned` allow the manager to reuse their output;
-    clipping and scaling can also establish ownership through an out-of-place operation.
+    Term and custom callback outputs are treated as borrowed. Clipping and scaling establish
+    ownership through an out-of-place operation, allowing subsequent processing to reuse that storage.
     """
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
@@ -443,30 +420,24 @@ class ObservationManager(ManagerBase):
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
             obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
-            owned = getattr(term_cfg.func, "_isaaclab_observation_output_owned", False)
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
-                    if not owned:
-                        obs = obs.clone()
+                    # Custom callbacks may modify or retain their input.
+                    obs = obs.clone()
                     if isinstance(modifier.func, modifiers.ModifierBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
-                    # Custom callbacks may retain their input or return persistent storage.
-                    owned = False
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs if owned else obs.clone(), term_cfg.noise)
-                owned = False
+                obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs if owned else obs.clone())
-                owned = False
+                obs = term_cfg.noise.func(obs.clone())
+            # Only allocations made by the pipeline are known to be independent.
+            owned = False
             if term_cfg.clip:
-                if owned:
-                    obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
-                else:
-                    obs = obs.clip(min=term_cfg.clip[0], max=term_cfg.clip[1])
-                    owned = True
+                obs = obs.clip(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                owned = True
             if term_cfg.scale is not None:
                 obs = obs.mul_(term_cfg.scale) if owned else obs * term_cfg.scale
                 owned = True

@@ -96,11 +96,10 @@ sample. Partial resets invalidate only the selected environments' histories.
 
 Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
 do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
-mutation or retention. Custom terms can declare independent outputs with
-:func:`observation_output_owned`; no task-level copy setting is needed. Unmarked terms and custom
-modifiers and noise callbacks are handled conservatively.
-
-.. autofunction:: observation_output_owned
+mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
+or task-level copy settings. Clipping and scaling create independent storage when needed, which later
+processing can reuse. A term that already returns an independent tensor may still be copied when the
+pipeline cannot establish ownership itself.
 
 .. autoclass:: ObservationManager
     :members:
