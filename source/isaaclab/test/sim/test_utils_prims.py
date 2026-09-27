@@ -19,7 +19,7 @@ import numpy as np
 import pytest
 import torch
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Ar, Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
@@ -95,7 +95,8 @@ def test_create_prim():
     for prim_spec in prim.GetPrimStack():
         references.extend(prim_spec.referenceList.prependedItems)
     assert len(references) == 1
-    expected_path = retrieve_file_path(franka_usd)
+    with Ar.ResolverContextBinder(stage.GetPathResolverContext()):
+        expected_path = retrieve_file_path(franka_usd)
     assert str(references[0].assetPath) == expected_path
 
     # check adding semantic label
@@ -128,18 +129,23 @@ def test_create_prim():
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
 
-def test_create_prim_retries_after_missing_usd(tmp_path):
-    """Do not leave an empty prim that prevents retrying after USD retrieval fails."""
-    stage = sim_utils.get_current_stage()
+@pytest.mark.parametrize("missing", ["root", "dependency"])
+def test_create_prim_retries_after_missing_usd(tmp_path, missing):
+    """Resolve in the destination context and leave no prim when a root or dependency is missing."""
+    context = Ar.ResolverContext(Ar.DefaultResolverContext([str(tmp_path)]))
+    stage = Usd.Stage.CreateInMemory("destination.usda", context)
     prim_path = "/World/RetryUSDReference"
     usd_path = tmp_path / "asset.usda"
+    missing_path = usd_path if missing == "root" else tmp_path / "child.usda"
+    if missing == "dependency":
+        usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset"\nsubLayers = [@./child.usda@])\n')
 
     with pytest.raises(FileNotFoundError):
-        sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage)
+        sim_utils.create_prim(prim_path, usd_path=usd_path.name, stage=stage)
     assert not stage.GetPrimAtPath(prim_path).IsValid()
 
-    usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
-    assert sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage).IsValid()
+    missing_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
+    assert sim_utils.create_prim(prim_path, usd_path=usd_path.name, stage=stage).IsValid()
 
 
 @pytest.mark.parametrize(
@@ -365,7 +371,8 @@ def test_get_usd_references():
     # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
     assert len(refs) == 1
-    expected_path = retrieve_file_path(franka_usd)
+    with Ar.ResolverContextBinder(stage.GetPathResolverContext()):
+        expected_path = retrieve_file_path(franka_usd)
     assert refs == [expected_path]
 
     # Test with invalid prim path

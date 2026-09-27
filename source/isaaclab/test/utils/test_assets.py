@@ -265,16 +265,17 @@ def test_find_mdl_dependencies_collects_mdl_texture_resources(tmp_path):
     )
 
     assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
-        "./textures/Albedo.png",
-        "../shared/Normal.EXR",
-        "https://example.com/materials/orm.<UDIM>.png",
-        "omniverse://server/Library/roughness.tx",
+        ("./textures/Albedo.png",),
+        ("../shared/Normal.EXR",),
+        ("https://example.com/materials/orm.<UDIM>.png",),
+        ("omniverse://server/Library/roughness.tx",),
     }
 
 
 def test_find_mdl_dependencies_collects_mdl_relative_import_modules(tmp_path):
     """Test collecting sibling MDL modules imported by material files."""
-    mdl_path = tmp_path / "material.mdl"
+    mdl_path = tmp_path / "materials" / "material.mdl"
+    mdl_path.parent.mkdir()
     mdl_path.write_text(
         """
         import .::OmniUe4Function;
@@ -294,25 +295,25 @@ def test_find_mdl_dependencies_collects_mdl_relative_import_modules(tmp_path):
     )
 
     assert assets_utils._find_mdl_dependencies(str(mdl_path)) == {
-        "OmniUe4Function.mdl",
-        "OmniUe4Translucent.mdl",
-        "Shared/OmniUe4Base.mdl",
-        "Helpers.mdl",
-        "Helpers/make_color.mdl",
-        "../Common/Surface.mdl",
-        "Local.mdl",
-        "Local/Palette.mdl",
-        "../Shared.mdl",
-        "../Shared/Functions.mdl",
+        ("OmniUe4Function.mdl",),
+        ("OmniUe4Translucent.mdl",),
+        ("Shared/OmniUe4Base.mdl",),
+        ("Helpers/make_color.mdl", "Helpers.mdl"),
+        ("../Common/Surface.mdl",),
+        ("Local/Palette.mdl", "Local.mdl"),
+        ("../Shared/Functions.mdl", "../Shared.mdl"),
     }
 
-
-def test_find_mdl_dependencies_missing_mdl_does_not_log_traceback(tmp_path, caplog):
-    """Test unavailable MDL dependencies do not emit tracebacks in training logs."""
-    missing_mdl = tmp_path / "missing.mdl"
-
-    assert assets_utils._find_mdl_dependencies(str(missing_mdl)) == set()
-    assert "Traceback (most recent call last):" not in caplog.text
+    # Only one candidate must exist for each import; its concrete resources are required.
+    for alternatives in assets_utils._find_mdl_dependencies(str(mdl_path)):
+        module = mdl_path.parent / alternatives[-1]
+        module.parent.mkdir(parents=True, exist_ok=True)
+        module.write_text('export material Example(*) = OmniPBR(diffuse_texture: texture_2d("albedo.<UDIM>.png"));')
+        (module.parent / "albedo.1001.png").write_bytes(b"texture")
+    assert assets_utils.retrieve_file_path(str(mdl_path)) == str(mdl_path)
+    (mdl_path.parent / "albedo.1001.png").unlink()
+    with pytest.raises(FileNotFoundError, match="albedo.1001.png"):
+        assets_utils.retrieve_file_path(str(mdl_path))
 
 
 def test_retrieve_git_asset_path_uses_local_repo_path(tmp_path):
@@ -499,7 +500,7 @@ def asset_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(assets_utils, "_REMOTE_FINGERPRINTS", {})
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
-    monkeypatch.setattr(assets_utils, "_MIRRORED_URLS", {})
+    monkeypatch.setattr(assets_utils, "_ASSET_SOURCES", {})
     monkeypatch.setattr(assets_utils, "_LOCALIZED_ASSETS", {})
     return tmp_path
 
@@ -583,24 +584,32 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
     assert {name: (asset_cache / name).read_text(encoding="utf-8") for name in layers} == layers
     if layout == "package":
         assert Path(resolved_path).read_bytes() == payloads[source[layout]]
+    if layout == "nested":
+        other = asset_cache / "other.usda"
+        other.write_text(layers["scene.usda"])
+        first_layer = Sdf.Layer.FindOrOpen(resolved_path)
+        second_layer = Sdf.Layer.FindOrOpen(assets_utils.retrieve_file_path(str(other)))
+        assert first_layer.subLayerPaths == second_layer.subLayerPaths
 
     monkeypatch.setattr(Sdf.Layer, "OpenAsAnonymous", lambda _: pytest.fail("walked a completed tree"))
     assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
     assert assets_utils.retrieve_file_path(source[layout]) == resolved_path
+    if layout == "nested":
+        (asset_cache / "scene.usda").write_text('#usda 1.0\ndef Xform "unrelated_edit" {}\n')
+        assert assets_utils.retrieve_file_path(source["direct"]) == first_layer.subLayerPaths[0]
 
 
 def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
-    """Keep search paths and missing layer-relative dependencies resolvable after localization."""
+    """Resolve roots and nested dependencies in context, failing before publishing partial assets."""
     import omni.client
-    from pxr import Ar, Sdf, Usd
+    from pxr import Ar, Usd
 
     source_dir = asset_cache / "source"
     search_dir = asset_cache / "search"
     source_dir.mkdir()
     search_dir.mkdir()
     source = source_dir / "scene.usda"
-    source.write_text(f"#usda 1.0\n(subLayers = [@robot.usda@, @./child.usda@, @{_REMOTE_URL}@])\n", encoding="utf-8")
-    (search_dir / "robot.usda").write_text('#usda 1.0\ndef Xform "robot" {}\n', encoding="utf-8")
+    source.write_text("#usda 1.0\n(subLayers = [@robot.usda@, @./child.usda@])\n", encoding="utf-8")
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, {_REMOTE_URL: revision})
 
@@ -610,25 +619,27 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    context = Ar.ResolverContext(Ar.DefaultResolverContext([str(search_dir)]))
-    assert Usd.Stage.Open(str(source), context).GetPrimAtPath("/robot").IsValid()
-
-    resolved_path = assets_utils.retrieve_file_path(str(source))
-    # Retry the working copy after the missing file appears beside the authored layer.
-    (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
-    resolved_path = assets_utils.retrieve_file_path(resolved_path)
-    resolved_layer = Sdf.Layer.FindOrOpen(resolved_path)
-    assert resolved_layer.subLayerPaths[0] == "robot.usda"
-    resolved_stage = Usd.Stage.Open(resolved_path, context)
-    assert resolved_stage.GetPrimAtPath("/robot").IsValid()
-    assert resolved_stage.GetPrimAtPath("/child").IsValid()
-    assert resolved_stage.GetPrimAtPath("/remote").IsValid()
+    for name in ("first", "second"):
+        directory = search_dir / name
+        directory.mkdir()
+        (directory / "robot.usda").write_text(f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Xform "{name}" {{}}\n')
+        context = Ar.ResolverContext(Ar.DefaultResolverContext([str(directory), str(source_dir)]))
+        with Ar.ResolverContextBinder(context):
+            if name == "first":
+                with pytest.raises(FileNotFoundError, match="child.usda"):
+                    assets_utils.retrieve_file_path(source.name)
+                (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
+            resolved_path = assets_utils.retrieve_file_path(source.name)
+            assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
+            assert assets_utils.retrieve_file_path(source.name) == resolved_path
+            resolved_stage = Usd.Stage.Open(resolved_path, context)
+            assert all(resolved_stage.GetPrimAtPath("/" + prim).IsValid() for prim in (name, "child", "remote"))
 
 
 def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):
     """A downloaded root is not a completed tree when a dependency fails to download."""
     import omni.client
-    from pxr import Sdf, Usd
+    from pxr import Usd
 
     child_url = _REMOTE_URL.replace("example.usd", "child.usda")
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
@@ -644,8 +655,8 @@ def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    incomplete = assets_utils.retrieve_file_path(_REMOTE_URL)
-    assert Sdf.Layer.FindOrOpen(incomplete).subLayerPaths == [child_url]
+    with pytest.raises(RuntimeError, match=child_url):
+        assets_utils.retrieve_file_path(_REMOTE_URL)
     fail_child = False
     resolved = assets_utils.retrieve_file_path(str(mirrored))
     stage = Usd.Stage.Open(resolved)

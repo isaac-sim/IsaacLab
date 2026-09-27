@@ -245,12 +245,11 @@ _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 _ANNOUNCED_MIRRORS: set[str] = set()
 """URLs already announced, so an asset consulted repeatedly is logged once."""
 
-_MIRRORED_URLS: dict[str, str] = {}
-"""Source URL per locally cached copy, recorded as the copy is located rather than recovered
-from its path, so a cache path is never inferred from a directory that merely looks like one."""
+_ASSET_SOURCES: dict[str, tuple[str, str]] = {}
+"""Original source and download directory of each managed copy, independent of tree completion."""
 
-_LOCALIZED_ASSETS: dict[str, tuple[str, str, str, dict[str, tuple[int, int]]]] = {}
-"""Source, result, cache directory, and file stamps of completed managed trees, recorded per process."""
+_LOCALIZED_ASSETS: dict[tuple[str, str, object], tuple[str, dict[str, tuple[int, int]]]] = {}
+"""Completed trees keyed by source, download directory, and USD resolver context."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -452,7 +451,7 @@ def _mirror_path(url: str, download_dir: str) -> str:
     # a host is what distinguishes a remote URL from a Windows drive letter, which ``urlparse``
     # also reports as a scheme
     if parsed.netloc:
-        _MIRRORED_URLS[os.path.abspath(mirrored)] = url
+        _ASSET_SOURCES[os.path.abspath(mirrored)] = (url, download_dir)
     return mirrored
 
 
@@ -473,7 +472,8 @@ def unmirror_file_path(path: str) -> str:
     Returns:
         The URL the copy was cached from, or ``""`` when this process did not cache it.
     """
-    return _MIRRORED_URLS.get(os.path.abspath(path), "")
+    source, _ = _ASSET_SOURCES.get(os.path.abspath(path), ("", ""))
+    return source if _is_remote_path(source) else ""
 
 
 def _remote_fingerprint(url: str) -> dict | None:
@@ -626,16 +626,16 @@ def check_file_path(path: str) -> Literal[0, 1, 2]:
 def retrieve_file_path(path: str, download_dir: str | None = None, force_download: bool = False) -> str:
     """Retrieves the path to a file on the Nucleus Server or locally.
 
-    Dependencies are traversed through local files and remote URLs. Changed USD layers
-    are written to working copies, preserving authored layers and raw downloads. Completed
-    managed copies skip discovery while their file stamps match. Remote URLs retain the
-    normal server freshness checks. Renderer module identifiers and USDZ packages
-    retain their existing resolution behavior.
+    USD dependencies are prepared in the bound resolver context before returning; missing
+    dependencies raise instead of producing a partial asset. Changed layers are written to
+    working copies, preserving authored layers and raw downloads. Completed trees are reused
+    while their file stamps match. Renderer module identifiers and USDZ contents remain owned
+    by their native loaders.
 
     Args:
         path: The path to the file.
-        download_dir: The directory where the file should be downloaded. Defaults to None, in which
-            case the file is downloaded to the system's temporary directory.
+        download_dir: Download directory. Defaults to the system's temporary directory, or the original
+            cache directory when reusing a managed copy.
         force_download: Whether to force download the file from the Nucleus Server. This will overwrite
             the local file if it exists. Defaults to False.
 
@@ -643,53 +643,51 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         The path to the file on the local machine.
 
     Raises:
-        FileNotFoundError: When the file not found locally or on Nucleus Server.
-        RuntimeError: When the root file or a forced dependency download fails, or a resolved USD copy
-            cannot be saved.
+        FileNotFoundError: When the file or a required dependency cannot be resolved or found.
+        RuntimeError: When a download fails or a resolved USD copy cannot be saved.
     """
-    # Only trees completed by this process may bypass discovery. A download directory
-    # can also contain raw mirrors, caller-owned files, or interrupted downloads.
-    download_dir = os.path.abspath(download_dir or tempfile.gettempdir())
-    requested_key = _localization_cache_key(path)
-    completed = _LOCALIZED_ASSETS.get(requested_key)
-    if completed is not None:
-        source, result, cached_download_dir, files = completed
-        same_cache = requested_key == _localization_cache_key(result) or download_dir == cached_download_dir
-        if not force_download and same_cache:
-            try:
-                files_match = all(
-                    ((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in files.items()
-                )
-            except OSError:
-                files_match = False
-            remote_is_current = not _is_remote_path(source) or bool(_usable_mirror(source, cached_download_dir))
-            if files_match and remote_is_current:
-                return result
-        path = source
-    else:
-        path = unmirror_file_path(os.path.abspath(path)) or path
+    root, cached_dir = _ASSET_SOURCES.get(os.path.abspath(path), (path, ""))
+    download_dir = os.path.abspath(download_dir or cached_dir or tempfile.gettempdir())
+    context = None
+    if os.path.splitext(root)[1].lower() in _USD_EXTENSIONS:
+        from pxr import Ar, Sdf, UsdUtils  # noqa: PLC0415
 
-    if check_file_path(path) == 0:
-        raise FileNotFoundError(f"Unable to find the file: {path}")
-    root = os.path.abspath(path) if os.path.isfile(path) else path.replace(os.sep, "/")
+        resolver = Ar.GetResolver()
+        context = resolver.GetCurrentContext()
+        if not _is_remote_path(root):
+            resolved = resolver.Resolve(root)
+            if not resolved:
+                raise FileNotFoundError(f"Unable to resolve the file: {root}")
+            root = str(resolved)
+    root = root.replace(os.sep, "/") if _is_remote_path(root) else os.path.abspath(root)
     prepared = {}
     files = {}
-    complete = True
+    dependencies = {}
     copy_dir = os.path.join(download_dir, f"isaaclab_usd_{uuid.uuid4().hex}")
 
-    def prepare(source: str) -> str | None:
-        nonlocal complete
+    def prepare(source: str) -> str:
         if source in prepared:
             return prepared[source]
+        completed = _LOCALIZED_ASSETS.get((source, download_dir, context))
+        if completed is not None and not force_download:
+            result, stamps = completed
+            try:
+                if all(((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in stamps.items()):
+                    files.update(stamps)
+                    prepared[source] = result
+                    dependencies[source] = set(stamps)
+                    return result
+            except OSError:
+                pass
         remote = _is_remote_path(source)
         target = _mirror_path(source, download_dir) if remote else source
-        prepared[source] = None
+        dependencies[source] = {target}
         if _UDIM_RE.search(source):
             for tile in range(1001, 1101):
                 tile_path = _UDIM_RE.sub(str(tile), source)
-                if check_file_path(tile_path) == 0:
-                    complete = complete and tile != 1001
+                if tile != 1001 and check_file_path(tile_path) == 0:
                     break
+                dependencies[source].add(tile_path)
                 prepare(tile_path)
             prepared[source] = target
             return target
@@ -697,30 +695,32 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
         # Read detached contents while the download lock protects the raw mirror.
         suffix = os.path.splitext(target)[1].lower()
         with _download_file(source, download_dir, force_download) as local_path:
-            if local_path is None:
-                if source == root or (force_download and remote):
-                    raise RuntimeError(f"Unable to copy file: '{source}'")
-                complete = False
-                return None
             stat = os.stat(local_path)
             files[local_path] = (stat.st_mtime_ns, stat.st_size)
             if suffix in _USD_EXTENSIONS:
-                from pxr import Ar, Sdf, UsdUtils  # noqa: PLC0415
-
                 layer = Sdf.Layer.OpenAsAnonymous(local_path)
             else:
                 refs = _find_mdl_dependencies(local_path) if suffix == ".mdl" else ()
 
         prepared[source] = local_path
         if suffix not in _USD_EXTENSIONS:
-            for ref in refs:
-                dependency = prepare(_resolve_reference_url(source, ref))
-                complete = complete and dependency == _resolve_reference_url(local_path, ref)
+            for alternatives in refs:
+                paths = tuple(_resolve_reference_url(source, ref) for ref in alternatives)
+                dependency = paths[0]
+                if len(paths) > 1:
+                    dependency = next(
+                        (path for path in paths if _usable_mirror(path, download_dir) or check_file_path(path)), None
+                    )
+                    if dependency is None:
+                        raise FileNotFoundError(f"Unable to resolve {alternatives} from MDL module: {source}")
+                dependencies[source].add(dependency)
+                prepare(dependency)
             return local_path
 
         # Reserve before descending so shared children and cycles have one destination.
         output = os.path.join(copy_dir, str(len(prepared)), os.path.basename(local_path))
         prepared[source] = output
+        anchor = Ar.ResolvedPath(local_path)
         changed = False
 
         def rewrite(ref: str) -> str:
@@ -728,19 +728,22 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             if not ref:
                 return ref
             dependency = _resolve_reference_url(source, ref)
+            identifier = ref if _is_remote_path(ref) else resolver.CreateIdentifier(ref, anchor)
+            if not _is_remote_path(dependency) and not _UDIM_RE.search(ref):
+                dependency = str(resolver.Resolve(identifier))
             # Unresolved MDL search identifiers belong to the renderer's module path.
             if (
                 ref.endswith(".mdl")
-                and Ar.GetResolver().CreateIdentifier(ref, Ar.ResolvedPath(local_path)) == ref
-                and check_file_path(dependency) == 0
+                and not _is_remote_path(ref)
+                and resolver.IsContextDependentPath(identifier)
+                and (not dependency or (_is_remote_path(dependency) and check_file_path(dependency) == 0))
             ):
                 return ref
+            if not dependency:
+                raise FileNotFoundError(f"Unable to resolve '{ref}' from USD layer: {source}")
+            dependencies[source].add(dependency)
             resolved = prepare(dependency)
-            if resolved is None:
-                if not remote:
-                    return Ar.GetResolver().CreateIdentifier(ref, Ar.ResolvedPath(local_path))
-                resolved = dependency
-            changed |= resolved != _resolve_reference_url(local_path, ref)
+            changed |= resolved != (_resolve_reference_url(local_path, ref) if remote else dependency)
             return resolved
 
         UsdUtils.ModifyAssetPaths(layer, rewrite)
@@ -750,8 +753,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 raise RuntimeError(f"Unable to save resolved USD layer: {output}")
             stat = os.stat(output)
             files[output] = (stat.st_mtime_ns, stat.st_size)
-            if remote:
-                _MIRRORED_URLS[output] = source
+            dependencies[source].add(output)
+            _ASSET_SOURCES[output] = (source, download_dir)
         else:
             prepared[source] = local_path
         return prepared[source]
@@ -761,24 +764,25 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     report_activity("Loading assets")
     try:
         result = prepare(root)
-        if complete and result is not None:
-            root_entry = (root, result, download_dir, files)
-            _LOCALIZED_ASSETS[requested_key] = root_entry
-            for source, local_path in prepared.items():
-                if local_path is not None:
-                    entry = (source, local_path, download_dir, files)
-                    _LOCALIZED_ASSETS[_localization_cache_key(source)] = entry
-                    _LOCALIZED_ASSETS[_localization_cache_key(local_path)] = entry
+        for source, local_path in prepared.items():
+            required = pending = {source}
+            while pending:
+                pending = set().union(*(dependencies.get(path, ()) for path in pending)) - required
+                required.update(pending)
+            stamps = {path: files[path] for path in required if path in files}
+            _LOCALIZED_ASSETS[source, download_dir, context] = (local_path, stamps)
         return result
     finally:
         report_activity(None)
 
 
 @contextlib.contextmanager
-def _download_file(source: str, download_dir: str, force_download: bool) -> Iterator[str | None]:
+def _download_file(source: str, download_dir: str, force_download: bool) -> Iterator[str]:
     """Yield a local file while holding its remote mirror's download lock."""
-    if os.path.isabs(source) or not urlparse(source).scheme:
-        yield source if os.path.isfile(source) else None
+    if not _is_remote_path(source):
+        if not os.path.isfile(source):
+            raise FileNotFoundError(f"Unable to find the file: {source}")
+        yield source
         return
     omni_client = _get_omni_client()
     target = _mirror_path(source, download_dir)
@@ -789,8 +793,9 @@ def _download_file(source: str, download_dir: str, force_download: bool) -> Iter
             try:
                 result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
                 if result != omni_client.Result.OK:
-                    yield None
-                    return
+                    if check_file_path(source) == 0:
+                        raise FileNotFoundError(f"Unable to find the file: {source}")
+                    raise RuntimeError(f"Unable to copy file: '{source}' ({result})")
                 os.replace(temporary_path, target)
                 _write_mirror_fingerprint(source, target)
             finally:
@@ -836,21 +841,17 @@ def read_file(path: str) -> io.BytesIO:
         raise FileNotFoundError(f"Unable to find the file: {path}")
 
 
-def _find_mdl_dependencies(local_path: str) -> set[str]:
-    """Collect MDL resources and relative imports that USD does not discover."""
-    try:
-        with open(local_path, encoding="utf-8") as f:
-            source = f.read()
-    except OSError as e:
-        logger.warning("Failed to open MDL file: %s (%s)", local_path, e)
-        return set()
+def _find_mdl_dependencies(local_path: str) -> set[tuple[str, ...]]:
+    """Collect MDL dependencies, grouping alternative filenames for ambiguous module imports."""
+    with open(local_path, encoding="utf-8") as f:
+        source = f.read()
 
     refs = set()
 
     for match in _MDL_RESOURCE_RE.finditer(source):
         ref = match.group(1)
         if ref and _MDL_TEXTURE_RE.search(ref.strip()):
-            refs.add(ref.strip())
+            refs.add((ref.strip(),))
 
     source_code = _MDL_RESOURCE_RE.sub("", source)
     for match in _MDL_USING_IMPORT_RE.finditer(source_code):
@@ -862,25 +863,21 @@ def _find_mdl_dependencies(local_path: str) -> set[str]:
     return refs
 
 
-def _find_mdl_import_dependencies(import_clause: str) -> set[str]:
-    """Collect local MDL modules referenced by an import clause."""
+def _find_mdl_import_dependencies(import_clause: str) -> set[tuple[str, ...]]:
+    """Collect candidate module filenames for each relative MDL import."""
     refs = set()
 
     for match in _MDL_RELATIVE_IMPORT_RE.finditer(import_clause):
-        prefix = match.group("prefix")
-        package_prefix = [".."] * prefix.count("..::")
-        components = [component for component in match.group("module").split("::") if component]
-        if not components:
-            continue
+        parents = [".."] * match.group("prefix").count("..::")
+        components = match.group("module").split("::")
 
         if match.group("wildcard") is not None:
             candidate_lengths = (len(components),)
         else:
             # ``import .::A::B;`` can mean module ``A::B`` or symbol ``B`` from module ``A``.
-            candidate_lengths = range(1, len(components) + 1)
+            candidate_lengths = range(len(components), 0, -1)
 
-        for length in candidate_lengths:
-            refs.add(posixpath.join(*(package_prefix + components[:length])) + ".mdl")
+        refs.add(tuple(posixpath.join(*(parents + components[:length])) + ".mdl" for length in candidate_lengths))
 
     return refs
 
@@ -920,8 +917,3 @@ def _resolve_reference_url(base_url: str, ref: str) -> str:
 def _is_remote_path(path: str) -> bool:
     """Return whether a path has a URL scheme rather than a Windows drive letter."""
     return len(urlparse(path).scheme) > 1 and not os.path.isabs(path)
-
-
-def _localization_cache_key(path: str) -> str:
-    """Return the stable per-process localization cache key for a path or URL."""
-    return path.replace(os.sep, "/") if _is_remote_path(path) else os.path.abspath(path)
