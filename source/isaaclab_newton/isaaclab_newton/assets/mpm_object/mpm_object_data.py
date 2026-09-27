@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -43,31 +43,17 @@ class MPMObjectData(BaseDeformableObjectData):
         self.default_particle_state_w: ProxyArray | None = None
         self.nodal_kinematic_target: ProxyArray | None = None
 
-        self._create_simulation_bindings()
-
     def _create_simulation_bindings(self) -> None:
-        """Validate current Newton particle arrays and invalidate gathered buffers."""
-        self._get_current_particle_state()
-        self._particle_pos_w.timestamp = -1.0
-        self._particle_vel_w.timestamp = -1.0
-        self._particle_state_w.timestamp = -1.0
-        self._root_pos_w.timestamp = -1.0
-        self._root_vel_w.timestamp = -1.0
-
-    def _get_current_particle_state(self):
-        state = SimulationManager.get_state_0()
-        if state is None or state.particle_q is None or state.particle_qd is None:
-            raise RuntimeError(
-                "Failed to access Newton MPM particle state. Ensure the Newton model has been finalized and contains "
-                "particle position and velocity arrays."
-            )
-        return state
+        """Invalidate gathered buffers after model reinitialization."""
+        reset_timestamps(
+            (self._particle_pos_w, self._particle_vel_w, self._particle_state_w, self._root_pos_w, self._root_vel_w)
+        )
 
     @property
     def particle_pos_w(self) -> ProxyArray:
         """Particle positions in simulation world frame [m]."""
         if self._particle_pos_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),
@@ -82,7 +68,7 @@ class MPMObjectData(BaseDeformableObjectData):
     def particle_vel_w(self) -> ProxyArray:
         """Particle velocities in simulation world frame [m/s]."""
         if self._particle_vel_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
                 gather_particles_vec3f,
                 dim=(self._num_instances, self._particles_per_object),
