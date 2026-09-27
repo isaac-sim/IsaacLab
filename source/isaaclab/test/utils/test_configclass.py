@@ -16,8 +16,7 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils.configclass import configclass
-from isaaclab.utils.dict import class_to_dict, update_class_from_dict
+from isaaclab.utils import clone, configclass, instantiate, replace, to_dict, update_from_dict, validate
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
 
@@ -515,8 +514,8 @@ def test_dict_conversion():
     assert asdict(cfg) == basic_demo_cfg_correct
     assert asdict(cfg.env) == basic_demo_cfg_correct["env"]
     # utility function
-    assert class_to_dict(cfg) == basic_demo_cfg_correct
-    assert class_to_dict(cfg.env) == basic_demo_cfg_correct["env"]
+    assert to_dict(cfg) == basic_demo_cfg_correct
+    assert to_dict(cfg.env) == basic_demo_cfg_correct["env"]
     # internal function
     assert cfg.to_dict() == basic_demo_cfg_correct
     assert cfg.env.to_dict() == basic_demo_cfg_correct["env"]
@@ -538,7 +537,7 @@ def test_dict_conversion_order():
     assert list(cfg.__dict__.keys()) == true_outer_order
     assert list(cfg.env.__dict__.keys()) == true_env_order
     # convert config to dictionary
-    cfg_dict = class_to_dict(cfg)
+    cfg_dict = to_dict(cfg)
     # check ordering
     assert list(cfg_dict.keys()) == true_outer_order
     assert list(cfg_dict["env"].keys()) == true_env_order
@@ -554,7 +553,7 @@ def test_config_update_dict():
     """Test updating configclass using dictionary."""
     cfg = BasicDemoCfg()
     cfg_dict = {"env": {"num_envs": 22, "viewer": {"eye": (2.0, 2.0, 2.0)}}}
-    update_class_from_dict(cfg, cfg_dict)
+    update_from_dict(cfg, cfg_dict)
     assert asdict(cfg) == basic_demo_cfg_change_correct
 
     # check types are also correct
@@ -571,7 +570,7 @@ def test_config_update_dict_with_none():
     """Test updating configclass using a dictionary that contains None."""
     cfg = BasicDemoCfg()
     cfg_dict = {"env": {"num_envs": 22, "viewer": None}}
-    update_class_from_dict(cfg, cfg_dict)
+    update_from_dict(cfg, cfg_dict)
     assert asdict(cfg) == basic_demo_cfg_change_with_none_correct
 
 
@@ -602,7 +601,7 @@ def test_config_update_nested_dict():
             {"num_envs": 24, "viewer": {"eye": [6.0, 6.0, 6.0]}},
         ],
     }
-    update_class_from_dict(cfg, cfg_dict)
+    update_from_dict(cfg, cfg_dict)
     assert asdict(cfg) == basic_demo_cfg_nested_dict_and_list
 
     # check types are also correct
@@ -670,7 +669,7 @@ def test_config_update_different_iterable_lengths():
     }
 
     # should not raise
-    update_class_from_dict(cfg, patch)
+    update_from_dict(cfg, patch)
 
     # whole sequences are replaced
     assert cfg.dof_pos == (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0)
@@ -687,7 +686,7 @@ def test_invalid_update_key():
     cfg = BasicDemoCfg()
     cfg_dict = {"env": {"num_envs": 22, "viewer": {"pos": (2.0, 2.0, 2.0)}}}
     with pytest.raises(KeyError):
-        update_class_from_dict(cfg, cfg_dict)
+        update_from_dict(cfg, cfg_dict)
 
 
 def test_alter_values_multiple_instances():
@@ -719,21 +718,28 @@ def test_borrowed_field_preserves_identity_without_changing_ordinary_copying():
     @configclass
     class NativeCfg(ViewerCfg):
         handle: object = field(kw_only=True, metadata={"copy": False})
+        cfg: int = 0
 
     handle = object()
     cfg = NativeCfg(handle=handle)
     assert cfg.handle is handle
-    for copied in (cfg.copy(), cfg.replace(eye=[1.0, 2.0, 3.0])):
+    for copied in (cfg.copy(), clone(cfg), cfg.replace(eye=[1.0, 2.0, 3.0]), replace(cfg, eye=[1.0, 2.0, 3.0])):
+        assert type(copied) is NativeCfg
         assert copied.handle is handle
         assert copied.eye is not cfg.eye
         assert copied.lookat is not cfg.lookat
+    assert replace(cfg, cfg=1).cfg == 1
+    assert cfg.cfg == 0
 
 
-def test_alter_values_multiple_instances_wth_replace():
+@pytest.mark.parametrize(
+    "copy_cfg", [replace, lambda cfg, **changes: cfg.replace(**changes)], ids=["function", "method"]
+)
+def test_alter_values_multiple_instances_wth_replace(copy_cfg):
     """Test alterations in multiple instances through replace function."""
     # create two config instances
     cfg1 = BasicDemoCfg()
-    cfg2 = cfg1.replace(device_id=1)
+    cfg2 = copy_cfg(cfg1, device_id=1)
     assert cfg2.to_dict() == {**cfg1.to_dict(), "device_id": 1}
 
     # alter configurations
@@ -828,7 +834,7 @@ def test_class_function_impl_config():
 def test_dict_conversion_functions_config():
     """Tests conversion of config with functions into dictionary."""
     cfg = FunctionsDemoCfg()
-    cfg_dict = class_to_dict(cfg)
+    cfg_dict = to_dict(cfg)
     assert cfg_dict["func"] == functions_demo_cfg_correct["func"]
     assert cfg_dict["wrapped_func"] == functions_demo_cfg_correct["wrapped_func"]
     assert cfg_dict["func_in_dict"]["func"] == functions_demo_cfg_correct["func_in_dict"]["func"]
@@ -838,7 +844,7 @@ def test_update_functions_config_with_functions():
     """Tests updating config with functions."""
     cfg = FunctionsDemoCfg()
     # update config
-    update_class_from_dict(cfg, functions_demo_cfg_for_updating)
+    update_from_dict(cfg, functions_demo_cfg_for_updating)
     # check calling
     assert cfg.func() == 2
     assert cfg.wrapped_func() == 5
@@ -946,6 +952,29 @@ def test_config_with_class_type():
     assert cfg.b == "dummy"
 
 
+@pytest.mark.parametrize("lazy", [False, True])
+def test_instantiate(monkeypatch, lazy):
+    """Construction forwards the original cfg and arguments, including lazy class references."""
+
+    class Component:
+        def __init__(self, cfg, dependency, *, value):
+            self.cfg, self.dependency, self.value = cfg, dependency, value
+
+    monkeypatch.setattr(sys.modules[__name__], "Component", Component, raising=False)
+
+    @configclass
+    class ComponentCfg:
+        class_type: type | str = f"{__name__}:Component" if lazy else Component
+
+    cfg, dependency = ComponentCfg(), object()
+    instance = instantiate(cfg, dependency, value=42)
+    assert isinstance(instance, Component)
+    assert instance.cfg is cfg and instance.dependency is dependency
+    assert instance.value == 42
+    with pytest.raises(TypeError):
+        instantiate(cfg)
+
+
 def test_nested_config_class_declarations():
     """Tests that configclass works properly with nested class class declarations."""
 
@@ -989,13 +1018,14 @@ def test_config_dumping(tmp_path):
     assert cfg.to_dict() == cfg_loaded
 
 
-def test_validity():
+@pytest.mark.parametrize("validate_cfg", [validate, lambda cfg: cfg.validate()], ids=["function", "method"])
+def test_validity(validate_cfg):
     """Check that invalid configurations raise errors."""
 
     cfg = MissingChildDemoCfg()
 
     with pytest.raises(TypeError) as context:
-        cfg.validate()
+        validate_cfg(cfg)
 
     # check that the expected missing fields are in the error message
     error_message = str(context.value)
@@ -1006,7 +1036,8 @@ def test_validity():
     assert len(error_message.split("\n")) - 2 == len(validity_expected_fields)
 
 
-def test_nested_configclass_custom_validation():
+@pytest.mark.parametrize("validate_cfg", [validate, lambda cfg: cfg.validate()], ids=["function", "method"])
+def test_nested_configclass_custom_validation(validate_cfg):
     """Custom validation hooks run for nested configclass instances."""
 
     @configclass
@@ -1022,7 +1053,7 @@ def test_nested_configclass_custom_validation():
         child: ChildCfg = ChildCfg()
 
     with pytest.raises(ValueError, match="nested validation ran"):
-        ParentCfg().validate()
+        validate_cfg(ParentCfg())
 
 
 def test_nested_non_configclass_custom_validation_is_not_called():
@@ -1036,7 +1067,7 @@ def test_nested_non_configclass_custom_validation_is_not_called():
     class ParentCfg:
         child: Child = Child()
 
-    ParentCfg().validate()
+    assert validate(ParentCfg()) == []
 
 
 def test_missing_fields_precede_nested_custom_validation():
@@ -1053,7 +1084,7 @@ def test_missing_fields_precede_nested_custom_validation():
         required: int = MISSING
 
     with pytest.raises(TypeError, match="required"):
-        ParentCfg().validate()
+        validate(ParentCfg())
 
 
 # =============================================================================

@@ -5,6 +5,8 @@
 
 import pytest
 
+from isaaclab.utils import validate
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -21,8 +23,8 @@ def test_surface_gripper_tasks_default_to_cpu(task_name: str) -> None:
     env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
 
     assert env_cfg.sim.device == "cpu"
-    env_cfg.validate()
+    validate(env_cfg)
 
     env_cfg.sim.device = "cuda:0"
     with pytest.raises(ValueError, match="only supported on the CPU simulation device"):
-        env_cfg.validate()
+        validate(env_cfg)

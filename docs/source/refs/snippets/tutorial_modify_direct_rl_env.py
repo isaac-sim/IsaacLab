@@ -26,7 +26,7 @@ gym.register(
 
 # [start-h1_env-import]
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab_assets import H1_CFG
 
 from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env import HumanoidEnv
@@ -36,7 +36,7 @@ from isaaclab_tasks.core.locomotion.humanoid.humanoid_direct_env_cfg import Huma
 # [start-h1_env-robot]
 @configclass
 class H1SceneCfg(HumanoidDirectSceneCfg):
-    robot: ArticulationCfg = H1_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(H1_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 # [end-h1_env-robot]
 
 

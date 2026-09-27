@@ -9,6 +9,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import instantiate
 
 # launch the simulator
 app_launcher = AppLauncher(headless=True)
@@ -56,7 +57,7 @@ def test_asset_configs(registered_entities, device):
             # name the prim path
             entity_cfg.prim_path = "/World/asset"
             # create the asset / sensors
-            entity: AssetBase = entity_cfg.class_type(entity_cfg)  # type: ignore
+            entity: AssetBase = instantiate(entity_cfg)  # type: ignore
 
             # play the sim
             sim.reset()

@@ -13,7 +13,7 @@ import torch
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.action_manager import ActionTerm
-from isaaclab.utils import index_fill_
+from isaaclab.utils import index_fill_, instantiate
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -294,9 +294,7 @@ class NavigationAction(ThrustAction):
         super().__init__(cfg, env)
 
         # Initialize controller using class_type from config
-        self._lc = self.cfg.controller_cfg.class_type(
-            cfg=self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device
-        )
+        self._lc = instantiate(self.cfg.controller_cfg, asset=self._asset, num_envs=self.num_envs, device=self.device)
 
         # Log warning if not using velocity controller
         from isaaclab_contrib.controllers import LeeVelControllerCfg

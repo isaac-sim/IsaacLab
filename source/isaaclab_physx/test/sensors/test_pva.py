@@ -29,7 +29,7 @@ from isaaclab.markers.config import GREEN_ARROW_X_MARKER_CFG, RED_ARROW_X_MARKER
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.pva import Pva, PvaCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
@@ -83,7 +83,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # articulations - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot")
     # pendulum - uses merge_fixed_joints=True so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level
@@ -137,7 +137,7 @@ class MySceneCfg(InteractiveSceneCfg):
     pva_pendulum_imu_link: PvaCfg = PvaCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
         debug_vis=not app_launcher._headless,
-        visualizer_cfg=RED_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/imu_link"),
+        visualizer_cfg=replace(RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/imu_link"),
     )
     pva_pendulum_base: PvaCfg = PvaCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1",
@@ -146,7 +146,7 @@ class MySceneCfg(InteractiveSceneCfg):
             rot=PEND_ROT_OFFSET,
         ),
         debug_vis=not app_launcher._headless,
-        visualizer_cfg=GREEN_ARROW_X_MARKER_CFG.replace(prim_path="/Visuals/Acceleration/base"),
+        visualizer_cfg=replace(GREEN_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/base"),
     )
 
     def __post_init__(self):

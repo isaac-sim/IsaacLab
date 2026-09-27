@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 
 from ...markers import VisualizationMarkersCfg
 from ...markers.config import DEFORMABLE_TARGET_MARKER_CFG
-from ...utils import configclass
+from ...utils import configclass, replace
 from ..asset_base_cfg import AssetBaseCfg
 
 if TYPE_CHECKING:
@@ -22,8 +22,8 @@ class DeformableObjectCfg(AssetBaseCfg):
 
     class_type: type[DeformableObject] | str = "{DIR}.deformable_object:DeformableObject"
 
-    visualizer_cfg: VisualizationMarkersCfg = DEFORMABLE_TARGET_MARKER_CFG.replace(
-        prim_path="/Visuals/DeformableTarget"
+    visualizer_cfg: VisualizationMarkersCfg = replace(
+        DEFORMABLE_TARGET_MARKER_CFG, prim_path="/Visuals/DeformableTarget"
     )
     """The configuration object for the visualization markers. Defaults to DEFORMABLE_TARGET_MARKER_CFG.
 

@@ -13,6 +13,8 @@ __all__ = [
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
+    "to_dict",
+    "update_from_dict",
     "class_to_dict",
     "update_class_from_dict",
     "dict_to_md5_hash",
@@ -55,6 +57,10 @@ __all__ = [
     "get_isaac_sim_version",
     "compare_versions",
     "configclass",
+    "instantiate",
+    "clone",
+    "replace",
+    "validate",
     "checked_apply",
 ]
 
@@ -62,6 +68,8 @@ from .timer import Timer
 from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer
 from .dict import (
+    to_dict,
+    update_from_dict,
     class_to_dict,
     update_class_from_dict,
     dict_to_md5_hash,
@@ -106,4 +114,4 @@ from .string import (
 )
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
-from .configclass import checked_apply, configclass
+from .configclass import checked_apply, clone, configclass, instantiate, replace, validate

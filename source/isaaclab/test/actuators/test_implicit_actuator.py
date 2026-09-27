@@ -8,6 +8,7 @@ import torch
 
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.test.utils import test_devices
+from isaaclab.utils import instantiate
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +39,7 @@ def test_implicit_actuator_init_minimum(device, usd_default):
     stiffness_default = 300
     damping_default = 20
 
-    actuator = actuator_cfg.class_type(
+    actuator = instantiate(
         actuator_cfg,
         joint_names=joint_names,
         joint_ids=joint_ids,
@@ -92,7 +93,7 @@ def test_implicit_actuator_init_limits(cfg_limit, limit_name):
         **{limit_name: cfg_limit},
     )
 
-    actuator = actuator_cfg.class_type(
+    actuator = instantiate(
         actuator_cfg,
         joint_names=joint_names,
         joint_ids=joint_ids,
@@ -120,7 +121,7 @@ def test_implicit_actuator_deprecated_effort_aliases_resolve_rated_and_solver():
         effort_limit_sim=870.0,
     )
     with pytest.warns(DeprecationWarning):
-        actuator = actuator_cfg.class_type(
+        actuator = instantiate(
             actuator_cfg,
             joint_names=joint_names,
             joint_ids=[0],

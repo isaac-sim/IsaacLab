@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks.core.reorient.mdp as reorient_mdp
@@ -89,11 +89,11 @@ class ActionsCfg:
     right_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="right_hand", joint_names=JOINT_NAMES, alpha=1.0, rescale_to_limits=True
     )
-    right_hand_tendons = TENDON_ACTION_CFG.replace(asset_name="right_hand")
+    right_hand_tendons = replace(TENDON_ACTION_CFG, asset_name="right_hand")
     left_hand = mdp.EMAJointPositionToLimitsActionCfg(
         asset_name="left_hand", joint_names=JOINT_NAMES, alpha=1.0, rescale_to_limits=True
     )
-    left_hand_tendons = TENDON_ACTION_CFG.replace(asset_name="left_hand")
+    left_hand_tendons = replace(TENDON_ACTION_CFG, asset_name="left_hand")
 
 
 @configclass

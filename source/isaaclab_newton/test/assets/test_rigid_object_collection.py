@@ -11,6 +11,7 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.utils import clone
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -109,7 +110,7 @@ def generate_cubes_scene(
     for i in range(num_cubes):
         cube_object_cfg = RigidObjectCfg(
             prim_path=f"/World/Env_[^/]*/Object_{i}",
-            spawn=spawn_cfg.copy(),
+            spawn=clone(spawn_cfg),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
@@ -187,7 +188,7 @@ def test_set_body_inertial_properties_updates_inverses(device):
             rigid_objects={
                 f"cube_{body_index}": RigidObjectCfg(
                     prim_path=f"/World/Env_[^/]*/Object_{body_index}",
-                    spawn=spawn_cfg.copy(),
+                    spawn=clone(spawn_cfg),
                     init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, float(body_index), 0.0)),
                 )
                 for body_index in range(num_cubes)

@@ -14,8 +14,8 @@ from dataclasses import fields
 from typing import TYPE_CHECKING, Any
 
 from ..physics import PhysicsEvent, PhysicsManager
-from ..utils import class_to_dict, string_to_callable
 from ..utils import string as string_utils
+from ..utils import string_to_callable, to_dict
 from ..utils.modifiers import ModifierCfg
 from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
@@ -99,7 +99,7 @@ class ManagerTermBase(ABC):
 
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
-        return {"cfg": class_to_dict(self.cfg)}
+        return {"cfg": to_dict(self.cfg)}
 
     def __call__(self, *args) -> Any:
         """Returns the value of the term required by the manager.

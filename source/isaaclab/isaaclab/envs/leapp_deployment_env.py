@@ -31,6 +31,7 @@ from ..managers import CommandManager, EventManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import validate
 
 logger = logging.getLogger(__name__)
 
@@ -164,7 +165,7 @@ class LeappDeploymentEnv:
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
         cfg.scene.num_envs = 1
-        cfg.validate()
+        validate(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path
