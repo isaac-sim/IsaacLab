@@ -14,6 +14,7 @@ import threading
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
+from ...app.runtime import get_runtime
 from ...utils.version import get_isaac_sim_version, has_kit
 
 if TYPE_CHECKING:
@@ -21,10 +22,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
-
-# Kit-dependent imports (only available when running with Kit/Isaac Sim)
-if has_kit():
-    import omni.kit.app
 
 
 def _check_ancestral(prim: Usd.Prim) -> bool:
@@ -140,29 +137,6 @@ def resolve_paths(
 # ##############################################################################
 
 
-_isaacsim_stage_context_synced = False
-
-
-def _sync_isaacsim_stage_context() -> None:
-    """Point Isaac Sim's stage helper at Isaac Lab's thread-local stage context."""
-    global _isaacsim_stage_context_synced
-
-    if _isaacsim_stage_context_synced or not has_kit():
-        return
-
-    try:
-        # Do not enable ``isaacsim.core.experimental.utils`` here. Stage creation is used by
-        # Newton tests before Newton imports Warp, and enabling Isaac Sim experimental utils can
-        # make Kit's importer expose the bundled ``omni.warp.core`` package ahead of pip Warp.
-        from isaacsim.core.experimental.utils import stage as sim_stage  # noqa: PLC0415
-    except ImportError:
-        return
-
-    # Isaac Sim stage helpers read this singleton context.
-    sim_stage._context = _context  # type: ignore
-    _isaacsim_stage_context_synced = True
-
-
 def create_new_stage() -> Usd.Stage:
     """Create a new in-memory USD stage.
 
@@ -183,7 +157,7 @@ def create_new_stage() -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    _sync_isaacsim_stage_context()
+    get_runtime().share_stage_context(_context)
 
     from pxr import Usd, UsdUtils  # noqa: PLC0415
 
@@ -191,40 +165,6 @@ def create_new_stage() -> Usd.Stage:
     _context.stage = stage
     UsdUtils.StageCache.Get().Insert(stage)
     return stage
-
-
-def is_current_stage_in_memory() -> bool:
-    """Checks if the current stage is NOT attached to the USD context.
-
-    This function compares the current stage (from :func:`get_current_stage`) with
-    the stage attached to Kit's ``omni.usd`` context. If they are different,
-    the current stage is considered "in memory" - meaning it's not the stage
-    that the viewport/UI displays.
-
-    This is useful for determining if we're working with a separate in-memory
-    stage created via :func:`create_new_stage_in_memory` with
-    ``SimulationCfg(create_stage_in_memory=True)``.
-
-    In kitless mode (no USD context), this always returns True.
-
-    Returns:
-        True if the current stage is different from (not attached to) the context stage.
-        Also returns True if there is no context stage at all.
-    """
-    if not has_kit():
-        return True
-
-    import omni.usd
-
-    context = omni.usd.get_context()
-    if context is None:
-        return True
-
-    context_stage = context.get_stage()
-    if context_stage is None:
-        return True
-
-    return get_current_stage() is not context_stage
 
 
 def open_stage(usd_path: str) -> Usd.Stage:
@@ -244,7 +184,7 @@ def open_stage(usd_path: str) -> Usd.Stage:
         ValueError: When input path is not a supported file type by USD.
         RuntimeError: When failed to open the stage.
     """
-    _sync_isaacsim_stage_context()
+    get_runtime().share_stage_context(_context)
 
     from pxr import Usd  # noqa: PLC0415
 
@@ -317,8 +257,8 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
 def update_stage() -> None:
     """Triggers a full application update cycle to process USD stage changes.
 
-    This function calls ``omni.kit.app.get_app_interface().update()`` which triggers
-    a complete application update including:
+    With Kit running, this runs one complete Kit application update, including the following.
+    Without Kit, it does nothing.
 
     * Physics simulation step (if ``/app/player/playSimulations`` is True)
     * Rendering (RTX path tracing, viewport updates)
@@ -363,7 +303,7 @@ def update_stage() -> None:
         >>> for _ in range(100):
         ...     sim.step()  # Handles updates internally
     """
-    omni.kit.app.get_app_interface().update()
+    get_runtime().update()
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -408,9 +348,8 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 def close_stage() -> bool:
     """Closes the current USD stage.
 
-    If Kit is running, this first closes the stage via the Kit USD context
-    (``omni.usd.get_context().close_stage()``), then clears the stage cache.
-    Without Kit, only the stage cache is cleared.
+    If Kit is running, this first closes the stage of the Kit USD context, then
+    clears the stage cache. Without Kit, only the stage cache is cleared.
 
     .. note::
 
@@ -431,10 +370,7 @@ def close_stage() -> bool:
     # Close Kit's USD context first (while the stage is still in the cache),
     # then clear the cache. Reversing this order causes Kit to fail with
     # "Removal of UsdStage from cache failed" and can hang during teardown.
-    if has_kit():
-        import omni.usd
-
-        omni.usd.get_context().close_stage()
+    get_runtime().close_stage()
 
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Clear()
@@ -513,8 +449,7 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
     delete_prim(prim_paths_to_delete)
-    if has_kit():
-        omni.kit.app.get_app_interface().update()
+    get_runtime().update()
 
 
 def get_current_stage(fabric: bool = False) -> Usd.Stage:
@@ -534,7 +469,7 @@ def get_current_stage(fabric: bool = False) -> Usd.Stage:
                        sessionLayer=Sdf.Find('anon:0x7fba6c01c5c0:World7-session.usda'),
                        pathResolverContext=<invalid repr>)
     """
-    _sync_isaacsim_stage_context()
+    get_runtime().share_stage_context(_context)
 
     # First check thread-local context for an in-memory stage
     stage = getattr(_context, "stage", None)
@@ -586,22 +521,13 @@ def show_stage_in_viewport(usd_path: str) -> None:
     Opens the stage through the Kit USD context so it appears in the viewport (or the
     livestream client), then spins the Kit update loop until the window is closed or the
     loop is interrupted. Must only be called inside a running Kit process; use
-    :func:`~isaaclab.utils.version.has_kit` or :meth:`~isaaclab.app.AppLauncher.has_gui`
+    :func:`~isaaclab.utils.version.has_kit` or :attr:`~isaaclab.sim.SimulationContext.has_gui`
     to gate the call.
 
     Args:
         usd_path: Path of the USD file to display.
+
+    Raises:
+        RuntimeError: If Kit is not running or the stage cannot be opened.
     """
-    import omni.usd  # noqa: PLC0415
-
-    # A failed open leaves the previously loaded stage in the viewport, which would look like a
-    # successful preview of the wrong asset, so surface the failure instead of blocking on it.
-    result = omni.usd.get_context().open_stage(usd_path)
-    opened = result[0] if isinstance(result, tuple) else result
-    if opened is False:
-        raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
-
-    app = omni.kit.app.get_app_interface()
-    with contextlib.suppress(KeyboardInterrupt):
-        while app.is_running():
-            app.update()
+    get_runtime().show_stage(usd_path)

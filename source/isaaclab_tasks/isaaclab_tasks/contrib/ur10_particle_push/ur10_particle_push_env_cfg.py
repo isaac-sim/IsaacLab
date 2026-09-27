@@ -586,6 +586,8 @@ class CurriculumCfg:
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
 
+    class_type: type | str = "{DIR}.ur10_particle_push_env:UR10ParticlePushEnv"
+
     decimation = 2
     # One approach and sweep comfortably fits within this horizon.
     episode_length_s = 12.0

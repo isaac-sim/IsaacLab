@@ -43,6 +43,9 @@ class DefaultEventManagerCfg:
 class ManagerBasedEnvCfg:
     """Base configuration of the environment."""
 
+    class_type: type | str = "{DIR}.manager_based_env:ManagerBasedEnv"
+    """The environment class constructed from this configuration."""
+
     # simulation settings
     sim: SimulationCfg = SimulationCfg()
     """Physics simulation configuration. Default is SimulationCfg()."""

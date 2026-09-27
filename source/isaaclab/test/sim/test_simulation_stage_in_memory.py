@@ -5,16 +5,10 @@
 
 """Integration tests for simulation context with stage in memory."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
 # FIXME (mmittal): Stage in memory requires cameras to be enabled.
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+from isaaclab.test.utils import launch_test_simulation
 
-"""Rest everything follows."""
-
+launch_test_simulation(enable_cameras=True)
 
 import numpy as np
 import pytest
@@ -22,6 +16,7 @@ from isaaclab_newton.sim.schemas import NewtonArticulationCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import omni.physx
+import omni.usd
 import usdrt
 
 import isaaclab.sim as sim_utils
@@ -113,7 +108,7 @@ def test_stage_in_memory_with_shapes(sim):
         assert len(prims) == num_shape_prototypes
 
     # verify stage is no longer in memory
-    assert not sim_utils.is_current_stage_in_memory()
+    assert omni.usd.get_context().get_stage() is sim_utils.get_current_stage()
 
     # verify prims now exist in context stage
     prims = sim_utils.find_matching_prim_paths(prim_path_regex)
@@ -135,7 +130,7 @@ def test_stage_in_memory_with_usds(sim):
     ]
 
     # verify stage is attached to USD context (happens automatically now with create_stage_in_memory)
-    assert not sim_utils.is_current_stage_in_memory()
+    assert omni.usd.get_context().get_stage() is sim_utils.get_current_stage()
 
     # grab stage and set as current stage via the with statement
     stage_in_memory = sim.stage
@@ -173,7 +168,7 @@ def test_stage_in_memory_with_usds(sim):
         assert len(prims) == num_robot_prototypes
 
     # verify stage is no longer in memory
-    assert not sim_utils.is_current_stage_in_memory()
+    assert omni.usd.get_context().get_stage() is sim_utils.get_current_stage()
 
     # verify prims now exist in context stage
     prims = sim_utils.find_matching_prim_paths(prim_path_regex)
@@ -192,7 +187,7 @@ def test_stage_in_memory_with_clone_in_fabric(sim):
     num_clones = 100
 
     # verify stage is attached to USD context (happens automatically now with create_stage_in_memory)
-    assert not sim_utils.is_current_stage_in_memory()
+    assert omni.usd.get_context().get_stage() is sim_utils.get_current_stage()
 
     # grab stage and set as current stage via the with statement
     stage_in_memory = sim.stage

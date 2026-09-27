@@ -668,7 +668,7 @@ class KitVisualizer(BaseVisualizer):
         if not cameras_enabled:
             logger.info(
                 "[KitVisualizer] Streaming view skipped: camera rendering is not enabled "
-                "(cameras_enabled=False). Construct AppLauncher with enable_cameras=True, "
+                "(cameras_enabled=False). Launch with enable_cameras=True (--enable_cameras), "
                 "or use launch_simulation() which enables cameras automatically when "
                 "streaming_view=True is set on the KitVisualizerCfg."
             )

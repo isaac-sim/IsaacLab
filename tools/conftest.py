@@ -47,10 +47,10 @@ it finishes, the on-disk shader cache is populated and later tests are fast.
 """
 
 STARTUP_DEADLINE = 120
-"""Seconds to wait for AppLauncher init or pytest collection before declaring a
+"""Seconds to wait for Kit launch or pytest collection before declaring a
 startup hang.
 
-AppLauncher prints ``[ISAACLAB] AppLauncher initialization complete`` to
+The Kit launcher prints ``[ISAACLAB] KitLauncher initialization complete`` to
 ``sys.__stderr__`` (never suppressed) when Kit finishes initializing, and pytest
 prints ``collected N items`` to stdout after collection (``N workers [M items]``
 under ``pytest-xdist``, once every worker has collected).  If none appears
@@ -353,7 +353,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
         timeout: Maximum wall-clock seconds before the process is killed.
         env: Environment variables for the subprocess.
         startup_deadline: If > 0, the process is killed early when neither
-            ``AppLauncher initialization complete`` (stderr) nor ``collected``
+            ``KitLauncher initialization complete`` (stderr) nor ``collected``
             (stdout) appears within this many seconds.
         report_file: Path to the JUnit XML report file.  When set, the process
             is given only :data:`SHUTDOWN_GRACE_PERIOD` seconds to exit after
@@ -406,7 +406,7 @@ def capture_test_output_with_timeout(cmd, timeout, env, startup_deadline=0, repo
             elapsed = time.time() - start_time
 
             if not started and (
-                b"AppLauncher initialization complete" in stderr_data
+                b"KitLauncher initialization complete" in stderr_data
                 or b"collected " in stdout_data
                 or b" workers [" in stdout_data
             ):

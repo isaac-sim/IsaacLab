@@ -6,13 +6,14 @@
 """Settings manager for Isaac Lab that works with or without Omniverse carb.settings.
 
 This module provides a unified settings interface that can work in two modes:
-1. Omniverse mode: Uses carb.settings when SimulationApp is launched
+1. Backed mode: Delegates to a ``carb.settings``-compatible backend set by the Kit launcher
 2. Standalone mode: Uses pure Python dictionary when running without Omniverse
 
 This allows Isaac Lab to run visualizers like Rerun and Newton without requiring
 the full Omniverse/SimulationApp stack.
 """
 
+import contextlib
 import sys
 from typing import Any
 
@@ -25,7 +26,7 @@ class SettingsManager:
 
     This class can work in two modes:
     - Standalone mode: Uses a Python dictionary to store settings
-    - Omniverse mode: Delegates to carb.settings when available
+    - Backed mode: Delegates to the backend given to :meth:`set_backend`
 
     The interface is designed to be compatible with the carb.settings API.
 
@@ -55,8 +56,7 @@ class SettingsManager:
             return
 
         self._standalone_settings: dict[str, Any] = {}
-        self._carb_settings = None
-        self._use_carb = False
+        self._backend = None
         self._needs_init = False
 
     @classmethod
@@ -74,20 +74,16 @@ class SettingsManager:
 
         return instance
 
-    def initialize_carb_settings(self):
-        """Initialize carb.settings if SimulationApp has been launched.
+    def set_backend(self, backend: Any) -> None:
+        """Delegate all settings to *backend* from now on.
 
-        This should be called after SimulationApp is created to enable
-        Omniverse mode. If not called, the manager operates in standalone mode.
+        The Kit launcher calls this with ``carb.settings.get_settings()`` once Kit has started.
+        Until then, the manager operates in standalone mode.
+
+        Args:
+            backend: A ``carb.settings``-compatible settings interface.
         """
-        try:
-            import carb
-
-            self._carb_settings = carb.settings.get_settings()
-            self._use_carb = True
-        except (ImportError, AttributeError):
-            # carb not available or SimulationApp not launched - use standalone mode
-            self._use_carb = False
+        self._backend = backend
 
     def set(self, path: str, value: Any) -> None:
         """Set a setting value at the given path.
@@ -96,19 +92,18 @@ class SettingsManager:
             path: The settings path (e.g., "/isaaclab/render/offscreen")
             value: The value to set
         """
-        if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
+        if self._backend is not None:
             if isinstance(value, bool):
-                self._carb_settings.set_bool(path, value)
+                self._backend.set_bool(path, value)
             elif isinstance(value, int):
-                self._carb_settings.set_int(path, value)
+                self._backend.set_int(path, value)
             elif isinstance(value, float):
-                self._carb_settings.set_float(path, value)
+                self._backend.set_float(path, value)
             elif isinstance(value, str):
-                self._carb_settings.set_string(path, value)
+                self._backend.set_string(path, value)
             else:
                 # For other types, try generic set
-                self._carb_settings.set(path, value)
+                self._backend.set(path, value)
         else:
             # Standalone mode - use dictionary
             self._standalone_settings[path] = value
@@ -123,9 +118,8 @@ class SettingsManager:
         Returns:
             The value at the path, or default if not found
         """
-        if self._use_carb and self._carb_settings is not None:
-            # Delegate to carb.settings
-            value = self._carb_settings.get(path)
+        if self._backend is not None:
+            value = self._backend.get(path)
             return value if value is not None else default
         else:
             # Standalone mode - use dictionary
@@ -167,15 +161,6 @@ class SettingsManager:
         """
         self.set(path, value)
 
-    @property
-    def is_omniverse_mode(self) -> bool:
-        """Check if the settings manager is using carb.settings (Omniverse mode).
-
-        Returns:
-            True if using carb.settings, False if using standalone mode
-        """
-        return self._use_carb
-
 
 def get_settings_manager() -> SettingsManager:
     """Get the global settings manager instance.
@@ -194,11 +179,27 @@ def get_settings_manager() -> SettingsManager:
     return instance
 
 
-def initialize_carb_settings():
-    """Initialize carb.settings integration for the global settings manager.
+def sync_visualizer_cli_settings(launcher_args: dict) -> None:
+    """Write the visualizer CLI selection and ``--max_visible_envs`` to the settings.
 
-    This should be called after SimulationApp is created to enable
-    Omniverse mode for the global settings manager.
+    Args:
+        launcher_args: Launcher arguments, as normalized by :func:`~isaaclab.app.launch_simulation`.
     """
-    manager = get_settings_manager()
-    manager.initialize_carb_settings()
+    visualizers = launcher_args.get("visualizer")
+
+    if "max_visible_envs" in launcher_args:
+        v = launcher_args["max_visible_envs"]
+        if v is not None and int(v) < 0:
+            raise ValueError(f"Invalid value for --max_visible_envs: {v}. Expected non-negative int.")
+
+    with contextlib.suppress(Exception):
+        settings = get_settings_manager()
+        settings.set_string("/isaaclab/visualizer/types", " ".join(visualizers) if visualizers else "")
+        settings.set_bool("/isaaclab/visualizer/explicit", bool(launcher_args.get("visualizer_explicit", False)))
+        settings.set_bool("/isaaclab/visualizer/disable_all", bool(launcher_args.get("visualizer_disable_all", False)))
+
+        # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
+        if "max_visible_envs" in launcher_args:
+            settings.set_int("/isaaclab/visualizer/max_visible_envs", int(launcher_args["max_visible_envs"]))
+        else:
+            settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)

@@ -9,7 +9,6 @@ import numpy as np
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
@@ -818,11 +817,8 @@ class AssemblyEnv(DirectRLEnv):
 
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
-        import carb
-
         # Disable gravity.
-        physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
-        physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
+        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
 
         self.randomize_fixed_initial_state(env_ids)
 
@@ -877,6 +873,4 @@ class AssemblyEnv(DirectRLEnv):
         # Set initial gains for the episode.
         self._set_gains(self.default_gains)
 
-        import carb
-
-        physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
+        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))

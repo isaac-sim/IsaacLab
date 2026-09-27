@@ -961,7 +961,7 @@ class TeleopSessionLifecycle:
     def _on_pre_shutdown(self, _event):
         """Called when Kit is closing; tear down the session but leave the
         pipeline intact so the main loop can exit via its own control flow
-        (``simulation_app.is_running()`` will go ``False``).
+        (the Kit app stops running).
 
         Full resource cleanup happens later when the context manager's
         ``__exit__`` calls :meth:`stop`.
@@ -1427,7 +1427,7 @@ class TeleopSessionLifecycle:
         tick, which is why handle acquisition may be deferred by one frame.
 
         Headless mode is detected via the ``/isaaclab/xr/auto_start`` carb
-        setting which the :class:`~isaaclab.app.AppLauncher` stores after
+        setting which the :class:`~isaaclab_physx.app.KitLauncher` stores after
         resolving the headless state from visualizer intent. In
         non-headless mode this is a no-op because Kit's profile system manages
         AR activation through the UI.

@@ -17,6 +17,7 @@ import torch
 import warp as wp
 
 from .. import sim as sim_utils
+from ..app.runtime import get_runtime
 from ..app.settings_manager import SettingsManager
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
@@ -184,12 +185,7 @@ class SimulationContext:
 
         # When Kit is running, attach the stage to Kit's USD context so that
         # Kit extensions (PhysX views, Articulation, viewport) can discover it.
-        if use_isaac_sim:
-            import omni.usd
-
-            kit_context = omni.usd.get_context()
-            if kit_context is not None and kit_context.get_stage() is not self.stage:
-                kit_context.attach_stage_with_callback(stage_cache.GetId(self.stage).ToLongInt())
+        get_runtime().attach_stage(self.stage)
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = SettingsManager.instance()
@@ -500,7 +496,7 @@ class SimulationContext:
     def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
         """Apply ``--max_visible_envs`` to every resolved visualizer cfg when set in settings.
 
-        AppLauncher stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1`` when the flag was
+        the Kit launcher stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1`` when the flag was
         omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs` on each cfg.
         """
         raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")

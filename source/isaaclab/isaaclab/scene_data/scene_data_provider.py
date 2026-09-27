@@ -207,22 +207,12 @@ class SceneDataProvider:
         """Pixar :class:`Usd.Stage` for visualizers and renderers that walk USD.
 
         Resolves to :attr:`isaaclab.sim.SimulationContext.stage`, falling back to
-        ``omni.usd.get_context().get_stage()`` when the simulation context has no
-        cached stage. Returns ``None`` on Newton-only headless runs without a USD
-        stage.
+        the current stage when the simulation context has no cached stage. Returns
+        ``None`` on Newton-only headless runs without a USD stage.
         """
-        from isaaclab.sim import SimulationContext
-
-        sim = SimulationContext.instance()
+        sim = sim_utils.SimulationContext.instance()
         stage = getattr(sim, "stage", None) if sim is not None else None
-        if stage is not None:
-            return stage
-        try:
-            import omni.usd
-
-            return omni.usd.get_context().get_stage()
-        except Exception:
-            return None
+        return stage if stage is not None else sim_utils.get_current_stage()
 
     def get_usd_stage(self) -> Usd.Stage | None:
         """Return the USD stage for callers using the older method-style API."""

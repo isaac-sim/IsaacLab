@@ -49,7 +49,6 @@ __all__ = [
     "count_total_labels",
     "resolve_paths",
     "create_new_stage",
-    "is_current_stage_in_memory",
     "open_stage",
     "show_stage_in_viewport",
     "use_stage",
@@ -125,7 +124,6 @@ from .semantics import (
 from .stage import (
     resolve_paths,
     create_new_stage,
-    is_current_stage_in_memory,
     open_stage,
     show_stage_in_viewport,
     use_stage,
