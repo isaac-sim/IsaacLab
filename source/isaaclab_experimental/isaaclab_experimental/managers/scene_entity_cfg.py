@@ -42,10 +42,16 @@ class SceneEntityCfg(_SceneEntityCfg):
     def from_stable(cls, stable: _SceneEntityCfg) -> SceneEntityCfg:
         """Build a warp scene-entity cfg from a stable one.
 
-        Copies every field declared on the stable cfg; the warp-specific fields
+        Copies every constructor field declared on the stable cfg; the warp-specific fields
         stay ``None`` and are filled by :meth:`resolve` at scene build time.
         """
-        return cls(**{name: getattr(stable, name) for name in _SceneEntityCfg.__dataclass_fields__})
+        return cls(
+            **{
+                name: getattr(stable, name)
+                for name, field in _SceneEntityCfg.__dataclass_fields__.items()
+                if field.init
+            }
+        )
 
     def resolve(self, scene: InteractiveScene):
         # run the stable resolution first (fills joint_ids/body_ids from names/regex)

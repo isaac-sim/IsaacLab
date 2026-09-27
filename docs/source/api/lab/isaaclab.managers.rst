@@ -38,6 +38,35 @@ Scene Entity
     :members:
     :exclude-members: __init__
 
+Resolved selections
+~~~~~~~~~~~~~~~~~~~
+
+``SceneEntityCfg.resolve(scene)`` creates cached ``torch.long`` selectors on the
+scene device, available as ``joint_ids_torch``, ``body_ids_torch``,
+``fixed_tendon_ids_torch``, and ``object_collection_ids_torch``. The existing
+``*_ids`` fields keep their Python lists or slices for host consumers.
+Managers resolve their copies of term configurations before calling the terms.
+
+.. code-block:: python
+
+    cfg = SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])
+    cfg.resolve(env.scene)
+    positions = env.scene["robot"].data.body_pos_w.torch[:, cfg.body_ids_torch]
+    first_body = cfg.body_ids[0]  # Python int; no device readback
+    body_names = [env.scene["robot"].body_names[i] for i in cfg.body_ids]
+
+Migration is optional: existing ``*_ids`` accesses retain their behavior. Use the
+``*_ids_torch`` accessors for Torch indexing to avoid rebuilding device indices.
+Slices remain slices, preserving ordinary tensor view semantics. These accessors
+return the configured host selectors before resolution, so direct calls to terms
+remain compatible; caching begins only after resolution.
+
+Treat cached tensors as read-only. After changing a selection, call ``resolve``
+again before using its device selector. Replacing or copying a configuration with
+``replace`` or ``copy`` clears the caches and requires resolution to populate them.
+Configuration serialization excludes the caches. Runtime dataclass fields use
+``metadata={"serialize": False}`` to opt out of ``class_to_dict`` serialization.
+
 Manager Base
 ------------
 

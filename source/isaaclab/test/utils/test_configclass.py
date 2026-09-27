@@ -340,6 +340,10 @@ class ClassFunctionImplementedDemoCfg:
     def a_proxy(self) -> int:
         return self.a
 
+    @property
+    def doubled_a(self) -> int:
+        return 2 * self.a
+
     @a_proxy.setter
     def a_proxy(self, value: int):
         self.a = value
@@ -798,6 +802,11 @@ def test_functions_config():
 def test_class_function_impl_config():
     """Tests having class function defined in the class instance."""
     cfg = ClassFunctionImplementedDemoCfg()
+
+    class InheritedCfg(ClassFunctionImplementedDemoCfg):
+        pass
+
+    assert InheritedCfg(a=3).doubled_a == 6
 
     # check that the annotations are correct
     assert cfg.__annotations__ == {"a": "int"}

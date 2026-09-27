@@ -343,7 +343,7 @@ def record_joint_pos_offsets(output: torch.Tensor, descriptor: GenericObservatio
         **kwargs: Additional keyword arguments.
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
-    ids = kwargs["asset_cfg"].joint_ids
+    ids = kwargs["asset_cfg"].joint_ids_torch
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
     descriptor.joint_pos_offsets = asset.data.default_joint_pos.torch[:, ids][0]
@@ -360,7 +360,7 @@ def record_joint_vel_offsets(output: torch.Tensor, descriptor: GenericObservatio
         **kwargs: Additional keyword arguments.
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
-    ids = kwargs["asset_cfg"].joint_ids
+    ids = kwargs["asset_cfg"].joint_ids_torch
     # Get the offsets of the joints for the first robot in the scene.
     # This assumes that all robots have the same joint offsets.
     descriptor.joint_vel_offsets = asset.data.default_joint_vel.torch[:, ids][0]

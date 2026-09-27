@@ -502,12 +502,12 @@ def _custom_post_init(obj):
         # skip dunder members
         if key.startswith("__") or key in borrowed:
             continue
-        # get data member
+        # Properties may be inherited and must not be evaluated or assigned during copying.
+        if isinstance(getattr(type(obj), key, None), property):
+            continue
         value = getattr(obj, key)
-        # check annotation
-        ann = obj.__class__.__dict__.get(key)
         # duplicate data members that are mutable
-        if not callable(value) and not isinstance(ann, property):
+        if not callable(value):
             copied_value = deepcopy(value)
             setattr(obj, key, _wrap_resolvable_strings(copied_value, module_dir=_field_module_dir(obj, key)))
 

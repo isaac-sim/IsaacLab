@@ -21,6 +21,7 @@ import warp as wp
 
 from isaaclab.envs.mdp.commands.commands_cfg import UniformPoseCommandCfg
 from isaaclab.envs.mdp.commands.pose_command import UniformPoseCommand
+from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils.warp import ProxyArray
 
 # ---------------------------------------------------------------------------
@@ -483,12 +484,11 @@ class MockActionManagerTorch:
 # ---------------------------------------------------------------------------
 
 
-class MockSceneEntityCfg:
+class MockSceneEntityCfg(SceneEntityCfg):
     """Unified cfg that works for both stable (joint_ids) and experimental (joint_mask / joint_ids_wp)."""
 
     def __init__(self, name: str, joint_ids: list[int], num_joints: int, device: str):
-        self.name = name
-        self.joint_ids = joint_ids
+        super().__init__(name=name, joint_ids=joint_ids)
 
         # Experimental extras
         mask = [False] * num_joints
@@ -647,15 +647,14 @@ class MockPoseCommandManager:
         return self._term
 
 
-class MockBodyCfg:
+class MockBodyCfg(SceneEntityCfg):
     """SceneEntityCfg-like object for body-level reward/termination terms."""
 
     def __init__(self, name="robot", body_ids=None):
-        self.name = name
-        self.body_ids = body_ids if body_ids is not None else list(BODY_IDS)
+        super().__init__(name=name, body_ids=body_ids if body_ids is not None else list(BODY_IDS))
 
 
-class MockSensorCfg:
+class MockSensorCfg(SceneEntityCfg):
     """SceneEntityCfg-like object for contact sensor terms.
 
     Provides both ``body_ids`` (for stable functions) and ``body_ids_wp``
@@ -663,8 +662,7 @@ class MockSensorCfg:
     """
 
     def __init__(self, name="contact_sensor", body_ids=None, device=DEVICE):
-        self.name = name
-        self.body_ids = body_ids if body_ids is not None else list(BODY_IDS)
+        super().__init__(name=name, body_ids=body_ids if body_ids is not None else list(BODY_IDS))
         self.body_ids_wp = wp.array(self.body_ids, dtype=wp.int32, device=device)
 
 

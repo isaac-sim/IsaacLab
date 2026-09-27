@@ -48,7 +48,7 @@ def object_ee_distance(
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     obj: RigidObject = env.scene[object_cfg.name]
-    asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
+    asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids_torch]
     object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)

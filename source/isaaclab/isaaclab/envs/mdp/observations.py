@@ -156,7 +156,7 @@ def body_pose_w(
         Output is stacked horizontally per body.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    pose = asset.data.body_pose_w.torch[:, asset_cfg.body_ids, :7]
+    pose = asset.data.body_pose_w.torch[:, asset_cfg.body_ids_torch, :7]
     if isinstance(asset_cfg.body_ids, (slice, int)):
         pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
@@ -181,7 +181,7 @@ def body_projected_gravity_b(
         [x,y,z]. Output is stacked horizontally per body.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1, 4)
+    body_quat = asset.data.body_quat_w.torch[:, asset_cfg.body_ids_torch].reshape(env.num_envs, -1, 4)
     # ``GRAVITY_VEC_W`` carries the per-env world-frame gravity in m/s^2 (Newton
     # backend) or scene-wide gravity (PhysX backend).
     gravity_w = asset.data.GRAVITY_VEC_W.torch
@@ -203,7 +203,7 @@ def joint_pos(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their positions returned.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_pos.torch[:, asset_cfg.joint_ids]
+    return asset.data.joint_pos.torch[:, asset_cfg.joint_ids_torch]
 
 
 @generic_io_descriptor(
@@ -218,7 +218,8 @@ def joint_pos_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     asset: Articulation = env.scene[asset_cfg.name]
     return (
-        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids_torch]
+        - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids_torch]
     )
 
 
@@ -232,9 +233,9 @@ def joint_pos_limit_normalized(
     """
     asset: Articulation = env.scene[asset_cfg.name]
     return math_utils.scale_transform(
-        asset.data.joint_pos.torch[:, asset_cfg.joint_ids],
-        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids, 0],
-        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids, 1],
+        asset.data.joint_pos.torch[:, asset_cfg.joint_ids_torch],
+        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids_torch, 0],
+        asset.data.soft_joint_pos_limits.torch[:, asset_cfg.joint_ids_torch, 1],
     )
 
 
@@ -247,7 +248,7 @@ def joint_vel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("
     Note: Only the joints configured in :attr:`asset_cfg.joint_ids` will have their velocities returned.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.joint_vel.torch[:, asset_cfg.joint_ids]
+    return asset.data.joint_vel.torch[:, asset_cfg.joint_ids_torch]
 
 
 @generic_io_descriptor(
@@ -262,7 +263,8 @@ def joint_vel_rel(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityC
     """
     asset: Articulation = env.scene[asset_cfg.name]
     return (
-        asset.data.joint_vel.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_vel.torch[:, asset_cfg.joint_ids_torch]
+        - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids_torch]
     )
 
 
@@ -282,7 +284,7 @@ def joint_effort(env: ManagerBasedEnv, asset_cfg: SceneEntityCfg = SceneEntityCf
         The joint effort (N or N-m) for joint_names in asset_cfg, shape is [num_env,num_joints].
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids]
+    return asset.actuators.applied_effort.torch[:, asset_cfg.joint_ids_torch]
 
 
 """
@@ -311,8 +313,8 @@ def body_incoming_wrench(env: ManagerBasedEnv, sensor_cfg: SceneEntityCfg) -> to
     torque_data = sensor_data.torque
     if force_data is None or torque_data is None:
         raise RuntimeError("Joint wrench sensor data is not initialized. Call sim.reset() before reading observations.")
-    force = force_data.torch[:, sensor_cfg.body_ids]
-    torque = torque_data.torch[:, sensor_cfg.body_ids]
+    force = force_data.torch[:, sensor_cfg.body_ids_torch]
+    torque = torque_data.torch[:, sensor_cfg.body_ids_torch]
     return torch.cat((force, torque), dim=-1).view(env.num_envs, -1)
 
 
