@@ -16,6 +16,7 @@ from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
 from isaaclab.managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import torch_index
 
 from ..assembly_keypoints import NIST_BOARD_CFG
 from ..assembly_profile_cfg import AssemblyProfileCfg
@@ -168,8 +169,8 @@ def reset_held_asset_in_gripper(
     robot: Articulation = env.scene[holding_body_cfg.name]
     held_asset: Articulation = env.scene[held_asset_cfg.name]
 
-    end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 4)
-    end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 3)
+    end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, torch_index(holding_body_cfg.body_ids)].view(-1, 4)
+    end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, torch_index(holding_body_cfg.body_ids)].view(-1, 3)
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     grasp_quat = gripper_grasp_offset.quat_t(env.device).expand(num_envs, -1)
 
@@ -202,16 +203,18 @@ def grasp_held_asset(
     flexible_angle: bool = True,
 ) -> None:
     robot: Articulation = env.scene[robot_cfg.name]
-    joint_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids][env_ids].clone()
+    joint_pos = robot.data.joint_pos.torch[:, torch_index(robot_cfg.joint_ids)][env_ids].clone()
     min_angle = held_asset_diameter / 2 * 1.15
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     if flexible_angle:
-        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids[0], 1]
+        max_angle = robot.data.joint_pos_limits.torch[0, torch_index(robot_cfg.joint_ids), 1][0]
         joint_pos[:] = (torch.rand((num_envs,), device=env.device) * (max_angle - min_angle) + min_angle).unsqueeze(1)
     else:
         joint_pos[:] = min_angle
 
-    robot.write_joint_position_to_sim_index(position=joint_pos, joint_ids=robot_cfg.joint_ids, env_ids=env_ids)
+    robot.write_joint_position_to_sim_index(
+        position=joint_pos, joint_ids=torch_index(robot_cfg.joint_ids), env_ids=env_ids
+    )
 
 
 class reset_end_effector_around_asset(ManagerTermBase):

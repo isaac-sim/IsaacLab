@@ -24,7 +24,6 @@ import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import IndexSequence
 
 pytestmark = pytest.mark.integration
 
@@ -1009,12 +1008,7 @@ class TestArticulationWritersJoint:
             }
         )
         # warp, all envs + all joints: the matching getter reads the written values back
-        method(
-            **{
-                kwarg: _make_payload_warp((num_instances, num_joints), device, wp_dtype),
-                "joint_ids": IndexSequence(range(num_joints), device),
-            }
-        )
+        method(**{kwarg: _make_payload_warp((num_instances, num_joints), device, wp_dtype)})
         _assert_reads_back(
             _read_joint_writer_target(art, getter),
             _make_payload_torch((num_instances, num_joints), device, wp_dtype),
@@ -1163,12 +1157,7 @@ class TestArticulationWritersBody:
             }
         )
         # warp, all envs + all bodies: the matching getter reads the written values back
-        method(
-            **{
-                kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True),
-                "body_ids": IndexSequence(range(num_bodies), device),
-            }
-        )
+        method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
         expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
         _assert_reads_back(getattr(art.data, getter), expected, getter)
         # warp, subset

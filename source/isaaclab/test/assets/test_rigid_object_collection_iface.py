@@ -24,7 +24,6 @@ import warp as wp
 from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object_collection
 
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import IndexSequence
 
 pytestmark = pytest.mark.integration
 
@@ -740,12 +739,7 @@ class TestCollectionWritersBody:
             }
         )
         # warp, all envs + all bodies: the matching getter reads the written values back
-        method(
-            **{
-                kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True),
-                "body_ids": IndexSequence(range(num_bodies), device),
-            }
-        )
+        method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
         expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
         _assert_reads_back(getattr(obj.data, getter), expected, getter)
         # warp, subset

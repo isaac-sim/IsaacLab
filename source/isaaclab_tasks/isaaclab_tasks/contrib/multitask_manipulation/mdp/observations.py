@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import torch_index
 
 from ..selection_utils import SceneEntitySelectionCfg
 from .utils import offset_body_pose
@@ -33,7 +34,8 @@ def selected_joint_pos_rel(env: ManagerBasedRLEnv, asset_cfg: SceneEntitySelecti
     """Return relative joint positions in global environment order."""
     asset: Articulation = env.scene[asset_cfg.name]
     values = (
-        asset.data.joint_pos.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_pos.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_pos.torch[:, torch_index(asset_cfg.joint_ids)]
+        - asset.data.default_joint_pos.torch[:, torch_index(asset_cfg.joint_ids)]
     )
     return asset_cfg.scatter_to_envs(values)
 
@@ -42,7 +44,8 @@ def selected_joint_vel_rel(env: ManagerBasedRLEnv, asset_cfg: SceneEntitySelecti
     """Return relative joint velocities in global environment order."""
     asset: Articulation = env.scene[asset_cfg.name]
     values = (
-        asset.data.joint_vel.torch[:, asset_cfg.joint_ids] - asset.data.default_joint_vel.torch[:, asset_cfg.joint_ids]
+        asset.data.joint_vel.torch[:, torch_index(asset_cfg.joint_ids)]
+        - asset.data.default_joint_vel.torch[:, torch_index(asset_cfg.joint_ids)]
     )
     return asset_cfg.scatter_to_envs(values)
 
@@ -87,8 +90,8 @@ def cabinet_drawer_state(env: ManagerBasedRLEnv, cabinet_cfg: SceneEntitySelecti
     cabinet: Articulation = env.scene[cabinet_cfg.name]
     values = torch.cat(
         (
-            cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids],
-            cabinet.data.joint_vel.torch[:, cabinet_cfg.joint_ids],
+            cabinet.data.joint_pos.torch[:, torch_index(cabinet_cfg.joint_ids)],
+            cabinet.data.joint_vel.torch[:, torch_index(cabinet_cfg.joint_ids)],
         ),
         dim=-1,
     )

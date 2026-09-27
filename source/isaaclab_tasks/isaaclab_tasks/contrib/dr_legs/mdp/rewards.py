@@ -21,7 +21,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
-from isaaclab.utils import index_fill_
+from isaaclab.utils import index_fill_, torch_index
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -82,7 +82,7 @@ def joint_pos_tracking_exp(
     std: float = 0.5,
 ) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
-    joint_ids = asset_cfg.joint_ids
+    joint_ids = torch_index(asset_cfg.joint_ids)
     error = asset.data.joint_pos[:, joint_ids] - asset.data.default_joint_pos[:, joint_ids]
     return torch.exp(-torch.sum(torch.square(error), dim=1) / std**2)
 
@@ -104,7 +104,7 @@ def joint_pd_command_l2(
     damping: float = 0.2,
 ) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
-    joint_ids = asset_cfg.joint_ids
+    joint_ids = torch_index(asset_cfg.joint_ids)
     joint_pos = asset.data.joint_pos[:, joint_ids]
     joint_vel = asset.data.joint_vel[:, joint_ids]
     joint_pos_target = asset.actuators.target_command.position.torch[:, joint_ids]
@@ -144,7 +144,7 @@ def contact_matching(
     gait_period: float = 1.0,
 ) -> torch.Tensor:
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, torch_index(sensor_cfg.body_ids)]
     observed = torch.linalg.norm(net_forces, dim=-1) > threshold
     reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
     return torch.sum(observed == reference, dim=1).float() - 1.0
@@ -158,7 +158,7 @@ def foot_clearance(
     gait_period: float = 1.0,
 ) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
-    foot_ids = asset_cfg.body_ids
+    foot_ids = torch_index(asset_cfg.body_ids)
     foot_z = asset.data.body_link_pos_w.torch[:, foot_ids, 2]
     phase = _gait_phase(env, gait_period)
     two_pi = 2.0 * math.pi
@@ -177,7 +177,7 @@ def feet_parallel(
     sigma: float = 0.2,
 ) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
-    foot_quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
+    foot_quat = asset.data.body_link_quat_w.torch[:, torch_index(asset_cfg.body_ids)]
     left_yaw = math_utils.yaw_quat(foot_quat[:, 0])
     right_yaw = math_utils.yaw_quat(foot_quat[:, 1])
     return _exp_quat_err(left_yaw, right_yaw, sigma)
@@ -190,7 +190,7 @@ def feet_flat(
 ) -> torch.Tensor:
     """Reward keeping each foot level (small roll/pitch); foot yaw is ignored. Mean over feet."""
     asset = env.scene[asset_cfg.name]
-    foot_quat = asset.data.body_link_quat_w.torch[:, asset_cfg.body_ids]
+    foot_quat = asset.data.body_link_quat_w.torch[:, torch_index(asset_cfg.body_ids)]
     num_envs, num_feet = foot_quat.shape[0], foot_quat.shape[1]
     quat = foot_quat.reshape(-1, 4)
     tilt = _quat_inv_mul(math_utils.yaw_quat(quat), quat)
@@ -206,8 +206,8 @@ def feet_touchdown_vel(
 ) -> torch.Tensor:
     asset = env.scene[asset_cfg.name]
     contact_sensor = env.scene.sensors[sensor_cfg.name]
-    foot_z_vel = asset.data.body_com_lin_vel_w.torch[:, asset_cfg.body_ids, 2]
-    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
+    foot_z_vel = asset.data.body_com_lin_vel_w.torch[:, torch_index(asset_cfg.body_ids), 2]
+    net_forces = contact_sensor.data.net_normal_forces_w.torch[:, torch_index(sensor_cfg.body_ids)]
     contact = (torch.linalg.norm(net_forces, dim=-1) > threshold).float()
     downward_vel = torch.clamp(-foot_z_vel, min=0.0)
     return torch.sum(contact * downward_vel, dim=-1)
@@ -279,7 +279,7 @@ class walk_success_rate(ManagerTermBase):
         self._err_xy_sum += torch.linalg.norm(command[:, :2] - asset.data.root_lin_vel_b.torch[:, :2], dim=1)
         self._err_yaw_sum += torch.abs(command[:, 2] - asset.data.root_ang_vel_b.torch[:, 2])
         contact_sensor = env.scene.sensors[sensor_cfg.name]
-        net_forces = contact_sensor.data.net_normal_forces_w.torch[:, sensor_cfg.body_ids]
+        net_forces = contact_sensor.data.net_normal_forces_w.torch[:, torch_index(sensor_cfg.body_ids)]
         observed = torch.linalg.norm(net_forces, dim=-1) > contact_threshold
         reference = _reference_contacts(_gait_phase(env, gait_period)).bool()
         self._contact_sum += (observed == reference).float().mean(dim=1)

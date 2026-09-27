@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import torch_index
 from isaaclab.utils.math import combine_frame_transforms, quat_from_euler_xyz, quat_unique
 
 if TYPE_CHECKING:
@@ -90,7 +91,7 @@ class SelectedUniformPoseCommand(CommandTerm):
         if self._tracked_cfg.body_names is None:
             tracked_pose_w = self._tracked.data.root_link_pose_w.torch
         else:
-            tracked_pose_w = self._tracked.data.body_link_pose_w.torch[:, self._tracked_cfg.body_ids]
+            tracked_pose_w = self._tracked.data.body_link_pose_w.torch[:, torch_index(self._tracked_cfg.body_ids)]
             if tracked_pose_w.shape[1] != 1:
                 raise ValueError(
                     f"Expected '{self._tracked_cfg.name}' to select one tracked body, got {tracked_pose_w.shape[1]}."

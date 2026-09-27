@@ -41,38 +41,28 @@ Scene Entity
 Resolved selections
 ~~~~~~~~~~~~~~~~~~~
 
-``SceneEntityCfg.resolve(scene)`` creates an :class:`~isaaclab.utils.IndexSequence`
-for each non-slice joint, body, fixed-tendon, and object-collection selection. The
-sequence owns host integers and a cached ``torch.long`` tensor on the scene device.
-Managers resolve their copies of term configurations before calling the terms.
+Scene-entity selections follow a build-then-finalize lifecycle, similar to Newton's model builder.
+Managers call :meth:`SceneEntityCfg.resolve` while preparing terms, which fills ``joint_ids``,
+``body_ids``, ``fixed_tendon_ids``, and ``object_collection_ids`` with host lists. Class-based terms
+can read these lists in ``__init__``. Once every term is constructed, managers call
+:meth:`SceneEntityCfg.finalize`, which replaces each list with a read-only
+:class:`~isaaclab.utils.warp.ProxyArray` of ``int64`` indices on the simulation device. Slices stay
+slices.
 
 .. code-block:: python
 
-    cfg = SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])
-    cfg.resolve(env.scene)
-    positions = env.scene["robot"].data.body_pos_w.torch[:, cfg.body_ids]
-    first_body = cfg.body_ids[0]  # Python int; no device readback
-    body_names = [env.scene["robot"].body_names[i] for i in cfg.body_ids]
+    from isaaclab.utils import torch_index
 
-Torch indexing and Torch functions unwrap the sequence through ``__torch_function__``.
-Python iteration, scalar indexing, comparison with lists, and ``len`` use host data.
-Slices remain slices, preserving ordinary tensor view semantics.
+    def feet_height(env, asset_cfg: SceneEntityCfg):
+        asset = env.scene[asset_cfg.name]
+        # a slice or the cached device tensor; no upload or synchronization
+        return asset.data.body_pos_w.torch[:, torch_index(asset_cfg.body_ids), 2]
 
-Migration: resolved selectors are read-only sequences rather than mutable lists.
-Use ``list(cfg.body_ids)`` when an editable host copy is needed, and replace the
-selection and call ``resolve`` again after configuration changes. Replace checks
-for ``list`` with checks for ``collections.abc.Sequence`` or explicit slice checks.
-
-Tensor constructors do not dispatch through ``__torch_function__``. Use
-``cfg.body_ids.torch`` for a non-slice selector, or
-``isaaclab.utils.convert_to_torch(cfg.body_ids)`` when a tensor is required.
-Do not mutate the cached tensor. Slicing the sequence itself returns a host list;
-use ``cfg.body_ids.torch[1:]`` to obtain a device view.
-
-Configuration serialization writes ordinary host lists and slices. Read-only
-selections can share their storage across configuration copies; re-resolution on
-another device creates new storage. Device caches have no process-wide owner.
-Native APIs and compiled consumers may need the explicit ``.torch`` view.
+Term calls should not read selections on the host. For a single selected body, gather and select
+on the device, for example ``data[:, torch_index(cfg.body_ids)][:, 0]``. Pass
+``torch_index(cfg.joint_ids)`` to asset write methods. Outside stepping, ``ids.warp.numpy()``
+returns a host copy. Serialization writes host lists, and :meth:`SceneEntityCfg.resolve` returns a
+finalized configuration to host lists.
 
 Manager Base
 ------------

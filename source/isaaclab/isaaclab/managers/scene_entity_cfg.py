@@ -7,13 +7,13 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-import torch
+import warp as wp
 
-from ..utils import IndexSequence, configclass
+from ..utils import configclass
+from ..utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from ..assets import Articulation, RigidObject, RigidObjectCollection
@@ -27,11 +27,11 @@ class SceneEntityCfg:
     This class is used to specify the name of the scene entity that is queried from the
     :class:`InteractiveScene` and passed to the manager's term function.
 
-    After :meth:`resolve`, non-slice selectors are read-only :class:`~isaaclab.utils.IndexSequence`
-    objects. Python iteration and scalar indexing use host integers; Torch indexing uses a cached
-    tensor on the scene device. Use ``list(cfg.body_ids)`` for an editable host copy, and
-    ``cfg.body_ids.torch`` when calling a tensor constructor or native API. Slices stay slices.
-    Configuration serialization writes host lists, without device storage.
+    Selections follow a build-then-finalize lifecycle. :meth:`resolve` fills the ``*_ids`` fields with
+    host lists, which class-based terms may read during construction. :meth:`finalize` then replaces each
+    list with a read-only :class:`~isaaclab.utils.warp.ProxyArray` of ``int64`` indices on the device.
+    Slices stay slices. Managers finalize their term configurations once all terms are constructed, so
+    term calls receive device selections; use :func:`~isaaclab.utils.torch_index` to index with them.
     """
 
     name: str = MISSING
@@ -47,10 +47,10 @@ class SceneEntityCfg:
     The names can be either joint names or a regular expression matching the joint names.
 
     These are converted to joint indices on initialization of the manager and passed to the term
-    function as a resolved sequence of joint indices under :attr:`joint_ids`.
+    function as joint indices under :attr:`joint_ids`.
     """
 
-    joint_ids: list[int] | IndexSequence | slice = slice(None)
+    joint_ids: list[int] | slice | ProxyArray = slice(None)
     """The indices of the joints from the asset required by the term. Defaults to slice(None), which means
     all the joints in the asset (if present).
 
@@ -64,10 +64,10 @@ class SceneEntityCfg:
     The names can be either joint names or a regular expression matching the joint names.
 
     These are converted to fixed tendon indices on initialization of the manager and passed to the term
-    function as a resolved sequence of fixed tendon indices under :attr:`fixed_tendon_ids`.
+    function as fixed tendon indices under :attr:`fixed_tendon_ids`.
     """
 
-    fixed_tendon_ids: list[int] | IndexSequence | slice = slice(None)
+    fixed_tendon_ids: list[int] | slice | ProxyArray = slice(None)
     """The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means
     all the fixed tendons in the asset (if present).
 
@@ -81,10 +81,10 @@ class SceneEntityCfg:
     The names can be either body names or a regular expression matching the body names.
 
     These are converted to body indices on initialization of the manager and passed to the term
-    function as a resolved sequence of body indices under :attr:`body_ids`.
+    function as body indices under :attr:`body_ids`.
     """
 
-    body_ids: list[int] | IndexSequence | slice = slice(None)
+    body_ids: list[int] | slice | ProxyArray = slice(None)
     """The indices of the bodies from the asset required by the term. Defaults to slice(None), which means
     all the bodies in the asset.
 
@@ -98,10 +98,10 @@ class SceneEntityCfg:
     The names can be either names or a regular expression matching the object names in the collection.
 
     These are converted to object indices on initialization of the manager and passed to the term
-    function as a resolved sequence of object indices under :attr:`object_collection_ids`.
+    function as object indices under :attr:`object_collection_ids`.
     """
 
-    object_collection_ids: list[int] | IndexSequence | slice = slice(None)
+    object_collection_ids: list[int] | slice | ProxyArray = slice(None)
     """The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
     which means all the objects in the collection.
 
@@ -124,7 +124,7 @@ class SceneEntityCfg:
 
     """
 
-    def resolve(self, scene: InteractiveScene) -> None:
+    def resolve(self, scene: InteractiveScene):
         """Resolves the scene entity and converts the joint and body names to indices.
 
         This function examines the scene entity from the :class:`InteractiveScene` and resolves the indices
@@ -145,6 +145,12 @@ class SceneEntityCfg:
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
+        # re-resolution starts from host selections; reading finalized indices back is setup-time only
+        for field_name in _INDEX_FIELDS:
+            indices = getattr(self, field_name)
+            if isinstance(indices, ProxyArray):
+                setattr(self, field_name, indices.warp.numpy().tolist())
+
         # convert joint names to indices based on regex
         self._resolve_joint_names(scene)
 
@@ -157,10 +163,20 @@ class SceneEntityCfg:
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
 
-        self.joint_ids = _cache_indices(self.joint_ids, scene.device)
-        self.fixed_tendon_ids = _cache_indices(self.fixed_tendon_ids, scene.device)
-        self.body_ids = _cache_indices(self.body_ids, scene.device)
-        self.object_collection_ids = _cache_indices(self.object_collection_ids, scene.device)
+    def finalize(self, device: str) -> None:
+        """Move resolved index selections to the device.
+
+        Each non-slice ``*_ids`` selection becomes a :class:`~isaaclab.utils.warp.ProxyArray` of ``int64``
+        indices, so Torch indexing uses it without a host-to-device upload. Slices are kept. Calling this
+        method again is a no-op; call :meth:`resolve` to return the selections to host lists.
+
+        Args:
+            device: Device on which to allocate the index arrays.
+        """
+        for field_name in _INDEX_FIELDS:
+            indices = getattr(self, field_name)
+            if not isinstance(indices, (slice, ProxyArray)):
+                setattr(self, field_name, ProxyArray(wp.array(list(indices), dtype=wp.int64, device=device)))
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -172,11 +188,9 @@ class SceneEntityCfg:
                     self.joint_names = [self.joint_names]
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
-                if self.joint_names == _selected_names(entity.joint_names, self.joint_ids):
-                    return
                 joint_ids, _ = entity.find_joints(self.joint_names, preserve_order=self.preserve_order)
-                joint_names = _selected_names(entity.joint_names, self.joint_ids)
-                if joint_ids != _selected_ids(self.joint_ids, len(entity.joint_names)):
+                joint_names = [entity.joint_names[i] for i in self.joint_ids]
+                if joint_ids != self.joint_ids or joint_names != self.joint_names:
                     raise ValueError(
                         "Both 'joint_names' and 'joint_ids' are specified, and are not consistent."
                         f"\n\tfrom joint names: {self.joint_names} [{joint_ids}]"
@@ -196,7 +210,7 @@ class SceneEntityCfg:
             elif self.joint_ids != slice(None):
                 if isinstance(self.joint_ids, int):
                     self.joint_ids = [self.joint_ids]
-                self.joint_names = _selected_names(entity.joint_names, self.joint_ids)
+                self.joint_names = [entity.joint_names[i] for i in self.joint_ids]
 
     def _resolve_fixed_tendon_names(self, scene: InteractiveScene):
         # convert tendon names to indices based on regex
@@ -208,13 +222,11 @@ class SceneEntityCfg:
                     self.fixed_tendon_names = [self.fixed_tendon_names]
                 if isinstance(self.fixed_tendon_ids, int):
                     self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                if self.fixed_tendon_names == _selected_names(entity.fixed_tendon_names, self.fixed_tendon_ids):
-                    return
                 fixed_tendon_ids, _ = entity.find_fixed_tendons(
                     self.fixed_tendon_names, preserve_order=self.preserve_order
                 )
-                fixed_tendon_names = _selected_names(entity.fixed_tendon_names, self.fixed_tendon_ids)
-                if fixed_tendon_ids != _selected_ids(self.fixed_tendon_ids, len(entity.fixed_tendon_names)):
+                fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
+                if fixed_tendon_ids != self.fixed_tendon_ids or fixed_tendon_names != self.fixed_tendon_names:
                     raise ValueError(
                         "Both 'fixed_tendon_names' and 'fixed_tendon_ids' are specified, and are not consistent."
                         f"\n\tfrom joint names: {self.fixed_tendon_names} [{fixed_tendon_ids}]"
@@ -239,7 +251,7 @@ class SceneEntityCfg:
             elif self.fixed_tendon_ids != slice(None):
                 if isinstance(self.fixed_tendon_ids, int):
                     self.fixed_tendon_ids = [self.fixed_tendon_ids]
-                self.fixed_tendon_names = _selected_names(entity.fixed_tendon_names, self.fixed_tendon_ids)
+                self.fixed_tendon_names = [entity.fixed_tendon_names[i] for i in self.fixed_tendon_ids]
 
     def _resolve_body_names(self, scene: InteractiveScene):
         # convert body names to indices based on regex
@@ -254,11 +266,9 @@ class SceneEntityCfg:
                     self.body_names = [self.body_names]
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                if self.body_names == _selected_names(entity.body_names, self.body_ids):
-                    return
                 body_ids, _ = _find_fn(self.body_names, preserve_order=self.preserve_order)
-                body_names = _selected_names(entity.body_names, self.body_ids)
-                if body_ids != _selected_ids(self.body_ids, len(entity.body_names)):
+                body_names = [entity.body_names[i] for i in self.body_ids]
+                if body_ids != self.body_ids or body_names != self.body_names:
                     raise ValueError(
                         "Both 'body_names' and 'body_ids' are specified, and are not consistent."
                         f"\n\tfrom body names: {self.body_names} [{body_ids}]"
@@ -278,7 +288,7 @@ class SceneEntityCfg:
             elif self.body_ids != slice(None):
                 if isinstance(self.body_ids, int):
                     self.body_ids = [self.body_ids]
-                self.body_names = _selected_names(entity.body_names, self.body_ids)
+                self.body_names = [entity.body_names[i] for i in self.body_ids]
 
     def _resolve_object_collection_names(self, scene: InteractiveScene):
         # convert object names to indices based on regex
@@ -290,11 +300,9 @@ class SceneEntityCfg:
                     self.object_collection_names = [self.object_collection_names]
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
-                if self.object_collection_names == _selected_names(entity.object_names, self.object_collection_ids):
-                    return
                 object_ids, _ = entity.find_objects(self.object_collection_names, preserve_order=self.preserve_order)
-                object_names = _selected_names(entity.object_names, self.object_collection_ids)
-                if object_ids != _selected_ids(self.object_collection_ids, len(entity.object_names)):
+                object_names = [entity.object_names[i] for i in self.object_collection_ids]
+                if object_ids != self.object_collection_ids or object_names != self.object_collection_names:
                     raise ValueError(
                         "Both 'object_collection_names' and 'object_collection_ids' are specified, and are not"
                         " consistent.\n\tfrom object collection names:"
@@ -313,23 +321,7 @@ class SceneEntityCfg:
             elif self.object_collection_ids != slice(None):
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
-                self.object_collection_names = _selected_names(entity.object_names, self.object_collection_ids)
+                self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
 
 
-def _selected_ids(indices: Sequence[int] | slice, count: int) -> list[int]:
-    """Compare resolved selections on the host, including repeated resolution."""
-    if isinstance(indices, slice):
-        return list(range(count)[indices])
-    return [index + count if index < 0 else index for index in indices]
-
-
-def _selected_names(names: list[str], indices: Sequence[int] | slice) -> list[str]:
-    return names[indices] if isinstance(indices, slice) else [names[index] for index in indices]
-
-
-def _cache_indices(indices: Sequence[int] | slice, device: str) -> IndexSequence | slice:
-    if isinstance(indices, slice):
-        return indices
-    if isinstance(indices, IndexSequence) and indices.torch.device == torch.device(device):
-        return indices
-    return IndexSequence(indices, device)
+_INDEX_FIELDS = ("joint_ids", "fixed_tendon_ids", "body_ids", "object_collection_ids")

@@ -228,10 +228,3 @@ local matrices consistent without round-tripping through USD.
 .. automodule:: isaaclab.utils.warp.fabric
    :members:
    :show-inheritance:
-
-Resolved index sequences
-------------------------
-
-.. autoclass:: isaaclab.utils.IndexSequence
-    :members:
-    :special-members: __torch_function__

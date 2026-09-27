@@ -15,7 +15,7 @@ import numpy as np
 import torch
 import warp as wp
 
-from .index_sequence import IndexSequence
+from .warp.proxy_array import ProxyArray
 
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
@@ -69,13 +69,28 @@ def index_fill_(
         selection[dim] = indices
         data[tuple(selection)].fill_(value)
     else:
-        indices = torch.as_tensor(indices.torch if isinstance(indices, IndexSequence) else indices, device=data.device)
+        indices = torch.as_tensor(indices, device=data.device)
         if indices.dtype == torch.bool:
             shape = [1] * data.ndim
             shape[dim] = -1
             data.masked_fill_(indices.reshape(shape), value)
         else:
             data.index_fill_(dim, indices.to(dtype=torch.long), value)
+
+
+def torch_index(indices: Sequence[int] | slice | ProxyArray) -> Sequence[int] | slice | torch.Tensor:
+    """Return a Torch index for an index selection, such as a resolved scene-entity selection.
+
+    Finalized selections are :class:`~isaaclab.utils.warp.ProxyArray` objects; their cached device tensor is
+    returned so indexing does not upload or synchronize. Slices and host sequences are returned unchanged.
+
+    Args:
+        indices: Index selection.
+
+    Returns:
+        The selection in a form accepted by Torch indexing and asset index arguments.
+    """
+    return indices.torch if isinstance(indices, ProxyArray) else indices
 
 
 def convert_to_torch(
@@ -97,8 +112,7 @@ def convert_to_torch(
         signed integer arrays. This is done by casting the array to the corresponding signed integer type.
 
     Args:
-        array: The input array. It can be a numpy array, warp array, Python list/tuple,
-            :class:`IndexSequence`, or torch tensor. Index sequences reuse their cached tensor.
+        array: The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
         dtype: Target data-type for the tensor.
         device: The target device for the tensor. Defaults to None.
 
@@ -108,8 +122,6 @@ def convert_to_torch(
     # Convert array to tensor
     # if the datatype is not currently supported by torch we need to improvise
     # supported types are: https://pytorch.org/docs/stable/tensors.html
-    if isinstance(array, IndexSequence):
-        array = array.torch
     if isinstance(array, torch.Tensor):
         tensor = array
     elif isinstance(array, np.ndarray):

@@ -78,6 +78,22 @@ class TestProxyArrayBasic:
         with pytest.raises(AttributeError, match="immutable"):
             ta.new_field = 42  # arbitrary attribute writes also blocked
 
+    @cpu_only
+    def test_copy_returns_proxy_array(self, device):
+        """Copies stay ProxyArrays; a deep copy owns separate storage."""
+        import copy
+
+        from isaaclab.utils.warp.proxy_array import ProxyArray
+
+        ta = ProxyArray(wp.array([1, 2], dtype=wp.int64, device=device))
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", DeprecationWarning)
+            shallow = copy.copy(ta)
+            deep = copy.deepcopy(ta)
+        assert isinstance(shallow, ProxyArray) and shallow.warp is ta.warp
+        assert isinstance(deep, ProxyArray) and deep.warp.ptr != ta.warp.ptr
+        assert deep.torch.tolist() == [1, 2]
+
     @pytest.mark.parametrize("cuda_device", test_devices(DeviceScope.CUDA))
     def test_cuda_array_interface(self, cuda_device):
         """Test that __cuda_array_interface__ delegates to the underlying warp array."""

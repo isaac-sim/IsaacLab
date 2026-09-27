@@ -14,6 +14,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils import torch_index
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -111,14 +112,14 @@ def goal_quat_diff(
 def fingertip_pos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip positions in the environment frame [m], shape ``(num_envs, num_fingertips * 3)``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    positions = asset.data.body_pos_w.torch[:, asset_cfg.body_ids] - env.scene.env_origins.unsqueeze(1)
+    positions = asset.data.body_pos_w.torch[:, torch_index(asset_cfg.body_ids)] - env.scene.env_origins.unsqueeze(1)
     return positions.reshape(env.num_envs, -1)
 
 
 def fingertip_vel(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Flattened fingertip spatial velocities [m/s, rad/s], shape ``(num_envs, num_fingertips * 6)``."""
     asset: Articulation = env.scene[asset_cfg.name]
-    return asset.data.body_vel_w.torch[:, asset_cfg.body_ids].reshape(env.num_envs, -1)
+    return asset.data.body_vel_w.torch[:, torch_index(asset_cfg.body_ids)].reshape(env.num_envs, -1)
 
 
 def shadow_hand_goal_keypoints(env: ManagerBasedRLEnv, command_name: str) -> torch.Tensor:

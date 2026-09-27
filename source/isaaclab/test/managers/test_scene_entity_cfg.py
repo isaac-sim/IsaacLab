@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Scene selections preserve host semantics and avoid index uploads during stepping."""
+"""Scene selections resolve on the host, then finalize to device indices used without synchronization."""
 
 import copy
 import json
@@ -18,8 +18,9 @@ from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import index_fill_, replace_slices_with_strings
+from isaaclab.utils import index_fill_, replace_slices_with_strings, torch_index
 from isaaclab.utils.string import resolve_matching_names
+from isaaclab.utils.warp import ProxyArray
 
 pytestmark = pytest.mark.unit
 
@@ -51,69 +52,56 @@ def scene():
     )
 
 
-def device_ids(cfg, kind):
-    indices = getattr(cfg, f"{kind}_ids")
-    return indices
-
-
-def test_resolved_selectors_survive_copy_serialization_and_rebinding(scene):
-    """Ordering, duplicates, negative IDs, slices, and empty selections retain their meaning."""
+@pytest.mark.parametrize("device", test_devices())
+def test_finalize_moves_resolved_selections_to_device(scene, device):
+    """Ordering, slices, and empty selections survive finalization, copies, and serialization."""
     cfg = SceneEntityCfg(
         "robot",
         joint_names=["part_2", "part_0"],
         preserve_order=True,
-        body_ids=[3, 1, 3, -1],
-        fixed_tendon_ids=slice(1, None, 2),
+        body_ids=[3, 1],
         object_collection_ids=[],
     )
     cfg.resolve(scene)
-    assert list(cfg.joint_ids) == [2, 0]
-    assert cfg.body_ids[0] == 3
-    assert list(cfg.body_ids) == [3, 1, 3, -1]
-    assert cfg.fixed_tendon_ids == slice(1, None, 2)
-    assert list(cfg.object_collection_ids) == []
-    values = torch.arange(4)
-    assert values[device_ids(cfg, "body")].tolist() == [3, 1, 3, 3]
-    assert values[device_ids(cfg, "fixed_tendon")].tolist() == [1, 3]
-    assert values[device_ids(cfg, "object_collection")].numel() == 0
+    # class-based terms read host selections before finalization
+    assert cfg.joint_ids == [2, 0]
+    assert cfg.body_ids == [3, 1]
+
+    cfg.finalize(device)
+    joint_ids = cfg.joint_ids
+    cfg.finalize(device)
+    assert cfg.joint_ids is joint_ids
+    assert isinstance(cfg.body_ids, ProxyArray)
+    assert cfg.body_ids.torch.dtype == torch.long
+    assert cfg.body_ids.torch.device == torch.device(device)
+    assert cfg.fixed_tendon_ids == slice(None)
+    values = torch.arange(4, device=device)
+    assert values[torch_index(cfg.joint_ids)].tolist() == [2, 0]
+    assert values[torch_index(cfg.body_ids)].tolist() == [3, 1]
+    assert values[torch_index(cfg.fixed_tendon_ids)].tolist() == [0, 1, 2, 3]
+    assert values[torch_index(cfg.object_collection_ids)].numel() == 0
 
     snapshot = cfg.to_dict()
     assert snapshot["joint_ids"] == [2, 0]
-    assert snapshot["body_ids"] == [3, 1, 3, -1]
+    assert snapshot["body_ids"] == [3, 1]
     json.dumps(replace_slices_with_strings(snapshot))
-    for copied in (cfg.copy(), copy.deepcopy(cfg), SceneEntityCfg(**snapshot)):
-        copied.resolve(scene)
-        assert copied.to_dict() == snapshot
-        assert values[device_ids(copied, "joint")].tolist() == [2, 0]
+    for copied in (cfg.copy(), copy.deepcopy(cfg)):
+        assert isinstance(copied.body_ids, ProxyArray)
+        assert values[torch_index(copied.body_ids)].tolist() == [3, 1]
 
-    changed = cfg.replace(joint_names=None, joint_ids=[1])
-    changed.resolve(scene)
-    assert values[device_ids(changed, "joint")].tolist() == [1]
-    assert values[device_ids(cfg, "joint")].tolist() == [2, 0]
-
-
-def test_regex_consistency_and_repeated_resolution(scene):
-    cfg = SceneEntityCfg("robot", joint_names="part_[02]")
+    # re-resolution returns to host selections
     cfg.resolve(scene)
-    cfg.resolve(scene)
-    assert list(cfg.joint_ids) == [0, 2]
-    cfg.joint_ids = [1]
-    with pytest.raises(ValueError, match="not consistent"):
-        cfg.resolve(scene)
-
-    all_parts = SceneEntityCfg("robot", body_names=scene["robot"].body_names)
-    all_parts.resolve(scene)
-    assert all_parts.body_ids == slice(None)
-    assert device_ids(all_parts, "body") == slice(None)
+    assert cfg.joint_ids == [2, 0]
+    assert cfg.body_ids == [3, 1]
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_resolved_indices_do_not_upload_or_read_back_during_torch_operations(scene, device):
-    """Exercise a real MDP consumer, Torch dispatch, writes, and host scalar use with sync checks."""
+def test_finalized_indices_do_not_upload_or_read_back(scene, device):
+    """Exercise a real MDP consumer, reads, and writes with CUDA synchronization checks."""
     scene.device = device
     cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
     cfg.resolve(scene)
-    indices = device_ids(cfg, "joint")
+    cfg.finalize(device)
     values = torch.arange(16, dtype=torch.float, device=device).reshape(4, 4)
     destination = torch.zeros_like(values)
     replacements = torch.full((4, 2), 7.0, device=device)
@@ -124,24 +112,25 @@ def test_resolved_indices_do_not_upload_or_read_back_during_torch_operations(sce
     torch.cuda.set_sync_debug_mode("error")
     try:
         observed = joint_pos(env, cfg)
+        indices = torch_index(cfg.joint_ids)
         selected = torch.index_select(values, dim=1, index=indices)
+        first = values[:, indices][:, 0]
         destination[:, indices] = replacements
         index_fill_(destination, indices, 9.0, dim=1)
-        assert list(cfg.joint_ids) == [2, 0]
-        assert cfg.joint_ids[0] == 2
-        json.dumps(replace_slices_with_strings(cfg.to_dict()))
     finally:
         torch.cuda.set_sync_debug_mode(previous)
     expected = torch.tensor([[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0]], device=device)
     torch.testing.assert_close(observed, expected)
     torch.testing.assert_close(selected, expected)
+    torch.testing.assert_close(first, expected[:, 0])
     torch.testing.assert_close(destination, torch.tensor([[9.0, 0.0, 9.0, 0.0]], device=device).repeat(4, 1))
 
 
 def test_external_force_uses_selected_body_count(scene):
-    """A resolved subset must size forces for that subset, rather than every body."""
+    """A finalized subset must size forces for that subset, rather than every body."""
     cfg = SceneEntityCfg("robot", body_ids=[3, 1])
     cfg.resolve(scene)
+    cfg.finalize(scene.device)
     asset = scene["robot"]
     asset.device = "cpu"
     asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_index=Mock())
@@ -150,3 +139,4 @@ def test_external_force_uses_selected_body_count(scene):
     kwargs = asset.permanent_wrench_composer.set_forces_and_torques_index.call_args.kwargs
     torch.testing.assert_close(kwargs["forces"], torch.full((2, 2, 3), 2.0))
     torch.testing.assert_close(kwargs["torques"], torch.full((2, 2, 3), 3.0))
+    assert kwargs["body_ids"].tolist() == [3, 1]
