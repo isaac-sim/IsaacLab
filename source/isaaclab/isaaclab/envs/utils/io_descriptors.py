@@ -310,11 +310,8 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODes
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     joint_ids = kwargs["asset_cfg"].joint_ids
-    if isinstance(joint_ids, slice):
-        joint_ids = range(len(asset.joint_names))[joint_ids]
-    elif not isinstance(joint_ids, list):
-        # inspection runs outside stepping, so a host copy of finalized indices is acceptable
-        joint_ids = joint_ids.tolist()
+    if joint_ids == slice(None, None, None):
+        joint_ids = list(range(len(asset.joint_names)))
     descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
 
 
@@ -330,11 +327,8 @@ def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODesc
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     body_ids = kwargs["asset_cfg"].body_ids
-    if isinstance(body_ids, slice):
-        body_ids = range(len(asset.body_names))[body_ids]
-    elif not isinstance(body_ids, list):
-        # inspection runs outside stepping, so a host copy of finalized indices is acceptable
-        body_ids = body_ids.tolist()
+    if body_ids == slice(None, None, None):
+        body_ids = list(range(len(asset.body_names)))
     descriptor.body_names = [asset.body_names[i] for i in body_ids]
 
 

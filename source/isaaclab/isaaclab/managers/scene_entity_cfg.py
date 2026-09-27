@@ -158,17 +158,17 @@ class SceneEntityCfg:
     def finalize(self, device: str) -> None:
         """Move resolved index selections to the device.
 
-        Each non-slice ``*_ids`` selection becomes a ``torch.long`` tensor, so indexing and asset write
-        methods use it without a host-to-device upload. Treat the tensor as read-only. Slices are kept. Finalization is
-        one-way: call :meth:`resolve` before this method, not after it. Calling this method again is a no-op.
+        Each non-slice ``*_ids`` selection becomes a read-only ``torch.long`` tensor, so indexing and asset
+        write methods use it without a host-to-device upload. Slices are kept. Finalization is one-way and
+        must follow :meth:`resolve`; calling it again is a no-op.
 
         Args:
-            device: Device on which to allocate the index arrays.
+            device: Device on which to allocate the index tensors.
         """
-        for field_name in _INDEX_FIELDS:
-            indices = getattr(self, field_name)
+        for name in ("joint_ids", "fixed_tendon_ids", "body_ids", "object_collection_ids"):
+            indices = getattr(self, name)
             if not isinstance(indices, (slice, torch.Tensor)):
-                setattr(self, field_name, torch.tensor(list(indices), dtype=torch.long, device=device))
+                setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -314,6 +314,3 @@ class SceneEntityCfg:
                 if isinstance(self.object_collection_ids, int):
                     self.object_collection_ids = [self.object_collection_ids]
                 self.object_collection_names = [entity.object_names[i] for i in self.object_collection_ids]
-
-
-_INDEX_FIELDS = ("joint_ids", "fixed_tendon_ids", "body_ids", "object_collection_ids")

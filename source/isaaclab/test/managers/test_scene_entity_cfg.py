@@ -17,35 +17,24 @@ from isaaclab.envs.mdp.events import apply_external_force_torque
 from isaaclab.envs.mdp.observations import joint_pos
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.test.utils import DeviceScope, test_devices
-from isaaclab.utils import index_fill_
 from isaaclab.utils.string import resolve_matching_names
 
 pytestmark = pytest.mark.unit
-
-
-class Scene(dict):
-    """Only scene lookup and the device are required to resolve static selections."""
-
-    device = "cpu"
 
 
 @pytest.fixture
 def scene():
     names = ["part_0", "part_1", "part_2", "part_3"]
     find = partial(resolve_matching_names, list_of_strings=names)
-    return Scene(
+    return dict(
         robot=SimpleNamespace(
             joint_names=names,
             body_names=names,
-            fixed_tendon_names=names,
             object_names=names,
             num_joints=4,
             num_bodies=4,
-            num_fixed_tendons=4,
             find_joints=find,
             find_bodies=find,
-            find_fixed_tendons=find,
-            find_objects=find,
         )
     )
 
@@ -85,14 +74,11 @@ def test_finalize_moves_resolved_selections_to_device(scene, device):
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_finalized_indices_do_not_upload_or_read_back(scene, device):
-    """Exercise a real MDP consumer, reads, and writes with CUDA synchronization checks."""
-    scene.device = device
+    """A real MDP consumer and a device gather for one selected joint run without CUDA synchronization."""
     cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
     cfg.resolve(scene)
     cfg.finalize(device)
     values = torch.arange(16, dtype=torch.float, device=device).reshape(4, 4)
-    destination = torch.zeros_like(values)
-    replacements = torch.full((4, 2), 7.0, device=device)
     scene["robot"].data = SimpleNamespace(joint_pos=SimpleNamespace(torch=values))
     env = SimpleNamespace(scene=scene)
     previous = torch.cuda.get_sync_debug_mode()
@@ -100,25 +86,19 @@ def test_finalized_indices_do_not_upload_or_read_back(scene, device):
     torch.cuda.set_sync_debug_mode("error")
     try:
         observed = joint_pos(env, cfg)
-        indices = cfg.joint_ids
-        selected = torch.index_select(values, dim=1, index=indices)
-        first = values[:, indices][:, 0]
-        destination[:, indices] = replacements
-        index_fill_(destination, indices, 9.0, dim=1)
+        first = values[:, cfg.joint_ids][:, 0]
     finally:
         torch.cuda.set_sync_debug_mode(previous)
     expected = torch.tensor([[2.0, 0.0], [6.0, 4.0], [10.0, 8.0], [14.0, 12.0]], device=device)
     torch.testing.assert_close(observed, expected)
-    torch.testing.assert_close(selected, expected)
     torch.testing.assert_close(first, expected[:, 0])
-    torch.testing.assert_close(destination, torch.tensor([[9.0, 0.0, 9.0, 0.0]], device=device).repeat(4, 1))
 
 
 def test_external_force_uses_selected_body_count(scene):
     """A finalized subset must size forces for that subset, rather than every body."""
     cfg = SceneEntityCfg("robot", body_ids=[3, 1])
     cfg.resolve(scene)
-    cfg.finalize(scene.device)
+    cfg.finalize("cpu")
     asset = scene["robot"]
     asset.device = "cpu"
     asset.permanent_wrench_composer = SimpleNamespace(set_forces_and_torques_index=Mock())

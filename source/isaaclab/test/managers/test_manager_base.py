@@ -304,17 +304,11 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
     torch.testing.assert_close(env.dummy2, torch.zeros_like(env.dummy2))
 
 
-class Scene(dict):
-    """Only scene lookup and the device are required to resolve static selections."""
-
-    device = "cpu"
-
-
 @pytest.mark.parametrize("playing", [True, False])
 def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing):
     """Class terms read host selections during construction; term calls receive device selections."""
     env.sim.is_playing.return_value = playing
-    env = SimpleNamespace(**env._asdict(), scene=Scene(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
+    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
     asset_cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
     cfg = {"term": ManagerTermBaseCfg(func=record_joint_selection_class, params={"asset_cfg": asset_cfg})}
     manager = SimpleManager(cfg, env)

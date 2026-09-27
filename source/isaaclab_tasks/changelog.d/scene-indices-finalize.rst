@@ -1,4 +1,4 @@
 Changed
 ^^^^^^^
 
-* Indexed task terms with finalized scene-entity selections, avoiding index uploads and CUDA synchronization.
+* Replaced per-step host reads of scene-entity selections in task terms with device gathers.

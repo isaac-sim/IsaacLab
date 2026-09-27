@@ -22,7 +22,6 @@ import torch
 
 from ... import sim as sim_utils
 from ...managers import EventTermCfg, ManagerTermBase, SceneEntityCfg
-from ...utils import convert_to_torch
 from ...utils import math as math_utils
 
 if TYPE_CHECKING:
@@ -307,12 +306,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
 
         # resolve body indices
-        if isinstance(self.asset_cfg.body_ids, slice):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)[
-                self.asset_cfg.body_ids
-            ]
+        if self.asset_cfg.body_ids == slice(None):
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)
         else:
-            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
+            body_ids = torch.as_tensor(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get the current masses of the bodies (num_assets, num_bodies)
         masses = self.asset.data.body_mass.torch.clone()
@@ -447,12 +444,10 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
 
         # resolve body indices
-        if isinstance(self.asset_cfg.body_ids, slice):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)[
-                self.asset_cfg.body_ids
-            ]
+        if self.asset_cfg.body_ids == slice(None):
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)
         else:
-            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
+            body_ids = torch.as_tensor(self.asset_cfg.body_ids, dtype=torch.int32, device=self.asset.device)
 
         # get default inertias for affected envs/bodies (advanced indexing creates a copy)
         # shape: (len(env_ids), len(body_ids), 9)
@@ -530,12 +525,10 @@ class randomize_rigid_body_com(ManagerTermBase):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
 
         # resolve body indices
-        if isinstance(self.asset_cfg.body_ids, slice):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)[
-                self.asset_cfg.body_ids
-            ]
+        if self.asset_cfg.body_ids == slice(None):
+            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)
         else:
-            body_ids = convert_to_torch(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
+            body_ids = torch.as_tensor(self.asset_cfg.body_ids, dtype=torch.int, device=self.asset.device)
 
         # sample random CoM values
         range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
@@ -782,13 +775,11 @@ class randomize_actuator_gains(ManagerTermBase):
                     raise TypeError("Actuator joint indices must be a slice or a torch.Tensor.")
             elif isinstance(group_joint_indices, slice):
                 # we take the joints defined in the asset config
-                global_indices = actuator_indices = convert_to_torch(
-                    self.asset_cfg.joint_ids, dtype=torch.long, device=self.asset.device
-                )
+                global_indices = actuator_indices = torch.as_tensor(self.asset_cfg.joint_ids, device=self.asset.device)
             else:
                 # we take the intersection of the actuator joints and the asset config joints
                 actuator_joint_indices = group_joint_indices
-                asset_joint_ids = convert_to_torch(self.asset_cfg.joint_ids, dtype=torch.long, device=self.asset.device)
+                asset_joint_ids = torch.as_tensor(self.asset_cfg.joint_ids, device=self.asset.device)
                 # the indices of the joints in the actuator that have to be randomized
                 actuator_indices = torch.nonzero(torch.isin(actuator_joint_indices, asset_joint_ids)).view(-1)
                 if len(actuator_indices) == 0:
@@ -930,12 +921,12 @@ class randomize_joint_parameters(ManagerTermBase):
             env_ids = slice(None)
 
         # resolve joint indices
-        if isinstance(self.asset_cfg.joint_ids, slice):
-            joint_ids = self.asset_cfg.joint_ids  # for optimization purposes
+        if self.asset_cfg.joint_ids == slice(None):
+            joint_ids = slice(None)  # for optimization purposes
         else:
-            joint_ids = convert_to_torch(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
+            joint_ids = torch.as_tensor(self.asset_cfg.joint_ids, dtype=torch.int, device=self.asset.device)
 
-        if not isinstance(env_ids, slice) and not isinstance(joint_ids, slice):
+        if not isinstance(env_ids, slice) and joint_ids != slice(None):
             env_ids_for_slice = env_ids[:, None]
         else:
             env_ids_for_slice = env_ids
@@ -1105,10 +1096,10 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
             env_ids = slice(None)
 
         # resolve joint indices
-        if isinstance(self.asset_cfg.fixed_tendon_ids, slice):
-            tendon_ids = self.asset_cfg.fixed_tendon_ids  # for optimization purposes
+        if self.asset_cfg.fixed_tendon_ids == slice(None):
+            tendon_ids = slice(None)  # for optimization purposes
         else:
-            tendon_ids = convert_to_torch(self.asset_cfg.fixed_tendon_ids, dtype=torch.int, device=self.asset.device)
+            tendon_ids = torch.as_tensor(self.asset_cfg.fixed_tendon_ids, dtype=torch.int, device=self.asset.device)
         # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
         env_ids_for_slice = (
             env_ids[:, None] if not isinstance(env_ids, slice) and isinstance(tendon_ids, torch.Tensor) else env_ids
@@ -1240,8 +1231,7 @@ def apply_external_force_torque(
     if env_ids is None:
         env_ids = slice(None)
     # resolve number of bodies
-    body_ids = asset_cfg.body_ids
-    num_bodies = len(range(asset.num_bodies)[body_ids]) if isinstance(body_ids, slice) else len(body_ids)
+    num_bodies = asset.num_bodies if isinstance(asset_cfg.body_ids, slice) else len(asset_cfg.body_ids)
 
     # Skip force application if the wrench ranges are zero
     if force_range[0] == 0.0 and force_range[1] == 0.0 and torque_range[0] == 0.0 and torque_range[1] == 0.0:
@@ -1257,7 +1247,7 @@ def apply_external_force_torque(
     asset.permanent_wrench_composer.set_forces_and_torques_index(
         forces=forces,
         torques=torques,
-        body_ids=body_ids,
+        body_ids=asset_cfg.body_ids,
         env_ids=env_ids,
     )
 
@@ -1485,7 +1475,7 @@ def reset_joints_by_scale(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # cast env_ids to allow broadcasting
-    if not isinstance(env_ids, slice) and not isinstance(asset_cfg.joint_ids, slice):
+    if not isinstance(env_ids, slice) and asset_cfg.joint_ids != slice(None):
         iter_env_ids = env_ids[:, None]
     else:
         iter_env_ids = env_ids
@@ -1506,9 +1496,8 @@ def reset_joints_by_scale(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_ids = asset_cfg.joint_ids
-    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=joint_ids, env_ids=env_ids)
-    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=joint_ids, env_ids=env_ids)
+    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 def reset_joints_by_offset(
@@ -1526,7 +1515,7 @@ def reset_joints_by_offset(
     asset: Articulation = env.scene[asset_cfg.name]
 
     # cast env_ids to allow broadcasting
-    if not isinstance(env_ids, slice) and not isinstance(asset_cfg.joint_ids, slice):
+    if not isinstance(env_ids, slice) and asset_cfg.joint_ids != slice(None):
         iter_env_ids = env_ids[:, None]
     else:
         iter_env_ids = env_ids
@@ -1547,9 +1536,8 @@ def reset_joints_by_offset(
     joint_vel = joint_vel.clamp_(-joint_vel_limits, joint_vel_limits)
 
     # set into the physics simulation
-    joint_ids = asset_cfg.joint_ids
-    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=joint_ids, env_ids=env_ids)
-    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=joint_ids, env_ids=env_ids)
+    asset.write_joint_position_to_sim_index(position=joint_pos, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_velocity_to_sim_index(velocity=joint_vel, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
 
 
 class reset_joints_within_limits_range(ManagerTermBase):
