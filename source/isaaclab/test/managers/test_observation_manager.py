@@ -20,7 +20,6 @@ from isaaclab.managers import (
     ManagerTermBase,
     ObservationGroupCfg,
     ObservationManager,
-    ObservationTermBase,
     ObservationTermCfg,
     RewardTermCfg,
 )
@@ -332,15 +331,9 @@ def test_compute(setup_env):
     assert torch.equal(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
 
-class DestinationPosition(ObservationTermBase):
-    """Exercise a float64 destination and parameter forwarding independently of camera processing."""
-
-    def __call__(self, env, bias: float = 0.0):
-        return env.data.pos_w + bias
-
-    def compute_into(self, env, out: torch.Tensor, bias: float = 0.0):
-        out.copy_(env.data.pos_w)
-        out.add_(bias)
+def destination_position(env, bias: float = 0.0, *, out: torch.Tensor | None = None):
+    """Exercise destination writes and parameter forwarding independently of camera processing."""
+    return torch.add(env.data.pos_w, bias, out=out)
 
 
 def test_destination_output_preserves_snapshots(setup_env):
@@ -348,7 +341,7 @@ def test_destination_output_preserves_snapshots(setup_env):
     env = setup_env
     cfg = ObservationGroupCfg()
     env.data.pos_w = env.data.pos_w.double()
-    cfg.position = ObservationTermCfg(func=DestinationPosition, params={"bias": 0.25})
+    cfg.position = ObservationTermCfg(func=destination_position, params={"bias": 0.25})
     manager = ObservationManager({"policy": cfg}, env)
     expected = env.data.pos_w.double() + 0.25
     result = manager.compute()["policy"]
@@ -511,7 +504,7 @@ def test_non_callable_class_term(setup_env):
         ObservationManager(cfg, env)
 
 
-@pytest.mark.parametrize("position_term", [pos_w_data, DestinationPosition])
+@pytest.mark.parametrize("position_term", [pos_w_data, destination_position])
 def test_modifier_compute(setup_env, position_term):
     env = setup_env
     """Test the observation computation with modifiers."""
@@ -898,3 +891,49 @@ def test_observation_delay_config_validation(params, error):
     cfg = ObservationTermCfg(func=dummy_observation, **params)
     with pytest.raises(error, match="delay"):
         cfg.validate()
+
+
+@pytest.mark.parametrize("invalid_default", [False, True])
+def test_destination_configuration_rejected(setup_env, invalid_default):
+    """Destinations are supplied by the manager and ordinary probing must use out=None."""
+
+    def invalid_term(env, *, out=1):
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = (
+        ObservationTermCfg(func=invalid_term)
+        if invalid_default
+        else ObservationTermCfg(func=destination_position, params={"out": None})
+    )
+    with pytest.raises(ValueError, match="out"):
+        ObservationManager({"policy": cfg}, setup_env)
+
+
+def test_destination_must_be_returned(setup_env):
+    """A callable that ignores its destination must not expose uninitialized manager storage."""
+
+    def ignores_destination(env, *, out=None):
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = ObservationTermCfg(func=ignores_destination)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    with pytest.raises(ValueError, match="must return the supplied 'out' tensor"):
+        manager.compute()
+
+
+def test_positional_out_does_not_enable_destination_writes(setup_env):
+    """Only the explicit keyword-only contract enables manager-supplied destinations."""
+
+    def ordinary_term(env, out=None):
+        assert out is None
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = ObservationTermCfg(func=ordinary_term)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    expected = torch.clone(setup_env.data.pos_w)
+    result = manager.compute()["policy"]
+    setup_env.data.pos_w.zero_()
+    torch.testing.assert_close(result, expected)

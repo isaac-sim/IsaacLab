@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 __all__ = [
+    "CameraImageBase",
     "AbsBinaryJointPositionAction",
     "AbsBinaryJointPositionActionCfg",
     "BinaryJointAction",
@@ -238,6 +239,7 @@ from .events import (
 )
 from .visual_events import randomize_visual_material, randomize_visual_shape
 from .observations import (
+    CameraImageBase,
     base_ang_vel,
     base_lin_vel,
     base_pos_z,

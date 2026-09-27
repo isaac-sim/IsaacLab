@@ -23,7 +23,6 @@ __all__ = [
     "RewardTermCfg",
     "TerminationTermCfg",
     "ObservationManager",
-    "ObservationTermBase",
     "DatasetExportMode",
     "RecorderManager",
     "RecorderManagerBaseCfg",
@@ -50,7 +49,7 @@ from .manager_term_cfg import (
     RewardTermCfg,
     TerminationTermCfg,
 )
-from .observation_manager import ObservationManager, ObservationTermBase
+from .observation_manager import ObservationManager
 from .recorder_manager import (
     DatasetExportMode,
     RecorderManager,

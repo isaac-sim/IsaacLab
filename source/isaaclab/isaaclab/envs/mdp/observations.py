@@ -21,7 +21,6 @@ from typing_extensions import deprecated
 from ...managers import SceneEntityCfg
 from ...managers.manager_base import ManagerTermBase
 from ...managers.manager_term_cfg import ObservationTermCfg
-from ...managers.observation_manager import ObservationTermBase
 from ...utils import math as math_utils
 from ...utils.images import (
     CameraFrameStack,
@@ -387,7 +386,7 @@ def _read_camera_output(
     return images
 
 
-class _camera_image(ManagerTermBase):
+class CameraImageBase(ManagerTermBase):
     """Base for camera image terms: validates the data type and owns the frame stack.
 
     Subclasses read their sensor output and pass it with a normalizer from
@@ -417,7 +416,7 @@ class _camera_image(ManagerTermBase):
         raise NotImplementedError
 
 
-class image_rgb(_camera_image, ObservationTermBase):
+class image_rgb(CameraImageBase):
     """Color images from a camera sensor.
 
     Reads an RGB-like output (``"rgb"``, ``"albedo"``, ``"simple_shading_*"``) and keeps its first three
@@ -432,9 +431,13 @@ class image_rgb(_camera_image, ObservationTermBase):
             per-channel mean.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        out: Optional contiguous destination with the output shape, dtype and device. Defaults to None,
+            which allocates a new result. The observation manager supplies a fresh destination automatically.
+            Normalized uint8 frames, including stacked frames, are written directly; other inputs are copied.
+            Reusing a destination overwrites its previous contents; it must not hold a retained observation.
 
     Returns:
-        The image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
+        The image, or ``out`` when supplied. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
 
     default_data_type = "rgb"
@@ -452,34 +455,19 @@ class image_rgb(_camera_image, ObservationTermBase):
         mean: float | None = None,
         channel_first: bool = False,
         frame_stack: int = 1,
+        *,
+        out: torch.Tensor | None = None,
     ) -> torch.Tensor:
         images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
-        return self._frames(images, functools.partial(normalize_rgb, mean=mean) if normalize else None)
-
-    def compute_into(
-        self,
-        env: ManagerBasedEnv,
-        out: torch.Tensor,
-        sensor_cfg: SceneEntityCfg = SceneEntityCfg("tiled_camera"),
-        data_type: str = "rgb",
-        normalize: bool = True,
-        mean: float | None = None,
-        channel_first: bool = False,
-        frame_stack: int = 1,
-    ) -> None:
-        """Write RGB observations into a manager-provided destination.
-
-        Normalized uint8 images, including stacked frames, are written directly by the fused
-        normalizer. Other input uses the ordinary frame processing followed by a copy into
-        ``out``. Parameters match :meth:`__call__`, with the additional destination ``out``.
-        """
-        images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
         result = self._frames(images, functools.partial(normalize_rgb, mean=mean, out=out) if normalize else None)
+        if out is None:
+            return result
         if result is not out:
             out.copy_(result)
+        return out
 
 
-class image_depth(_camera_image):
+class image_depth(CameraImageBase):
     """Depth images from a camera or ray-caster camera sensor.
 
     Reads a depth-like output (``"depth"``, ``"distance_to_image_plane"``, ``"distance_to_camera"``).
@@ -531,7 +519,7 @@ class image_depth(_camera_image):
         return self._frames(images, normalizer)
 
 
-class image_normals(_camera_image):
+class image_normals(CameraImageBase):
     """Surface-normal images from a camera or ray-caster camera sensor.
 
     When ``normalize`` is True, normals are mapped to ``[0, 1]`` with
@@ -565,7 +553,7 @@ class image_normals(_camera_image):
         return self._frames(images, normalize_normals if normalize else None)
 
 
-class image_segmentation(_camera_image):
+class image_segmentation(CameraImageBase):
     """Segmentation images from a camera sensor.
 
     When ``normalize`` is True, colorized segmentation is normalized like color and label-id
