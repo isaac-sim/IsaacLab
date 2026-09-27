@@ -126,12 +126,7 @@ GR1T2_CFG = ArticulationCfg(
 GR1T2_HIGH_PD_CFG = replace(
     GR1T2_CFG,
     actuators={
-        "trunk": ImplicitActuatorCfg(
-            joint_names_expr=["waist_.*"],
-            stiffness=4400,
-            damping=40.0,
-            armature=0.01,
-        ),
+        "trunk": ImplicitActuatorCfg(joint_names_expr=["waist_.*"], stiffness=4400, damping=40.0, armature=0.01),
         "right-arm": ImplicitActuatorCfg(
             joint_names_expr=["right_shoulder_.*", "right_elbow_.*", "right_wrist_.*"],
             stiffness=4400.0,
@@ -144,16 +139,8 @@ GR1T2_HIGH_PD_CFG = replace(
             damping=40.0,
             armature=0.01,
         ),
-        "right-hand": ImplicitActuatorCfg(
-            joint_names_expr=["R_.*"],
-            stiffness=None,
-            damping=None,
-        ),
-        "left-hand": ImplicitActuatorCfg(
-            joint_names_expr=["L_.*"],
-            stiffness=None,
-            damping=None,
-        ),
+        "right-hand": ImplicitActuatorCfg(joint_names_expr=["R_.*"], stiffness=None, damping=None),
+        "left-hand": ImplicitActuatorCfg(joint_names_expr=["L_.*"], stiffness=None, damping=None),
     },
 )
 """Configuration for the GR1T2 Humanoid robot configured for with high PD gains for pick-place manipulation tasks."""

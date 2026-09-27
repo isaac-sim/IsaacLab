@@ -114,8 +114,7 @@ class FrankaCableSceneCfg(soft.FrankaSoftBaseSceneCfg):
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
         spawn=replace(
-            soft.TABLE_SPAWN_CFG,
-            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
+            soft.TABLE_SPAWN_CFG, physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01)
         ),
     )
 

@@ -252,7 +252,10 @@ class AssemblyProfile:
         euler = t * self._seg_euler_totals[seg_idx]
         quat_rev = math_utils.quat_from_euler_xyz(euler[:, 0], euler[:, 1], euler[:, 2])
 
-        quat = math_utils.quat_mul(self._seg_quat_starts[seg_idx], math_utils.quat_mul(quat_delta, quat_rev))
+        quat = math_utils.quat_mul(
+            self._seg_quat_starts[seg_idx],
+            math_utils.quat_mul(quat_delta, quat_rev),
+        )
 
         if not self._all_no_noise:
             if len(self._samplers) == 1 and self._samplers[0] is not None:

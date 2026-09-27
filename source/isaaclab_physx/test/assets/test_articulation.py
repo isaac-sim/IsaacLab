@@ -2146,16 +2146,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # we set IS the joint torque applied — no PD spring-damper masks the
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = replace(
-        base_cfg,
-        actuators={
-            "all": ImplicitActuatorCfg(
-                joint_names_expr=[".*"],
-                stiffness=0.0,
-                damping=0.0,
-            ),
-        },
-    )
+    cfg = replace(base_cfg, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)})
     # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))

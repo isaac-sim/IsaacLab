@@ -901,10 +901,7 @@ def test_newton_native_actuator_gain_write_maps_public_joint_subset_to_backend(
         generate_articulation_cfg("anymal"),
         actuators={
             "legs": IdealPDActuatorCfg(
-                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-                stiffness=40.0,
-                damping=5.0,
-                actuator_effort_limit=80.0,
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"], stiffness=40.0, damping=5.0, actuator_effort_limit=80.0
             )
         },
         joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)),
@@ -1228,10 +1225,7 @@ def test_newton_rebind_preserves_lab_owned_actuator_gains(
         generate_articulation_cfg(articulation_type=articulation_type),
         actuators={
             "legs": IdealPDActuatorCfg(
-                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"],
-                stiffness=40.0,
-                damping=5.0,
-                actuator_effort_limit=80.0,
+                joint_names_expr=[".*HAA", ".*HFE", ".*KFE"], stiffness=40.0, damping=5.0, actuator_effort_limit=80.0
             )
         },
     )
@@ -1378,8 +1372,7 @@ def test_write_data_to_sim_writes_joint_targets_in_backend_order(
         else ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)
     )
     articulation_cfg = replace(
-        generate_articulation_cfg(articulation_type=articulation_type),
-        actuators={"legs": actuator_cfg},
+        generate_articulation_cfg(articulation_type=articulation_type), actuators={"legs": actuator_cfg}
     )
     if ordering_mode == "reversed":
         articulation_cfg = replace(articulation_cfg, joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES)))
@@ -3150,16 +3143,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # we set IS the joint torque applied — no PD spring-damper masks the
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = replace(
-        base_cfg,
-        actuators={
-            "all": ImplicitActuatorCfg(
-                joint_names_expr=[".*"],
-                stiffness=0.0,
-                damping=0.0,
-            ),
-        },
-    )
+    cfg = replace(base_cfg, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)})
     # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))

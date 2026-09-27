@@ -29,12 +29,7 @@ class HumanoidAmpSceneCfg(InteractiveSceneCfg):
         replace(HUMANOID_28_CFG, prim_path="{ENV_REGEX_NS}/Robot"),
         actuators={
             "body": ImplicitActuatorCfg(
-                joint_names_expr=[".*"],
-                stiffness=None,
-                damping=None,
-                joint_velocity_limit={
-                    ".*": 100.0,
-                },
+                joint_names_expr=[".*"], stiffness=None, damping=None, joint_velocity_limit={".*": 100.0}
             ),
         },
     )

@@ -433,9 +433,7 @@ def test_constructor_effort_limit_alias_conflicts_with_explicit_infinity(cfg, ac
 
     with pytest.warns(DeprecationWarning, match=canonical_name):
         actuator = actuator_type(
-            clone(cfg),
-            **constructor_kwargs,
-            **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0},
+            clone(cfg), **constructor_kwargs, **{canonical_name: torch.full((2, 3), 12.0), "effort_limit": 12.0}
         )
     torch.testing.assert_close(getattr(actuator, canonical_name), torch.full((2, 3), 12.0))
 

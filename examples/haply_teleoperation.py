@@ -57,7 +57,12 @@ parser.add_argument(
 parser.add_argument(
     "--max_steps", type=int, default=-1, help="Stop after this many control steps; negative runs forever."
 )
-parser.add_argument("--pos_sensitivity", type=float, default=1.0, help="Position sensitivity scaling factor.")
+parser.add_argument(
+    "--pos_sensitivity",
+    type=float,
+    default=1.0,
+    help="Position sensitivity scaling factor.",
+)
 
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -66,7 +71,11 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 HAPLY_Z_OFFSET = 0.35
-WORKSPACE_LIMITS = {"x": (0.1, 0.9), "y": (-0.50, 0.50), "z": (1.05, 1.85)}
+WORKSPACE_LIMITS = {
+    "x": (0.1, 0.9),
+    "y": (-0.50, 0.50),
+    "z": (1.05, 1.85),
+}
 
 
 def apply_haply_to_robot_mapping(
@@ -99,7 +108,10 @@ def apply_haply_to_robot_mapping(
 class FrankaHaplySceneCfg(InteractiveSceneCfg):
     """Configuration for Franka scene with Haply teleoperation and contact sensors."""
 
-    ground = AssetBaseCfg(prim_path="/World/defaultGroundPlane", spawn=sim_utils.GroundPlaneCfg())
+    ground = AssetBaseCfg(
+        prim_path="/World/defaultGroundPlane",
+        spawn=sim_utils.GroundPlaneCfg(),
+    )
 
     dome_light = AssetBaseCfg(
         prim_path="/World/Light",
@@ -150,7 +162,11 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
     )
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene", haply_device: "HaplyDevice") -> None:
+def run_simulator(
+    sim: sim_utils.SimulationContext,
+    scene: "InteractiveScene",
+    haply_device: "HaplyDevice",
+) -> None:
     """Run the simulation loop with Haply teleoperation."""
     sim_dt = sim.get_physics_dt()
     reset_count = 1
@@ -190,7 +206,14 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene", h
     )
 
     # IK joints control arms, buttons control ee rotation and gripper open/close
-    arm_joint_names = ["panda_joint1", "panda_joint2", "panda_joint3", "panda_joint4", "panda_joint5", "panda_joint6"]
+    arm_joint_names = [
+        "panda_joint1",
+        "panda_joint2",
+        "panda_joint3",
+        "panda_joint4",
+        "panda_joint5",
+        "panda_joint6",
+    ]
     arm_joint_indices = [robot.joint_names.index(name) for name in arm_joint_names]
 
     # Initialize IK controller
@@ -264,7 +287,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene", h
         prev_button_c = button_c
 
         # Compute IK
-        target_pos = apply_haply_to_robot_mapping(haply_pos, haply_initial_pos, robot_initial_pos)
+        target_pos = apply_haply_to_robot_mapping(
+            haply_pos,
+            haply_initial_pos,
+            robot_initial_pos,
+        )
 
         target_pos_tensor = target_pos.unsqueeze(0)
 

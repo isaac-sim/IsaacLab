@@ -162,10 +162,7 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         sim_utils.create_prim("/World/Env_0", "Xform")
         art_cfg = replace(
-            ANYMAL_C_CFG,
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         clone_plan_from_env_0(
             CloneCfg(clone_template="/World/Env_{}"),
@@ -410,9 +407,7 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
         anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
         cartpole_cfg = replace(
-            CARTPOLE_CFG,
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-            prim_path="/World/Env_[^/]*/Cartpole",
+            CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
         )
         # Stand the cartpole well clear of the anymal.
         cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
@@ -525,9 +520,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
 
             anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
             cartpole_cfg = replace(
-                CARTPOLE_CFG,
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-                prim_path="/World/Env_[^/]*/Cartpole",
+                CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
             )
             cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
             clone_plan_from_env_0(

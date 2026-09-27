@@ -27,7 +27,11 @@ def test_implicit_actuator_init_minimum(device, usd_default):
     stiffness = None if usd_default else 200
     damping = None if usd_default else 10
 
-    actuator_cfg = ImplicitActuatorCfg(joint_names_expr=joint_names, stiffness=stiffness, damping=damping)
+    actuator_cfg = ImplicitActuatorCfg(
+        joint_names_expr=joint_names,
+        stiffness=stiffness,
+        damping=damping,
+    )
     # assume Articulation class:
     #   - finds joints (names and ids) associate with the provided joint_names_expr
 
@@ -69,7 +73,10 @@ def test_implicit_actuator_init_minimum(device, usd_default):
 
 
 @pytest.mark.parametrize("cfg_limit", [None, 300])
-@pytest.mark.parametrize("limit_name", ["joint_effort_limit", "actuator_velocity_limit"])
+@pytest.mark.parametrize(
+    "limit_name",
+    ["joint_effort_limit", "actuator_velocity_limit"],
+)
 def test_implicit_actuator_init_limits(cfg_limit, limit_name):
     """Test that a cfg-provided limit wins over the constructor default for effort and velocity limits."""
     num_envs, num_joints, device = NUM_ENVS, NUM_JOINTS, "cpu"

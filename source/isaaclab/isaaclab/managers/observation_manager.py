@@ -135,7 +135,10 @@ class ObservationManager(ManagerBase):
             # set alignment of table columns
             table.align["Name"] = "l"
             # add info for each term
-            obs_terms = zip(self._group_obs_term_names[group_name], self._group_obs_term_dim[group_name])
+            obs_terms = zip(
+                self._group_obs_term_names[group_name],
+                self._group_obs_term_dim[group_name],
+            )
             for index, (name, dims) in enumerate(obs_terms):
                 # resolve inputs to simplify prints
                 tab_dims = tuple(dims)
@@ -177,7 +180,10 @@ class ObservationManager(ManagerBase):
                 concat_dim -= 1
             # add info for each term
             data = obs_buffer[group_name]
-            for name, shape in zip(self._group_obs_term_names[group_name], self._group_obs_term_dim[group_name]):
+            for name, shape in zip(
+                self._group_obs_term_names[group_name],
+                self._group_obs_term_dim[group_name],
+            ):
                 # extract the term from the buffer based on the shape
                 term = data[env_idx].narrow(dim=concat_dim, start=idx, length=shape[concat_dim])
                 terms.append((group_name + "-" + name, term.cpu().tolist()))

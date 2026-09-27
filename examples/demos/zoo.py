@@ -66,7 +66,11 @@ _HAND_CFG = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else S
 
 def _prop_cfg(spawn: sim_utils.RigidObjectSpawnerCfg, position: tuple[float, float, float]) -> RigidObjectCfg:
     """Create a dynamic prop configuration."""
-    return RigidObjectCfg(prim_path="", spawn=spawn, init_state=RigidObjectCfg.InitialStateCfg(pos=position))
+    return RigidObjectCfg(
+        prim_path="",
+        spawn=spawn,
+        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
+    )
 
 
 @configclass
@@ -80,14 +84,10 @@ class ZooSceneCfg(InteractiveSceneCfg):
     )
 
     arm: ArticulationCfg = replace(
-        UR10e_CFG,
-        prim_path="{ENV_REGEX_NS}/Arm",
-        init_state=replace(UR10e_CFG.init_state, pos=(-2.2, 1.4, 0.0)),
+        UR10e_CFG, prim_path="{ENV_REGEX_NS}/Arm", init_state=replace(UR10e_CFG.init_state, pos=(-2.2, 1.4, 0.0))
     )
     biped: ArticulationCfg = replace(
-        G1_CFG,
-        prim_path="{ENV_REGEX_NS}/Biped",
-        init_state=replace(G1_CFG.init_state, pos=(0.0, 1.5, 0.74)),
+        G1_CFG, prim_path="{ENV_REGEX_NS}/Biped", init_state=replace(G1_CFG.init_state, pos=(0.0, 1.5, 0.74))
     )
     quadruped: ArticulationCfg = replace(
         ANYMAL_D_CFG,
@@ -96,9 +96,7 @@ class ZooSceneCfg(InteractiveSceneCfg):
         actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
     )
     hand: ArticulationCfg = replace(
-        _HAND_CFG,
-        prim_path="{ENV_REGEX_NS}/Hand",
-        init_state=replace(_HAND_CFG.init_state, pos=(-1.4, -1.3, 0.5)),
+        _HAND_CFG, prim_path="{ENV_REGEX_NS}/Hand", init_state=replace(_HAND_CFG.init_state, pos=(-1.4, -1.3, 0.5))
     )
     drone: ArticulationCfg = replace(
         CRAZYFLIE_CFG,

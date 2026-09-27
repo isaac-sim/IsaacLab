@@ -351,12 +351,7 @@ class PourSceneCfg(InteractiveSceneCfg):
     ).self_collision_enabled = True
     robot.actuators = {
         name: replace(
-            actuator_cfg,
-            effort_limit_sim=None,
-            velocity_limit_sim=None,
-            stiffness=None,
-            damping=None,
-            armature=None,
+            actuator_cfg, effort_limit_sim=None, velocity_limit_sim=None, stiffness=None, damping=None, armature=None
         )
         for name, actuator_cfg in robot.actuators.items()
     }

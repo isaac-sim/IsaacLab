@@ -31,10 +31,7 @@ class Se3RelRetargeter(RetargeterBase):
     - Optional visualization of the target end-effector pose
     """
 
-    def __init__(
-        self,
-        cfg: Se3RelRetargeterCfg,
-    ):
+    def __init__(self, cfg: Se3RelRetargeterCfg):
         """Initialize the relative motion retargeter.
 
         Args:

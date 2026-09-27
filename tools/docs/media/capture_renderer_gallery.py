@@ -120,7 +120,8 @@ def motion_vectors_to_image(data: Any) -> Any:
     for cell_y in range(0, height, grid_spacing):
         for cell_x in range(0, width, grid_spacing):
             cell = magnitude_array[
-                cell_y : min(cell_y + grid_spacing, height), cell_x : min(cell_x + grid_spacing, width)
+                cell_y : min(cell_y + grid_spacing, height),
+                cell_x : min(cell_x + grid_spacing, width),
             ]
             if cell.size == 0 or float(cell.max()) < 0.08:
                 continue
@@ -249,7 +250,11 @@ def override_ovrtx_ambient_light(render_product_usd: str) -> str:
     """Disable renderer-authored ambient fill while preserving the scene authored lights."""
     if _OVRTX_AMBIENT_LIGHT_SETTING not in render_product_usd:
         raise RuntimeError("Expected the OVRTX render product to author its default ambient-light intensity.")
-    return render_product_usd.replace(_OVRTX_AMBIENT_LIGHT_SETTING, "float omni:rtx:rt:ambientLight:intensity = 0.0", 1)
+    return render_product_usd.replace(
+        _OVRTX_AMBIENT_LIGHT_SETTING,
+        "float omni:rtx:rt:ambientLight:intensity = 0.0",
+        1,
+    )
 
 
 @contextlib.contextmanager
@@ -366,7 +371,10 @@ def _capture(args: argparse.Namespace) -> None:
                 if frame_index > 0:
                     for _ in range(args.physics_steps_per_frame):
                         sim.step(render=False)
-                camera.update(dt=sim.get_physics_dt() * args.physics_steps_per_frame, force_recompute=True)
+                camera.update(
+                    dt=sim.get_physics_dt() * args.physics_steps_per_frame,
+                    force_recompute=True,
+                )
                 if "rgb" in data_types:
                     rgb_frames.append(tensor_to_image(camera.data.output["rgb"].torch[0], "rgb"))
                 if frame_index == thumbnail_index:
@@ -394,7 +402,10 @@ def _capture(args: argparse.Namespace) -> None:
         else:
             for _ in range(thumbnail_index * args.physics_steps_per_frame):
                 sim.step(render=False)
-            camera.update(dt=sim.get_physics_dt() * args.physics_steps_per_frame, force_recompute=True)
+            camera.update(
+                dt=sim.get_physics_dt() * args.physics_steps_per_frame,
+                force_recompute=True,
+            )
             output_name = data_types[0]
             image = tensor_to_image(camera.data.output[output_name].torch[0], output_name)
             output_path = args.output_dir / gallery_asset_name(args.renderer_backend, output_name)

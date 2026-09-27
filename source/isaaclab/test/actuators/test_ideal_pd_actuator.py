@@ -28,7 +28,11 @@ def test_ideal_pd_actuator_init_minimum(device, usd_default):
     stiffness = None if usd_default else 200
     damping = None if usd_default else 10
 
-    actuator_cfg = IdealPDActuatorCfg(joint_names_expr=joint_names, stiffness=stiffness, damping=damping)
+    actuator_cfg = IdealPDActuatorCfg(
+        joint_names_expr=joint_names,
+        stiffness=stiffness,
+        damping=damping,
+    )
     # assume Articulation class:
     #   - finds joints (names and ids) associate with the provided joint_names_expr
 
@@ -72,7 +76,10 @@ def test_ideal_pd_actuator_init_minimum(device, usd_default):
 
 
 @pytest.mark.parametrize("cfg_limit", [None, 300])
-@pytest.mark.parametrize("limit_name", ["actuator_effort_limit", "actuator_velocity_limit"])
+@pytest.mark.parametrize(
+    "limit_name",
+    ["actuator_effort_limit", "actuator_velocity_limit"],
+)
 def test_ideal_pd_actuator_init_limits(cfg_limit, limit_name):
     """Test that a cfg-provided limit wins over the constructor default for effort and velocity limits.
 
@@ -165,7 +172,10 @@ def test_ideal_pd_compute(effort_lim):
         torch.testing.assert_close(
             effort_lim * torch.ones(num_envs, num_joints, device=device), actuator.applied_effort
         )
-    torch.testing.assert_close(actuator.applied_effort, computed_control_action.joint_efforts)
+    torch.testing.assert_close(
+        actuator.applied_effort,
+        computed_control_action.joint_efforts,
+    )
     torch.testing.assert_close(actuator._clip_effort(actuator.computed_effort), actuator.applied_effort)
 
 

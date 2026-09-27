@@ -108,7 +108,11 @@ def test_init(device, monkeypatch):
 
 
 @pytest.mark.isaacsim_ci
-@pytest.mark.parametrize("physics_cfg", [PhysxCfg(), NewtonCfg(solver_cfg=MJWarpSolverCfg())], ids=["physx", "newton"])
+@pytest.mark.parametrize(
+    "physics_cfg",
+    [PhysxCfg(), NewtonCfg(solver_cfg=MJWarpSolverCfg())],
+    ids=["physx", "newton"],
+)
 def test_stop_is_dispatched_for_lazy_class_type(physics_cfg):
     """``PhysicsEvent.STOP`` must be dispatched even when ``class_type`` is declared lazily.
 
@@ -331,7 +335,10 @@ def test_render_pumps_app_update_without_visualizer():
 
     with (
         patch("isaaclab.utils.version.has_kit", return_value=True),
-        patch("isaaclab_physx.renderers.isaac_rtx_renderer_utils._get_stage_streaming_busy", return_value=False),
+        patch(
+            "isaaclab_physx.renderers.isaac_rtx_renderer_utils._get_stage_streaming_busy",
+            return_value=False,
+        ),
         patch("omni.kit.app.get_app", return_value=mock_app),
     ):
         sim.render()

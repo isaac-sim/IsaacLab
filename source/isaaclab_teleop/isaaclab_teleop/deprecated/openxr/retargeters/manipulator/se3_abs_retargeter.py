@@ -30,10 +30,7 @@ class Se3AbsRetargeter(RetargeterBase):
     - Optional visualization of the target end-effector pose
     """
 
-    def __init__(
-        self,
-        cfg: Se3AbsRetargeterCfg,
-    ):
+    def __init__(self, cfg: Se3AbsRetargeterCfg):
         """Initialize the retargeter.
 
         Args:

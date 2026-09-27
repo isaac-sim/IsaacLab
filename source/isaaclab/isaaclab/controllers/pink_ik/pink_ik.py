@@ -221,7 +221,11 @@ class PinkIKController:
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(curr_joint_pos)
 
-    def compute(self, curr_joint_pos: np.ndarray, dt: float) -> torch.Tensor:
+    def compute(
+        self,
+        curr_joint_pos: np.ndarray,
+        dt: float,
+    ) -> torch.Tensor:
         """Compute the target joint positions based on current state and tasks.
 
         Performs inverse kinematics using the Pink solver to compute target joint positions that satisfy

@@ -228,12 +228,7 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(
-                        default="physx",
-                        isaacsim_physx="physx",
-                        physx="physx",
-                        newton_mjwarp="physics",
-                    ),
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
                 },
             ),
             actuators={

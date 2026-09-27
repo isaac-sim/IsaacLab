@@ -128,35 +128,19 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
                 ANYMAL_C_CFG.spawn,
                 replace(
                     ANYMAL_C_CFG.spawn,
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./surface_leg",
-                        "./surface_foot",
-                    ),
+                    visual_material_bindings=_bindings("./surface_body", "./surface_leg", "./surface_foot"),
                 ),
                 replace(
                     ANYMAL_C_CFG.spawn,
-                    visual_material_bindings=_bindings(
-                        "./glass_body",
-                        "./glass_leg",
-                        "./glass_foot",
-                    ),
+                    visual_material_bindings=_bindings("./glass_body", "./glass_leg", "./glass_foot"),
                 ),
                 replace(
                     ANYMAL_C_CFG.spawn,
-                    visual_material_bindings=_bindings(
-                        "./solid_body",
-                        "./solid_leg",
-                        "./solid_foot",
-                    ),
+                    visual_material_bindings=_bindings("./solid_body", "./solid_leg", "./solid_foot"),
                 ),
                 replace(
                     ANYMAL_C_CFG.spawn,
-                    visual_material_bindings=_bindings(
-                        "./surface_body",
-                        "./solid_leg",
-                        "./glass_foot",
-                    ),
+                    visual_material_bindings=_bindings("./surface_body", "./solid_leg", "./glass_foot"),
                 ),
             ],
             random_choice=False,

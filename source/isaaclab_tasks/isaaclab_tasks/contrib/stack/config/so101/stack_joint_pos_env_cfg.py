@@ -96,18 +96,11 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(
-                        default="physx",
-                        isaacsim_physx="physx",
-                        physx="physx",
-                        newton_mjwarp="physics",
-                    ),
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
                 },
             ),
             init_state=ArticulationCfg.InitialStateCfg(
-                pos=_SO101_BASE_SEAT_POS,
-                rot=_SO101_BASE_SEAT_ROT,
-                joint_pos=_SO101_STACK_INIT_JOINT_POS,
+                pos=_SO101_BASE_SEAT_POS, rot=_SO101_BASE_SEAT_ROT, joint_pos=_SO101_STACK_INIT_JOINT_POS
             ),
         )
 

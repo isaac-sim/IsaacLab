@@ -97,12 +97,7 @@ class SO101SceneCfg(InteractiveSceneCfg):
             variants={
                 "Robot": "robot",
                 "Sensor": "sensors",
-                "Physics": preset(
-                    default="physics",
-                    isaacsim_physx="physx",
-                    physx="physx",
-                    newton_mjwarp="physics",
-                ),
+                "Physics": preset(default="physics", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
             },
         ),
     )

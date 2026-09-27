@@ -185,10 +185,7 @@ def _run_simulation(
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
         art_cfg = replace(
-            ANYMAL_C_CFG,
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -352,10 +349,7 @@ def _assert_newton_actuator_uses_current_joint_state(
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
         art_cfg = replace(
-            ANYMAL_C_CFG,
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -507,9 +501,7 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
         anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
         cartpole_cfg = replace(
-            CARTPOLE_CFG,
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-            prim_path="/World/Env_[^/]*/Cartpole",
+            CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
         )
         cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
 
@@ -658,9 +650,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
 
             anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
             cartpole_cfg = replace(
-                CARTPOLE_CFG,
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-                prim_path="/World/Env_[^/]*/Cartpole",
+                CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
             )
             cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
             anymal = Articulation(anymal_cfg)

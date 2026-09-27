@@ -25,15 +25,9 @@ class PhysicsCfg(CorePhysicsCfg):
         class_type=None,
         solver_cfg=CoupledMJWarpVBDSolverCfg(
             rigid_solver_cfg=MJWarpSolverCfg(
-                njmax=40,
-                nconmax=20,
-                ls_iterations=20,
-                integrator="implicitfast",
-                ccd_iterations=100,
+                njmax=40, nconmax=20, ls_iterations=20, integrator="implicitfast", ccd_iterations=100
             ),
-            soft_solver_cfg=VBDSolverCfg(
-                integrate_with_external_rigid_solver=True,
-            ),
+            soft_solver_cfg=VBDSolverCfg(integrate_with_external_rigid_solver=True),
         ),
     )
 

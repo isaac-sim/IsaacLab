@@ -126,10 +126,7 @@ def make_g1_29dof_dex3_cfg(
         base_config,
         prim_path=prim_path,
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=init_pos,
-            rot=init_rot,
-            joint_pos=joint_pos,
-            joint_vel={".*": 0.0},
+            pos=init_pos, rot=init_rot, joint_pos=joint_pos, joint_vel={".*": 0.0}
         ),
     )
 
