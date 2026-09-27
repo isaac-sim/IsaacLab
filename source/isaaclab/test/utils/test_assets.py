@@ -470,7 +470,6 @@ def asset_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
     monkeypatch.setattr(assets_utils, "_ASSET_SOURCES", {})
-    monkeypatch.setattr(assets_utils, "_LOCALIZED_ASSETS", {})
     return tmp_path
 
 
@@ -509,7 +508,7 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
 def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
     """Compose local and remote dependency chains without editing the authored layers."""
     import omni.client
-    from pxr import Sdf, Usd
+    from pxr import Usd
 
     layers = {
         "local.usda": '#usda 1.0\ndef Shader "local" {\n asset info:mdl:sourceAsset = @OmniPBR.mdl@\n}\n',
@@ -553,19 +552,10 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
     assert {name: (asset_cache / name).read_text(encoding="utf-8") for name in layers} == layers
     if layout == "package":
         assert Path(resolved_path).read_bytes() == payloads[source[layout]]
-    if layout == "nested":
-        other = asset_cache / "other.usda"
-        other.write_text(layers["scene.usda"])
-        first_layer = Sdf.Layer.FindOrOpen(resolved_path)
-        second_layer = Sdf.Layer.FindOrOpen(assets_utils.retrieve_file_path(str(other)))
-        assert first_layer.subLayerPaths == second_layer.subLayerPaths
-
-    monkeypatch.setattr(Sdf.Layer, "OpenAsAnonymous", lambda _: pytest.fail("walked a completed tree"))
-    assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
-    assert assets_utils.retrieve_file_path(source[layout]) == resolved_path
-    if layout == "nested":
-        (asset_cache / "scene.usda").write_text('#usda 1.0\ndef Xform "unrelated_edit" {}\n')
-        assert assets_utils.retrieve_file_path(source["direct"]) == first_layer.subLayerPaths[0]
+    for path in (resolved_path, source[layout]):
+        stage = Usd.Stage.Open(assets_utils.retrieve_file_path(path))
+        assert all(stage.GetPrimAtPath("/" + name).IsValid() for name in ("cartpole", "local"))
+        assert not stage.GetCompositionErrors()
 
 
 def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
@@ -585,7 +575,7 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
     variants = Sdf.VariantSetSpec(prim, "model")
     Sdf.VariantSpec(variants, "available")
     missing = Sdf.VariantSpec(variants, "missing")
-    missing.primSpec.referenceList.prependedItems = [Sdf.Reference("./missing.usda")]
+    missing.primSpec.referenceList.prependedItems = [Sdf.Reference("missing.usda")]
     prim.variantSetNameList.prependedItems = ["model"]
     prim.variantSelections["model"] = "available"
     layer.Save()
@@ -605,38 +595,60 @@ def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, mo
         context = Ar.ResolverContext(Ar.DefaultResolverContext([str(directory), str(source_dir)]))
         with Ar.ResolverContextBinder(context):
             resolved_path = assets_utils.retrieve_file_path(source.name)
-            assert assets_utils.retrieve_file_path(resolved_path) == resolved_path
-            assert assets_utils.retrieve_file_path(source.name) == resolved_path
             resolved_stage = Usd.Stage.Open(resolved_path, context)
             assert all(resolved_stage.GetPrimAtPath("/" + prim).IsValid() for prim in (name, "child", "remote"))
             assert not resolved_stage.GetCompositionErrors()
 
+    # Neither the old files nor the resolver context change when nearer files become available.
+    (source_dir / "robot.usda").write_text('#usda 1.0\ndef Xform "nearer" {}\n')
+    (source_dir / "missing.usda").write_text('#usda 1.0\n(defaultPrim = "Root")\ndef Xform "Root" {\n int found = 1\n}')
+    with Ar.ResolverContextBinder(context):
+        resolved_stage = Usd.Stage.Open(assets_utils.retrieve_file_path(resolved_path), context)
+        assert resolved_stage.GetPrimAtPath("/nearer").IsValid()
+        variant = resolved_stage.GetPrimAtPath("/Variants")
+        variant.GetVariantSet("model").SetVariantSelection("missing")
+        assert variant.GetAttribute("found").Get() == 1
+        assert not resolved_stage.GetCompositionErrors()
 
-def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):
-    """A downloaded root is not a completed tree when a dependency fails to download."""
+
+@pytest.mark.parametrize("failure", ["transfer", "missing"])
+@pytest.mark.parametrize("force_download", [False, True])
+def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, failure, force_download):
+    """Retry failed or unavailable dependencies; forced downloads also refresh revision metadata."""
     import omni.client
     from pxr import Usd
 
     child_url = _REMOTE_URL.replace("example.usd", "child.usda")
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
-    mirrored = _cache_asset(asset_cache, _REMOTE_URL, b"#usda 1.0\n(subLayers = [@child.usda@])\n", revision)
-    _serve(monkeypatch, {_REMOTE_URL: revision, child_url: revision})
+    root = b"#usda 1.0\n(subLayers = [@child.usda@])\n"
+    mirrored = _cache_asset(asset_cache, _REMOTE_URL, root, revision)
+    entries = {_REMOTE_URL: revision, child_url: revision if failure == "transfer" else None}
+    _serve(monkeypatch, entries)
     fail_child = True
 
     def fake_copy(url, target_path, behavior):
-        assert url == child_url
+        if url == _REMOTE_URL:
+            Path(target_path).write_bytes(root)
+            return omni.client.Result.OK
         if fail_child:
             return omni.client.Result.ERROR_NOT_FOUND
         Path(target_path).write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    with pytest.raises(RuntimeError, match=child_url):
+    if failure == "transfer":
+        with pytest.raises(RuntimeError, match=child_url):
+            assets_utils.retrieve_file_path(_REMOTE_URL)
+    else:
         assets_utils.retrieve_file_path(_REMOTE_URL)
     fail_child = False
-    resolved = assets_utils.retrieve_file_path(str(mirrored))
+    entries[child_url] = revision
+    if force_download:
+        entries[_REMOTE_URL] = {**revision, "hash": "new-revision"}
+    resolved = assets_utils.retrieve_file_path(str(mirrored), force_download=force_download)
     stage = Usd.Stage.Open(resolved)
     assert stage.GetPrimAtPath("/child").IsValid()
+    assert json.loads(Path(str(mirrored) + assets_utils._MIRROR_FINGERPRINT_SUFFIX).read_text()) == entries[_REMOTE_URL]
 
 
 def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):

@@ -225,8 +225,8 @@ GIT_ASSET_CACHE_DIR: str = os.path.join(tempfile.gettempdir(), "asset_cache")
 _MIRROR_FINGERPRINT_SUFFIX = ".isaaclab-cache.json"
 """Suffix of the sidecar file recording the remote revision a locally cached asset came from."""
 
-_REMOTE_FINGERPRINTS: dict[str, dict | None] = {}
-"""Remote metadata per URL, resolved at most once per process."""
+_REMOTE_FINGERPRINTS: dict[str, dict] = {}
+"""Successful remote metadata queries, refreshed by forced retrieval."""
 
 _ANNOUNCED_MIRROR_DIRS: set[str] = set()
 """Cache directories already announced, so the banner is logged once per directory."""
@@ -236,9 +236,6 @@ _ANNOUNCED_MIRRORS: set[str] = set()
 
 _ASSET_SOURCES: dict[str, tuple[str, str]] = {}
 """Original source and download directory of each managed copy."""
-
-_LOCALIZED_ASSETS: dict[tuple[str, str, object], tuple[str, dict[str, tuple[int, int]]]] = {}
-"""Localized files keyed by source, download directory, and USD resolver context."""
 
 _GIT_SSH_RE = re.compile(r"^[^@/:]+@[^:]+:.+")
 
@@ -472,8 +469,8 @@ def _remote_fingerprint(url: str) -> dict | None:
     server reporting a content hash and an HTTP host reporting only a size and a modification
     time both yield a usable revision marker.
 
-    The answer is resolved once per URL per process, so the existence check, the freshness
-    check and the download path share a single status probe.
+    Successful queries are reused until forced retrieval. Failed queries are not cached,
+    so a missing file or an unreachable server can be retried.
 
     Args:
         url: Remote asset URL.
@@ -487,16 +484,14 @@ def _remote_fingerprint(url: str) -> dict | None:
         omni_client = _get_omni_client()
 
         result, entry = omni_client.stat(url.replace(os.sep, "/"))
-        _REMOTE_FINGERPRINTS[url] = (
-            {
-                "hash": str(entry.hash or ""),
-                "version": str(entry.version or ""),
-                "size": int(entry.size or 0),
-                "modified_time": str(entry.modified_time or ""),
-            }
-            if result == omni_client.Result.OK
-            else None
-        )
+        if result != omni_client.Result.OK:
+            return None
+        _REMOTE_FINGERPRINTS[url] = {
+            "hash": str(entry.hash or ""),
+            "version": str(entry.version or ""),
+            "size": int(entry.size or 0),
+            "modified_time": str(entry.modified_time or ""),
+        }
     return _REMOTE_FINGERPRINTS[url]
 
 
@@ -616,8 +611,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     """Retrieves the path to a file on the Nucleus Server or locally.
 
     USD layers are localized in the bound resolver context without modifying authored files or
-    raw downloads. Working copies are reused while their file stamps match. Unresolved references
-    retain their anchors; USD decides which references are required by the selected composition.
+    raw downloads. Each retrieval resolves dependencies afresh while reusing downloaded files.
+    Unresolved references retain their anchors; USD decides which the selected composition requires.
     MDL modules, UDIM textures, and USDZ contents keep their native loader's dependency handling.
     Localization does not validate composition or rendering readiness.
 
@@ -637,45 +632,28 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
     """
     root, cached_dir = _ASSET_SOURCES.get(os.path.abspath(path), (path, ""))
     download_dir = os.path.abspath(download_dir or cached_dir or tempfile.gettempdir())
-    context = None
     if os.path.splitext(root)[1].lower() in _USD_EXTENSIONS:
         from pxr import Ar, Sdf, UsdShade, UsdUtils  # noqa: PLC0415
 
         resolver = Ar.GetResolver()
-        context = resolver.GetCurrentContext()
         if not _is_remote_path(root):
             resolved = resolver.Resolve(root)
             if not resolved:
                 raise FileNotFoundError(f"Unable to resolve the file: {root}")
             root = str(resolved)
     root = root.replace(os.sep, "/") if _is_remote_path(root) else os.path.abspath(root)
+    if force_download:
+        _REMOTE_FINGERPRINTS.pop(root, None)
     localized = {}
-    files = {}
-    dependencies = {}
     copy_dir = os.path.join(download_dir, f"isaaclab_usd_{uuid.uuid4().hex}")
 
     def localize(source: str) -> str:
         if source in localized:
             return localized[source]
-        cached = _LOCALIZED_ASSETS.get((source, download_dir, context))
-        if cached is not None and not force_download:
-            result, stamps = cached
-            try:
-                if all(((stat := os.stat(file)).st_mtime_ns, stat.st_size) == stamp for file, stamp in stamps.items()):
-                    files.update(stamps)
-                    localized[source] = result
-                    dependencies[source] = set(stamps)
-                    return result
-            except OSError:
-                pass
         remote = _is_remote_path(source)
-        target = _mirror_path(source, download_dir) if remote else source
-        dependencies[source] = {target}
         # Read detached contents while the download lock protects the raw mirror.
-        suffix = os.path.splitext(target)[1].lower()
         with _download_file(source, download_dir, force_download) as local_path:
-            stat = os.stat(local_path)
-            files[local_path] = (stat.st_mtime_ns, stat.st_size)
+            suffix = os.path.splitext(local_path)[1].lower()
             if suffix in _USD_EXTENSIONS:
                 layer = Sdf.Layer.OpenAsAnonymous(local_path)
 
@@ -703,12 +681,13 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             else:
                 if not _is_remote_path(dependency):
                     dependency = str(resolver.Resolve(identifier)) or identifier
+                if force_download and dependency not in localized:
+                    _REMOTE_FINGERPRINTS.pop(dependency, None)
                 exists = check_file_path(dependency)
                 if ref.endswith(".mdl"):
                     # Material loaders own module imports and texture resources.
                     resolved = identifier if not exists and resolver.IsContextDependentPath(identifier) else dependency
                 elif exists:
-                    dependencies[source].add(dependency)
                     resolved = localize(dependency)
                 else:
                     resolved = dependency
@@ -720,9 +699,6 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
             os.makedirs(os.path.dirname(output))
             if not layer.Export(output):
                 raise RuntimeError(f"Unable to save resolved USD layer: {output}")
-            stat = os.stat(output)
-            files[output] = (stat.st_mtime_ns, stat.st_size)
-            dependencies[source].add(output)
             _ASSET_SOURCES[output] = (source, download_dir)
         else:
             localized[source] = local_path
@@ -732,15 +708,7 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
 
     report_activity("Loading assets")
     try:
-        result = localize(root)
-        for source, local_path in localized.items():
-            required = pending = {source}
-            while pending:
-                pending = set().union(*(dependencies.get(path, ()) for path in pending)) - required
-                required.update(pending)
-            stamps = {path: files[path] for path in required if path in files}
-            _LOCALIZED_ASSETS[source, download_dir, context] = (local_path, stamps)
-        return result
+        return localize(root)
     finally:
         report_activity(None)
 

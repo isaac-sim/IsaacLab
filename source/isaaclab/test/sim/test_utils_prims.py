@@ -19,11 +19,11 @@ import numpy as np
 import pytest
 import torch
 
-from pxr import Ar, Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, unmirror_file_path
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -95,9 +95,7 @@ def test_create_prim():
     for prim_spec in prim.GetPrimStack():
         references.extend(prim_spec.referenceList.prependedItems)
     assert len(references) == 1
-    with Ar.ResolverContextBinder(stage.GetPathResolverContext()):
-        expected_path = retrieve_file_path(franka_usd)
-    assert str(references[0].assetPath) == expected_path
+    assert unmirror_file_path(str(references[0].assetPath)) == franka_usd
 
     # check adding semantic label
     prim = sim_utils.create_prim(
@@ -365,9 +363,7 @@ def test_get_usd_references():
     # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
     assert len(refs) == 1
-    with Ar.ResolverContextBinder(stage.GetPathResolverContext()):
-        expected_path = retrieve_file_path(franka_usd)
-    assert refs == [expected_path]
+    assert unmirror_file_path(refs[0]) == franka_usd
 
     # Test with invalid prim path
     with pytest.raises(ValueError, match="not valid"):

@@ -1,9 +1,12 @@
 Fixed
 ^^^^^
 
-* Fixed repeated USD localization creating redundant working copies, failed retrieval leaving an empty prim,
-  dependencies resolving outside the destination stage's resolver context, and Windows drive paths being
-  treated as URLs.
+* Fixed failed retrieval leaving an empty prim, dependencies resolving outside the destination stage's resolver
+  context, and Windows drive paths being treated as URLs.
+
+* Removed stale resolved-tree reuse so newly available dependencies and changed search-path precedence were
+  respected. Downloads remained cached; failed metadata queries became retryable and forced retrieval refreshed
+  remote revision metadata.
 
 * Preserved source anchors for unresolved USD references, MDL modules, and UDIM textures instead of rejecting
   unselected variants or redirecting materials to incomplete local mirrors. Material dependency loading remained
