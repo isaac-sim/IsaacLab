@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import functools
+import importlib.machinery
+import sys
+from importlib import metadata
 
 from packaging.version import Version
 
@@ -27,8 +30,6 @@ def has_kit() -> bool:
     in ``sys.modules``, Kit is not running and we return ``False`` immediately without
     performing any import (which would be a forbidden side-effect during cfg-only loading).
     """
-    import sys
-
     mod = sys.modules.get("omni.kit.app")
     if mod is None:
         return False
@@ -49,9 +50,6 @@ def standalone_importers_available() -> bool:
     Returns:
         Whether the standalone importers are installed and reachable.
     """
-    import importlib.machinery
-    from importlib import metadata
-
     try:
         metadata.distribution("isaacsim-asset-isolated")
     except metadata.PackageNotFoundError:
@@ -134,10 +132,4 @@ def compare_versions(v1: str, v2: str) -> int:
     """
     ver1 = Version(v1)
     ver2 = Version(v2)
-
-    if ver1 > ver2:
-        return 1
-    elif ver1 < ver2:
-        return -1
-    else:
-        return 0
+    return (ver1 > ver2) - (ver1 < ver2)

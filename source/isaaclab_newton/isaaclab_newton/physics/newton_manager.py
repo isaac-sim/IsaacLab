@@ -1261,7 +1261,13 @@ class NewtonManager(PhysicsManager):
             NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
         cls._prepare_builder_for_finalize(cls._builder)
-        with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
+        with Timer(
+            name="newton_finalize_builder",
+            msg="Finalize builder took:",
+            activity="Finalizing physics model",
+            synchronize="both",
+            device=device,
+        ):
             cfg = NewtonBackendCfg(
                 builder=cls._builder,
                 device=device,
@@ -1820,7 +1826,13 @@ class NewtonManager(PhysicsManager):
         if cfg is None:
             return
 
-        with Timer(name="newton_initialize_solver", msg="Initialize solver took:", activity="Initializing solver"):
+        with Timer(
+            name="newton_initialize_solver",
+            msg="Initialize solver took:",
+            activity="Initializing solver",
+            synchronize="both",
+            device=cls.get_device(),
+        ):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
             NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
             deterministic_mode = cls._apply_deterministic_request(cfg)  # type: ignore[arg-type]
@@ -2545,7 +2557,12 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_shape_expr),
         )
 
-        with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
+        with Timer(
+            name="newton_contact_sensor",
+            msg="Contact sensor construction took:",
+            synchronize="both",
+            device=cls.get_device(),
+        ):
             sensor = NewtonContactSensor(
                 cls.backend.model,
                 sensing_bodies=_compile_label_pattern(body_names_expr),
