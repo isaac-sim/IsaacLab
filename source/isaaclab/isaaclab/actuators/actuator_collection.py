@@ -30,9 +30,6 @@ from .actuator_pd import IdealPDActuator, ImplicitActuator
 
 logger = logging.getLogger(__name__)
 
-_COMMAND_BUFFER_NAMES = {"position": "pos", "velocity": "vel", "effort": "effort"}
-"""Maps the public command names to the suffix of the collection's raw command buffers."""
-
 
 class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     """Read-only runtime collection of actuator groups for one articulation.
@@ -733,7 +730,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        self._set_index("position", value, env_ids, joint_ids, full_data)
+        self._set_index("position", self._collection._joint_pos_target, value, env_ids, joint_ids, full_data)
 
     def set_velocity_index(
         self,
@@ -753,7 +750,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        self._set_index("velocity", value, env_ids, joint_ids, full_data)
+        self._set_index("velocity", self._collection._joint_vel_target, value, env_ids, joint_ids, full_data)
 
     def set_effort_index(
         self,
@@ -773,7 +770,7 @@ class ActuatorTargetCommand:
             env_ids: Environment indices. Defaults to all environments.
             full_data: Whether :paramref:`value` is a full articulation command buffer.
         """
-        self._set_index("effort", value, env_ids, joint_ids, full_data)
+        self._set_index("effort", self._collection._joint_effort_target, value, env_ids, joint_ids, full_data)
 
     def set_position_mask(
         self,
@@ -790,7 +787,7 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
-        self._set_mask("position", value, env_mask, joint_mask)
+        self._set_mask("position", self._collection._joint_pos_target, value, env_mask, joint_mask)
 
     def set_velocity_mask(
         self,
@@ -807,7 +804,7 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
-        self._set_mask("velocity", value, env_mask, joint_mask)
+        self._set_mask("velocity", self._collection._joint_vel_target, value, env_mask, joint_mask)
 
     def set_effort_mask(
         self,
@@ -824,15 +821,12 @@ class ActuatorTargetCommand:
             joint_mask: Joint selection mask. Defaults to all joints.
             env_mask: Environment selection mask. Defaults to all environments.
         """
-        self._set_mask("effort", value, env_mask, joint_mask)
-
-    def _target_buffer(self, command_name: str) -> wp.array(dtype=wp.float32):
-        """Return the raw command buffer for ``command_name``."""
-        return getattr(self._collection, f"_joint_{_COMMAND_BUFFER_NAMES[command_name]}_target")
+        self._set_mask("effort", self._collection._joint_effort_target, value, env_mask, joint_mask)
 
     def _set_index(
         self,
         command_name: str,
+        target_buffer: wp.array(dtype=wp.float32),
         value: torch.Tensor | wp.array(dtype=wp.float32),
         env_ids: Sequence[int] | torch.Tensor | wp.array | None,
         joint_ids: Sequence[int] | torch.Tensor | wp.array | None,
@@ -850,7 +844,7 @@ class ActuatorTargetCommand:
             actuator_kernels.write_2d_float_with_indices_kernel(env_ids, joint_ids),
             dim=(env_ids.shape[0], joint_ids.shape[0]),
             inputs=[value, env_ids, joint_ids, full_data],
-            outputs=[self._target_buffer(command_name)],
+            outputs=[target_buffer],
             device=collection.device,
         )
         collection._control.stage_user_command(command_name, collection, env_ids, joint_ids, None, None)
@@ -858,6 +852,7 @@ class ActuatorTargetCommand:
     def _set_mask(
         self,
         command_name: str,
+        target_buffer: wp.array(dtype=wp.float32),
         value: torch.Tensor | wp.array(dtype=wp.float32),
         env_mask: wp.array(dtype=wp.bool) | None,
         joint_mask: wp.array(dtype=wp.bool) | None,
@@ -871,7 +866,7 @@ class ActuatorTargetCommand:
             actuator_kernels.write_2d_float_with_mask,
             dim=(env_mask.shape[0], joint_mask.shape[0]),
             inputs=[value, env_mask, joint_mask],
-            outputs=[self._target_buffer(command_name)],
+            outputs=[target_buffer],
             device=collection.device,
         )
         collection._control.stage_user_command(command_name, collection, None, None, env_mask, joint_mask)
