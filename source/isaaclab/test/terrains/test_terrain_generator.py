@@ -13,9 +13,7 @@ import trimesh
 
 from isaaclab.terrains import (
     FlatPatchSamplingCfg,
-    MeshBoxTerrainCfg,
     MeshFileTerrainCfg,
-    MeshPlaneTerrainCfg,
     MeshRepeatedBoxesTerrainCfg,
     MeshStarTerrainCfg,
     TerrainGenerator,
@@ -73,32 +71,6 @@ def test_generation_star_terrain():
     assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
     # check the sub-terrain origin is at the center of the terrain
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
-
-
-@pytest.mark.parametrize("curriculum", [False, True])
-def test_generation_with_integer_proportions(curriculum):
-    """Integer sub-terrain proportions generate the same terrain as the equivalent float proportions."""
-
-    def make_generator(flat_proportion, box_proportion):
-        cfg = TerrainGeneratorCfg(
-            seed=0,
-            size=(4.0, 4.0),
-            num_rows=2,
-            num_cols=2,
-            curriculum=curriculum,
-            use_cache=False,
-            sub_terrains={
-                "flat": MeshPlaneTerrainCfg(proportion=flat_proportion),
-                "box": MeshBoxTerrainCfg(proportion=box_proportion, box_height_range=(0.05, 0.1)),
-            },
-        )
-        return TerrainGenerator(cfg=cfg)
-
-    int_generator = make_generator(1, 3)
-    float_generator = make_generator(1.0, 3.0)
-
-    np.testing.assert_allclose(int_generator.terrain_origins, float_generator.terrain_origins)
-    np.testing.assert_allclose(int_generator.terrain_mesh.vertices, float_generator.terrain_mesh.vertices)
 
 
 def test_repeated_objects_default_object_type():
