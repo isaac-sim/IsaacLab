@@ -31,6 +31,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.assets import DeformableObject, DeformableObjectCfg, RigidObjectCfg  # noqa: E402
+from isaaclab.cloner import path, query
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils import configclass  # noqa: E402
@@ -529,31 +530,29 @@ def test_heterogeneous_mixed_deformable_rigid_scene_materializes_missing_targets
     with _ovphysx_sim_context(device="cuda:0") as sim:
         num_envs = 4
         scene = InteractiveScene(
-            HeterogeneousMixedDeformableRigidSceneCfg(
-                num_envs=num_envs,
-                env_spacing=1.0,
-                lazy_sensor_update=False,
-            )
+            HeterogeneousMixedDeformableRigidSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
         )
-        plan = scene.clone_plan
-        assert plan is not None
-        shape_rows = plan.cfg_source_indices[id(scene.cfg.shape)]
-        shape_mask = plan.clone_mask[list(shape_rows)]
-        assert shape_mask.sum(axis=1).tolist() == [2, 2]
-        assert shape_mask.sum(axis=0).tolist() == [1, 1, 1, 1]
+        plan = sim.get_clone_plan()
+        source_paths = path.get_asset_prototype_paths(plan)
+        shape_ids = path.get_asset_prototypes(plan, scene.cfg.shape.prim_path)
+        worlds, starts = query.get_asset_prototype_unique_world_index(plan.topology, shape_ids)
+        assert (starts[:, -1] - starts[:, 0]).tolist() == [2, 2]
+        assert sorted(worlds) == list(range(num_envs))
 
         expected_paths = {f"/World/envs/env_{index}/Shape" for index in range(num_envs)}
-        source_paths = {plan.sources[row] for row in shape_rows}
-        assert source_paths == {"/World/envs/env_0/Shape", "/World/envs/env_1/Shape"}
+        shape_paths = {source_paths[index] for index in shape_ids}
+        assert shape_paths == {"/World/envs/env_0/Shape", "/World/envs/env_2/Shape"}
         stage = sim_utils.get_current_stage()
-        ancestor_path = "/World/envs/env_2/Shape"
+        ancestor_path = "/World/envs/env_1/Shape"
         camera_path = f"{ancestor_path}/Camera"
         UsdGeom.Xform.Define(stage, camera_path)
         authored_paths = {path for path in expected_paths if stage.GetPrimAtPath(path).IsValid()}
-        assert authored_paths == source_paths | {ancestor_path}
+        assert authored_paths == shape_paths | {ancestor_path}
         authored_deformable_paths = {f"/World/envs/env_{index}/Object/simulation" for index in range(num_envs)}
-        deformable_rows = plan.cfg_source_indices[id(scene.cfg.deformable)]
-        deformable_source_paths = {f"{plan.sources[row]}/simulation" for row in deformable_rows}
+        deformable_source_paths = {
+            f"{source_paths[index]}/simulation"
+            for index in path.get_asset_prototypes(plan, scene.cfg.deformable.prim_path)
+        }
         assert {
             path for path in authored_deformable_paths if stage.GetPrimAtPath(path).IsValid()
         } == deformable_source_paths

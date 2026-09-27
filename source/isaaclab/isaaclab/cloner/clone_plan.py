@@ -3,75 +3,139 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""The :class:`ClonePlan` value type and the constructors that build one.
-
-A plan is the whole description of a replication layout: which prototypes exist, where each
-one is cloned to, and which envs each one populates. It is built once, queried through
-:mod:`~isaaclab.cloner.query`, and executed by :func:`~isaaclab.cloner.replicate`.
-
-Three constructors cover the ways a layout is specified:
-
-* :func:`clone_plan_from_env_0` — every env is a copy of one prototype env.
-* :func:`make_clone_plan` — the layout is derived from the scene's asset cfgs, expanding
-  multi-asset spawners into per-variant prototypes.
-* :func:`make_valid_clone_combinations` — restricts which variant combinations
-  :func:`make_clone_plan` may draw from, weighted per combination.
-"""
+"""Prototype topology and placement shared by every clone backend."""
 
 from __future__ import annotations
 
-import itertools
 import math
-from collections.abc import Callable, Iterable, Sequence
-from dataclasses import dataclass, field
-from typing import Any
+import re
+from collections.abc import Callable, Sequence
+from dataclasses import dataclass
+from typing import Any, NamedTuple
 
 import numpy as np
+import warp as wp
 
-from .. import sim as sim_utils
-from ..sensors.camera.camera_cfg import CameraCfg
-from ..utils.string import string_to_callable
-from ..utils.version import has_kit
-from .cloner_cfg import DEFAULT_ENV_TEMPLATE, CloneCfg, InclusionSet, expand_env_regex_ns
+from .cloner_cfg import DEFAULT_ENV_TEMPLATE
 from .cloner_strategies import sequential
-from .path import match, under
-from .usd import UsdReplicateContext
+
+
+@dataclass(frozen=True, eq=False)
+class PrototypeWorldTopology:
+    """Numeric asset-prototype and world relationships.
+
+    Arrays use NumPy storage for planning or Warp storage on one device for runtime queries.
+    Treat the topology as read-only after planning; :func:`to_warp` explicitly materializes
+    its numeric arrays on a device. Host declarations and naming belong to :class:`ClonePlan`.
+    """
+
+    num_asset_prototypes: int
+    """Number of asset definitions, including unused prototypes."""
+
+    world_prototypes: np.ndarray | wp.array
+    """Flat int32 asset-prototype indices. Repeated indices represent distinct instances."""
+
+    world_prototype_starts: np.ndarray | wp.array
+    """Offsets into :attr:`world_prototypes`, starting with the shared world `-1`.
+
+    Shared assets occupy ``world_prototypes[world_prototype_starts[0]:world_prototype_starts[1]]``.
+    World prototype ``i`` occupies ``world_prototypes[world_prototype_starts[i + 1]:world_prototype_starts[i + 2]]``.
+    An empty shared world starts with ``[0, 0]``. Offsets have dtype int64.
+    """
+
+    world_prototype_layout: np.ndarray | wp.array
+    """Int32 world-prototype index per world, indexed by world ID; shared assets are not sampled."""
 
 
 @dataclass(frozen=True, eq=False)
 class ClonePlan:
-    """Description of a single replication layout, consumed by :func:`~isaaclab.cloner.replicate`."""
+    """Prototype topology and placement used to instantiate a scene."""
 
-    sources: tuple[str, ...]
-    """Source prim paths, one per replication row."""
+    topology: PrototypeWorldTopology
+    """Numeric asset-prototype and world membership, independent of naming and placement."""
 
-    destinations: tuple[str, ...]
-    """Destination path templates with ``"{}"`` for the env id, one per row."""
+    asset_cfgs: tuple[Any, ...]
+    """Host declarations indexed by asset-prototype ID, retained once by reference."""
 
-    clone_mask: np.ndarray
-    """Boolean array ``[len(sources), num_clones]``; ``True`` if env ``j`` comes from row ``i``."""
-
-    env_ids: np.ndarray | None = None
-    """Integer array ``[num_clones]`` of target env ids.
-
-    Optional for plans used only with :func:`~isaaclab.cloner.query.iter_sources` or
-    :func:`~isaaclab.cloner.query.path_to_source`; required by :func:`~isaaclab.cloner.replicate`.
-    """
+    env_template: str = DEFAULT_ENV_TEMPLATE
+    """Destination-world path template, with one ``{}`` slot for the world ID."""
 
     positions: np.ndarray | None = None
-    """Per-env world positions [m], shape ``[num_clones, 3]``, or ``None``."""
+    """Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement."""
 
-    cfg_source_indices: dict[int, tuple[int, ...]] = field(default_factory=dict)
-    """``id(cfg)`` to indices into :attr:`sources` for that configuration's prototypes."""
 
-    context_source_indices: dict[type[object], tuple[int, ...]] = field(default_factory=dict)
-    """Clone-context classes to indices into :attr:`sources` that they import and replicate."""
+def to_warp(topology: PrototypeWorldTopology, device: str) -> PrototypeWorldTopology:
+    """Materialize numeric topology on an explicitly selected device.
 
-    global_paths: tuple[str, ...] = ()
-    """Unique prim paths for scene assets shared by every environment."""
+    Args:
+        topology: Host topology. Contiguous arrays with matching dtypes are borrowed on CPU and copied on CUDA.
+        device: Warp device, such as ``"cpu"`` or ``"cuda:0"``.
 
-    cfgs: tuple[Any, ...] = ()
-    """Borrowed asset and sensor declarations, including shared assets and configs without a spawner."""
+    Returns:
+        A new topology holding its arrays alive independently of the host topology. Call once during
+        initialization and share the result; this function does not cache, synchronize later
+        host edits, or transfer cfgs. Queries never call it implicitly.
+    """
+    return PrototypeWorldTopology(
+        num_asset_prototypes=topology.num_asset_prototypes,
+        world_prototypes=wp.array(topology.world_prototypes, dtype=wp.int32, device=device, copy=False),
+        world_prototype_starts=wp.array(topology.world_prototype_starts, dtype=wp.int64, device=device, copy=False),
+        world_prototype_layout=wp.array(topology.world_prototype_layout, dtype=wp.int32, device=device, copy=False),
+    )
+
+
+def make_clone_plan(
+    asset_cfgs: Sequence[Any],
+    world_prototypes: Sequence[Sequence[int]],
+    num_worlds: int,
+    *,
+    weights: Sequence[float] | None = None,
+    shared_assets: Sequence[int] = (),
+    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
+    env_template: str = DEFAULT_ENV_TEMPLATE,
+    positions: np.ndarray | None = None,
+) -> ClonePlan:
+    """Select world compositions and retain their optional placement without creating native resources.
+
+    Args:
+        asset_cfgs: Asset prototype definitions, retained by reference.
+        world_prototypes: Asset indices in each world prototype, including repeated instances.
+        num_worlds: Number of destination worlds.
+        weights: Relative world-prototype weights; ``None`` gives every prototype equal weight.
+        shared_assets: Asset indices instantiated once in the shared world ``-1``.
+        clone_strategy: Function selecting world-prototype indices from weights.
+        env_template: Destination-world path template with one ``{}`` slot for the world ID.
+        positions: Destination-world origins [m], shape [num_worlds, 3]; None preserves authored placement.
+
+    Returns:
+        A plan holding the topology and placement. Topology starts with a shared-world slice.
+    """
+    asset_cfgs = tuple(asset_cfgs)
+    compositions = (shared_assets, *world_prototypes)
+    if len(compositions) == 1:
+        raise ValueError("At least one world prototype is required; an empty world is ().")
+    members = np.asarray([asset for world in compositions for asset in world])
+    if members.size and (
+        not np.issubdtype(members.dtype, np.integer) or (members < 0).any() or (members >= len(asset_cfgs)).any()
+    ):
+        raise ValueError("World members must be integer indices into asset_cfgs.")
+    weights = np.ones(len(compositions) - 1) if weights is None else np.asarray(weights, dtype=np.float64)
+    if weights.shape != (len(compositions) - 1,) or not np.isfinite(weights).all() or (weights < 0).any():
+        raise ValueError("Each world prototype requires one finite, non-negative weight.")
+    if weights.sum() <= 0 or num_worlds < 0:
+        raise ValueError("Weights must have positive total mass and num_worlds must be non-negative.")
+    layout = np.asarray(clone_strategy(weights, num_worlds))
+    is_world_layout = layout.shape == (num_worlds,) and np.issubdtype(layout.dtype, np.integer)
+    has_valid_ids = is_world_layout and (layout >= 0).all() and (layout < len(weights)).all()
+    if not has_valid_ids:
+        raise ValueError("clone_strategy must select one valid world-prototype index per destination.")
+    topology = PrototypeWorldTopology(
+        num_asset_prototypes=len(asset_cfgs),
+        world_prototypes=np.ascontiguousarray(members, dtype=np.int32),
+        world_prototype_starts=np.cumsum([0, *(len(world) for world in compositions)], dtype=np.int64),
+        world_prototype_layout=np.ascontiguousarray(layout, dtype=np.int32),
+    )
+    return ClonePlan(topology, asset_cfgs=asset_cfgs, env_template=env_template, positions=positions)
 
 
 def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[np.ndarray, np.ndarray]:
@@ -88,10 +152,8 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[n
     num_rows = int(math.ceil(N / math.sqrt(N)))
     num_cols = int(math.ceil(N / num_rows))
     ii, jj = np.meshgrid(np.arange(num_rows, dtype=np.float32), np.arange(num_cols, dtype=np.float32), indexing="ij")
-    ii = ii.reshape(-1)[:N]
-    jj = jj.reshape(-1)[:N]
-    x = -(ii - (num_rows - 1) / 2) * spacing
-    y = (jj - (num_cols - 1) / 2) * spacing
+    x = -(ii.ravel()[:N] - (num_rows - 1) / 2) * spacing
+    y = (jj.ravel()[:N] - (num_cols - 1) / 2) * spacing
     zero = np.zeros(N, dtype=np.float32)
     if up_axis.lower() == "z":
         positions = np.stack((x, y, zero), axis=1)
@@ -104,411 +166,402 @@ def grid_transforms(N: int, spacing: float = 1.0, up_axis: str = "z") -> tuple[n
     return positions.astype(np.float32, copy=False), orientations
 
 
-def num_spawn_variants(spawn_cfg: Any) -> int:
-    """Return the number of spawn variants declared by one spawner configuration.
+class TemplateMatch(NamedTuple):
+    """The ``"{}"`` text a template captured (``"3"``, or a wildcard ``".*"``), and the path below it."""
 
-    :class:`~isaaclab.sim.MultiAssetSpawnerCfg` declares one variant per asset
-    configuration and :class:`~isaaclab.sim.MultiUsdFileCfg` one per USD path;
-    every other spawner declares a single variant.
+    instance: str
+    suffix: str
 
-    Args:
-        spawn_cfg: Spawner configuration to inspect.
 
-    Returns:
-        The number of spawn variants the configuration expands into.
+class path:
+    """Stateless prim-path operations for clone plans.
+
+    Concrete roots are matched on segment boundaries; templates carry one ``"{}"`` instance slot.
+    Call these functions through ``cloner.path`` without constructing an instance.
     """
-    if isinstance(spawn_cfg, sim_utils.MultiAssetSpawnerCfg):
-        return len(spawn_cfg.assets_cfg)
-    if isinstance(spawn_cfg, sim_utils.MultiUsdFileCfg):
-        return 1 if isinstance(spawn_cfg.usd_path, str) else len(spawn_cfg.usd_path)
-    return 1
 
+    @staticmethod
+    def get_asset_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
+        """Select asset-prototype IDs by their declared cfg paths, without expanding instances.
 
-def _minimal_roots(paths: Iterable[str]) -> tuple[str, ...]:
-    roots = tuple(dict.fromkeys(paths))
-    return tuple(path for path in roots if not any(path != root and under(path, root) for root in roots))
+        Args:
+            plan: Host asset declarations and their numeric topology.
+            path_expr: Exact cfg ``prim_path`` or a regular expression matching the complete declared
+                path string. None selects all definitions, including unused prototypes.
 
+        Returns:
+            Ascending asset-prototype IDs, shape [num_matches], dtype int32, each included once.
+            Generated native paths are not matched.
+        """
+        if path_expr is None:
+            return np.arange(len(plan.asset_cfgs), dtype=np.int32)
+        pattern = re.compile(path_expr)
+        paths = (cfg.prim_path for cfg in plan.asset_cfgs)
+        indices = (index for index, path in enumerate(paths) if path == path_expr or pattern.fullmatch(path))
+        return np.fromiter(indices, dtype=np.int32)
 
-def _set_spawn_paths(spawn_cfg: Any, paths: list[str | None]) -> None:
-    if isinstance(spawn_cfg, (sim_utils.MultiAssetSpawnerCfg, sim_utils.MultiUsdFileCfg)):
-        spawn_cfg.spawn_path = None
-        spawn_cfg.spawn_paths = paths
-    else:
-        spawn_cfg.spawn_path = paths[0]
+    @staticmethod
+    def get_world_prototypes(plan: ClonePlan, path_expr: str | None = None) -> np.ndarray:
+        """Select world-prototype IDs containing assets matched by their declared cfg paths.
 
+        Args:
+            plan: Host asset declarations and their numeric topology.
+            path_expr: Asset-path filter interpreted by :meth:`path.get_asset_prototypes`. None selects
+                all world definitions, including empty and unused prototypes and shared world -1.
 
-def make_valid_clone_combinations(
-    asset_names: Sequence[str],
-    variant_counts: Sequence[int],
-    clone_combinations: Sequence[InclusionSet] | None = None,
-    *,
-    all_asset_names: Sequence[str] | None = None,
-) -> np.ndarray:
-    """Build the valid clone-combination variant array.
+        Returns:
+            Ascending world-prototype IDs, shape [num_matches], dtype int32, not destination world IDs.
+            Filtering selects complete compositions; repeated asset memberships remain in the topology.
+        """
+        topology = plan.topology
+        prototype_ids = np.arange(-1, len(topology.world_prototype_starts) - 2, dtype=np.int32)
+        if path_expr is None:
+            return prototype_ids
+        matched_assets = np.isin(topology.world_prototypes, path.get_asset_prototypes(plan, path_expr))
+        match_counts = np.r_[0, np.cumsum(matched_assets)]
+        return prototype_ids[np.diff(match_counts[topology.world_prototype_starts]) > 0]
 
-    Each combination contributes rows in proportion to its weight, split evenly
-    across its spawn variants and interleaved round-robin, so any prefix of the
-    array samples every combination.
+    @staticmethod
+    def get_asset_prototype_paths(plan: ClonePlan) -> tuple[str | None, ...]:
+        """Return authored source paths indexed by asset-prototype ID, without reading a stage.
 
-    Args:
-        asset_names: Clone-planned scene asset names, one per array column.
-        variant_counts: Number of spawn variants per clone-planned asset.
-        clone_combinations: Legal clone combinations; assets not mentioned by
-            any combination are active in every row. ``None`` uses the full
-            cartesian product of variants.
-        all_asset_names: Optional full scene asset-name list; combination
-            entries may reference assets that are not clone-planned.
+        Args:
+            plan: Host declarations, topology, and naming template.
 
-    Returns:
-        A ``[num_valid_combinations, num_assets]`` array of source variant
-        indices, ``-1`` where an asset is absent.
+        Returns:
+            One source path per asset definition, or None for an unused definition. Explicit
+            spawner paths take precedence; otherwise the first participating prototype/world
+            supplies the source. Shared world -1 precedes replicated worlds.
+        """
+        templates, starts = path.get_world_prototype_asset_templates(plan)
+        first_worlds = np.full(len(starts) - 1, -2, dtype=np.int32)
+        first_worlds[0] = -1
+        prototypes, first = np.unique(plan.topology.world_prototype_layout, return_index=True)
+        first_worlds[prototypes + 1] = first
+        sources = [None] * len(plan.asset_cfgs)
+        for asset, template, world in zip(
+            plan.topology.world_prototypes, templates, np.repeat(first_worlds, np.diff(starts)), strict=True
+        ):
+            if world < -1 or sources[asset] is not None:
+                continue
+            spawn = getattr(plan.asset_cfgs[asset], "spawn", None)
+            source = getattr(spawn, "spawn_path", None)
+            sources[asset] = source if source is not None else template.format(int(world))
+        return tuple(sources)
 
-    Raises:
-        ValueError: If the inputs are inconsistent or no valid rows result.
-    """
-    if len(asset_names) != len(variant_counts):
-        raise ValueError(f"Expected one variant count per asset, got {len(variant_counts)} and {len(asset_names)}.")
-    if not asset_names:
-        raise ValueError("Expected at least one asset name.")
-    if any(count <= 0 for count in variant_counts):
-        raise ValueError("Variant counts must be positive.")
+    @staticmethod
+    def get_world_prototype_asset_templates(
+        plan: ClonePlan, *, include_world_indices: bool = False
+    ) -> tuple[tuple[str, ...], np.ndarray] | tuple[tuple[str, ...], np.ndarray, np.ndarray, np.ndarray]:
+        """Name every asset occurrence in each world prototype.
 
-    if not clone_combinations:
-        rows = itertools.product(*[range(count) for count in variant_counts])
-        return np.asarray(list(rows), dtype=np.int64)
+        Args:
+            plan: Host declarations, topology, and naming template.
+            include_world_indices: Also return destination world IDs and their per-prototype starts.
 
-    clone_asset_names = set(asset_names)
-    known_assets = set(all_asset_names) if all_asset_names is not None else clone_asset_names
-    combination_assets: list[set[str]] = []
-    for combination in clone_combinations:
-        if combination.weight < 0:
-            raise ValueError("Clone combination weights must be non-negative.")
-        unknown_assets = sorted(set(combination.assets) - known_assets)
-        if unknown_assets:
-            raise ValueError(f"Unknown assets in clone combination: {unknown_assets}.")
-        combination_assets.append(set(combination.assets) & clone_asset_names)
+        Returns:
+            Flat templates aligned with ``topology.world_prototypes``, and the existing
+            ``world_prototype_starts`` array by reference. Shared templates have no instance slot;
+            repeated memberships receive distinct sibling names. Unused prototypes retain templates.
 
-    claimed_assets = set().union(*combination_assets) if combination_assets else set()
+            When requested, two additional arrays group destination world IDs by world prototype,
+            including shared world -1 first. For group g (prototype g-1), template starts select its
+            members and world-index starts select its destinations. These are different boundaries;
+            world IDs are not duplicated for every member. Both starts arrays include the final end.
+        """
+        topology = plan.topology
+        starts = topology.world_prototype_starts
+        templates = []
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            names = set()
+            for asset in topology.world_prototypes[start:end]:
+                declared = plan.asset_cfgs[asset].prim_path
+                matched = path.match(declared, plan.env_template)
+                template = plan.env_template + matched.suffix if matched is not None else declared
+                if group == 0:
+                    template = template.format("shared")
+                elif matched is None:
+                    template = plan.env_template + "/" + declared.rsplit("/", 1)[-1]
+                name, occurrence = template, 0
+                while template in names:
+                    occurrence += 1
+                    template = f"{name}_{occurrence}"
+                names.add(template)
+                templates.append(template)
+        if not include_world_indices:
+            return tuple(templates), starts
+        indices = np.r_[-1, np.argsort(topology.world_prototype_layout, kind="stable")].astype(np.int32)
+        counts = np.bincount(topology.world_prototype_layout, minlength=len(starts) - 2)
+        return tuple(templates), starts, indices, np.cumsum(np.r_[0, 1, counts], dtype=np.int64)
 
-    expanded: list[tuple[int, list[tuple[int, ...]]]] = []
-    for combination, active_assets in zip(clone_combinations, combination_assets):
-        if combination.weight == 0:
-            continue
-        variant_ranges = []
-        for asset_name, count in zip(asset_names, variant_counts):
-            is_active = asset_name not in claimed_assets or asset_name in active_assets
-            variant_ranges.append(range(count) if is_active else (-1,))
-        expanded.append((combination.weight, list(itertools.product(*variant_ranges))))
+    @staticmethod
+    def get_parent_indices(paths: Sequence[str]) -> np.ndarray:
+        """Return the nearest strict ancestor in a path collection, independent of input order.
 
-    if not expanded:
-        raise ValueError("Clone combinations produced no valid clone rows.")
+        Args:
+            paths: Concrete paths or templates. Equal paths are peers, not parents.
 
-    # A combination's share is its weight, split evenly across its spawn variants.
-    # Integer multiplicities require a common denominator across variant counts.
-    # Rows are emitted round-robin across combinations so a truncated prefix
-    # (fewer environments than rows) still samples every combination.
-    common_multiple = math.lcm(*[len(variants) for _, variants in expanded])
-    rows = []
-    cursors = [0] * len(expanded)
-    for _ in range(common_multiple):
-        for index, (weight, variants) in enumerate(expanded):
-            for _ in range(weight):
-                rows.append(variants[cursors[index] % len(variants)])
-                cursors[index] += 1
-    return np.asarray(rows, dtype=np.int64)
+        Returns:
+            Parent index per input, dtype int32; -1 when no ancestor occurs in the collection.
+            For duplicate ancestors the first occurrence is used. No stage is read.
+        """
+        indices = {}
+        for index, value in enumerate(paths):
+            indices.setdefault(value.rstrip("/") or "/", index)
+        parents = np.full(len(paths), -1, dtype=np.int32)
+        for index, value in enumerate(paths):
+            parent = value.rstrip("/")
+            while parent:
+                parent = parent.rpartition("/")[0]
+                if (parent or "/") in indices:
+                    parents[index] = indices[parent or "/"]
+                    break
+        return parents
 
+    @staticmethod
+    def match(path_expr: str, template: str) -> TemplateMatch | None:
+        """Match ``path_expr`` against a destination template, capturing the instance slot.
 
-def _context_source_indices(
-    cfgs: tuple[Any, ...],
-    cfg_source_indices: dict[int, tuple[int, ...]],
-    populated_rows: set[int],
-    global_paths: tuple[str, ...] = (),
-) -> dict[type[object], tuple[int, ...]]:
-    """Map registered clone-context classes to their source indices."""
-    sim = sim_utils.SimulationContext.instance()
-    if sim is None:
-        return {}
+        The ``"{}"`` slot matches one path segment's worth of text: a concrete id (``3``) or a
+        wildcard standing for one segment (``.*``, ``[^/]+``). The captured text identifies
+        the instance without slicing the path by hand.
 
-    physics_context = sim.physics_manager.clone_context_type
-    if physics_context is not None and not isinstance(physics_context, type):
-        raise TypeError("PhysicsManager.clone_context_type must be a context class.")
-    render_contexts = {
-        string_to_callable(context) if isinstance(context, str) else context
-        for context in sim.render_context.clone_contexts
-    }
-    for context_type in render_contexts:
-        if context_type not in sim.clone_contexts:
-            sim.clone_contexts[context_type] = context_type(sim)
-    spawn_contexts = render_contexts - {physics_context}
-    if has_kit():
-        spawn_contexts.add(UsdReplicateContext)
-    scene_contexts = {
-        context for context in (physics_context, *render_contexts) if context is not None and global_paths
-    }
-    if not populated_rows:
-        scene_contexts.update(render_contexts)
-    rows_by_context: dict[type[object], set[int]] = {context: set() for context in scene_contexts}
+        Args:
+            path_expr: Path or path expression on the clone (destination) side.
+            template: Destination path template with ``"{}"`` for the instance id.
 
-    for cfg in cfgs:
-        rows = cfg_source_indices[id(cfg)]
-        fields = vars(cfg)
-        references = fields.get("cloning_contexts", ())
-        if references is None:
-            contexts = () if physics_context is None else (physics_context,)
-        else:
-            contexts = tuple(string_to_callable(value) if isinstance(value, str) else value for value in references)
-        if isinstance(fields.get("spawn"), sim_utils.SpawnerCfg):
-            contexts += tuple(spawn_contexts)
-        for context_type in contexts:
-            if not isinstance(context_type, type):
-                raise TypeError(f"{type(cfg).__name__}.cloning_contexts must contain only context classes.")
-            rows_by_context.setdefault(context_type, set()).update(rows)
+        Returns:
+            A :class:`TemplateMatch` with the captured instance text and the asset-relative
+            suffix, or ``None`` when ``path_expr`` is not under the template's instance root.
 
-    if UsdReplicateContext in rows_by_context:
-        sim.clone_contexts[UsdReplicateContext] = UsdReplicateContext(sim.stage)
-    return {
-        context_type: tuple(sorted(rows & populated_rows))
-        for context_type, rows in rows_by_context.items()
-        if rows & populated_rows or context_type in scene_contexts
-    }
-
-
-def make_clone_plan(
-    cfgs: Iterable[Any],
-    num_clones: int,
-    env_spacing: float,
-    global_paths: tuple[str, ...] = (),
-    clone_strategy: Callable[[np.ndarray, int], np.ndarray] = sequential,
-    valid_set: np.ndarray | None = None,
-    env_template: str = DEFAULT_ENV_TEMPLATE,
-) -> ClonePlan:
-    """Build a :class:`ClonePlan` from asset cfgs.
-
-    Iterates ``cfgs``, identifies env-scoped cfgs with a spawn, expands
-    :class:`~isaaclab.sim.MultiAssetSpawnerCfg` / :class:`~isaaclab.sim.MultiUsdFileCfg`
-    into per-variant prototype rows, runs ``clone_strategy`` to assign prototypes to
-    envs, and returns a self-contained :class:`ClonePlan` with ``cfg_source_indices`` populated.
-
-    Each input cfg's ``spawn_path`` / ``spawn_paths`` is mutated so the subsequent
-    asset constructor spawns the prototype into its first active environment. Configurations
-    without a spawner declare existing assets but add no replication rows. Shared assets are
-    declared explicitly through ``global_paths`` and are never replicated.
-
-    Args:
-        cfgs: Asset cfgs with resolved ``prim_path`` and optional ``spawn``.
-        num_clones: Number of target envs.
-        env_spacing: Distance between neighboring grid env origins [m].
-        global_paths: Complete shared-asset roots declared by the scene composition root. Defaults to none.
-        clone_strategy: Function that assigns prototype combinations to envs. Defaults
-            to :func:`~isaaclab.cloner.sequential`.
-        valid_set: Optional ``[num_combos, num_groups]`` integer array of valid prototype
-            combinations. ``None`` (default) uses the full cartesian product of every
-            group's prototype indices.
-
-    Returns:
-        A :class:`ClonePlan` whose ``sources``/``destinations``/``clone_mask`` describe
-        the flat prototype-to-env mapping, whose ``cfg_source_indices`` maps each replicated cfg
-        identity to its source indices, and whose ``global_paths`` names shared scene assets.
-    """
-    cfgs = tuple(cfgs)
-    global_paths = _minimal_roots(global_paths)
-    sim = sim_utils.SimulationContext.instance()
-
-    # 1) Build per-group records: (cfg, spawn_cfg, destination_template, num_variants).
-    groups: list[tuple[Any, Any, str, int]] = []
-    for cfg in cfgs:
-        if isinstance(cfg, CameraCfg) and sim is not None:
-            sim.get_or_create_backend(cfg.renderer_cfg)
-        spawn = getattr(cfg, "spawn", None)
-        if spawn is None:
-            continue
-        matched = match(cfg.prim_path, env_template)
+        Example:
+            >>> path.match("/World/envs/env_3/Robot/base", "/World/envs/env_{}/Robot")
+            TemplateMatch(instance='3', suffix='/base')
+        """
+        template = template.rstrip("/") or "/"
+        if template.count("{}") != 1:
+            raise ValueError(f"Clone destination template must contain exactly one '{{}}': {template!r}.")
+        prefix, _, template_suffix = template.partition("{}")
+        # the slot holds one segment's worth of text: a concrete id, or a wildcard standing for one.
+        # A segment-safe wildcard is written as a character class, whose text contains a '/' that is
+        # not a separator, so it is matched as a class rather than by the one-segment alternative.
+        pattern = re.compile(re.escape(prefix) + r"(\[\^?[^]]*\][*+?]?|[^/]+)" + re.escape(template_suffix))
+        matched = pattern.match(path_expr)
         if matched is None:
-            continue
-        count = num_spawn_variants(spawn)
-        if count <= 0:
-            raise ValueError(f"Spawner at '{cfg.prim_path}' must have at least one variant.")
-        groups.append((cfg, spawn, env_template + matched.suffix, count))
-    replicated_cfgs = tuple(cfg for cfg, _, _, _ in groups)
-    env_ids = np.arange(num_clones, dtype=np.int64)
-    positions, _ = grid_transforms(num_clones, env_spacing)
+            return None
+        suffix = path_expr[matched.end() :]
+        if suffix and not suffix.startswith("/"):
+            return None
+        return TemplateMatch(matched.group(1), suffix)
 
-    # 2) No env-scoped cfgs: emit an empty plan so the scene can still proceed.
-    if not groups:
-        empty_mask = np.zeros((0, num_clones), dtype=np.bool_)
-        return ClonePlan(
-            sources=(),
-            destinations=(),
-            clone_mask=empty_mask,
-            env_ids=env_ids,
-            positions=positions,
-            cfg_source_indices={},
-            context_source_indices=_context_source_indices(replicated_cfgs, {}, set(), global_paths),
-            global_paths=global_paths,
-            cfgs=cfgs,
-        )
+    @staticmethod
+    def relative_to(path: str, root: str) -> str | None:
+        """Strip a concrete ``root`` prefix off ``path`` on a segment boundary.
 
-    # 3) Homogeneous (every cfg is single-variant): emit the simpler env-root plan.
-    if valid_set is None and all(count == 1 for _, _, _, count in groups):
-        for cfg, spawn_cfg, destination, _ in groups:
-            _set_spawn_paths(spawn_cfg, [destination.format(0)])
-        cfg_source_indices = {id(cfg): (0,) for cfg, _, _, _ in groups}
-        clone_mask = np.ones((1, num_clones), dtype=np.bool_)
-        return ClonePlan(
-            sources=(env_template.format(0),),
-            destinations=(env_template,),
-            clone_mask=clone_mask,
-            env_ids=env_ids,
-            positions=positions,
-            cfg_source_indices=cfg_source_indices,
-            context_source_indices=_context_source_indices(replicated_cfgs, cfg_source_indices, {0}, global_paths),
-            global_paths=global_paths,
-            cfgs=cfgs,
-        )
+        Unlike slicing or :meth:`str.removeprefix`, this returns ``None`` rather than a
+        mid-segment remainder when ``path`` is not under ``root``.
 
-    # 4) Heterogeneous: enumerate prototype combos, build per-row mask, mutate spawn paths.
-    group_sizes = [count for _, _, _, count in groups]
+        Args:
+            path: Path to make relative.
+            root: Concrete subtree root. A trailing slash is insignificant, and ``"/"`` is the
+                root of every path.
 
-    def validate_combinations(combos: np.ndarray, name: str, expected_rows: int | None = None) -> np.ndarray:
-        combos = np.asarray(combos)
-        if not np.issubdtype(combos.dtype, np.integer):
-            raise ValueError(f"{name} must contain integer prototype indices.")
-        combos = combos.astype(np.int64, copy=False)
-        if combos.ndim != 2:
-            raise ValueError(f"{name} must be a 2-D array, got shape {tuple(combos.shape)}.")
-        if combos.shape[0] == 0:
-            raise ValueError(f"{name} must contain at least one row.")
-        if expected_rows is not None and combos.shape[0] != expected_rows:
-            raise ValueError(f"{name} must contain {expected_rows} rows, got {combos.shape[0]}.")
-        if combos.shape[1] != len(group_sizes):
-            raise ValueError(f"{name} must contain {len(group_sizes)} columns, got {combos.shape[1]}.")
-        invalid = (combos < -1) | ((combos >= np.asarray(group_sizes)[None]) & (combos != -1))
-        if invalid.any():
-            raise ValueError(f"{name} contains prototype indices outside [-1, group_size).")
-        return combos
+        Returns:
+            The suffix below ``root`` (starting with ``/``, or ``""`` when ``path`` equals
+            ``root``), or ``None`` when ``path`` is not under ``root``.
 
-    if valid_set is None:
-        all_combos = list(itertools.product(*[range(s) for s in group_sizes]))
-        combos = np.asarray(all_combos, dtype=np.int64)
-    else:
-        combos = validate_combinations(valid_set, "valid_set")
-    chosen = validate_combinations(clone_strategy(combos, num_clones), "clone_strategy result", num_clones)
+        """
+        root = root.rstrip("/") or "/"
+        if path == root:
+            return ""
+        # "/" prefixes every path but contributes no segment of its own.
+        prefix = "" if root == "/" else root
+        if not path.startswith(prefix):
+            return None
+        suffix = path[len(prefix) :]
+        return suffix if suffix.startswith("/") else None
 
-    group_offsets = np.asarray([0] + list(itertools.accumulate(group_sizes[:-1])), dtype=np.int64)
-    active = chosen >= 0
-    rows = (chosen + group_offsets).reshape(-1)
-    cols = np.broadcast_to(np.arange(num_clones)[:, None], chosen.shape).reshape(-1)
-    active_flat = active.reshape(-1)
+    @classmethod
+    def rebase(cls, path: str, src_root: str, dst_root: str) -> str:
+        """Rebase ``path`` from one concrete root prefix onto another on a segment boundary.
 
-    num_rows = sum(group_sizes)
-    clone_mask = np.zeros((num_rows, num_clones), dtype=np.bool_)
-    if active_flat.any():
-        clone_mask[rows[active_flat], cols[active_flat]] = True
+        Unlike :meth:`str.replace`, this swaps only a boundary-aligned prefix and touches only
+        the leading occurrence.
 
-    sources_list: list[str] = []
-    destinations_list: list[str] = []
-    cfg_source_indices: dict[int, tuple[int, ...]] = {}
-    populated_rows: set[int] = set()
-    row = 0
-    for cfg, spawn_cfg, destination, count in groups:
-        cfg_source_indices[id(cfg)] = tuple(range(row, row + count))
-        group_mask = clone_mask[row : row + count]
-        env_ids_assigned = group_mask.argmax(axis=1)
-        active_variants = group_mask.any(axis=1)
-        populated_rows.update(row + i for i, is_active in enumerate(active_variants) if is_active)
-        paths = [
-            destination.format(int(env_id)) if is_active else None
-            for env_id, is_active in zip(env_ids_assigned, active_variants)
-        ]
-        for i, path in enumerate(paths):
-            destinations_list.append(destination)
-            # Inactive prototypes fall back to env-i so the source path stays valid even
-            # when the variant has no active environment (matches the legacy behavior).
-            sources_list.append(path if path is not None else destination.format(i))
-        _set_spawn_paths(spawn_cfg, paths)
-        row += count
+        Args:
+            path: Path to rebase.
+            src_root: Concrete source root prefix.
+            dst_root: Concrete destination root prefix.
 
-    return ClonePlan(
-        sources=tuple(sources_list),
-        destinations=tuple(destinations_list),
-        clone_mask=clone_mask,
-        env_ids=env_ids,
-        positions=positions,
-        cfg_source_indices=cfg_source_indices,
-        context_source_indices=_context_source_indices(replicated_cfgs, cfg_source_indices, populated_rows, global_paths),
-        global_paths=global_paths,
-        cfgs=cfgs,
-    )
+        Returns:
+            The rebased path, or ``path`` unchanged when it is not under ``src_root``.
+        """
+        suffix = cls.relative_to(path, src_root)
+        return path if suffix is None else (dst_root.rstrip("/") + suffix) or "/"
 
 
-def clone_plan_from_env_0(
-    clone_cfg: CloneCfg,
-    asset_cfgs: Iterable[Any],
-    num_envs: int,
-    env_spacing: float,
-    *,
-    positions: np.ndarray | None = None,
-) -> ClonePlan:
-    """Build and publish one homogeneous plan from explicit asset configurations.
+class query:
+    """Batched numeric topology queries. Resolve declared paths separately with :class:`path`.
 
-    The flat ``asset_cfgs`` sequence is the construction manifest. Environment-scoped
-    configurations share one env-root row; configurations outside that namespace become
-    :attr:`ClonePlan.global_paths`. Planning assigns each spawner an exact prototype path
-    before callers construct the assets.
+    All queries return ``(world_indices, world_starts)``. Indices are flat int32 values;
+    starts are int64 offsets with shape [num_queries, num_worlds + 2], including shared world -1.
+    For query q and world w, ``world_starts[q, w + 1 : w + 3]`` bounds its selected instances.
+    Each row's first/last offset bounds the entire query. Repeated IDs retain separate results.
 
-    Args:
-        clone_cfg: Homogeneous clone policy and environment template.
-        asset_cfgs: Flat sequence of prim-authoring configurations.
-        num_envs: Number of target environments.
-        env_spacing: Distance between neighboring environment origins [m].
-        positions: Optional per-environment world positions [m], shape ``[num_envs, 3]``.
-            ``None`` uses a centered grid with ``env_spacing``.
-
-    Returns:
-        The published :class:`ClonePlan`, with one source row covering every environment.
-
-    Raises:
-        ValueError: If heterogeneous clone combinations or a multi-variant spawner are supplied.
-        RuntimeError: If no simulation is active or it already owns a clone plan.
+    NumPy queries allocate exact-sized results. Warp queries require resident int32 query IDs
+    and preallocated ``out`` arrays on the topology's device; no upload or readback is implicit.
+    Warm up before CUDA graph capture. For nonempty batches, the valid prefix ends at ``world_starts[-1, -1]``.
+    If that required size exceeds capacity, starts are still reported but indices are left untouched:
+    the caller must provide enough capacity for its selection domain, not consume a partial result.
     """
-    if clone_cfg.clone_combinations:
-        raise ValueError("clone_plan_from_env_0 requires a homogeneous CloneCfg.")
-    sim = sim_utils.SimulationContext.instance()
-    if sim is None:
-        raise RuntimeError("Clone planning requires an active SimulationContext.")
-    if sim.get_clone_plan() is not None:
-        raise RuntimeError("A SimulationContext owns exactly one clone lifecycle.")
 
-    records = []
-    for cfg in asset_cfgs:
-        if isinstance(cfg, CameraCfg):
-            sim.get_or_create_backend(cfg.renderer_cfg)
-        prim_path = expand_env_regex_ns(cfg.prim_path, clone_cfg.clone_template)
-        matched = match(prim_path, clone_cfg.clone_template)
-        spawn = getattr(cfg, "spawn", None)
-        if spawn is not None and num_spawn_variants(spawn) != 1:
-            raise ValueError("clone_plan_from_env_0 requires single-variant spawners.")
-        records.append((cfg, prim_path, matched, spawn))
+    @staticmethod
+    def get_asset_prototype_world_index(
+        topology: PrototypeWorldTopology,
+        asset_prototype: int | np.ndarray | wp.array,
+        *,
+        out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+        """Return one world index per asset instance, retaining repeated memberships.
 
-    env_cfgs = tuple(cfg for cfg, _, matched, _ in records if matched is not None)
-    global_paths = _minimal_roots(prim_path for _, prim_path, matched, _ in records if matched is None)
-    cfg_source_indices = {id(cfg): (0,) for cfg in env_cfgs}
-    plan = ClonePlan(
-        sources=(clone_cfg.clone_template.format(0),),
-        destinations=(clone_cfg.clone_template,),
-        clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-        env_ids=np.arange(num_envs, dtype=np.int64),
-        positions=grid_transforms(num_envs, env_spacing)[0] if positions is None else positions,
-        cfg_source_indices=cfg_source_indices,
-        context_source_indices=_context_source_indices(env_cfgs, cfg_source_indices, {0}, global_paths),
-        global_paths=global_paths,
-        cfgs=tuple(cfg for cfg, _, _, _ in records),
-    )
-    for cfg, prim_path, matched, spawn in records:
-        cfg.prim_path = prim_path
-        if spawn is None:
-            continue
-        source_path = prim_path if matched is None else plan.sources[0] + matched.suffix
-        _set_spawn_paths(spawn, [source_path])
-    sim.set_clone_plan(plan)
-    return plan
+        Args:
+            topology: Numeric topology with NumPy or Warp storage.
+            asset_prototype: One integer (NumPy only), or a 1-D integer array of asset-prototype IDs.
+            out: Optional NumPy outputs, required Warp outputs. See the namespace's result/capacity contract.
+
+        Returns:
+            Flat world indices and per-query world boundaries. A scalar is a batch of length one.
+            Missing or unused asset IDs produce empty slices; shared instances use world -1.
+        """
+        return query._world_index(topology, asset_prototype, by_asset=True, unique=False, out=out)
+
+    @staticmethod
+    def get_asset_prototype_unique_world_index(
+        topology: PrototypeWorldTopology,
+        asset_prototype: int | np.ndarray | wp.array,
+        *,
+        out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+        """Return each world containing an asset once, independently for every requested asset.
+
+        Args:
+            topology: Numeric topology with NumPy or Warp storage.
+            asset_prototype: One integer (NumPy only), or a 1-D integer array of asset-prototype IDs.
+            out: Optional NumPy outputs, required Warp outputs. See the namespace's result/capacity contract.
+
+        Returns:
+            Flat world indices and per-query world boundaries, as in :meth:`query.get_asset_prototype_world_index`.
+            Every world slice has length zero or one. Separate queries are not deduplicated together.
+        """
+        return query._world_index(topology, asset_prototype, by_asset=True, unique=True, out=out)
+
+    @staticmethod
+    def get_world_prototype_world_index(
+        topology: PrototypeWorldTopology,
+        world_prototype: int | np.ndarray | wp.array,
+        *,
+        out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None = None,
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+        """Return the destination worlds using each requested world prototype.
+
+        Args:
+            topology: Numeric topology with NumPy or Warp storage.
+            world_prototype: One integer (NumPy only), or a 1-D integer array of world-prototype IDs.
+                Index -1 selects the shared world, even when empty.
+            out: Optional NumPy outputs, required Warp outputs. See the namespace's result/capacity contract.
+
+        Returns:
+            Flat world indices and per-query world boundaries, as in :meth:`query.get_asset_prototype_world_index`.
+            Unused world prototypes produce empty slices.
+        """
+        return query._world_index(topology, world_prototype, by_asset=False, unique=True, out=out)
+
+    @staticmethod
+    def _world_index(
+        topology: PrototypeWorldTopology,
+        prototype_ids: int | np.ndarray | wp.array,
+        *,
+        by_asset: bool,
+        unique: bool,
+        out: tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array] | None,
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[wp.array, wp.array]:
+        num_worlds = len(topology.world_prototype_layout)
+        if isinstance(topology.world_prototypes, np.ndarray):
+            if isinstance(prototype_ids, wp.array):
+                raise TypeError("Warp query IDs require to_warp(topology, device); queries do not transfer arrays.")
+            prototype_ids = np.atleast_1d(prototype_ids)
+            if prototype_ids.ndim != 1 or prototype_ids.dtype.kind not in "iu":
+                raise TypeError("Topology queries require integer IDs; resolve expressions with cloner.path.")
+            layout = np.r_[-1, topology.world_prototype_layout]
+            if by_asset:
+                prefix = np.zeros((len(prototype_ids), len(topology.world_prototypes) + 1), dtype=np.int64)
+                np.cumsum(prototype_ids[:, None] == topology.world_prototypes, axis=1, out=prefix[:, 1:])
+                counts = np.diff(prefix[:, topology.world_prototype_starts], axis=1)[:, layout + 1]
+                if unique:
+                    counts = counts > 0
+            else:
+                counts = prototype_ids[:, None] == layout
+            starts = np.zeros((len(prototype_ids), num_worlds + 2), dtype=np.int64)
+            starts[:, 1:] = counts
+            np.cumsum(starts.ravel(), out=starts.ravel())
+            indices = np.repeat(np.tile(np.arange(-1, num_worlds, dtype=np.int32), len(prototype_ids)), counts.ravel())
+            if out is None:
+                return indices, starts
+            out[1][:] = starts
+            if len(indices) <= len(out[0]):
+                out[0][: len(indices)] = indices
+        else:
+            if out is None:
+                raise ValueError("Warp queries require preallocated out=(world_indices, world_starts).")
+            indices, starts = out
+            if starts.shape != (len(prototype_ids), num_worlds + 2) or not starts.is_contiguous:
+                raise ValueError("world_starts must be contiguous with shape [num_queries, num_worlds + 2].")
+            arrays = topology.world_prototypes, topology.world_prototype_starts, topology.world_prototype_layout
+            inputs = [*arrays, prototype_ids, by_asset, unique]
+            wp.launch(_count_world_instances, starts.shape, inputs, [starts], device=starts.device)
+            wp.utils.array_scan(starts.flatten(), starts.flatten())
+            wp.launch(
+                _fill_world_indices, (len(prototype_ids), num_worlds + 1), [starts, indices], device=starts.device
+            )
+        return out
+
+
+@wp.kernel
+def _count_world_instances(
+    world_prototypes: wp.array(dtype=wp.int32),
+    world_prototype_starts: wp.array(dtype=wp.int64),
+    world_prototype_layout: wp.array(dtype=wp.int32),
+    prototype_ids: wp.array(dtype=wp.int32),
+    by_asset: bool,
+    unique: bool,
+    starts: wp.array2d(dtype=wp.int64),
+):
+    query, column = wp.tid()
+    count = wp.int64(0)
+    if column > 0:
+        world_prototype = -1
+        if column > 1:
+            world_prototype = world_prototype_layout[column - 2]
+        if by_asset:
+            member = world_prototype_starts[world_prototype + 1]
+            end = world_prototype_starts[world_prototype + 2]
+            while member < end:
+                if world_prototypes[member] == prototype_ids[query]:
+                    count += wp.int64(1)
+                member += wp.int64(1)
+            if unique:
+                count = wp.min(count, wp.int64(1))
+        elif world_prototype == prototype_ids[query]:
+            count = wp.int64(1)
+    starts[query, column] = count
+
+
+@wp.kernel
+def _fill_world_indices(starts: wp.array2d(dtype=wp.int64), indices: wp.array(dtype=wp.int32)):
+    query, world = wp.tid()
+    # Never write a partial result or past capacity, including during graph replay.
+    if starts[starts.shape[0] - 1, starts.shape[1] - 1] <= wp.int64(indices.shape[0]):
+        index = starts[query, world]
+        while index < starts[query, world + 1]:
+            indices[index] = world - 1
+            index += wp.int64(1)

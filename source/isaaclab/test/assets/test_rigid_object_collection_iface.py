@@ -15,7 +15,7 @@ The setup is a bit convoluted so that we can run these tests without requiring I
 """
 
 import math
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -27,28 +27,8 @@ from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.integration
 
-# One fixture with distinct instance and body counts so any swapped axis shows up.
+# Distinct instance and body counts make swapped axes visible.
 _NUM_INSTANCES, _NUM_BODIES = 2, 3
-
-
-@pytest.fixture
-def make_collection(monkeypatch):
-    """Build a mocked collection; Newton gets a no-op ``forward()``.
-
-    The Newton collection's ``body_link_pose_w`` triggers ``_ensure_fk_fresh()`` ->
-    ``NewtonManager.forward()``, which runs ``eval_fk`` against a live simulation state. The mocked
-    interface has no such state (``_state_0`` is ``None``), so stub ``forward()`` to a no-op; the mock
-    view supplies the cached pose data directly.
-    """
-
-    def _make(backend: str, device: str):
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            monkeypatch.setattr(NewtonManager, "forward", MagicMock())
-        return get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
-
-    return _make
 
 
 # ---------------------------------------------------------------------------
@@ -216,16 +196,23 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 class TestCollectionIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
-    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
-        obj, _ = get_rigid_object_collection(backend, num_instances=4, device="cpu")
+    @_production_backends
+    @_devices
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
+        obj, _ = get_rigid_object_collection(backend, num_instances=4, device=device)
 
-        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        env_ids = torch.arange(4, dtype=torch.int32, device=device)
         resolved_full = obj._resolve_env_ids(env_ids)
         resolved_view = obj._resolve_env_ids(env_ids[:2])
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+        cached = wp.to_torch(obj._ALL_ENV_INDICES)
+        for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+            resolved = wp.to_torch(obj._resolve_env_ids(selection))
+            torch.testing.assert_close(resolved, cached[selection])
+            assert resolved.data_ptr() == cached[selection].data_ptr()
+            assert resolved.stride() == cached[selection].stride()
 
     @_index_resolution_backends
     def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
@@ -304,12 +291,12 @@ class TestCollectionProperties:
     """Test that collection properties return the correct types/values."""
 
     @_backends
-    def test_collection_counts_and_names(self, backend, make_collection):
+    def test_collection_counts_and_names(self, backend):
         from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import (
             BaseRigidObjectCollectionData,
         )
 
-        obj, _ = make_collection(backend, "cpu")
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, "cpu")
 
         assert obj.num_instances == _NUM_INSTANCES
         assert obj.num_bodies == _NUM_BODIES
@@ -402,8 +389,8 @@ class TestCollectionDataProperties:
 
     @_backends
     @_devices
-    def test_collection_data_property_contract(self, backend, device, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_collection_data_property_contract(self, backend, device):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         obj.data.update(dt=0.01)
         shapes = {"NB": (_NUM_INSTANCES, _NUM_BODIES), "NB9": (_NUM_INSTANCES, _NUM_BODIES, 9)}
         for name, shape_kind, dtype in _COLLECTION_DATA_PROPERTIES:
@@ -515,8 +502,8 @@ class TestCollectionWritersPose:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
-    def test_write_body_pose_to_sim_index(self, backend, device, method_suffix, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_write_body_pose_to_sim_index(self, backend, device, method_suffix):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
@@ -558,8 +545,8 @@ class TestCollectionWritersPose:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
-    def test_write_body_velocity_to_sim_index(self, backend, device, method_suffix, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_write_body_velocity_to_sim_index(self, backend, device, method_suffix):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_index")
@@ -605,8 +592,8 @@ class TestCollectionWritersPose:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
-    def test_write_body_pose_to_sim_mask(self, backend, device, method_suffix, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_write_body_pose_to_sim_mask(self, backend, device, method_suffix):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
@@ -651,8 +638,8 @@ class TestCollectionWritersPose:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
-    def test_write_body_velocity_to_sim_mask(self, backend, device, method_suffix, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_write_body_velocity_to_sim_mask(self, backend, device, method_suffix):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         obj.data.update(dt=0.01)
         method = getattr(obj, f"write_{method_suffix}_to_sim_mask")
@@ -733,8 +720,8 @@ class TestCollectionWritersBody:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
-    def test_body_writer_index(self, backend, device, method_base, kwarg, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_body_writer_index(self, backend, device, method_base, kwarg):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
         obj.data.update(dt=0.01)
@@ -773,8 +760,8 @@ class TestCollectionWritersBody:
     @_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
-    def test_body_writer_mask(self, backend, device, method_base, kwarg, make_collection):
-        obj, _ = make_collection(backend, device)
+    def test_body_writer_mask(self, backend, device, method_base, kwarg):
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
         num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
         wp_dtype, trailing, getter = _body_writer_layout(backend, method_base)
         obj.data.update(dt=0.01)
@@ -834,9 +821,9 @@ class TestCollectionDataAliases:
     """Test that alias properties return the values of their canonical counterparts."""
 
     @_backends
-    def test_aliases_match_canonical_values(self, backend, make_collection):
+    def test_aliases_match_canonical_values(self, backend):
         # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
-        obj, _ = make_collection(backend, "cpu")
+        obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, "cpu")
         obj.data.update(dt=0.01)
         d = obj.data
 

@@ -655,8 +655,7 @@ class WrenchComposer:
             self._dirty = True
         else:
             # Partial reset via index
-            if isinstance(env_ids, list):
-                env_ids = wp.array(env_ids, dtype=wp.int32, device=self.device)
+            env_ids = self._resolve_env_ids(env_ids)
 
             wp.launch(
                 reset_wrench_composer_index_kernel(env_ids),
@@ -746,6 +745,8 @@ class WrenchComposer:
             return env_ids
         if env_ids == slice(None):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         raise TypeError(

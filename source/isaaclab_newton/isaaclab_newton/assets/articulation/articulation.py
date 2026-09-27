@@ -1829,7 +1829,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1838,7 +1838,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1903,7 +1903,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1912,7 +1912,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -3724,6 +3724,8 @@ class Articulation(BaseArticulation):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids

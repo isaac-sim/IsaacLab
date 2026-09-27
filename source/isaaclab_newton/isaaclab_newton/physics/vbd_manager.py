@@ -25,16 +25,6 @@ class NewtonVBDManager(NewtonManager):
         super().start_simulation()
 
     @classmethod
-    def instantiate_builder_from_stage(cls) -> None:
-        """Create and color the VBD builder from the USD stage."""
-        super().instantiate_builder_from_stage()
-        if cls._builder is None:
-            raise RuntimeError("Newton stage import did not create a builder.")
-        # Warp's optional balancing pass can cycle indefinitely for valid graph colorings.
-        # The initial assignment is sufficient for VBD correctness.
-        cls._builder.color(balance_colors=False)
-
-    @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
         """Construct the configured VBD solver."""
         return SolverVBD(model, **cls._filter_solver_kwargs(SolverVBD, solver_cfg))

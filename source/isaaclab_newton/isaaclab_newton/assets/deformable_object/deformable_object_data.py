@@ -8,10 +8,11 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
-from ...physics.newton_manager import NewtonManager as SimulationManager
+from isaaclab_newton.physics import NewtonManager as SimulationManager
+
 from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles, vec6f
 
 
@@ -25,13 +26,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     The data is lazily updated, meaning that the data is only updated when it is accessed.
     """
 
-    def __init__(
-        self,
-        particle_offsets: wp.array,
-        particles_per_body: int,
-        num_instances: int,
-        device: str,
-    ):
+    def __init__(self, particle_offsets: wp.array, particles_per_body: int, num_instances: int, device: str):
         """Initialize the Newton deformable object data.
 
         Args:
@@ -49,16 +44,17 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._num_instances = num_instances
 
         # Initialize lazy buffers
-        self._nodal_pos_w = TimestampedBuffer((num_instances, particles_per_body), device, wp.vec3f)
-        self._nodal_vel_w = TimestampedBuffer((num_instances, particles_per_body), device, wp.vec3f)
-        self._nodal_state_w = TimestampedBuffer((num_instances, particles_per_body), device, vec6f)
-        self._root_pos_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
-        self._root_vel_w = TimestampedBuffer((num_instances,), device, wp.vec3f)
-        self._nodal_pos_w_ta = ProxyArray(self._nodal_pos_w.data)
-        self._nodal_vel_w_ta = ProxyArray(self._nodal_vel_w.data)
-        self._nodal_state_w_ta = ProxyArray(self._nodal_state_w.data)
-        self._root_pos_w_ta = ProxyArray(self._root_pos_w.data)
-        self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
+        nodal_shape = (num_instances, particles_per_body)
+        self._nodal_pos_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_vel_w = TimestampedBuffer(wp.zeros(nodal_shape, dtype=wp.vec3f, device=device))
+        self._nodal_state_w = TimestampedBuffer(wp.empty(nodal_shape, dtype=vec6f, device=device))
+        self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
+        self._nodal_pos_w_ta: ProxyArray | None = None
+        self._nodal_vel_w_ta: ProxyArray | None = None
+        self._nodal_state_w_ta: ProxyArray | None = None
+        self._root_pos_w_ta: ProxyArray | None = None
+        self._root_vel_w_ta: ProxyArray | None = None
 
         self._create_simulation_bindings()
 
@@ -123,6 +119,8 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._nodal_pos_w.timestamp = self._sim_timestamp
+        if self._nodal_pos_w_ta is None:
+            self._nodal_pos_w_ta = ProxyArray(self._nodal_pos_w.data)
         return self._nodal_pos_w_ta
 
     @property
@@ -138,6 +136,8 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._nodal_vel_w.timestamp = self._sim_timestamp
+        if self._nodal_vel_w_ta is None:
+            self._nodal_vel_w_ta = ProxyArray(self._nodal_vel_w.data)
         return self._nodal_vel_w_ta
 
     @property
@@ -155,6 +155,8 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._nodal_state_w.timestamp = self._sim_timestamp
+        if self._nodal_state_w_ta is None:
+            self._nodal_state_w_ta = ProxyArray(self._nodal_state_w.data)
         return self._nodal_state_w_ta
 
     ##
@@ -176,6 +178,8 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._root_pos_w.timestamp = self._sim_timestamp
+        if self._root_pos_w_ta is None:
+            self._root_pos_w_ta = ProxyArray(self._root_pos_w.data)
         return self._root_pos_w_ta
 
     @property
@@ -193,4 +197,6 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._root_vel_w.timestamp = self._sim_timestamp
+        if self._root_vel_w_ta is None:
+            self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
         return self._root_vel_w_ta

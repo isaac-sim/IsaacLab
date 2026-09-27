@@ -817,7 +817,8 @@ def test_set_forces_clears_targeted_envs_only(device: str):
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("source_is_global", [False, True])
-def test_partial_reset_zeros_only_specified_envs(device: str, source_is_global: bool):
+@pytest.mark.parametrize("use_slice", [False, True])
+def test_partial_reset_zeros_only_specified_envs(device: str, source_is_global: bool, use_slice: bool):
     """Partial resets preserve the remaining merged wrench and its required composition."""
     num_envs, num_bodies = 8, 3
     rng = np.random.default_rng(seed=50)
@@ -837,7 +838,9 @@ def test_partial_reset_zeros_only_specified_envs(device: str, source_is_global: 
     composer.add_raw_buffers_from(source)
 
     reset_env_ids = [1, 3, 5]
-    if source_is_global:
+    if use_slice:
+        composer.reset(env_ids=slice(1, 6, 2))
+    elif source_is_global:
         mask = np.zeros(num_envs, dtype=bool)
         mask[reset_env_ids] = True
         composer.reset(env_mask=wp.array(mask, dtype=wp.bool, device=device))

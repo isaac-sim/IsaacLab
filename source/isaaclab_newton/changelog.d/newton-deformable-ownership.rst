@@ -14,12 +14,13 @@ Changed
 Fixed
 ^^^^^
 
-* Applied clone-plan row selection to Newton deformables and imported shared deformables once.
+* Applied clone-plan world compositions to Newton deformables and imported shared deformables once.
   Preserved rotated particle positions, velocities, and tetrahedral rest frames during builder composition.
 
 * Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
 
 * Moved Fabric body-prim preparation out of Newton physics startup and into the shared Fabric rendering resource.
+  Preserved rendering-compatible CUDA graph capture independently of Fabric bindings.
 
 * Scoped deformable kinematic defaults to each asset's selected particles instead of copying the entire model.
   Preserved imported cloth rest angles during asset initialization.

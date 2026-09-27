@@ -8,6 +8,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 # launch omniverse app
@@ -24,24 +25,17 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    ClonePlan,
     _fabric_notices,
     disabled_fabric_change_notifies,
-    sequential,
+    make_clone_plan,
     usd_replicate,
 )
 from isaaclab.sim import build_simulation_context
 
 
 def _make_flat_clone_plan(num_variants: int, num_clones: int, destination: str):
-    """Build a flat (sources, destinations, clone_mask) tuple for tests using sequential mapping.
-
-    The PhysX test_cloner tests intentionally bypass cfg-driven planning and exercise
-    physx_replicate / usd_replicate against a hand-built per-variant mask. This helper
-    captures the small amount of flat-plan logic the tests need without re-introducing
-    the legacy ``make_clone_plan(sources, destinations, num_clones, ...)`` signature.
-    """
-    chosen = sequential(np.arange(num_variants, dtype=np.int64)[:, None], num_clones).reshape(-1)
+    """Raw paths and a round-robin mask for testing the native replication API."""
+    chosen = np.arange(num_clones) % num_variants
     mask = np.zeros((num_variants, num_clones), dtype=np.bool_)
     mask[chosen, np.arange(num_clones)] = True
     sources = tuple(destination.format(i) for i in range(num_variants))
@@ -125,26 +119,19 @@ def _make_mock_physx_rep_detailed():
 
 
 @cuda_only
-def test_physx_replicate_context_consumes_plan(sim):
-    """PhysxReplicateContext reads its mapping from the shared clone plan."""
+@pytest.mark.parametrize("world_prototypes", [((0,),), ((0,), (0,))])
+def test_physx_replicate_context_consumes_plan(sim, world_prototypes):
+    """PhysX batches an asset's destinations across world-prototype boundaries."""
     from unittest.mock import patch
 
-    stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/envs", "Xform")
     for i in range(3):
         sim_utils.create_prim(f"/World/envs/env_{i}", "Xform")
 
     mock_rep, replicate_calls = _make_mock_physx_rep()
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
-        ctx = PhysxReplicateContext(stage)
-        plan = ClonePlan(
-            sources=("/World/envs/env_0/Object",),
-            destinations=("/World/envs/env_{}/Object",),
-            clone_mask=np.ones((1, 3), dtype=np.bool_),
-            env_ids=np.arange(3, dtype=np.int64),
-            context_source_indices={PhysxReplicateContext: (0,)},
-        )
-        ctx.replicate(plan)
+        plan = make_clone_plan((AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),), world_prototypes, 3)
+        PhysxReplicateContext(sim).replicate(plan, (0,))
 
     assert replicate_calls == [2]
 
@@ -181,10 +168,10 @@ def test_physx_replicate_world_counts(sim, num_envs, src, expected_worlds):
     with patch("isaaclab_physx.cloner.replicate.get_physx_replicator_interface", return_value=mock_rep):
         physx_replicate(
             stage,
-            sources=[src],
-            destinations=["/World/envs/env_{}"],
+            sources=[src, src],
+            destinations=["/World/envs/env_{}"] * 2,
             env_ids=np.arange(num_envs, dtype=np.int64),
-            mapping=np.ones((1, num_envs), dtype=np.bool_),
+            mapping=np.array([[True] * num_envs, [False] * num_envs], dtype=np.bool_),
         )
 
     assert replicate_calls == expected_worlds, (

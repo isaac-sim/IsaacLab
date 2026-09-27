@@ -164,8 +164,9 @@ def deterministic_material_sampling(monkeypatch):
         pytest.param(None, slice(1, 3), id="default-ordering"),
     ],
 )
+@pytest.mark.parametrize("index_dtype", [torch.int32, torch.int64, slice])
 def test_physx_material_randomization_automatically_converts_public_body_ids_to_backend_shape_range(
-    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice
+    monkeypatch, deterministic_material_sampling, body_ordering, expected_shape_slice, index_dtype
 ):
     """PhysX automatically converts public body selections to backend shape ranges."""
     import isaaclab.assets as assets_module
@@ -186,7 +187,7 @@ def test_physx_material_randomization_automatically_converts_public_body_ids_to_
 
     term(
         env,
-        torch.tensor([0], dtype=torch.int32),
+        slice(0, 1) if index_dtype is slice else torch.tensor([0], dtype=index_dtype),
         static_friction_range=(0.4, 0.4),
         dynamic_friction_range=(0.2, 0.2),
         restitution_range=(0.1, 0.1),
@@ -247,7 +248,8 @@ def test_newton_material_randomization_automatically_converts_public_body_ids_to
     assert len(_FakeNewtonManager.notifications) == 1
 
 
-def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction():
+@pytest.mark.parametrize("env_ids", [torch.tensor([0], dtype=torch.int32), slice(0, 1)])
+def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction(env_ids):
     """Newton randomization writes static friction and passive viscous damping separately."""
     asset = _FakeNewtonArticulation(body_ordering=None)
     asset_cfg = SimpleNamespace(name="robot", joint_ids=slice(None))
@@ -264,7 +266,7 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
     term = events_module.randomize_joint_parameters(cfg, env)
     term(
         env,
-        torch.tensor([0], dtype=torch.int32),
+        env_ids,
         asset_cfg,
         friction_distribution_params=(0.5, 0.5),
     )
@@ -277,8 +279,8 @@ def test_newton_joint_parameter_randomization_writes_static_and_viscous_friction
     assert set(viscous_write) == {"joint_viscous_friction_coeff", "joint_ids", "env_ids"}
     torch.testing.assert_close(static_write["joint_friction_coeff"], torch.full((1, 2), 0.5))
     torch.testing.assert_close(viscous_write["joint_viscous_friction_coeff"], torch.full((1, 2), 0.5))
-    torch.testing.assert_close(static_write["env_ids"], torch.tensor([0], dtype=torch.int32))
-    torch.testing.assert_close(viscous_write["env_ids"], torch.tensor([0], dtype=torch.int32))
+    assert static_write["env_ids"] is env_ids
+    assert viscous_write["env_ids"] is env_ids
 
 
 def test_fixed_tendon_randomization_writes_limit_stiffness_and_rest_length():

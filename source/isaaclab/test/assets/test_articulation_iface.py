@@ -64,16 +64,24 @@ _production_backends = pytest.mark.parametrize(
 class TestArticulationIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
-    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
-        art, _ = get_articulation(backend, num_instances=4, device="cpu")
+    @_production_backends
+    @_devices
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
+        art, _ = get_articulation(backend, num_instances=4, device=device)
 
-        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        env_ids = torch.arange(4, dtype=torch.int32, device=device)
         resolved_full = art._resolve_env_ids(env_ids)
         resolved_view = art._resolve_env_ids(env_ids[:2])
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+        # Native indexed writers can use a strided view of cached IDs without copying or uploading them.
+        cached = wp.to_torch(art._ALL_INDICES)
+        for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+            resolved = wp.to_torch(art._resolve_env_ids(selection))
+            torch.testing.assert_close(resolved, cached[selection])
+            assert resolved.data_ptr() == cached[selection].data_ptr()
+            assert resolved.stride() == cached[selection].stride()
 
     @_index_resolution_backends
     def test_resolve_joint_ids_handles_tensor_view_shape(self, backend):
@@ -333,6 +341,15 @@ class TestArticulationDataProperties:
     @_devices
     def test_articulation_data_property_contract(self, backend, device):
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device=device)
+        if backend == "newton":
+            # Native selections may stride over other articulations in each world.
+            for name in ("root_link_pose_w", "root_com_vel_w", "body_link_pose_w", "body_com_vel_w"):
+                binding = getattr(art.data, "_sim_bind_" + name)
+                storage = wp.empty((2 * binding.shape[0], *binding.shape[1:]), dtype=binding.dtype, device=device)
+                view = storage[::2]
+                view.assign(binding)
+                setattr(art.data, "_sim_bind_" + name, view)
+            art.data._pin_proxy_arrays()
         art.data.update(dt=0.01)
         shapes = {
             "N": (_NUM_INSTANCES,),
@@ -348,6 +365,15 @@ class TestArticulationDataProperties:
             else:
                 value = getattr(art.data, name)
             _check_proxy_array(value, expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name)
+
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(art.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(art.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
 
     @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
     def test_physx_set_coms_index_updates_body_com_pose_b_cache(self):

@@ -9,9 +9,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.cloner.newton_clone_utils import (
-    _compose_world_xforms,
     _invert_xform,
-    _quat_multiply,
     _quat_rotate,
 )
 
@@ -44,36 +42,11 @@ def _sample_positions(num_samples: int) -> np.ndarray:
     )
 
 
-def test_quat_multiply_matches_warp():
-    quats = _sample_quats(16)
-    for quat_a in quats:
-        expected = np.array([wp.mul(wp.quat(*quat_a), wp.quat(*quat_b)) for quat_b in quats])
-        np.testing.assert_allclose(_quat_multiply(np.broadcast_to(quat_a, quats.shape), quats), expected, atol=_TOL)
-
-
 def test_quat_rotate_matches_warp():
     quats = _sample_quats(16)
     vectors = _sample_positions(16)
     expected = np.array([wp.quat_rotate(wp.quat(*q), wp.vec3(*v)) for q, v in zip(quats, vectors, strict=True)])
     np.testing.assert_allclose(_quat_rotate(quats, vectors), expected, atol=_TOL)
-
-
-def test_compose_world_xforms_matches_transform_multiply():
-    world_p = _sample_positions(16)
-    world_q = _sample_quats(16)
-    local_p = _sample_positions(16)
-    local_q = _sample_quats(16)
-
-    for local in np.concatenate([local_p, local_q], axis=1):
-        expected = np.array(
-            [
-                wp.transform_multiply(
-                    wp.transform(wp.vec3(*p), wp.quat(*q)), wp.transform(wp.vec3(*local[:3]), wp.quat(*local[3:]))
-                )
-                for p, q in zip(world_p, world_q, strict=True)
-            ]
-        )
-        np.testing.assert_allclose(_compose_world_xforms(world_p, world_q, local), expected, atol=_TOL)
 
 
 def test_invert_xform_matches_transform_inverse():

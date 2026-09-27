@@ -15,7 +15,8 @@ from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
 from pxr import Gf, Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
 from isaaclab.physics import PhysicsManager
 
 
@@ -48,10 +49,10 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=OvPhysxManager))
     ovphysx_replicate(
         stage,
-        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive"],
-        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive"],
+        sources=["/World/envs/env_0/Robot", "/World/envs/env_9/Inactive", "/World/envs/env_0/Robot"],
+        destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Inactive", "/World/envs/env_{}/Robot"],
         env_ids=np.array([0, 1], dtype=np.int64),
-        mapping=np.array([[True, True], [False, False]], dtype=np.bool_),
+        mapping=np.array([[True, True], [False, False], [True, False]], dtype=np.bool_),
         positions=np.array([[4.0, 5.0, 6.0], [10.0, 20.0, 30.0]], dtype=np.float32),
         quaternions=np.array(
             [[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, target_half_angle_sin, target_half_angle_cos]],
@@ -71,9 +72,10 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
     assert len(OvPhysxManager._pending_clones) == 1
-    pending_source, pending_targets, pending_transforms = OvPhysxManager._pending_clones[0]
+    pending_source, pending_targets, pending_transforms, pending_env_ids = OvPhysxManager._pending_clones[0]
     assert pending_source == "/World/envs/env_0/Robot"
     assert pending_targets == ["/World/envs/env_1/Robot"]
+    assert pending_env_ids == [1]
     assert len(pending_transforms) == 1
     assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
     orientation = np.asarray(pending_transforms[0][3:], dtype=np.float32)
@@ -85,24 +87,22 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
 def test_ovphysx_context_consumes_plan():
     """The registered context publishes the rows routed to it by one clone plan."""
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_10")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_10/Robot")
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
+    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
     manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
-    simulation = SimpleNamespace(stage=stage, physics_manager=manager)
-    plan = ClonePlan(
-        sources=("/World/envs/env_10/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.array([10, 20], dtype=np.int64),
-        positions=np.array([[0.0, 0.0, 0.0], [1.0, 2.0, 3.0]], dtype=np.float32),
-        context_source_indices={OvPhysxReplicateContext: (0,)},
-    )
+    assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
+    positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
+    plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
+    OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0,))
 
-    OvPhysxReplicateContext(simulation).replicate(plan)
-
-    assert recipes[0][0:2] == ("/World/envs/env_10/Robot", ["/World/envs/env_20/Robot"])
-    assert recipes[0][2][0] == pytest.approx((1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert len(recipes) == 2
+    assert recipes[0][0:2] == ("/World/envs/env_0/Robot", ["/World/envs/env_1/Robot", "/World/envs/env_2/Robot"])
+    assert recipes[0][2][0] == pytest.approx((5.25, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0))
+    assert recipes[1][1] == ["/World/envs/env_0/Robot_1", "/World/envs/env_1/Robot_1"]
+    np.testing.assert_allclose(recipes[1][2], [(2.25, 0, 0, 0, 0, 0, 1), (5.25, 2, 3, 0, 0, 0, 1)])
+    assert recipes[0][3] == [1, 2]
+    assert recipes[1][3] == [0, 1]
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
@@ -112,28 +112,28 @@ def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
 
     OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
-    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)])]
+    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None)]
     assert OvPhysxManager._active_clone_recipes == expected_recipes
     assert OvPhysxManager._pending_clones == expected_recipes
 
 
-def test_raw_replicate_rejects_invalid_source_prim():
-    """Active clone rows require a valid source prim."""
+def test_raw_replicate_validates_sources_and_pose_arrays():
+    """Cloning requires source/anchor prims and a complete, correctly shaped pose array."""
     stage = Usd.Stage.CreateInMemory()
+    sources, destinations = ["/World/envs/env_0/Robot"], ["/World/envs/env_{}/Robot"]
+    options = dict(env_ids=np.array([0, 1], dtype=np.int64), mapping=np.array([[True, True]], dtype=np.bool_))
     with pytest.raises(ValueError, match="/World/envs/env_0/Robot"):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-        )
+        ovphysx_replicate(stage, sources, destinations, **options)
 
-
-def test_raw_replicate_rejects_invalid_source_anchor():
-    """Active nested clone rows require a valid source-environment anchor."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
+    UsdGeom.Xform.Define(stage, sources[0])
+    for name, shape in (
+        ("positions", (2, 2)),
+        ("quaternions", (2, 3)),  # Wrong component count.
+        ("positions", (1, 3)),
+        ("quaternions", (1, 4)),  # Missing a selected environment.
+    ):
+        with pytest.raises(ValueError, match=rf"{name} must have shape"):
+            ovphysx_replicate(stage, sources, destinations, **options, **{name: np.zeros(shape, dtype=np.float32)})
 
     class StageWithoutAnchor:
         def GetPrimAtPath(self, path):
@@ -142,35 +142,4 @@ def test_raw_replicate_rejects_invalid_source_anchor():
             return stage.GetPrimAtPath(path)
 
     with pytest.raises(ValueError, match="/World/envs/env_0"):
-        ovphysx_replicate(
-            StageWithoutAnchor(),
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-        )
-
-
-@pytest.mark.parametrize(
-    ("name", "value"),
-    [
-        ("positions", np.zeros((2, 2), dtype=np.float32)),
-        ("quaternions", np.zeros((2, 3), dtype=np.float32)),
-        # Missing the second selected environment.
-        ("positions", np.zeros((1, 3), dtype=np.float32)),
-        ("quaternions", np.zeros((1, 4), dtype=np.float32)),
-    ],
-)
-def test_raw_replicate_rejects_malformed_pose_array(name, value):
-    """Provided pose arrays use the documented component counts and include every selected environment."""
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot")
-    with pytest.raises(ValueError, match=rf"{name} must have shape"):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot"],
-            destinations=["/World/envs/env_{}/Robot"],
-            env_ids=np.array([0, 1], dtype=np.int64),
-            mapping=np.array([[True, True]], dtype=np.bool_),
-            **{name: value},
-        )
+        ovphysx_replicate(StageWithoutAnchor(), sources, destinations, **options)

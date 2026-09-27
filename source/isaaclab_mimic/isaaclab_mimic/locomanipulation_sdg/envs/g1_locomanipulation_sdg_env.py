@@ -128,8 +128,8 @@ class G1LocomanipulationSDGObservationsCfg(ObservationsCfg):
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
-            func=manip_mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+            func=manip_mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "normalize": False},
         )
 
     policy: PolicyCfg = PolicyCfg()

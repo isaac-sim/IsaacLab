@@ -535,12 +535,10 @@ class PickPlaceGR1T2ObservationsCfg(ObservationsCfg):
     @configclass
     class PolicyCfg(ObservationsCfg.PolicyCfg):
         robot_pov_cam = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
                 "normalize": False,
-                "clone": False,
             },
         )
 

@@ -16,7 +16,7 @@ pytest.importorskip("omni.physics.tensors")
 
 @pytest.mark.parametrize("operation", ["step", "forward"])
 def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeypatch, operation):
-    """SDP borrows native poses once per dirty generation and completes pending joint writes."""
+    """SDP borrows native poses once per timestamp and completes pending joint writes."""
     from isaaclab_physx.physics import physx_manager
 
     from isaaclab.physics import PhysicsManager
@@ -33,7 +33,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     sim_view = Mock()
     monkeypatch.setattr(manager, "backend", SimpleNamespace(simulation_view=sim_view))
     monkeypatch.setattr(manager, "_scene_data_backend", backend)
-    monkeypatch.setattr(manager, "_kinematics_dirty", False)
+    monkeypatch.setattr(manager, "kinematics_dirty", False)
     monkeypatch.setattr(manager, "_anim_recorder", None)
     monkeypatch.setattr(
         PhysicsManager, "_sim", SimpleNamespace(stage=object(), cfg=SimpleNamespace(dt=0.01), is_playing=lambda: True)
@@ -58,12 +58,12 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
         },
     )
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
-    version = backend.transforms_version
+    version = backend.transforms_timestamp
     assert provider.get_transforms(SceneDataFormat.FabricMatrix44())
     fabric.force_update.assert_called_once_with(0.0, 0.0)
     backend.get_rigid_body_view.assert_not_called()
     view.get_transforms.assert_not_called()
-    assert backend.transforms_version == version
+    assert backend.transforms_timestamp == version
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms.ptr == transforms.ptr
@@ -74,11 +74,11 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     transforms.fill_(wp.transformf(wp.vec3f(1, 2, 3), wp.quat_identity()))
     getattr(manager, operation)()
-    assert backend.transforms_version > version
-    version = backend.transforms_version
+    assert backend.transforms_timestamp > version
+    version = backend.transforms_timestamp
     manager.pre_render()
     manager.pre_render()
-    assert sim_view.update_articulations_kinematic.call_count == int(operation == "forward")
+    sim_view.update_articulations_kinematic.assert_not_called()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     np.testing.assert_array_equal(matrices.numpy()[0, :3, 3], [1, 2, 3])
@@ -89,18 +89,18 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
 
     transforms.fill_(wp.transformf(wp.vec3f(4, 5, 6), wp.quat_identity()))
     manager.invalidate_transforms(kinematics=True)
-    assert backend.transforms_version > version
-    version = backend.transforms_version
+    assert backend.transforms_timestamp > version
+    version = backend.transforms_timestamp
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
     provider.get_transforms(SceneDataFormat.FabricMatrix44())
-    assert sim_view.update_articulations_kinematic.call_count == 1 + int(operation == "forward")
+    sim_view.update_articulations_kinematic.assert_called_once_with()
     assert fabric.force_update.call_count == 3
-    assert backend.transforms_version == version
+    assert backend.transforms_timestamp == version
     provider.get_transforms(native)
     assert provider.get_transforms(output)
     np.testing.assert_array_equal(output.matrices.numpy()[0, :3, 3], [4, 5, 6])
     assert view.get_transforms.call_count == 3
-    assert backend.transforms_version == version
+    assert backend.transforms_timestamp == version
 
     points = wp.zeros(2, dtype=wp.vec3f, device="cpu")
     pointers = wp.array([points.ptr], dtype=wp.uint64, device="cpu")
@@ -130,7 +130,7 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     assert fabric.force_update.call_count == 4
     assert view.get_transforms.call_count == 3
     backend.clear()
-    assert backend.transforms_version > version
+    assert backend.transforms_timestamp > version
 
 
 @pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])
@@ -141,7 +141,9 @@ def test_rigid_body_view_uses_declared_prototypes(monkeypatch, joint_has_rigid_b
 
     from pxr import Usd, UsdGeom, UsdPhysics
 
-    from isaaclab.cloner import ClonePlan
+    from isaaclab.assets import AssetBaseCfg
+    from isaaclab.cloner import make_clone_plan
+    from isaaclab.sim import SpawnerCfg
 
     stage = Usd.Stage.CreateInMemory()
     body_prim = UsdGeom.Xform.Define(stage, "/Proto/Robot/robot0_forearm").GetPrim()
@@ -153,13 +155,12 @@ def test_rigid_body_view_uses_declared_prototypes(monkeypatch, joint_has_rigid_b
         UsdPhysics.RigidBodyAPI.Apply(joint_prim)
     for path in ("/Lab/Cell99/Robot/Unplanned", "/Shared/Body", "/Outside/Body"):
         UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, path).GetPrim())
-    plan = ClonePlan(
-        sources=("/Proto/Robot",),
-        destinations=("/Lab/Cell{}/Robot",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.array([12, 7]),
-        global_paths=("/Lab", "/Shared"),
+    assets = (
+        AssetBaseCfg(prim_path="/Lab/Cell[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Proto/Robot")),
+        AssetBaseCfg(prim_path="/Lab"),
+        AssetBaseCfg(prim_path="/Shared"),
     )
+    plan = make_clone_plan(assets, ((0,),), 2, shared_assets=(1, 2), env_template="/Lab/Cell{}")
 
     captured_paths = []
 
@@ -180,7 +181,7 @@ def test_rigid_body_view_uses_declared_prototypes(monkeypatch, joint_has_rigid_b
 
     assert set(captured_paths) == {
         "/Shared/Body",
-        *(f"/Lab/Cell{env_id}/Robot/{body}" for env_id in (12, 7) for body in ("robot0_forearm", "torso")),
+        *(f"/Lab/Cell{env_id}/Robot/{body}" for env_id in (0, 1) for body in ("robot0_forearm", "torso")),
     }
 
 

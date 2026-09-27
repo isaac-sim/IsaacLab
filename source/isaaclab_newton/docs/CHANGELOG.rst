@@ -1,6 +1,54 @@
 Changelog
 ---------
 
+8.1.0 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added fixed tendon position limits to :class:`~isaaclab_newton.assets.Articulation`:
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_position_limit_mask` now write the MuJoCo tendon
+  range instead of raising :class:`NotImplementedError`.
+
+Changed
+^^^^^^^
+
+* Changed the fixed tendon limit stiffness, rest length, and offset setters and data properties of
+  :class:`~isaaclab_newton.assets.Articulation` to explain why the Newton backend does not support them in
+  their :class:`NotImplementedError`.
+* Changed the ``set_coms_index`` and ``set_coms_mask`` methods of the Newton
+  :class:`~isaaclab_newton.assets.Articulation`, :class:`~isaaclab_newton.assets.RigidObject`, and
+  :class:`~isaaclab_newton.assets.RigidObjectCollection` to also accept center of mass poses (trailing dimension
+  of 7 or ``wp.transformf``), like the other backends. The orientation is ignored.
+
+Fixed
+^^^^^
+
+* Bound Newton rendering geometry from clone-plan prototypes and native ranges, preserving
+  heterogeneous deformables and authoring MPM point clouds before cloning.
+* Published native particle and cable data through SDP, replacing Newton-owned Fabric writers and
+  intermediate deformable buffers. Removed internal USD geometry sync calls; renderers request SDP data.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` not notifying
+  the solver of the change, so written fixed tendon stiffness and damping never reached the MuJoCo model.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_index` failing when
+  ``env_ids`` is None.
+* Fixed selected tendon property writes reading staged values from the first environment or tendon instead
+  of the selected indices.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_stiffness_mask` and
+  :meth:`~isaaclab_newton.assets.Articulation.set_fixed_tendon_damping_mask` raising ``AttributeError``.
+* Fixed :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` raising
+  ``TypeError``, and added the ``fixed_tendon_ids`` and ``fixed_tendon_mask`` arguments that the base class
+  declares to the fixed tendon writers.
+* Corrected fixed tendon errors and documentation to distinguish unimplemented Isaac Lab properties from
+  Newton's MuJoCo tendon support. Identified the missing tendon force-gain conversion and the existing
+  Newton joint-limit conversion that provides a reference implementation.
+* Fixed mass, center of mass, and inertia changes on the Featherstone solver being dropped silently. The
+  solver does not apply them after it is constructed; the Newton manager now logs a warning the first time
+  such a change is made.
+
+
 8.0.0 (2026-09-25)
 ~~~~~~~~~~~~~~~~~~
 

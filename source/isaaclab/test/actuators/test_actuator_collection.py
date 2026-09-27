@@ -720,7 +720,8 @@ def test_native_explicit_groups_zero_solver_drives_and_build_no_lab_model(monkey
     assert articulation.calls[-1][1]["damping"] == 0.0
 
 
-def test_native_group_parameters_route_through_the_collection_door():
+@pytest.mark.parametrize("env_ids", [torch.tensor([0]), slice(0, 1)])
+def test_native_group_parameters_route_through_the_collection_door(env_ids):
     """Read and write native group parameters through the collection's single parameter door."""
     control = NativeGainFakeActuatorControl()
     control.native_gains["kp"].copy_(torch.tensor([[2.0, 3.0, 4.0], [5.0, 6.0, 7.0]]))
@@ -752,7 +753,7 @@ def test_native_group_parameters_route_through_the_collection_door():
         "controller",
         "kp",
         values=torch.tensor([[42.0]]),
-        env_ids=torch.tensor([0]),
+        env_ids=env_ids,
         joint_ids=torch.tensor([1]),
     )
     torch.testing.assert_close(control.native_gains["kp"], torch.tensor([[2.0, 42.0, 4.0], [5.0, 6.0, 7.0]]))

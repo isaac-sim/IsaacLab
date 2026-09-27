@@ -463,10 +463,9 @@ class DelayedPDActuator(IdealPDActuator):
     def reset(self, env_ids: Sequence[int]):
         super().reset(env_ids)
         # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
+        if env_ids is None:
+            env_ids = slice(None)
+        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # set a new random delay for environments in env_ids
         time_lags = torch.randint(
             low=self.cfg.min_delay,

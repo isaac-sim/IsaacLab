@@ -80,7 +80,7 @@ from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import Articulation  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 from isaaclab_ov.assets.articulation.articulation_data import ArticulationData  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxJointCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -2521,22 +2521,11 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(sim, device):
+def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(sim, device, monkeypatch):
     """Reading ``root_link_vel_w`` must run FK before ``body_com_vel_w`` sees a "fresh" buffer.
 
-    Regression test for a bug where ``root_link_vel_w`` read the ``LINK_VELOCITY`` binding without
-    first calling ``_ensure_fk_fresh()``, unlike the sibling ``body_com_vel_w`` / ``body_link_pose_w``
-    getters. ``_read_binding_into_buf`` stamps a buffer's timestamp as fresh unconditionally, so a
-    ``root_link_vel_w`` read performed right after ``write_joint_velocity_to_sim_index`` (which sets
-    ``_fk_timestamp = -1.0`` to force a refresh) would mark the shared velocity buffer fresh *before*
-    FK actually ran. A subsequent ``body_com_vel_w`` read then sees the buffer already fresh and skips
-    its own re-read, silently returning pre-FK data.
-
-    The OVPhysX kitless backend recomputes ``LINK_VELOCITY`` eagerly on every attribute read
-    regardless of whether ``update_articulations_kinematic`` was called, so comparing the numeric
-    value of ``body_com_vel_w`` before and after the fix would pass either way here. The invariant
-    that actually catches the bug is that ``_fk_timestamp`` must be current by the time
-    ``root_link_vel_w`` finishes reading, so every dependent buffer it marks fresh is trustworthy.
+    Native tensor reads may refresh internally, so also verify that asset and rendering reads
+    share one explicit FK update after each write, regardless of which reader comes first.
     """
     sim._app_control_on_stop_handle = None
     articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
@@ -2551,18 +2540,19 @@ def test_root_link_vel_w_refreshes_fk_before_body_com_vel_w_read(sim, device):
     articulation.data.body_com_vel_w
 
     joint_vel = torch.full((2, articulation.num_joints), 3.0, device=device)
-    articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
-
-    # The velocity write forces a kinematic refresh on the next FK-dependent read.
-    assert articulation.data._fk_timestamp < 0.0
-
-    articulation.data.root_link_vel_w
-    # `root_link_vel_w` must have triggered the FK refresh itself -- it cannot rely on a later
-    # `body_com_vel_w` read to do so, because it already marks the shared velocity buffer fresh.
-    assert articulation.data._fk_timestamp == articulation.data._sim_timestamp
-
-    body_com_vel_w = articulation.data.body_com_vel_w.torch
-    assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
+    for render_first in (False, True):
+        articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
+        articulation.write_joint_position_to_sim_index(position=articulation.data.joint_pos.torch.clone())
+        with monkeypatch.context() as patch:
+            physx = Mock(wraps=OvPhysxManager.backend.physx)
+            patch.setattr(OvPhysxManager.backend, "physx", physx)
+            if render_first:
+                OvPhysxManager.pre_render()
+            articulation.data.root_link_vel_w
+            body_com_vel_w = articulation.data.body_com_vel_w.torch
+            OvPhysxManager.pre_render()
+            physx.update_articulations_kinematic.assert_called_once()
+            assert torch.linalg.norm(body_com_vel_w[:, 1, :]) > 1e-3
 
 
 @pytest.mark.parametrize("device", test_devices())

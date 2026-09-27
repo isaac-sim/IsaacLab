@@ -563,6 +563,8 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):
