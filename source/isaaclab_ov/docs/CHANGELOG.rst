@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+4.0.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used timestamped buffers for native pose/geometry reads and OVRTX uploads, sharing freshness
+  handling between legacy and ovstage transports while preserving retries after failed writes.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Allocated articulation Jacobian, mass-matrix, and gravity-compensation buffers on first access,
+  with backend-order scratch allocated only when reordering was required. With CUDA memory pools
+  disabled, access these quantities before graph capture.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed the unused ``isaaclab_ov.renderers.ovrtx_mapping`` module and
+  ``map_attribute_for_warp_writes`` export. Use a persistent caller-owned Warp buffer and pass it to
+  ``binding.write(..., cuda_stream=<producing Warp stream>)``. If mapping is unavoidable, pass the
+  producing stream explicitly to ``unmap(stream=...)``.
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_ov.sensors.contact_sensor.ContactSensor` registering the same leaf
+  body once per matching ancestor when the sensor ``prim_path`` used a mid-path wildcard (for
+  example ``Robot/.*/left_ankle_roll_link``), which inflated the sensor and filter counts and
+  tripped the physics-cloned init guard. Body discovery now relies on the shared prim
+  resolver's unique results.
+* Fixed partial reset slices in OVPhysX asset state writers using cached device indices,
+  keeping deformable indices contiguous as required by the native binding.
+* Shared pending kinematic refresh between articulation and scene-data reads so one state write
+  did not trigger redundant FK for separate consumers.
+
+
 3.2.1 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~
 

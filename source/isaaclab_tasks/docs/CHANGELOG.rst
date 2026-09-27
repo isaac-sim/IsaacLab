@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+19.2.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed camera tasks to use the per-modality image terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`,
+  :class:`~isaaclab.envs.mdp.observations.image_normals` and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the removed
+  ``isaaclab.envs.mdp.image``.
+* Changed the Cartpole camera, Kuka Allegro ``vision_camera`` and drone VAE observations to use the
+  shared normalizers and frame stack in :mod:`isaaclab.utils.images`. Observation values are unchanged,
+  except that NaN depth is now replaced like infinite depth.
+* **Breaking:** Removed ``frame_stack`` from the manager-based Cartpole camera environment
+  configuration. Set it on the image term instead, e.g. ``env.observations.policy.image.params.frame_stack=4``.
+  The direct Cartpole camera environment keeps its ``frame_stack`` field.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`isaaclab_tasks.core.cartpole.mdp.CameraImageStack`. Use ``image_rgb``,
+  ``image_depth`` or ``image_segmentation`` with ``channel_first=True`` and ``frame_stack``.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab_tasks.contrib.stack.mdp.terminations.cubes_stacked` reporting success for a
+  cube that is still falling: the check tested an instantaneous configuration, which a dropped cube
+  satisfies on the way down. Cubes must now also be at rest, controlled by the new ``max_lin_vel``
+  argument (default ``0.05`` m/s). Reported stack success rates drop slightly as a result; pass
+  ``max_lin_vel=None`` to restore the previous behaviour.
+* Handled full and strided reset slices in sampled deformable observations and deployment noise models.
+* Used existing device indices for multitask reset slices without implicitly converting caller-provided indices.
+* Preserved full and partial slices in task reset events, curricula, and commands, using selected data
+  shapes or slice bounds when only a batch size was required.
+* Fixed keyboard reset-buffer partial batches to sample distinct environments across the full scene
+  instead of favoring its first clone variants. Buffer capacity was unchanged.
+
+
 19.1.2 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~~
 

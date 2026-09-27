@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+1.2.1 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the redundant RL-Games action clone before out-of-place clipping.
+
+
 1.2.0 (2026-09-23)
 ~~~~~~~~~~~~~~~~~~
 

@@ -1,6 +1,15 @@
 Changelog
 ---------
 
+2.0.9 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision obstacle poses for robots away from the world origin.
+
+
 2.0.8 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~
 

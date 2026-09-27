@@ -1,6 +1,162 @@
 Changelog
 ---------
 
+23.0.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the per-modality camera observation terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`,
+  :class:`~isaaclab.envs.mdp.observations.image_normals` and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation`. Each supports ``channel_first`` and
+  ``frame_stack``, and works with :class:`~isaaclab.sensors.Camera` and
+  :class:`~isaaclab.sensors.RayCasterCamera` outputs.
+* Added :func:`~isaaclab.utils.images.normalize_rgb`, :func:`~isaaclab.utils.images.normalize_depth`,
+  :func:`~isaaclab.utils.images.normalize_normals` and
+  :func:`~isaaclab.utils.images.normalize_segmentation`. ``normalize_rgb`` accepts a constant
+  ``mean``, and ``normalize_depth`` supports ``invalid_value``, ``max_depth`` and ``tanh_scale``.
+* Added :class:`~isaaclab.utils.images.CameraFrameStack`, the shared layout, frame-stacking and
+  deferred-normalization pipeline for camera observations in manager-based and direct environments.
+* Added the optional keyword-only ``out=None`` callable contract for manager-allocated observation outputs.
+  RGB observations used this interface automatically to avoid copying normalized uint8 images,
+  including stacked frames, while preserving independent observation snapshots.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed ``ManagerBasedEnv.reset`` / ``reset_to`` to accept positive-step slices or device-resident
+  one-dimensional ``torch.int32`` / ``torch.int64`` indices, defaulting to ``slice(None)``. ``None`` is still
+  accepted for all environments and is normalized to ``slice(None)`` on entry. Callers are responsible for supplying a supported selector with the
+  correct dtype and device; reset methods do not validate or transfer index tensors.
+* Made the selector the first positional argument of ``ManagerBasedEnv.reset``. Pass the seed and Gymnasium
+  options by keyword, for example ``env.reset(seed=42)``.
+* Preserved slices through scene, manager, event, curriculum, and command resets. Custom callbacks must
+  accept slices as well as device indices: index buffers directly and use selected data shapes or
+  ``len(range(env.num_envs)[env_ids])`` for slice counts. Indexed backend operations use views of cached
+  device indices; mask consumers fill slices directly without uploading host indices.
+  ``EventManager.reset()`` defaults to ``slice(None)``; it and ``EventManager.apply(mode="reset", ...)``
+  normalize ``None`` to ``slice(None)``. Recorders expand slices on the host for per-episode records.
+* Moved the fused uint8 normalization kernels from :mod:`isaaclab.utils.warp.kernels` into
+  :mod:`isaaclab.utils.images`, so all camera-image normalization lives in one module.
+* Changed depth normalization in :func:`~isaaclab.utils.images.normalize_camera_image` to also replace
+  NaN and negative infinity with zero, and to return a new tensor instead of modifying the camera
+  buffer in place.
+* **Breaking:** Removed ``TimestampedBufferWarp``. Pass caller-owned storage to ``TimestampedBuffer(data)``
+  instead. Use ``wp.empty`` or ``torch.empty`` for fully overwritten caches; retain zeros where initial values matter.
+* **Breaking:** Renamed ``SceneDataBackend.transforms_version`` to ``transforms_timestamp``.
+  Update custom scene-data producers and consumers to use the new name.
+* Unified asset and SDP cache timestamps, keeping pending-work dirty flags separate from
+  cached-value timestamps.
+* Unified SDP geometry conversion paths and released cached mappings with their caller-owned destinations.
+* Replaced sensor host-side generation counters with a pending-work dirty flag while preserving
+  per-environment sampling periods, partial resets, and CUDA graph replay.
+* **Breaking:** Replaced the clone-plan source/environment matrix with ``plan.topology``,
+  a ``PrototypeWorldTopology`` holding the asset-prototype count, packed
+  ``world_prototypes`` and ``world_prototype_starts``, and
+  one world-prototype index per ``world_prototype_layout`` entry. Repeated memberships now represented
+  repeated asset instances. Shared assets occupied the leading world ``-1`` slice.
+  Use ``make_clone_plan(asset_cfgs, world_prototypes, num_worlds, shared_assets=...)``
+  to construct a plan, or let ``InteractiveScene`` manage planning and replication.
+  Kept host declarations, naming, and placement on ``plan.asset_cfgs``, ``plan.env_template``,
+  and ``plan.positions``, outside numeric topology. Pass ``env_template=...`` and
+  ``positions=...`` when constructing a plan.
+* **Breaking:** Removed consumer access to USD clone contexts. Read authored paths with
+  ``cloner.path.get_asset_prototype_paths(plan)`` and destination templates with
+  ``cloner.path.get_world_prototype_asset_templates(plan)``. The latter returned templates
+  aligned with world memberships and the existing ``world_prototype_starts`` array;
+  ``include_world_indices=True`` also returned destination IDs and their per-prototype starts.
+  ``cloner.path.get_asset_prototypes(plan, path_expr=None)`` and
+  ``cloner.path.get_world_prototypes(plan, path_expr=None)``
+  returned prototype IDs as 1-D NumPy ``int32`` arrays, optionally filtered by declared cfg paths.
+  Read cfgs and world memberships from the plan instead of unpacking topology-query results.
+  Added ``get_asset_prototype_world_index(plan.topology, asset_prototype)`` returning
+  ``(world_indices, world_starts)`` with one entry per instance and shared-world-first offsets.
+  Use ``get_asset_prototype_unique_world_index(plan.topology, asset_prototype)`` or
+  ``get_world_prototype_world_index(plan.topology, world_prototype)`` for unique destination world indices.
+  All three accepted numeric IDs only and returned flat ``int32`` indices with ``int64``
+  boundaries shaped ``[num_queries, num_worlds + 2]``. Resolve expressions with ``cloner.path``
+  before querying. Repeated input IDs retained separate results; a scalar formed a one-query batch.
+  Removed ``iter_sources``, ``path_env_ids``, ``path_to_clone``, and ``path_to_source`` from ``cloner.query``;
+  compose topology queries and ``cloner.path`` primitives for authored paths and destination
+  names. Moved subtree-copy policy into clone backends; ``cloner.path.get_parent_indices(paths)``
+  supplied strict ancestry without copying policy. Removed ``under``, ``relativize``, and ``split``;
+  use ``relative_to(...) is not None``, ``match(...).suffix``, and ``template.partition("{}")``.
+  Consolidated ``path`` and ``query`` into stateless namespaces in ``clone_plan.py``.
+  Import them from ``isaaclab.cloner``; calls through ``cloner.path`` and ``cloner.query`` stayed unchanged.
+  Removed cached configuration/context routing maps. Raw USD and native backend replication
+  functions retained their path-based inputs.
+  Clone contexts consumed destination world IDs directly without allocating dense masks.
+* Added explicit ``cloner.to_warp(plan.topology, device)`` materialization of ``PrototypeWorldTopology``.
+  Kept asset cfg references on the host plan and materialized only the three numeric arrays.
+  NumPy planning remained on the host; Warp queries used preallocated outputs and supported
+  CUDA graph replay without implicit uploads or readbacks. Materialize once during initialization
+  and share the returned topology; no automatic device cache or mutable mirror was introduced.
+* **Breaking:** Changed clone strategies to select world-prototype indices from relative
+  weights. The sequential strategy allocated contiguous world groups; use the random
+  strategy for independent sampling. ``ReplicateSession`` accepted ragged
+  ``world_prototypes`` and ``weights`` instead of ``valid_set``.
+* Made observation copying automatic without task-level settings or producer annotations. Clipping
+  and scaling established independent storage when needed; term and custom callback outputs were
+  handled conservatively. Single-term groups avoided the concatenation copy, and dictionary and
+  history outputs became independent snapshots.
+* Created ``image_features`` normalization statistics once instead of on every inference call.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`~isaaclab.envs.mdp.observations.stacked_image`. Use the ``frame_stack`` parameter
+  of the per-modality image terms.
+* Deprecated :func:`isaaclab.utils.warp.ops.normalize_image_uint8`. Use
+  :func:`~isaaclab.utils.images.normalize_rgb`, which takes the same arguments.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab.envs.mdp.image``. Use ``image_rgb``, ``image_depth``,
+  ``image_normals`` or ``image_segmentation`` in observation term configs; replace ``permute=True``
+  with ``channel_first=True`` and remove ``clone``. For direct tensor processing, use the
+  normalizers and ``CameraFrameStack`` in :mod:`isaaclab.utils.images`. The new terms return
+  independent tensors; ``image_rgb`` drops alpha channels.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.utils.math.project_points` returning the wrong rank. Unbatched ``(P, 3)`` points now
+  return ``(P, 3)`` instead of ``(1, P, 3)``, and a single-item ``(1, P, 3)`` batch keeps its batch dimension.
+* Fixed :func:`~isaaclab.sim.utils.resolve_matching_prims_from_source` returning duplicate
+  prims when a path expression matched overlapping ancestor subtrees. Descendant matches
+  were deduplicated by full prim path before validating the match count, preserving their
+  first-match order and destination expressions for all asset and sensor callers.
+* Followed USD dependencies through both local layers and remote assets before adding references, resolving nested remote references in working copies without editing authored layers or raw downloads. Preserved renderer-provided MDL identifiers and self-contained USDZ packages. Completed local trees skipped repeated traversal until their files changed or disappeared.
+* Enabled full and partial slices in observation history and moving-average joint-action resets.
+* Converted int64 environment indices to the native CPU int32 representation when writing PhysX rigid-body
+  material properties.
+* Preserved int32/int64 device indices when resetting native actuator state without scalar host-to-device uploads.
+* Kept Newton's global-world gravity unchanged when randomizing environment gravity with slices.
+* Fixed ``uv run`` failing before launch when an Isaac Sim kernel required ``aiohttp==3.14.3`` by
+  replacing the RL-Games exact pin with a compatible security floor.
+* Fixed ``raycast_mesh`` distance and face-id outputs to preserve the leading shape of the input rays.
+* Fixed :func:`~isaaclab.utils.math.convert_camera_frame_orientation_convention` for orientations with a shape
+  other than ``(N, 4)`` when converting to or from the ``"ros"`` convention. Inputs with several leading
+  dimensions were flipped along the wrong axis and returned a wrong rotation, and a single ``(4,)`` quaternion
+  raised an ``IndexError``.
+* Preserved Newton actuator PID and delay history across graph replays with odd decimation by
+  copying the final actuator state back into the graph's input buffers.
+* Fixed :func:`~isaaclab.utils.math.interpolate_poses` with ``num_steps=0`` returning separate position and
+  rotation tensors plus the step count. It now returns the ``(2, 4, 4)`` start and end poses and ``0``, matching
+  the documented ``(poses, num_steps)`` return value.
+* Fixed Gaussian sampling with tensor parameters to honor the requested shape and draw independent
+  samples. Sampling now uses the requested device's random number generator; seeded CUDA results
+  previously generated on the CPU may differ.
+* Fixed non-finite gradients when applying a pose delta with zero rotation.
+* Stopped wrench-composer construction from reading body poses before a wrench required them.
+* Preserved observation snapshots and modifier state during post-processing, and removed redundant
+  history allocations.
+* Restored LEAPP action tracing while retaining in-place joint-action offset and clipping operations.
+
+
 22.1.0 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~~
 
