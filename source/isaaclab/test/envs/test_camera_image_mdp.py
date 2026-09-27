@@ -27,7 +27,7 @@ from isaaclab.envs.mdp.observations import (
     image_segmentation,
     stacked_image,
 )
-from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
+from isaaclab.managers import ObservationGroupCfg, ObservationManager, ObservationTermCfg, SceneEntityCfg
 from isaaclab.utils.warp import ProxyArray
 
 NUM_ENVS = 4
@@ -201,3 +201,39 @@ def test_image_features_flattens_encoder_output():
     term._model = object()
     term._inference_fn = lambda *_args, **_kwargs: torch.arange(NUM_ENVS * 6 * 8).reshape(NUM_ENVS, 6, 8)
     assert term(env, sensor_cfg=SENSOR_CFG).shape == (NUM_ENVS, 48)
+
+
+@pytest.mark.parametrize(
+    ("frame_stack", "channel_first", "normalize", "dtype"),
+    [
+        (1, False, True, torch.uint8),
+        (2, True, True, torch.uint8),
+        (1, True, False, torch.uint8),
+        (2, False, True, torch.float32),
+    ],
+)
+def test_rgb_manager_destination(frame_stack, channel_first, normalize, dtype):
+    """Manager destinations preserve RGB math, layout, frame order and snapshot lifetime."""
+    camera = _random_rgb().to(dtype)
+    env = _make_env({"rgb": camera})
+    env.sim = SimpleNamespace(is_playing=lambda: True)
+    cfg = ObservationGroupCfg()
+    cfg.image = ObservationTermCfg(
+        func=image_rgb,
+        params={"frame_stack": frame_stack, "channel_first": channel_first, "normalize": normalize},
+    )
+    manager = ObservationManager({"policy": cfg}, env)
+    manager.compute()
+    first = camera.clone()
+    camera.copy_(_random_rgb())
+    frames = [camera] if frame_stack == 1 else [first, camera]
+    expected = torch.cat([_rgb_reference(f) if normalize else f for f in frames], dim=-1)
+    if channel_first:
+        expected = expected.permute(0, 3, 1, 2)
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)
+    camera.zero_()
+    manager.compute()
+    manager.reset()
+    manager.compute()
+    torch.testing.assert_close(result, expected, atol=1e-5, rtol=1e-5)

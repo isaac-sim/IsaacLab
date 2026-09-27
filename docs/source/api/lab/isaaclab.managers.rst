@@ -94,6 +94,26 @@ For a delay buffer with no recorded sample after initialization or reset, the cu
 without recording it. Once recording starts, delays exceeding the available history return the oldest
 sample. Partial resets invalidate only the selected environments' histories.
 
+Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
+do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
+mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
+or task-level copy settings. Clipping and scaling create independent storage when needed, which later
+processing can reuse. A term that already returns an independent tensor may still be copied when the
+pipeline cannot establish ownership itself.
+
+Observation callables may declare an optional keyword-only ``out`` parameter to write directly
+into a manager-provided destination, for example ``def observation(env, ..., *, out=None)``.
+When ``out`` is None, the callable returns an observation normally. When supplied, it must fill and
+return that exact tensor without retaining it, resizing it, or replacing its storage.
+
+The manager checks the signature once during initialization. Only an explicitly declared keyword-only
+``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The manager probes
+the ordinary call to infer shape, dtype and device, which must remain constant, then allocates a fresh
+contiguous destination for each computation. ``out`` is reserved and must not appear in term ``params``.
+Custom modifiers, noise and history retain their usual snapshot protections. Built-in
+:class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this interface automatically to avoid a
+second full-image copy for normalized uint8 images. Existing observation configurations require no changes.
+
 .. autoclass:: ObservationManager
     :members:
     :inherited-members:

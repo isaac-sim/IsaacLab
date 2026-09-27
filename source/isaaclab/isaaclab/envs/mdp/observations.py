@@ -386,7 +386,7 @@ def _read_camera_output(
     return images
 
 
-class _camera_image(ManagerTermBase):
+class CameraImageBase(ManagerTermBase):
     """Base for camera image terms: validates the data type and owns the frame stack.
 
     Subclasses read their sensor output and pass it with a normalizer from
@@ -416,7 +416,7 @@ class _camera_image(ManagerTermBase):
         raise NotImplementedError
 
 
-class image_rgb(_camera_image):
+class image_rgb(CameraImageBase):
     """Color images from a camera sensor.
 
     Reads an RGB-like output (``"rgb"``, ``"albedo"``, ``"simple_shading_*"``) and keeps its first three
@@ -431,9 +431,13 @@ class image_rgb(_camera_image):
             per-channel mean.
         channel_first: Whether to return ``(num_envs, C, H, W)``. Defaults to False.
         frame_stack: Number of recent frames to stack along the channel axis. Defaults to 1.
+        out: Optional contiguous destination with the output shape, dtype and device. Defaults to None,
+            which allocates a new result. The observation manager supplies a fresh destination automatically.
+            Normalized uint8 frames, including stacked frames, are written directly; other inputs are copied.
+            Reusing a destination overwrites its previous contents; it must not hold a retained observation.
 
     Returns:
-        The image. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
+        The image, or ``out`` when supplied. Shape is ``(num_envs, H, W, 3 * frame_stack)``, or channel-first.
     """
 
     default_data_type = "rgb"
@@ -451,12 +455,19 @@ class image_rgb(_camera_image):
         mean: float | None = None,
         channel_first: bool = False,
         frame_stack: int = 1,
+        *,
+        out: torch.Tensor | None = None,
     ) -> torch.Tensor:
         images = _read_camera_output(env, sensor_cfg, data_type)[..., :3]
-        return self._frames(images, functools.partial(normalize_rgb, mean=mean) if normalize else None)
+        result = self._frames(images, functools.partial(normalize_rgb, mean=mean, out=out) if normalize else None)
+        if out is None:
+            return result
+        if result is not out:
+            out.copy_(result)
+        return out
 
 
-class image_depth(_camera_image):
+class image_depth(CameraImageBase):
     """Depth images from a camera or ray-caster camera sensor.
 
     Reads a depth-like output (``"depth"``, ``"distance_to_image_plane"``, ``"distance_to_camera"``).
@@ -508,7 +519,7 @@ class image_depth(_camera_image):
         return self._frames(images, normalizer)
 
 
-class image_normals(_camera_image):
+class image_normals(CameraImageBase):
     """Surface-normal images from a camera or ray-caster camera sensor.
 
     When ``normalize`` is True, normals are mapped to ``[0, 1]`` with
@@ -542,7 +553,7 @@ class image_normals(_camera_image):
         return self._frames(images, normalize_normals if normalize else None)
 
 
-class image_segmentation(_camera_image):
+class image_segmentation(CameraImageBase):
     """Segmentation images from a camera sensor.
 
     When ``normalize`` is True, colorized segmentation is normalized like color and label-id
@@ -742,6 +753,10 @@ class image_features(ManagerTermBase):
                     del model_class.all_tied_weights_keys
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the Theia transformer model.
 
@@ -757,8 +772,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # Normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # Taken from Transformers; inference converted to be GPU only
@@ -793,6 +806,10 @@ class image_features(ManagerTermBase):
             model = getattr(models, model_name)(weights=resnet_weights[model_name]).eval()
             return model.to(model_device)
 
+        # ImageNet normalization statistics, created once instead of on every inference call
+        mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
+
         def _inference(model, images: torch.Tensor) -> torch.Tensor:
             """Inference the ResNet model.
 
@@ -808,8 +825,6 @@ class image_features(ManagerTermBase):
             # permute the image to (num_envs, channel, height, width)
             image_proc = image_proc.permute(0, 3, 1, 2).float() / 255.0
             # normalize the image
-            mean = torch.tensor([0.485, 0.456, 0.406], device=model_device).view(1, 3, 1, 1)
-            std = torch.tensor([0.229, 0.224, 0.225], device=model_device).view(1, 3, 1, 1)
             image_proc = (image_proc - mean) / std
 
             # forward the image through the model
