@@ -57,7 +57,7 @@ from prettytable import PrettyTable
 
 from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
-from isaaclab.utils import class_to_dict
+from isaaclab.utils import class_to_dict, instantiate
 
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
@@ -794,7 +794,7 @@ class ObservationManager(ManagerBase):
                             f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
                         )
                     # initialize func to be the noise model class instance
-                    term_cfg.noise.func = noise_model_cls(
+                    term_cfg.noise.func = instantiate(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
                     self._group_obs_class_instances.append(term_cfg.noise.func)

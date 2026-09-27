@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
+"""Configuration dataclasses and construction of their selected implementations."""
 
 import dataclasses
 import inspect
@@ -120,6 +120,21 @@ def configclass(cls, **kwargs):
     cls = dataclass(cls, **kwargs)
     # return wrapped class
     return cls
+
+
+def instantiate(cfg: Any, *args: Any, **kwargs: Any) -> Any:
+    """Construct ``cfg.class_type`` with the configuration as its first argument.
+
+    Args:
+        cfg: Configuration declaring a callable ``class_type``, including a lazy
+            :class:`~isaaclab.utils.string.ResolvableString` supplied by :func:`configclass`.
+        *args: Additional positional constructor arguments.
+        **kwargs: Additional keyword constructor arguments.
+
+    Returns:
+        The constructed instance. Configuration and arguments are passed through without copying.
+    """
+    return cfg.class_type(cfg, *args, **kwargs)
 
 
 """

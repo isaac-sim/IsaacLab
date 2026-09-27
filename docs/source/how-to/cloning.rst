@@ -109,9 +109,11 @@ explicitly. Set the asset paths to ``{ENV_REGEX_NS}/Banana`` and
 
 .. code-block:: python
 
+    from isaaclab.utils import instantiate
+
     asset_cfgs = (banana_cfg, franka_cfg)
     plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), asset_cfgs, 16, 2.0)
-    banana, franka = [cfg.class_type(cfg) for cfg in asset_cfgs]
+    banana, franka = [instantiate(cfg) for cfg in asset_cfgs]
     cloner.replicate(plan)
     sim.reset()
 

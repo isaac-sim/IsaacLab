@@ -21,6 +21,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import instantiate
 
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.physics import NewtonManager
@@ -187,7 +188,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         controlled_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._joint_names)
 
         # The solver resolves each pose objective's body via the prototype view.
-        self._ik_solver = self.cfg.controller.class_type(
+        self._ik_solver = instantiate(
             self.cfg.controller,
             model=prototype_model,
             num_envs=self.num_envs,

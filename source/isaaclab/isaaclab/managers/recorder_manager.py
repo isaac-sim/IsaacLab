@@ -15,7 +15,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from ..utils import configclass
+from ..utils import configclass, instantiate
 from ..utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RecorderTermCfg
@@ -598,7 +598,7 @@ class RecorderManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the recorder term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, RecorderTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type RecorderTerm.")

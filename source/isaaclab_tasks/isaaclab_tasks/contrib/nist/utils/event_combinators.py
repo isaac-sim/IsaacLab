@@ -31,6 +31,7 @@ import torch
 from tqdm import tqdm
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
@@ -176,7 +177,7 @@ class reset_accumulator(ManagerTermBase):
             # one partition: the bank draws across every slot, and the samplers below do the
             # drawing themselves. ``success_rate`` is updated in place, so aliasing it here keeps
             # the strategies' ``success_rates`` binding live.
-            self.success_monitor = monitor_cfg.class_type(monitor_cfg, 1, n_slots, env.device)
+            self.success_monitor = instantiate(monitor_cfg, 1, n_slots, env.device)
             self.monitor_success_rate = self.success_monitor.success_rate
 
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
@@ -208,7 +209,7 @@ class reset_accumulator(ManagerTermBase):
 
         if num_envs > 0:
             if self._sampler is None:
-                self._sampler = self._sampling_cfg.class_type(self._sampling_cfg, self.monitor_success_rate)
+                self._sampler = instantiate(self._sampling_cfg, self.monitor_success_rate)
 
             probs, slot_idx = self._sampler.probabilities_and_sample(num_envs)
             self.sampled_slots[env_ids] = slot_idx
@@ -261,13 +262,13 @@ class TermChoice(ManagerTermBase):
         )
         if needs_rates:
             monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
-            self.success_monitor = monitor_cfg.class_type(monitor_cfg, 1, self.num_partitions, env.device)
+            self.success_monitor = instantiate(monitor_cfg, 1, self.num_partitions, env.device)
             self.term_success_rate = self.success_monitor.success_rate
         else:
             self.success_monitor = None
             self.term_success_rate = torch.zeros(self.num_partitions, device=env.device)
 
-        self._sampler = self._sampling_cfg.class_type(self._sampling_cfg, self.term_success_rate)
+        self._sampler = instantiate(self._sampling_cfg, self.term_success_rate)
 
     def __call__(
         self,

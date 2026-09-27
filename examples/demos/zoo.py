@@ -38,7 +38,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort: skip
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_SIMPLE_ACTUATOR_CFG, ANYMAL_D_CFG  # isort: skip
@@ -239,7 +239,7 @@ def main() -> None:
         camera_scale = math.ceil(math.sqrt(args_cli.num_envs))
         sim.set_camera_view(eye=(6.0 * camera_scale, -7.5 * camera_scale, 4.5 * camera_scale), target=(0.0, 0.0, 0.7))
         scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0, replicate_physics=True)
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Robot zoo ready.")
         run_simulator(sim, scene)

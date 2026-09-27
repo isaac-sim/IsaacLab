@@ -32,6 +32,7 @@
    .. autosummary::
 
       configclass
+      instantiate
 
 Configuration class
 ~~~~~~~~~~~~~~~~~~~

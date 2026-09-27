@@ -54,6 +54,7 @@ __all__ = [
     "get_isaac_sim_version",
     "compare_versions",
     "configclass",
+    "instantiate",
     "checked_apply",
 ]
 
@@ -105,4 +106,4 @@ from .string import (
 )
 from .types import ArticulationActions
 from .version import has_kit, get_isaac_sim_version, compare_versions
-from .configclass import checked_apply, configclass
+from .configclass import checked_apply, configclass, instantiate

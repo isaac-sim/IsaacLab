@@ -339,6 +339,22 @@ To address this, we use two complementary techniques:
 See the `Resolvable Strings`_ and `Lazy Loading & Module Exports`_ sections for full
 examples of both patterns.
 
+Construction from Configuration
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
+
+.. code-block:: python
+
+   from isaaclab.utils import instantiate
+
+   robot = instantiate(robot_cfg)
+   action = instantiate(action_cfg, env)
+
+The function passes the config as the first constructor argument, followed by any additional
+arguments. It does not copy configs, construct nested configs, or cache instances. Resource
+sharing remains the responsibility of ``SimulationContext.get_or_create_backend``.
+
 Lazy Loading & Module Exports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

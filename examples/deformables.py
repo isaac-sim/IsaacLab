@@ -52,7 +52,7 @@ import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
 from isaaclab.physics import PhysicsCfg  # isort:skip
@@ -254,7 +254,7 @@ def main():
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
         scene_cfg = DeformablesSceneCfg(num_envs=1, env_spacing=0.0)
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

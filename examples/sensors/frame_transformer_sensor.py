@@ -6,7 +6,7 @@
 """Track poses between a robot's base, feet, and end-effector frames."""
 
 import argparse
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -17,7 +17,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -135,8 +135,7 @@ def main() -> None:
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         scene_cfg = FrameTransformerSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-        scene_class = cast(type["InteractiveScene"], scene_cfg.class_type)
-        scene = scene_class(scene_cfg)
+        scene: InteractiveScene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene)

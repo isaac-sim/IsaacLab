@@ -28,7 +28,7 @@ from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -270,7 +270,7 @@ def test_empty_scene_leaves_clone_lifecycle_to_caller():
         )
         positions = grid_positions + np.asarray((0.25, 0.5, 0.75), dtype=np.float32)
         plan = cloner.clone_plan_from_env_0(scene.cfg.clone_cfg, (cube_cfg,), 4, 1.0, positions=positions)
-        cube_cfg.class_type(cube_cfg)
+        instantiate(cube_cfg)
         cloner.replicate(plan)
 
         assert sim.get_clone_plan() is plan

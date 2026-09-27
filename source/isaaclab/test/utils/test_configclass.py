@@ -16,7 +16,7 @@ from typing import Any, ClassVar
 import pytest
 import torch
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.dict import class_to_dict, update_class_from_dict
 from isaaclab.utils.io import dump_yaml, load_yaml
 from isaaclab.utils.string import ResolvableString
@@ -944,6 +944,29 @@ def test_config_with_class_type():
     assert cfg.class_name_3 == DummyClass
     assert cfg.class_name_4 == DummyClass
     assert cfg.b == "dummy"
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_instantiate(monkeypatch, lazy):
+    """Construction forwards the original cfg and arguments, including lazy class references."""
+
+    class Component:
+        def __init__(self, cfg, dependency, *, value):
+            self.cfg, self.dependency, self.value = cfg, dependency, value
+
+    monkeypatch.setattr(sys.modules[__name__], "Component", Component, raising=False)
+
+    @configclass
+    class ComponentCfg:
+        class_type: type | str = f"{__name__}:Component" if lazy else Component
+
+    cfg, dependency = ComponentCfg(), object()
+    instance = instantiate(cfg, dependency, value=42)
+    assert isinstance(instance, Component)
+    assert instance.cfg is cfg and instance.dependency is dependency
+    assert instance.value == 42
+    with pytest.raises(TypeError):
+        instantiate(cfg)
 
 
 def test_nested_config_class_declarations():

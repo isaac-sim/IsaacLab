@@ -7,6 +7,7 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import resolve_test_sim_device, test_devices
+from isaaclab.utils import instantiate
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -207,7 +208,7 @@ def test_timeline_play_stop(monkeypatch):
         ),
     )
     plan = clone_plan_from_env_0(CloneCfg(), (cube_cfg,), 1, 0.0)
-    cube_cfg.class_type(cube_cfg)
+    instantiate(cube_cfg)
     replicate(plan)
 
     # initially simulation should be stopped

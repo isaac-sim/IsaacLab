@@ -17,7 +17,7 @@ Prerequisites:
 
 import argparse
 import math
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -30,7 +30,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG
@@ -128,7 +128,7 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
     )
 
     robot_cfg: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot = robot_cfg.class_type(robot_cfg)
+    robot = instantiate(robot_cfg)
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
@@ -343,8 +343,7 @@ def main() -> None:
         sim.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
 
         scene_cfg = FrankaHaplySceneCfg(num_envs=1, env_spacing=2.0)
-        scene_class = cast(type["InteractiveScene"], scene_cfg.class_type)
-        scene = scene_class(scene_cfg)
+        scene: InteractiveScene = instantiate(scene_cfg)
 
         # Create Haply device
         haply_cfg = HaplyDeviceCfg(
@@ -353,7 +352,7 @@ def main() -> None:
             sim_device=args_cli.device,
             limit_force=2.0,
         )
-        haply_device = haply_cfg.class_type(cfg=haply_cfg)
+        haply_device = instantiate(haply_cfg)
         print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
 
         sim.reset()

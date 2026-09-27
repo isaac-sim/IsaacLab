@@ -18,6 +18,7 @@
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 parser = argparse.ArgumentParser(
     description="View ARL Robot 1 with Lee Position Controller.",
@@ -66,7 +67,7 @@ def main():
         # Spawn robot
         robot_cfg = ARL_ROBOT_1_CFG.replace(prim_path="/World/Robot")
         robot_cfg.actuators["thrusters"].dt = sim_cfg.dt
-        robot = robot_cfg.class_type(robot_cfg)
+        robot = instantiate(robot_cfg)
 
         # Play the simulator
         sim.reset()

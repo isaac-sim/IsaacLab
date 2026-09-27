@@ -17,6 +17,7 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from ..utils import instantiate
 from ..utils.types import ArticulationActions
 from ..utils.warp import ProxyArray
 from ..utils.warp.launch_cache import _WarpLaunchCache
@@ -335,7 +336,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 self._groups[actuator_name] = None
             else:
                 actuator_kwargs = dict(
-                    cfg=actuator_cfg,
                     joint_names=joint_names,
                     joint_ids=actuator_joint_ids,
                     num_envs=self.num_instances,
@@ -351,7 +351,7 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
                 else:
                     # explicit models default their clip limit to the authored joint effort limit.
                     actuator_kwargs["actuator_effort_limit"] = joint_defaults["joint_effort_limit"]
-                self._groups[actuator_name] = actuator_cfg.class_type(**actuator_kwargs)
+                self._groups[actuator_name] = instantiate(actuator_cfg, **actuator_kwargs)
             if self._debug_value_resolution:
                 self._joint_property_resolution_rows[actuator_name] = table_rows
             construction_records.append(

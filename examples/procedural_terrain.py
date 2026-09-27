@@ -33,6 +33,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 parser = argparse.ArgumentParser(
     description="This script demonstrates procedural terrain generation.",
@@ -114,7 +115,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     if args_cli.color_scheme in ["height", "random"]:
         terrain_importer_cfg.visual_material = None
     # Create terrain importer
-    terrain_importer = terrain_importer_cfg.class_type(terrain_importer_cfg)
+    terrain_importer = instantiate(terrain_importer_cfg)
 
     # Show the flat patches computed
     if args_cli.show_flat_patches:
@@ -126,7 +127,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
                 height=0.1,
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(random.random(), random.random(), random.random())),
             )
-        flat_patches_visualizer = vis_cfg.class_type(vis_cfg)
+        flat_patches_visualizer = instantiate(vis_cfg)
 
         # Visualize the flat patches
         all_patch_locations = []

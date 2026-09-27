@@ -15,6 +15,7 @@ import trimesh
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
 from ..markers.config import FRAME_MARKER_CFG
+from ..utils import instantiate
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -85,9 +86,7 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = self.cfg.terrain_generator.class_type(
-                cfg=self.cfg.terrain_generator, device=self.device
-            )
+            terrain_generator = instantiate(self.cfg.terrain_generator, device=self.device)
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # Tag the terrain collider with its height-field resolution. Backends that
             # collide against heightfields (e.g. Newton) can swap the large collision

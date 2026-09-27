@@ -38,6 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
@@ -134,7 +135,7 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
     scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
-    _scene = scene_cfg.class_type(scene_cfg)
+    _scene = instantiate(scene_cfg)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:

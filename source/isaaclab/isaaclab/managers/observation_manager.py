@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import class_to_dict, modifiers, noise
+from ..utils import class_to_dict, instantiate, modifiers, noise
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -718,7 +718,7 @@ class ObservationManager(ManagerBase):
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    term_cfg.noise.func = term_cfg.noise.class_type(
+                    term_cfg.noise.func = instantiate(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
                     # verify the instance is the correct type

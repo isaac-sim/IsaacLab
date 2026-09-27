@@ -52,7 +52,7 @@ from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
@@ -189,7 +189,7 @@ def main():
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])
         scene_cfg = DeformableSceneCfg(num_envs=4, env_spacing=0.5)
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         # Play the simulator
         sim.reset()
         # Now we are ready!

@@ -7,6 +7,7 @@ import pytest
 import torch
 
 from isaaclab.actuators import ActuatorNetLSTMCfg, DCMotorCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils.types import ArticulationActions
 
 pytestmark = pytest.mark.integration
@@ -118,7 +119,7 @@ def test_dc_motor_clip(test_point):
         saturation_effort=saturation_effort,
     )
 
-    actuator = actuator_cfg.class_type(
+    actuator = instantiate(
         actuator_cfg,
         joint_names=joint_names,
         joint_ids=joint_ids,
@@ -157,7 +158,7 @@ def test_dc_motor_clip_with_per_joint_saturation_effort():
         actuator_velocity_limit=50.0,
         saturation_effort={"hip": 100.0, "calf": 190.0},
     )
-    actuator = actuator_cfg.class_type(
+    actuator = instantiate(
         actuator_cfg,
         joint_names=joint_names,
         joint_ids=[0, 1],
@@ -198,7 +199,7 @@ def test_lstm_actuator_clips_with_torque_speed_curve(tmp_path):
         actuator_effort_limit=80.0,
         actuator_velocity_limit=7.5,
     )
-    actuator = cfg.class_type(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=2, device="cpu")
+    actuator = instantiate(cfg, joint_names=["joint_0", "joint_1"], joint_ids=[0, 1], num_envs=2, device="cpu")
 
     zeros = torch.zeros(2, 2)
     joint_vel = torch.tensor([[0.0, 3.75], [7.5, -7.5]])
