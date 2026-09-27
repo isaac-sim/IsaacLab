@@ -1,5 +1,6 @@
 Changed
 ^^^^^^^
 
-* Reused resolved scene selectors for Lift body-state observations and end-effector distance rewards,
-  avoiding repeated device-index construction.
+* Reused resolved device selectors throughout core and contributed MDP observations, rewards,
+  resets, terminations, and command visualization, avoiding repeated device-index construction.
+  Kept scalar selection and name metadata on the host.

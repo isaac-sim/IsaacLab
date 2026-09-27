@@ -210,6 +210,40 @@ def test_from_stable_copies_all_selection_fields():
     assert warp.joint_ids_wp is None
     assert warp.body_ids_wp is None
 
+    from functools import partial
+
+    import torch
+    import warp as wp
+
+    from isaaclab.assets import ArticulationCfg
+    from isaaclab.utils.string import resolve_matching_names
+
+    class Scene(dict):
+        device = "cpu"
+
+    scene = Scene(
+        robot=types.SimpleNamespace(
+            cfg=ArticulationCfg(),
+            joint_names=["hip", "knee", "ankle"],
+            num_joints=3,
+            body_names=["base", "foot"],
+            num_bodies=2,
+            find_bodies=partial(resolve_matching_names, list_of_strings=["base", "foot"]),
+        )
+    )
+    stable = StableSceneEntityCfg("robot", joint_ids=slice(None, None, -1), body_ids=[-1, 0])
+    stable.resolve(scene)
+    promoted = WarpSceneEntityCfg.from_stable(stable)
+    # Runtime caches must not be passed into the constructor or serialized.
+    assert promoted.to_dict() == stable.to_dict() | {"joint_mask": None, "joint_ids_wp": None, "body_ids_wp": None}
+    assert promoted.joint_ids_torch == slice(None, None, -1)
+    wp.init()
+    promoted.resolve(scene)
+    assert wp.to_torch(promoted.joint_ids_wp).tolist() == [2, 1, 0]
+    assert wp.to_torch(promoted.joint_mask).tolist() == [True, True, True]
+    assert wp.to_torch(promoted.body_ids_wp).tolist() == [1, 0]
+    torch.testing.assert_close(promoted.joint_ids_torch, torch.tensor([2, 1, 0]))
+
 
 # ======================================================================
 # _require_newton_physics

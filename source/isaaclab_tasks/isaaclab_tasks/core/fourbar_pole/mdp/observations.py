@@ -25,10 +25,10 @@ def joint_pos_cos(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Te
     signal as the pole swings through the bottom.
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.cos(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
+    return torch.cos(asset.data.joint_pos.torch[:, asset_cfg.joint_ids_torch])
 
 
 def joint_pos_sin(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> torch.Tensor:
     """Sine of the selected joint positions (companion to :func:`joint_pos_cos`)."""
     asset: Articulation = env.scene[asset_cfg.name]
-    return torch.sin(asset.data.joint_pos.torch[:, asset_cfg.joint_ids])
+    return torch.sin(asset.data.joint_pos.torch[:, asset_cfg.joint_ids_torch])

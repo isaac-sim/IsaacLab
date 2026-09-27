@@ -41,7 +41,7 @@ class pole_upright(ManagerTermBase):
     def __call__(
         self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float, hold_time_s: float = 0.5
     ) -> torch.Tensor:
-        cos_pole = torch.cos(env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids])
+        cos_pole = torch.cos(env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids_torch])
         upright = (cos_pole > success_threshold).all(dim=1)
         self._consecutive_upright = torch.where(
             upright, self._consecutive_upright + 1.0, torch.zeros_like(self._consecutive_upright)

@@ -16,6 +16,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.utils import convert_to_torch
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
@@ -53,12 +54,15 @@ class body_state_b(ManagerTermBase):
     The state for each body is stacked horizontally as
     ``[position(3), quaternion(4)(xyzw), linvel(3), angvel(3)]`` and then concatenated over bodies.
 
-    The body indices are baked to a device tensor at construction.
+    The body indices reuse the resolved scene selector, or are converted once for direct construction.
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._body_ids = cfg.params["body_asset_cfg"].body_ids_torch
+        indices = cfg.params["body_asset_cfg"].body_ids_torch
+        self._body_ids = (
+            indices if isinstance(indices, slice) else convert_to_torch(indices, dtype=torch.long, device=env.device)
+        )
 
     def __call__(
         self,

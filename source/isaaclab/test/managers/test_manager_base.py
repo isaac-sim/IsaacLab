@@ -14,20 +14,21 @@ require an Isaac Sim launch, so they can run without AppLauncher.
 
 from collections import namedtuple
 from collections.abc import Sequence
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils import configclass, modifiers
 
 pytestmark = pytest.mark.unit
 
-DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2"])
+DummyEnv = namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim", "dummy1", "dummy2", "scene"])
 """Dummy environment for testing."""
 
 
@@ -91,16 +92,14 @@ class NestedFieldTermCfg(ManagerTermBaseCfg):
 class reset_dummy2_to_zero_class(ManagerTermBase):
     def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
         super().__init__(cfg, env)
+        asset_cfg = cfg.params.get("asset_cfg")
+        self.joint_ids = asset_cfg.joint_ids_torch if asset_cfg is not None else slice(None)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         pass
 
-    def __call__(
-        self,
-        env: ManagerBasedEnv,
-        env_ids: torch.Tensor,
-    ) -> None:
-        env.dummy2[env_ids] = 0
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, asset_cfg: SceneEntityCfg | None = None) -> None:
+        env.dummy2[env_ids[:, None], self.joint_ids] = 0
 
 
 class chained_terms_class(ManagerTermBase):
@@ -141,7 +140,11 @@ def env():
     dummy2 = torch.zeros((num_envs, 10), device=device)
     sim = MagicMock()
     sim.is_playing.return_value = True
-    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2)
+    scene = MagicMock()
+    scene.device = device
+    scene.keys.return_value = ["robot"]
+    scene.__getitem__.return_value = SimpleNamespace(joint_names=[f"joint_{i}" for i in range(10)], num_joints=10)
+    return DummyEnv(num_envs, 0.01, device, sim, dummy1, dummy2, scene)
 
 
 def test_string_func_in_nested_term_cfg(env):
@@ -276,7 +279,8 @@ def test_chained_containing_chained_and_list(env):
 def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
     """A manager created before the simulation plays defers term resolution to the physics-ready callback."""
     env.sim.is_playing.return_value = False
-    cfg = {"term_class": ManagerTermBaseCfg(func=reset_dummy2_to_zero_class)}
+    selection = SceneEntityCfg("robot", joint_ids=[1, 3])
+    cfg = {"term_class": ManagerTermBaseCfg(func=reset_dummy2_to_zero_class, params={"asset_cfg": selection})}
     manager = SimpleManager(cfg, env)
 
     # class terms are not instantiated until the physics-ready callback fires
@@ -287,6 +291,11 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
 
     callback(None)
     assert isinstance(term_cfg.func, reset_dummy2_to_zero_class)
+    assert isinstance(term_cfg.func.joint_ids, torch.Tensor)
+    # Manager resolution owns its copy; caller configuration remains unresolved.
+    assert selection.joint_ids_torch == [1, 3]
     env.dummy2[:] = 42.0
     manager.apply(torch.arange(env.num_envs, device=env.device))
-    torch.testing.assert_close(env.dummy2, torch.zeros_like(env.dummy2))
+    expected = torch.full_like(env.dummy2, 42.0)
+    expected[:, [1, 3]] = 0
+    torch.testing.assert_close(env.dummy2, expected)

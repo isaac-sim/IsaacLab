@@ -35,8 +35,8 @@ def feet_air_time(
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # compute the reward
-    first_contact = contact_sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids]
-    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
+    first_contact = contact_sensor.compute_first_contact(env.step_dt).torch[:, sensor_cfg.body_ids_torch]
+    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids_torch]
     reward = torch.sum((last_air_time - threshold) * first_contact, dim=1)
     # no reward for zero command
     reward *= torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
@@ -55,8 +55,8 @@ def feet_air_time_positive_biped(
     """
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # compute the reward
-    air_time = contact_sensor.data.current_air_time.torch[:, sensor_cfg.body_ids]
-    contact_time = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids]
+    air_time = contact_sensor.data.current_air_time.torch[:, sensor_cfg.body_ids_torch]
+    contact_time = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids_torch]
     in_contact = contact_time > 0.0
     in_mode_time = torch.where(in_contact, contact_time, air_time)
     single_stance = torch.sum(in_contact.int(), dim=1) == 1
@@ -79,10 +79,12 @@ def feet_slide(
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     asset: Articulation = env.scene[asset_cfg.name]
     contacts = (
-        contact_sensor.data.net_normal_forces_w_history.torch[:, :, sensor_cfg.body_ids, :].norm(dim=-1).max(dim=1)[0]
+        contact_sensor.data.net_normal_forces_w_history.torch[:, :, sensor_cfg.body_ids_torch, :]
+        .norm(dim=-1)
+        .max(dim=1)[0]
         > 1.0
     )
-    body_vel = asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids, :2]
+    body_vel = asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids_torch, :2]
     return torch.sum(body_vel.norm(dim=-1) * contacts, dim=1)
 
 

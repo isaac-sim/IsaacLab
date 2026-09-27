@@ -128,7 +128,7 @@ def grasp_handle(
     """
     ee_tcp_pos = env.scene["ee_frame"].data.target_pos_w.torch[..., 0, :]
     handle_pos = env.scene["cabinet_frame"].data.target_pos_w.torch[..., 0, :]
-    gripper_joint_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids]
+    gripper_joint_pos = env.scene[asset_cfg.name].data.joint_pos.torch[:, asset_cfg.joint_ids_torch]
 
     distance = torch.linalg.norm(handle_pos - ee_tcp_pos, dim=-1, ord=2)
     is_close = distance <= threshold

@@ -61,19 +61,23 @@ class SceneEntityCfg(_SceneEntityCfg):
 
         # -- Warp joint mask / ids for articulations
         if isinstance(entity.cfg, ArticulationCfg):
-            if self.joint_ids == slice(None):
-                joint_ids_list = list(range(entity.num_joints))
-                mask_list = [True] * entity.num_joints
-            else:
-                joint_ids_list = list(self.joint_ids)
-                mask_list = [False] * entity.num_joints
-                for idx in joint_ids_list:
-                    mask_list[idx] = True
+            joint_ids_list = (
+                list(range(entity.num_joints)[self.joint_ids])
+                if isinstance(self.joint_ids, slice)
+                else [index % entity.num_joints for index in self.joint_ids]
+            )
+            mask_list = [False] * entity.num_joints
+            for idx in joint_ids_list:
+                mask_list[idx] = True
             self.joint_mask = wp.array(mask_list, dtype=wp.bool, device=scene.device)
             self.joint_ids_wp = wp.array(joint_ids_list, dtype=wp.int32, device=scene.device)
 
         # -- Warp body ids
-        if self.body_ids is not None and self.body_ids != slice(None):
-            self.body_ids_wp = wp.array(list(self.body_ids), dtype=wp.int32, device=scene.device)
-        elif hasattr(entity, "num_bodies"):
-            self.body_ids_wp = wp.array(list(range(entity.num_bodies)), dtype=wp.int32, device=scene.device)
+        if self.body_ids != slice(None) or hasattr(entity, "num_bodies"):
+            num_bodies = len(entity.body_names)
+            body_ids_list = (
+                list(range(num_bodies)[self.body_ids])
+                if isinstance(self.body_ids, slice)
+                else [index % num_bodies for index in self.body_ids]
+            )
+            self.body_ids_wp = wp.array(body_ids_list, dtype=wp.int32, device=scene.device)

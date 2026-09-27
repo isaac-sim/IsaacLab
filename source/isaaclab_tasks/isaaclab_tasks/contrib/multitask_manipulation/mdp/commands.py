@@ -90,7 +90,7 @@ class SelectedUniformPoseCommand(CommandTerm):
         if self._tracked_cfg.body_names is None:
             tracked_pose_w = self._tracked.data.root_link_pose_w.torch
         else:
-            tracked_pose_w = self._tracked.data.body_link_pose_w.torch[:, self._tracked_cfg.body_ids]
+            tracked_pose_w = self._tracked.data.body_link_pose_w.torch[:, self._tracked_cfg.body_ids_torch]
             if tracked_pose_w.shape[1] != 1:
                 raise ValueError(
                     f"Expected '{self._tracked_cfg.name}' to select one tracked body, got {tracked_pose_w.shape[1]}."

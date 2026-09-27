@@ -61,13 +61,13 @@ def reset_joints_shared_offset(
         asset_cfg: The asset and coupled joints to reset.
     """
     asset = env.scene[asset_cfg.name]
-    default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids]
-    limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids]
+    default = asset.data.default_joint_pos.torch[env_ids][:, asset_cfg.joint_ids_torch]
+    limits = asset.data.soft_joint_pos_limits.torch[env_ids][:, asset_cfg.joint_ids_torch]
     offset = sample_uniform(position_range[0], position_range[1], (default.shape[0], 1), device=default.device)
     positions = (default + offset).clamp(limits[..., 0], limits[..., 1])
-    asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids, env_ids=env_ids)
+    asset.write_joint_position_to_sim_index(position=positions, joint_ids=asset_cfg.joint_ids_torch, env_ids=env_ids)
     asset.write_joint_velocity_to_sim_index(
-        velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids, env_ids=env_ids
+        velocity=torch.zeros_like(positions), joint_ids=asset_cfg.joint_ids_torch, env_ids=env_ids
     )
 
 
@@ -127,8 +127,8 @@ def reset_to_target(
         return
     asset = env.scene[asset_cfg.name]
     target = env.scene[target_cfg.name]
-    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :3]
-    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :4]
+    target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids_torch, :].reshape(len(picked), -1)[:, :3]
+    target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids_torch, :].reshape(len(picked), -1)[:, :4]
 
     keys = ("x", "y", "z")
     offsets = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=asset.device)

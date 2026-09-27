@@ -135,6 +135,12 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     else:
         ee_jacobi_idx = robot_entity_cfg.body_ids[0]
 
+    # The Jacobian prepends floating-base DoFs; resolve its column selection once.
+    joint_ids = robot_entity_cfg.joint_ids_torch
+    jacobi_joint_ids = (
+        slice(robot.num_base_dofs, None) if isinstance(joint_ids, slice) else joint_ids + robot.num_base_dofs
+    )
+
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -152,21 +158,18 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             robot.reset()
             # reset actions
             ik_commands[:] = ee_goals[current_goal_idx]
-            joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids].clone()
+            joint_pos_des = joint_pos[:, robot_entity_cfg.joint_ids_torch].clone()
             # reset controller
             diff_ik_controller.reset()
             diff_ik_controller.set_command(ik_commands)
             # change goal
             current_goal_idx = (current_goal_idx + 1) % len(ee_goals)
         else:
-            # obtain quantities from simulation. The Jacobian DoF axis prepends
-            # ``num_base_dofs`` floating-base columns (0 for fixed-base, 6 for
-            # floating-base); shift the actuated-joint ids accordingly.
-            jacobi_joint_ids = [j + robot.num_base_dofs for j in robot_entity_cfg.joint_ids]
+            # obtain quantities from simulation
             jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, jacobi_joint_ids]
             ee_pose_w = robot.data.body_pose_w.torch[:, robot_entity_cfg.body_ids[0]]
             root_pose_w = robot.data.root_pose_w.torch
-            joint_pos = robot.data.joint_pos.torch[:, robot_entity_cfg.joint_ids]
+            joint_pos = robot.data.joint_pos.torch[:, robot_entity_cfg.joint_ids_torch]
             # compute frame in root frame
             ee_pos_b, ee_quat_b = subtract_frame_transforms(
                 root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
@@ -175,7 +178,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             joint_pos_des = diff_ik_controller.compute(ee_pos_b, ee_quat_b, jacobian, joint_pos)
 
         # apply actions
-        robot.set_joint_position_target_index(target=joint_pos_des, joint_ids=robot_entity_cfg.joint_ids)
+        robot.set_joint_position_target_index(target=joint_pos_des, joint_ids=robot_entity_cfg.joint_ids_torch)
         scene.write_data_to_sim()
         # perform step
         sim.step()

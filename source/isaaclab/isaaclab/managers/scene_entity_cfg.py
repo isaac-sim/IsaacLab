@@ -133,8 +133,8 @@ class SceneEntityCfg:
         """Cached device selector for :attr:`joint_ids` after :meth:`resolve`.
 
         Before resolution, returns the configured host selector for direct term calls.
-        Slices stay slices. Treat cached tensors as read-only and resolve again after
-        changing the configured selection.
+        Full selections stay slices; partial slices become tensors. Treat cached tensors
+        as read-only and resolve again after changing the configured selection.
         """
         return self.joint_ids if self._joint_ids_torch is None else self._joint_ids_torch
 
@@ -147,8 +147,8 @@ class SceneEntityCfg:
         """Cached device selector for :attr:`fixed_tendon_ids` after :meth:`resolve`.
 
         Before resolution, returns the configured host selector for direct term calls.
-        Slices stay slices. Treat cached tensors as read-only and resolve again after
-        changing the configured selection.
+        Full selections stay slices; partial slices become tensors. Treat cached tensors
+        as read-only and resolve again after changing the configured selection.
         """
         return self.fixed_tendon_ids if self._fixed_tendon_ids_torch is None else self._fixed_tendon_ids_torch
 
@@ -161,8 +161,8 @@ class SceneEntityCfg:
         """Cached device selector for :attr:`body_ids` after :meth:`resolve`.
 
         Before resolution, returns the configured host selector for direct term calls.
-        Slices stay slices. Treat cached tensors as read-only and resolve again after
-        changing the configured selection.
+        Full selections stay slices; partial slices become tensors. Treat cached tensors
+        as read-only and resolve again after changing the configured selection.
         """
         return self.body_ids if self._body_ids_torch is None else self._body_ids_torch
 
@@ -175,8 +175,8 @@ class SceneEntityCfg:
         """Cached device selector for :attr:`object_collection_ids` after :meth:`resolve`.
 
         Before resolution, returns the configured host selector for direct term calls.
-        Slices stay slices. Treat cached tensors as read-only and resolve again after
-        changing the configured selection.
+        Full selections stay slices; partial slices become tensors. Treat cached tensors
+        as read-only and resolve again after changing the configured selection.
         """
         return (
             self.object_collection_ids
@@ -188,8 +188,8 @@ class SceneEntityCfg:
         """Resolves the scene entity and converts the joint and body names to indices.
 
         This function examines the scene entity from the :class:`InteractiveScene` and resolves the indices
-        and names of the joints and bodies. It is an expensive operation as it resolves regular expressions
-        and should be called only once.
+        and names of the joints and bodies. It resolves regular expressions and creates device selectors;
+        call it during configuration or after changing a selection, rather than during stepping.
 
         Args:
             scene: The interactive scene instance.
@@ -202,6 +202,12 @@ class SceneEntityCfg:
             ValueError: If both ``object_collection_names`` and ``object_collection_ids`` are specified and
                 are not consistent.
         """
+        # Failed re-resolution must not leave device selectors from a previous selection.
+        self._joint_ids_torch = None
+        self._fixed_tendon_ids_torch = None
+        self._body_ids_torch = None
+        self._object_collection_ids_torch = None
+
         if self.name not in scene.keys():
             raise ValueError(f"The scene entity '{self.name}' does not exist. Available entities: {scene.keys()}.")
 
@@ -217,10 +223,15 @@ class SceneEntityCfg:
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
 
-        self._joint_ids_torch = _torch_indices(self.joint_ids, scene.device)
-        self._fixed_tendon_ids_torch = _torch_indices(self.fixed_tendon_ids, scene.device)
-        self._body_ids_torch = _torch_indices(self.body_ids, scene.device)
-        self._object_collection_ids_torch = _torch_indices(self.object_collection_ids, scene.device)
+        entity = scene[self.name]
+        self._joint_ids_torch = _torch_indices(self.joint_ids, scene.device, getattr(entity, "joint_names", ()))
+        self._fixed_tendon_ids_torch = _torch_indices(
+            self.fixed_tendon_ids, scene.device, getattr(entity, "fixed_tendon_names", ())
+        )
+        self._body_ids_torch = _torch_indices(self.body_ids, scene.device, getattr(entity, "body_names", ()))
+        self._object_collection_ids_torch = _torch_indices(
+            self.object_collection_ids, scene.device, getattr(entity, "object_names", ())
+        )
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
@@ -387,5 +398,7 @@ def _selected_names(names: list[str], indices: Sequence[int] | slice) -> list[st
     return names[indices] if isinstance(indices, slice) else [names[index] for index in indices]
 
 
-def _torch_indices(indices: list[int] | slice, device: str) -> torch.Tensor | slice:
-    return indices if isinstance(indices, slice) else torch.tensor(indices, dtype=torch.long, device=device)
+def _torch_indices(indices: list[int] | slice, device: str, names: Sequence[str]) -> torch.Tensor | slice:
+    if indices == slice(None):
+        return indices
+    return torch.tensor(_selected_ids(indices, len(names)), dtype=torch.long, device=device)

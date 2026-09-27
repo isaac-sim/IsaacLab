@@ -57,15 +57,38 @@ Managers resolve their copies of term configurations before calling the terms.
 
 Migration is optional: existing ``*_ids`` accesses retain their behavior. Use the
 ``*_ids_torch`` accessors for Torch indexing to avoid rebuilding device indices.
-Slices remain slices, preserving ordinary tensor view semantics. These accessors
-return the configured host selectors before resolution, so direct calls to terms
-remain compatible; caching begins only after resolution.
+Full selections (``slice(None)``) remain slices, preserving ordinary tensor view
+semantics. Partial slices become explicit device indices so backend write APIs use
+the same selection as Torch reads. Negative indices are normalized to non-negative
+device indices for operations such as ``index_select``. Host fields retain their
+original lists and slices.
+Before resolution, these accessors return the configured host selectors for direct
+term calls. Caching begins only after resolution.
 
-Treat cached tensors as read-only. After changing a selection, call ``resolve``
-again before using its device selector. Replacing or copying a configuration with
-``replace`` or ``copy`` clears the caches and requires resolution to populate them.
-Configuration serialization excludes the caches. Runtime dataclass fields use
+Treat resolved host selections and cached tensors as read-only during stepping.
+After editing a selection, clear its other specification (names or indices) if
+necessary and call ``resolve`` before using it again:
+
+.. code-block:: python
+
+    cfg.body_names = None
+    cfg.body_ids = [1, 3]
+    cfg.resolve(env.scene)
+
+There is no per-step mutation tracking or cache validation. Failed resolution clears
+old caches; successful re-resolution rebuilds them on the new scene device.
+Replacing or copying a configuration with ``replace`` or ``copy`` clears the caches
+and requires resolution to populate them.
+``copy.deepcopy`` retains independent copies of the resolved tensors, including
+their device. Configuration serialization excludes the caches, including selectors
+nested in manager configurations. Runtime dataclass fields use
 ``metadata={"serialize": False}`` to opt out of ``class_to_dict`` serialization.
+
+Use host ``*_ids`` for scalar selection (``ids[0]``), Python name lookup, and metadata.
+Use ``*_ids_torch`` for vector tensor indexing and device writer APIs. Existing custom
+terms can adopt these accessors independently. Class terms that also accept unresolved
+configurations can call ``convert_to_torch`` once at construction; already-resolved
+tensors are reused.
 
 Manager Base
 ------------

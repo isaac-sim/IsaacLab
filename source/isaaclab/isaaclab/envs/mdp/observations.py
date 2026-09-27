@@ -157,7 +157,7 @@ def body_pose_w(
     """
     asset: Articulation = env.scene[asset_cfg.name]
     pose = asset.data.body_pose_w.torch[:, asset_cfg.body_ids_torch, :7]
-    if isinstance(asset_cfg.body_ids, (slice, int)):
+    if isinstance(asset_cfg.body_ids_torch, (slice, int)):
         pose = pose.clone()  # if slice or int, make a copy to avoid modifying original data
     pose[..., :3] = pose[..., :3] - env.scene.env_origins.unsqueeze(1)
     return pose.reshape(env.num_envs, -1)

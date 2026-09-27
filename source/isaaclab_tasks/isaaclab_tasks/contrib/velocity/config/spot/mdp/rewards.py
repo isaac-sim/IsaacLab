@@ -43,8 +43,8 @@ def air_time_reward(
     if contact_sensor.cfg.track_air_time is False:
         raise RuntimeError("Activate ContactSensor's track_air_time!")
     # compute the reward
-    current_air_time = contact_sensor.data.current_air_time.torch[:, sensor_cfg.body_ids]
-    current_contact_time = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids]
+    current_air_time = contact_sensor.data.current_air_time.torch[:, sensor_cfg.body_ids_torch]
+    current_contact_time = contact_sensor.data.current_contact_time.torch[:, sensor_cfg.body_ids_torch]
 
     t_max = torch.max(current_air_time, current_contact_time)
     t_min = torch.clip(t_max, max=mode_time)
@@ -184,9 +184,9 @@ def foot_clearance_reward(
 ) -> torch.Tensor:
     """Reward the swinging feet for clearing a specified height off the ground"""
     asset: RigidObject = env.scene[asset_cfg.name]
-    foot_z_target_error = torch.square(asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2] - target_height)
+    foot_z_target_error = torch.square(asset.data.body_pos_w.torch[:, asset_cfg.body_ids_torch, 2] - target_height)
     foot_velocity_tanh = torch.tanh(
-        tanh_mult * torch.linalg.norm(asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids, :2], dim=2)
+        tanh_mult * torch.linalg.norm(asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids_torch, :2], dim=2)
     )
     reward = foot_z_target_error * foot_velocity_tanh
     return torch.exp(-torch.sum(reward, dim=1) / std)
@@ -209,8 +209,8 @@ def air_time_variance_penalty(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg
     if contact_sensor.cfg.track_air_time is False:
         raise RuntimeError("Activate ContactSensor's track_air_time!")
     # compute the reward
-    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
-    last_contact_time = contact_sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids]
+    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids_torch]
+    last_contact_time = contact_sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids_torch]
     return torch.var(torch.clip(last_air_time, max=0.5), dim=1) + torch.var(
         torch.clip(last_contact_time, max=0.5), dim=1
     )
@@ -247,9 +247,9 @@ def foot_slip_penalty(
     # check if contact force is above threshold
     net_contact_forces = contact_sensor.data.net_normal_forces_w_history.torch
     is_contact = (
-        torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids], dim=-1), dim=1)[0] > threshold
+        torch.max(torch.linalg.norm(net_contact_forces[:, :, sensor_cfg.body_ids_torch], dim=-1), dim=1)[0] > threshold
     )
-    foot_planar_velocity = torch.linalg.norm(asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids, :2], dim=2)
+    foot_planar_velocity = torch.linalg.norm(asset.data.body_lin_vel_w.torch[:, asset_cfg.body_ids_torch, :2], dim=2)
 
     reward = is_contact * foot_planar_velocity
     return torch.sum(reward, dim=1)

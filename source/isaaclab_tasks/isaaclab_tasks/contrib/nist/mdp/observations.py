@@ -39,8 +39,8 @@ def target_asset_pose_in_root_asset_frame(
     target_asset: RigidObject | Articulation = env.scene[target_asset_cfg.name]
     root_asset: RigidObject | Articulation = env.scene[root_asset_cfg.name]
 
-    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else target_asset_cfg.body_ids
-    root_body_idx = 0 if isinstance(root_asset_cfg.body_ids, slice) else root_asset_cfg.body_ids
+    target_body_idx = 0 if target_asset_cfg.body_ids == slice(None) else target_asset_cfg.body_ids_torch
+    root_body_idx = 0 if root_asset_cfg.body_ids == slice(None) else root_asset_cfg.body_ids_torch
 
     target_pos = target_asset.data.body_link_pos_w.torch[:, target_body_idx].view(-1, 3)
     target_quat = target_asset.data.body_link_quat_w.torch[:, target_body_idx].view(-1, 4)
@@ -68,7 +68,7 @@ def asset_link_velocity_in_root_asset_frame(
     target_asset: RigidObject | Articulation = env.scene[target_asset_cfg.name]
     root_asset: RigidObject | Articulation = env.scene[root_asset_cfg.name]
 
-    target_body_idx = 0 if isinstance(target_asset_cfg.body_ids, slice) else target_asset_cfg.body_ids
+    target_body_idx = 0 if target_asset_cfg.body_ids == slice(None) else target_asset_cfg.body_ids_torch
 
     root_quat = root_asset.data.root_quat_w.torch
     lin_vel_w = target_asset.data.body_lin_vel_w.torch[:, target_body_idx].view(-1, 3)

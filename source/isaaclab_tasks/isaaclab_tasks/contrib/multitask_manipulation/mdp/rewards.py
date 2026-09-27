@@ -242,7 +242,7 @@ def cabinet_grasp_handle(
     robot: Articulation = env.scene[robot_cfg.name]
     distance = torch.linalg.norm(handle_pos - ee_pos, dim=-1)
     reward = (distance <= threshold) * torch.sum(
-        open_joint_pos - robot.data.joint_pos.torch[:, robot_cfg.joint_ids], dim=-1
+        open_joint_pos - robot.data.joint_pos.torch[:, robot_cfg.joint_ids_torch], dim=-1
     )
     return robot_cfg.scatter_to_envs(torch.nan_to_num(reward, nan=0.0, posinf=0.0, neginf=0.0))
 
@@ -358,7 +358,7 @@ def selected_joint_vel_l2(
         max_velocity: Optional absolute velocity bound [m/s or rad/s, depending on joint type].
     """
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_vel = torch.nan_to_num(asset.data.joint_vel.torch[:, asset_cfg.joint_ids])
+    joint_vel = torch.nan_to_num(asset.data.joint_vel.torch[:, asset_cfg.joint_ids_torch])
     if max_velocity is not None:
         joint_vel = joint_vel.clamp(-max_velocity, max_velocity)
     values = torch.sum(torch.square(joint_vel), dim=-1)

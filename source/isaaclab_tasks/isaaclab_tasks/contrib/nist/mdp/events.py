@@ -168,8 +168,8 @@ def reset_held_asset_in_gripper(
     robot: Articulation = env.scene[holding_body_cfg.name]
     held_asset: Articulation = env.scene[held_asset_cfg.name]
 
-    end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 4)
-    end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, holding_body_cfg.body_ids].view(-1, 3)
+    end_effector_quat_w = robot.data.body_link_quat_w.torch[env_ids, holding_body_cfg.body_ids_torch].view(-1, 4)
+    end_effector_pos_w = robot.data.body_link_pos_w.torch[env_ids, holding_body_cfg.body_ids_torch].view(-1, 3)
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     grasp_quat = gripper_grasp_offset.quat_t(env.device).expand(num_envs, -1)
 
@@ -202,7 +202,7 @@ def grasp_held_asset(
     flexible_angle: bool = True,
 ) -> None:
     robot: Articulation = env.scene[robot_cfg.name]
-    joint_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids][env_ids].clone()
+    joint_pos = robot.data.joint_pos.torch[:, robot_cfg.joint_ids_torch][env_ids].clone()
     min_angle = held_asset_diameter / 2 * 1.15
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     if flexible_angle:
@@ -211,7 +211,7 @@ def grasp_held_asset(
     else:
         joint_pos[:] = min_angle
 
-    robot.write_joint_position_to_sim_index(position=joint_pos, joint_ids=robot_cfg.joint_ids, env_ids=env_ids)
+    robot.write_joint_position_to_sim_index(position=joint_pos, joint_ids=robot_cfg.joint_ids_torch, env_ids=env_ids)
 
 
 class reset_end_effector_around_asset(ManagerTermBase):
@@ -228,7 +228,7 @@ class reset_end_effector_around_asset(ManagerTermBase):
         self.fixed_asset: Articulation | RigidObject = env.scene[fixed_asset_cfg.name]
         self.fixed_asset_offset: Offset = fixed_asset_offset
         self.robot: Articulation = env.scene[robot_ik_cfg.name]
-        self.joint_ids: list[int] | slice = robot_ik_cfg.joint_ids
+        self.joint_ids: torch.Tensor | list[int] | slice = robot_ik_cfg.joint_ids_torch
 
         self.robot_ik_solver_cfg = DifferentialInverseKinematicsActionCfg(
             asset_name=robot_ik_cfg.name,
