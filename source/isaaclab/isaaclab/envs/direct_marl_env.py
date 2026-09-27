@@ -21,6 +21,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import index_fill_
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -444,11 +445,11 @@ class DirectMARLEnv(gym.Env):
         if self.sim.consume_reset_request():
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
             if len(reset_env_ids) > 0:
-                not_yet_reset[reset_env_ids] = False
+                index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
             if len(manual_reset_ids) > 0:
                 for agent in self.terminated_dict:
-                    self.terminated_dict[agent][manual_reset_ids] = True
+                    index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
@@ -692,7 +693,7 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
     """
     Implementation-specific functions.

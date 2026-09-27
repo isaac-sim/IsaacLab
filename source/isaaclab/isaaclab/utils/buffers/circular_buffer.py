@@ -7,6 +7,8 @@ from collections.abc import Sequence
 
 import torch
 
+from ..array import index_fill_
+
 
 class CircularBuffer:
     """Circular buffer for storing a history of batched tensor data.
@@ -145,22 +147,10 @@ class CircularBuffer:
         num_batches = len(range(self.batch_size)[batch_ids]) if isinstance(batch_ids, slice) else len(batch_ids)
         if num_batches == 0:
             return
-        if isinstance(batch_ids, slice):
-            self._num_pushes[batch_ids].fill_(0)
-        else:
-            # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
-            batch_ids_t = torch.as_tensor(batch_ids, device=self._device).long()
-            self._num_pushes.index_fill_(0, batch_ids_t, 0)
+        index_fill_(self._num_pushes, batch_ids, 0)
         self._need_reset = True
         if self._buffer is not None:
-            if isinstance(batch_ids, slice):
-                if self._stack_dim_internal is None:
-                    self._buffer[:, batch_ids].fill_(0.0)
-                else:
-                    self._buffer[batch_ids].fill_(0.0)
-            else:
-                batch_dim = 1 if self._stack_dim_internal is None else 0
-                self._buffer.index_fill_(batch_dim, batch_ids_t, 0.0)
+            index_fill_(self._buffer, batch_ids, 0.0, dim=1 if self._stack_dim_internal is None else 0)
 
     def append(self, data: torch.Tensor):
         """Append the data to the circular buffer.

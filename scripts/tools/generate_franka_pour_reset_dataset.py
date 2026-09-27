@@ -29,6 +29,7 @@ import warp as wp
 from isaaclab_newton.cloner import copy_newton_clone_source
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 import isaaclab_tasks  # noqa: F401
@@ -242,8 +243,8 @@ def _normalize_progress(raw: torch.Tensor, phases: torch.Tensor) -> torch.Tensor
             raw.new_tensor((0.5,)) if len(ordered) == 1 else torch.linspace(0.0, 1.0, len(ordered), device=raw.device)
         )
         progress[ordered] = (path_index + local) / len(_PHASE_ORDER)
-    progress[torch.argmin(progress)] = 0.0
-    progress[torch.argmax(progress)] = 1.0
+    index_fill_(progress, torch.argmin(progress), 0.0)
+    index_fill_(progress, torch.argmax(progress), 1.0)
     return progress
 
 
@@ -814,7 +815,7 @@ class _Generator:
                 rows = torch.where(valid & (proposal["_grasp_side"] == side))[0]
                 remaining = int(side_quotas[side] - accepted_sides[side])
                 chosen = rows[: max(remaining, 0)]
-                keep[chosen] = True
+                index_fill_(keep, chosen, True)
                 accepted_sides[side] += chosen.numel()
             self.rejection_counts[category]["quota_full"] += int((valid & ~keep).sum())
             if bool(keep.any()):
@@ -1311,7 +1312,7 @@ class _Generator:
             supported = ((xy >= supported_lower) & (xy <= supported_upper)).all(-1)
             accepted = rows[supported]
             target_position[accepted, :2] = xy[supported]
-            unresolved[accepted] = False
+            index_fill_(unresolved, accepted, False)
         if bool(unresolved.any()):
             raise RuntimeError("Could not sample a supported source/receiver pair.")
         return source_position, source_quaternion, target_position

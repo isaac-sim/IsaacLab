@@ -13,6 +13,7 @@ import numpy as np
 import torch
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -257,11 +258,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            not_yet_reset[reset_env_ids] = False
+            index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
-                self.reset_terminated[manual_reset_ids] = True
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
@@ -419,8 +420,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        if isinstance(env_ids, slice):
-            self.episode_length_buf[env_ids] = 0
-        else:
-            # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
-            self.episode_length_buf.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0)
+        index_fill_(self.episode_length_buf, env_ids, 0)

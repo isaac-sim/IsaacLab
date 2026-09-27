@@ -32,7 +32,7 @@ import omni.physx
 import omni.timeline
 import omni.usd
 import usdrt
-from pxr import Sdf, Usd, UsdPhysics, UsdUtils
+from pxr import Sdf, UsdPhysics, UsdUtils
 
 import isaaclab.sim as sim_utils
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
@@ -209,46 +209,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
-        """Lazily create a rigid body view covering all rigid bodies in the scene.
-
-        Discovers exact rigid body prims by traversing USD, then compacts cloned
-        environment paths into wildcard patterns. If a rigid body name is also
-        used by a non-rigid prim, the exact path is kept to avoid PhysX resolving
-        the wildcard to the non-rigid prim.
-        """
-        if self._rigid_body_view is not None:
-            return self._rigid_body_view
-
-        if self.backend is None:
-            return None
-
-        stage: Usd.Stage = omni.usd.get_context().get_stage()
-        if stage is None:
-            return None
-
-        rigid_body_paths: list[str] = []
-        non_rigid_body_names: set[str] = set()
-        for prim in stage.Traverse():
-            prim_path = prim.GetPath().pathString
-            if prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint):
-                rigid_body_paths.append(prim_path)
-            elif re.search(r"/World/envs/env_\d+/", prim_path):
-                non_rigid_body_names.add(prim_path.rsplit("/", 1)[-1])
-
-        patterns: set[str] = set()
-        exact_paths: list[str] = []
-        for prim_path in rigid_body_paths:
-            body_name = prim_path.rsplit("/", 1)[-1]
-            if body_name in non_rigid_body_names:
-                exact_paths.append(prim_path)
-            else:
-                patterns.add(re.sub(r"/World/envs/env_\d+", "/World/envs/env_*", prim_path))
-
-        body_paths = [*sorted(patterns), *exact_paths]
-        if not body_paths:
-            return None
-
-        self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
+        """Return the native body selection bound during initialization."""
         return self._rigid_body_view
 
     def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
@@ -270,9 +231,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
             counts = np.asarray([entry.vertex_count for entry in ordered], dtype=np.int32)
             if np.any(counts > view.max_simulation_nodes_per_body):
                 raise RuntimeError("PhysX deformable node capacity is smaller than the clone plan requires.")
-            points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
             native_offsets = np.arange(view.count) * view.max_simulation_nodes_per_body
-            batches = deformable_geometry_batches(ordered, points, native_offsets)
+            batches = deformable_geometry_batches(ordered, native_offsets, device=str(PhysicsManager._device))
             bindings.append((view, batches))
         self._deformable_bindings = bindings
         self._geometry = TimestampedBuffer([batch for _, batches in bindings for batch in batches])
@@ -983,16 +943,14 @@ class PhysxManager(PhysicsManager):
         physx = omni.physx.get_physx_interface()
         physx_sim = omni.physx.get_physx_simulation_interface()
 
-        # Attach stage to PhysX BEFORE loading/starting - only needed for GPU pipeline.
-        # For CPU, the old SimulationManager never called attach_stage() explicitly.
-        # Calling attach_stage() + force_load_physics_from_usd() together causes a
-        # double-initialization that corrupts the CPU broadphase (MBP) collision setup,
-        # causing objects to fall through surfaces non-deterministically.
+        # Both APIs load physics. Force-loading after attachment destroys and rebuilds it.
+        # CPU uses the Kit bridge's implicit attachment to preserve MBP collision setup.
         if is_gpu:
             physx_sim.attach_stage(stage_id)
+        else:
+            physx.force_load_physics_from_usd()
 
         # warmup physx
-        physx.force_load_physics_from_usd()
         physx.start_simulation()
         physx.update_simulation(cls.get_physics_dt(), 0.0)
         physx_sim.fetch_results()
@@ -1005,6 +963,22 @@ class PhysxManager(PhysicsManager):
         # Register the complete tensor view only after PhysX has loaded the stage.
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
+        view = cls.backend.simulation_view.create_rigid_body_view("/**")
+        # PhysX returns a wrapper with no native handle for an empty selection.
+        cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
+        if view._backend is not None:
+            # Wildcard bindings expose articulation aliases; publish the actual root-link paths.
+            native = cls.backend.simulation_view
+            paths = view.prim_paths
+            articulation_type = omni.physics.tensors.ObjectType.Articulation
+            roots = [path for path in paths if native.get_object_type(path) == articulation_type]
+            if roots:
+                articulations = native.create_articulation_view(roots)
+                links = (body_paths[0] for body_paths in articulations.link_paths)
+                aliases = dict(zip(articulations.prim_paths, links, strict=True))
+                cls._scene_data_backend._rigid_body_view = native.create_rigid_body_view(
+                    [aliases.get(path, path) for path in paths]
+                )
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)

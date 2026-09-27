@@ -71,6 +71,8 @@
   Do not derive the expected wrench by repeating the production transformation on the backend's raw output.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
+- In subprocess-based Mimic integration tests, launch Kit only in the child script; the parent can download
+  HDF5 inputs without starting a second SimulationApp.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.
 
 ## Changelog and release metadata

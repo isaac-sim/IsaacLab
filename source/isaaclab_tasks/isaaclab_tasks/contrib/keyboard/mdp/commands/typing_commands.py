@@ -19,6 +19,7 @@ import warp as wp
 
 from isaaclab.controllers.differential_ik import DifferentialIKController
 from isaaclab.managers import CommandTerm, ManagerTermBase
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     quat_apply,
@@ -503,7 +504,7 @@ class LetterTypingCommand(CommandTerm):
                 bucket_survivors = bucket_survivors[subset]
             elif bucket_survivors.numel() < cap:
                 survivor_mask = torch.zeros(n, dtype=torch.bool, device=self.device)
-                survivor_mask[bucket_survivors] = True
+                index_fill_(survivor_mask, bucket_survivors, True)
                 remaining_indices = (~survivor_mask).nonzero(as_tuple=False).squeeze(-1)
                 needed = cap - bucket_survivors.numel()
                 subset = torch.randperm(remaining_indices.numel(), device=self.device)[:needed]
@@ -638,15 +639,15 @@ class LetterTypingCommand(CommandTerm):
         self.typed[env_ids] = self._buf_typed[snap]
         self.target_len[env_ids] = self._buf_target_len[snap]
         self.typed_len[env_ids] = self._buf_typed_len[snap]
-        self._prev_pressed[env_ids] = False
-        self._just_reset[env_ids] = True
+        index_fill_(self._prev_pressed, env_ids, False)
+        index_fill_(self._just_reset, env_ids, True)
         prefix = self._prefix_len()[env_ids]
         self.prefix_len[env_ids] = prefix
         self.distance[env_ids] = (self.target_len[env_ids] + self.typed_len[env_ids] - 2 * prefix).float()
         self.max_prefix[env_ids] = prefix
         self.min_prefix[env_ids] = prefix
-        self.new_high[env_ids] = False
-        self.new_low[env_ids] = False
+        index_fill_(self.new_high, env_ids, False)
+        index_fill_(self.new_low, env_ids, False)
 
     def _resample_normal(self, env_ids: Sequence[int] | torch.Tensor):
         # Normal (random) reset path: draw the target word + a match_prob-typed start buffer, guard against an
@@ -682,10 +683,10 @@ class LetterTypingCommand(CommandTerm):
             ],
             device=str(self.device),
         )
-        self._prev_pressed[env_ids_t] = False
-        self._just_reset[env_ids_t] = True
-        self.new_high[env_ids_t] = False
-        self.new_low[env_ids_t] = False
+        index_fill_(self._prev_pressed, env_ids_t, False)
+        index_fill_(self._just_reset, env_ids_t, True)
+        index_fill_(self.new_high, env_ids_t, False)
+        index_fill_(self.new_low, env_ids_t, False)
 
     def _update_command(self):
         if self._press_level is None:

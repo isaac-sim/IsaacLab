@@ -23,10 +23,8 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import sys
 from inspect import signature
 from types import SimpleNamespace
-from unittest.mock import Mock
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
 import numpy as np
@@ -725,7 +723,6 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     assert isinstance(solver, SolverImplicitMPM)
 
 
-@pytest.mark.parametrize("import_path", ["clone", "standalone"])
 @pytest.mark.parametrize(
     ("manager_cls", "solver_cfg", "expected_friction", "expected_damping"),
     [
@@ -734,9 +731,9 @@ def test_mpm_prepare_builder_converts_convex_mesh_before_solver_construction():
     ],
 )
 def test_production_imports_scope_mujoco_joint_properties(
-    monkeypatch, import_path, manager_cls, solver_cfg, expected_friction, expected_damping
+    monkeypatch, manager_cls, solver_cfg, expected_friction, expected_damping
 ):
-    """Only MJWarp imports MuJoCo joint properties through either production path."""
+    """Only MJWarp imports MuJoCo joint properties through clone-plan construction."""
     from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     stage = Usd.Stage.CreateInMemory()
@@ -745,7 +742,7 @@ def test_production_imports_scope_mujoco_joint_properties(
     physics_prim_path = "/physicsScene"
     UsdPhysics.Scene.Define(stage, physics_prim_path)
 
-    root_path = "/Sources/robot" if import_path == "clone" else "/World/robot"
+    root_path = "/Sources/robot"
     root = UsdGeom.Cube.Define(stage, root_path).GetPrim()
     UsdPhysics.RigidBodyAPI.Apply(root)
     UsdPhysics.ArticulationRootAPI.Apply(root)
@@ -769,38 +766,29 @@ def test_production_imports_scope_mujoco_joint_properties(
         PhysicsManager,
         "_sim",
         SimpleNamespace(
-            physics_manager=manager_cls, cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path)
+            physics_manager=manager_cls,
+            device="cpu",
+            cfg=SimpleNamespace(physics=physics_cfg, physics_prim_path=physics_prim_path),
         ),
     )
     monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
     monkeypatch.setattr(NewtonManager, "_builder", None)
-    monkeypatch.setattr(NewtonManager, "_deformable_registry", [])
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", newton_manager_module.NewtonSceneDataBackend())
     monkeypatch.setattr(NewtonManager, "_cl_pending_sites", {})
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", [])
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
-    monkeypatch.setattr(NewtonManager, "_cl_fabric_body_bindings", [])
     monkeypatch.setattr(NewtonManager, "_cl_protos", {})
     monkeypatch.setattr(NewtonManager, "_num_envs", 0)
 
-    if import_path == "clone":
-        builder, _ = newton_physics_replicate(
-            stage=stage,
-            sources=(root_path,),
-            destinations=("/World/envs/env_{}/robot",),
-            env_ids=np.array([0], dtype=np.int64),
-            mapping=np.ones((1, 1), dtype=np.bool_),
-        )
-    else:
-        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda: stage)
-        monkeypatch.setattr(
-            newton_manager_module, "_restore_visible_colliders_without_visual_shapes", lambda *args: None
-        )
-        monkeypatch.setattr(newton_manager_module, "replace_newton_builder_shape_colors", lambda *args: None)
-        monkeypatch.setattr(newton_manager_module, "import_builder_visual_material_paths", lambda *args: None)
-        manager_cls.instantiate_builder_from_stage()
-        builder = NewtonManager._builder
+    builder, _ = newton_physics_replicate(
+        stage=stage,
+        sources=(root_path,),
+        destinations=("/World/envs/env_{}/robot",),
+        env_ids=np.array([0], dtype=np.int64),
+        mapping=np.ones((1, 1), dtype=np.bool_),
+    )
 
     model = builder.finalize(device="cpu")
 
@@ -993,7 +981,6 @@ def test_mpm_supported_cuda_graph_capture_defers_until_initial_reset(monkeypatch
     monkeypatch.setattr(PhysicsManager, "_cfg", SimpleNamespace(use_cuda_graph=True), raising=False)
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:0", raising=False)
     monkeypatch.setattr(NewtonManager, "_solver", solver, raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
     monkeypatch.setattr(NewtonManager, "_graph", object(), raising=False)
     monkeypatch.setattr(NewtonManager, "_graph_capture_pending", False, raising=False)
 
@@ -1054,7 +1041,7 @@ def test_cuda_graph_capture_uses_simulation_device(monkeypatch):
             return False
 
     monkeypatch.setattr(PhysicsManager, "_device", "cuda:1", raising=False)
-    monkeypatch.setattr(NewtonManager, "_usdrt_stage", None, raising=False)
+    monkeypatch.setattr(newton_manager_module, "has_kit", lambda: False)
     stream = SimpleNamespace(device="cuda:1")
     monkeypatch.setattr(wp, "get_stream", lambda device: stream if device == "cuda:1" else None)
     monkeypatch.setattr(wp, "ScopedStream", lambda stream: contextlib.nullcontext())
@@ -1248,12 +1235,6 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
     )
 
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
-        monkeypatch.setitem(sys.modules, "usdrt", Mock())
-        monkeypatch.setattr(NewtonMJWarpManager, "_clone_physics_only", False)
-        monkeypatch.setattr(newton_manager_module, "get_current_stage", lambda **kwargs: Mock())
-        monkeypatch.setattr(
-            NewtonManager, "_initialize_fabric_body_prims", staticmethod(lambda *args: events.append("body"))
-        )
 
         def on_physics_ready(_):
             events.append("ready")
@@ -1273,7 +1254,7 @@ def test_initialize_solver_prepares_picking_after_scene_data(monkeypatch):
         sim.reset()
         sim.reset()
 
-    assert events == ["body", "ready", "prepare"] * 2
+    assert events == ["ready", "prepare"] * 2
 
 
 # ---------------------------------------------------------------------------
@@ -1637,7 +1618,8 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         NewtonManager.set_builder(builder)
         sim.reset()
         if rtx_capture:
-            monkeypatch.setattr(NewtonManager, "_usdrt_stage", object())
+            monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
+            monkeypatch.setattr(sim, "_has_offscreen_render", True)
         NewtonManager.activate_newton_actuator_path()
         counter = wp.zeros(1, dtype=wp.int32, device="cuda:0")
         NewtonManager.register_post_step_callback(lambda: wp.launch(_count_physics_steps, 1, inputs=[counter]))
@@ -1674,7 +1656,8 @@ def test_stateful_actuator_graph_matches_eager_across_decimation_changes(monkeyp
             builder.end_world()
             NewtonManager.set_builder(builder)
             sim.reset()
-            monkeypatch.setattr(NewtonManager, "_usdrt_stage", object())
+            monkeypatch.setattr(newton_manager_module, "has_kit", lambda: True)
+            monkeypatch.setattr(sim, "_has_offscreen_render", True)
             NewtonManager.activate_newton_actuator_path()
             samples = []
             for decimation in (1, 2, 3):

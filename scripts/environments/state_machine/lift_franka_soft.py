@@ -29,6 +29,7 @@ import warp as wp
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
+from isaaclab.utils import index_fill_
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -223,10 +224,8 @@ class PickAndLiftSm:
 
     def reset_idx(self, env_ids: Sequence[int] = None):
         """Reset the state machine."""
-        if env_ids is None:
-            env_ids = slice(None)
-        self.sm_state[env_ids] = 0
-        self.sm_wait_time[env_ids] = 0.0
+        index_fill_(self.sm_state, env_ids, 0)
+        index_fill_(self.sm_wait_time, env_ids, 0.0)
 
     def compute(self, ee_pose: torch.Tensor, object_pose: torch.Tensor, des_object_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""

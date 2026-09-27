@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply, quat_mul
 
 if TYPE_CHECKING:
@@ -46,19 +47,19 @@ def reset_task_stage(
     from .rewards import get_assemble_trocar_state
 
     s = get_assemble_trocar_state(env)
-    s.task_stage[env_ids] = 0
+    index_fill_(s.task_stage, env_ids, 0)
 
     # Reset dense-reward locked caches
-    s.lift_reward_locked[env_ids] = 0
-    s.tip_reward_locked[env_ids] = 0
-    s.insertion_reward_locked[env_ids] = 0
-    s.placement_reward_locked[env_ids] = 0
+    index_fill_(s.lift_reward_locked, env_ids, 0)
+    index_fill_(s.tip_reward_locked, env_ids, 0)
+    index_fill_(s.insertion_reward_locked, env_ids, 0)
+    index_fill_(s.placement_reward_locked, env_ids, 0)
 
     # Reset sparse-reward previous-stage trackers
-    s.prev_stage_lift[env_ids] = 0
-    s.prev_stage_tip[env_ids] = 0
-    s.prev_stage_insert[env_ids] = 0
-    s.prev_stage_place[env_ids] = 0
+    index_fill_(s.prev_stage_lift, env_ids, 0)
+    index_fill_(s.prev_stage_tip, env_ids, 0)
+    index_fill_(s.prev_stage_insert, env_ids, 0)
+    index_fill_(s.prev_stage_place, env_ids, 0)
 
     # Reset debug throttle
     s.last_debug_print_step = -1

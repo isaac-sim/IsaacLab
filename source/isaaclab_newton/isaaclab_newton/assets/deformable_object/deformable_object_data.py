@@ -6,13 +6,14 @@
 from __future__ import annotations
 
 import warp as wp
-from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
-from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles_vec3f, vec6f
+from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+from .kernels import compute_mean_vec3f_over_vertices, compute_nodal_state_w, gather_particles, vec6f
 
 
 class DeformableObjectData(BaseDeformableObjectData):
@@ -49,13 +50,11 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._nodal_state_w = TimestampedBuffer(wp.empty(nodal_shape, dtype=vec6f, device=device))
         self._root_pos_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
         self._root_vel_w = TimestampedBuffer(wp.empty(num_instances, dtype=wp.vec3f, device=device))
-        self._nodal_pos_w_ta: ProxyArray | None = None
-        self._nodal_vel_w_ta: ProxyArray | None = None
-        self._nodal_state_w_ta: ProxyArray | None = None
-        self._root_pos_w_ta: ProxyArray | None = None
-        self._root_vel_w_ta: ProxyArray | None = None
-
-        self._create_simulation_bindings()
+        self._nodal_pos_w_ta = ProxyArray(self._nodal_pos_w.data)
+        self._nodal_vel_w_ta = ProxyArray(self._nodal_vel_w.data)
+        self._nodal_state_w_ta = ProxyArray(self._nodal_state_w.data)
+        self._root_pos_w_ta = ProxyArray(self._root_pos_w.data)
+        self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
 
     ##
     # Defaults.
@@ -76,30 +75,15 @@ class DeformableObjectData(BaseDeformableObjectData):
     """
 
     def _create_simulation_bindings(self) -> None:
-        """Validate the current Newton particle state and invalidate gathered buffers.
+        """Invalidate gathered buffers after model reinitialization.
 
         Newton may swap :attr:`state_0` and :attr:`state_1` across substeps, so deformable data does not keep
         long-lived particle array bindings. Read properties query :meth:`SimulationManager.get_state_0` at gather time
         and materialize object-local views from the current flat particle arrays.
         """
-        self._get_current_particle_state()
-
-        # Invalidate lazy buffers gathered from the previous simulation state.
-        self._nodal_pos_w.timestamp = -1.0
-        self._nodal_vel_w.timestamp = -1.0
-        self._nodal_state_w.timestamp = -1.0
-        self._root_pos_w.timestamp = -1.0
-        self._root_vel_w.timestamp = -1.0
-
-    def _get_current_particle_state(self):
-        """Return the current Newton state containing deformable particle arrays."""
-        state = SimulationManager.get_state_0()
-        if state is None or state.particle_q is None or state.particle_qd is None:
-            raise RuntimeError(
-                "Failed to access Newton deformable particle state. Ensure the Newton model has been finalized and "
-                "contains particle position and velocity arrays."
-            )
-        return state
+        reset_timestamps(
+            (self._nodal_pos_w, self._nodal_vel_w, self._nodal_state_w, self._root_pos_w, self._root_vel_w)
+        )
 
     ##
     # Properties.
@@ -109,34 +93,30 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
-                gather_particles_vec3f,
+                gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
-                inputs=[state.particle_q, self._particle_offsets, self._particles_per_body],
+                inputs=[state.particle_q, self._particle_offsets],
                 outputs=[self._nodal_pos_w.data],
                 device=self.device,
             )
             self._nodal_pos_w.timestamp = self._sim_timestamp
-        if self._nodal_pos_w_ta is None:
-            self._nodal_pos_w_ta = ProxyArray(self._nodal_pos_w.data)
         return self._nodal_pos_w_ta
 
     @property
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
-                gather_particles_vec3f,
+                gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
-                inputs=[state.particle_qd, self._particle_offsets, self._particles_per_body],
+                inputs=[state.particle_qd, self._particle_offsets],
                 outputs=[self._nodal_vel_w.data],
                 device=self.device,
             )
             self._nodal_vel_w.timestamp = self._sim_timestamp
-        if self._nodal_vel_w_ta is None:
-            self._nodal_vel_w_ta = ProxyArray(self._nodal_vel_w.data)
         return self._nodal_vel_w_ta
 
     @property
@@ -154,8 +134,6 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._nodal_state_w.timestamp = self._sim_timestamp
-        if self._nodal_state_w_ta is None:
-            self._nodal_state_w_ta = ProxyArray(self._nodal_state_w.data)
         return self._nodal_state_w_ta
 
     ##
@@ -177,8 +155,6 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._root_pos_w.timestamp = self._sim_timestamp
-        if self._root_pos_w_ta is None:
-            self._root_pos_w_ta = ProxyArray(self._root_pos_w.data)
         return self._root_pos_w_ta
 
     @property
@@ -196,6 +172,4 @@ class DeformableObjectData(BaseDeformableObjectData):
                 device=self.device,
             )
             self._root_vel_w.timestamp = self._sim_timestamp
-        if self._root_vel_w_ta is None:
-            self._root_vel_w_ta = ProxyArray(self._root_vel_w.data)
         return self._root_vel_w_ta

@@ -9,6 +9,7 @@ __all__ = [
     "TENSOR_TYPES",
     "TENSOR_TYPE_CONVERSIONS",
     "convert_to_torch",
+    "index_fill_",
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
@@ -58,7 +59,7 @@ __all__ = [
 ]
 
 from .timer import Timer
-from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch
+from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer
 from .dict import (
     class_to_dict,

@@ -417,6 +417,40 @@ def test_compute_with_2d_history(setup_env):
     assert obs_policy.shape == (env.num_envs, HISTORY_LENGTH, 128, 256, 1)
 
 
+@pytest.mark.parametrize(
+    ("history_order", "expected_values"),
+    [
+        (None, [2.0, 3.0, 3.0, 4.0, 11.0, 12.0]),
+        ("time", [2.0, 3.0, 11.0, 3.0, 4.0, 12.0]),
+    ],
+)
+def test_group_history_flatten_order(setup_env, history_order, expected_values):
+    """Flattened group history keeps the selected term or time ordering."""
+    env = setup_env
+
+    def first_term(env):
+        return env.data.pos_w[:, :2]
+
+    def second_term(env):
+        return env.data.lin_vel_w[:, :1]
+
+    cfg = ObservationGroupCfg(history_length=2)
+    if history_order is not None:
+        cfg.history_order = history_order
+    cfg.first = ObservationTermCfg(func=first_term)
+    cfg.second = ObservationTermCfg(func=second_term)
+    manager = ObservationManager({"policy": cfg}, env)
+
+    for step in range(3):
+        env.data.pos_w[:, :2] = torch.tensor([step + 1.0, step + 2.0])
+        env.data.lin_vel_w[:, :1] = step + 10.0
+        observation = manager.compute(update_history=True)["policy"]
+
+    assert manager.group_obs_dim["policy"] == (6,)
+    assert observation.shape == (env.num_envs, 6)
+    torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
+
+
 def test_invalid_observation_config(setup_env):
     env = setup_env
     """Test the invalid observation config."""

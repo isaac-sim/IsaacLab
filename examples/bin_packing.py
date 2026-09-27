@@ -65,7 +65,7 @@ from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer, configclass, index_fill_
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -379,7 +379,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
             corrected_velocities = (
                 wp.to_torch(velocities).clone() if isinstance(velocities, wp.array) else velocities.clone()
             )
-            corrected_velocities[stray] = 0.0
+            index_fill_(corrected_velocities, stray, 0.0)
             root_view.set_transforms(wp.from_torch(corrected_transforms.contiguous()), stray_indices)
             root_view.set_velocities(wp.from_torch(corrected_velocities.contiguous()), stray_indices)
         # Increment counter

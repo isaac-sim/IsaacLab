@@ -28,6 +28,8 @@ from isaaclab_newton.sim.spawners.materials import (
     NewtonSurfaceDeformableBodyMaterialCfg,
 )
 
+from pxr import Vt
+
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObject, DeformableObjectCfg
@@ -88,7 +90,7 @@ def generate_cubes_scene(num_cubes: int = 1, height: float = 1.0) -> DeformableO
 
 
 def generate_cloth_scene(num_cloths: int = 1, height: float = 1.0) -> DeformableObject:
-    """Generate a scene with surface deformable cloth squares.
+    """Generate a scene with folded surface deformable cloth squares.
 
     Args:
         num_cloths: Number of cloths to generate.
@@ -118,6 +120,11 @@ def generate_cloth_scene(num_cloths: int = 1, height: float = 1.0) -> Deformable
         CloneCfg(clone_template="/World/env_{}"), (cloth_object_cfg,), num_cloths, 1.0, positions=origins
     )
     cloth_object = DeformableObject(cfg=cloth_object_cfg)
+    for path in ("/World/env_0/Cloth/sim_mesh", "/World/env_0/Cloth/geometry/mesh"):
+        points_attr = sim_utils.get_current_stage().GetPrimAtPath(path).GetAttribute("points")
+        points = np.asarray(points_attr.Get()).copy()
+        points[:, 2] += np.abs(points[:, 0])
+        points_attr.Set(Vt.Vec3fArray.FromNumpy(points))
     replicate(plan)
     return cloth_object
 
@@ -155,7 +162,7 @@ def generate_cuboid_and_cylinder_scene(height: float = 1.0) -> tuple[DeformableO
         ),
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.4, 0.0, height + 0.2)),
     )
-    plan = clone_plan_from_env_0(CloneCfg(clone_template="/World/env_{}"), (cuboid_cfg, cylinder_cfg), 1, 0.0)
+    plan = clone_plan_from_env_0(CloneCfg(clone_template="/World/env_{}"), (cuboid_cfg, cylinder_cfg), 2, 1.0)
     cuboid, cylinder = DeformableObject(cfg=cuboid_cfg), DeformableObject(cfg=cylinder_cfg)
     replicate(plan)
     return cuboid, cylinder
@@ -228,8 +235,11 @@ def test_surface_initialization_and_freefall(sim):
     """Test initialization and stepping for surface deformable objects."""
     num_cloths = 2
     cloth_object = generate_cloth_scene(num_cloths=num_cloths, height=5.0)
+    rest_angles = np.asarray(NewtonManager._builder.edge_rest_angle, dtype=np.float32)
+    assert np.any(np.abs(rest_angles) > 0.1)
 
     sim.reset()
+    np.testing.assert_array_equal(NewtonManager.get_model().edge_rest_angle.numpy(), rest_angles)
 
     assert cloth_object.is_initialized
     assert cloth_object.num_instances == num_cloths
@@ -547,7 +557,7 @@ def test_set_kinematic_targets(sim):
 
 
 def test_multiple_deformable_assets_do_not_alias(sim):
-    """Test independent writes for two different deformable assets in one scene."""
+    """Defaults and kinematic writes cover only each asset's selected particles."""
     cuboid, cylinder = generate_cuboid_and_cylinder_scene(height=2.0)
 
     sim.reset()
@@ -562,4 +572,27 @@ def test_multiple_deformable_assets_do_not_alias(sim):
 
     torch.testing.assert_close(cuboid.data.nodal_pos_w.torch, cuboid_pos, rtol=1e-5, atol=1e-5)
     torch.testing.assert_close(cylinder.data.nodal_pos_w.torch, cylinder_default, rtol=1e-5, atol=1e-5)
-    assert cuboid._recorded_particle_offsets != cylinder._recorded_particle_offsets
+    model = NewtonManager.get_model()
+    default_inv_mass, default_flags = model.particle_inv_mass.numpy(), model.particle_flags.numpy()
+    for asset in (cuboid, cylinder):
+        shape = (asset.num_instances, asset.max_sim_vertices_per_body)
+        assert asset._default_particle_inv_mass.shape == shape
+        assert asset._default_particle_flags.shape == shape
+        targets = asset.data.nodal_kinematic_target.torch.clone()
+        targets[0, :, :3] = asset.data.nodal_pos_w.torch[0]
+        targets[0, :, 3] = 0.0
+        asset.write_nodal_kinematic_target_to_sim_index(targets)
+        asset.write_data_to_sim()
+
+        start = int(asset._particle_offsets.numpy()[0])
+        expected_inv_mass, expected_flags = default_inv_mass.copy(), default_flags.copy()
+        expected_inv_mass[start : start + shape[1]] = 0.0
+        expected_flags[start : start + shape[1]] = 0
+        np.testing.assert_array_equal(model.particle_inv_mass.numpy(), expected_inv_mass)
+        np.testing.assert_array_equal(model.particle_flags.numpy(), expected_flags)
+
+        targets[0, :, 3] = 1.0
+        asset.write_nodal_kinematic_target_to_sim_index(targets)
+        asset.write_data_to_sim()
+        np.testing.assert_array_equal(model.particle_inv_mass.numpy(), default_inv_mass)
+        np.testing.assert_array_equal(model.particle_flags.numpy(), default_flags)
