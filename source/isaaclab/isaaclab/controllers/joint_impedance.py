@@ -54,7 +54,9 @@ class JointImpedanceController:
         self._p_gains[:] = torch.tensor(self.cfg.stiffness, device=self._device)
         # -- velocity gains
         self._d_gains = torch.zeros(self.num_robots, self.num_dof, device=self._device)
-        self._d_gains[:] = 2 * torch.sqrt(self._p_gains) * torch.tensor(self.cfg.damping_ratio, device=self._device)
+        damping_ratio = 1.0 if self.cfg.damping_ratio is None else self.cfg.damping_ratio
+        self._damping_ratio = torch.tensor(damping_ratio, device=self._device)
+        self._d_gains[:] = 2 * torch.sqrt(self._p_gains) * self._damping_ratio
         # -- position offsets
         if self.cfg.dof_pos_offset is not None:
             self._dof_pos_offset[:] = torch.tensor(self.cfg.dof_pos_offset, device=self._device)
@@ -115,7 +117,7 @@ class JointImpedanceController:
             # joint positions + stiffness
             self._dof_pos_target[:] = dof_pos_command
             self._p_gains[:] = stiffness
-            self._d_gains[:] = 2 * torch.sqrt(self._p_gains)  # critically damped
+            self._d_gains[:] = 2 * torch.sqrt(self._p_gains) * self._damping_ratio
         elif self.cfg.impedance_mode == "variable":
             # split input command
             dof_pos_command, stiffness, damping_ratio = torch.tensor_split(command, 3, dim=-1)

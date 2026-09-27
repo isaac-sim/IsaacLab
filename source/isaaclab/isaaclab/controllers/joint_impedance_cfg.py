@@ -45,6 +45,8 @@ class JointImpedanceControllerCfg:
 
     The following math operation is performed for computing velocity gains:
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.
+
+    If None, the damping ratio is 1.0 (critically damped).
     """
 
     stiffness_limits: tuple[float, float] = (0, 300)
