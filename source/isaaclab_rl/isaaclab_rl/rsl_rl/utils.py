@@ -237,7 +237,6 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                 if _has_non_missing_attr(agent_cfg, model_name):
                     _update_distribution_cfg(getattr(agent_cfg, model_name))
 
-    # remove the mixed-precision argument for PPO versions that do not accept it
     if isinstance(getattr(agent_cfg, "algorithm", None), RslRlPpoAlgorithmCfg) and hasattr(
         agent_cfg.algorithm, "use_mixed_precision"
     ):

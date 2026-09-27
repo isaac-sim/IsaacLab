@@ -215,11 +215,7 @@ class RslRlPpoAlgorithmCfg:
     """Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False."""
 
     use_mixed_precision: bool = False
-    """Whether to run the policy update in bfloat16 autocast. Defaults to False.
-
-    Mixed precision mainly speeds up convolutional encoders for camera observations. It changes the
-    numerics of the update, so validate training results before enabling it for a task.
-    """
+    """Whether to run the policy update in bfloat16 autocast. Defaults to False."""
 
     rnd_cfg: RslRlRndCfg | None = None
     """The RND configuration. Defaults to None, in which case RND is not used."""
@@ -353,12 +349,8 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
 
-    torch_compile_mode: str | None = None
-    """The :func:`torch.compile` mode for the actor and critic models. Defaults to None (no compilation).
-
-    CUDA-graph modes (``"reduce-overhead"`` and ``"max-autotune"``) are not supported by RSL-RL; use
-    ``"default"`` or ``"max-autotune-no-cudagraphs"``.
-    """
+    torch_compile_mode: str | None = "default"
+    """The :func:`torch.compile` mode for actor and critic. Defaults to "default"; None disables compilation."""
 
     policy: RslRlPpoActorCriticCfg = MISSING
     """The policy configuration.
