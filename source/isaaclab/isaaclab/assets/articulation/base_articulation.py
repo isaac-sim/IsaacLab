@@ -21,6 +21,7 @@ from ...sim import SimulationContext
 from ...utils.buffers import TimestampedBuffer
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
+from .._deprecation import warn_renamed_function
 from ..asset_base import AssetBase
 from . import ordering_kernels
 from .ordering import ArticulationNameMap, ArticulationOrderingConvention, build_articulation_name_map
@@ -2847,12 +2848,7 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_friction_coefficient_to_sim` instead.
         """
-        warnings.warn(
-            "The function 'write_joint_friction_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_friction_to_sim", "write_joint_friction_coefficient_to_sim")
         self.write_joint_friction_coefficient_to_sim(joint_friction, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_limits_to_sim(
@@ -2867,12 +2863,7 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`write_joint_position_limit_to_sim` instead.
         """
-        warnings.warn(
-            "The function 'write_joint_limits_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_limit_to_sim' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_limits_to_sim", "write_joint_position_limit_to_sim")
         self.write_joint_position_limit_to_sim(
             limits,
             joint_ids=joint_ids,
@@ -2891,12 +2882,7 @@ class BaseArticulation(AssetBase):
         .. deprecated:: 2.1.0
             Please use :meth:`set_fixed_tendon_position_limit` instead.
         """
-        warnings.warn(
-            "The function 'set_fixed_tendon_limit' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_position_limit' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_limit", "set_fixed_tendon_position_limit")
         self.set_fixed_tendon_position_limit(
             limit,
             fixed_tendon_ids=fixed_tendon_ids,
@@ -2937,12 +2923,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_pose_to_sim", "write_root_pose_to_sim_index")
         self.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_link_pose_to_sim(
@@ -2951,12 +2932,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_link_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_link_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_link_pose_to_sim", "write_root_link_pose_to_sim_index")
         self.write_root_link_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_com_pose_to_sim(
@@ -2965,12 +2941,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_pose_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_com_pose_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_com_pose_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_com_pose_to_sim", "write_root_com_pose_to_sim_index")
         self.write_root_com_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
 
     def write_root_velocity_to_sim(
@@ -2979,12 +2950,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_velocity_to_sim", "write_root_velocity_to_sim_index")
         self.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_com_velocity_to_sim(
@@ -2993,12 +2959,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_com_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_com_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_com_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_com_velocity_to_sim", "write_root_com_velocity_to_sim_index")
         self.write_root_com_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     def write_root_link_velocity_to_sim(
@@ -3007,12 +2968,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_root_link_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_root_link_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_root_link_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_root_link_velocity_to_sim", "write_root_link_velocity_to_sim_index")
         self.write_root_link_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
     @abstractmethod
@@ -3034,12 +2990,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_position_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_position_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_position_to_sim", "write_joint_position_to_sim_index")
         self.write_joint_position_to_sim_index(position=position, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_velocity_to_sim(
@@ -3049,12 +3000,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | slice | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_velocity_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_velocity_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_velocity_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_velocity_to_sim", "write_joint_velocity_to_sim_index")
         self.write_joint_velocity_to_sim_index(velocity=velocity, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_stiffness_to_sim(
@@ -3064,12 +3010,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_stiffness_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_stiffness_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_stiffness_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_stiffness_to_sim", "write_joint_stiffness_to_sim_index")
         self.write_joint_stiffness_to_sim_index(stiffness=stiffness, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_damping_to_sim(
@@ -3079,12 +3020,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_damping_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_damping_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_damping_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_damping_to_sim", "write_joint_damping_to_sim_index")
         self.write_joint_damping_to_sim_index(damping=damping, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_position_limit_to_sim(
@@ -3095,12 +3031,7 @@ class BaseArticulation(AssetBase):
         warn_limit_violation: bool = True,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_position_limit_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_position_limit_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_position_limit_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_position_limit_to_sim", "write_joint_position_limit_to_sim_index")
         self.write_joint_position_limit_to_sim_index(
             limits=limits, joint_ids=joint_ids, env_ids=env_ids, warn_limit_violation=warn_limit_violation
         )
@@ -3112,12 +3043,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_velocity_limit_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_velocity_limit_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_velocity_limit_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_velocity_limit_to_sim", "write_joint_velocity_limit_to_sim_index")
         self.write_joint_velocity_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_effort_limit_to_sim(
@@ -3127,12 +3053,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_effort_limit_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_effort_limit_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_effort_limit_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_effort_limit_to_sim", "write_joint_effort_limit_to_sim_index")
         self.write_joint_effort_limit_to_sim_index(limits=limits, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_armature_to_sim(
@@ -3142,12 +3063,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_armature_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_armature_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_armature_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_joint_armature_to_sim", "write_joint_armature_to_sim_index")
         self.write_joint_armature_to_sim_index(armature=armature, joint_ids=joint_ids, env_ids=env_ids)
 
     def write_joint_friction_coefficient_to_sim(
@@ -3157,11 +3073,8 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_joint_friction_coefficient_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_joint_friction_coefficient_to_sim' will be deprecated in a future release. Please"
-            " use 'write_joint_friction_coefficient_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
+        warn_renamed_function(
+            "write_joint_friction_coefficient_to_sim", "write_joint_friction_coefficient_to_sim_index"
         )
         self.write_joint_friction_coefficient_to_sim_index(
             joint_friction_coeff=joint_friction_coeff, joint_ids=joint_ids, env_ids=env_ids
@@ -3174,11 +3087,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_masses_index`."""
-        warnings.warn(
-            "The function 'set_masses' will be deprecated in a future release. Please use 'set_masses_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_masses", "set_masses_index")
         self.set_masses_index(masses=masses, body_ids=body_ids, env_ids=env_ids)
 
     def set_coms(
@@ -3188,11 +3097,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_coms_index`."""
-        warnings.warn(
-            "The function 'set_coms' will be deprecated in a future release. Please use 'set_coms_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_coms", "set_coms_index")
         self.set_coms_index(coms=coms, body_ids=body_ids, env_ids=env_ids)
 
     def set_inertias(
@@ -3202,12 +3107,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_inertias_index`."""
-        warnings.warn(
-            "The function 'set_inertias' will be deprecated in a future release. Please"
-            " use 'set_inertias_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_inertias", "set_inertias_index")
         self.set_inertias_index(inertias=inertias, body_ids=body_ids, env_ids=env_ids)
 
     def set_external_force_and_torque(
@@ -3297,12 +3197,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_stiffness_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_stiffness' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_stiffness_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_stiffness", "set_fixed_tendon_stiffness_index")
         self.set_fixed_tendon_stiffness_index(stiffness=stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_damping(
@@ -3312,12 +3207,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_damping_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_damping' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_damping_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_damping", "set_fixed_tendon_damping_index")
         self.set_fixed_tendon_damping_index(damping=damping, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_limit_stiffness(
@@ -3327,12 +3217,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_limit_stiffness_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_limit_stiffness' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_limit_stiffness_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_limit_stiffness", "set_fixed_tendon_limit_stiffness_index")
         self.set_fixed_tendon_limit_stiffness_index(
             limit_stiffness=limit_stiffness, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
         )
@@ -3344,12 +3229,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_position_limit_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_position_limit' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_position_limit_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_position_limit", "set_fixed_tendon_position_limit_index")
         self.set_fixed_tendon_position_limit_index(limit=limit, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def set_fixed_tendon_rest_length(
@@ -3359,12 +3239,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_rest_length_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_rest_length' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_rest_length_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_rest_length", "set_fixed_tendon_rest_length_index")
         self.set_fixed_tendon_rest_length_index(
             rest_length=rest_length, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids
         )
@@ -3376,12 +3251,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_fixed_tendon_offset_index`."""
-        warnings.warn(
-            "The function 'set_fixed_tendon_offset' will be deprecated in a future release. Please"
-            " use 'set_fixed_tendon_offset_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_fixed_tendon_offset", "set_fixed_tendon_offset_index")
         self.set_fixed_tendon_offset_index(offset=offset, fixed_tendon_ids=fixed_tendon_ids, env_ids=env_ids)
 
     def write_fixed_tendon_properties_to_sim(
@@ -3390,12 +3260,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_fixed_tendon_properties_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_fixed_tendon_properties_to_sim' will be deprecated in a future release. Please"
-            " use 'write_fixed_tendon_properties_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_fixed_tendon_properties_to_sim", "write_fixed_tendon_properties_to_sim_index")
         # Removing the fixed tendon ids argument as it is not used.
         self.write_fixed_tendon_properties_to_sim_index(env_ids=env_ids)
 
@@ -3406,12 +3271,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_spatial_tendon_stiffness_index`."""
-        warnings.warn(
-            "The function 'set_spatial_tendon_stiffness' will be deprecated in a future release. Please"
-            " use 'set_spatial_tendon_stiffness_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_spatial_tendon_stiffness", "set_spatial_tendon_stiffness_index")
         self.set_spatial_tendon_stiffness_index(
             stiffness=stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
         )
@@ -3423,12 +3283,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_spatial_tendon_damping_index`."""
-        warnings.warn(
-            "The function 'set_spatial_tendon_damping' will be deprecated in a future release. Please"
-            " use 'set_spatial_tendon_damping_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_spatial_tendon_damping", "set_spatial_tendon_damping_index")
         self.set_spatial_tendon_damping_index(damping=damping, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
 
     def set_spatial_tendon_limit_stiffness(
@@ -3438,12 +3293,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_spatial_tendon_limit_stiffness_index`."""
-        warnings.warn(
-            "The function 'set_spatial_tendon_limit_stiffness' will be deprecated in a future release. Please"
-            " use 'set_spatial_tendon_limit_stiffness_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_spatial_tendon_limit_stiffness", "set_spatial_tendon_limit_stiffness_index")
         self.set_spatial_tendon_limit_stiffness_index(
             limit_stiffness=limit_stiffness, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids
         )
@@ -3455,12 +3305,7 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`set_spatial_tendon_offset_index`."""
-        warnings.warn(
-            "The function 'set_spatial_tendon_offset' will be deprecated in a future release. Please"
-            " use 'set_spatial_tendon_offset_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("set_spatial_tendon_offset", "set_spatial_tendon_offset_index")
         self.set_spatial_tendon_offset_index(offset=offset, spatial_tendon_ids=spatial_tendon_ids, env_ids=env_ids)
 
     def write_spatial_tendon_properties_to_sim(
@@ -3469,11 +3314,6 @@ class BaseArticulation(AssetBase):
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
     ) -> None:
         """Deprecated, same as :meth:`write_spatial_tendon_properties_to_sim_index`."""
-        warnings.warn(
-            "The function 'write_spatial_tendon_properties_to_sim' will be deprecated in a future release. Please"
-            " use 'write_spatial_tendon_properties_to_sim_index' instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
+        warn_renamed_function("write_spatial_tendon_properties_to_sim", "write_spatial_tendon_properties_to_sim_index")
         # Removing the spatial tendon ids argument as it is not used.
         self.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
