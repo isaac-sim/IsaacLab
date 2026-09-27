@@ -15,6 +15,7 @@ import torch
 import warp as wp
 
 from isaaclab.test.utils import test_devices
+from isaaclab.utils import IndexSequence
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -670,15 +671,23 @@ def test_add_forces_mask(device: str):
 # ============================================================================
 
 
-@pytest.mark.parametrize("env_dtype", [torch.int32, torch.int64])
-@pytest.mark.parametrize("body_dtype", [torch.int32, torch.int64])
+@pytest.mark.parametrize(
+    "env_dtype,body_dtype",
+    [
+        (torch.int32, torch.int32),
+        (torch.int32, torch.int64),
+        (torch.int64, torch.int32),
+        (torch.int64, torch.int64),
+        (torch.int32, "sequence"),
+    ],
+)
 def test_index_dtype_combinations_preserve_selected_wrench_cells(
-    env_dtype: torch.dtype, body_dtype: torch.dtype
+    env_dtype: torch.dtype, body_dtype: torch.dtype | str
 ) -> None:
     """Set, add, and reset selected cells with either index width."""
     composer = WrenchComposer(create_mock_asset(num_envs=3, num_bodies=3, device="cpu"))
     env_ids = torch.tensor([2, 0], dtype=env_dtype)
-    body_ids = torch.tensor([1, 2], dtype=body_dtype)
+    body_ids = IndexSequence([1, 2], "cpu") if body_dtype == "sequence" else torch.tensor([1, 2], dtype=body_dtype)
     reset_env_ids = env_ids[:1]
     set_forces_np = np.arange(1, 13, dtype=np.float32).reshape(2, 2, 3)
     set_torques_np = set_forces_np + 20.0

@@ -15,6 +15,8 @@ import numpy as np
 import torch
 import warp as wp
 
+from .index_sequence import IndexSequence
+
 TensorData = Union[np.ndarray, torch.Tensor, wp.array]  # noqa: UP007
 """Type definition for a tensor data.
 
@@ -67,7 +69,7 @@ def index_fill_(
         selection[dim] = indices
         data[tuple(selection)].fill_(value)
     else:
-        indices = torch.as_tensor(indices, device=data.device)
+        indices = torch.as_tensor(indices.torch if isinstance(indices, IndexSequence) else indices, device=data.device)
         if indices.dtype == torch.bool:
             shape = [1] * data.ndim
             shape[dim] = -1
@@ -95,7 +97,8 @@ def convert_to_torch(
         signed integer arrays. This is done by casting the array to the corresponding signed integer type.
 
     Args:
-        array: The input array. It can be a numpy array, warp array, python list/tuple, or torch tensor.
+        array: The input array. It can be a numpy array, warp array, Python list/tuple,
+            :class:`IndexSequence`, or torch tensor. Index sequences reuse their cached tensor.
         dtype: Target data-type for the tensor.
         device: The target device for the tensor. Defaults to None.
 
@@ -105,6 +108,8 @@ def convert_to_torch(
     # Convert array to tensor
     # if the datatype is not currently supported by torch we need to improvise
     # supported types are: https://pytorch.org/docs/stable/tensors.html
+    if isinstance(array, IndexSequence):
+        array = array.torch
     if isinstance(array, torch.Tensor):
         tensor = array
     elif isinstance(array, np.ndarray):

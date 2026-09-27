@@ -11,6 +11,8 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
+from ..index_sequence import IndexSequence
+
 ##
 # Mask resolution - ids/mask to warp boolean mask.
 ##
@@ -84,6 +86,8 @@ def resolve_1d_mask(
         return scratch_mask
 
     # --- Normalize to concrete type ---
+    if isinstance(ids, IndexSequence):
+        ids = ids.torch
     if not isinstance(ids, (torch.Tensor, wp.array)):
         ids = list(ids)
 

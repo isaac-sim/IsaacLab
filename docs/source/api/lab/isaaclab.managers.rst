@@ -38,6 +38,42 @@ Scene Entity
     :members:
     :exclude-members: __init__
 
+Resolved selections
+~~~~~~~~~~~~~~~~~~~
+
+``SceneEntityCfg.resolve(scene)`` creates an :class:`~isaaclab.utils.IndexSequence`
+for each non-slice joint, body, fixed-tendon, and object-collection selection. The
+sequence owns host integers and a cached ``torch.long`` tensor on the scene device.
+Managers resolve their copies of term configurations before calling the terms.
+
+.. code-block:: python
+
+    cfg = SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])
+    cfg.resolve(env.scene)
+    positions = env.scene["robot"].data.body_pos_w.torch[:, cfg.body_ids]
+    first_body = cfg.body_ids[0]  # Python int; no device readback
+    body_names = [env.scene["robot"].body_names[i] for i in cfg.body_ids]
+
+Torch indexing and Torch functions unwrap the sequence through ``__torch_function__``.
+Python iteration, scalar indexing, comparison with lists, and ``len`` use host data.
+Slices remain slices, preserving ordinary tensor view semantics.
+
+Migration: resolved selectors are read-only sequences rather than mutable lists.
+Use ``list(cfg.body_ids)`` when an editable host copy is needed, and replace the
+selection and call ``resolve`` again after configuration changes. Replace checks
+for ``list`` with checks for ``collections.abc.Sequence`` or explicit slice checks.
+
+Tensor constructors do not dispatch through ``__torch_function__``. Use
+``cfg.body_ids.torch`` for a non-slice selector, or
+``isaaclab.utils.convert_to_torch(cfg.body_ids)`` when a tensor is required.
+Do not mutate the cached tensor. Slicing the sequence itself returns a host list;
+use ``cfg.body_ids.torch[1:]`` to obtain a device view.
+
+Configuration serialization writes ordinary host lists and slices. Read-only
+selections can share their storage across configuration copies; re-resolution on
+another device creates new storage. Device caches have no process-wide owner.
+Native APIs and compiled consumers may need the explicit ``.torch`` view.
+
 Manager Base
 ------------
 

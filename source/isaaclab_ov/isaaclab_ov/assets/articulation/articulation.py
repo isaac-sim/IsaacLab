@@ -30,6 +30,7 @@ from isaaclab.assets.articulation.ordering_resolvers import (
     _canonical_joint_dof_name,
 )
 from isaaclab.physics import PhysicsManager
+from isaaclab.utils import IndexSequence
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
@@ -4378,6 +4379,8 @@ class Articulation(BaseArticulation):
             return self._ALL_INDICES
         if isinstance(env_ids, slice):
             return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
+        if isinstance(env_ids, IndexSequence):
+            env_ids = env_ids.torch
         if isinstance(env_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):
@@ -4390,6 +4393,8 @@ class Articulation(BaseArticulation):
 
     def _resolve_body_ids(self, body_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve body indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(body_ids, IndexSequence):
+            body_ids = body_ids.torch
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if body_ids is None or body_ids == slice(None):
@@ -4404,6 +4409,8 @@ class Articulation(BaseArticulation):
 
     def _resolve_joint_ids(self, joint_ids: Sequence[int] | torch.Tensor | wp.array | None) -> wp.array | torch.Tensor:
         """Resolve joint indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(joint_ids, IndexSequence):
+            joint_ids = joint_ids.torch
         if isinstance(joint_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if joint_ids is None or joint_ids == slice(None):
@@ -4420,6 +4427,8 @@ class Articulation(BaseArticulation):
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve fixed-tendon indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(tendon_ids, IndexSequence):
+            tendon_ids = tendon_ids.torch
         if isinstance(tendon_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if tendon_ids is None or tendon_ids == slice(None):
@@ -4436,6 +4445,8 @@ class Articulation(BaseArticulation):
         self, tendon_ids: Sequence[int] | torch.Tensor | wp.array | None
     ) -> wp.array | torch.Tensor:
         """Resolve spatial-tendon indices to a Warp signed-integer array on ``self._device``."""
+        if isinstance(tendon_ids, IndexSequence):
+            tendon_ids = tendon_ids.torch
         if isinstance(tendon_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if tendon_ids is None or tendon_ids == slice(None):

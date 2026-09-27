@@ -16,6 +16,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.utils import convert_to_torch
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
@@ -59,8 +60,8 @@ class body_state_b(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         body_ids = cfg.params["body_asset_cfg"].body_ids
-        if isinstance(body_ids, list):
-            body_ids = torch.tensor(body_ids, dtype=torch.long, device=env.device)
+        if not isinstance(body_ids, slice):
+            body_ids = convert_to_torch(body_ids, dtype=torch.long, device=env.device)
         self._body_ids = body_ids
 
     def __call__(

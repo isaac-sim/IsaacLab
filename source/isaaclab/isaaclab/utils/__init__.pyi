@@ -10,6 +10,7 @@ __all__ = [
     "TENSOR_TYPE_CONVERSIONS",
     "convert_to_torch",
     "index_fill_",
+    "IndexSequence",
     "CircularBuffer",
     "DelayBuffer",
     "TimestampedBuffer",
@@ -58,6 +59,7 @@ __all__ = [
     "checked_apply",
 ]
 
+from .index_sequence import IndexSequence
 from .timer import Timer
 from .array import TensorData, TENSOR_TYPES, TENSOR_TYPE_CONVERSIONS, convert_to_torch, index_fill_
 from .buffers import CircularBuffer, DelayBuffer, TimestampedBuffer

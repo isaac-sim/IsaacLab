@@ -24,6 +24,7 @@ from isaaclab.actuators import ActuatorCollection
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils import IndexSequence
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 from isaaclab.utils.warp import ProxyArray
@@ -4459,6 +4460,8 @@ class Articulation(BaseArticulation):
             return self._ALL_INDICES
         if isinstance(env_ids, slice):
             return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
+        if isinstance(env_ids, IndexSequence):
+            env_ids = env_ids.torch
         if isinstance(env_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):
@@ -4494,6 +4497,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of joint indices or a tensor of joint indices.
         """
+        if isinstance(joint_ids, IndexSequence):
+            joint_ids = joint_ids.torch
         if isinstance(joint_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(joint_ids, list):
@@ -4528,6 +4533,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of body indices or a tensor of body indices.
         """
+        if isinstance(body_ids, IndexSequence):
+            body_ids = body_ids.torch
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):
@@ -4564,6 +4571,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of tendon indices or a tensor of tendon indices.
         """
+        if isinstance(tendon_ids, IndexSequence):
+            tendon_ids = tendon_ids.torch
         if isinstance(tendon_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(tendon_ids, list):
@@ -4600,6 +4609,8 @@ class Articulation(BaseArticulation):
         Returns:
             A warp array of spatial tendon indices or a tensor of spatial tendon indices.
         """
+        if isinstance(spatial_tendon_ids, IndexSequence):
+            spatial_tendon_ids = spatial_tendon_ids.torch
         if isinstance(spatial_tendon_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(spatial_tendon_ids, list):

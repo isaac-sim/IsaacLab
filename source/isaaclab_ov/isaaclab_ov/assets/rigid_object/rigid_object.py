@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 from isaaclab.assets.rigid_object.base_rigid_object import BaseRigidObject
 from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
 from isaaclab.sim.utils.queries import path_expr_to_glob, resolve_matching_prims_from_source
+from isaaclab.utils import IndexSequence
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
@@ -1107,6 +1108,8 @@ class RigidObject(BaseRigidObject):
         Returns:
             Body indices.
         """
+        if isinstance(body_ids, IndexSequence):
+            body_ids = body_ids.torch
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if body_ids is None or body_ids == slice(None):

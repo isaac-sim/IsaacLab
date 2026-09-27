@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
+from ..utils.index_sequence import IndexSequence
 from ..utils.warp import ProxyArray
 from .actuator_base_cfg import ActuatorBaseCfg
 
@@ -59,6 +60,8 @@ class ActuatorControl(ABC):
         indices: Sequence[int] | slice | torch.Tensor | wp.array | None,
     ) -> list[int] | slice | torch.Tensor | wp.array | None:
         """Convert non-list integer sequences to the backend's list convention."""
+        if isinstance(indices, IndexSequence):
+            return indices.torch
         if isinstance(indices, Sequence) and not isinstance(indices, list):
             return list(indices)
         return indices

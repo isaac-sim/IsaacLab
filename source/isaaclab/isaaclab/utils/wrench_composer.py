@@ -13,6 +13,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from .index_sequence import IndexSequence
 from .warp import ProxyArray
 from .warp.kernels import (
     add_forces_to_dual_buffers_index_kernel,
@@ -754,6 +755,8 @@ class WrenchComposer:
         """
         if body_ids is None:
             return self._ALL_BODY_INDICES
+        if isinstance(body_ids, IndexSequence):
+            return body_ids.torch
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, torch.Tensor):

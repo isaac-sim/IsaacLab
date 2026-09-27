@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.utils import IndexSequence
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -1320,6 +1321,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
     def _resolve_body_ids(self, body_ids) -> wp.array | torch.Tensor:
         """Resolve body indices."""
+        if isinstance(body_ids, IndexSequence):
+            body_ids = body_ids.torch
         if isinstance(body_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(body_ids, list):

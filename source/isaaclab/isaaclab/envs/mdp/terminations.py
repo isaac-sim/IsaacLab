@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from ...managers import ManagerTermBase, SceneEntityCfg, TerminationTermCfg
+from ...utils import convert_to_torch
 
 if TYPE_CHECKING:
     from ...assets import Articulation, RigidObject
@@ -131,8 +132,8 @@ class joint_vel_out_of_limit(ManagerTermBase):
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
         self._asset: Articulation = env.scene[asset_cfg.name]
         joint_ids = asset_cfg.joint_ids
-        if isinstance(joint_ids, list):
-            joint_ids = torch.tensor(joint_ids, dtype=torch.long, device=env.device)
+        if not isinstance(joint_ids, slice):
+            joint_ids = convert_to_torch(joint_ids, dtype=torch.long, device=env.device)
         self._joint_ids = joint_ids
 
     def __call__(self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")) -> torch.Tensor:
