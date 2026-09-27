@@ -17,6 +17,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -149,9 +150,9 @@ class UniformVelocityCommand(CommandTerm):
         # / wandb card across tasks); pop it from the returned dict so CommandManager does
         # not additionally log it under ``Metrics/<term_name>/success_rate``.
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = extras.pop("success_rate")
-        self._error_xy_sum[env_ids] = 0.0
-        self._error_yaw_sum[env_ids] = 0.0
-        self._step_count[env_ids] = 0.0
+        index_fill_(self._error_xy_sum, env_ids, 0.0)
+        index_fill_(self._error_yaw_sum, env_ids, 0.0)
+        index_fill_(self._step_count, env_ids, 0.0)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):
@@ -192,9 +193,7 @@ class UniformVelocityCommand(CommandTerm):
                 max=self.cfg.ranges.ang_vel_z[1],
             )
         # Enforce standing (i.e., zero velocity command) for standing envs
-        # TODO: check if conversion is needed
-        standing_env_ids = self.is_standing_env.nonzero(as_tuple=False).flatten()
-        self.vel_command_b[standing_env_ids, :] = 0.0
+        index_fill_(self.vel_command_b, self.is_standing_env, 0.0)
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers
@@ -328,14 +327,9 @@ class NormalVelocityCommand(UniformVelocityCommand):
     def _update_command(self):
         """Sets velocity command to zero for standing envs."""
         # Enforce standing (i.e., zero velocity command) for standing envs
-        standing_env_ids = self.is_standing_env.nonzero(as_tuple=False).flatten()  # TODO check if conversion is needed
-        self.vel_command_b[standing_env_ids, :] = 0.0
+        index_fill_(self.vel_command_b, self.is_standing_env, 0.0)
 
         # Enforce zero velocity for individual elements
-        # TODO: check if conversion is needed
-        zero_vel_x_env_ids = self.is_zero_vel_x_env.nonzero(as_tuple=False).flatten()
-        zero_vel_y_env_ids = self.is_zero_vel_y_env.nonzero(as_tuple=False).flatten()
-        zero_vel_yaw_env_ids = self.is_zero_vel_yaw_env.nonzero(as_tuple=False).flatten()
-        self.vel_command_b[zero_vel_x_env_ids, 0] = 0.0
-        self.vel_command_b[zero_vel_y_env_ids, 1] = 0.0
-        self.vel_command_b[zero_vel_yaw_env_ids, 2] = 0.0
+        index_fill_(self.vel_command_b[:, 0], self.is_zero_vel_x_env, 0.0)
+        index_fill_(self.vel_command_b[:, 1], self.is_zero_vel_y_env, 0.0)
+        index_fill_(self.vel_command_b[:, 2], self.is_zero_vel_yaw_env, 0.0)

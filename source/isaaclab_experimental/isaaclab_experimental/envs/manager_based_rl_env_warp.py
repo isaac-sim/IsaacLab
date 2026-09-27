@@ -26,6 +26,7 @@ import warp as wp
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.managers import CommandManager
+from isaaclab.utils import index_fill_
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
@@ -608,7 +609,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         recorder_info = self.recorder_manager.reset(env_ids=env_ids)
 
         # reset the episode length buffer
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
         # aggregate logging info
         log: dict[str, Any] = {}

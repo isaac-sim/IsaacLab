@@ -11,6 +11,8 @@ from typing import Any
 import torch
 import warp as wp
 
+from ...utils import index_fill_
+
 # ---------------------------------------------------------------------------
 # Adapter / per-actuator helper kernels: per-DOF zeroing, env-mask building,
 # and per-DOF env-mask projection (used by :meth:`NewtonActuatorAdapter.reset`).
@@ -137,8 +139,5 @@ def build_implicit_dof_mask(
     """
     modes = torch.zeros(num_joints, dtype=torch.int32, device=device)
     for j_ids in implicit_joint_indices:
-        if isinstance(j_ids, slice) or j_ids is None:
-            modes[:] = 1
-        else:
-            modes[j_ids.long()] = 1
+        index_fill_(modes, None if isinstance(j_ids, slice) else j_ids, 1)
     return wp.from_torch(modes, dtype=wp.int32), modes
