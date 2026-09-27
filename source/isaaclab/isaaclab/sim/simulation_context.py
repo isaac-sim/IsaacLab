@@ -968,38 +968,6 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def register_backend(self, cfg: BackendCfg, backend: Any) -> None:
-        """Take ownership of a completed native resource, without constructing or initializing it.
-
-        Args:
-            cfg: Declarative resource identity. Treat it as read-only after registration.
-            backend: Constructed resource implementing ``close()``.
-
-        Raises:
-            ValueError: The configuration or resource is already registered.
-        """
-        for registered_cfg, resource in self._backend_registry:
-            if resource is backend or (type(registered_cfg) is type(cfg) and registered_cfg == cfg):
-                raise ValueError(f"A backend is already registered for {type(cfg).__name__}.")
-        self._backend_registry.append((cfg, backend))
-
-    def get_backend(self, cfg: BackendCfg) -> Any:
-        """Acquire a resource that construction has already registered.
-
-        Args:
-            cfg: Declarative resource identity.
-
-        Returns:
-            The registered resource; this method never constructs a backend.
-
-        Raises:
-            KeyError: Construction has not registered a matching resource.
-        """
-        for registered_cfg, resource in self._backend_registry:
-            if type(registered_cfg) is type(cfg) and registered_cfg == cfg:
-                return resource
-        raise KeyError(f"No backend is registered for {type(cfg).__name__}.")
-
     def get_or_create_backend(self, cfg: BackendCfg) -> Any:
         """Return the simulation-owned resource or renderer for a configuration.
 
@@ -1018,13 +986,13 @@ class SimulationContext:
         if isinstance(cfg, RendererCfg):
             self._render_context.validate_renderer_cfg(cfg)
         resource = cfg.class_type(cfg)
-        self.register_backend(cfg, resource)
+        self._backend_registry.append((cfg, resource))
         if isinstance(cfg, RendererCfg):
             self._render_context.register_renderer(cfg, resource)
         return resource
 
     def close_backend(self, backend: Any) -> None:
-        """Close one registered resource by object identity after all consumers release their bindings.
+        """Release one registered resource by identity, calling ``close()`` when the object provides it.
 
         A failed release retains the registry entry so teardown can be retried.
 
@@ -1036,7 +1004,8 @@ class SimulationContext:
         """
         for index, (cfg, resource) in enumerate(self._backend_registry):
             if resource is backend:
-                resource.close()
+                if (close := getattr(resource, "close", None)) is not None:
+                    close()
                 self._backend_registry.pop(index)
                 if isinstance(cfg, RendererCfg):
                     self._render_context._prepared_renderer_ids.discard(id(resource))
@@ -1075,8 +1044,8 @@ class SimulationContext:
 
                 instance.clone_contexts.clear()
                 for cfg, resource in instance._backend_registry:
-                    if not isinstance(cfg, RendererCfg):
-                        run_cleanup(resource.close)
+                    if not isinstance(cfg, RendererCfg) and (close := getattr(resource, "close", None)) is not None:
+                        run_cleanup(close)
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

@@ -11,8 +11,7 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
-from isaaclab_newton.physics.newton_manager import NewtonBackend
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
 from newton import ModelBuilder
 
 from isaaclab.sim import SimulationContext
@@ -31,8 +30,8 @@ from isaaclab.sim import SimulationContext
         ),
     ],
 )
-def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, simulation):
-    """Construction applies physics settings before state allocation, then registers the completed resource."""
+def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg, expected, simulation):
+    """Cfg-keyed construction shares the builder and applies physics settings before state allocation."""
     state_values = []
 
     class Model:
@@ -41,9 +40,6 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
         soft_contact_mu = 9.0
         world_count = 0
         articulation_count = 0
-
-        def set_gravity(self, gravity):
-            pass
 
         def state(self):
             state_values.append((self.soft_contact_ke, self.soft_contact_kd, self.soft_contact_mu))
@@ -62,14 +58,16 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
     model = Model()
     builder = Builder()
     physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else None
-    cfg = NewtonBackendCfg(physics_cfg=physics_cfg)
+    builder_cfg = NewtonBuilderCfg(class_type=lambda cfg: builder, physics_cfg=physics_cfg)
+    cfg = NewtonBackendCfg(builder_cfg=builder_cfg, device="cpu")
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
-    backend = NewtonBackend(cfg, builder=builder, device="cpu")
-    sim.register_backend(cfg, backend)
-    assert all(name not in vars(NewtonManager) for name in ("_backend", "_model", "_state_0", "_state_1", "_control"))
-    assert cfg.physics_cfg is physics_cfg
-    assert backend is sim.get_backend(cfg.replace())
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    backend = sim.get_or_create_backend(cfg)
+    assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
+    assert cfg.builder_cfg.physics_cfg is physics_cfg
+    assert backend is sim.get_or_create_backend(cfg.replace())
+    assert builder is sim.get_or_create_backend(builder_cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
     assert state_values == [expected] * (2 if simulation else 1)
     assert (backend.state_1 is not None) == simulation
@@ -78,8 +76,8 @@ def test_soft_contact_cfg_updates_finalized_model(soft_contact_cfg, expected, si
     assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
 
 
-def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
-    """VBD colors a prebuilt builder before starting simulation."""
+def test_vbd_colors_builder_before_finalization():
+    """VBD colors the completed builder in the existing pre-finalization hook."""
     physics = importlib.import_module("isaaclab_newton.physics")
     events = []
 
@@ -87,12 +85,8 @@ def test_vbd_colors_prebuilt_builder_before_start(monkeypatch):
         def color(self, *, balance_colors):
             events.append(("color", balance_colors))
 
-    monkeypatch.setattr(physics.NewtonVBDManager, "_builder", Builder())
-    monkeypatch.setattr(NewtonManager, "start_simulation", classmethod(lambda cls: events.append("start")))
-
-    physics.NewtonVBDManager.start_simulation()
-
-    assert events == [("color", False), "start"]
+    physics.NewtonVBDManager._prepare_builder_for_finalize(Builder())
+    assert events == [("color", False)]
 
 
 def test_vbd_solver_force_input_capability(monkeypatch):

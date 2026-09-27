@@ -11,8 +11,9 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Literal
+from typing import Any, Literal
 
 from ..physics import PhysicsCfg
 from ..utils import configclass
@@ -27,8 +28,8 @@ class BackendCfg:
     Finalize all fields before registration and treat them as read-only afterward.
     """
 
-    class_type: type = MISSING
-    """Resource class; must implement ``close()``. Directly constructible resources use ``class_type(cfg)``."""
+    class_type: Callable[[BackendCfg], Any] = MISSING
+    """Constructor called as ``class_type(cfg)``. Returned objects may provide ``close()`` for native cleanup."""
 
 
 @configclass

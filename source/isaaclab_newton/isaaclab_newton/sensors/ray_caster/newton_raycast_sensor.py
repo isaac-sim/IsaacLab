@@ -20,7 +20,7 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
+from isaaclab_newton.physics import NewtonManager, resolve_newton_backend_cfg
 from isaaclab_newton.sim.queries import run_query
 
 from .newton_raycast_sensor_cfg import NewtonRaycastSensorCfg
@@ -99,7 +99,7 @@ class _NewtonRayCasterPoseMixin:
         super().__init__(cfg)  # pyright: ignore[reportCallIssue]
         self._sensor_site_labels = self._register_sites_for_expr(self.cfg.prim_path)
         sim = sim_utils.SimulationContext.instance()
-        self.newton_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics)
+        self.newton_cfg = resolve_newton_backend_cfg(None, sim.cfg)
 
     def _register_sites_for_expr(self, prim_expr: str) -> list[str]:
         """Register Newton sites for a prim expression."""
@@ -130,7 +130,7 @@ class _NewtonRayCasterPoseMixin:
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         sim = sim_utils.SimulationContext.instance()
-        self.backend = sim.get_backend(self.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)

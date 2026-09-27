@@ -642,7 +642,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
-    sim = SimpleNamespace(get_backend=Mock(return_value=backend))
+    sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
 
     viewer = _Viewer()
@@ -652,7 +652,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     viewer.set_visible_worlds = Mock()
     viewer.set_world_offsets = Mock()
     visualizer = _make_newton_visualizer(viewer)
-    cfg = visualizer.newton_cfg = NewtonBackendCfg()
+    cfg = visualizer.newton_cfg = NewtonBackendCfg(device="cpu")
     visualizer._resolved_visible_env_ids = [1, 3]
     visualizer._picking_enabled = picking
     visualizer.cfg.world_spacing = (2.0, 0.0, 0.0)
@@ -662,7 +662,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     visualizer.reset(soft=False)
 
     assert visualizer.backend is backend
-    sim.get_backend.assert_called_with(cfg)
+    sim.get_or_create_backend.assert_called_with(cfg)
     viewer.set_model.assert_called_once_with(new_model)
     viewer._register_isaaclab_ui_callbacks.assert_called_once_with()
     viewer.set_visible_worlds.assert_called_once_with([1, 3])

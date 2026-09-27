@@ -416,8 +416,8 @@ class ViserVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
-        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg.physics)
-        self.backend = sim.get_backend(self.newton_cfg)
+        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         self._active_record_path = self.cfg.record_to_viser
@@ -673,7 +673,7 @@ class ViserVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_backend(self.newton_cfg)
+        backend = sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

@@ -5,5 +5,5 @@ Changed
   physics manager. Viewers requested transforms and geometry directly through SDP; headless GL
   and RTX captures requested current arrays only when a frame was requested.
 * Rebound GL, RTX, Rerun, and Viser resources after hard resets, including when picking was disabled.
-* Shared declarative ``newton_cfg`` inputs with streaming-camera renderers; initialization looked up
-  the completed model without cfg notifications or model construction.
+* Shared declarative ``newton_cfg`` inputs with streaming-camera renderers; initialization acquired
+  the clone-built model through ``get_or_create_backend(cfg)`` without cfg notifications.

@@ -475,7 +475,7 @@ class NewtonWarpRenderer(BaseRenderer):
         self._seg_mapper: NewtonSegmentationMapper | None = None
 
         sim = SimulationContext.instance()
-        self.newton_cfg = resolve_newton_backend_cfg(cfg.newton_cfg, sim.cfg.physics)
+        self.newton_cfg = resolve_newton_backend_cfg(cfg.newton_cfg, sim.cfg)
         requires_stage, requires_model = REQUIRES_STAGE_AND_MODEL["newton_warp"]
         sim.requires_usd_stage |= requires_stage
         sim.requires_newton_model |= requires_model
@@ -483,7 +483,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
         sim = SimulationContext.instance()
-        self.backend = sim.get_backend(self.newton_cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 

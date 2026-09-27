@@ -53,7 +53,14 @@ from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
-from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg, NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
+from isaaclab_newton.physics.newton_manager_cfg import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
+    NewtonCfg,
+    NewtonShapeCfg,
+    NewtonSolverCfg,
+    resolve_newton_backend_cfg,
+)
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
@@ -143,23 +150,27 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
     world_mask[env_ids[wp.tid()]] = True
 
 
+def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
+    """Construct a native builder through the selected physics manager's factory.
+
+    Args:
+        cfg: Physics settings, or a render-only builder declaration.
+
+    Returns:
+        An empty builder with the selected solver schemas and shape/BVH defaults.
+    """
+    if cfg.physics_cfg is None:
+        return ModelBuilder()
+    return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+
+
 class NewtonBackend:
     """Own one finalized Newton model and its native state and control buffers."""
 
-    def __init__(
-        self,
-        cfg: NewtonBackendCfg,
-        *,
-        builder: ModelBuilder,
-        device: str,
-        particle_ranges: dict[str, tuple[int, int]] | None = None,
-        geometry_offsets: dict[str, int] | None = None,
-        num_envs: int | None = None,
-        gravity: tuple[float, float, float] | None = None,
-        contact_attributes: tuple[str, ...] = (),
-    ):
-        self.model = builder.finalize(device=device)
-        self.particle_ranges = {} if particle_ranges is None else particle_ranges
+    def __init__(self, cfg: NewtonBackendCfg):
+        builder = SimulationContext.instance().get_or_create_backend(cfg.builder_cfg)
+        self.model = builder.finalize(device=cfg.device)
+        self.particle_ranges: dict[str, tuple[int, int]] = {}
         # Newton 1.6 preserves groups through builder replication but not finalization.
         # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
         self.deformable_ranges = {
@@ -172,20 +183,17 @@ class NewtonBackend:
                 strict=True,
             )
         }
-        self.model.num_envs = self.model.world_count if num_envs is None else num_envs
-        if gravity is not None:
-            self.model.set_gravity(gravity)
-        soft_contact = None if cfg.physics_cfg is None else cfg.physics_cfg.soft_contact_cfg
+        self.model.num_envs = self.model.world_count
+        physics_cfg = cfg.builder_cfg.physics_cfg
+        soft_contact = None if physics_cfg is None else physics_cfg.soft_contact_cfg
         if soft_contact is not None:
             self.model.soft_contact_ke = float(soft_contact.soft_contact_ke)
             self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
             self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
-        if contact_attributes:
-            self.model.request_contact_attributes(*contact_attributes)
         self.state_0 = self.model.state()
-        self.state_1 = self.model.state() if cfg.physics_cfg is not None else None
-        self.control = self.model.control() if cfg.physics_cfg is not None else None
-        self.geometry_offsets = {} if geometry_offsets is None else geometry_offsets
+        self.state_1 = self.model.state() if physics_cfg is not None else None
+        self.control = self.model.control() if physics_cfg is not None else None
+        self.geometry_offsets: dict[str, int] = {}
         self.bvh_refit = TimestampedBuffer()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
@@ -350,7 +358,6 @@ class NewtonManager(PhysicsManager):
     """Whether the solver consumes applied rigid-body forces from :class:`State`."""
 
     # Native ownership and physics orchestration
-    _builder: ModelBuilder = None
     backend: ClassVar[NewtonBackend | None] = None
     """Borrowed native resource shared by physics and scene consumers; the simulation registry owns it."""
     _solver: SolverBase | None = None
@@ -710,7 +717,6 @@ class NewtonManager(PhysicsManager):
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
         NewtonManager._num_envs = None
-        NewtonManager._builder = None
         NewtonManager._solver = None
         NewtonManager._use_single_state = None
         NewtonManager._supports_rigid_body_force_input = False
@@ -767,13 +773,9 @@ class NewtonManager(PhysicsManager):
             NewtonManager.backend = None
 
     @classmethod
-    def set_builder(cls, builder: ModelBuilder, *, particle_ranges: dict[str, tuple[int, int]] | None = None) -> None:
-        """Set the Newton model builder and its imported point-to-particle ranges."""
-        NewtonManager._builder = builder
-        NewtonManager._particle_ranges = {} if particle_ranges is None else particle_ranges
-
-    @classmethod
-    def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+    def create_builder(
+        cls, up_axis: str | None = None, *, physics_cfg: NewtonCfg | None = None, **kwargs
+    ) -> ModelBuilder:
         """Create a :class:`ModelBuilder` configured with default settings.
 
         Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
@@ -784,6 +786,7 @@ class NewtonManager(PhysicsManager):
         Args:
             up_axis: Override for the up-axis. Defaults to ``None``, which uses
                 the manager's ``_up_axis``.
+            physics_cfg: Explicit builder settings; None uses the active physics configuration.
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
@@ -792,7 +795,7 @@ class NewtonManager(PhysicsManager):
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
         # contexts (tests, early construction) still get the rough-terrain margin.
-        cfg = PhysicsManager._cfg
+        cfg = PhysicsManager._cfg if physics_cfg is None else physics_cfg
 
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
@@ -1099,45 +1102,38 @@ class NewtonManager(PhysicsManager):
         This function finalizes the model and initializes the simulation state.
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
-
-        Raises:
-            RuntimeError: If neither clone-plan replication nor :meth:`set_builder` supplied a builder.
         """
-        logger.debug(f"Builder: {cls._builder}")
-        if cls._builder is None:
-            raise RuntimeError(
-                "Newton simulation requires an explicitly supplied builder. Replicate a ClonePlan or call"
-                " NewtonManager.set_builder() before starting the simulation."
-            )
-
+        sim = SimulationContext.instance()
+        cfg = resolve_newton_backend_cfg(None, sim.cfg)
+        builder = sim.get_or_create_backend(cfg.builder_cfg)
         cls._drain_stale_cuda_error()
-        cls._register_builder_attributes(cls._builder)
 
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
         # Explicit builders and MODEL_INIT callbacks use the same site import as clone prototypes.
         if cls._cl_pending_sites:
-            global_sites, body_sites, world_sites = cls._cl_inject_sites(cls._builder, {})
+            global_sites, body_sites, world_sites = cls._cl_inject_sites(builder, {})
             cls._cl_site_index_map.update((label, (index, None)) for label, index in global_sites.items())
             cls._cl_site_index_map.update(
-                (label, (None, [indices])) for label, indices in body_sites.get(id(cls._builder), {}).items()
+                (label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items()
             )
             for label, xform in world_sites.items():
-                index = cls._builder.add_site(body=-1, xform=xform, label=label)
+                index = builder.add_site(body=-1, xform=xform, label=label)
                 cls._cl_site_index_map[label] = (None, [[index]])
 
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
-        cls._builder.up_axis = Axis.from_string(cls._up_axis)
+        builder.up_axis = Axis.from_string(cls._up_axis)
         # Forward pending extended attribute requests to builder and clear them. The requests are
         # retained because initialize_solver() runs afterwards and must know which sensors depend
         # on state that MuJoCo's sensor stage fills.
         if cls._pending_extended_state_attributes:
-            cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            builder.request_state_attributes(*cls._pending_extended_state_attributes)
             NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
-        cls._prepare_builder_for_finalize(cls._builder)
+        cls._prepare_builder_for_finalize(builder)
+        builder.request_contact_attributes(*sorted(cls._pending_extended_contact_attributes))
         with Timer(
             name="newton_finalize_builder",
             msg="Finalize builder took:",
@@ -1145,18 +1141,11 @@ class NewtonManager(PhysicsManager):
             synchronize="both",
             device=device,
         ):
-            cfg = NewtonBackendCfg(physics_cfg=PhysicsManager._cfg)
-            NewtonManager.backend = NewtonBackend(
-                cfg,
-                builder=cls._builder,
-                particle_ranges=cls._particle_ranges,
-                device=device,
-                num_envs=cls._num_envs,
-                gravity=cls._gravity_vector,
-                contact_attributes=tuple(sorted(cls._pending_extended_contact_attributes)),
-            )
-            sim = SimulationContext.instance()
-            sim.register_backend(cfg, NewtonManager.backend)
+            NewtonManager.backend = sim.get_or_create_backend(cfg)
+            cls.backend.particle_ranges = cls._particle_ranges
+            cls.backend.model.set_gravity(cls._gravity_vector)
+            if cls._num_envs is not None:
+                cls.backend.model.num_envs = cls._num_envs
             NewtonManager._num_envs = cls.backend.model.num_envs
         NewtonManager._pending_extended_contact_attributes = set()
         # The initial body-state update from joint coordinates is deferred to the tail of

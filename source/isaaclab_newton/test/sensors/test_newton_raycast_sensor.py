@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sensors import (
     LegacyMultiMeshRayCaster,
@@ -140,7 +140,8 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
     assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
-    assert NewtonManager._builder.default_bvh_cfg.shape_flags == expected_bvh_flags
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    assert builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)
 

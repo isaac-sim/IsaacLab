@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import warp as wp
-from newton import ModelBuilder
+from newton import Axis, ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom
 
@@ -36,8 +36,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBackendCfg, NewtonCfg, NewtonManager
-from isaaclab_newton.physics.newton_manager import NewtonBackend
+from isaaclab_newton.physics import NewtonCfg, NewtonManager, resolve_newton_backend_cfg
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 if TYPE_CHECKING:
@@ -137,7 +136,9 @@ def _replicate_newton(
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
         load_visual_shapes = sim.is_rendering or sim.can_render_rgb_array() or sim.visual_shapes_required
-    builder = create_builder()
+    backend_cfg = resolve_newton_backend_cfg(None, sim.cfg)
+    builder = sim.get_or_create_backend(backend_cfg.builder_cfg)
+    builder.up_axis = Axis.from_string(up_axis)
     import_paths = (sim.cfg.physics_prim_path, *global_paths) if simulation else global_paths
     source_paths = list(dict.fromkeys(sources[index] for index in asset_prototype_ids if sources[index] is not None))
     if simulation:
@@ -252,7 +253,7 @@ def _replicate_newton(
         NewtonManager._cl_site_index_map = site_index_map
         NewtonManager._world_xforms = world_xforms
         NewtonManager._cl_protos = source_builders
-        NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
+        NewtonManager._particle_ranges = particle_ranges
         NewtonManager._num_envs = len(env_ids)
     return builder, stage_info, site_index_map, geometry_offsets
 
@@ -275,9 +276,8 @@ class NewtonReplicateContext:
             self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options
         )
         if not isinstance(self._sim.cfg.physics, NewtonCfg):
-            cfg = NewtonBackendCfg()
-            backend = NewtonBackend(cfg, builder=builder, device=self._sim.device, geometry_offsets=offsets)
-            self._sim.register_backend(cfg, backend)
+            cfg = resolve_newton_backend_cfg(None, self._sim.cfg)
+            self._sim.get_or_create_backend(cfg).geometry_offsets = offsets
         return builder, stage_info, sites
 
 

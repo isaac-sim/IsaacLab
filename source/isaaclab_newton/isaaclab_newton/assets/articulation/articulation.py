@@ -28,6 +28,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -37,6 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
+from isaaclab_newton.physics import NewtonBuilderCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
@@ -212,8 +214,6 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         super().__init__(cfg)
 
         sim_ctx = SimulationContext.instance()
@@ -232,10 +232,10 @@ class Articulation(BaseArticulation):
         )
 
     def _configure_joint_target_modes(self, _event) -> None:
-        """Apply configured actuator modes to the private Newton model builder."""
-        builder = SimulationManager._builder
-        if builder is not None:
-            _configure_builder_joint_target_modes(builder, self.cfg)
+        """Apply configured actuator modes to the shared builder before model allocation."""
+        sim = SimulationContext.instance()
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        _configure_builder_joint_target_modes(builder, self.cfg)
 
     """
     Properties

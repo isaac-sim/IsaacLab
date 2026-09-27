@@ -1,9 +1,9 @@
 Changed
 ^^^^^^^
 
-* Added ``SimulationContext.register_backend(cfg, backend)`` for completed native resources and
-  ``get_backend(cfg)`` for lookup without construction. Consumers retained declarative configurations;
-  ``SimulationContext`` did not expose backend-specific configuration fields.
+* Extended ``SimulationContext.get_or_create_backend(cfg)`` to own Python resources as well as native
+  backends. Teardown called ``close()`` when provided and otherwise released the registry reference.
+  Resource construction remained ``cfg.class_type(cfg)`` without backend-specific context fields.
 * Reused SDP transform mappings for matching source and destination layouts, allowing independent
   consumers to share converted buffers without retaining SDP bindings on a native backend.
 * Added ``RayCasterCfg.use_cuda_graph`` for Newton query execution independently of physics capture.

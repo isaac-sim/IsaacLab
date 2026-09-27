@@ -202,9 +202,7 @@ class NewtonMPMManager(NewtonManager):
         that ``add_particles(custom_attributes=...)`` succeeds and so that
         ``builder.finalize()`` allocates the matching model arrays.
 
-        Idempotent: ``has_custom_attribute`` guards against re-registration
-        when the hook is invoked multiple times (e.g. once via
-        :meth:`create_builder` and again via :meth:`start_simulation`).
+        ``create_builder()`` registers these on each prototype and the shared builder.
         """
         if not builder.has_custom_attribute("mpm:young_modulus"):
             SolverImplicitMPM.register_custom_attributes(builder)

@@ -23,7 +23,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import SpawnerCfg
+from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
 
 
@@ -102,16 +102,17 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
 class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
-        self.sim = SimpleNamespace(
-            cfg=SimpleNamespace(physics=object()),
-            device="cpu",
-            stage=None,
-            register_backend=mock.Mock(),
-        )
+        self.sim = object.__new__(SimulationContext)
+        self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+        self.sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.stage, self.sim._backend_registry = None, []
+        patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
+        patch.start()
+        self.addCleanup(patch.stop)
 
     def tearDown(self):
-        for call in self.sim.register_backend.call_args_list:
-            call.args[1].close()
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
     @staticmethod
     def _define_xform(stage, path, translation=None):
@@ -135,12 +136,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_label, ["/World/Declared"])
         self.assertIsNone(stage_info)
         self.assertEqual(site_index_map, {})
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
         # A non-cloning sensor must not exclude the body selected from its owner's subtree.
         cfgs = AssetBaseCfg(prim_path="/World"), SensorBaseCfg(prim_path="/World/Declared")
         plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
         self.assertCountEqual(builder.body_label, ["/World/Declared", "/World/Undeclared", "/World/Excluded"])
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
         assets = (
             AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),
@@ -162,6 +167,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 np.testing.assert_allclose(source_position, np.zeros(3) if positions is None else positions[0])
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
+                for _, resource in tuple(self.sim._backend_registry):
+                    self.sim.close_backend(resource)
 
         # The same definition can also be shared and appear twice in each replicated world.
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((0, 0),), 2, shared_assets=(0,))
@@ -321,6 +328,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         quaternions = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         for positions in (np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32), None):
             with self.subTest(positions=positions):
+                for _, resource in tuple(self.sim._backend_registry):
+                    self.sim.close_backend(resource)
                 options = dict(shared_assets=(3,), env_template="/Scene/copy_{}")
                 options.update(clone_strategy=lambda _weights, _count: np.array([0, 1, 0]), positions=positions)
                 plan = make_clone_plan(assets, ((0,), (1, 1, 2)), 3, **options)

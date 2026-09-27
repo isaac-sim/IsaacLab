@@ -1110,8 +1110,8 @@ class NewtonVisualizer(BaseVisualizer):
         metadata = {"num_envs": num_envs}
         self._env_ids = self._compute_visualized_env_ids()
         self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
-        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg.physics)
-        self.backend = sim.get_backend(self.newton_cfg)
+        self.newton_cfg = resolve_newton_backend_cfg(self.cfg.newton_cfg, sim.cfg)
+        self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         runtime_headless = self.cfg.headless or (
@@ -1309,7 +1309,7 @@ class NewtonVisualizer(BaseVisualizer):
             return
 
         sim = SimulationContext.instance()
-        backend = sim.get_backend(self.newton_cfg)
+        backend = sim.get_or_create_backend(self.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

@@ -84,8 +84,9 @@ constructs ``backend_cfg.class_type(backend_cfg)``.
 registration and treat them, including nested values, as read-only afterward.
 Use a new configuration for different settings. ``close_backend(backend)`` closes
 the exact registered object after all consumers have released their bindings;
-it does not compare or hash configurations. Resources implement ``close()``;
-failed release retains the entry for retry. After physics shutdown invalidates camera
+it does not compare or hash configurations. Objects with native cleanup implement ``close()``;
+plain Python resources are released by dropping the registry reference. A failed close retains
+the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
 
@@ -97,12 +98,19 @@ Exposing native handles does not replace SDP transport.
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
 
-Clone-built resources use ``register_backend(cfg, backend)`` after construction and
-``get_backend(cfg)`` during consumer initialization. Lookup never constructs a missing resource.
-Newton's cfg contains physics settings, or ``None`` for a foreign-physics rendering representation;
-builders and geometry ranges stay construction inputs. Omitted consumer ``newton_cfg`` values
-select the active representation; explicit declarations take precedence.
-Hard resets register a replacement under the same cfg before consumers rebind.
+Newton builders use the same registry as finalized models:
+
+.. code-block:: python
+
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
+    builder = sim.get_or_create_backend(builder_cfg)
+    # Clone/import populates this builder before model allocation.
+    model_cfg = NewtonBackendCfg(builder_cfg=builder_cfg, device=sim.device)
+    backend = sim.get_or_create_backend(model_cfg)
+
+``NewtonBuilderCfg(physics_cfg=None)`` selects a foreign-physics rendering representation.
+Omitted consumer ``newton_cfg`` values select the active representation; explicit declarations
+take precedence. Hard resets close and reacquire the model under the same cfg, reusing the builder.
 ``SimulationContext`` has no backend-specific cfg fields, and consumers do not access clone contexts.
 Physics, cameras, raycasters, and viewers borrow that
 resource's model and state. Consumers request body transforms and visual points

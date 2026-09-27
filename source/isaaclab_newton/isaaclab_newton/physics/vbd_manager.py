@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from newton import Model
+from newton import Model, ModelBuilder
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
@@ -18,11 +18,9 @@ class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
 
     @classmethod
-    def start_simulation(cls) -> None:
-        """Color the prebuilt model before starting simulation."""
-        if cls._builder is not None:
-            cls._builder.color(balance_colors=False)
-        super().start_simulation()
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Color the completed builder before allocating the model."""
+        builder.color(balance_colors=False)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:

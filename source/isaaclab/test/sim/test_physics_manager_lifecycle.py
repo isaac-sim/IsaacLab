@@ -28,6 +28,8 @@ def test_backend_registry_identity_and_lifecycle():
     sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
     assert not (sim_package / "service_locator.py").exists()
     assert not hasattr(SimulationContext, "services")
+    assert not hasattr(SimulationContext, "register_backend")
+    assert not hasattr(SimulationContext, "get_backend")
     assert issubclass(RendererCfg, BackendCfg)
     assert not hasattr(RenderContext, "get_renderer")
     assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
@@ -70,7 +72,6 @@ def test_backend_registry_identity_and_lifecycle():
 
     first = context.get_or_create_backend(cfg)
     assert first.cfg is cfg
-    assert context.get_backend(cfg) is first
     different_cfg = replace(cfg, values=[1, 2])
     second = context.get_or_create_backend(different_cfg)
     other_cfg = context.get_or_create_backend(OtherCfg(class_type=Backend, values=[1]))
@@ -80,12 +81,8 @@ def test_backend_registry_identity_and_lifecycle():
 
     context.close_backend(first)
     first.close.assert_called_once_with()
-    with pytest.raises(KeyError):
-        context.get_backend(cfg)
     assert all(resource.close.call_count == 0 for resource in (second, other_cfg, other_type))
-    replacement = Backend(cfg)
-    context.register_backend(cfg, replacement)
-    assert context.get_or_create_backend(cfg) is replacement
+    replacement = context.get_or_create_backend(cfg)
     assert replacement is not first
     with pytest.raises(KeyError):
         context.close_backend(first)
@@ -98,6 +95,14 @@ def test_backend_registry_identity_and_lifecycle():
     second.close.side_effect = None
     context.close_backend(second)
     assert second.close.call_count == 2
+
+    # Plain native/data objects need no wrapper solely to participate in shared ownership.
+    data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
+    data = context.get_or_create_backend(data_cfg)
+    assert context.get_or_create_backend(replace(data_cfg)) is data
+    context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) == data
+    assert context.get_or_create_backend(data_cfg) is not data
 
 
 def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
