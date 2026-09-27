@@ -3,200 +3,187 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.assets import ArticulationCfg
+"""State-only SO-101 cube lifting with fresh tabletop resets and full gravity."""
+
+from isaaclab.assets import ArticulationCfg, RigidObjectCfg
+from isaaclab.envs import ManagerBasedRLEnvCfg, mdp
+from isaaclab.managers import EventTermCfg as EventTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sensors import ContactSensorCfg
-from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MeshSphereCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaaclab.sensors import FrameTransformerCfg
+from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
+from isaaclab.sim import MassCfg
 from isaaclab.utils import configclass
+from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import preset
 
 from isaaclab_assets.robots.so101 import SO101_CFG
 
 from ... import lift_env_cfg as lift
-from ... import mdp
-
-# The object-side sensor measures contact with the moving jaw. The fixed finger shares a body
-# with multiple collision shapes, which prevents filtered PhysX pair reporting for that body.
-JAW_LIST = ["gripper", "moving_jaw_so101_v1"]
-THUMB_SENSOR = "jaw_object_s"
-FINGER_SENSORS = [THUMB_SENSOR]
+from . import mdp as so101_mdp
 
 
 @configclass
 class SO101SceneCfg(lift.SceneCfg):
-    """SO-101 scene for the lift task.
-
-    The arm is clamped at the +x side edge of the table, yawed -90 deg so it
-    reaches across the table's short axis along world -x.
-    """
+    """SO-101 mounted on the shared table with a 3 cm, 50 g cube."""
 
     robot: ArticulationCfg = SO101_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=SO101_CFG.spawn.replace(
+            activate_contact_sensors=False,
             variants={
                 "Robot": "robot",
                 "Sensor": "sensors",
                 "Physics": preset(
                     default="physics", isaacsim_physx="physx", physx="physx", ovphysx="physx", newton_mjwarp="physics"
                 ),
-            }
+            },
         ),
-        # the asset's root frame is authored 3.008 cm above the bottom of its clamp foot,
-        # so z = 0.255 (tabletop) - 0.03008 plants the foot on the table surface
         init_state=SO101_CFG.init_state.replace(
+            # The asset root is 3.008 cm above the clamp foot; the tabletop is at z=0.255 m.
             pos=(-0.16, 0.2, 0.22492),
             rot=(0.0, 0.0, -0.70710678, 0.70710678),
+            joint_pos={
+                "shoulder_pan": 0.15,
+                "shoulder_lift": -0.5,
+                "elbow_flex": 0.6,
+                "wrist_flex": 1.3,
+                "wrist_roll": 0.0,
+                "gripper": 0.8,
+            },
         ),
     )
-
-    def __post_init__(self):
-        super().__post_init__()
-        # The shared SO101 asset already activates contact sensing and supplies SysID drives.
-        # the object hosts the contact sensors (see below); note that ``default`` is a deep
-        # copy of ``shapes`` in the preset config, so each preset is flagged separately.
-        # Objects are lightened to the jaw's scale (the shared lift default is 0.2 kg)
-        for name in ("shapes", "cube", "default", "ovphysx"):
-            object_spawn = getattr(self.object.spawn, name)
-            object_spawn.activate_contact_sensors = True
-            object_spawn.mass_props.mass = 0.05
-        self.object.spawn.cube.size = (0.03, 0.03, 0.03)
-        self.object.spawn.ovphysx.size = (0.03, 0.03, 0.03)
-        # Sense the jaw-object pair from the object side for filtered PhysX reporting.
-        self.jaw_object_s = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Object",
-            filter_prim_paths_expr=["{ENV_REGEX_NS}/Robot/moving_jaw_so101_v1"],
-        )
-        # objects sized to the SO-101 jaw (~4 cm span at full open)
-        graspable_shape_assets_cfg = [
-            MeshCuboidCfg(size=(0.03, 0.03, 0.03), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.02, 0.03, 0.03), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.02, 0.02, 0.03), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.01, 0.03, 0.03), **lift.OBJECT_PHYSICS),
-            MeshSphereCfg(radius=0.015, **lift.OBJECT_PHYSICS),
-            MeshCapsuleCfg(radius=0.015, height=0.05, **lift.OBJECT_PHYSICS),
-            MeshCapsuleCfg(radius=0.01, height=0.08, **lift.OBJECT_PHYSICS),
-        ]
-        self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
-        self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
-        # spawn 40 mm above the tabletop (surface at z = 0.255), centered on the peak of the
-        # pinch-feasibility map (the spot with the most valid approach orientations)
-        self.object.init_state.pos = (-0.27, 0.2, 0.295)
-
-
-@configclass
-class SO101RelJointPosActionCfg:
-    """Relative position actions for the SO-101 arm and gripper."""
-
-    action = mdp.RelativeJointPositionActionCfg(asset_name="robot", joint_names=[".*"], scale=0.1)
-
-
-@configclass
-class SO101StateObservationCfg(lift.ObservationsCfg):
-    """State observations for the SO-101 lift task."""
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.proprio.contact = ObsTerm(
-            func=mdp.fingers_contact_force_b,
-            params={"contact_sensor_names": [THUMB_SENSOR]},
-            clip=(-20.0, 20.0),  # jaw contact force stays well under 20 N
-        )
-        self.proprio.hand_tips_state_b.params["body_asset_cfg"].body_names = JAW_LIST
-
-
-@configclass
-class SO101LiftRewardCfg(lift.RewardsCfg):
-    """Rewards for the SO-101 lift task."""
-
-    # no ``contact_count`` term: with a single jaw sensor it duplicates ``good_finger_contact``
-    # exactly, and the doubled touch payout teaches parking in contact instead of transporting
-    good_finger_contact = RewTerm(
-        func=mdp.contacts,
-        weight=0.75,
-        params={"threshold": 0.01, "thumb_name": THUMB_SENSOR, "finger_names": FINGER_SENSORS},
+    object: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Object",
+        spawn=lift.ObjectCfg().cube.replace(size=(0.03, 0.03, 0.03), mass_props=MassCfg(mass=0.05)),
+        # Start 2 mm above the resting center height to avoid penetration on reset.
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.32, 0.2, 0.272)),
+    )
+    table: RigidObjectCfg = lift.SceneCfg().table.replace(spawn=lift.TABLE_SPAWN_CFG.replace(visible=True))
+    grasp_frame: FrameTransformerCfg = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/base",
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/gripper",
+                name="grasp",
+                # Between the finger collision surfaces, near their tips.
+                offset=OffsetCfg(pos=(0.006, 0.0, -0.095)),
+            )
+        ],
     )
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg("robot", body_names=JAW_LIST)
-        self.fingers_to_object.params["thumb_name"] = THUMB_SENSOR
-        self.fingers_to_object.params["finger_names"] = FINGER_SENSORS
-        self.position_tracking.params["thumb_name"] = THUMB_SENSOR
-        self.position_tracking.params["finger_names"] = FINGER_SENSORS
-        if self.orientation_tracking:
-            self.orientation_tracking.params["thumb_name"] = THUMB_SENSOR
-            self.orientation_tracking.params["finger_names"] = FINGER_SENSORS
-        self.success.params["thumb_name"] = THUMB_SENSOR
-        self.success.params["finger_names"] = FINGER_SENSORS
+
+@configclass
+class SO101StateObservationCfg:
+    """Current robot and object state, without cameras, point clouds, or history."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """The same 32 state values are available to actor and critic."""
+
+        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp.joint_vel_rel, scale=0.1)
+        object_pos_b = ObsTerm(func=so101_mdp.object_position_b)
+        object_quat_w = ObsTerm(func=mdp.root_quat_w, params={"asset_cfg": SceneEntityCfg("object")})
+        gripper_to_object_b = ObsTerm(func=so101_mdp.gripper_to_object_b)
+        gripper_quat_w = ObsTerm(func=so101_mdp.gripper_orientation_w)
+        last_action = ObsTerm(func=mdp.last_action)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = True
+
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
-class SO101LiftEnvCfg(lift.LiftEnvCfg):
-    """SO-101 object lifting environment."""
+class SO101JointPosActionCfg:
+    """Absolute arm targets about home and an analog jaw target in [0, 1] rad."""
 
-    scene: SO101SceneCfg = SO101SceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
-    rewards: SO101LiftRewardCfg = SO101LiftRewardCfg()
+    arm = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
+        scale=0.7,
+        use_default_offset=True,
+    )
+    gripper = mdp.JointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["gripper"],
+        scale=0.5,
+        offset=0.5,
+        use_default_offset=False,
+        clip={".*": (0.0, 1.0)},
+    )
+
+
+@configclass
+class SO101EventCfg:
+    """Reset to a safe home pose and sample the cube on the tabletop."""
+
+    reset = EventTerm(func=mdp.reset_scene_to_default, mode="reset", params={"reset_joint_targets": True})
+    object = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            "asset_cfg": SceneEntityCfg("object"),
+            "pose_range": {"x": (-0.025, 0.025), "y": (-0.025, 0.025), "yaw": (-0.785398, 0.785398)},
+            "velocity_range": {},
+        },
+    )
+
+
+@configclass
+class SO101LiftRewardCfg:
+    """Reach, lift, and avoid unnecessary changes in joint targets."""
+
+    reach = RewTerm(func=so101_mdp.reaching_object, weight=1.0, params={"std": 0.06})
+    lift = RewTerm(
+        func=so101_mdp.LiftReward, weight=10.0, params={"resting_height": 0.27, "lift_height": 0.08, "speed_std": 0.5}
+    )
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.01)
+
+
+@configclass
+class SO101TerminationCfg:
+    """End an episode at six seconds or when the cube falls off the table."""
+
+    timeout = DoneTerm(func=mdp.time_out, time_out=True)
+    dropped = DoneTerm(
+        func=mdp.root_height_below_minimum,
+        params={"minimum_height": 0.20, "asset_cfg": SceneEntityCfg("object")},
+    )
+
+
+@configclass
+class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
+    """Lift a tabletop cube by 5 cm and hold it under full gravity.
+
+    Episodes last 6 s. Each reset samples the cube within a 5 cm square with yaw in
+    [-45, 45] degrees and returns the arm to an open-gripper home pose. Actor and critic
+    receive the same 32 state values; there are no cameras, point clouds, or history.
+
+    Five actions command arm joint offsets about home, and one commands the jaw angle.
+    Rewards encourage reaching the grasp frame to the cube, lifting it by 8 cm while
+    slowing its motion, and keeping successive actions smooth. Success is measured
+    independently as at least 5 cm of lift held for 0.5 s with object speed below 0.2 m/s.
+    No command generator, physics randomization, reset bank, or curriculum is used.
+    """
+
+    scene: SO101SceneCfg = SO101SceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
     observations: SO101StateObservationCfg = SO101StateObservationCfg()
-    actions: SO101RelJointPosActionCfg = SO101RelJointPosActionCfg()
+    actions: SO101JointPosActionCfg = SO101JointPosActionCfg()
+    events: SO101EventCfg = SO101EventCfg()
+    rewards: SO101LiftRewardCfg = SO101LiftRewardCfg()
+    terminations: SO101TerminationCfg = SO101TerminationCfg()
 
     def __post_init__(self):
-        super().__post_init__()
-        self.commands.object_pose.body_name = "gripper"
-        # goal workspace inside the dense reachable band (root frame, arm works at -y):
-        # random-joint FK sampling puts the gripper's 25th-75th percentile envelope at
-        # x (-0.08, 0.12), y (-0.24, -0.13), z (0.11, 0.30); goals beyond y=-0.31 are
-        # practically unreachable and cap the achievable success rate
-        self.commands.object_pose.ranges.pos_x = (-0.08, 0.08)
-        self.commands.object_pose.ranges.pos_y = (-0.30, -0.16)
-        self.commands.object_pose.ranges.pos_z = (0.08, 0.22)
-        events = self.events.conditional_reset.params["terms"]
-        events["reset_robot_wrist_joint"].params["asset_cfg"] = SceneEntityCfg("robot", joint_names="wrist_roll")
-        events["reset_robot_joints"].params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|gripper)"
-        )
-        events["reset_object_to_target"].params["target_cfg"] = SceneEntityCfg("robot", body_names="gripper")
-        # in-gripper placement ~20 mm toward the wrist: mid-face contact is a necessary
-        # condition for capture, tip-edge placements always slip
-        events["reset_object_to_target"].params["pose_range"] = {
-            "x": [-0.01, 0.03],
-            "y": [-0.02, 0.02],
-            "z": [-0.12, -0.08],
-        }
-        # tabletop spawn region (x along the arm's reach direction after the -90 deg base
-        # yaw, y lateral): the band directly in front of the base where the 5-DOF arm can
-        # present a horizontal pinch at table height; peripheral spots are reachable but
-        # cannot pose a valid grasp orientation
-        events["reset_object"].params["pose_range"] = {
-            "x": [-0.03, 0.03],
-            "y": [-0.03, 0.03],
-            "z": [0.0, 0.005],
-            "roll": [-3.14, 3.14],
-            "pitch": [-3.14, 3.14],
-            "yaw": [-3.14, 3.14],
-        }
-        # table/ground clearance: everything but the table-mounted base and the shoulder
-        # yoke bolted to it — with the clamp foot planted on the tabletop both live at
-        # table height by construction and would reject every reset draw
-        self.events.conditional_reset.params["valid_criteria"][
-            "robot_table_clearance"
-        ].body_names = "(?!(base|shoulder)$).*"
-        self.events.conditional_reset.params["diversity_feature"].body_names = JAW_LIST
-        # velocity-limit termination on the arm joints only: the jaw legitimately stalls on objects
-        self.terminations.abnormal_robot.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
-        )
-        # The tabletop starts at z=0.255 m, below the shared task's z=0.3 m cutoff.
-        self.terminations.object_out_of_bound.params["in_bound_range"]["z"] = (0.20, 2.0)
-        if self.curriculum is not None:
-            self.curriculum.oob_adr.params["modify_params"]["initial_value"] = (0.20, 2.0)
-        # Keep generic gain randomization off the USD-calibrated jaw drive.
-        self.events.joint_stiffness_and_damping.params["asset_cfg"] = SceneEntityCfg(
-            "robot", joint_names="(shoulder_pan|shoulder_lift|elbow_flex|wrist_flex|wrist_roll)"
-        )
-        # size the inertia randomization to the palm-sized objects: the shared lift default adds
-        # 0.01 kg*m^2, three orders of magnitude above these objects' natural inertia, which
-        # gyroscopically freezes their rotation and fights reorienting a held object
-        self.events.object_physics_inertia.params["inertia_distribution_params"] = (0.0002, 0.0002)
+        self.decimation = 4
+        self.episode_length_s = 6.0
+        self.sim.dt = 1 / 120
+        self.sim.render_interval = self.decimation
+        self.sim.physics = lift.PhysicsCfg()
+        self.sim.default_visualizer_cfg = VisualizerCfg(eye=(-0.8, -0.25, 0.6), lookat=(-0.29, 0.2, 0.33))

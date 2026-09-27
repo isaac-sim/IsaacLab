@@ -12,20 +12,20 @@ from isaaclab_rl.rsl_rl import RslRlMLPModelCfg, RslRlOnPolicyRunnerCfg, RslRlPp
 class SO101PPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO runner for the SO-101 lift task."""
 
-    num_steps_per_env = 32
-    max_iterations = 15000
-    save_interval = 250
-    experiment_name = "dexsuite_so101"
-    obs_groups = {"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]}
+    num_steps_per_env = 24
+    max_iterations = 600
+    save_interval = 100
+    experiment_name = "lift_so101"
+    obs_groups = {"actor": ["policy"], "critic": ["policy"]}
     actor = RslRlMLPModelCfg(
-        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=1.0),
+        distribution_cfg=RslRlMLPModelCfg.GaussianDistributionCfg(init_std=0.5),
         obs_normalization=True,
-        hidden_dims=[512, 256, 128],
+        hidden_dims=[64, 64],
         activation="elu",
     )
     critic = RslRlMLPModelCfg(
         obs_normalization=True,
-        hidden_dims=[512, 256, 128],
+        hidden_dims=[64, 64],
         activation="elu",
     )
     algorithm = RslRlPpoAlgorithmCfg(

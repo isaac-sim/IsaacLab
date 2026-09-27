@@ -3,10 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""SO-101 lift environment.
-
-The single-jaw gripper does not support in-hand reorientation.
-"""
+"""State-based SO-101 cube lifting, without camera observations or reorientation."""
 
 import gymnasium as gym
 

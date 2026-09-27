@@ -1,5 +1,7 @@
 Added
 ^^^^^
 
-* Added the ``Isaac-Lift-SO101`` manager-based environment for lifting graspable shapes
-  to a commanded position with the SO-101 arm and shared lift task formulation.
+* Added the state-based ``Isaac-Lift-SO101`` manager-based environment for lifting and
+  holding a tabletop cube with the SO-101 arm under full gravity. Used fresh tabletop
+  resets, compact state observations, absolute joint targets, and a lightweight PPO
+  configuration without a curriculum or camera observations.
