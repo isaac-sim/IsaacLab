@@ -182,14 +182,11 @@ class SimulationContext:
         # Set as current stage in thread-local context for get_current_stage()
         stage_utils._context.stage = self.stage
 
-        self._kit_stage: Any | None = None
-        """Kit USD-context backend the stage is attached to, or None without Kit."""
         if use_isaac_sim:
             from isaaclab_physx.app.kit_stage import KitStageBackendCfg  # noqa: PLC0415
 
-            # Attach the stage to Kit's USD context so that Kit extensions (PhysX views,
-            # Articulation, viewport) can discover it.
-            self._kit_stage = self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))
+            # Kit extensions (PhysX views, articulations, the viewport) find the stage through Kit's USD context
+            self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = SettingsManager.instance()

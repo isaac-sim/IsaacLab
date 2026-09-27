@@ -132,8 +132,6 @@ class KitVisualizer(BaseVisualizer):
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
         usd_stage = scene_data_provider.usd_stage
-        if usd_stage is None:
-            raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()

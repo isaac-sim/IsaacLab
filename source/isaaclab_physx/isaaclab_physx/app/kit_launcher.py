@@ -728,13 +728,7 @@ class KitLauncher(SimulationLauncher):
 
     def _requires_all_partitions_spectator_view(self) -> bool:
         """Return whether the launch needs an unpartitioned all-environment view."""
-        return (
-            bool(getattr(self, "_kit_visualizer", False))
-            or bool(getattr(self, "_render_viewport", False))
-            or bool(getattr(self, "_video_enabled", False))
-            or int(getattr(self, "_livestream", 0)) > 0
-            or bool(getattr(self, "_xr", False))
-        )
+        return self._kit_visualizer or self._render_viewport or self._video_enabled or self._livestream > 0 or self._xr
 
     def _resolve_kit_args(self, launcher_args: dict):
         """Resolve additional arguments passed to Kit."""

@@ -17,9 +17,10 @@ Changed
   ``omni.replicator``. The Replicator event terms seed it with ``env.cfg.seed`` instead; call
   ``omni.replicator.core.set_global_seed`` directly to reseed Replicator after the environment is created.
 * Changed :class:`~isaaclab.sim.SimulationContext` to attach its stage to Kit's USD context through the
-  :class:`~isaaclab_physx.app.KitStageBackendCfg` backend. :func:`~isaaclab.sim.utils.update_stage`,
-  :func:`~isaaclab.sim.utils.clear_stage`, and :func:`~isaaclab.sim.utils.close_stage` update or close Kit's
-  USD context through that backend and do nothing to Kit while no simulation context exists.
+  :class:`~isaaclab_physx.app.KitStageBackendCfg` backend, which closes it with the simulation.
+  :func:`~isaaclab.sim.utils.clear_stage` and :func:`~isaaclab.sim.utils.close_stage` no longer run Kit app
+  updates or close Kit's USD context themselves.
+* Changed :attr:`~isaaclab.scene_data.SceneDataProvider.usd_stage` to always return the simulation stage.
 
 Deprecated
 ^^^^^^^^^^
@@ -31,8 +32,10 @@ Deprecated
   they have no effect, since the Kit launcher passes ``carb.settings`` to
   :meth:`~isaaclab.app.SettingsManager.set_backend`. Remove the calls.
 * Deprecated ``SettingsManager.is_omniverse_mode``. Use :func:`~isaaclab.utils.version.has_kit` instead.
-* Deprecated :func:`~isaaclab.sim.utils.is_current_stage_in_memory`. The simulation stage is attached to Kit's
-  USD context whenever Kit runs; use :func:`~isaaclab.utils.version.has_kit` instead.
+* Deprecated :func:`~isaaclab.sim.utils.is_current_stage_in_memory`. Compare the current stage against
+  :attr:`~isaaclab.sim.SimulationContext.stage` instead.
+* Deprecated :func:`~isaaclab.sim.utils.update_stage`; it does nothing. The simulation's reset, step, and render
+  process stage changes, so remove the calls.
 * Deprecated :func:`~isaaclab.sim.utils.show_stage_in_viewport` in favor of
   :func:`isaaclab_physx.app.show_stage_in_viewport`. Replace ``sim_utils.show_stage_in_viewport(path)`` with
   ``from isaaclab_physx.app import show_stage_in_viewport`` and ``show_stage_in_viewport(path)``.

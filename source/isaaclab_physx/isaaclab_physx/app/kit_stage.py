@@ -27,23 +27,16 @@ class KitStageBackend:
 
     def __init__(self, cfg: KitStageBackendCfg):
         context = omni.usd.get_context()
-        if context is not None and context.get_stage() is not cfg.stage:
+        if context.get_stage() is not cfg.stage:
             context.attach_stage_with_callback(UsdUtils.StageCache.Get().GetId(cfg.stage).ToLongInt())
-        self._closed = False
-
-    def update(self) -> None:
-        """Run one Kit application update so Kit extensions process the stage changes."""
-        omni.kit.app.get_app_interface().update()
 
     def close(self) -> None:
-        """Close the stage of Kit's USD context once.
+        """Close the stage of Kit's USD context.
 
-        Close it while the stage is still in the stage cache; clearing the cache first makes Kit
-        fail with "Removal of UsdStage from cache failed" and can hang teardown.
+        The simulation closes backends before it clears the stage cache; clearing the cache first
+        makes Kit fail with "Removal of UsdStage from cache failed" and can hang teardown.
         """
-        if not self._closed:
-            self._closed = True
-            omni.usd.get_context().close_stage()
+        omni.usd.get_context().close_stage()
 
 
 @configclass

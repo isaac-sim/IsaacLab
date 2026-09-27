@@ -23,6 +23,19 @@ from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
+def _launcher_after_output_resolution(**state) -> KitLauncher:
+    """Return a bare launcher with the attributes the output resolvers set, all requesting no visual output."""
+    launcher = KitLauncher.__new__(KitLauncher)
+    launcher._kit_visualizer = False
+    launcher._render_viewport = False
+    launcher._video_enabled = False
+    launcher._livestream = 0
+    launcher._xr = False
+    for name, value in state.items():
+        setattr(launcher, name, value)
+    return launcher
+
+
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):
     """Remove a pytest verbosity flag even when it is the final argument."""
     monkeypatch.setitem(sys.modules, "pytest", object())
@@ -57,9 +70,7 @@ def _resolve_devices_and_kit_args(launcher_args: dict, monkeypatch, *, xr: bool 
     ``_resolve_kit_args`` extends ``sys.argv``, so the caller's argv is isolated.
     """
     monkeypatch.setattr(sys, "argv", ["script.py"])
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._deferred_cuda_device_id = None
-    launcher._xr = xr
+    launcher = _launcher_after_output_resolution(_deferred_cuda_device_id=None, _xr=xr)
     KitLauncher._resolve_device_settings(launcher, launcher_args)
     KitLauncher._resolve_kit_args(launcher, launcher_args)
     return launcher_args, launcher._kit_args
@@ -138,15 +149,7 @@ def test_xr_pins_the_renderer_only_for_a_cuda_device(
 def test_spectator_view_follows_visual_output_intent(launcher_state, expected_enabled, monkeypatch):
     """Enable all-partitions spectator mode only for visual output paths."""
     monkeypatch.setattr(sys, "argv", ["script.py"])
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._kit_visualizer = False
-    launcher._render_viewport = False
-    launcher._video_enabled = False
-    launcher._livestream = 0
-    launcher._xr = False
-    launcher.device = "cpu"
-    for name, value in launcher_state.items():
-        setattr(launcher, name, value)
+    launcher = _launcher_after_output_resolution(device="cpu", **launcher_state)
 
     launcher._resolve_kit_args({})
 
@@ -310,8 +313,7 @@ def _resolve_kit_args(
     monkeypatch: pytest.MonkeyPatch, launcher_args: dict, argv: list[str] | None = None
 ) -> tuple[list[str], list[str]]:
     monkeypatch.setattr(sys, "argv", ["pytest", *(argv or [])])
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._xr = False
+    launcher = _launcher_after_output_resolution()
     launcher._resolve_kit_args(launcher_args)
     return sys.argv[1:], launcher._kit_args
 

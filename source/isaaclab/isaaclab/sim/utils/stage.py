@@ -24,14 +24,6 @@ logger = logging.getLogger(__name__)
 _context = threading.local()  # thread-local storage to handle nested contexts and concurrent access
 
 
-def _get_kit_stage():
-    """Return the Kit USD-context backend of the active simulation, or None without Kit or a simulation."""
-    from ..simulation_context import SimulationContext  # noqa: PLC0415
-
-    sim = SimulationContext.instance()
-    return None if sim is None else sim._kit_stage
-
-
 def _check_ancestral(prim: Usd.Prim) -> bool:
     """Check if a prim is brought into composition by its ancestor (an ancestral prim).
 
@@ -174,20 +166,20 @@ def create_new_stage() -> Usd.Stage:
 
 
 def is_current_stage_in_memory() -> bool:
-    """Return whether the current stage is not the stage attached to Kit's USD context.
+    """Return whether the current stage is not the stage of the active simulation.
 
     .. deprecated::
-        The simulation stage is attached to Kit's USD context whenever Kit runs; check
-        :func:`~isaaclab.utils.version.has_kit` instead.
+        Backends attach the simulation stage wherever they need it; compare against
+        :attr:`~isaaclab.sim.SimulationContext.stage` instead.
     """
     warnings.warn(
-        "`is_current_stage_in_memory` is deprecated; check `isaaclab.utils.version.has_kit()` instead.",
+        "`is_current_stage_in_memory` is deprecated; compare against `SimulationContext.instance().stage` instead.",
         DeprecationWarning,
         stacklevel=2,
     )
     from ..simulation_context import SimulationContext  # noqa: PLC0415
 
-    return _get_kit_stage() is None or get_current_stage() is not SimulationContext.instance().stage
+    return get_current_stage() is not SimulationContext.instance().stage
 
 
 def open_stage(usd_path: str) -> Usd.Stage:
@@ -276,56 +268,18 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
 
 
 def update_stage() -> None:
-    """Triggers a full application update cycle to process USD stage changes.
+    """Do nothing; backends process stage changes when the simulation resets, steps, or renders.
 
-    With Kit running a simulation, this runs one complete Kit application update, including the
-    following. Otherwise, it does nothing.
-
-    * Physics simulation step (if ``/app/player/playSimulations`` is True)
-    * Rendering (RTX path tracing, viewport updates)
-    * UI updates (widgets, windows)
-    * Timeline events and callbacks
-    * Extension updates
-    * USD/Fabric synchronization
-
-    When to Use:
-        * **After creating a new stage**: ``create_new_stage()`` → ``update_stage()``
-        * **After spawning prims**: ``cfg.func("/World/Robot", cfg)`` → ``update_stage()``
-        * **After USD authoring**: Creating materials, lights, meshes, etc.
-        * **Before simulation starts**: During setup phase, before ``sim.reset()``
-        * **In test fixtures**: To ensure consistent state before each test
-
-    When NOT to Use:
-        * **During active simulation** (after ``sim.play()``): Can interfere with
-          physics stepping and cause double-stepping or timing issues.
-        * **During sensor updates**: Can reset RTX renderer state mid-cycle,
-          causing incorrect sensor outputs (e.g., ``inf`` depth values).
-        * **Inside physics/render callbacks**: Can cause recursion or timing issues.
-        * **Inside ``sim.step()`` or ``sim.render()``**: These already perform
-          app updates internally with proper safeguards.
-
-    For rendering during simulation without physics stepping, use::
-
-        sim.set_setting("/app/player/playSimulations", False)
-        omni.kit.app.get_app().update()
-        sim.set_setting("/app/player/playSimulations", True)
-
-    Example:
-        >>> import isaaclab.sim as sim_utils
-        >>>
-        >>> # Setup phase - safe to use
-        >>> sim_utils.create_new_stage()
-        >>> robot_cfg.func("/World/Robot", robot_cfg)
-        >>> sim_utils.update_stage()  # Commit USD changes
-        >>>
-        >>> # Simulation phase - DO NOT use update_stage()
-        >>> sim.reset()
-        >>> sim.play()
-        >>> for _ in range(100):
-        ...     sim.step()  # Handles updates internally
+    .. deprecated::
+        Call :meth:`~isaaclab.sim.SimulationContext.reset` or :meth:`~isaaclab.sim.SimulationContext.render`
+        on the simulation instead.
     """
-    if (kit_stage := _get_kit_stage()) is not None:
-        kit_stage.update()
+    warnings.warn(
+        "`update_stage` is deprecated and does nothing; the simulation's reset, step, and render process stage"
+        " changes.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -370,8 +324,8 @@ def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
 def close_stage() -> bool:
     """Closes the current USD stage.
 
-    If Kit is running a simulation, this first closes the stage of the Kit USD context, then
-    clears the stage cache. Otherwise, only the stage cache is cleared.
+    Clears the stage cache. Backends that attached the stage (e.g. Kit's USD context) release it
+    when the simulation is cleared, before this runs.
 
     .. note::
 
@@ -388,12 +342,6 @@ def close_stage() -> bool:
         True
     """
     from pxr import UsdUtils  # noqa: PLC0415
-
-    # Close Kit's USD context first (while the stage is still in the cache),
-    # then clear the cache. Reversing this order causes Kit to fail with
-    # "Removal of UsdStage from cache failed" and can hang during teardown.
-    if (kit_stage := _get_kit_stage()) is not None:
-        kit_stage.close()
 
     stage_cache = UsdUtils.StageCache.Get()
     stage_cache.Clear()
@@ -472,7 +420,6 @@ def clear_stage(predicate: Callable[[Usd.Prim], bool] | None = None) -> None:
     prim_paths_to_delete = [prim.GetPath().pathString for prim in prims]
     # delete prims
     delete_prim(prim_paths_to_delete)
-    update_stage()
 
 
 def get_current_stage(fabric: bool = False) -> Usd.Stage:

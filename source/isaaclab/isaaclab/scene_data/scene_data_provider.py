@@ -203,18 +203,11 @@ class SceneDataProvider:
         return self.backend.transform_count
 
     @property
-    def usd_stage(self) -> Usd.Stage | None:
-        """Pixar :class:`Usd.Stage` for visualizers and renderers that walk USD.
+    def usd_stage(self) -> Usd.Stage:
+        """Pixar :class:`Usd.Stage` of the simulation, for visualizers and renderers that walk USD."""
+        return sim_utils.SimulationContext.instance().stage
 
-        Resolves to :attr:`isaaclab.sim.SimulationContext.stage`, falling back to
-        the current stage when the simulation context has no cached stage. Returns
-        ``None`` on Newton-only headless runs without a USD stage.
-        """
-        sim = sim_utils.SimulationContext.instance()
-        stage = getattr(sim, "stage", None) if sim is not None else None
-        return stage if stage is not None else sim_utils.get_current_stage()
-
-    def get_usd_stage(self) -> Usd.Stage | None:
+    def get_usd_stage(self) -> Usd.Stage:
         """Return the USD stage for callers using the older method-style API."""
         return self.usd_stage
 

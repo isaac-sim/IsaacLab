@@ -39,11 +39,15 @@ def test_create_new_stage():
 
 
 def test_is_current_stage_in_memory():
-    """Test the deprecated check for a stage outside Kit's USD context."""
-    stage = sim_utils.create_new_stage()
-    with sim_utils.use_stage(stage), pytest.warns(DeprecationWarning):
-        # no simulation attaches the stage to Kit's USD context
-        assert sim_utils.is_current_stage_in_memory() is True
+    """Test the deprecated check for a stage other than the simulation's."""
+    sim = sim_utils.SimulationContext()
+    try:
+        with pytest.warns(DeprecationWarning):
+            assert sim_utils.is_current_stage_in_memory() is False
+        with sim_utils.use_stage(sim_utils.create_new_stage()), pytest.warns(DeprecationWarning):
+            assert sim_utils.is_current_stage_in_memory() is True
+    finally:
+        sim.clear_instance()
 
 
 def test_save_and_open_stage():
