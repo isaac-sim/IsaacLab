@@ -737,7 +737,9 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                 return ref
             resolved = prepare(dependency)
             if resolved is None:
-                return ref
+                if not remote:
+                    return Ar.GetResolver().CreateIdentifier(ref, Ar.ResolvedPath(local_path))
+                resolved = dependency
             changed |= resolved != _resolve_reference_url(local_path, ref)
             return resolved
 

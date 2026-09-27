@@ -589,8 +589,8 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
     assert assets_utils.retrieve_file_path(source[layout]) == resolved_path
 
 
-def test_local_usd_preserves_unresolved_search_path_sublayer(asset_cache, monkeypatch):
-    """Keep a search-path sublayer resolvable when another dependency requires a working copy."""
+def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
+    """Keep search paths and missing layer-relative dependencies resolvable after localization."""
     import omni.client
     from pxr import Ar, Sdf, Usd
 
@@ -599,7 +599,7 @@ def test_local_usd_preserves_unresolved_search_path_sublayer(asset_cache, monkey
     source_dir.mkdir()
     search_dir.mkdir()
     source = source_dir / "scene.usda"
-    source.write_text(f"#usda 1.0\n(subLayers = [@robot.usda@, @{_REMOTE_URL}@])\n", encoding="utf-8")
+    source.write_text(f"#usda 1.0\n(subLayers = [@robot.usda@, @./child.usda@, @{_REMOTE_URL}@])\n", encoding="utf-8")
     (search_dir / "robot.usda").write_text('#usda 1.0\ndef Xform "robot" {}\n', encoding="utf-8")
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
     _serve(monkeypatch, {_REMOTE_URL: revision})
@@ -614,17 +614,21 @@ def test_local_usd_preserves_unresolved_search_path_sublayer(asset_cache, monkey
     assert Usd.Stage.Open(str(source), context).GetPrimAtPath("/robot").IsValid()
 
     resolved_path = assets_utils.retrieve_file_path(str(source))
+    # Retry the working copy after the missing file appears beside the authored layer.
+    (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
+    resolved_path = assets_utils.retrieve_file_path(resolved_path)
     resolved_layer = Sdf.Layer.FindOrOpen(resolved_path)
     assert resolved_layer.subLayerPaths[0] == "robot.usda"
     resolved_stage = Usd.Stage.Open(resolved_path, context)
     assert resolved_stage.GetPrimAtPath("/robot").IsValid()
+    assert resolved_stage.GetPrimAtPath("/child").IsValid()
     assert resolved_stage.GetPrimAtPath("/remote").IsValid()
 
 
 def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):
     """A downloaded root is not a completed tree when a dependency fails to download."""
     import omni.client
-    from pxr import Usd
+    from pxr import Sdf, Usd
 
     child_url = _REMOTE_URL.replace("example.usd", "child.usda")
     revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
@@ -640,7 +644,8 @@ def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch):
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    assets_utils.retrieve_file_path(_REMOTE_URL)
+    incomplete = assets_utils.retrieve_file_path(_REMOTE_URL)
+    assert Sdf.Layer.FindOrOpen(incomplete).subLayerPaths == [child_url]
     fail_child = False
     resolved = assets_utils.retrieve_file_path(str(mirrored))
     stage = Usd.Stage.Open(resolved)
