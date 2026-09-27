@@ -7,7 +7,7 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import resolve_test_sim_device, test_devices
-from isaaclab.utils import instantiate
+from isaaclab.utils import clone, instantiate, replace
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -139,9 +139,9 @@ def test_singleton():
         (),
         (None,),
         (sim.cfg,),
-        (sim.cfg.copy(),),
-        (sim.cfg.replace(dt=2.0 * live_dt),),
-        (sim.cfg.replace(device=other_device),),
+        (clone(sim.cfg),),
+        (replace(sim.cfg, dt=2.0 * live_dt),),
+        (replace(sim.cfg, device=other_device),),
     ):
         with pytest.raises(RuntimeError, match=r"SimulationContext\.instance\(\)"):
             SimulationContext(*args)

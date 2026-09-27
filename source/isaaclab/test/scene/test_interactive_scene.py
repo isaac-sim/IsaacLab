@@ -28,7 +28,7 @@ from isaaclab.markers import SPHERE_MARKER_CFG, VisualizationMarkers
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -70,14 +70,14 @@ class StaticSceneCfg(InteractiveSceneCfg):
 class DeferredMarkerAssetCfg(AssetBaseCfg):
     """Authoring-only asset whose optional visualization starts disabled."""
 
-    visualizer_cfg = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Deferred")
+    visualizer_cfg = replace(SPHERE_MARKER_CFG, prim_path="/Visuals/Deferred")
 
 
 @configclass
 class MarkerSceneCfg(InteractiveSceneCfg):
     """Scene with one global visualization marker and one marker whose debug owner starts disabled."""
 
-    goal = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Goal")
+    goal = replace(SPHERE_MARKER_CFG, prim_path="/Visuals/Goal")
     prop = DeferredMarkerAssetCfg(prim_path="/World/Prop", spawn=sim_utils.DistantLightCfg(), debug_vis=False)
 
 

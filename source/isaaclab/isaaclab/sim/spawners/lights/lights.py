@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 from pxr import Usd, UsdLux
 
+from isaaclab.utils import class_to_dict
+
 from ...utils import clone, create_prim, get_current_stage, safe_set_attribute_on_usd_prim
 
 if TYPE_CHECKING:
@@ -55,7 +57,7 @@ def spawn_light(
     )
 
     # convert to dict
-    cfg = cfg.to_dict()
+    cfg = class_to_dict(cfg)
     # delete spawner func specific parameters
     del cfg["prim_type"]
     # delete custom attributes in the config that are not USD parameters

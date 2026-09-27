@@ -20,7 +20,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim import MultiAssetSpawnerCfg, SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -62,7 +62,8 @@ class KeyboardAssetCfg(PresetCfg):
     )
     # Newton: one 108-DOF articulation/env, root auto-resolved at ``prim_path`` (Newton's
     # ArticulationData reads only the first articulation per env, so separate parts would be invisible).
-    newton_mjwarp = default.replace(
+    newton_mjwarp = replace(
+        default,
         articulation_root_prim_path=None,
         spawn=MultiAssetSpawnerCfg(assets_cfg=list(TYPING_KEYBOARD_POOL.spawners_single), random_choice=False),
     )
@@ -75,10 +76,12 @@ class KeyboardAssetCfg(PresetCfg):
 class SO101SceneCfg(InteractiveSceneCfg):
     """SO-101 keyboard-typing scene."""
 
-    robot: ArticulationCfg = SO101_CFG.replace(
+    robot: ArticulationCfg = replace(
+        SO101_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         # Face the keyboard at +X and retain the task's original reset-IK seed.
-        init_state=SO101_CFG.init_state.replace(
+        init_state=replace(
+            SO101_CFG.init_state,
             rot=(0.0, 0.0, 2**-0.5, 2**-0.5),
             joint_pos={
                 "shoulder_pan": 0.0,
@@ -89,7 +92,8 @@ class SO101SceneCfg(InteractiveSceneCfg):
                 "gripper": 0.0,
             },
         ),
-        spawn=SO101_CFG.spawn.replace(
+        spawn=replace(
+            SO101_CFG.spawn,
             variants={
                 "Robot": "robot",
                 "Sensor": "sensors",
@@ -99,7 +103,7 @@ class SO101SceneCfg(InteractiveSceneCfg):
                     physx="physx",
                     newton_mjwarp="physics",
                 ),
-            }
+            },
         ),
     )
 

@@ -55,7 +55,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -120,38 +120,43 @@ class VisualMaterialSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.PbrMdlCfg(diffuse_color_constant=(0.1, 0.6, 0.2), reflection_roughness_constant=0.9),
     )
 
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(
+    robot: ArticulationCfg = replace(
+        ANYMAL_C_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         spawn=sim_utils.MultiAssetSpawnerCfg(
             assets_cfg=[
                 ANYMAL_C_CFG.spawn,
-                ANYMAL_C_CFG.spawn.replace(
+                replace(
+                    ANYMAL_C_CFG.spawn,
                     visual_material_bindings=_bindings(
                         "./surface_body",
                         "./surface_leg",
                         "./surface_foot",
-                    )
+                    ),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
+                replace(
+                    ANYMAL_C_CFG.spawn,
                     visual_material_bindings=_bindings(
                         "./glass_body",
                         "./glass_leg",
                         "./glass_foot",
-                    )
+                    ),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
+                replace(
+                    ANYMAL_C_CFG.spawn,
                     visual_material_bindings=_bindings(
                         "./solid_body",
                         "./solid_leg",
                         "./solid_foot",
-                    )
+                    ),
                 ),
-                ANYMAL_C_CFG.spawn.replace(
+                replace(
+                    ANYMAL_C_CFG.spawn,
                     visual_material_bindings=_bindings(
                         "./surface_body",
                         "./solid_leg",
                         "./glass_foot",
-                    )
+                    ),
                 ),
             ],
             random_choice=False,

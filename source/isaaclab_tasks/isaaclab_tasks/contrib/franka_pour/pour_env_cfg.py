@@ -35,7 +35,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -337,7 +337,7 @@ class PourSceneCfg(InteractiveSceneCfg):
         prim_path="/World/light",
         spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=3000.0),
     )
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.spawn.usd_path = FRANKA_POUR_ROBOT_USD_PATH
     robot.spawn.variants = {"Colliders": "convex_hulls"}
     robot.spawn.func = spawn_franka_with_arm_collisions
@@ -350,7 +350,8 @@ class PourSceneCfg(InteractiveSceneCfg):
         frag for frag in robot.spawn.articulation_props if isinstance(frag, NewtonArticulationCfg)
     ).self_collision_enabled = True
     robot.actuators = {
-        name: actuator_cfg.replace(
+        name: replace(
+            actuator_cfg,
             effort_limit_sim=None,
             velocity_limit_sim=None,
             stiffness=None,

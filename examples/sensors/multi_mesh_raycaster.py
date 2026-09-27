@@ -72,7 +72,7 @@ from isaaclab.markers.config import VisualizationMarkersCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCfg, patterns
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG
@@ -105,7 +105,7 @@ RAY_CASTER_MARKER_CFG = VisualizationMarkersCfg(
 )
 
 if args_cli.asset_type == "allegro_hand":
-    asset_cfg = ALLEGRO_HAND_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ALLEGRO_HAND_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/palm_link",
         update_period=1 / 60,
@@ -122,11 +122,11 @@ if args_cli.asset_type == "allegro_hand":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.005, size=(0.4, 0.4), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "anymal_d":
-    asset_cfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    asset_cfg = replace(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     ray_caster_cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
         update_period=1 / 60,
@@ -142,7 +142,7 @@ elif args_cli.asset_type == "anymal_d":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.02, size=(2.5, 2.5), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 
 elif args_cli.asset_type == "objects":
@@ -200,7 +200,7 @@ elif args_cli.asset_type == "objects":
         ray_alignment="world",
         pattern_cfg=patterns.GridPatternCfg(resolution=0.01, size=(0.6, 0.6), direction=(0, 0, -1)),
         debug_vis=DEBUG_VISUALIZATION_ENABLED,
-        visualizer_cfg=RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster"),
+        visualizer_cfg=replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster"),
     )
 else:
     raise ValueError(f"Unknown asset type: {args_cli.asset_type}")

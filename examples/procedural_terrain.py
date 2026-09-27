@@ -33,7 +33,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.utils import instantiate
+from isaaclab.utils import instantiate, replace
 
 parser = argparse.ArgumentParser(
     description="This script demonstrates procedural terrain generation.",
@@ -89,7 +89,9 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Parse terrain generation
-    terrain_gen_cfg = ROUGH_TERRAINS_CFG.replace(curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme)
+    terrain_gen_cfg = replace(
+        ROUGH_TERRAINS_CFG, curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme
+    )
 
     # Add flat patch configuration
     # Note: To have separate colors for each sub-terrain type, we set the flat patch sampling configuration name

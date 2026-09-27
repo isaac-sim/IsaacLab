@@ -27,7 +27,7 @@ import warp as wp
 
 import isaaclab.utils.string as string_utils
 from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
-from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.utils import class_to_dict, clone, string_to_callable
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
 
@@ -394,7 +394,7 @@ class ManagerBase(ABC):
             if param.default is inspect.Parameter.empty:
                 continue
             if param.name not in term_cfg.params and hasattr(param.default, "__dataclass_fields__"):
-                term_cfg.params[param.name] = param.default.copy()
+                term_cfg.params[param.name] = clone(param.default)
 
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())

@@ -26,6 +26,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 import isaaclab.sim.schemas as schemas
 import isaaclab.sim.schemas.schemas_cfg as schemas_cfg
+from isaaclab.utils import class_to_dict, clone, replace
 
 pytestmark = [pytest.mark.unit, pytest.mark.kitless]
 
@@ -284,9 +285,9 @@ def test_legacy_cfg_keeps_configclass_helpers():
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DeprecationWarning)
         cfg = schemas_cfg.MassPropertiesCfg(mass=2.5, density=1200.0)
-        assert cfg.to_dict()["mass"] == 2.5
-        assert cfg.copy().density == 1200.0
-        assert cfg.replace(mass=4.0).mass == 4.0
+        assert class_to_dict(cfg)["mass"] == 2.5
+        assert clone(cfg).density == 1200.0
+        assert replace(cfg, mass=4.0).mass == 4.0
         assert dataclasses.replace(cfg, mass=6.0).mass == 6.0
 
 

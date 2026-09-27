@@ -46,7 +46,7 @@ from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
-from ..utils import instantiate
+from ..utils import instantiate, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -84,7 +84,7 @@ class InteractiveScene:
     .. code-block:: python
 
         from isaaclab.scene import InteractiveSceneCfg
-        from isaaclab.utils import configclass
+        from isaaclab.utils import configclass, replace
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -92,7 +92,7 @@ class InteractiveScene:
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
             # ANYmal-C robot spawned in each environment
-            robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+            robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     Then the robot can be accessed from the scene as follows:
 
@@ -123,7 +123,7 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
-        cfg.validate()
+        validate(cfg)
         self.cfg = cfg
         self._terrain = None
         self._articulations = {}

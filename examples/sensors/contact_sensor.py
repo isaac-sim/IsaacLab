@@ -36,7 +36,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import configclass, instantiate, replace
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
 
@@ -57,7 +57,7 @@ class ContactSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # Rigid Object
     cube = RigidObjectCfg(

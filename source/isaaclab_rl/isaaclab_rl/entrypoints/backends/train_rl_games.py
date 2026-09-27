@@ -20,6 +20,7 @@ from rl_games.torch_runner import Runner
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import class_to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -194,7 +195,7 @@ def run(argv: list[str]) -> None:
                     save_code=True,
                 )
                 if not wandb.run.resumed:
-                    wandb.config.update({"env_cfg": env_cfg.to_dict()})
+                    wandb.config.update({"env_cfg": class_to_dict(env_cfg)})
                     wandb.config.update({"agent_cfg": agent_cfg})
 
             train_sigma = float(args_cli.sigma) if args_cli.sigma is not None else None

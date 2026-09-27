@@ -37,7 +37,7 @@ from isaaclab.sensors import JointWrenchSensor, JointWrenchSensorCfg
 from isaaclab.sensors.joint_wrench import BaseJointWrenchSensor
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.ant import ANT_CFG
@@ -78,7 +78,7 @@ class _NestedRootAntSceneCfg(InteractiveSceneCfg):
 
     env_spacing = 4.0
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 

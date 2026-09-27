@@ -22,7 +22,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
-from ..utils import instantiate
+from ..utils import instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -83,7 +83,7 @@ class DirectRLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode

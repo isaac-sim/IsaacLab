@@ -14,6 +14,8 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
+from isaaclab.utils import class_to_dict
+
 
 def create_initialized_checkpoint(
     backend_id: str,
@@ -76,9 +78,13 @@ def _create_rsl_rl_checkpoint(
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = OnPolicyRunner(
+                env, class_to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device
+            )
         elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = DistillationRunner(
+                env, class_to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device
+            )
         else:
             raise ValueError(f"Unsupported RSL-RL runner class: {agent_cfg.class_name}")
 

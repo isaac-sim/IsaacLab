@@ -7,7 +7,7 @@
 
 from isaaclab_newton.physics import MJWarpSolverCfg, VBDSolverCfg
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import PhysicsCfg as CorePhysicsCfg
@@ -19,7 +19,8 @@ from .newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 class PhysicsCfg(CorePhysicsCfg):
     """Adds the manual MJWarp and VBD coupling preset on top of the core proxy presets."""
 
-    newton_mjwarp_vbd = CorePhysicsCfg().newton_mjwarp_vbd_proxy.replace(
+    newton_mjwarp_vbd = replace(
+        CorePhysicsCfg().newton_mjwarp_vbd_proxy,
         # Required: ``NewtonCfg.__post_init__`` rejects a preset class_type and re-derives it.
         class_type=None,
         solver_cfg=CoupledMJWarpVBDSolverCfg(

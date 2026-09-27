@@ -16,7 +16,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ImuCfg
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import configclass, instantiate, replace
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -50,7 +50,7 @@ class ImuSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     imu_LF = ImuCfg(prim_path="{ENV_REGEX_NS}/Robot/LF_FOOT")
 

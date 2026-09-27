@@ -16,6 +16,7 @@ import torch
 from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
+from isaaclab.utils import replace
 from isaaclab.utils.images import CameraFrameStack, is_depth_like, normalize_depth, normalize_rgb
 from isaaclab.utils.math import quat_apply, quat_apply_inverse, quat_inv, quat_mul, subtract_frame_transforms
 
@@ -126,7 +127,7 @@ class object_point_cloud_b(ManagerTermBase):
         self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
         if cfg.params.get("visualize", True):
-            marker_cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/ObservationPointCloud")
+            marker_cfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/ObservationPointCloud")
             marker_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(marker_cfg)
             self._marker_env_ids = torch.arange(env.num_envs, device=env.device).repeat_interleave(num_points)

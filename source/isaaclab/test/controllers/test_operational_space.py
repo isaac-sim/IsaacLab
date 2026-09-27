@@ -42,6 +42,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
+from isaaclab.utils import clone, replace
 from isaaclab.utils import configclass as lab_configclass
 from isaaclab.utils.math import (
     apply_delta_pose,
@@ -77,10 +78,10 @@ def sim():
     cfg.func("/World/GroundPlane", cfg)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = clone(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     light_cfg = sim_utils.DistantLightCfg(intensity=5.0, exposure=10.0)
     light_cfg.func(
@@ -99,7 +100,7 @@ def sim():
     # clone the env xform
     cloner.usd_replicate(stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
 
-    robot_cfg = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     # Explicit torque actuators enforce effort limits on the commands sent to the simulator.
     for actuator_name in ("panda_shoulder", "panda_forearm"):
         actuator_cfg = robot_cfg.actuators[actuator_name]
@@ -681,7 +682,7 @@ class _FloatingBaseOscSceneCfg(InteractiveSceneCfg):
     """Minimal scene with a floating-base G1 humanoid."""
 
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane", debug_vis=False)
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     def __post_init__(self):
         super().__post_init__()

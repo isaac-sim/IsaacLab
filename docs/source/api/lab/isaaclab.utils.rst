@@ -33,6 +33,9 @@
 
       configclass
       instantiate
+      clone
+      replace
+      validate
 
 Configuration class
 ~~~~~~~~~~~~~~~~~~~

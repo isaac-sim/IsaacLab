@@ -23,7 +23,7 @@ from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import class_to_dict, configclass, modifiers, update_class_from_dict
 
 pytestmark = pytest.mark.unit
 
@@ -183,7 +183,7 @@ def test_resolution_walks_declared_term_fields_outside_params(env):
         func=increment_dummy1_by_one,
         nested_term=ManagerTermBaseCfg(func=f"{__name__}:reset_dummy2_to_zero"),
     )
-    outer_cfg.from_dict(outer_cfg.to_dict())
+    update_class_from_dict(outer_cfg, class_to_dict(outer_cfg))
     cfg = {"outer": outer_cfg}
     manager = SimpleManager(cfg, env)
 

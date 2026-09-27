@@ -38,7 +38,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import configclass, instantiate, replace
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort: skip
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_SIMPLE_ACTUATOR_CFG, ANYMAL_D_CFG  # isort: skip
@@ -79,55 +79,69 @@ class ZooSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     )
 
-    arm: ArticulationCfg = UR10e_CFG.replace(
+    arm: ArticulationCfg = replace(
+        UR10e_CFG,
         prim_path="{ENV_REGEX_NS}/Arm",
-        init_state=UR10e_CFG.init_state.replace(pos=(-2.2, 1.4, 0.0)),
+        init_state=replace(UR10e_CFG.init_state, pos=(-2.2, 1.4, 0.0)),
     )
-    biped: ArticulationCfg = G1_CFG.replace(
+    biped: ArticulationCfg = replace(
+        G1_CFG,
         prim_path="{ENV_REGEX_NS}/Biped",
-        init_state=G1_CFG.init_state.replace(pos=(0.0, 1.5, 0.74)),
+        init_state=replace(G1_CFG.init_state, pos=(0.0, 1.5, 0.74)),
     )
-    quadruped: ArticulationCfg = ANYMAL_D_CFG.replace(
+    quadruped: ArticulationCfg = replace(
+        ANYMAL_D_CFG,
         prim_path="{ENV_REGEX_NS}/Quadruped",
-        init_state=ANYMAL_D_CFG.init_state.replace(pos=(2.2, 1.4, 0.6)),
+        init_state=replace(ANYMAL_D_CFG.init_state, pos=(2.2, 1.4, 0.6)),
         actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
     )
-    hand: ArticulationCfg = _HAND_CFG.replace(
+    hand: ArticulationCfg = replace(
+        _HAND_CFG,
         prim_path="{ENV_REGEX_NS}/Hand",
-        init_state=_HAND_CFG.init_state.replace(pos=(-1.4, -1.3, 0.5)),
+        init_state=replace(_HAND_CFG.init_state, pos=(-1.4, -1.3, 0.5)),
     )
-    drone: ArticulationCfg = CRAZYFLIE_CFG.replace(
+    drone: ArticulationCfg = replace(
+        CRAZYFLIE_CFG,
         prim_path="{ENV_REGEX_NS}/Drone",
-        init_state=CRAZYFLIE_CFG.init_state.replace(pos=(1.5, -1.4, 1.3)),
+        init_state=replace(CRAZYFLIE_CFG.init_state, pos=(1.5, -1.4, 1.3)),
     )
 
     props: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            "cube": _prop_cfg(
-                sim_utils.CuboidCfg(
-                    size=(0.3, 0.3, 0.3),
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.55, 0.95)),
-                    **_RIGID_PROPS,
+            "cube": replace(
+                _prop_cfg(
+                    sim_utils.CuboidCfg(
+                        size=(0.3, 0.3, 0.3),
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.55, 0.95)),
+                        **_RIGID_PROPS,
+                    ),
+                    (0.0, -0.6, 2.0),
                 ),
-                (0.0, -0.6, 2.0),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Cube"),
-            "sphere": _prop_cfg(
-                sim_utils.SphereCfg(
-                    radius=0.18,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.15)),
-                    **_RIGID_PROPS,
+                prim_path="{ENV_REGEX_NS}/Props/Cube",
+            ),
+            "sphere": replace(
+                _prop_cfg(
+                    sim_utils.SphereCfg(
+                        radius=0.18,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.15)),
+                        **_RIGID_PROPS,
+                    ),
+                    (0.4, -0.6, 2.5),
                 ),
-                (0.4, -0.6, 2.5),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Sphere"),
-            "cylinder": _prop_cfg(
-                sim_utils.CylinderCfg(
-                    radius=0.16,
-                    height=0.4,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.8, 0.25)),
-                    **_RIGID_PROPS,
+                prim_path="{ENV_REGEX_NS}/Props/Sphere",
+            ),
+            "cylinder": replace(
+                _prop_cfg(
+                    sim_utils.CylinderCfg(
+                        radius=0.16,
+                        height=0.4,
+                        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.8, 0.25)),
+                        **_RIGID_PROPS,
+                    ),
+                    (-0.4, -0.6, 3.0),
                 ),
-                (-0.4, -0.6, 3.0),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Cylinder"),
+                prim_path="{ENV_REGEX_NS}/Props/Cylinder",
+            ),
         }
     )
 

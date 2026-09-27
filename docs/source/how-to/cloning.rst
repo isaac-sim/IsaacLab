@@ -30,12 +30,12 @@ asset configurations and an active simulation context ``sim``:
 .. code-block:: python
 
     from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-    from isaaclab.utils import configclass
+    from isaaclab.utils import configclass, replace
 
     @configclass
     class BananaFrankaSceneCfg(InteractiveSceneCfg):
-        banana = banana_cfg.replace(prim_path="{ENV_REGEX_NS}/Banana")
-        franka = franka_cfg.replace(prim_path="{ENV_REGEX_NS}/Franka")
+        banana = replace(banana_cfg, prim_path="{ENV_REGEX_NS}/Banana")
+        franka = replace(franka_cfg, prim_path="{ENV_REGEX_NS}/Franka")
 
     scene = InteractiveScene(BananaFrankaSceneCfg(num_envs=16, env_spacing=2.0))
     sim.reset()

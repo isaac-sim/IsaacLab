@@ -38,7 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
-from isaaclab.utils import instantiate
+from isaaclab.utils import class_to_dict, instantiate
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
@@ -174,7 +174,7 @@ def main():
     print("-" * 80)
     print(f"Input MJCF file: {mjcf_path}")
     print("MJCF importer config:")
-    print_dict(mjcf_converter_cfg.to_dict(), nesting=0)
+    print_dict(class_to_dict(mjcf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

@@ -31,8 +31,9 @@ Import a configuration from ``isaaclab_assets`` and copy it before changing its 
 properties, initial state, or actuators. Keep project-specific configurations in a Python
 module in your own project; they do not need to be added to Isaac Lab.
 
-For example, ``robot_cfg = CARTPOLE_CFG.copy()`` creates an independent configuration.
-Use ``robot_cfg.replace(prim_path="{ENV_REGEX_NS}/Robot")`` when adding it to an
+Import ``clone`` and ``replace`` from ``isaaclab.utils``. For example,
+``robot_cfg = clone(CARTPOLE_CFG)`` creates an independent configuration.
+Use ``replace(robot_cfg, prim_path="{ENV_REGEX_NS}/Robot")`` when adding it to an
 :class:`~scene.InteractiveSceneCfg`. The physics backend is selected separately from
 this robot configuration, as explained below.
 
@@ -76,7 +77,9 @@ Newton's self-collision setting:
    from isaaclab_assets import CARTPOLE_CFG
    from isaaclab_newton.sim.schemas import NewtonArticulationRootPropertiesCfg
 
-   robot_cfg = CARTPOLE_CFG.copy()
+   from isaaclab.utils import clone
+
+   robot_cfg = clone(CARTPOLE_CFG)
    robot_cfg.spawn.articulation_props = NewtonArticulationRootPropertiesCfg(self_collision_enabled=False)
 
 See :doc:`../concepts/solver-tuning/tune_mjwarp` for solver settings,

@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 from pxr import Sdf, Usd, UsdShade
 
+from isaaclab.utils import class_to_dict
 from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 from isaaclab.utils.string import to_camel_case
 
@@ -119,7 +120,7 @@ def spawn_from_mdl_file(
 def _author_cfg_inputs(prim: Usd.Prim, cfg, *, camel_case: bool, ignored: tuple[str, ...] = ()) -> None:
     """Author material-specific config fields as shader inputs."""
     ignored = (*ignored, "func", "visible", "semantic_tags", "copy_from_source", "spawn_path")
-    for name, value in cfg.to_dict().items():
+    for name, value in class_to_dict(cfg).items():
         if name not in ignored and value is not None:
             input_name = to_camel_case(name, to="cC") if camel_case else name
             if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:

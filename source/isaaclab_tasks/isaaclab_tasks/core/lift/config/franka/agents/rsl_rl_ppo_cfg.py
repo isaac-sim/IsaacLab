@@ -5,7 +5,7 @@
 
 from dataclasses import MISSING
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_rl.rsl_rl import (
     RslRlMLPModelCfg,
@@ -59,7 +59,8 @@ class FrankaPPOBaseRunnerCfg(RslRlOnPolicyRunnerCfg):
 
 @configclass
 class FrankaPPORunnerCfg(PresetCfg):
-    default = FrankaPPOBaseRunnerCfg().replace(
+    default = replace(
+        FrankaPPOBaseRunnerCfg(),
         experiment_name="lift_franka",
         obs_groups={"actor": ["policy", "proprio", "perception"], "critic": ["policy", "proprio", "perception"]},
         actor=STATE_POLICY_CFG,

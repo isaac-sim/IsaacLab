@@ -61,7 +61,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -76,7 +76,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(color_scheme="random"),
+        terrain_generator=replace(ROUGH_TERRAINS_CFG, color_scheme="random"),
         visual_material=None,
         debug_vis=False,
     )
@@ -87,7 +87,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     camera = CameraCfg(

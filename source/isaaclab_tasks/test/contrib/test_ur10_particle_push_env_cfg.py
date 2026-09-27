@@ -10,6 +10,8 @@ from types import SimpleNamespace
 import pytest
 import torch
 
+from isaaclab.utils import update_class_from_dict, validate
+
 from isaaclab_tasks.contrib.ur10_particle_push.mdp.curriculums import SinglePushCurriculum
 from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import UR10ParticlePushEnvCfg
 
@@ -17,10 +19,10 @@ from isaaclab_tasks.contrib.ur10_particle_push.ur10_particle_push_env_cfg import
 def test_final_validation_checks_post_construction_overrides():
     """The standard config hook validates values after Hydra-style updates."""
     cfg = UR10ParticlePushEnvCfg()
-    cfg.from_dict({"reset_pose_count": 191})
+    update_class_from_dict(cfg, {"reset_pose_count": 191})
 
     with pytest.raises(ValueError, match="reset_pose_count must be positive and divisible"):
-        cfg.validate()
+        validate(cfg)
 
 
 def test_curriculum_preserves_reset_mixture_and_tracks_level_success():
