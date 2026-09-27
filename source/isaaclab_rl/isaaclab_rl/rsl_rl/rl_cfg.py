@@ -349,8 +349,8 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
 
-    torch_compile_mode: str | None = "default"
-    """The :func:`torch.compile` mode for actor and critic. Defaults to "default"; None disables compilation."""
+    torch_compile_mode: str | None = None
+    """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
 
     policy: RslRlPpoActorCriticCfg = MISSING
     """The policy configuration.
