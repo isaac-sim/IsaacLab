@@ -14,7 +14,6 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
     NewtonGLVisualizerCfg,
@@ -642,7 +641,7 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
     sim = SimpleNamespace(
-        clone_contexts={NewtonReplicateContext: SimpleNamespace(backend_cfg=object())},
+        newton_cfg=object(),
         get_or_create_backend=lambda cfg: backend,
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)

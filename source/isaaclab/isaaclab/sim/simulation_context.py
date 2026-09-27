@@ -218,6 +218,8 @@ class SimulationContext:
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
+        self.newton_cfg: BackendCfg | None = None
+        """Completed Newton allocation inputs, published before consumers initialize."""
         self.fabric_cfg: BackendCfg | None = None
         """Native Fabric stage/device configuration, or None without Kit."""
         if use_isaac_sim:

@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from inspect import signature
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
@@ -309,11 +308,16 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
         [wp.transform(wp.vec3(4.0, 5.0, 6.0), wp.quat_identity())], dtype=wp.transform, device="cpu"
     )
     points.points.assign(np.asarray([[7.0, 8.0, 9.0]], dtype=np.float32))
-    publication.transforms_version += 1
+    publication.transforms_timestamp += 1
     publication.geometry_timestamp += 1
     renderer.render(render_data)
     assert len(refits) == 2
     np.testing.assert_array_equal(observed[-1][0, :3], [4.0, 5.0, 6.0])
+    for expected, attribute in enumerate(("geometry_timestamp", "transforms_timestamp"), start=3):
+        setattr(publication, attribute, getattr(publication, attribute) + 1)
+        renderer.render(render_data)
+        renderer.render(render_data)
+        assert len(refits) == expected
     # Render/query consumers may not restore a manager gateway or another state-update wrapper.
     assert not hasattr(NewtonManager, "_register_sensor_task")
     assert not hasattr(query_module, "get_state")

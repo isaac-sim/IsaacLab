@@ -107,7 +107,7 @@ def _replicate_newton(
     positions: np.ndarray | None = None,
     up_axis: str = "Z",
     quaternions: np.ndarray | None = None,
-) -> tuple[ModelBuilder, object, dict, NewtonBackendCfg | None]:
+) -> tuple[ModelBuilder, object, dict]:
     """Import and replicate the plan's Newton representation, with or without Newton physics."""
     cfg = sim.cfg.physics
     sources = cloner_path.get_asset_prototype_paths(plan)
@@ -233,7 +233,6 @@ def _replicate_newton(
     )
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
-    backend_cfg = None
     if simulation:
         NewtonManager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions)
@@ -255,10 +254,10 @@ def _replicate_newton(
         NewtonManager.set_builder(builder, particle_ranges=particle_ranges)
         NewtonManager._num_envs = len(env_ids)
     else:
-        backend_cfg = NewtonBackendCfg(
-            builder=builder, device=sim.device, num_envs=len(env_ids), simulation=False, geometry_offsets=geometry_offsets
+        sim.newton_cfg = NewtonBackendCfg(
+            builder=builder, device=sim.device, simulation=False, geometry_offsets=geometry_offsets
         )
-    return builder, stage_info, site_index_map, backend_cfg
+    return builder, stage_info, site_index_map
 
 
 class NewtonReplicateContext:
@@ -270,17 +269,12 @@ class NewtonReplicateContext:
         """Initialize the context from its owning simulation."""
         self._sim = sim_context
         self.up_axis = up_axis
-        self.backend_cfg: NewtonBackendCfg | None = None
-        """Completed allocation inputs; native resources belong to the simulation registry."""
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> tuple[ModelBuilder, object, dict]:
         """Build and publish a Newton model from this context's source declarations."""
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
         options = dict(plan=plan, asset_prototype_ids=asset_prototype_ids, positions=plan.positions)
-        builder, stage_info, sites, self.backend_cfg = _replicate_newton(
-            self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options
-        )
-        return builder, stage_info, sites
+        return _replicate_newton(self._sim.stage, env_ids, self._sim, up_axis=self.up_axis, **options)
 
 
 def newton_physics_replicate(
@@ -327,5 +321,5 @@ def newton_physics_replicate(
     plan = ClonePlan(topology, asset_cfgs=assets, env_template=env_template, positions=positions)
     options = dict(plan=plan, asset_prototype_ids=range(len(assets)), positions=positions)
     options.update(up_axis=up_axis, quaternions=quaternions)
-    builder, stage_info, _, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
+    builder, stage_info, _ = _replicate_newton(stage, env_ids, PhysicsManager._sim, **options)
     return builder, stage_info

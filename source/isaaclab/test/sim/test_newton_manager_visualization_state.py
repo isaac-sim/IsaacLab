@@ -101,15 +101,15 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     assert not sim._backend_registry
     finalize = Mock(wraps=builder.finalize)
     monkeypatch.setattr(builder, "finalize", finalize)
-    first = sim.get_or_create_backend(context.backend_cfg)
-    assert sim.get_or_create_backend(context.backend_cfg) is first
+    first = sim.get_or_create_backend(sim.newton_cfg)
+    assert sim.get_or_create_backend(sim.newton_cfg) is first
     assert first.model.world_count == len(plan.topology.world_prototype_layout)
     finalize.assert_called_once_with(device="cpu")
     assert NewtonManager.backend is None
     sim.close_backend(first)
     assert not sim._backend_registry
     assert first.model is first.state_0 is None
-    second = sim.get_or_create_backend(context.backend_cfg)
+    second = sim.get_or_create_backend(sim.newton_cfg)
     assert second is not first
     assert finalize.call_count == 2
     sim.close_backend(second)
@@ -213,7 +213,7 @@ def test_clone_visualization_builder_imports_only_declared_global_deformables(mo
 
     context = NewtonReplicateContext(sim)
     builder, _, _ = context.replicate(plan, (0, 2))
-    geometry = context.backend_cfg.geometry_offsets
+    geometry = sim.newton_cfg.geometry_offsets
 
     assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
     assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}

@@ -20,7 +20,6 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
-from isaaclab_newton.cloner import NewtonReplicateContext
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
@@ -350,7 +349,7 @@ class RerunVisualizer(BaseVisualizer):
         num_envs = scene_data_provider.num_envs
         self._env_ids = self._compute_visualized_env_ids()
         sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self.backend = sim.get_or_create_backend(sim.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
         grpc_port = int(self.cfg.grpc_port)
@@ -482,7 +481,7 @@ class RerunVisualizer(BaseVisualizer):
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        backend = sim.get_or_create_backend(sim.newton_cfg)
         if backend is self.backend:
             return
         self.backend = backend

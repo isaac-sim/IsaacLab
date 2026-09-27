@@ -20,7 +20,6 @@ from isaaclab.sensors.ray_caster.base_ray_caster import BaseRayCaster
 from isaaclab.sensors.ray_caster.kernels import ALIGNMENT_BASE, update_ray_caster_kernel
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.sim.queries import run_query
 
@@ -129,7 +128,7 @@ class _NewtonRayCasterPoseMixin:
     def _initialize_pose_tracking(self: Any) -> None:
         """Resolve registered site labels and allocate pose buffers."""
         sim = sim_utils.SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self.backend = sim.get_or_create_backend(sim.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
         site_indices = self._resolve_site_indices(self._sensor_site_labels, self.cfg.prim_path, self._num_envs)
@@ -382,7 +381,7 @@ class NewtonRaycastSensor(_NewtonRayCasterPoseMixin, BaseRayCaster):
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
         self._graph = run_query(
             self.backend,
-            (provider.backend.transforms_version, provider.backend.geometry_timestamp),
+            provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             self._launch_raycast,
             self._graph,
             use_cuda_graph=self.cfg.use_cuda_graph,

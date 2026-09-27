@@ -21,7 +21,6 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL, SceneDataFormat
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from ..cloner import NewtonReplicateContext
 from ..sim.queries import run_query
 from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
@@ -482,7 +481,7 @@ class NewtonWarpRenderer(BaseRenderer):
     def initialize(self) -> None:
         """Acquire the clone-built native resource and bind its SDP layout."""
         sim = SimulationContext.instance()
-        self.backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        self.backend = sim.get_or_create_backend(sim.newton_cfg)
         self._scene_data_provider = sim.get_scene_data_provider()
         self._transform_mapping = self._scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
@@ -630,7 +629,7 @@ class NewtonWarpRenderer(BaseRenderer):
             provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
         render_data.graph = run_query(
             self.backend,
-            (provider.backend.transforms_version, provider.backend.geometry_timestamp),
+            provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             partial(self._launch_render, render_data),
             render_data.graph,
             use_cuda_graph=self.cfg.use_cuda_graph,

@@ -10,5 +10,5 @@ Deprecated
 ^^^^^^^^^^
 
 * Deprecated ``NewtonManager.get_state()`` and ``update_visualization_state()`` for render consumers.
-  Acquire the clone context's ``backend_cfg`` through ``SimulationContext.get_or_create_backend()``
+  Acquire ``sim.newton_cfg`` through ``sim.get_or_create_backend()``
   and request ``SceneDataProvider.get_transforms()`` and ``get_geometry_points()`` directly instead.

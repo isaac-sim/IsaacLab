@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import contextlib
-import gc
 import inspect
 import logging
 import re
@@ -61,6 +60,7 @@ from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
     VisualShapeColorWriter,
 )
+from isaaclab_newton.sim.queries import capture_graph
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
@@ -78,30 +78,6 @@ _SENSORS_BY_STATE_ATTRIBUTE = {
 
 _SENSOR_STAGE_STATE_ATTRIBUTES = frozenset(_SENSORS_BY_STATE_ATTRIBUTE)
 """Extended state attributes that MuJoCo Warp's sensor stage fills via ``rne_postconstraint``."""
-
-
-@contextlib.contextmanager
-def _paused_gc():
-    """Pause Python garbage collection for the duration of a CUDA graph capture.
-
-    A garbage-collection pass inside a capture window can drop the last
-    reference to an array allocated earlier in the capture. While the capture
-    is paused for a ``wp.capture_while``/``wp.capture_if`` conditional body,
-    Warp then inserts the memory free node into the body graph with dependency
-    nodes from the parent graph, which fails and latches a sticky CUDA error
-    that poisons a later, unrelated copy. Reference-count-driven frees are
-    deterministic solver behavior and remain allowed; only the collector is
-    deferred, and a collection runs immediately after the capture window,
-    where freeing graph-scoped allocations is handled correctly.
-    """
-    was_enabled = gc.isenabled()
-    gc.disable()
-    try:
-        yield
-    finally:
-        if was_enabled:
-            gc.enable()
-            gc.collect()
 
 
 def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
@@ -199,8 +175,7 @@ class NewtonBackend:
         self.state_1 = self.model.state() if cfg.simulation else None
         self.control = self.model.control() if cfg.simulation else None
         self.geometry_offsets = cfg.geometry_offsets
-        self.bvh_timestamp = None
-        self.bvh_graph = None
+        self.bvh_refit = TimestampedBuffer()
 
     def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Bind material writes to this resource's native shape-color buffer."""
@@ -212,7 +187,7 @@ class NewtonBackend:
         self.deformable_ranges.clear()
         self.particle_ranges = {}
         self.geometry_offsets = {}
-        self.bvh_graph = None
+        self.bvh_refit = TimestampedBuffer()
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -1166,7 +1141,7 @@ class NewtonManager(PhysicsManager):
                 contact_attributes=tuple(sorted(cls._pending_extended_contact_attributes)),
             )
             sim = SimulationContext.instance()
-            sim.clone_contexts[cls.clone_context_type].backend_cfg = cfg
+            sim.newton_cfg = cfg
             NewtonManager.backend = sim.get_or_create_backend(cfg)
             NewtonManager._num_envs = cls.backend.model.num_envs
         NewtonManager._pending_extended_contact_attributes = set()
@@ -1591,18 +1566,10 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def _capture_graph(cls, capture_target: Callable[[], None]) -> wp.Graph:
         """Record physics or scene queries without an eager warmup or graph replay."""
-        device = PhysicsManager._device
-        stream = wp.get_stream(device)
-        mode = wp.CaptureMode.THREAD_LOCAL
         sim = PhysicsManager._sim
-        if has_kit() and (sim.has_gui or sim.has_offscreen_render):
-            # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
-            stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
-            mode = wp.CaptureMode.RELAXED
-        with _paused_gc(), wp.ScopedStream(stream):
-            with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
-                capture_target()
-        return capture.graph
+        relaxed = has_kit() and (sim.has_gui or sim.has_offscreen_render)
+        return capture_graph(PhysicsManager._device, capture_target, relaxed=relaxed)
+
     # ------------------------------------------------------------------
     # Building blocks — used by _simulate_full / _simulate_physics_only
     # ------------------------------------------------------------------
@@ -1743,16 +1710,13 @@ class NewtonManager(PhysicsManager):
         .. deprecated::
             Render consumers acquire the clone-built backend through the simulation registry.
         """
-        # The legacy entry point must also work under foreign physics; cloner imports this module.
-        from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
-
         warnings.warn(
             "Request transforms and geometry through SDP instead of NewtonManager.get_state().",
             DeprecationWarning,
             stacklevel=2,
         )
         sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(sim.clone_contexts[NewtonReplicateContext].backend_cfg)
+        backend = sim.get_or_create_backend(sim.newton_cfg)
         provider = sim.get_scene_data_provider() if scene_data_provider is None else scene_data_provider
         poses = SceneDataFormat.Transform()
         mapping = provider.create_mapping(list(backend.model.body_label))

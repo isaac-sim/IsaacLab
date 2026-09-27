@@ -17,7 +17,6 @@ import isaaclab_visualizers.rerun.rerun_visualizer as rerun_visualizer
 import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 import warp as wp
-from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
     NewtonGLVisualizerCfg,
@@ -352,7 +351,7 @@ def web_backend(monkeypatch):
     model = SimpleNamespace(body_label=["/Object"], body_count=1, num_envs=4)
     backend = SimpleNamespace(model=model, state_0=SimpleNamespace(body_q=None), geometry_offsets={})
     sim = SimpleNamespace(
-        clone_contexts={NewtonReplicateContext: SimpleNamespace(backend_cfg=object())},
+        newton_cfg=object(),
         get_or_create_backend=Mock(return_value=backend),
     )
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
