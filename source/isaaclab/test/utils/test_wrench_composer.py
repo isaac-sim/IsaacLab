@@ -36,10 +36,7 @@ def test_wrench_composer_uses_asset_frame_conventions():
 
 def _get_wrench_without_pose_reads(composer: WrenchComposer) -> tuple[wp.array, wp.array, bool]:
     """Read a fast-path wrench while rejecting the expensive body-pose queries."""
-    with (
-        patch.object(composer, "_get_com_pos_fn", side_effect=AssertionError("unexpected CoM read")),
-        patch.object(composer, "_get_link_quat_fn", side_effect=AssertionError("unexpected quaternion read")),
-    ):
+    with patch.object(composer._asset, "data", None):
         return composer.get_forces_and_torques()
 
 

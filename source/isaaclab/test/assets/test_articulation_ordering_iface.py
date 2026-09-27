@@ -1091,6 +1091,9 @@ class TestArticulationDataBodyState:
         )
         _set_dynamics_ordering_backend_data(backend, identity_art, identity_raw, *raw_dynamics_data)
         _set_dynamics_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_dynamics_data)
+        if backend != "newton":
+            for name in ("body_com_jacobian_w", "mass_matrix", "gravity_compensation_forces"):
+                getattr(ordered_art.data, name)
         # Cyclic orderings are not involutions, so a user_to_backend/backend_to_user swap shows up.
         body_user_to_backend = _install_test_body_ordering(ordered_art, "cyclic")
         joint_user_to_backend = _install_test_joint_ordering(ordered_art, "cyclic")

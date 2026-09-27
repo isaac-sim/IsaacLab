@@ -184,6 +184,9 @@ class TestRigidObjectDataProperties:
     def test_rigid_object_data_property_contract(self, backend, device):
         obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device)
         obj.data.update(dt=0.01)
+        if backend == "newton":
+            for name in ("root_link_vel_w", "root_com_pose_w", "body_com_pose_b", "projected_gravity_b", "heading_w"):
+                assert getattr(obj.data, "_" + name).data is None
         shapes = {"N": (_NUM_INSTANCES,), "N1": (_NUM_INSTANCES, 1), "N19": (_NUM_INSTANCES, 1, 9)}
         for name, shape_kind, dtype in _RIGID_OBJECT_DATA_PROPERTIES:
             _check_proxy_array(
