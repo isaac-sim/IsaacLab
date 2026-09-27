@@ -5,46 +5,33 @@
 
 """Tests for the cloner path/query algebra.
 
-These exercise :mod:`isaaclab.cloner.path` and :mod:`isaaclab.cloner.query`, which are pure
-string/array operations over a :class:`~isaaclab.cloner.ClonePlan`. They need no stage, no
+These exercise :class:`isaaclab.cloner.path` and :class:`isaaclab.cloner.query`, which are pure
+string/array operations over topology and path templates. They need no stage, no
 simulator and no USD, so they live outside ``test/sim/``.
 """
 
+import ast
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 import pytest
+import warp as wp
 
 from isaaclab import cloner
-from isaaclab.cloner import ClonePlan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
+from isaaclab.sim import CuboidCfg
 
 ##
 # Path primitives.
 ##
 
 
-def test_path_split():
-    """Split clone destination templates around their clone slot."""
-    assert cloner.path.split("/World/envs/env_{}/Robot") == ("/World/envs/env_", "/Robot")
-    assert cloner.path.split("/World/scenes/{}/") == ("/World/scenes/", "")
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_0/Robot")
-    # A second slot would survive into the suffix and break the later format call.
-    with pytest.raises(ValueError, match="exactly one"):
-        cloner.path.split("/World/envs/env_{}/Robot/{}")
-
-
-def test_path_relative_to():
-    """relative_to strips a concrete root on a boundary, or returns None."""
-    root = "/World/envs/env_0/Robot"
-    assert cloner.path.relative_to("/World/envs/env_0/Robot/base", root) == "/base"
-    assert cloner.path.relative_to("/World/envs/env_0/Robot", root) == ""
-    assert cloner.path.relative_to("/World/envs/env_0/RobotArm", root) is None
-    assert cloner.path.relative_to("/World/ground", root) is None
-    # The stage root is not a segment: stripping it keeps the leading slash.
-    assert cloner.path.relative_to("/World/envs/env_0", "/") == "/World/envs/env_0"
-    assert cloner.path.relative_to("/", "/") == ""
+def test_path_parents_respect_segment_boundaries():
+    paths = "/Banana/Peel", "/Franka/hand", "/Banana", "/Franka", "/Banana_1", "/"
+    np.testing.assert_array_equal(cloner.path.get_parent_indices(paths), [2, 3, 5, 5, 5, -1])
 
 
 def test_expand_env_regex_ns_preserves_regex_quantifiers():
@@ -57,433 +44,268 @@ def test_expand_env_regex_ns_preserves_regex_quantifiers():
     )
 
 
-# (path, root) pairs spanning the ordinary cases plus the stage root and trailing slashes.
-_PATH_ROOT_CASES = [
-    ("/World/envs/env_0/Robot/base", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/RobotArm", "/World/envs/env_0/Robot"),
-    ("/World/ground", "/World/envs/env_0/Robot"),
-    ("/World/envs/env_0/Robot", "/World/envs/env_0/"),
-    ("/World/envs/env_0", "/"),
-    ("/", "/"),
-    ("/World", "/World"),
-]
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-def test_path_law_membership(path, root):
-    """P1: under() holds exactly when relative_to() resolves."""
-    assert cloner.path.under(path, root) == (cloner.path.relative_to(path, root) is not None)
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-@pytest.mark.parametrize("dst_root", ["/World/other", "/World/other/", "/"])
-def test_path_law_rebase_swaps_only_the_root(path, root, dst_root):
-    """P2: rebase is the destination root plus the tail, and rebasing onto the same root is a no-op."""
-    tail = cloner.path.relative_to(path, root)
-    rebased = cloner.path.rebase(path, root, dst_root)
-    if tail is None:
-        assert rebased == path
-    else:
-        assert rebased == ((dst_root.rstrip("/") + tail) or "/")
-        assert cloner.path.rebase(path, root, root) == path
-
-
-@pytest.mark.parametrize("path, root", _PATH_ROOT_CASES)
-def test_path_law_no_special_cases(path, root):
-    """P3: "/" is the root of every absolute path, and a trailing slash is insignificant."""
-    assert cloner.path.under(path, "/")
-    assert cloner.path.relative_to(path, root) == cloner.path.relative_to(path, root.rstrip("/") or "/")
-    assert cloner.path.rebase(path, root, "/World/x") == cloner.path.rebase(path, root + "/", "/World/x")
+@pytest.mark.parametrize(
+    "path, root, suffix",
+    [
+        ("/World/envs/env_0/Robot/base", "/World/envs/env_0/Robot", "/base"),
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot", ""),
+        ("/World/envs/env_0/RobotArm", "/World/envs/env_0/Robot", None),
+        ("/World/ground", "/World/envs/env_0/Robot", None),
+        ("/World/envs/env_0/Robot", "/World/envs/env_0/", "/Robot"),
+        ("/World/envs/env_0", "/", "/World/envs/env_0"),
+        ("/", "/", ""),
+        ("/World", "/World", ""),
+    ],
+)
+def test_path_rebase_and_relative_to_preserve_suffixes(path, root, suffix):
+    """Rebasing changes only a complete root; stage roots and trailing slashes follow the same rules."""
+    assert cloner.path.relative_to(path, root) == suffix
+    assert cloner.path.relative_to(path, root.rstrip("/") or "/") == suffix
+    assert cloner.path.rebase(path, root, root) == path
+    for destination in ("/World/other", "/World/other/", "/"):
+        expected = path if suffix is None else (destination.rstrip("/") + suffix or "/")
+        assert cloner.path.rebase(path, root, destination) == expected
+        assert cloner.path.rebase(path, root + "/", destination) == expected
 
 
 def test_path_match_captures_the_clone_slot():
-    """match keeps the instance the template's slot captured, which relativize discards."""
-    tmpl = "/World/envs/env_{}/Robot"
-    assert cloner.path.match("/World/envs/env_3/Robot/base", tmpl) == ("3", "/base")
-    assert cloner.path.match("/World/envs/env_[^/]+/Robot", tmpl) == ("[^/]+", "")
-    assert cloner.path.match("/World/envs/env_3/RobotArm", tmpl) is None
-
-
-@pytest.mark.parametrize(
-    "path_expr, template",
-    [
-        ("/World/envs/env_3/Robot/base", "/World/envs/env_{}/Robot"),
-        ("/World/envs/env_12/Robot", "/World/envs/env_{}/Robot"),
-        ("/World/scenes/0/Robot/link", "/World/scenes/{}/Robot"),
-    ],
-)
-def test_path_law_template_split(path_expr, template):
-    """P4: a match reassembles into the original path, and its suffix is what relativize returns."""
-    matched = cloner.path.match(path_expr, template)
-    assert matched is not None
-    assert template.format(matched.instance) + matched.suffix == path_expr
-    assert cloner.path.relativize(path_expr, template) == matched.suffix
-
-
-##
-# Clone plans used by the query tests. Each covers a distinct shape of the source/clone
-# relation, and the law tests below run over all of them.
-##
-
-
-def _plan(sources, destinations, mask) -> ClonePlan:
-    return ClonePlan(
-        sources=tuple(sources),
-        destinations=tuple(destinations),
-        clone_mask=np.asarray(mask, dtype=np.bool_),
-    )
-
-
-def _robot_plan(mask_row=(True, True, True, True)) -> ClonePlan:
-    """A single-asset (Robot) clone plan over 4 envs with the given mask row."""
-    return _plan(("/World/envs/env_0/Robot",), ("/World/envs/env_{}/Robot",), [list(mask_row)])
-
-
-def _wide_env_id_plan() -> ClonePlan:
-    """Two variants of one asset over 12 envs, the second starting at a two-digit env id."""
-    mask = np.zeros((2, 12), dtype=np.bool_)
-    mask[0, :10] = True
-    mask[1, 10:] = True
-    return ClonePlan(
-        sources=("/World/envs/env_0/Object", "/World/envs/env_10/Object"),
-        destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        clone_mask=mask,
-    )
-
-
-PLANS = {
-    "homogeneous": _robot_plan(),
-    "partial_coverage": _robot_plan((True, True, False, True)),
-    "two_variants": _plan(
-        ("/World/envs/env_0/Object", "/World/envs/env_2/Object"),
-        ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, True, False, True], [False, False, True, False]],
-    ),
-    "nested_prototype": _plan(
-        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
-        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
-        # The nested row skips env 1, so only the nearest (nested) owner can decide that env.
-        [[True, True, True, True], [True, False, True, True]],
-    ),
-    "distinct_env_root": _plan(
-        ("/World/source/Robot",),
-        ("/World/scenes/{}/Robot",),
-        [[True, True]],
-    ),
-    "wide_env_ids": _wide_env_id_plan(),
-}
-
-
-##
-# Query operations.
-##
-
-
-def test_path_env_ids():
-    """path_env_ids returns the environments a source-space path reaches."""
-    assert cloner.query.path_env_ids(_robot_plan(), "/World/envs/env_0/Robot/base") == (0, 1, 2, 3)
-    partial = _robot_plan((True, True, False, True))
-    assert cloner.query.path_env_ids(partial, "/World/envs/env_0/Robot/base") == (0, 1, 3)
-    assert cloner.query.path_env_ids(_robot_plan(), "/World/ground") == ()
-    # An unowned path has no clone; owned paths are covered by the Q1/Q2 laws below.
-    assert cloner.query.path_to_clone(partial, "/World/ground", 0) is None
-
-
-def test_path_to_source_nested_templates_pick_most_specific():
-    """A path owned by both an ancestor and a descendant template resolves to the descendant."""
-    plan = _plan(
-        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/ee_link/palm_link/Camera"),
-        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/ee_link/palm_link/Camera"),
-        [[True, True], [True, True]],
-    )
-
-    # The camera path matches both templates; the more specific (longer-matching) one wins.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/ee_link/palm_link/Camera")
-    assert resolved == (
-        "/World/envs/env_0/Robot/ee_link/palm_link/Camera",
-        "/World/envs/env_[^/]+/Robot/ee_link/palm_link/Camera",
-        "",
-    )
-
-    # A path that only the ancestor template owns still resolves against it with its suffix.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_0/Robot/base")
-    assert resolved == ("/World/envs/env_0/Robot", "/World/envs/env_[^/]+/Robot", "/base")
-
-
-def test_path_to_source_ambiguous_templates_raise():
-    """Two distinct, equally specific templates owning a path remain a genuine ambiguity."""
-    # Both templates match "/World/envs/env_0/Robot" exactly, leaving no suffix to rank by.
-    plan = _plan(
-        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot"),
-        ("/World/envs/{}/Robot", "/World/{}/env_0/Robot"),
-        [[True, True], [True, True]],
-    )
-
-    with pytest.raises(ValueError, match="matches multiple destination templates"):
-        cloner.query.path_to_source(plan, "/World/envs/env_0/Robot")
-
-
-def test_path_to_source_merges_same_template_rows():
-    """Heterogeneous source rows sharing one destination template resolve through a single owner."""
-    # One logical asset cloned from two source variants onto the same destination template.
-    # Neither row alone covers all envs; row 0 -> envs (0, 2), row 1 -> env (1); env 3 is covered by neither.
-    plan = _plan(
-        ("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, False, True, False], [False, True, False, False]],
-    )
-
-    # Without an env id, the first populated row represents the asset.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera")
-    assert resolved == ("/World/envs/env_0/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
-
-    # With an env id, the variant that actually populates that env is reported.
-    resolved = cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=1)
-    assert resolved == ("/World/envs/env_1/Object", "/World/envs/env_[^/]+/Object", "/Body/Camera")
-
-    # Partial-env coverage is allowed: no row populates env 3, so resolving for it reports nothing.
-    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body/Camera", env_id=3) is None
-
-
-def test_path_to_source_inactive_rows_return_none():
-    """A template whose every matching row populates no env resolves to ``None``."""
-    plan = _plan(
-        ("/World/envs/env_0/Object",),
-        ("/World/envs/env_{}/Object",),
-        [[False, False, False, False]],
-    )
-
-    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Object/Body") is None
-
-
-def test_iter_sources_yields_each_populating_row():
-    """Every variant row behind a destination template is yielded with only the envs it populates."""
-    plan = _plan(
-        ("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-        ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, True, False, False], [False, False, True, True]],
-    )
-
-    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body/Camera"))
-
-    assert matches == [
-        (
-            "/World/envs/env_0/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_0/Object/Body/Camera",
-            (0, 1),
-        ),
-        (
-            "/World/envs/env_1/Object",
-            "/World/envs/env_{}/Object",
-            "/World/envs/env_1/Object/Body/Camera",
-            (2, 3),
-        ),
-    ]
-
-
-def test_iter_sources_skips_rows_without_envs():
-    """A nearer template populating no env does not hide the populated ancestor owning the path."""
-    plan = _plan(
-        ("/World/envs/env_0/Robot", "/World/envs/env_0/Robot/wrist/Camera"),
-        ("/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot/wrist/Camera"),
-        [[True, True, False, False], [False, False, False, False]],
-    )
-
-    assert list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot/wrist/Camera")) == [
-        (
-            "/World/envs/env_0/Robot",
-            "/World/envs/env_{}/Robot",
-            "/World/envs/env_0/Robot/wrist/Camera",
-            (0, 1),
-        )
-    ]
-
-
-def test_iter_sources_distinct_env_root():
-    """The destination template need not sit under the default env root."""
-    plan = PLANS["distinct_env_root"]
-
-    assert list(cloner.query.iter_sources(plan, "/World/scenes/[^/]+/Robot/base")) == [
-        ("/World/source/Robot", "/World/scenes/{}/Robot", "/World/source/Robot/base", (0, 1))
-    ]
-
-
-def test_iter_sources_ranks_variants_independently_of_env_id_width():
-    """Regression: a variant is not ranked out because its first env id has more digits.
-
-    Specificity is the suffix below the destination template, which does not depend on the
-    env ids a row happens to populate. Ranking by the *formatted* template instead made
-    ``env_10`` look more specific than ``env_0`` and silently dropped the first variant for
-    any scene with more than ten envs.
-    """
-    plan = _wide_env_id_plan()
-
-    matches = list(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Object/Body"))
-
-    assert [match[0] for match in matches] == ["/World/envs/env_0/Object", "/World/envs/env_10/Object"]
-    assert [match[3] for match in matches] == [tuple(range(10)), (10, 11)]
-
-
-##
-# Laws, checked over every plan shape above.
-##
-
-
-def _owning_row(plan: ClonePlan, path: str, env_id: int) -> int | None:
-    """Independent oracle for the ownership rule stated in :mod:`isaaclab.cloner.query`.
-
-    The deepest source root containing ``path`` owns it; among rows tying at that depth
-    (the variants of one asset), the row populating ``env_id`` wins.
-    """
-    rows = [row for row, source in enumerate(plan.sources) if cloner.path.under(path, source)]
-    if not rows:
-        return None
-    deepest = max(len(plan.sources[row].rstrip("/")) for row in rows)
-    rows = [row for row in rows if len(plan.sources[row].rstrip("/")) == deepest]
-    return next((row for row in rows if bool(plan.clone_mask[row][env_id])), None)
-
-
-def _probe_paths(plan: ClonePlan) -> list[str]:
-    """Source-space paths to probe: every prototype root, and prims below it."""
-    return [source + tail for source in plan.sources for tail in ("", "/base", "/link/child")]
-
-
-@pytest.mark.parametrize("plan_name", sorted(PLANS))
-def test_query_law_factorization_and_domain(plan_name):
-    """Q1/Q2: a clone keeps everything below the prototype root, and exists only where the plan says."""
-    plan = PLANS[plan_name]
-    num_envs = plan.clone_mask.shape[1]
-
-    for path in _probe_paths(plan):
-        reached = cloner.query.path_env_ids(plan, path)
-        assert set(reached) <= set(range(num_envs))
-
-        for env_id in range(num_envs):
-            clone = cloner.query.path_to_clone(plan, path, env_id)
-            # Q2: a clone exists exactly for the environments the plan reaches.
-            assert (clone is not None) == (env_id in reached)
-            if clone is None:
-                continue
-            # Q1: the clone is the row's destination with the source-relative tail appended.
-            row = _owning_row(plan, path, env_id)
-            assert row is not None
-            tail = cloner.path.relative_to(path, plan.sources[row])
-            assert clone == plan.destinations[row].format(env_id) + tail
-            assert clone == cloner.path.rebase(path, plan.sources[row], plan.destinations[row].format(env_id))
-
-
-@pytest.mark.parametrize("plan_name", sorted(PLANS))
-def test_query_law_round_trip(plan_name):
-    """Q3: resolving a clone path returns the prototype it was cloned from.
-
-    A clone path is concrete, so no env id has to be supplied: the clone slot names it.
-    """
-    plan = PLANS[plan_name]
-
-    for path in _probe_paths(plan):
-        for env_id in cloner.query.path_env_ids(plan, path):
-            clone = cloner.query.path_to_clone(plan, path, env_id)
-            assert clone is not None
-
-            resolved = cloner.query.path_to_source(plan, clone)
-            assert resolved is not None, f"{clone} did not resolve back for env {env_id}"
-            source, _glob, suffix = resolved
-            assert source + suffix == path
-            # Naming the env explicitly must agree with reading it out of the path.
-            assert cloner.query.path_to_source(plan, clone, env_id=env_id) == resolved
-
-
-def test_query_resolve_distinguishes_concrete_paths_from_wildcards():
-    """A concrete clone path names its env; a wildcard expression stands for all of them.
-
-    The clone slot is what separates the two: ``env_2`` selects the variant that populates
-    env 2, while ``env_.*`` cannot and falls back to the first populated variant unless the
-    caller names an env.
-    """
-    plan = PLANS["two_variants"]
-    concrete = "/World/envs/env_2/Object/base"
-
-    # Concrete: resolves to the variant env 2 was actually cloned from.
-    source, _glob, suffix = cloner.query.path_to_source(plan, concrete)
-    assert source + suffix == "/World/envs/env_2/Object/base"
-
-    # Wildcard: one-to-many, so it reports a representative variant...
-    wildcard = "/World/envs/env_[^/]+/Object/base"
-    source, _glob, suffix = cloner.query.path_to_source(plan, wildcard)
-    assert source + suffix == "/World/envs/env_0/Object/base"
-
-    # ...unless the caller names the env it means.
-    source, _glob, suffix = cloner.query.path_to_source(plan, wildcard, env_id=2)
-    assert source + suffix == "/World/envs/env_2/Object/base"
-
-
-def test_query_translates_env_ids_through_the_plan():
-    """Mask columns are not env ids: a plan targeting envs (2, 5) reports 2 and 5.
-
-    :func:`~isaaclab.cloner.replicate` formats destinations with ``env_ids[column]``, so the
-    queries have to agree with it rather than reporting column indices.
-    """
-    plan = ClonePlan(
-        sources=("/World/envs/env_2/Robot",),
-        destinations=("/World/envs/env_{}/Robot",),
-        clone_mask=np.asarray([[True, True]], dtype=np.bool_),
-        env_ids=np.asarray([2, 5], dtype=np.int64),
-    )
-    path = "/World/envs/env_2/Robot/base"
-
-    assert cloner.query.path_env_ids(plan, path) == (2, 5)
-    assert cloner.query.path_to_clone(plan, path, 5) == "/World/envs/env_5/Robot/base"
-    # Column indices are not environments: env 1 is not targeted by this plan.
-    assert cloner.query.path_to_clone(plan, path, 1) is None
-    assert next(iter(cloner.query.iter_sources(plan, "/World/envs/env_[^/]+/Robot")))[3] == (2, 5)
-
-    source, _glob, suffix = cloner.query.path_to_source(plan, "/World/envs/env_5/Robot/base")
-    assert source + suffix == path
-
-
-@pytest.mark.parametrize("env_id", [-1, 4, 99])
-def test_query_rejects_env_ids_outside_the_plan(env_id):
-    """Out-of-range and negative ids resolve to nothing instead of wrapping the mask."""
-    plan = _robot_plan()
-    assert cloner.query.path_to_clone(plan, "/World/envs/env_0/Robot/base", env_id) is None
-    assert cloner.query.path_to_source(plan, "/World/envs/env_[^/]+/Robot", env_id=env_id) is None
-
-
-def test_query_agrees_across_duplicate_source_rows():
-    """An inactive variant may share a fallback source path with an active one.
-
-    ``make_clone_plan`` points an unused variant at ``destination.format(i)``, which can
-    collide with another row's source. The two source-side queries must still agree about
-    which envs that path reaches.
-    """
-    plan = _plan(
-        # Row 1 is inactive and fell back to the same source path as active row 0.
-        ("/World/envs/env_0/Object", "/World/envs/env_0/Object"),
-        ("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-        [[True, False, True, False], [False, False, False, False]],
-    )
-    path = "/World/envs/env_0/Object/base"
-
-    reached = cloner.query.path_env_ids(plan, path)
-    assert reached == (0, 2)
-    for env_id in range(plan.clone_mask.shape[1]):
-        assert (cloner.query.path_to_clone(plan, path, env_id) is not None) == (env_id in reached)
+    """Match captures the instance slot and rejects ambiguous templates."""
+    for template, instance, suffix in (
+        ("/World/envs/env_{}/Robot", "3", "/base"),
+        ("/World/envs/env_{}/Robot", "12", ""),
+        ("/World/envs/env_{}/Robot", "[^/]+", ""),
+        ("/World/scenes/{}/Robot", "0", "/link"),
+    ):
+        assert cloner.path.match(template.format(instance) + suffix, template) == (instance, suffix)
+    assert cloner.path.match("/World/envs/env_3/RobotArm", "/World/envs/env_{}/Robot") is None
+    for invalid in ("/World/envs/env_0/Robot", "/World/envs/env_{}/Robot/{}"):
+        with pytest.raises(ValueError, match="exactly one"):
+            cloner.path.match("/World/envs/env_3/Robot", invalid)
 
 
 def test_cloner_imports_without_kit():
     """Importing the package in a clean interpreter must not drag in pxr.
 
-    ``isaaclab.sim.utils.queries`` imports the cloner and the cloner's plan constructors
-    import ``isaaclab.sim``, so this guards both against an import cycle and against pulling
-    pxr in before Kit boots, which corrupts Kit's own USD runtime.
+    Topology and path queries must stay independent of USD execution. Loading pxr before
+    Kit boots would also bind it to the wrong USD runtime.
     """
     probe = (
-        "from isaaclab.cloner import ClonePlan; import sys; "
-        "print(any(n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
+        "from isaaclab.cloner import ClonePlan, path, query; import sys; "
+        "assert all(isinstance(namespace, type) and namespace.__module__ == ClonePlan.__module__ "
+        "for namespace in (path, query)); "
+        "assert not any(hasattr(query, name) for name in "
+        "('get_matched_sources', 'path_to_source', 'path_to_clone', 'path_env_ids', 'iter_clones')); "
+        "assert not any(hasattr(path, name) for name in "
+        "('get_instance_paths', 'get_shared_paths', 'iter_subtree_copies', 'under', 'relativize', 'split')); "
+        "print(any(n == 'isaaclab.cloner.usd' or n == 'pxr' or n.startswith('pxr.') for n in sys.modules))"
     )
     result = subprocess.run([sys.executable, "-c", probe], capture_output=True, text=True)
 
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == "False", "importing isaaclab.cloner pulled in pxr"
+    assert result.stdout.strip() == "False", "generic clone topology and queries imported the USD backend"
+
+    # Only cloning execution and its lifecycle owners may access context instances.
+    for path in Path(__file__).resolve().parents[3].glob("*/isaaclab*/**/*.py"):
+        if "cloner" in path.parts or path.name in {"simulation_context.py", "render_context.py"}:
+            continue
+        assert not any(
+            isinstance(node, ast.Attribute) and node.attr == "clone_contexts"
+            for node in ast.walk(ast.parse(path.read_text()))
+        ), f"{path} accessed clone contexts; consumers must use the plan and path/query utilities"
+
+
+@pytest.mark.parametrize("shared_assets", [(), (0,)])
+def test_world_topology_preserves_repeated_assets_and_shared_world(shared_assets):
+    """One prototype declaration can belong to shared and replicated worlds more than once."""
+    assets = tuple(AssetBaseCfg(prim_path=path, spawn=CuboidCfg(size=(1, 1, 1))) for path in ("/Banana", "/Franka"))
+    worlds = ((0, 1), (0, 1, 1), (0, 0, 1), (1,))
+    plan = make_clone_plan(assets, worlds, 16, shared_assets=shared_assets)
+    assert isinstance(plan.topology, cloner.PrototypeWorldTopology)
+    assert set(vars(plan)) == {"topology", "asset_cfgs", "env_template", "positions"}
+    assert not any(hasattr(plan, field) for field in vars(plan.topology))
+    assert all(actual is expected for actual, expected in zip(plan.asset_cfgs, assets, strict=True))
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, np.repeat(np.arange(4), 4))
+    np.testing.assert_array_equal(
+        plan.topology.world_prototype_starts,
+        [0, len(shared_assets), *(len(shared_assets) + np.cumsum([len(world) for world in worlds]))],
+    )
+    np.testing.assert_array_equal(plan.topology.world_prototypes, [*shared_assets, 0, 1, 0, 1, 1, 0, 0, 1, 1])
+    templates, starts, indices, index_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assert starts is plan.topology.world_prototype_starts
+    assert cloner.path.get_world_prototype_asset_templates(plan)[0] == templates
+    assert cloner.path.get_asset_prototype_paths(plan) == (
+        "/Banana" if shared_assets else "/World/envs/env_0/Banana",
+        "/World/envs/env_0/Franka",
+    )
+    for group, names in enumerate(
+        (
+            tuple("Banana" for _ in shared_assets),
+            ("Banana", "Franka"),
+            ("Banana", "Franka", "Franka_1"),
+            ("Banana", "Banana_1", "Franka"),
+            ("Franka",),
+        )
+    ):
+        expected_templates = tuple(("/" if group == 0 else plan.env_template + "/") + name for name in names)
+        assert templates[starts[group] : starts[group + 1]] == expected_templates
+        np.testing.assert_array_equal(
+            indices[index_starts[group] : index_starts[group + 1]],
+            [-1] if group == 0 else range(4 * (group - 1), 4 * group),
+        )
+    for path_expr, asset_ids, world_ids in (
+        (None, [0, 1], [-1, 0, 1, 2, 3]),
+        ("/Banana", [0], ([-1] if shared_assets else []) + [0, 1, 2]),
+        ("/(Banana|Franka)", [0, 1], ([-1] if shared_assets else []) + [0, 1, 2, 3]),
+        ("/Missing", [], []),
+    ):
+        for query, expected in (
+            (cloner.path.get_asset_prototypes, asset_ids),
+            (cloner.path.get_world_prototypes, world_ids),
+        ):
+            actual = query(plan, path_expr)
+            assert actual.dtype == np.int32 and actual.ndim == 1
+            np.testing.assert_array_equal(actual, expected)
+    # Pure planning does not modify USD names or source poses.
+    assert [cfg.prim_path for cfg in assets] == ["/Banana", "/Franka"]
+    assert all(cfg.spawn.spawn_path is None for cfg in assets)
+    # Reverse selection is indexing: retain occurrences rather than deduplicating asset IDs.
+    for world_id, prototype_id in enumerate(plan.topology.world_prototype_layout):
+        start, end = plan.topology.world_prototype_starts[prototype_id + 1 : prototype_id + 3]
+        np.testing.assert_array_equal(plan.topology.world_prototypes[start:end], worlds[world_id // 4])
+
+
+def test_world_topology_weights_empty_worlds_and_invalid_membership():
+    assets = tuple(AssetBaseCfg(prim_path=f"/env_[^/]+/{name}") for name in ("Banana", "Franka"))
+    plan = make_clone_plan(assets, ((0,), (), (1, 1), (0,)), 6, weights=(1, 0, 2, 0))
+    np.testing.assert_array_equal(plan.topology.world_prototype_layout, [0, 0, 2, 2, 2, 2])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan), [-1, 0, 1, 2, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, assets[0].prim_path), [0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(plan, assets[0].prim_path), [0, 3])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, ".*/Banana"), [0])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(plan, "/env_0/Banana"), [])
+    empty = make_clone_plan((), ((),), 3)
+    shared_only = make_clone_plan(assets, ((0,),), 0, shared_assets=(1, 1))
+    np.testing.assert_array_equal(empty.topology.world_prototype_starts, [0, 0, 0])
+    np.testing.assert_array_equal(empty.topology.world_prototype_layout, [0, 0, 0])
+    np.testing.assert_array_equal(cloner.path.get_asset_prototypes(empty), [])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty), [-1, 0])
+    np.testing.assert_array_equal(cloner.path.get_world_prototypes(empty, ".*"), [])
+    for topology, selector, indices, starts in (
+        (empty.topology, 0, [], [[0, 0, 0, 0, 0]]),
+        (shared_only.topology, 0, [], [[0, 0]]),
+        (shared_only.topology, 1, [-1, -1], [[0, 2]]),
+    ):
+        result = cloner.query.get_asset_prototype_world_index(topology, selector)
+        for actual, expected in zip(result, (indices, starts), strict=True):
+            np.testing.assert_array_equal(actual, expected)
+    for members in ((2,), (-1,), (0.5,), ("0",)):
+        with pytest.raises(ValueError, match="integer indices"):
+            make_clone_plan(assets, (members,), 1)
+    for selector in ("/Banana", np.array([0.5]), np.array([[0]])):
+        with pytest.raises(TypeError, match="integer IDs"):
+            cloner.query.get_asset_prototype_world_index(plan.topology, selector)
+
+
+@pytest.mark.parametrize("device", ["numpy", "cpu", "cuda:0"])
+@pytest.mark.parametrize(
+    "worlds, num_worlds, shared, selectors",
+    [
+        (((0, 1), (0, 1, 1), (0, 0, 1), (1,)), 16, (0, 0), [0, 1, 0, 2, 3, -1]),
+        (((0,), (), (1, 1)), 6, (), [0, 1, 0, 2, -1]),
+        (((),), 0, (1, 1), [1, 0, 1, -1, 2]),
+        (((),), 3, (), [0, -1, 0, 2]),
+        (((),), 3, (), []),
+    ],
+)
+def test_batched_world_queries(device, worlds, num_worlds, shared, selectors):
+    """NumPy, Warp, and graph replay agree with direct enumeration, including empty/repeated queries."""
+    if device.startswith("cuda") and not wp.is_cuda_available():
+        pytest.skip("CUDA graph validation requires CUDA")
+    plan = make_clone_plan((0, 1, 2), worlds, num_worlds, shared_assets=shared)
+    compositions = (shared, *(worlds[index] for index in plan.topology.world_prototype_layout))
+    layout = (-1, *plan.topology.world_prototype_layout)
+    ids = np.asarray(selectors, dtype=np.int32)
+    capacity = len(ids) * max(sum(map(len, compositions)), num_worlds + 1)
+    topology = plan.topology if device == "numpy" else cloner.to_warp(plan.topology, device)
+    assert topology.num_asset_prototypes == len(plan.asset_cfgs)
+    assert set(vars(topology)) == {
+        "num_asset_prototypes",
+        "world_prototypes",
+        "world_prototype_starts",
+        "world_prototype_layout",
+    }
+    if device == "cpu":
+        for name in ("world_prototypes", "world_prototype_starts", "world_prototype_layout"):
+            assert getattr(topology, name).ptr == getattr(plan.topology, name).ctypes.data
+    if device != "numpy":
+        with pytest.raises(TypeError, match="do not transfer"):
+            cloner.query.get_asset_prototype_world_index(plan.topology, wp.empty(0, dtype=wp.int32, device=device))
+    del plan  # The Warp topology must retain borrowed host storage after its construction inputs are gone.
+
+    for query, by_asset, unique in (
+        (cloner.query.get_asset_prototype_world_index, True, False),
+        (cloner.query.get_asset_prototype_unique_world_index, True, True),
+        (cloner.query.get_world_prototype_world_index, False, True),
+    ):
+        query_ids = ids if device == "numpy" else wp.array(ids, dtype=wp.int32, device=device)
+        out = (
+            (np.empty(capacity, dtype=np.int32), np.empty((len(ids), num_worlds + 2), dtype=np.int64))
+            if device == "numpy"
+            else (
+                wp.empty(capacity, dtype=wp.int32, device=device),
+                wp.empty((len(ids), num_worlds + 2), dtype=wp.int64, device=device),
+            )
+        )
+        # Warm the kernels and scan before capture. Replay must use changed device query IDs.
+        query(topology, query_ids, out=out)
+        graph = None
+        if device.startswith("cuda"):
+            with wp.ScopedCapture(device=device) as capture:
+                query(topology, query_ids, out=out)
+            graph = capture.graph
+
+        for selected in (ids, ids[::-1].copy(), np.zeros_like(ids)):
+            expected, boundaries = [], []
+            for prototype in selected:
+                starts = [len(expected)]
+                for world_id, (composition, world_prototype) in enumerate(zip(compositions, layout, strict=True), -1):
+                    count = composition.count(prototype) if by_asset else int(world_prototype == prototype)
+                    expected.extend([world_id] * (min(count, 1) if unique else count))
+                    starts.append(len(expected))
+                boundaries.append(starts)
+            expected_starts = np.asarray(boundaries, dtype=np.int64).reshape(len(ids), num_worlds + 2)
+            if device == "numpy":
+                query(topology, selected, out=out)
+                indices, starts = out
+                exact = query(topology, selected)
+                assert exact[0].dtype == np.int32 and exact[1].dtype == np.int64
+                np.testing.assert_array_equal(exact[0], expected)
+                np.testing.assert_array_equal(exact[1], expected_starts)
+                if len(selected):
+                    for scalar in (int(selected[0]), selected[0]):
+                        scalar_indices, scalar_starts = query(topology, scalar)
+                        np.testing.assert_array_equal(scalar_indices, expected[: expected_starts[0, -1]])
+                        np.testing.assert_array_equal(scalar_starts, expected_starts[:1])
+            else:
+                query_ids.assign(selected)
+                if graph is None:
+                    query(topology, query_ids, out=out)
+                else:
+                    wp.capture_launch(graph)
+                indices, starts = (array.numpy() for array in out)
+            np.testing.assert_array_equal(indices[: len(expected)], expected)
+            np.testing.assert_array_equal(starts, expected_starts)
+
+        # Insufficient capacity must report the required size without writing a partial result.
+        if len(expected) > 1:
+            if device == "numpy":
+                short = (np.full(1, -99, dtype=np.int32), out[1])
+            else:
+                short = (wp.full(1, -99, dtype=wp.int32, device=device), out[1])
+            query(topology, selected if device == "numpy" else query_ids, out=short)
+            values = short[0] if device == "numpy" else short[0].numpy()
+            starts = short[1] if device == "numpy" else short[1].numpy()
+            np.testing.assert_array_equal(values, [-99])
+            assert starts[-1, -1] == len(expected)
