@@ -14,8 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import warp as wp
-
-from isaaclab.managers import SceneEntityCfg
+from isaaclab_experimental.managers import SceneEntityCfg
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -33,7 +32,7 @@ def _position_command_error_kernel(
     root_quat_w: wp.array(dtype=wp.quatf),
     body_pos_w: wp.array(dtype=wp.vec3f, ndim=2),
     cmd: wp.array(dtype=wp.float32, ndim=2),
-    body_idx: int,
+    body_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
     """Compute the L2 distance between the end-effector and the commanded position in world frame."""
@@ -42,7 +41,7 @@ def _position_command_error_kernel(
     des_b = wp.vec3f(cmd[i, 0], cmd[i, 1], cmd[i, 2])
     des_w = root_pos_w[i] + wp.quat_rotate(root_quat_w[i], des_b)
     # current end-effector position
-    cur_w = body_pos_w[i, body_idx]
+    cur_w = body_pos_w[i, body_ids[0]]
     dx = cur_w[0] - des_w[0]
     dy = cur_w[1] - des_w[1]
     dz = cur_w[2] - des_w[2]
@@ -65,7 +64,7 @@ def position_command_error(env: ManagerBasedRLEnv, out, command_name: str, asset
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
             fn._cmd_wp,
-            asset_cfg.body_ids[0],
+            asset_cfg.body_ids_wp,
             out,
         ],
         device=env.device,
@@ -83,7 +82,7 @@ def _position_command_error_tanh_kernel(
     root_quat_w: wp.array(dtype=wp.quatf),
     body_pos_w: wp.array(dtype=wp.vec3f, ndim=2),
     cmd: wp.array(dtype=wp.float32, ndim=2),
-    body_idx: int,
+    body_ids: wp.array(dtype=wp.int32),
     inv_std: float,
     out: wp.array(dtype=wp.float32),
 ):
@@ -91,7 +90,7 @@ def _position_command_error_tanh_kernel(
     i = wp.tid()
     des_b = wp.vec3f(cmd[i, 0], cmd[i, 1], cmd[i, 2])
     des_w = root_pos_w[i] + wp.quat_rotate(root_quat_w[i], des_b)
-    cur_w = body_pos_w[i, body_idx]
+    cur_w = body_pos_w[i, body_ids[0]]
     dx = cur_w[0] - des_w[0]
     dy = cur_w[1] - des_w[1]
     dz = cur_w[2] - des_w[2]
@@ -117,7 +116,7 @@ def position_command_error_tanh(
             asset.data.root_quat_w.warp,
             asset.data.body_pos_w.warp,
             fn._cmd_wp,
-            asset_cfg.body_ids[0],
+            asset_cfg.body_ids_wp,
             1.0 / std,
             out,
         ],
@@ -135,7 +134,7 @@ def _orientation_command_error_kernel(
     root_quat_w: wp.array(dtype=wp.quatf),
     body_quat_w: wp.array(dtype=wp.quatf, ndim=2),
     cmd: wp.array(dtype=wp.float32, ndim=2),
-    body_idx: int,
+    body_ids: wp.array(dtype=wp.int32),
     out: wp.array(dtype=wp.float32),
 ):
     """Compute the shortest-path angular error between the end-effector and the commanded orientation."""
@@ -144,7 +143,7 @@ def _orientation_command_error_kernel(
     des_b = wp.quatf(cmd[i, 3], cmd[i, 4], cmd[i, 5], cmd[i, 6])
     des_w = root_quat_w[i] * des_b
     # current ee orientation
-    cur_w = body_quat_w[i, body_idx]
+    cur_w = body_quat_w[i, body_ids[0]]
     # shortest-path error: angle of q_err = cur^-1 * des
     q_err = wp.quat_inverse(cur_w) * des_w
     # 2*atan2(|xyz|, |w|), matching the stable axis-angle magnitude. Both arguments scale with
@@ -165,6 +164,6 @@ def orientation_command_error(env: ManagerBasedRLEnv, out, command_name: str, as
     wp.launch(
         kernel=_orientation_command_error_kernel,
         dim=env.num_envs,
-        inputs=[asset.data.root_quat_w.warp, asset.data.body_quat_w.warp, fn._cmd_wp, asset_cfg.body_ids[0], out],
+        inputs=[asset.data.root_quat_w.warp, asset.data.body_quat_w.warp, fn._cmd_wp, asset_cfg.body_ids_wp, out],
         device=env.device,
     )

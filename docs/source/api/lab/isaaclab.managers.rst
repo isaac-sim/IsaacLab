@@ -38,6 +38,44 @@ Scene Entity
     :members:
     :exclude-members: __init__
 
+Resolved selections
+~~~~~~~~~~~~~~~~~~~
+
+``SceneEntityCfg.resolve(scene)`` replaces each non-slice joint, body, fixed-tendon,
+and object-collection selection with a one-dimensional ``torch.long`` tensor on the
+scene device. Slices remain slices. Names and integer lists are still accepted when
+configuring a selection. Managers resolve their copies before calling terms.
+
+.. code-block:: python
+
+    cfg = SceneEntityCfg("robot", body_names=["left_foot", "right_foot"])
+    cfg.resolve(env.scene)
+    positions = env.scene["robot"].data.body_pos_w.torch[:, cfg.body_ids]
+    first_position = env.scene["robot"].data.body_pos_w.torch[:, cfg.body_ids[:1]].squeeze(1)
+
+Migration: resolved ``*_ids`` fields are tensors rather than Python lists. Tensor
+consumers use them directly. Replace scalar-index expressions such as
+``data[:, cfg.body_ids[0]]`` with the one-element selection above: converting a CUDA
+scalar index to a Python integer synchronizes the device. ``len(ids)`` and ``ids.shape``
+only inspect metadata and do not read values back.
+
+For consumers that require Python integers, use ``ids.tolist()`` once during setup or
+inspection. This transfers CUDA indices to the host and synchronizes. Avoid it, Python
+iteration over CUDA indices, and ``ids[0].item()`` in stepping code. There is no retained
+host copy, wrapper, second selector field, or process-wide cache.
+
+Use ``ids.to(device=device, dtype=torch.long)`` to adapt an existing tensor without
+unnecessarily copying it with ``torch.tensor(ids)``. Before resolution, callers may still
+receive configured lists or slices; use ``isaaclab.utils.convert_to_torch`` when supporting
+unresolved configurations and tensor input together.
+
+Treat resolved indices as read-only. Replace the selection and call ``resolve`` after
+configuration changes. Re-resolution reads tensors back for host name validation, then
+creates the final device selectors. Configuration copies own copies of their tensors;
+serialization emits ordinary lists using a dataclass field ``serializer`` callback.
+Serialization of resolved CUDA configurations therefore also performs a host readback.
+Keep both resolution and serialization outside the step loop.
+
 Manager Base
 ------------
 

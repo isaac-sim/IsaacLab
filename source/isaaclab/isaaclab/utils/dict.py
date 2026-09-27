@@ -26,7 +26,8 @@ def class_to_dict(obj: object) -> dict[str, Any]:
     """Convert an object into dictionary recursively.
 
     Note:
-        Ignores all names starting with "__" (i.e. built-in methods).
+        Ignores all names starting with "__" (i.e. built-in methods). Dataclass fields may
+        provide a ``metadata={"serializer": callable}`` conversion for their serialized values.
 
     Args:
         obj: An instance of a class to convert.
@@ -55,7 +56,11 @@ def class_to_dict(obj: object) -> dict[str, Any]:
 
     # convert to dictionary
     data = {}
+    fields = getattr(obj, "__dataclass_fields__", {})
     for key, value in obj_dict.items():
+        serializer = fields[key].metadata.get("serializer") if key in fields else None
+        if serializer is not None:
+            value = serializer(value)
         # disregard builtin attributes
         if key.startswith("__"):
             continue

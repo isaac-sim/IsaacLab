@@ -13,6 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import torch
 import warp as wp
 
 from isaaclab.assets import ArticulationCfg
@@ -53,21 +54,24 @@ class SceneEntityCfg(_SceneEntityCfg):
 
         entity = scene[self.name]
 
-        # -- Warp joint mask / ids for articulations
+        # Populate Warp selections from device tensors without a host round trip.
         if isinstance(entity.cfg, ArticulationCfg):
-            if self.joint_ids == slice(None):
-                joint_ids_list = list(range(entity.num_joints))
-                mask_list = [True] * entity.num_joints
-            else:
-                joint_ids_list = list(self.joint_ids)
-                mask_list = [False] * entity.num_joints
-                for idx in joint_ids_list:
-                    mask_list[idx] = True
-            self.joint_mask = wp.array(mask_list, dtype=wp.bool, device=scene.device)
-            self.joint_ids_wp = wp.array(joint_ids_list, dtype=wp.int32, device=scene.device)
+            joint_ids = (
+                torch.arange(entity.num_joints, device=scene.device)[self.joint_ids]
+                if isinstance(self.joint_ids, slice)
+                else self.joint_ids.remainder(entity.num_joints)
+            )
+            mask = torch.zeros(entity.num_joints, dtype=torch.bool, device=scene.device)
+            mask.index_fill_(0, joint_ids, True)
+            self.joint_mask = wp.from_torch(mask)
+            self.joint_ids_wp = wp.from_torch(joint_ids.to(torch.int32))
 
-        # -- Warp body ids
-        if self.body_ids is not None and self.body_ids != slice(None):
-            self.body_ids_wp = wp.array(list(self.body_ids), dtype=wp.int32, device=scene.device)
-        elif hasattr(entity, "num_bodies"):
-            self.body_ids_wp = wp.array(list(range(entity.num_bodies)), dtype=wp.int32, device=scene.device)
+        if hasattr(entity, "num_bodies"):
+            body_ids = (
+                torch.arange(entity.num_bodies, device=scene.device)[self.body_ids]
+                if isinstance(self.body_ids, slice)
+                else self.body_ids.remainder(entity.num_bodies)
+            )
+            self.body_ids_wp = wp.from_torch(body_ids.to(torch.int32))
+        elif isinstance(self.body_ids, torch.Tensor):
+            self.body_ids_wp = wp.from_torch(self.body_ids.to(torch.int32))

@@ -41,10 +41,11 @@ class CollisionAnalyzer:
         self.asset: RigidObject = env.scene[cfg.asset_cfg.name]
         self.obstacles: list[RigidObject] = [env.scene[cfg.name] for cfg in cfg.obstacle_cfgs]
         device = env.device
+        body_ids = cfg.asset_cfg.body_ids
+        if isinstance(body_ids, torch.Tensor):
+            body_ids = body_ids.tolist()
         body_names = (
-            self.asset.body_names
-            if cfg.asset_cfg.body_names is None
-            else [self.asset.body_names[i] for i in cfg.asset_cfg.body_ids]
+            self.asset.body_names if cfg.asset_cfg.body_names is None else [self.asset.body_names[i] for i in body_ids]
         )
         if isinstance(body_names, str):
             body_names = [body_names]

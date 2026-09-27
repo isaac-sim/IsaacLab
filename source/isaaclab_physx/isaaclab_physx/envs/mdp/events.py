@@ -69,7 +69,10 @@ class randomize_rigid_body_material(ManagerTermBase):
                 link_physx_view = asset._physics_sim_view.create_rigid_body_view(link_path)  # type: ignore
                 self.num_shapes_per_body.append(link_physx_view.max_shapes)
             # ``body_ids`` are public IDs; convert once before deriving backend-ordered shape ranges.
-            self._backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
+            body_ids = asset_cfg.body_ids
+            if isinstance(body_ids, torch.Tensor):
+                body_ids = body_ids.tolist()
+            self._backend_body_ids = asset.map_body_ids_to_backend(body_ids)
             num_shapes = sum(self.num_shapes_per_body)
             expected_shapes = asset.root_view.max_shapes
             if num_shapes != expected_shapes:

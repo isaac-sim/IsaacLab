@@ -66,7 +66,10 @@ class randomize_rigid_body_material(ManagerTermBase):
             # Shape counts use backend body order.
             num_shapes_per_body = asset.backend_num_shapes_per_body
             shape_indices_list = []
-            backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
+            body_ids = asset_cfg.body_ids
+            if isinstance(body_ids, torch.Tensor):
+                body_ids = body_ids.tolist()
+            backend_body_ids = asset.map_body_ids_to_backend(body_ids)
             for body_id in backend_body_ids:
                 start_idx = sum(num_shapes_per_body[:body_id])
                 end_idx = start_idx + num_shapes_per_body[body_id]

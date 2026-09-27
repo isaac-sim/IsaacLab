@@ -62,8 +62,12 @@ class randomize_rigid_body_material(ManagerTermBase):
 
         if isinstance(asset, assets.BaseArticulation):
             self._material_type = ovphysx_tt.SHAPE_FRICTION_AND_RESTITUTION
-            if asset_cfg.body_ids != slice(None) and sorted(asset_cfg.body_ids) != list(range(asset.num_bodies)):
-                body_ids = [int(body_id) for body_id in asset_cfg.body_ids]
+            body_ids = asset_cfg.body_ids
+            if isinstance(body_ids, slice):
+                body_ids = list(range(asset.num_bodies)[body_ids])
+            elif isinstance(body_ids, torch.Tensor):
+                body_ids = body_ids.tolist()
+            if sorted(body_ids) != list(range(asset.num_bodies)):
                 if len(body_ids) == 0:
                     self._material_view = None
                     self._material_rows_by_env = torch.empty((asset.num_instances, 0), dtype=torch.long)

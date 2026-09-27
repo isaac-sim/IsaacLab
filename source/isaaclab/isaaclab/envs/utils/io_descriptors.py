@@ -16,11 +16,11 @@ import warnings
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Concatenate, ParamSpec, TypeVar
 
+import torch
+
 from ...utils import configclass
 
 if TYPE_CHECKING:
-    import torch
-
     from ...assets.articulation import Articulation
     from .. import ManagerBasedEnv
 
@@ -310,8 +310,10 @@ def record_joint_names(output: torch.Tensor, descriptor: GenericObservationIODes
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     joint_ids = kwargs["asset_cfg"].joint_ids
-    if joint_ids == slice(None, None, None):
-        joint_ids = list(range(len(asset.joint_names)))
+    if isinstance(joint_ids, slice):
+        joint_ids = range(len(asset.joint_names))[joint_ids]
+    elif isinstance(joint_ids, torch.Tensor):
+        joint_ids = joint_ids.tolist()
     descriptor.joint_names = [asset.joint_names[i] for i in joint_ids]
 
 
@@ -327,8 +329,10 @@ def record_body_names(output: torch.Tensor, descriptor: GenericObservationIODesc
     """
     asset: Articulation = kwargs["env"].scene[kwargs["asset_cfg"].name]
     body_ids = kwargs["asset_cfg"].body_ids
-    if body_ids == slice(None, None, None):
-        body_ids = list(range(len(asset.body_names)))
+    if isinstance(body_ids, slice):
+        body_ids = range(len(asset.body_names))[body_ids]
+    elif isinstance(body_ids, torch.Tensor):
+        body_ids = body_ids.tolist()
     descriptor.body_names = [asset.body_names[i] for i in body_ids]
 
 
