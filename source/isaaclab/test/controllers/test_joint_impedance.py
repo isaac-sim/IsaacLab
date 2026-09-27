@@ -97,11 +97,18 @@ def test_compute_matches_impedance_law(
     torch.testing.assert_close(torques, expected, atol=1e-4, rtol=1e-4)
 
 
+_PER_JOINT_RATIOS = [0.2 * (i + 1) for i in range(_NUM_DOF)]
+
+
+@pytest.mark.parametrize("mode", ["fixed", "variable_kp"])
 @pytest.mark.parametrize(
-    "mode, damping_ratio, expected_ratio",
-    [("fixed", None, 1.0), ("fixed", 0.5, 0.5), ("variable_kp", None, 1.0), ("variable_kp", 0.5, 0.5)],
+    "damping_ratio, expected_ratio",
+    [(None, 1.0), (0.5, 0.5), (_PER_JOINT_RATIOS, _PER_JOINT_RATIOS)],
+    ids=["unset", "scalar", "per_joint"],
 )
-def test_damping_ratio_from_cfg(mode: str, damping_ratio: float | None, expected_ratio: float) -> None:
+def test_damping_ratio_from_cfg(
+    mode: str, damping_ratio: float | list[float] | None, expected_ratio: float | list[float]
+) -> None:
     """The configured damping ratio sets the velocity gains, and defaults to critical damping when unset."""
     device = "cpu"
     stiffness = 50.0
@@ -123,4 +130,5 @@ def test_damping_ratio_from_cfg(mode: str, damping_ratio: float | None, expected
     controller.set_command(command)
     torques = controller.compute(dof_pos, dof_vel)
 
+    expected_ratio = torch.tensor(expected_ratio, device=device)
     torch.testing.assert_close(torques, -2.0 * p_gains.sqrt() * expected_ratio * dof_vel)
