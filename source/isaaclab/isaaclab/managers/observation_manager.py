@@ -416,8 +416,8 @@ class ObservationManager(ManagerBase):
             )
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
-        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
-        time_major_history = self._group_obs_time_major[group_name]
+        term_cfgs = self._group_obs_term_cfgs[group_name]
+        obs_terms = zip(group_term_names, term_cfgs)
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
@@ -479,7 +479,7 @@ class ObservationManager(ManagerBase):
                     )
                     circular_buffer.append(obs)
 
-                if term_cfg.flatten_history_dim and not time_major_history:
+                if term_cfg.flatten_history_dim:
                     obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
                     obs = circular_buffer.buffer
@@ -490,13 +490,14 @@ class ObservationManager(ManagerBase):
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
-                result = next(iter(group_obs.values()))
-            else:
-                # set the concatenate dimension, account for the batch dimension if positive dimension is given
-                result = torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
-            if time_major_history:
-                return result.reshape(self._env.num_envs, -1)
-            return result
+                return next(iter(group_obs.values()))
+            if self._group_obs_time_major[group_name]:
+                history_length = term_cfgs[0].history_length
+                return torch.cat(
+                    [obs.reshape(self._env.num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
+                ).reshape(self._env.num_envs, -1)
+            # set the concatenate dimension, account for the batch dimension if positive dimension is given
+            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
             return group_obs
 
