@@ -110,13 +110,6 @@ class KitVisualizer(BaseVisualizer):
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
-        if (
-            cfg.streaming_view
-            and get_settings_manager().get("/isaaclab/cameras_enabled", False)
-            and cfg.streaming_sensor_prim_path is None
-            and cfg.streaming_cam_target_prim_path is not None
-        ):
-            SimulationContext.instance().get_or_create_backend(self._resolve_streaming_renderer_cfg())
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -667,26 +660,6 @@ class KitVisualizer(BaseVisualizer):
         """Return whether Kit should display a streaming camera image panel."""
         return bool(self.cfg.streaming_view)
 
-    def _resolve_streaming_renderer_cfg(self):
-        """Return a renderer cfg for the auto-created streaming camera.
-
-        Respects :attr:`~VisualizerCfg.streaming_cam_renderer`.  When ``None``,
-        defaults to ``IsaacRtxRendererCfg`` (the Kit-native renderer).
-        """
-        renderer_name = self.cfg.streaming_cam_renderer
-        if renderer_name == "ovrtx":
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
-            return OVRTXRendererCfg()
-        if renderer_name == "newton_warp":
-            from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-            return NewtonWarpRendererCfg()
-        # Default (None or "isaac_rtx"): use the Kit-native IsaacRtx renderer
-        from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-        return IsaacRtxRendererCfg()
-
     def _setup_streaming_view(self, num_envs: int) -> None:
         """Resolve or create the Camera sensor backing the streaming image panel."""
         if not self._uses_streaming_view():
@@ -757,7 +730,6 @@ class KitVisualizer(BaseVisualizer):
                 tile_w,
                 tile_h,
             )
-            renderer_cfg = self._resolve_streaming_renderer_cfg()
             (
                 self._camera_sensor,
                 self._generated_camera_prim_paths,
@@ -767,7 +739,7 @@ class KitVisualizer(BaseVisualizer):
                 num_envs=num_envs,
                 width=tile_w,
                 height=tile_h,
-                renderer_cfg=renderer_cfg,
+                renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
                 data_types=sensor_keys_for_gt_types(gt_types),
                 streaming_envs=tuple(int(i) for i in env_ids),
             )

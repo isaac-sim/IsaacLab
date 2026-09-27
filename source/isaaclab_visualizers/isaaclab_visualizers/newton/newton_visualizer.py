@@ -61,7 +61,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import resolve_streaming_renderer_cfg, resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
@@ -1734,36 +1734,20 @@ class NewtonVisualizer(BaseVisualizer):
             )
             return
 
-        renderer_name = self.cfg.streaming_cam_renderer
-        if renderer_name not in (None, "newton_warp", "ovrtx"):
-            raise ValueError(
-                f"[{type(self).__name__}] streaming_cam_renderer={renderer_name!r} is not supported. "
-                "Valid values for Newton visualizers: 'newton_warp', 'ovrtx', None."
-            )
-        renderer_cfg = resolve_streaming_renderer_cfg(renderer_name)
         count = max(1, len(env_ids))
         tile_w, tile_h = compute_tile_resolution(
             self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
         )
-        try:
-            result = create_visualizer_camera(
-                num_envs=num_envs,
-                width=tile_w,
-                height=tile_h,
-                renderer_cfg=renderer_cfg,
-                data_types=sensor_keys_for_gt_types(gt_types),
-                target_prim_path=self.cfg.streaming_cam_target_prim_path,
-                eye=self.cfg.streaming_cam_eye,
-                streaming_envs=tuple(int(i) for i in env_ids),
-            )
-        except Exception:
-            logger.warning(
-                "[%s] Streaming view disabled: could not auto-create a camera sensor. "
-                "Add a TiledCamera to the scene config or set streaming_sensor_prim_path "
-                "to point to an existing camera.",
-                type(self).__name__,
-            )
-            return
+        result = create_visualizer_camera(
+            num_envs=num_envs,
+            width=tile_w,
+            height=tile_h,
+            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
+            data_types=sensor_keys_for_gt_types(gt_types),
+            target_prim_path=self.cfg.streaming_cam_target_prim_path,
+            eye=self.cfg.streaming_cam_eye,
+            streaming_envs=tuple(int(i) for i in env_ids),
+        )
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
         )

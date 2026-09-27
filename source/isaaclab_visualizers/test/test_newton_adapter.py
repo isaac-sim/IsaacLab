@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -29,22 +28,14 @@ from isaaclab_visualizers.newton_adapter import (
     apply_viewer_visible_worlds,
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
-    resolve_streaming_renderer_cfg,
     resolve_visible_env_indices,
 )
+from isaaclab_visualizers.rerun import RerunVisualizerCfg
+from isaaclab_visualizers.viser import ViserVisualizerCfg
 
+from isaaclab.envs.utils import camera_view
+from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationContext
-
-
-@pytest.mark.parametrize("renderer", [None, "newton_warp", "ovrtx", "isaac_rtx", "invalid"])
-def test_streaming_renderer_cfg_preserves_kitless_defaults(monkeypatch, renderer):
-    monkeypatch.setitem(sys.modules, "omni.replicator.core", None)
-    if renderer == "invalid":
-        with pytest.raises(ValueError, match="unsupported"):
-            resolve_streaming_renderer_cfg(renderer)
-        return
-    resolved = resolve_streaming_renderer_cfg(renderer)
-    assert resolved.renderer_type == ("ovrtx" if renderer == "ovrtx" else "newton_warp")
 
 
 @pytest.mark.parametrize(
@@ -225,8 +216,13 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
     assert visualizer.cfg.lookat == (0.0, 0.0, 1.0)
 
 
-def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exists(monkeypatch):
+@pytest.mark.parametrize(
+    "cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg]
+)
+def test_visualizer_uses_declared_streaming_renderer(monkeypatch, cfg_type):
     """Auto-create mode should not silently replace its configured view with a scene camera."""
+    sim = Mock()
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
     existing_camera = SimpleNamespace(
         _view=SimpleNamespace(count=4),
         cfg=SimpleNamespace(
@@ -242,30 +238,40 @@ def test_newton_visualizer_auto_creates_streaming_camera_when_scene_camera_exist
         return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
 
     monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
-
-    visualizer = NewtonGLVisualizer(
-        NewtonGLVisualizerCfg(
-            streaming_view=True,
-            streaming_envs=4,
-            streaming_cam_eye=(2.25, 0.0, 1.25),
-            streaming_cam_target_prim_path="/World/envs/*/Robot",
-            window_width=400,
-            window_height=400,
-        )
+    monkeypatch.setattr(camera_view, "create_visualizer_camera", _create_visualizer_camera)
+    cfg = cfg_type(
+        streaming_view=True,
+        streaming_envs=4,
+        streaming_cam_eye=(2.25, 0.0, 1.25),
+        streaming_cam_target_prim_path="/World/envs/*/Robot",
+        streaming_cam_renderer_cfg=RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom"),
     )
+    visualizer = cfg.class_type(cfg)
+    sim.get_or_create_backend.assert_called_once_with(cfg.streaming_cam_renderer_cfg)
+    visualizer._viewer = SimpleNamespace()
     visualizer._scene_data_provider = SimpleNamespace(
         get_camera_sensors=lambda: {"task_camera": existing_camera},
     )
     visualizer._update_owned_camera_poses = lambda: None
+    visualizer._apply_streaming_camera_pose = lambda env_ids: None
 
     visualizer._setup_streaming_view(num_envs=4)
 
     assert visualizer._camera_sensor is generated_camera
     assert len(create_calls) == 1
-    assert create_calls[0]["width"] == 200
-    assert create_calls[0]["height"] == 200
     assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot"
     assert create_calls[0]["eye"] == (2.25, 0.0, 1.25)
+    assert create_calls[0]["renderer_cfg"] is visualizer.cfg.streaming_cam_renderer_cfg
+
+    unavailable = Mock(side_effect=ModuleNotFoundError("custom_renderer"))
+    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", unavailable)
+    monkeypatch.setattr(camera_view, "create_visualizer_camera", unavailable)
+    with pytest.raises(ModuleNotFoundError, match="custom_renderer"):
+        visualizer._setup_streaming_view(num_envs=4)
+    cfg.streaming_cam_target_prim_path = None
+    visualizer._setup_streaming_view(num_envs=4)
+    assert visualizer._camera_sensor is existing_camera
+    assert unavailable.call_count == 1
 
 
 def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
@@ -1123,6 +1129,7 @@ def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
 
 def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):
     """_setup_streaming_view must create the owned camera sensor on RTX, not return early."""
+    monkeypatch.setattr(SimulationContext, "instance", Mock())
     generated_camera = object()
     create_calls = []
 

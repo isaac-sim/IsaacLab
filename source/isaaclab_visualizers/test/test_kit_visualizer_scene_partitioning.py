@@ -16,6 +16,7 @@ from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
@@ -47,14 +48,14 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
 @pytest.mark.parametrize("generated", [False, True])
 def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
     sim = MagicMock()
-    settings = MagicMock()
-    settings.get.return_value = True
-    renderer_cfg = object()
+    renderer_cfg = RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom")
     monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
-    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    monkeypatch.setattr(KitVisualizer, "_resolve_streaming_renderer_cfg", lambda self: renderer_cfg)
-
-    KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
+    cfg = KitVisualizerCfg(
+        streaming_view=True,
+        streaming_cam_target_prim_path="/Robot" if generated else None,
+        streaming_cam_renderer_cfg=renderer_cfg,
+    )
+    KitVisualizer(cfg)
 
     if generated:
         sim.get_or_create_backend.assert_called_once_with(renderer_cfg)

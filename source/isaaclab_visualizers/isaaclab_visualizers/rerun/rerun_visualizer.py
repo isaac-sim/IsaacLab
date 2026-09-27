@@ -31,7 +31,6 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 from isaaclab_visualizers.newton_adapter import (
     apply_viewer_visible_worlds,
     log_geo_with_expanded_plane_scale,
-    resolve_streaming_renderer_cfg,
     resolve_visible_env_indices,
 )
 
@@ -525,41 +524,24 @@ class RerunVisualizer(BaseVisualizer):
             self._viewer._streaming_view_active = True
             return
 
-        # Auto-detect fallback: with Newton MJWarp replicate_physics=True, post-init prim
-        # spawning only survives at env_0. Reuse the first scene camera with matching
-        # renderer_type (or any scene camera with the right count as secondary fallback).
-        renderer_cfg = resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer)
-        renderer_type = getattr(renderer_cfg, "renderer_type", None)
-        scene_cameras = self._scene_data_provider.get_camera_sensors()
-        _fallback_cam = None
-        for cam in scene_cameras.values():
-            if cam._view.count != num_envs:
-                continue
-            if getattr(getattr(cam.cfg, "renderer_cfg", None), "renderer_type", None) == renderer_type:
-                _fallback_cam = cam
-                break
-            if _fallback_cam is None:
-                _fallback_cam = cam
-        if _fallback_cam is not None:
-            self._camera_sensor = _fallback_cam
-            self._camera_sensor_indices = env_ids
-            self._streaming_view_active = True
-            self._viewer._streaming_view_active = True
+        if self.cfg.streaming_cam_target_prim_path is None:
+            cameras = self._scene_data_provider.get_camera_sensors()
+            if cameras:
+                self._camera_sensor = next(iter(cameras.values()))
+                self._camera_sensor_indices = env_ids
+                self._streaming_view_active = self._viewer._streaming_view_active = True
             return
 
-        tile_w, tile_h = 320, 240  # default resolution for Rerun stream (no window size)
-        try:
-            result = create_visualizer_camera(
-                num_envs=num_envs,
-                width=tile_w,
-                height=tile_h,
-                renderer_cfg=renderer_cfg,
-                data_types=sensor_keys_for_gt_types(gt_types),
-                streaming_envs=tuple(int(i) for i in env_ids),
-            )
-        except Exception as e:
-            logger.warning("[RerunVisualizer] Streaming view disabled: could not auto-create a camera sensor (%s).", e)
-            return
+        result = create_visualizer_camera(
+            num_envs=num_envs,
+            width=320,
+            height=240,
+            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
+            data_types=sensor_keys_for_gt_types(gt_types),
+            target_prim_path=self.cfg.streaming_cam_target_prim_path,
+            eye=self.cfg.streaming_cam_eye,
+            streaming_envs=tuple(int(i) for i in env_ids),
+        )
         self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
             result
         )

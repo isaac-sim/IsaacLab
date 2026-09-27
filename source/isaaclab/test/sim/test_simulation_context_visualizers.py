@@ -252,10 +252,9 @@ def test_newton_visualizer_is_initialized_and_rebound_before_capture():
     reset_calls = []
     camera_calls = []
 
-    class _Cfg:
-        cloning_contexts = ()
-
+    class _Cfg(VisualizerCfg):
         def __init__(self, visualizer_type, enable_picking=False):
+            super().__init__()
             self.visualizer_type = visualizer_type
             self.enable_picking = enable_picking
             self.headless = False
@@ -735,12 +734,11 @@ def test_get_cli_visualizer_types_handles_non_string_setting_without_crashing():
 # ---------------------------------------------------------------------------
 
 
-class _FakeVisualizerCfg:
+class _FakeVisualizerCfg(VisualizerCfg):
     """Minimal visualizer config for testing initialize_visualizers."""
 
-    cloning_contexts = ()
-
     def __init__(self, visualizer_type: str, *, fail_construct: bool = False, fail_init: bool = False):
+        super().__init__()
         self.visualizer_type = visualizer_type
         self.class_type = (
             self._raise_construction_error

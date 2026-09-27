@@ -11,6 +11,10 @@ Changed
   paths and destinations without native publications, including when the publication was empty.
 * Added ``RayCasterCfg.use_cuda_graph`` for Newton query execution independently of physics capture.
   Set it to ``False`` to execute Newton ray casts eagerly.
+* **Breaking:** Replaced ``VisualizerCfg.streaming_cam_renderer`` and its deprecated
+  ``tiled_cam_renderer`` alias with ``streaming_cam_renderer_cfg``. Pass a renderer configuration,
+  such as ``NewtonWarpRendererCfg()`` or ``OVRTXRendererCfg()``, instead of a renderer nickname.
+  Its ``class_type`` accepted either an implementation class or a resolvable string.
 
 Fixed
 ^^^^^
