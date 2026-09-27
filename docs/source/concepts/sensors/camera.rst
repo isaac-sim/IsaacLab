@@ -268,7 +268,9 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 
 .. code-block:: python
 
-   mask_camera = front_camera.replace(background_color=(0.0, 0.0, 0.0))
+   from isaaclab.utils import replace
+
+   mask_camera = replace(front_camera, background_color=(0.0, 0.0, 0.0))
 
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
@@ -291,17 +293,12 @@ The field accepts:
 .. code-block:: python
 
    from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   from isaaclab.utils import replace
    from isaaclab_ppisp import PpispCfg
 
-   explicit_isp = front_camera.replace(
-       data_types=["rgb"],
-       isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}),
-   )
+   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
 
-   discovered_isp = front_camera.replace(
-       data_types=["rgb"],
-       isp_cfg=CameraISPMode.AUTO_CAMERA,
-   )
+   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
 camera anywhere on the stage. Discovery happens once during camera construction.

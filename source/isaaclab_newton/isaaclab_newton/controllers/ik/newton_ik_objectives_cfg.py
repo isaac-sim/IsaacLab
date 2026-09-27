@@ -13,9 +13,8 @@ single-body solve is a one-element list, a multi-body solve simply has more
 pose entries, and constraints like joint limits are further entries that add
 no action dimensions.
 
-The solver builds each objective via
-``string_to_callable(cfg.class_type)(cfg, model=..., num_envs=..., device=...,
-link_resolver=...)`` and the action term reads each built objective's action
+The solver builds each objective via ``instantiate(cfg, context)``, where the
+context holds the model, world count, device, and link resolver. The action term reads its action
 contribution, so an objective owns both its Newton residual and how a policy
 command (if any) maps onto its target.
 
@@ -37,8 +36,7 @@ class NewtonIKObjectiveCfg:
     """Base configuration for a Newton IK objective.
 
     Subclasses set :attr:`class_type` to the runtime implementation, which the
-    solver instantiates as
-    ``class_type(cfg, model=..., num_envs=..., device=..., link_resolver=...)``.
+    solver constructs with ``instantiate(cfg, context)``.
     The implementation exposes the concrete :class:`newton.ik.IKObjective`
     instances appended to the solver and, for command-driven objectives, an
     action-dimension contribution.

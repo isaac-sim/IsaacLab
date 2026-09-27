@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING, Any
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
+from isaaclab.utils import to_dict
+
 from .distillation_cfg import RslRlDistillationStudentTeacherCfg, RslRlDistillationStudentTeacherRecurrentCfg
 from .rl_cfg import (
     RslRlBaseRunnerCfg,
@@ -66,9 +68,9 @@ def create_rsl_rl_runner(
         ValueError: If the configured runner class is not supported.
     """
     if agent_cfg.class_name == "OnPolicyRunner":
-        return OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+        return OnPolicyRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
     if agent_cfg.class_name == "DistillationRunner":
-        return DistillationRunner(env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device)
+        return DistillationRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
     raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
 
 

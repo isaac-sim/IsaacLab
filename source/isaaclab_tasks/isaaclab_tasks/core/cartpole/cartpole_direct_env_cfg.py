@@ -14,7 +14,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_assets.robots.cartpole import CARTPOLE_CFG
@@ -27,7 +27,7 @@ class CartpoleSceneCfg(InteractiveSceneCfg):
     """Cartpole assets constructed and cloned as one scene."""
 
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    cartpole: ArticulationCfg = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    cartpole: ArticulationCfg = replace(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     light = AssetBaseCfg(
         prim_path="/World/Light",
         spawn=sim_utils.DistantLightCfg(intensity=2000.0),

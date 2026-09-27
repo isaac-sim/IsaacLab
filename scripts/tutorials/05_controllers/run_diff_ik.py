@@ -46,7 +46,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import subtract_frame_transforms
 
@@ -82,9 +82,9 @@ class TableTopSceneCfg(InteractiveSceneCfg):
 
     # articulation
     if args_cli.robot == "franka_panda":
-        robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "ur10":
-        robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:
         raise ValueError(f"Robot {args_cli.robot} is not supported. Valid: franka_panda, ur10")
 
@@ -100,10 +100,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     diff_ik_controller = DifferentialIKController(diff_ik_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = clone(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     # Define goals for the arm (x,y,z,qx,qy,qz,qw)
     ee_goals = [

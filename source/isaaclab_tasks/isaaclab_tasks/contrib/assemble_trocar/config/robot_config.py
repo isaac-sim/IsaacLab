@@ -16,7 +16,7 @@ The only public entry point expected by the task is
 import math
 
 from isaaclab.assets import ArticulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.unitree import G129_CFG_WITH_DEX3_BASE_FIX
 
@@ -122,13 +122,11 @@ def make_g1_29dof_dex3_cfg(
     joint_pos = DEFAULT_JOINT_POS.copy()
     if custom_joint_pos:
         joint_pos.update(custom_joint_pos)
-    return base_config.replace(
+    return replace(
+        base_config,
         prim_path=prim_path,
         init_state=ArticulationCfg.InitialStateCfg(
-            pos=init_pos,
-            rot=init_rot,
-            joint_pos=joint_pos,
-            joint_vel={".*": 0.0},
+            pos=init_pos, rot=init_rot, joint_pos=joint_pos, joint_vel={".*": 0.0}
         ),
     )
 

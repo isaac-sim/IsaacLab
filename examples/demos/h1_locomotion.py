@@ -17,6 +17,7 @@ import math
 from importlib import metadata
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 
@@ -98,7 +99,7 @@ class H1RoughDemo:
 
         self.env = RslRlVecEnvWrapper(ManagerBasedRLEnv(cfg=env_cfg))
         self.device = self.env.unwrapped.device
-        ppo_runner = OnPolicyRunner(self.env, agent_cfg.to_dict(), log_dir=None, device=self.device)
+        ppo_runner = OnPolicyRunner(self.env, to_dict(agent_cfg), log_dir=None, device=self.device)
         ppo_runner.load(checkpoint)
         self.policy = ppo_runner.get_inference_policy(device=self.device)
 

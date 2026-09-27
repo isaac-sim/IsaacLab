@@ -35,6 +35,7 @@ from isaaclab.envs.utils.io_descriptors import (
 )
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
+from isaaclab.utils import validate
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
@@ -75,7 +76,7 @@ class ManagerBasedEnvWarp:
                 since it configures the simulation context and controls the simulation.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # Video recording is not supported on Warp environments.

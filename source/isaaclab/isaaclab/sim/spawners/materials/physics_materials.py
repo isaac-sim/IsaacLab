@@ -9,6 +9,7 @@ import dataclasses
 
 from pxr import Usd, UsdPhysics, UsdShade
 
+from isaaclab.utils import validate
 from isaaclab.utils.string import string_to_callable
 
 from ...schemas.schemas import _apply_namespaced_schemas
@@ -231,7 +232,7 @@ def spawn_deformable_body_material(
 
     """
     if isinstance(cfg, physics_materials_cfg.CableMaterialCfg):
-        cfg.validate()
+        validate(cfg)
 
     # get stage handle
     stage = get_current_stage()

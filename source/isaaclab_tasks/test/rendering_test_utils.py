@@ -18,6 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils import clone, replace, to_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -740,7 +741,7 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
 
     presets = {"env": collect_presets(env_cfg)}
     global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": env_cfg.to_dict()}
+    hydra_cfg = {"env": to_dict(env_cfg)}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
 
@@ -1734,9 +1735,10 @@ def rendering_test_cartpole(
 
     @configclass
     class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
-        cartpole = CARTPOLE_CFG.replace(
+        cartpole = replace(
+            CARTPOLE_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+            spawn=replace(CARTPOLE_CFG.spawn, semantic_tags=[("class", "cartpole")]),
         )
         tiled_camera = _CartpoleTiledCameraTestCfg()
 
@@ -1871,34 +1873,36 @@ def rendering_test_lift_kuka(
 
     @configclass
     class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
-        distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
-        distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
-        distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
-        distance_to_image_plane64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
-        distance_to_image_plane128 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=128, height=128
+        distance_to_camera64 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=64, height=64)
+        distance_to_camera128 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=128, height=128)
+        distance_to_camera256 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=256, height=256)
+        distance_to_image_plane64 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=64, height=64
         )
-        distance_to_image_plane256 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=256, height=256
+        distance_to_image_plane128 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=128, height=128
         )
-        normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
-        normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
-        normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
-        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
-        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
-        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        distance_to_image_plane256 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=256, height=256
         )
-        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        normals64 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=64, height=64)
+        normals128 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=128, height=128)
+        normals256 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=256, height=256)
+        instance_segmentation64 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=256, height=256)
+        instance_id_segmentation_fast64 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
-        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        instance_id_segmentation_fast128 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=128, height=128
         )
-        motion_vectors64 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=64, height=64)
-        motion_vectors128 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=128, height=128)
-        motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
+        instance_id_segmentation_fast256 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
+        motion_vectors64 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=64, height=64)
+        motion_vectors128 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=128, height=128)
+        motion_vectors256 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
     class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
@@ -2036,10 +2040,11 @@ def rendering_test_kuka_visual_material_randomization(
         material_path = f"{{ENV_REGEX_NS}}/Robot/{material_name}"
         setattr(scene_cfg, material_name, VisualMaterialCfg(prim_path=material_path, spawn=sim_utils.PbrMdlCfg()))
         bindings[link_path] = f"./{material_name}"
-    robot_spawn = KUKA_ALLEGRO_CFG.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
-    scene_cfg.robot = KUKA_ALLEGRO_CFG.replace(
+    robot_spawn = replace(KUKA_ALLEGRO_CFG.spawn, activate_contact_sensors=False, visual_material_bindings=bindings)
+    scene_cfg.robot = replace(
+        KUKA_ALLEGRO_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, robot_spawn.copy()], random_choice=False),
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, clone(robot_spawn)], random_choice=False),
     )
 
     sim = None

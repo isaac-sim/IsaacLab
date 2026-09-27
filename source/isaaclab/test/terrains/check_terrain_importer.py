@@ -30,8 +30,10 @@ Example usage:
 
 import argparse
 
-# isaaclab
 from isaaclab.app import AppLauncher
+
+# isaaclab
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script shows how to use the terrain importer.")
@@ -100,7 +102,7 @@ def main():
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type=args_cli.terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True, color_scheme=args_cli.color_scheme),
+        terrain_generator=replace(ROUGH_TERRAINS_CFG, curriculum=True, color_scheme=args_cli.color_scheme),
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
     )
     terrain_importer = TerrainImporter(terrain_importer_cfg)

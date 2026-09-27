@@ -42,7 +42,7 @@ from isaaclab.assets import AssetBaseCfg, CableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 
 if TYPE_CHECKING:
     from isaaclab.assets import CableObject
@@ -143,7 +143,7 @@ def main() -> None:
         sim.set_camera_view(eye=(2.0, 2.0, 1.0), target=(0.0, 0.0, 0.25))
 
         scene_cfg = CablesSceneCfg(num_envs=1, env_spacing=0.0)
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene, args_cli.max_steps)

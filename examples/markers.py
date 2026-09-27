@@ -16,6 +16,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 parser = argparse.ArgumentParser(
     description="This script demonstrates different types of markers.",
@@ -89,7 +90,7 @@ def define_markers() -> "VisualizationMarkers":
             ),
         },
     )
-    return marker_cfg.class_type(marker_cfg)
+    return instantiate(marker_cfg)
 
 
 def main():
