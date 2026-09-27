@@ -968,6 +968,19 @@ class PhysxManager(PhysicsManager):
         view = cls.backend.simulation_view.create_rigid_body_view("/**")
         # PhysX returns a wrapper with no native handle for an empty selection.
         cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
+        if view._backend is not None:
+            # Wildcard bindings expose articulation aliases; publish the actual root-link paths.
+            native = cls.backend.simulation_view
+            paths = view.prim_paths
+            articulation_type = omni.physics.tensors.ObjectType.Articulation
+            roots = [path for path in paths if native.get_object_type(path) == articulation_type]
+            if roots:
+                articulations = native.create_articulation_view(roots)
+                links = (body_paths[0] for body_paths in articulations.link_paths)
+                aliases = dict(zip(articulations.prim_paths, links, strict=True))
+                cls._scene_data_backend._rigid_body_view = native.create_rigid_body_view(
+                    [aliases.get(path, path) for path in paths]
+                )
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)

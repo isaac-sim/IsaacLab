@@ -24,3 +24,5 @@ Fixed
 
 * Scoped deformable kinematic defaults to each asset's selected particles instead of copying the entire model.
   Preserved imported cloth rest angles during asset initialization.
+
+* Preserved imported robot bodies selected by sensors that opted out of cloning.

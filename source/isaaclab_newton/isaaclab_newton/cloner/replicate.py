@@ -27,6 +27,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SpawnerCfg
 from isaaclab.sim.utils.queries import has_deformable_body_api
 
@@ -116,8 +117,12 @@ def _replicate_newton(
     global_paths = tuple(
         root for root, parent in zip(shared, cloner_path.get_parent_indices(shared), strict=True) if parent == -1
     )
+    # A sensor selects an existing body; opting out of cloning must not remove that body from its owner.
     exclude_paths = tuple(
-        source for index, source in enumerate(sources) if source is not None and index not in asset_prototype_ids
+        source
+        for index, source in enumerate(sources)
+        if source is not None and index not in asset_prototype_ids
+        if not isinstance(plan.asset_cfgs[index], SensorBaseCfg)
     )
     simulation = isinstance(cfg, NewtonCfg)
     if positions is None:

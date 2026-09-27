@@ -28,6 +28,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sensors import SensorBaseCfg
 from isaaclab.sim import SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
 
@@ -136,6 +137,12 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_label, ["/World/Declared"])
         self.assertIsNone(stage_info)
         self.assertEqual(site_index_map, {})
+
+        # A non-cloning sensor must not exclude the body selected from its owner's subtree.
+        cfgs = AssetBaseCfg(prim_path="/World"), SensorBaseCfg(prim_path="/World/Declared")
+        plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
+        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
+        self.assertCountEqual(builder.body_label, ["/World/Declared", "/World/Undeclared", "/World/Excluded"])
 
         assets = (
             AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),

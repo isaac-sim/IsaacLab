@@ -112,7 +112,8 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
     @property
     def transform_paths(self) -> list[str]:
         """Native body paths in the same order as the published poses."""
-        return [] if self.backend is None else self.backend.rigid_body_view.prim_paths
+        view = None if self.backend is None else self.backend.rigid_body_view
+        return [] if view is None else view.prim_paths
 
     def setup(
         self, backend: OvPhysxBackend, device: str, entries: Sequence[DeformableStageEntry] | None = None
@@ -132,7 +133,7 @@ class OvPhysxSceneDataBackend(SceneDataBackend):
         self.geometry_timestamp += 1
         self._geometry = TimestampedBuffer()
 
-        if backend.rigid_body_view.count:
+        if backend.rigid_body_view is not None and backend.rigid_body_view.count:
             self._transforms.data.transforms = wp.empty(
                 backend.rigid_body_view.count, dtype=wp.transformf, device=device
             )
@@ -835,7 +836,7 @@ class OvPhysxManager(PhysicsManager):
         choice and registers process-exit cleanup. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and (on GPU) re-runs the supported warmup entry point
+        or runtime replay, and re-runs the supported warmup entry point
         so the new stage's bodies are resident.
 
         Raises:
@@ -915,18 +916,26 @@ class OvPhysxManager(PhysicsManager):
 
         cls._replay_pending_clones(cls.backend.physx, requires_full_stage=cls._requires_full_stage)
 
-        # GPU bodies must be re-warmed after every OVStage attachment: the cached PhysX
-        # instance carries its old buffer layout from the previous stage.
-        if ovphysx_device == "gpu":
-            cls._warmup_physx(cls.backend.physx)
+        # Native metadata and bindings must see the newly attached bodies, including on CPU.
+        cls._warmup_physx(cls.backend.physx)
 
-        # Initialize the SceneDataBackend now that the wheel's PhysX is live and
-        # the OVStage is attached. The central
-        # ``isaaclab.scene.scene_data_provider.SceneDataProvider`` consumes this
-        # via :meth:`get_scene_data_backend`.
+        # Bind SDP after the native runtime has realized the stage and clones.
         if cls._scene_data_backend is None:
             cls._scene_data_backend = OvPhysxSceneDataBackend()
-        cls.backend.rigid_body_view = cls.backend.physx.create_tensor_binding(pattern="/**")
+        # Native output metadata names the actual bodies, not articulation-root aliases.
+        # SDK imports follow runtime initialization so inactive backends remain optional.
+        from ovphysx.types import SimObjectType
+        from ovstage import PathDictionary
+
+        body_paths = []
+        with PathDictionary() as paths:
+            for kind in (SimObjectType.RIGID_BODY, SimObjectType.ARTICULATION_LINK):
+                # Mass is host-resident: obtaining paths needs no GPU pose read or another step.
+                with cls.backend.physx.read(kind, ["mass"]) as bodies:
+                    for group in bodies.groups:
+                        body_paths.extend(paths.get_path_strings(group.prim_list))
+        if body_paths:
+            cls.backend.rigid_body_view = cls.backend.physx.create_tensor_binding(prim_paths=body_paths)
         cls._scene_data_backend.setup(cls.backend, PhysicsManager._device, entries)
 
         cls.dispatch_event(PhysicsEvent.MODEL_INIT, payload={})

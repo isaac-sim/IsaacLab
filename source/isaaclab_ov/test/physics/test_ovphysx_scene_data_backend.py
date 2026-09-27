@@ -826,7 +826,7 @@ def test_transforms_read_native_buffer_only_when_dirty():
     assert len(reads) == 2
     np.testing.assert_array_equal(native.transforms.numpy(), expected)
 
-    backend.setup(SimpleNamespace(rigid_body_view=SimpleNamespace(count=0, prim_paths=[])), "cpu")
+    backend.setup(SimpleNamespace(rigid_body_view=None), "cpu")
     assert backend.transforms is publication
     assert publication.transforms is None
     assert backend.transform_count == 0 and backend.transform_paths == []
