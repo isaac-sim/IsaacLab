@@ -443,7 +443,6 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
-        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
@@ -976,7 +975,8 @@ class PhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            env_ids = np.arange(len(plan.topology.world_prototype_layout))
+            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 

@@ -366,21 +366,15 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 f"Reset paddle quaternions have shape {tuple(paddle_quaternion.shape)}; expected {(pose_count, 4)}."
             )
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        resolved = cloner.query.path_to_source(plan, self._robot.cfg.prim_path) if plan is not None else None
-        if resolved is None:
-            raise RuntimeError(f"Could not resolve clone-plan source for {self._robot.cfg.prim_path!r}.")
-        source_path = resolved[0]
-        prototype_origin = -self.scene.env_origins[0]
-        prototype_xform = wp.transform(wp.vec3(*prototype_origin.tolist()), wp.quat_identity())
-
+        asset_ids = cloner.path.get_asset_prototypes(plan, self._robot.cfg.prim_path)
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
+        prototype_xform = wp.transform(wp.vec3(*(-self.scene.env_origins[0]).tolist()), wp.quat_identity())
         prototype_builder = copy_newton_clone_source(source_path, xform=prototype_xform)
         model = prototype_builder.finalize(device=self.device)
 
-        ee_matches = [
-            body_id
-            for body_id, label in enumerate(model.body_label)
-            if str(label).rsplit("/", 1)[-1] == self.cfg.ee_body_name
-        ]
+        body_names = (str(label).rsplit("/", 1)[-1] for label in model.body_label)
+        ee_matches = [body_id for body_id, name in enumerate(body_names) if name == self.cfg.ee_body_name]
         if len(ee_matches) != 1:
             raise RuntimeError(f"Expected one {self.cfg.ee_body_name!r} body in the IK prototype, found {ee_matches}.")
         ee_body_id = ee_matches[0]
