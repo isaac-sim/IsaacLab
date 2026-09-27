@@ -30,6 +30,7 @@ def test_backend_registry_identity_and_lifecycle():
     assert not hasattr(SimulationContext, "services")
     assert not hasattr(SimulationContext, "register_backend")
     assert not hasattr(SimulationContext, "get_backend")
+    assert not hasattr(BackendCfg, "close")
     assert issubclass(RendererCfg, BackendCfg)
     assert not hasattr(RenderContext, "get_renderer")
     assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
@@ -96,16 +97,17 @@ def test_backend_registry_identity_and_lifecycle():
     context.close_backend(second)
     assert second.close.call_count == 2
 
-    # Missing cleanup is an error unless the cfg explicitly declares Python-owned lifetime.
+    # Backend declarations require close(); plain construction cfgs only share Python-owned data.
     data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
     data = context.get_or_create_backend(data_cfg)
     with pytest.raises(AttributeError, match="close"):
         context.close_backend(data)
     assert context.get_or_create_backend(data_cfg) is data
 
-    class DataCfg(Cfg):
-        def close(self, resource):
-            """Dropping the registry reference releases this Python-owned data."""
+    @dataclass
+    class DataCfg:
+        class_type: object
+        values: list[int]
 
     data_cfg = DataCfg(class_type=data_cfg.class_type, values=data_cfg.values)
     data = context.get_or_create_backend(data_cfg)
@@ -264,10 +266,6 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     events = []
 
-    class DataCfg(BackendCfg):
-        def close(self, resource):
-            events.append("data")
-
     class Manager:
         @classmethod
         def close(cls):
@@ -302,7 +300,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
             context.get_or_create_backend(
                 cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
             )
-    context.get_or_create_backend(DataCfg(class_type=lambda cfg: []))
+    context.get_or_create_backend(SimpleNamespace(class_type=lambda cfg: Resource("data")))
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
@@ -331,7 +329,6 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_pending",
         "backend_failed",
         "backend_last",
-        "data",
         "stage",
         "cache",
         "gc",

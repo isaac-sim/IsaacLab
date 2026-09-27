@@ -150,7 +150,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: list[tuple[BackendCfg, Any]] = []
+        self._backend_registry: list[tuple[Any, Any]] = []
         self.clone_contexts: dict[type, Any] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
@@ -967,11 +967,12 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(self, cfg: BackendCfg) -> Any:
-        """Return the simulation-owned resource or renderer for a configuration.
+    def get_or_create_backend(self, cfg: Any) -> Any:
+        """Return the simulation-owned object for a construction configuration.
 
         Equal configurations of the same concrete type share a resource. Finalize configurations
         before registration and treat them as read-only afterward; use a new cfg for new settings.
+        ``BackendCfg`` declares a resource requiring ``close()``; other cfgs declare Python-owned data.
 
         Args:
             cfg: Construction inputs. A cache miss constructs ``cfg.class_type(cfg)``.
@@ -991,8 +992,9 @@ class SimulationContext:
         return resource
 
     def close_backend(self, backend: Any) -> None:
-        """Release one registered resource by identity through its cfg's cleanup contract.
+        """Release one registered object by identity.
 
+        ``BackendCfg`` resources are closed; plain construction data only loses its registry reference.
         A failed release retains the registry entry so teardown can be retried.
 
         Args:
@@ -1003,7 +1005,8 @@ class SimulationContext:
         """
         for index, (cfg, resource) in enumerate(self._backend_registry):
             if resource is backend:
-                cfg.close(resource)
+                if isinstance(cfg, BackendCfg):
+                    resource.close()
                 self._backend_registry.pop(index)
                 if isinstance(cfg, RendererCfg):
                     self._render_context._prepared_renderer_ids.discard(id(resource))
@@ -1042,8 +1045,8 @@ class SimulationContext:
 
                 instance.clone_contexts.clear()
                 for cfg, resource in instance._backend_registry:
-                    if not isinstance(cfg, RendererCfg):
-                        run_cleanup(lambda cfg=cfg, resource=resource: cfg.close(resource))
+                    if isinstance(cfg, BackendCfg) and not isinstance(cfg, RendererCfg):
+                        run_cleanup(lambda resource=resource: resource.close())
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

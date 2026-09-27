@@ -14,7 +14,7 @@ import pytest
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
 from newton import ModelBuilder
 
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import BackendCfg, SimulationContext
 
 
 # The soft-contact and simulation axes are independent, so each value is covered once.
@@ -52,6 +52,8 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     monkeypatch.setattr(ModelBuilder, "finalize", lambda self, device: model)
     physics_cfg = NewtonCfg(soft_contact_cfg=soft_contact_cfg) if simulation else object()
     builder_cfg = NewtonBuilderCfg(physics_cfg=physics_cfg)
+    assert not isinstance(builder_cfg, BackendCfg)
+    assert not hasattr(builder_cfg, "close")
     cfg = NewtonBackendCfg(physics_cfg=physics_cfg, device="cpu")
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
@@ -59,6 +61,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     builder = sim.get_or_create_backend(builder_cfg)
     backend = sim.get_or_create_backend(cfg)
     assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
+    assert not {"sync_transforms_to_fabric", "sync_transforms_to_usd"}.intersection(vars(NewtonManager))
     assert cfg.physics_cfg is physics_cfg
     assert backend is sim.get_or_create_backend(cfg.replace())
     assert builder is sim.get_or_create_backend(builder_cfg)

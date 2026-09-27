@@ -29,19 +29,12 @@ logger = logging.getLogger(__name__)
 
 
 @configclass
-class NewtonBuilderCfg(BackendCfg):
+class NewtonBuilderCfg:
     """Share mutable construction data, populated before model allocation and retained across hard resets."""
 
     class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
     physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
     """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
-
-    def close(self, resource: ModelBuilder) -> None:
-        """Leave Python-owned builder data to reference release; there is no native close operation.
-
-        Args:
-            resource: The shared builder removed from the registry after this call.
-        """
 
 
 @configclass

@@ -143,20 +143,37 @@ def test_owned_transform_buffers_are_written_directly_and_do_not_alias_cache(for
             np.testing.assert_array_equal(array.numpy(), getattr(shared, name).numpy())
 
 
-def test_mapping_preserves_unmapped_destination_slots():
+def test_mapping_binds_unique_paths_and_preserves_unmapped_slots():
     data = SceneDataFormat.Transform()
     data.transforms = wp.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
     provider = SceneDataProvider(
         _Backend(transforms=data, transforms_timestamp=0, transform_count=2, transform_paths=["/a", "/b"])
     )
-    mapping = provider.create_mapping(["/a", "/b", None])
-    output = SceneDataFormat.Transform()
-    output.transforms = wp.zeros(3, dtype=wp.transformf, device="cpu")
-    assert provider.get_transforms(output, mapping, allow_passthrough=False, count=3)
-    np.testing.assert_array_equal(output.transforms.numpy()[:2], data.transforms.numpy())
-    np.testing.assert_array_equal(output.transforms.numpy()[2], np.zeros(7))
+    expected = np.concatenate((data.transforms.numpy(), np.zeros((1, 7))))
+    for paths, indices in (
+        (["/a", "/b"], [0, 1]),
+        (["/b", "/a"], [1, 0]),
+        (["/b"], [1]),
+        (["/a", None, None, "/b"], [0, -1, -1, 1]),
+    ):
+        mapping = provider.create_mapping(paths)
+        assert provider.create_mapping(paths.copy()) is mapping
+        assert (mapping is None) == (paths == provider.backend.transform_paths)
+        output = SceneDataFormat.Transform()
+        output.transforms = wp.zeros(len(paths), dtype=wp.transformf, device="cpu")
+        assert provider.get_transforms(output, mapping, allow_passthrough=False, count=len(paths))
+        np.testing.assert_array_equal(output.transforms.numpy(), expected[indices])
     with pytest.raises(KeyError, match="/missing"):
         provider.create_mapping(["/a", "/missing"])
+    with pytest.raises(ValueError, match="unique"):
+        provider.create_mapping(["/a", "/a"])
+    provider.backend.transform_paths = ["/a", "/a"]
+    with pytest.raises(ValueError, match="unique"):
+        provider.create_mapping(["/a", "/a"])
+    provider.backend.transform_paths = []
+    assert provider.create_mapping([]) is None
+    with pytest.raises(KeyError, match="/missing"):
+        provider.create_mapping(["/missing"])
 
 
 # Scale is applied by one shared helper, so it rotates across the formats instead of doubling them.

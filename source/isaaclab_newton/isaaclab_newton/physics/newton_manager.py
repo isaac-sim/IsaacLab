@@ -551,31 +551,6 @@ class NewtonManager(PhysicsManager):
         return "newton_gl"
 
     @classmethod
-    def sync_transforms_to_fabric(cls) -> None:
-        """Publish rigid-body poses through SDP to Fabric, leaving authored USD untouched."""
-        sim = PhysicsManager._sim
-        if not has_kit() or cls.backend is None:
-            return
-        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
-
-        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
-        fabric.update_transforms(sim.get_scene_data_provider())
-
-    @classmethod
-    def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
-
-        .. deprecated:: v6.3.0
-            Renamed to :meth:`sync_transforms_to_fabric`, which describes where the write
-            actually lands. This alias will be removed in a future release.
-        """
-        logger.warning(
-            "The method 'NewtonManager.sync_transforms_to_usd' is deprecated because it writes Fabric, not the USD"
-            " stage. Please use 'NewtonManager.sync_transforms_to_fabric' instead."
-        )
-        cls.sync_transforms_to_fabric()
-
-    @classmethod
     def _mark_transforms_changed(cls) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:

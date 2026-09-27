@@ -84,9 +84,9 @@ constructs ``backend_cfg.class_type(backend_cfg)``.
 registration and treat them, including nested values, as read-only afterward.
 Use a new configuration for different settings. ``close_backend(backend)`` closes
 the exact registered object after all consumers have released their bindings;
-it does not compare or hash configurations. Teardown calls ``backend_cfg.close(resource)``,
-which requires ``resource.close()`` by default. Configurations for Python-owned data explicitly
-override cleanup; missing native cleanup is an error. A failed close retains
+it does not compare or hash configurations. Resources declared through ``BackendCfg`` must
+implement ``close()``. Plain construction cfgs share Python-owned data without a teardown
+operation; removing the registry entry releases its reference. A failed close retains
 the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
@@ -102,8 +102,8 @@ before plan dispatch. They apply the plan but do not own native runtime resource
 Newton has two resources with different lifetimes, not two interchangeable backends:
 
 * ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
-  requirements before finalization. It remains available for hard reset; its cfg explicitly
-  uses reference release rather than a native ``close()`` operation.
+  requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
+  is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
 * ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
   borrow those handles. Closing it releases runtime allocations without closing the builder.
 
