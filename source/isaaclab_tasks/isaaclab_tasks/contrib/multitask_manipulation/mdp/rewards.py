@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
@@ -108,7 +109,7 @@ class _LiftSuccessTerm(ManagerTermBase):
             return
         log = self._env.extras.setdefault("log", {})
         log["Metrics/lift_success_rate"] = self.succeeded[selected].float().mean().item()
-        self.succeeded[selected] = False
+        index_fill_(self.succeeded, selected, False)
 
 
 class LiftGoalTracking(_LiftSuccessTerm):
@@ -263,8 +264,8 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
         log = self._env.extras.setdefault("log", {})
         log["Metrics/cabinet_success_rate"] = self.succeeded[selected].float().mean().item()
         log["Metrics/cabinet_drawer_pos"] = self.best_drawer_pos[selected].mean().item()
-        self.succeeded[selected] = False
-        self.best_drawer_pos[selected] = 0.0
+        index_fill_(self.succeeded, selected, False)
+        index_fill_(self.best_drawer_pos, selected, 0.0)
 
     def __call__(
         self,

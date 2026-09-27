@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
 
 if TYPE_CHECKING:
@@ -214,14 +215,14 @@ class CabinetDirectEnv(DirectRLEnv):
         log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean().item()
         for name, episode_sum in self._episode_reward_sums.items():
             log[f"Episode_Reward/{name}"] = torch.mean(episode_sum[env_ids]) / self.max_episode_length_s
-            episode_sum[env_ids] = 0.0
+            index_fill_(episode_sum, env_ids, 0.0)
 
         super()._reset_idx(env_ids)
 
-        self.actions[env_ids] = 0.0
-        self.previous_actions[env_ids] = 0.0
-        self._episode_succeeded[env_ids] = False
-        self._best_drawer_pos[env_ids] = 0.0
+        index_fill_(self.actions, env_ids, 0.0)
+        index_fill_(self.previous_actions, env_ids, 0.0)
+        index_fill_(self._episode_succeeded, env_ids, False)
+        index_fill_(self._best_drawer_pos, env_ids, 0.0)
         self._compute_intermediate_values(env_ids)
 
     def _compute_intermediate_values(self, env_ids: Sequence[int] | None = None) -> None:

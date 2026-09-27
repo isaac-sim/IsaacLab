@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -176,7 +177,7 @@ class JointAction(ActionTerm):
             self._processed_actions.clamp_(min=self._clip[:, :, 0], max=self._clip[:, :, 1])
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
 
 class JointPositionAction(JointAction):

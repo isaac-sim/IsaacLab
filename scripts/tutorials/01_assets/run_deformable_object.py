@@ -52,7 +52,7 @@ from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass, instantiate
+from isaaclab.utils import configclass, index_fill_, instantiate
 
 if TYPE_CHECKING:
     from isaaclab.assets import DeformableObject
@@ -159,7 +159,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
         nodal_kinematic_target[kinematic_cubes, 0, 2] += 0.2 * sim_dt
         # set vertex at index 0 to be kinematically constrained
         # 0: constrained, 1: free
-        nodal_kinematic_target[kinematic_cubes, 0, 3] = 0.0
+        index_fill_(nodal_kinematic_target[:, 0, 3], kinematic_cubes, 0.0)
         # write kinematic target to simulation
         cube_object.write_nodal_kinematic_target_to_sim_index(nodal_kinematic_target)
 

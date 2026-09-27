@@ -27,6 +27,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.markers import VisualizationMarkers
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply
 
 from . import mdp
@@ -787,7 +788,7 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         # Clear constitutive/contact/collider history for exactly the reset worlds.
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, dtype=torch.bool, device=self.device)
-        world_mask[env_ids] = True
+        index_fill_(world_mask, env_ids, True)
         NewtonMPMManager.reset_solver_state(
             world_mask=wp.from_torch(world_mask, dtype=wp.bool),
             flags=newton.StateFlags.BODY | newton.StateFlags.PARTICLE,
@@ -805,12 +806,12 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
         self._episode_start_centroid_x[env_ids] = start_centroid_x
         self.transport_progress[env_ids] = transport_progress
 
-        self._success_streak[env_ids] = 0
-        self.success_this_step[env_ids] = False
-        self._rms_particle_speed[env_ids] = 0.0
-        self.invalid_state[env_ids] = False
-        self.escaped_workspace[env_ids] = False
-        self.excessive_spill[env_ids] = False
+        index_fill_(self._success_streak, env_ids, 0)
+        index_fill_(self.success_this_step, env_ids, False)
+        index_fill_(self._rms_particle_speed, env_ids, 0.0)
+        index_fill_(self.invalid_state, env_ids, False)
+        index_fill_(self.escaped_workspace, env_ids, False)
+        index_fill_(self.excessive_spill, env_ids, False)
         if self.cfg.heightmap_xy_noise_std > 0.0:
             offset = torch.randn((reset_count, 2), device=self.device) * self.cfg.heightmap_xy_noise_std
             self._heightmap_xy_offset[env_ids] = offset.clamp(
@@ -818,8 +819,8 @@ class UR10ParticlePushEnv(ManagerBasedRLEnv):
                 3.0 * self.cfg.heightmap_xy_noise_std,
             )
         else:
-            self._heightmap_xy_offset[env_ids] = 0.0
-        self._heightmap_history_reset[env_ids] = True
+            index_fill_(self._heightmap_xy_offset, env_ids, 0.0)
+        index_fill_(self._heightmap_history_reset, env_ids, True)
         self._heightmap_history_reset_pending = True
         self._task_state_step = self.common_step_counter
 

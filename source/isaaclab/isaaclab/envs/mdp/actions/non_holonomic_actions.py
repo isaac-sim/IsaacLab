@@ -14,6 +14,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import euler_xyz_from_quat
 
 if TYPE_CHECKING:
@@ -192,4 +193,4 @@ class NonHolonomicAction(ActionTerm):
         self._asset.set_joint_velocity_target_index(target=self._joint_vel_command, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)

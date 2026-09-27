@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
-from ..utils import instantiate
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
@@ -134,10 +134,10 @@ class CommandTerm(ManagerTermBase):
             # compute the mean metric value
             extras[metric_name] = torch.mean(metric_value[env_ids]).item()
             # reset the metric value
-            metric_value[env_ids] = 0.0
+            index_fill_(metric_value, env_ids, 0.0)
 
         # set the command counter to zero
-        self.command_counter[env_ids] = 0
+        index_fill_(self.command_counter, env_ids, 0)
         # resample the command
         self._resample(env_ids)
 

@@ -16,6 +16,7 @@ import torch
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from ... import ManagerBasedEnv
@@ -162,5 +163,5 @@ class FixedTendonPositionAction(ActionTerm):
         )
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
-        self._processed_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
+        index_fill_(self._processed_actions, env_ids, 0.0)
