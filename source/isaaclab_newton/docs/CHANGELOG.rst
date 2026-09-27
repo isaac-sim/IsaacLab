@@ -1,6 +1,51 @@
 Changelog
 ---------
 
+8.1.1 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reduced Newton articulation startup memory by allocating optional Jacobian, mass-matrix, and
+  gravity-compensation buffers on first use instead of eagerly for every articulation view.
+  With CUDA memory pools disabled, these quantities must be accessed before graph capture.
+* Centralized pending kinematic refresh in the physics manager for articulation, rigid-object,
+  rigid-object-collection, and scene-data reads, removing duplicate asset-local FK timestamps.
+* Unified joint-limit and foreign-physics rendering caches with timestamped asset buffers and
+  consolidated the shared BVH's eager refresh path.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Removed unused articulation/rigid-object caches and refreshed rigid body-velocity aliases through
+  their root-velocity cache, preventing stale reads after same-step writes.
+* Replaced articulation and rigid-object component copies with strided views of their parent poses
+  and velocities, removing extraction buffers and kernels while retaining lazy refresh and reset rebinding.
+* Composed reusable asset builders into world prototypes before native replication,
+  preserving repeated instances without widening the declared USD import scope.
+  Removed the redundant post-clone label pass. Direct ``newton_physics_replicate`` calls
+  retained their path-based inputs.
+* Deferred allocation of derived articulation and rigid-object pose, velocity, heading, and
+  projected-gravity buffers until first access. Existing timestamp invalidation and
+  finite-difference history updates were preserved; no caller changes are required.
+
+Fixed
+^^^^^
+
+* Accepted partial environment slices at indexed asset write boundaries using views of cached device
+  indices, without creating or uploading host index lists.
+* Restricted visual-shape randomization to the requested slice instead of updating every environment.
+* Captured Newton physics and sensor CUDA graphs without executing an eager warmup. Initial steps
+  and recapture preserved staged forces and callback, sensor, and solver history. Initialized
+  Kamino's output state before capture instead of replaying a hidden physics step.
+* Deferred physics capture until reset and decimation setup completed, and replaced the custom
+  RTX capture implementation with Warp's capture API on a nonblocking stream. Unexpected physics
+  capture errors were surfaced without falling back to an unaccounted eager step.
+* Kept fixed MPM grids with an unbounded active-cell partition on the eager path because they
+  read partition sizes on the CPU each step. Set ``max_active_cell_count`` to a positive capacity
+  to enable capture for fixed grids.
+* Fixed model finalization, solver initialization, and contact-sensor construction timings to synchronize
+  only the physics device at both measurement boundaries, excluding previously queued work from each phase.
+
+
 8.1.0 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~
 
