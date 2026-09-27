@@ -70,7 +70,8 @@ def test_buffer_overflow(circular_buffer):
     If the buffer is full, the oldest data should be overwritten.
     """
     # add data in ascending order
-    for count in range(circular_buffer.max_length + 2):
+    num_pushes = 2 * circular_buffer.max_length + 2
+    for count in range(num_pushes):
         data = torch.full((circular_buffer.batch_size, 4), count, device=circular_buffer.device)
         circular_buffer.append(data)
 
@@ -84,7 +85,7 @@ def test_buffer_overflow(circular_buffer):
     # retrieve most recent data
     key = torch.tensor([0, 0, 0], device=circular_buffer.device)
     retrieved_data = circular_buffer[key]
-    expected_data = torch.full_like(data, circular_buffer.max_length + 1)
+    expected_data = torch.full_like(data, num_pushes - 1)
 
     assert torch.equal(retrieved_data, expected_data)
 
@@ -94,9 +95,17 @@ def test_buffer_overflow(circular_buffer):
         device=circular_buffer.device,
     )
     retrieved_data = circular_buffer[key]
-    expected_data = torch.full_like(data, 2)
+    expected_data = torch.full_like(data, num_pushes - circular_buffer.max_length)
 
     assert torch.equal(retrieved_data, expected_data)
+
+    # Requests beyond retained history must not wrap to newer slots or exceed storage bounds.
+    key = torch.tensor([circular_buffer.max_length, num_pushes - 1, num_pushes + 100])
+    torch.testing.assert_close(circular_buffer[key], expected_data)
+
+    circular_buffer.reset(batch_ids=[1])
+    expected_data[1] = 0
+    torch.testing.assert_close(circular_buffer[key], expected_data)
 
 
 def test_empty_buffer_access(circular_buffer):

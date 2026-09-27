@@ -168,9 +168,9 @@ def main():
         count += 1
         # update the buffers
         if sim.is_playing():
-            with Timer() as timer:
+            with Timer(synchronize="both", device=sim.device) as timer:
                 contact_sensor.update(sim_dt, force_recompute=True)
-                dt.append(timer.time_elapsed)
+            dt.append(timer.total_run_time)
 
             contact_sensor.update(sim_dt, force_recompute=True)
             if count % 100 == 0:
