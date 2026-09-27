@@ -349,7 +349,7 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
 
-    torch_compile_mode: str | None = None
+    torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
     """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
 
     policy: RslRlPpoActorCriticCfg = MISSING
