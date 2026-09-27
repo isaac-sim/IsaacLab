@@ -71,32 +71,24 @@ def test_all_environment_slice_samples_one_gpu_row_per_material_and_environment(
     torch.testing.assert_close(channels["color"], torch.tensor([0.25, 0.5, 0.75]).expand(2, count, 3))
 
 
-def test_shape_backend_follows_only_active_render_consumers() -> None:
-    cases = (
-        (("newton_gl",), (), "physx", "newton"),
-        ((), ("newton_warp",), "physx", "newton"),
-    )
-    for visualizers, renderers, physics, expected in cases:
-        sim = SimpleNamespace(
-            physics_manager=physics,
-            resolve_visualizer_types=lambda visualizers=visualizers: list(visualizers),
+@pytest.mark.parametrize(
+    "visualizers,renderers",
+    [(("kit",), ()), (("newton_gl",), ("isaac_rtx",)), ((), ())],
+)
+def test_shape_event_rejects_consumers_without_shape_storage(visualizers, renderers) -> None:
+    env = SimpleNamespace(
+        sim=SimpleNamespace(
+            resolve_visualizer_types=lambda: list(visualizers),
             render_context=SimpleNamespace(renderer_types=renderers),
         )
-        assert randomize_visual_shape._get_backend(None, SimpleNamespace(sim=sim)) == expected
-
-    for visualizers, renderer_types in ((("kit",), ()), (("newton_gl",), ("isaac_rtx",))):
-        sim = SimpleNamespace(
-            resolve_visualizer_types=lambda visualizers=visualizers: list(visualizers),
-            render_context=SimpleNamespace(renderer_types=renderer_types),
-        )
-        with pytest.raises(NotImplementedError, match="no per-shape visual storage"):
-            randomize_visual_shape._get_backend(None, SimpleNamespace(sim=sim))
-
-    unsupported_env = SimpleNamespace(
-        sim=SimpleNamespace(resolve_visualizer_types=lambda: [], render_context=SimpleNamespace(renderer_types=()))
+    )
+    cfg = EventTermCfg(
+        func=randomize_visual_shape,
+        mode="reset",
+        params={"asset_cfg": SceneEntityCfg("robot"), "channels": {"color": ((0.0, 0.0, 0.0), (1.0, 1.0, 1.0))}},
     )
     with pytest.raises(NotImplementedError, match="no per-shape visual storage"):
-        randomize_visual_shape(None, unsupported_env)
+        randomize_visual_shape(cfg, env)
 
 
 def test_replicator_event_rejects_kitless_runtime() -> None:

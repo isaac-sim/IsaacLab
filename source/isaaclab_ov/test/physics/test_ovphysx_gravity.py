@@ -46,7 +46,11 @@ def test_gravity_event_changes_rigid_body_motion():
         env = SimpleNamespace(device=sim.device, sim=sim)
         event_cfg = EventTermCfg(
             func=randomize_physics_scene_gravity,
-            params={"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"},
+            params={
+                "gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)),
+                "operation": "abs",
+                "distribution": "gaussian",
+            },
         )
         gravity_event = randomize_physics_scene_gravity(event_cfg, env)
 
@@ -60,7 +64,7 @@ def test_gravity_event_changes_rigid_body_motion():
             gravity_event(
                 env,
                 env_ids=None,
-                gravity_distribution_params=(gravity, gravity),
+                gravity_distribution_params=(gravity, (0.0, 0.0, 0.0)),
                 operation="abs",
             )
 
@@ -80,3 +84,4 @@ def test_gravity_event_changes_rigid_body_motion():
 
         assert zero_gravity_height == pytest.approx(initial_height, abs=1.0e-4)
         assert earth_gravity_height - zero_gravity_height < -0.5
+        assert cube.data.root_lin_vel_w.torch[0, 2].item() == pytest.approx(0.001 - 9.81 * 30 * dt, abs=0.02)

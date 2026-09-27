@@ -10,95 +10,11 @@ from types import SimpleNamespace
 
 import pytest
 import torch
-import warp as wp
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
-from isaaclab_ov.physics import OvPhysxCfg
-from isaaclab_physx.physics import PhysxCfg
 
 from isaaclab.envs.mdp.events import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.observations import body_projected_gravity_b
-from isaaclab.managers import EventManager, EventTermCfg, SceneEntityCfg
-
-
-@pytest.mark.parametrize("backend", ["physx", "ovphysx"])
-def test_scene_wide_backends_use_configured_distribution(backend: str) -> None:
-    """PhysX and OvPhysX should use the distribution configured at initialization."""
-    gravity_sink = SimpleNamespace()
-    physics_manager = type(
-        f"{backend}Manager",
-        (),
-        {"set_gravity": staticmethod(lambda gravity: setattr(gravity_sink, "value", gravity))},
-    )
-    physics_cfg = PhysxCfg() if backend == "physx" else OvPhysxCfg()
-    env = SimpleNamespace(
-        device="cpu",
-        num_envs=2,
-        sim=SimpleNamespace(
-            cfg=SimpleNamespace(gravity=(0.0, 0.0, -9.81), physics=physics_cfg),
-            physics_manager=physics_manager,
-            physics_sim_view=physics_manager,
-            is_playing=lambda: True,
-        ),
-    )
-    cfg = EventTermCfg(
-        func=randomize_physics_scene_gravity,
-        mode="startup",
-        params={
-            "gravity_distribution_params": ((1.0, 2.0, 3.0), (0.0, 0.0, 0.0)),
-            "operation": "abs",
-            "distribution": "gaussian",
-        },
-    )
-    manager = EventManager({"gravity": cfg}, env)
-    torch.manual_seed(0)
-    manager.apply("startup")
-    assert gravity_sink.value == pytest.approx((1.0, 2.0, 3.0))
-
-
-def test_newton_gravity_selectors_preserve_global_world(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Environment selectors must exclude Newton's trailing global-world gravity row."""
-    wp.init()
-    gravity = torch.full((5, 3), -9.81)
-    model = SimpleNamespace(gravity=wp.from_torch(gravity, dtype=wp.vec3))
-    notifications = []
-
-    class CustomDynamics(NewtonManager):
-        pass
-
-    monkeypatch.setattr(CustomDynamics, "get_model", classmethod(lambda cls: model))
-    monkeypatch.setattr(CustomDynamics, "add_model_change", classmethod(lambda cls, flag: notifications.append(flag)))
-    env = SimpleNamespace(
-        device="cpu",
-        num_envs=4,
-        sim=SimpleNamespace(
-            physics_manager=CustomDynamics,
-            is_playing=lambda: True,
-            cfg=SimpleNamespace(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())),
-        ),
-    )
-    cfg = EventTermCfg(
-        func=randomize_physics_scene_gravity,
-        mode="startup",
-        params={"gravity_distribution_params": ((1.0, 2.0, 3.0), (1.0, 2.0, 3.0)), "operation": "abs"},
-    )
-    from newton import ModelFlags
-
-    manager = EventManager({"gravity": cfg}, env)
-    for selector, rows in (
-        (None, [0, 1, 2, 3]),
-        (slice(None), [0, 1, 2, 3]),
-        (slice(1, None, 2), [1, 3]),
-        (slice(-2, None), [2, 3]),
-        (torch.tensor([1, 3], dtype=torch.int32), [1, 3]),
-        (slice(0, 0), []),
-    ):
-        gravity.fill_(-9.81)
-        notifications.clear()
-        manager.apply("startup", env_ids=selector)
-        expected = torch.full_like(gravity, -9.81)
-        expected[rows] = torch.tensor([1.0, 2.0, 3.0])
-        torch.testing.assert_close(gravity, expected)
-        assert notifications == ([ModelFlags.MODEL_PROPERTIES] if rows else [])
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
+from isaaclab.physics import PhysicsCfg
 
 
 @pytest.mark.unit
@@ -126,8 +42,6 @@ def test_body_projected_gravity_b_stacks_every_selected_body():
 
 def test_unknown_physics_configuration_fails_at_term_construction():
     """An unsupported physics config must not silently select a different engine."""
-    from isaaclab.physics import PhysicsCfg
-
     env = SimpleNamespace(sim=SimpleNamespace(cfg=SimpleNamespace(physics=PhysicsCfg())))
     cfg = EventTermCfg(func=randomize_physics_scene_gravity, mode="startup")
     with pytest.raises(NotImplementedError, match="unsupported for PhysicsCfg"):

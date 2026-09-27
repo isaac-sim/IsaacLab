@@ -7,10 +7,11 @@
 
 from types import SimpleNamespace
 
+import pytest
 import torch
 from isaaclab_newton.envs.mdp import events as events_module
-from isaaclab_newton.envs.mdp.events import randomize_visual_shape
 
+from isaaclab.envs.mdp import randomize_visual_shape
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 
 
@@ -30,12 +31,22 @@ class _Writer:
         self.calls.append((colors, env_ids))
 
 
-def test_event_samples_selected_links_per_environment_and_rebinds(monkeypatch) -> None:
+@pytest.mark.parametrize("visualizers,renderers", [(("newton_gl",), ()), ((), ("newton_warp",))])
+def test_event_samples_selected_links_per_environment_and_rebinds(monkeypatch, visualizers, renderers) -> None:
     writer = _Writer()
     created = []
     new_model = object()
     asset = SimpleNamespace(num_bodies=3, body_names=["base", "hip", "foot"])
-    env = SimpleNamespace(scene={"robot": asset}, device="cpu", num_envs=4)
+    env = SimpleNamespace(
+        scene={"robot": asset},
+        device="cpu",
+        num_envs=4,
+        sim=SimpleNamespace(
+            physics_manager="physx",
+            resolve_visualizer_types=lambda: list(visualizers),
+            render_context=SimpleNamespace(renderer_types=renderers),
+        ),
+    )
     asset_cfg = SceneEntityCfg("robot", body_ids=[0, 2])
     cfg = EventTermCfg(
         func=randomize_visual_shape,
@@ -74,7 +85,15 @@ def test_event_samples_selected_links_per_environment_and_rebinds(monkeypatch) -
 
 
 def test_shape_event_rejects_non_color_channels() -> None:
-    env = SimpleNamespace(scene={}, device="cpu", num_envs=1)
+    env = SimpleNamespace(
+        scene={},
+        device="cpu",
+        num_envs=1,
+        sim=SimpleNamespace(
+            resolve_visualizer_types=lambda: ["newton_gl"],
+            render_context=SimpleNamespace(renderer_types=()),
+        ),
+    )
     cfg = EventTermCfg(
         func=randomize_visual_shape,
         mode="reset",

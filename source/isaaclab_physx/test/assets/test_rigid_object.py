@@ -18,6 +18,7 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 """Rest everything follows."""
 
 import sys
+from collections import UserDict
 from types import SimpleNamespace
 from typing import Literal
 
@@ -29,8 +30,12 @@ from isaaclab_physx.assets import RigidObject
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.envs.mdp import randomize_physics_scene_gravity
-from isaaclab.managers import EventTermCfg
+from isaaclab.envs.mdp import (
+    randomize_physics_scene_gravity,
+    randomize_rigid_body_collider_offsets,
+    randomize_rigid_body_material,
+)
+from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import build_simulation_context
 from isaaclab.sim.spawners import materials
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
@@ -858,3 +863,59 @@ def test_warmup_attach_stage_not_called_for_cpu():
             "This indicates the CPU MBP broadphase double-initialization regression is present."
         )
         physx_spy.force_load_physics_from_usd.assert_called_once_with()
+
+
+@pytest.mark.isaacsim_ci
+def test_material_and_collider_events_preserve_unselected_environments():
+    """Shared events update native materials and offsets only in selected environments."""
+    with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_cubes=2, device="cpu")
+        sim.reset()
+        scene = UserDict(cube=cube_object)
+        scene.num_envs = 2
+        env = SimpleNamespace(scene=scene, sim=sim, device="cpu", num_envs=2)
+        asset_cfg = SceneEntityCfg("cube")
+        view = cube_object.root_view
+        original_materials = wp.to_torch(view.get_material_properties()).clone()
+        original_rest = wp.to_torch(view.get_rest_offsets()).clone()
+        original_contact = wp.to_torch(view.get_contact_offsets()).clone()
+        material_params = {
+            "asset_cfg": asset_cfg,
+            "static_friction_range": (0.3, 0.3),
+            "dynamic_friction_range": (0.8, 0.8),
+            "restitution_range": (0.2, 0.2),
+            "num_buckets": 1,
+            "make_consistent": True,
+        }
+        material = randomize_rigid_body_material(
+            EventTermCfg(func=randomize_rigid_body_material, params=material_params), env
+        )
+        material(env, torch.tensor([1], dtype=torch.int32), **material_params)
+        expected_materials = original_materials.clone()
+        expected_materials[1] = torch.tensor([0.3, 0.3, 0.2])
+        torch.testing.assert_close(wp.to_torch(view.get_material_properties()), expected_materials)
+
+        offset_params = {
+            "asset_cfg": asset_cfg,
+            "rest_offset_distribution_params": (-0.01, -0.01),
+            "contact_offset_distribution_params": (0.04, 0.04),
+        }
+        offsets = randomize_rigid_body_collider_offsets(
+            EventTermCfg(func=randomize_rigid_body_collider_offsets, params=offset_params), env
+        )
+        offsets(env, slice(1, 2), **offset_params)
+        expected_rest = original_rest.clone()
+        expected_contact = original_contact.clone()
+        expected_rest[1] = -0.01
+        expected_contact[1] = 0.04
+        torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
+        torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
+
+        offsets(env, torch.tensor([1]), asset_cfg, contact_offset_distribution_params=(0.06, 0.06))
+        expected_contact[1] = 0.06
+        torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
+        torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
+        offsets(env, None, asset_cfg)
+        torch.testing.assert_close(wp.to_torch(view.get_rest_offsets()), expected_rest)
+        torch.testing.assert_close(wp.to_torch(view.get_contact_offsets()), expected_contact)
