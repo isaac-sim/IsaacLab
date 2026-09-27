@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+7.2.5 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used timestamped buffers for native pose/geometry reads and Fabric geometry destinations,
+  retaining native geometry batches across reads and preserving rendering cadence.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Allocated articulation Jacobian, mass-matrix, and gravity-compensation outputs only when
+  requested, retaining native views when no reordering was required. With CUDA memory pools
+  disabled, access these quantities before graph capture.
+
+Fixed
+^^^^^
+
+* Accepted partial environment slices at indexed asset write boundaries using views of cached device
+  indices, without creating or uploading host index lists.
+* Shared pending kinematic refresh between articulation and scene-data reads so one state write
+  did not trigger redundant FK for separate consumers.
+* Fixed PVA and contact-sensor diagnostic timings to measure device-synchronized update durations.
+  Contact-sensor samples were recorded after synchronization rather than while GPU work could still be pending.
+
+
 7.2.4 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~
 

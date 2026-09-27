@@ -1,6 +1,41 @@
 Changelog
 ---------
 
+21.2.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed camera tasks to use the per-modality image terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`,
+  :class:`~isaaclab.envs.mdp.observations.image_normals` and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the removed
+  ``isaaclab.envs.mdp.image``.
+* Changed the Cartpole camera, Kuka Allegro ``vision_camera`` and drone VAE observations to use the
+  shared normalizers and frame stack in :mod:`isaaclab.utils.images`. Observation values are unchanged,
+  except that NaN depth is now replaced like infinite depth.
+* **Breaking:** Removed ``frame_stack`` from the manager-based Cartpole camera environment
+  configuration. Set it on the image term instead, e.g. ``env.observations.policy.image.params.frame_stack=4``.
+  The direct Cartpole camera environment keeps its ``frame_stack`` field.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`isaaclab_tasks.core.cartpole.mdp.CameraImageStack`. Use ``image_rgb``,
+  ``image_depth`` or ``image_segmentation`` with ``channel_first=True`` and ``frame_stack``.
+
+Fixed
+^^^^^
+
+* Handled full and strided reset slices in sampled deformable observations and deployment noise models.
+* Used existing device indices for multitask reset slices without implicitly converting caller-provided indices.
+* Preserved full and partial slices in task reset events, curricula, and commands, using selected data
+  shapes or slice bounds when only a batch size was required.
+* Fixed keyboard reset-buffer partial batches to sample distinct environments across the full scene
+  instead of favoring its first clone variants. Buffer capacity was unchanged.
+
+
 21.1.1 (2026-09-26)
 ~~~~~~~~~~~~~~~~~~~
 

@@ -42,6 +42,7 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import to_camel_case
 
 from isaaclab_physx.cloner import PhysxReplicateContext
@@ -187,8 +188,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
     """Borrowed native resource; its lifetime belongs to the simulation registry."""
 
     def __init__(self):
-        self._transforms = SceneDataFormat.Transform()
-        self.transforms_version = 0
+        self._transforms = TimestampedBuffer(SceneDataFormat.Transform())
+        self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self.clear()
 
@@ -197,11 +198,11 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self.backend = None
         self._rigid_body_view: omni.physics.tensors.RigidBodyView | None = None
         self._deformable_bindings: list[tuple[Any, list]] | None = None
-        self._transforms.transforms = None
-        self.transforms_version += 1
+        self._transforms.data.transforms = None
+        self.transforms_timestamp += 1
         self.geometry_timestamp += 1
-        self._transforms_version_last_update = self._fabric_version_last_update = -1
-        self._geometry_timestamp_last_update = -1
+        self._fabric_timestamp = -1
+        self._geometry = TimestampedBuffer()
         self._fabric_transforms = SceneDataFormat.FabricMatrix44()
         self._fabric_selection = None
         self._fabric_points = SceneDataFormat.FabricPoints()
@@ -274,6 +275,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
             batches = deformable_geometry_batches(ordered, points, native_offsets)
             bindings.append((view, batches))
         self._deformable_bindings = bindings
+        self._geometry = TimestampedBuffer([batch for _, batches in bindings for batch in batches])
 
     @property
     def native_geometry_formats(self) -> tuple[Any, ...]:
@@ -282,9 +284,9 @@ class PhysxSceneDataBackend(SceneDataBackend):
         Raises:
             RuntimeError: If scene geometry was not initialized from a clone plan.
         """
-        if self._deformable_bindings is None:
+        if self._geometry.data is None:
             raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
-        formats = tuple(dict.fromkeys(batch[0]._cls for _, batches in self._deformable_bindings for batch in batches))
+        formats = tuple(dict.fromkeys(batch[0]._cls for batch in self._geometry.data))
         return (*formats, SceneDataFormat.FabricPoints) if PhysxManager._fabric is not None else formats
 
     def get_geometry_batches(self, output_format: Any = SceneDataFormat.Points) -> Any:
@@ -293,7 +295,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         Raises:
             RuntimeError: If scene geometry was not initialized from a clone plan.
         """
-        if self._deformable_bindings is None:
+        if self._geometry.data is None:
             raise RuntimeError("Declare and replicate a ClonePlan before requesting scene geometry.")
         if output_format is SceneDataFormat.FabricPoints and PhysxManager._fabric is not None:
             self._update_fabric()
@@ -314,23 +316,23 @@ class PhysxSceneDataBackend(SceneDataBackend):
             if self._fabric_points_selection.PrepareForReuse() or self._fabric_points.points is None:
                 self._fabric_points.points = wp.fabricarrayarray(data=self._fabric_points_selection, attrib="points")
                 self.geometry_timestamp += 1
-                self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
+                self._fabric_timestamp = (self.transforms_timestamp, self.geometry_timestamp)
             return [(self._fabric_points, {})]
-        if self._geometry_timestamp_last_update != self.geometry_timestamp:
+        if self._geometry.timestamp != self.geometry_timestamp:
             for view, batches in self._deformable_bindings:
                 points = view.get_simulation_nodal_positions().view(wp.vec3f).flatten()
                 for publication, _ in batches:
                     publication.points = points
-            self._geometry_timestamp_last_update = self.geometry_timestamp
-        return [batch for _, batches in self._deformable_bindings for batch in batches]
+            self._geometry.timestamp = self.geometry_timestamp
+        return self._geometry.data
 
     def _update_fabric(self) -> None:
         """Refresh the native stage once when either poses or geometry changed."""
         PhysxManager.pre_render()
-        version = (self.transforms_version, self.geometry_timestamp)
-        if self._fabric_version_last_update != version:
+        timestamp = (self.transforms_timestamp, self.geometry_timestamp)
+        if self._fabric_timestamp != timestamp:
             PhysxManager._fabric.force_update(0.0, 0.0)
-            self._fabric_version_last_update = version
+            self._fabric_timestamp = timestamp
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -343,10 +345,10 @@ class PhysxSceneDataBackend(SceneDataBackend):
     def transforms(self) -> SceneDataFormat.Transform:
         """Publish native rigid-body poses [m, xyzw]."""
         PhysxManager.pre_render()
-        if self._transforms_version_last_update != self.transforms_version and (view := self.get_rigid_body_view()):
-            self._transforms.transforms = view.get_transforms().view(wp.transformf)
-            self._transforms_version_last_update = self.transforms_version
-        return self._transforms
+        if self._transforms.timestamp != self.transforms_timestamp and (view := self.get_rigid_body_view()):
+            self._transforms.data.transforms = view.get_transforms().view(wp.transformf)
+            self._transforms.timestamp = self.transforms_timestamp
+        return self._transforms.data
 
     @property
     def transform_count(self) -> int:
@@ -376,8 +378,8 @@ class PhysxSceneDataBackend(SceneDataBackend):
             )
         if self._fabric_selection.PrepareForReuse() or self._fabric_transforms.matrices is None:
             self._fabric_transforms.matrices = wp.fabricarray(self._fabric_selection, "omni:fabric:worldMatrix")
-            self.transforms_version += 1
-        self._fabric_version_last_update = (self.transforms_version, self.geometry_timestamp)
+            self.transforms_timestamp += 1
+        self._fabric_timestamp = (self.transforms_timestamp, self.geometry_timestamp)
         return self._fabric_transforms
 
 
@@ -396,7 +398,7 @@ class PhysxManager(PhysicsManager):
     _timeline: ClassVar[omni.timeline.ITimeline] = omni.timeline.get_timeline_interface()
     _event_bus: ClassVar[carb.eventdispatcher.IEventDispatcher] = carb.eventdispatcher.get_eventdispatcher()
     _scene_data_backend: ClassVar[PhysxSceneDataBackend | None] = None
-    _kinematics_dirty: ClassVar[bool] = False
+    kinematics_dirty: ClassVar[bool] = False
 
     backend: ClassVar[PhysxBackend | None] = None
     """Borrowed native resource, available after physics warmup and released on stop."""
@@ -441,14 +443,13 @@ class PhysxManager(PhysicsManager):
 
         super().initialize(sim_context)
         cls._stage_id = get_current_stage_id()
-        sim_context.clone_contexts[cls.clone_context_type] = cls.clone_context_type(sim_context.stage)
 
         cls._setup_subscriptions()
         cls._configure_physics()
         cls._load_fabric()
         cls._anim_recorder = AnimationRecorder(sim_context)
         cls._scene_data_backend = PhysxSceneDataBackend()
-        cls._kinematics_dirty = False
+        cls.kinematics_dirty = False
 
         # force update cycle to apply dt
         sim = PhysicsManager._sim
@@ -464,9 +465,7 @@ class PhysxManager(PhysicsManager):
 
         _sim = PhysicsManager._sim
         _sim.add_render_callback(
-            "physx_headless_video_pump",
-            lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim),
-            order=-10,
+            "physx_headless_video_pump", lambda _: pump_kit_app_for_headless_video_render_if_needed(_sim), order=-10
         )
 
     @classmethod
@@ -509,9 +508,8 @@ class PhysxManager(PhysicsManager):
     def forward(cls) -> None:
         """Update articulation kinematics and fabric for rendering."""
         sim = PhysicsManager._sim
-        if cls.backend is not None and sim is not None and sim.is_playing():
-            cls.backend.simulation_view.update_articulations_kinematic()
-            cls._kinematics_dirty = False
+        if sim is not None and sim.is_playing():
+            cls.update_kinematics()
         cls.invalidate_transforms()
         cls._scene_data_backend.geometry_timestamp += 1
         if cls._fabric is not None:
@@ -520,15 +518,22 @@ class PhysxManager(PhysicsManager):
     @classmethod
     def invalidate_transforms(cls, *, kinematics: bool = False) -> None:
         """Invalidate both native pose representations after writes; defer FK when needed."""
-        cls._kinematics_dirty |= kinematics
-        cls._scene_data_backend.transforms_version += 1
+        cls.kinematics_dirty |= kinematics
+        cls._scene_data_backend.transforms_timestamp += 1
 
     @classmethod
     def pre_render(cls) -> None:
         """Complete pending pose writes before SDP publishes articulation transforms."""
-        if cls._kinematics_dirty and cls.backend is not None:
+        cls.update_kinematics()
+
+    @classmethod
+    def update_kinematics(cls) -> None:
+        """Update dirty articulation kinematics without publishing or rendering."""
+        if not cls.kinematics_dirty:
+            return
+        if cls.backend is not None:
             cls.backend.simulation_view.update_articulations_kinematic()
-            cls._kinematics_dirty = False
+            cls.kinematics_dirty = False
 
     @classmethod
     def get_scene_data_backend(cls) -> SceneDataBackend:
@@ -555,7 +560,7 @@ class PhysxManager(PhysicsManager):
         physx_sim = omni.physx.get_physx_simulation_interface()
         physx_sim.simulate(sim.cfg.dt, 0.0)
         physx_sim.fetch_results()
-        cls._kinematics_dirty = False
+        cls.kinematics_dirty = False
         cls.invalidate_transforms()
         cls._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
@@ -612,7 +617,7 @@ class PhysxManager(PhysicsManager):
         cls._re_sync_fabric()
         if cls.backend is not None:
             cls.backend.simulation_view.update_articulations_kinematic()
-            cls._kinematics_dirty = False
+            cls.kinematics_dirty = False
         if cls._fabric is not None:
             cls._fabric.force_update(0.0, 0.0)
 
@@ -638,7 +643,7 @@ class PhysxManager(PhysicsManager):
         cls._warmup_needed = True
         cls._assets_loaded = True
         cls._callback_exception = None
-        cls._kinematics_dirty = False
+        cls.kinematics_dirty = False
 
         super().close()
 
@@ -970,7 +975,8 @@ class PhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         entries = None
         if (plan := sim.get_clone_plan()) is not None:
-            entries = expand_deformable_entries(plan, deformable_prototypes(sim.stage, plan))
+            env_ids = np.arange(len(plan.topology.world_prototype_layout))
+            entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         is_gpu = "cuda" in PhysicsManager.get_device()
 

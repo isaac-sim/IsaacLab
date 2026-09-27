@@ -50,14 +50,38 @@ def test_timer_as_object(clock):
     assert timer.total_run_time == 1.0
 
 
-def test_timer_as_context_manager(clock):
-    """Test using a `Timer` as a context manager."""
+@pytest.mark.parametrize(
+    "kwargs, elapsed, remaining",
+    [
+        ({}, 13.0, {"cpu": 0.0, "other": 0.0}),
+        ({"synchronize": "none"}, 1.0, {"cpu": 5.0, "other": 7.0}),
+        ({"synchronize": "both"}, 4.0, {"cpu": 0.0, "other": 0.0}),
+        ({"synchronize": "both", "device": "cpu"}, 4.0, {"cpu": 0.0, "other": 7.0}),
+        ({"device": "cpu"}, 6.0, {"cpu": 0.0, "other": 7.0}),
+    ],
+)
+def test_timer_as_context_manager(clock, monkeypatch, kwargs, elapsed, remaining):
+    """Synchronization boundaries determine which pending work is charged to the timer."""
     Timer.reset()
-    with Timer() as timer:
+    pending = {"cpu": 2.0, "other": 7.0}
+
+    def synchronize_all():
+        clock.advance(sum(pending.values()))
+        pending.update(cpu=0.0, other=0.0)
+
+    def synchronize_device(device):
+        clock.advance(pending[str(device)])
+        pending[str(device)] = 0.0
+
+    monkeypatch.setattr(wp, "synchronize", synchronize_all)
+    monkeypatch.setattr(wp, "synchronize_device", synchronize_device)
+    with Timer(**kwargs) as timer:
         assert timer.time_elapsed == 0.0
         clock.advance(1.0)
+        pending["cpu"] += 3.0
         assert timer.time_elapsed == 1.0
-    assert timer.total_run_time == 1.0
+    assert timer.total_run_time == elapsed
+    assert pending == remaining
 
 
 def test_named_timer_statistics(clock):
@@ -128,11 +152,17 @@ def test_global_enable_toggle():
         Timer.enable = True
 
 
-def test_instance_enable_toggle():
+def test_instance_enable_toggle(monkeypatch):
     """Test that per-instance enable=False disables a single timer."""
     Timer.reset()
 
-    timer = Timer(name="instance_disabled", enable=False)
+    def unexpected_sync(*args):
+        pytest.fail("Disabled timers must not resolve or synchronize devices")
+
+    monkeypatch.setattr(wp, "get_device", unexpected_sync)
+    monkeypatch.setattr(wp, "synchronize", unexpected_sync)
+    monkeypatch.setattr(wp, "synchronize_device", unexpected_sync)
+    timer = Timer(name="instance_disabled", enable=False, synchronize="both", device="cpu")
     timer.start()
     time.sleep(0.01)
     timer.stop()
@@ -181,10 +211,14 @@ def test_time_unit_multiplier(clock, time_unit, multiplier):
     assert float(value) == pytest.approx(0.5 * multiplier)
 
 
-def test_invalid_time_unit_raises():
-    """Test that an invalid time_unit raises ValueError."""
-    with pytest.raises(ValueError, match="Invalid time_unit"):
-        Timer(time_unit="hours")
+@pytest.mark.parametrize(
+    "kwargs, match",
+    [({"time_unit": "hours"}, "Invalid time_unit"), ({"synchronize": "invalid"}, "Invalid synchronize")],
+)
+def test_invalid_timer_option_raises(kwargs, match):
+    """Invalid timing options fail at construction."""
+    with pytest.raises(ValueError, match=match):
+        Timer(**kwargs)
 
 
 def test_reset_specific_timer():

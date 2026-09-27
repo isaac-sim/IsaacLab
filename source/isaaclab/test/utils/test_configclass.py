@@ -575,12 +575,21 @@ def test_config_update_dict_with_none():
     assert asdict(cfg) == basic_demo_cfg_change_with_none_correct
 
 
-def test_config_update_dict_tuple():
-    """Test updating configclass using a dictionary that modifies a tuple."""
+@pytest.mark.parametrize("container_type", [list, tuple])
+def test_config_update_dict_tuple(container_type):
+    """Sequence updates preserve config objects and apply scalar changes for lists and tuples."""
     cfg = BasicDemoCfg()
-    cfg_dict = {"list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}]}
-    update_class_from_dict(cfg, cfg_dict)
-    assert asdict(cfg) == basic_demo_cfg_change_with_tuple_correct
+    original_configs = list(cfg.list_config)
+    cfg.list_config = container_type([*original_configs, 1])
+    cfg_dict = {"list_config": [{"params": {"A": -1, "B": -2}}, {"params": {"A": -3, "B": -4}}, 9]}
+    cfg.from_dict(cfg_dict)
+    expected = {
+        **basic_demo_cfg_change_with_tuple_correct,
+        "list_config": container_type([*basic_demo_cfg_change_with_tuple_correct["list_config"], 9]),
+    }
+    assert asdict(cfg) == expected
+    assert isinstance(cfg.list_config, container_type)
+    assert all(actual is original for actual, original in zip(cfg.list_config, original_configs))
 
 
 def test_config_update_nested_dict():
