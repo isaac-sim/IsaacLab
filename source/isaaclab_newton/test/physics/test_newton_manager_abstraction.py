@@ -319,7 +319,8 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
         renderer.render(render_data)
         assert len(refits) == expected
     # Render/query consumers may not restore a manager gateway or another state-update wrapper.
-    assert not hasattr(NewtonManager, "_register_sensor_task")
+    for name in ("_register_sensor_task", "get_state", "update_visualization_state"):
+        assert not hasattr(NewtonManager, name)
     assert not hasattr(query_module, "get_state")
     assert not hasattr(query_module, "update_scene_data")
     assert not hasattr(backend, "transforms")

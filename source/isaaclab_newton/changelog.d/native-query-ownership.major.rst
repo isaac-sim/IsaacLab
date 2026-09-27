@@ -6,9 +6,9 @@ Changed
   their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
   capture independently of physics capture.
 
-Deprecated
-^^^^^^^^^^
+Removed
+^^^^^^^
 
-* Deprecated ``NewtonManager.get_state()`` and ``update_visualization_state()`` for render consumers.
-  Acquire ``sim.newton_cfg`` through ``sim.get_or_create_backend()``
-  and request ``SceneDataProvider.get_transforms()`` and ``get_geometry_points()`` directly instead.
+* **Breaking:** Removed ``NewtonManager.get_state()`` and ``update_visualization_state()``.
+  Acquire the native backend through ``sim.get_or_create_backend(backend_cfg)`` and request
+  ``SceneDataProvider.get_transforms()`` and ``get_geometry_points()`` directly instead.

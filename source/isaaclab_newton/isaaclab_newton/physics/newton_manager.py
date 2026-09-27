@@ -11,7 +11,6 @@ import contextlib
 import inspect
 import logging
 import re
-import warnings
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING, Any, ClassVar
@@ -1704,29 +1703,6 @@ class NewtonManager(PhysicsManager):
         return None if cls.backend is None else cls.backend.state_0
 
     @classmethod
-    def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
-        """Deprecated: acquire the shared backend and request transforms and geometry through SDP.
-
-        .. deprecated::
-            Render consumers acquire the clone-built backend through the simulation registry.
-        """
-        warnings.warn(
-            "Request transforms and geometry through SDP instead of NewtonManager.get_state().",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        sim = SimulationContext.instance()
-        backend = sim.get_or_create_backend(sim.newton_cfg)
-        provider = sim.get_scene_data_provider() if scene_data_provider is None else scene_data_provider
-        poses = SceneDataFormat.Transform()
-        mapping = provider.create_mapping(list(backend.model.body_label))
-        if provider.get_transforms(poses, mapping=mapping, count=backend.model.body_count):
-            backend.state_0.body_q = poses.transforms
-        if backend.geometry_offsets:
-            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-        return backend.state_0
-
-    @classmethod
     def get_contacts(cls) -> Contacts | None:
         """Get the current Newton contact buffer, if the active solver exposes one."""
         return cls._contacts
@@ -1739,11 +1715,6 @@ class NewtonManager(PhysicsManager):
     def get_scene_data_provider(cls) -> SceneDataProvider:
         """Return the active scene data provider."""
         return SimulationContext.instance().get_scene_data_provider()
-
-    @classmethod
-    def update_visualization_state(cls, scene_data_provider: SceneDataProvider | None = None) -> None:
-        """Deprecated: request transforms and geometry through SDP instead."""
-        cls.get_state(scene_data_provider)
 
     @classmethod
     def get_state_1(cls) -> State:
