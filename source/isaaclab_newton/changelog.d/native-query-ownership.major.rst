@@ -11,7 +11,8 @@ Changed
   configuration. Acquired builders through ``NewtonBuilderCfg(physics_cfg=sim.cfg.physics)`` and
   finalized models through ``NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)``
   using ``sim.get_or_create_backend(cfg)``. Non-Newton physics selected a render-only representation;
-  model allocation followed cloning rather than occurring inside it.
+  model allocation followed cloning rather than occurring inside it. Kept construction and runtime
+  cfgs independent: closing a backend released its native buffers but retained the builder for hard reset.
 
 Removed
 ^^^^^^^

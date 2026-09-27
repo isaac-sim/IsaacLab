@@ -991,7 +991,7 @@ class SimulationContext:
         return resource
 
     def close_backend(self, backend: Any) -> None:
-        """Release one registered resource by identity, calling ``close()`` when the object provides it.
+        """Release one registered resource by identity through its cfg's cleanup contract.
 
         A failed release retains the registry entry so teardown can be retried.
 
@@ -1003,8 +1003,7 @@ class SimulationContext:
         """
         for index, (cfg, resource) in enumerate(self._backend_registry):
             if resource is backend:
-                if (close := getattr(resource, "close", None)) is not None:
-                    close()
+                cfg.close(resource)
                 self._backend_registry.pop(index)
                 if isinstance(cfg, RendererCfg):
                     self._render_context._prepared_renderer_ids.discard(id(resource))
@@ -1043,8 +1042,8 @@ class SimulationContext:
 
                 instance.clone_contexts.clear()
                 for cfg, resource in instance._backend_registry:
-                    if not isinstance(cfg, RendererCfg) and (close := getattr(resource, "close", None)) is not None:
-                        run_cleanup(close)
+                    if not isinstance(cfg, RendererCfg):
+                        run_cleanup(lambda cfg=cfg, resource=resource: cfg.close(resource))
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

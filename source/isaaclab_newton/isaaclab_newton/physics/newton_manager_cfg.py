@@ -30,18 +30,27 @@ logger = logging.getLogger(__name__)
 
 @configclass
 class NewtonBuilderCfg(BackendCfg):
-    """Shared Newton builder for the selected physics configuration."""
+    """Share mutable construction data, populated before model allocation and retained across hard resets."""
 
     class_type: Callable[[NewtonBuilderCfg], ModelBuilder] | str = "{DIR}.newton_manager:create_newton_builder"
     physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
     """Selected physics settings; non-Newton physics requires a render-only Newton representation."""
 
+    def close(self, resource: ModelBuilder) -> None:
+        """Leave Python-owned builder data to reference release; there is no native close operation.
+
+        Args:
+            resource: The shared builder removed from the registry after this call.
+        """
+
 
 @configclass
-class NewtonBackendCfg(NewtonBuilderCfg):
-    """Allocate a native model from the matching clone-populated builder."""
+class NewtonBackendCfg(BackendCfg):
+    """Allocate model and state from the matching builder; closing them leaves the builder intact."""
 
     class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
+    physics_cfg: PhysicsCfg = field(kw_only=True, metadata={"copy": False})
+    """Selected physics settings, also identifying the shared construction builder."""
     device: str = MISSING
     """Device on which to allocate the model and native buffers."""
 

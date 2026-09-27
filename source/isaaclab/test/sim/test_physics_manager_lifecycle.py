@@ -96,8 +96,18 @@ def test_backend_registry_identity_and_lifecycle():
     context.close_backend(second)
     assert second.close.call_count == 2
 
-    # Plain native/data objects need no wrapper solely to participate in shared ownership.
+    # Missing cleanup is an error unless the cfg explicitly declares Python-owned lifetime.
     data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
+    data = context.get_or_create_backend(data_cfg)
+    with pytest.raises(AttributeError, match="close"):
+        context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) is data
+
+    class DataCfg(Cfg):
+        def close(self, resource):
+            """Dropping the registry reference releases this Python-owned data."""
+
+    data_cfg = DataCfg(class_type=data_cfg.class_type, values=data_cfg.values)
     data = context.get_or_create_backend(data_cfg)
     assert context.get_or_create_backend(replace(data_cfg)) is data
     context.close_backend(data)
@@ -254,6 +264,10 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
 
     events = []
 
+    class DataCfg(BackendCfg):
+        def close(self, resource):
+            events.append("data")
+
     class Manager:
         @classmethod
         def close(cls):
@@ -288,6 +302,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
             context.get_or_create_backend(
                 cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
             )
+    context.get_or_create_backend(DataCfg(class_type=lambda cfg: []))
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
@@ -316,6 +331,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_pending",
         "backend_failed",
         "backend_last",
+        "data",
         "stage",
         "cache",
         "gc",

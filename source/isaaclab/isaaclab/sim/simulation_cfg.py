@@ -29,7 +29,15 @@ class BackendCfg:
     """
 
     class_type: Callable[[BackendCfg], Any] = MISSING
-    """Constructor called as ``class_type(cfg)``. Returned objects may provide ``close()`` for native cleanup."""
+    """Constructor called as ``class_type(cfg)``. Teardown calls :meth:`close` on this cfg."""
+
+    def close(self, resource: Any) -> None:
+        """Release a resource; override explicitly for objects with a different cleanup contract.
+
+        Args:
+            resource: The object constructed by :attr:`class_type`; must implement ``close()`` by default.
+        """
+        resource.close()
 
 
 @configclass

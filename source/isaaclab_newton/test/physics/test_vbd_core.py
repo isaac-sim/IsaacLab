@@ -68,6 +68,9 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     assert (backend.control is not None) == simulation
     sim.close_backend(backend)
     assert backend.model is backend.state_0 is backend.state_1 is backend.control is None
+    assert sim.get_or_create_backend(builder_cfg) is builder
+    sim.close_backend(builder)
+    assert sim._backend_registry == []
 
 
 def test_vbd_colors_builder_before_finalization():

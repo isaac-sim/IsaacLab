@@ -84,8 +84,9 @@ constructs ``backend_cfg.class_type(backend_cfg)``.
 registration and treat them, including nested values, as read-only afterward.
 Use a new configuration for different settings. ``close_backend(backend)`` closes
 the exact registered object after all consumers have released their bindings;
-it does not compare or hash configurations. Objects with native cleanup implement ``close()``;
-plain Python resources are released by dropping the registry reference. A failed close retains
+it does not compare or hash configurations. Teardown calls ``backend_cfg.close(resource)``,
+which requires ``resource.close()`` by default. Configurations for Python-owned data explicitly
+override cleanup; missing native cleanup is an error. A failed close retains
 the entry for retry. After physics shutdown invalidates camera
 render data, simulation teardown closes material writers, renderer instances, visualizers,
 and remaining native resources, in that order, before closing the stage.
@@ -98,7 +99,15 @@ Exposing native handles does not replace SDP transport.
 Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
 before plan dispatch. They apply the plan but do not own native runtime resources.
 
-Newton builders use the same registry as finalized models:
+Newton has two resources with different lifetimes, not two interchangeable backends:
+
+* ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
+  requirements before finalization. It remains available for hard reset; its cfg explicitly
+  uses reference release rather than a native ``close()`` operation.
+* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
+  borrow those handles. Closing it releases runtime allocations without closing the builder.
+
+Both resources use the same registry:
 
 .. code-block:: python
 
@@ -108,15 +117,10 @@ Newton builders use the same registry as finalized models:
     model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
     backend = sim.get_or_create_backend(model_cfg)
 
-Both configurations use the selected physics cfg. With non-Newton physics, the builder holds
-a render-only Newton representation. Cloning populates the builder; consumer initialization
-allocates the model. Hard resets close and reacquire the model under the same cfg, reusing the builder.
-``SimulationContext`` has no backend-specific cfg fields, and consumers do not access clone contexts.
-Physics, cameras, raycasters, and viewers borrow that
-resource's model and state. Consumers request body transforms and visual points
-directly through SDP; NewtonManager is not their model/state gateway. Queries run
-on the supplied native resource, sharing its BVHs but keeping each consumer's
-captured work separate.
+Both configurations use the selected physics cfg; non-Newton physics selects a render-only
+representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+access clone contexts. Consumers request body transforms and visual points directly through SDP.
+Queries share the native resource's BVHs but keep each consumer's captured work separate.
 
 Portable asset and sensor interfaces
 ------------------------------------
