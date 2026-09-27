@@ -133,58 +133,6 @@ def test_pose_publication_refreshes_after_physics_but_reuses_clean_reads(monkeyp
     assert backend.transforms_timestamp > version
 
 
-@pytest.mark.parametrize("joint_has_rigid_body_api", [False, True])
-def test_rigid_body_view_uses_declared_prototypes(monkeypatch, joint_has_rigid_body_api):
-    """Expand exact native paths, excluding colliding joint names and undeclared clones."""
-    from isaaclab_physx.physics import physx_manager
-    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
-
-    from pxr import Usd, UsdGeom, UsdPhysics
-
-    from isaaclab.assets import AssetBaseCfg
-    from isaaclab.cloner import make_clone_plan
-    from isaaclab.sim import SpawnerCfg
-
-    stage = Usd.Stage.CreateInMemory()
-    body_prim = UsdGeom.Xform.Define(stage, "/Proto/Robot/robot0_forearm").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(body_prim)
-    unique_body_prim = UsdGeom.Xform.Define(stage, "/Proto/Robot/torso").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(unique_body_prim)
-    joint_prim = UsdPhysics.FixedJoint.Define(stage, "/Proto/Robot/joints/robot0_forearm").GetPrim()
-    if joint_has_rigid_body_api:
-        UsdPhysics.RigidBodyAPI.Apply(joint_prim)
-    for path in ("/Lab/Cell99/Robot/Unplanned", "/Shared/Body", "/Outside/Body"):
-        UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Xform.Define(stage, path).GetPrim())
-    assets = (
-        AssetBaseCfg(prim_path="/Lab/Cell[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Proto/Robot")),
-        AssetBaseCfg(prim_path="/Lab"),
-        AssetBaseCfg(prim_path="/Shared"),
-    )
-    plan = make_clone_plan(assets, ((0,),), 2, shared_assets=(1, 2), env_template="/Lab/Cell{}")
-
-    captured_paths = []
-
-    class _SimulationView:
-        def create_rigid_body_view(self, body_paths):
-            captured_paths.extend(body_paths)
-            return SimpleNamespace(prim_paths=body_paths)
-
-    monkeypatch.setattr(
-        physx_manager.PhysicsManager,
-        "_sim",
-        SimpleNamespace(stage=stage, get_clone_plan=lambda: plan),
-    )
-
-    backend = PhysxSceneDataBackend()
-    backend.backend = SimpleNamespace(simulation_view=_SimulationView())
-    backend.get_rigid_body_view()
-
-    assert set(captured_paths) == {
-        "/Shared/Body",
-        *(f"/Lab/Cell{env_id}/Robot/{body}" for env_id in (0, 1) for body in ("robot0_forearm", "torso")),
-    }
-
-
 @pytest.mark.parametrize("declared", [False, True])
 def test_geometry_publication_distinguishes_undeclared_and_empty_scenes(monkeypatch, declared):
     """Only an explicitly initialized, empty geometry declaration publishes no batches."""

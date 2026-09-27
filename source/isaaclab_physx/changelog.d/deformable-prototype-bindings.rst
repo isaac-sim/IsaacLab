@@ -1,6 +1,6 @@
 Fixed
 ^^^^^
 
-* Bound SDP rigid-body views from clone-plan prototypes instead of discovering the completed stage
-  or assuming a fixed environment namespace. Moved foreign-physics Fabric prim preparation into
+* Bound SDP rigid-body views directly from native physics instead of discovering the USD stage
+  or reconstructing clone paths. Moved foreign-physics Fabric prim preparation into
   the shared rendering resource.

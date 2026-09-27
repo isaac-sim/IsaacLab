@@ -42,7 +42,6 @@ from isaaclab.scene_data.deformable_discovery import (
     deformable_prototypes,
     expand_deformable_entries,
 )
-from isaaclab.sim.utils.queries import find_cloned_prim_paths
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import to_camel_case
 
@@ -210,16 +209,7 @@ class PhysxSceneDataBackend(SceneDataBackend):
         self._fabric_points_selection = None
 
     def get_rigid_body_view(self) -> omni.physics.tensors.RigidBodyView | None:
-        """Bind exact rigid paths expanded from the declared prototypes."""
-        if self._rigid_body_view is None and self.backend is not None:
-            sim = PhysicsManager._sim
-            body_paths = find_cloned_prim_paths(
-                sim.stage,
-                sim.get_clone_plan(),
-                lambda prim: prim.HasAPI(UsdPhysics.RigidBodyAPI) and not prim.IsA(UsdPhysics.Joint),
-            )
-            if body_paths:
-                self._rigid_body_view = self.backend.simulation_view.create_rigid_body_view(body_paths)
+        """Return the native body selection bound during initialization."""
         return self._rigid_body_view
 
     def _setup_deformable_geometry(self, entries: Sequence[DeformableStageEntry]) -> None:
@@ -975,6 +965,9 @@ class PhysxManager(PhysicsManager):
         # Register the complete tensor view only after PhysX has loaded the stage.
         cls.backend = sim.get_or_create_backend(PhysxBackendCfg(stage_id=stage_id))
         cls._scene_data_backend.backend = cls.backend
+        view = cls.backend.simulation_view.create_rigid_body_view("/**")
+        # PhysX returns a wrapper with no native handle for an empty selection.
+        cls._scene_data_backend._rigid_body_view = view if view._backend is not None else None
 
         # Final update after view creation
         physx.update_simulation(cls.get_physics_dt(), 0.0)

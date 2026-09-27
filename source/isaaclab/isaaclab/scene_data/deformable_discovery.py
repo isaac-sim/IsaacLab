@@ -15,7 +15,7 @@ from dataclasses import dataclass, field, replace
 import numpy as np
 import warp as wp
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom
 
 from .. import sim as sim_utils
 from ..cloner import ClonePlan
@@ -68,7 +68,7 @@ def deformable_geometry_batches(
     for entry, offset in zip(entries, offsets, strict=True):
         key = (id(entry.vertices), id(entry.indices), id(entry.vis_vertices))
         if key not in prototype_remaps:
-            if entry.vertex_count == entry.vis_vertex_count and np.array_equal(entry.vertices, entry.vis_vertices):
+            if entry.vertices is entry.vis_vertices or np.array_equal(entry.vertices, entry.vis_vertices):
                 prototype_remaps[key] = None
             else:
                 if entry.deformable_type != "volume":
@@ -85,7 +85,7 @@ def deformable_geometry_batches(
         weights.append(prototype_weights)
         weighted[entry.vis_mesh_path] = (output_offset, entry.vis_vertex_count)
         output_offset += entry.vis_vertex_count
-    batches = [(SceneDataFormat.Points(), direct)]
+    batches = [(SceneDataFormat.Points(), direct)] if direct else []
     if weighted:
         publication = SceneDataFormat.WeightedPoints()
         publication.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=device)
@@ -94,24 +94,9 @@ def deformable_geometry_batches(
     return batches
 
 
-def _matrix4d_to_numpy(matrix: Gf.Matrix4d) -> np.ndarray:
-    """Convert a USD matrix to a host ``(4, 4)`` float64 array."""
-    return np.array([[matrix[i][j] for j in range(4)] for i in range(4)], dtype=np.float64)
-
-
 def _transform_points(matrix: np.ndarray, points: np.ndarray) -> np.ndarray:
-    """Apply a USD ``(4, 4)`` transform to ``(N, 3)`` points [m], returning float32.
-
-    USD ``Gf.Matrix4d.Transform`` uses row-vector convention (``p @ M``). The numpy
-    matrix from :func:`_matrix4d_to_numpy` stores ``matrix[i, j] = usd[i][j]``, so the
-    matching host multiply is ``hom @ matrix``, not ``matrix @ hom``.
-    """
-    if points.size == 0:
-        return np.empty((0, 3), dtype=np.float32)
-    ones = np.ones((points.shape[0], 1), dtype=np.float64)
-    hom = np.concatenate([points.astype(np.float64, copy=False), ones], axis=1)
-    baked = (hom @ matrix)[:, :3]
-    return baked.astype(np.float32, copy=False)
+    """Apply a USD row-vector affine transform to points [m], returning float32."""
+    return (points @ matrix[:3, :3] + matrix[3, :3]).astype(np.float32)
 
 
 def _usd_points_to_numpy(points) -> np.ndarray:
@@ -230,31 +215,21 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
         return None
 
     vis_mesh_prim = _select_visual_mesh(vis_candidates, sim_mesh_prim, len(pts))
-    vis_pts = (
-        UsdGeom.Mesh(vis_mesh_prim).GetPointsAttr().Get()
-        if vis_mesh_prim.GetTypeName() == "Mesh"
-        else UsdGeom.TetMesh(vis_mesh_prim).GetPointsAttr().Get()
-    )
-    vis_count = len(vis_pts or [])
-
     xform_cache = UsdGeom.XformCache()
-    mesh_to_parent_frame = _matrix4d_to_numpy(
-        xform_cache.GetLocalToWorldTransform(sim_mesh_prim)
-        * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
-    )
+    parent_transform = xform_cache.GetLocalToWorldTransform(root_prim.GetParent())
+    world_to_parent = parent_transform.GetInverse()
+    mesh_to_parent_frame = np.asarray(xform_cache.GetLocalToWorldTransform(sim_mesh_prim) * world_to_parent)
     vertices = _transform_points(mesh_to_parent_frame, _usd_points_to_numpy(pts))
-
-    vis_mesh_to_parent_frame = _matrix4d_to_numpy(
-        xform_cache.GetLocalToWorldTransform(vis_mesh_prim)
-        * xform_cache.GetLocalToWorldTransform(root_prim.GetParent()).GetInverse()
-    )
-    vis_vertices = _transform_points(vis_mesh_to_parent_frame, _usd_points_to_numpy(vis_pts or []))
+    vis_vertices = vertices
+    if vis_mesh_prim != sim_mesh_prim:
+        vis_pts = UsdGeom.PointBased(vis_mesh_prim).GetPointsAttr().Get()
+        vis_to_parent = np.asarray(xform_cache.GetLocalToWorldTransform(vis_mesh_prim) * world_to_parent)
+        vis_vertices = _transform_points(vis_to_parent, _usd_points_to_numpy(vis_pts))
 
     vis_indices = np.empty(0, dtype=np.int32)
     if vis_mesh_prim.GetTypeName() == "Mesh":
         vis_indices = np.asarray(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
 
-    parent_transform = xform_cache.GetLocalToWorldTransform(root_prim.GetParent())
     rotation = parent_transform.ExtractRotationQuat()
     return DeformableStageEntry(
         root_path=str(root_path),
@@ -262,7 +237,7 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
         vis_mesh_path=str(vis_mesh_prim.GetPath()),
         deformable_type=deformable_type,
         vertex_count=len(pts),
-        vis_vertex_count=vis_count,
+        vis_vertex_count=len(vis_vertices),
         vertices=vertices,
         indices=indices,
         vis_vertices=vis_vertices,

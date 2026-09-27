@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import defaultdict
 from collections.abc import Callable, Iterator
 from typing import TYPE_CHECKING
 
@@ -27,53 +26,6 @@ _CHARACTER_CLASS = re.compile(r"\[\^?[^]]*\]")
 
 _SEGMENT_WILDCARD = re.compile(r"\[\^/\][*+]|\.\*")
 """Matches the ways an expression spells "anything within one path segment"."""
-
-
-def find_cloned_prim_paths(
-    stage: Usd.Stage, plan: cloner.ClonePlan, predicate: Callable[[Usd.Prim], bool]
-) -> list[str]:
-    """Expand matching prototype prims through a clone plan without inspecting generated clones.
-
-    Args:
-        stage: Stage containing the declared prototypes and shared roots.
-        plan: Replication layout, including shared assets.
-        predicate: Selects prims within each prototype, such as native rigid-body prims.
-
-    Returns:
-        Exact destination paths and shared paths, with overlapping declarations deduplicated.
-    """
-    # USD must load after Kit, as with the other stage queries in this module.
-    from pxr import Sdf, Usd  # noqa: PLC0415
-
-    sources = cloner.path.get_asset_prototype_paths(plan)
-    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
-        plan, include_world_indices=True
-    )
-    targets = defaultdict(list)
-    replicated_sources = set()
-    for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
-        worlds = world_ids[world_starts[group] : world_starts[group + 1]]
-        for index in range(start, end):
-            source = sources[plan.topology.world_prototypes[index]]
-            if source is not None and len(worlds):
-                targets[Sdf.Path(source)].extend(templates[index].format(int(world)) for world in worlds)
-                if group:
-                    replicated_sources.add(Sdf.Path(source))
-    paths = []
-    for root in Sdf.Path.RemoveDescendentPaths(list(targets)):
-        prims = iter(Usd.PrimRange(stage.GetPrimAtPath(root), Usd.TraverseInstanceProxies()))
-        for prim in prims:
-            path, owner = prim.GetPath(), prim.GetPath()
-            while owner != Sdf.Path.absoluteRootPath and owner not in targets:
-                owner = owner.GetParentPath()
-            # A shared ancestor may contain destination worlds; read only their declared prototypes.
-            if owner not in replicated_sources and cloner.path.match(str(path), plan.env_template) is not None:
-                if not any(source.HasPrefix(path) for source in replicated_sources):
-                    prims.PruneChildren()
-                    continue
-            if predicate(prim):
-                paths.extend(cloner.path.rebase(str(path), str(owner), target) for target in targets[owner])
-    return list(dict.fromkeys(paths))
 
 
 def path_expr_to_glob(path_expr: str) -> str:

@@ -8,7 +8,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
-from isaaclab.utils.buffers import TimestampedBuffer
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.physics import NewtonManager as SimulationManager
@@ -56,8 +56,6 @@ class DeformableObjectData(BaseDeformableObjectData):
         self._root_pos_w_ta: ProxyArray | None = None
         self._root_vel_w_ta: ProxyArray | None = None
 
-        self._create_simulation_bindings()
-
     ##
     # Defaults.
     ##
@@ -77,30 +75,15 @@ class DeformableObjectData(BaseDeformableObjectData):
     """
 
     def _create_simulation_bindings(self) -> None:
-        """Validate the current Newton particle state and invalidate gathered buffers.
+        """Invalidate gathered buffers after model reinitialization.
 
         Newton may swap :attr:`state_0` and :attr:`state_1` across substeps, so deformable data does not keep
         long-lived particle array bindings. Read properties query :meth:`SimulationManager.get_state_0` at gather time
         and materialize object-local views from the current flat particle arrays.
         """
-        self._get_current_particle_state()
-
-        # Invalidate lazy buffers gathered from the previous simulation state.
-        self._nodal_pos_w.timestamp = -1.0
-        self._nodal_vel_w.timestamp = -1.0
-        self._nodal_state_w.timestamp = -1.0
-        self._root_pos_w.timestamp = -1.0
-        self._root_vel_w.timestamp = -1.0
-
-    def _get_current_particle_state(self):
-        """Return the current Newton state containing deformable particle arrays."""
-        state = SimulationManager.get_state_0()
-        if state is None or state.particle_q is None or state.particle_qd is None:
-            raise RuntimeError(
-                "Failed to access Newton deformable particle state. Ensure the Newton model has been finalized and "
-                "contains particle position and velocity arrays."
-            )
-        return state
+        reset_timestamps(
+            (self._nodal_pos_w, self._nodal_vel_w, self._nodal_state_w, self._root_pos_w, self._root_vel_w)
+        )
 
     ##
     # Properties.
@@ -110,7 +93,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_pos_w(self) -> ProxyArray:
         """Nodal positions in simulation world frame [m]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_pos_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),
@@ -127,7 +110,7 @@ class DeformableObjectData(BaseDeformableObjectData):
     def nodal_vel_w(self) -> ProxyArray:
         """Nodal velocities in simulation world frame [m/s]. Shape is (num_instances, particles_per_body) vec3f."""
         if self._nodal_vel_w.timestamp < self._sim_timestamp:
-            state = self._get_current_particle_state()
+            state = SimulationManager.get_state_0()
             wp.launch(
                 gather_particles,
                 dim=(self._num_instances, self._particles_per_body),

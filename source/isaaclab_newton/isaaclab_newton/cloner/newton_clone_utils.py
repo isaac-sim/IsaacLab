@@ -49,15 +49,8 @@ def add_deformable_from_usd(builder: ModelBuilder, stage: Usd.Stage, *, root_pat
     geometry = deformable_entry(prim)
     if geometry is None:
         raise ValueError(f"No simulation mesh found under deformable {root_path!r}.")
-    material = next(
-        (
-            stage.GetPrimAtPath(path)
-            for path in UsdShade.MaterialBindingAPI(prim).GetDirectBindingRel("physics").GetTargets()
-            if stage.GetPrimAtPath(path).GetAttribute("newton:density").IsValid()
-        ),
-        None,
-    )
-    if material is None:
+    material = UsdShade.MaterialBindingAPI(prim).ComputeBoundMaterial(materialPurpose="physics")[0].GetPrim()
+    if not material:
         raise ValueError(f"Deformable {root_path!r} requires a bound Newton physics material.")
     if geometry.deformable_type == "volume":
         add_mesh = builder.add_soft_mesh
@@ -356,7 +349,7 @@ def replicate_builder_mapping(
     source_site_indices: dict[int, dict[str, list[int]]] | None = None,
     env_root_sites: dict[str, wp.transform] | None = None,
     per_world_builder_hooks: Sequence[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = (),
-    source_builder_added: Callable[[str, str, int], None] | None = None,
+    source_builder_added: Callable[[str, str, int, int], None] | None = None,
 ) -> tuple[dict[str, list[list[int]]], list[wp.transform]]:
     """Compose routed source builders once per world prototype, then batch their selected worlds."""
     topology, env_template = plan.topology, plan.env_template
@@ -378,7 +371,7 @@ def replicate_builder_mapping(
         reference_paths = [(sources[topology.world_prototypes[index]], templates[index]) for index in range(start, end)]
         components = [(source, template) for source, template in reference_paths if source in source_builders]
         prototype = builder if prototype_id == -1 else ModelBuilder(up_axis=builder.up_axis)
-        sites, particle_offsets = {}, []
+        sites, asset_offsets = {}, []
         for source, destination in components:
             # Remove the source world's placement before composing assets into other world prototypes.
             if source not in source_inverse:
@@ -388,31 +381,31 @@ def replicate_builder_mapping(
                     else _invert_xform(xforms_np[first_world])
                 )
             asset = source_builders[source]
-            particle_offsets.append(prototype.particle_count)
+            asset_offsets.append((prototype.shape_count, prototype.particle_count))
             tet_start = prototype.tet_count
             for label, indices in source_site_indices.get(id(asset), {}).items():
                 sites.setdefault(label, []).extend(prototype.shape_count + index for index in indices)
             prefix = "" if prototype_id == -1 else env_template
             with _rebase_builder_paths(asset, source, destination, prefix, reference_paths):
                 prototype.add_builder(asset, xform=source_inverse[source])
-            _rotate_builder_particles(prototype, asset, particle_offsets[-1], tet_start, source_inverse[source])
+            _rotate_builder_particles(prototype, asset, asset_offsets[-1][1], tet_start, source_inverse[source])
         if prototype_id == -1:
             for label, indices in sites.items():
                 local_site_map[label] = np.tile(indices, (num_worlds, 1)).tolist()
             if source_builder_added is not None:
-                for (source, destination), offset in zip(components, particle_offsets, strict=True):
-                    source_builder_added(source, destination, offset)
+                for (source, destination), offsets in zip(components, asset_offsets, strict=True):
+                    source_builder_added(source, destination, *offsets)
             continue
         for label, xform in env_root_sites.items():
             sites.setdefault(label, []).append(prototype.add_site(body=-1, xform=xform, label=label))
-        world_builders[prototype_id] = prototype, sites, components, particle_offsets
+        world_builders[prototype_id] = prototype, sites, components, asset_offsets
 
     # Preserve destination order, batching each contiguous run of an identical world prototype.
     boundaries = np.r_[0, np.flatnonzero(np.diff(layout)) + 1, num_worlds]
     for start, stop in zip(boundaries[:-1], boundaries[1:], strict=True):
         if start == stop:
             continue
-        prototype, sites, components, particle_offsets = world_builders[layout[start]]
+        prototype, sites, components, asset_offsets = world_builders[layout[start]]
         base_shape, base_particle, base_tet = builder.shape_count, builder.particle_count, builder.tet_count
         shape_offsets = base_shape + np.arange(stop - start) * prototype.shape_count
         particle_bases = base_particle + np.arange(stop - start) * prototype.particle_count
@@ -447,10 +440,11 @@ def replicate_builder_mapping(
             per_world = local_site_map.setdefault(label, [[] for _ in range(num_worlds)])
             per_world[start:stop] = (shape_offsets[:, None] + np.asarray(indices)).tolist()
         if source_builder_added is not None:
-            for (source, destination), offset in zip(components, particle_offsets, strict=True):
+            for (source, destination), (shape, particle) in zip(components, asset_offsets, strict=True):
                 for index, world in enumerate(range(start, stop)):
                     target = destination.format(env_ids[world])
-                    source_builder_added(source, target, int(particle_bases[index]) + offset)
+                    offsets = int(shape_offsets[index]) + shape, int(particle_bases[index]) + particle
+                    source_builder_added(source, target, *offsets)
     # Resolve remaining world-slot placeholders using each native element's owning world.
     worlds_by_frequency = {
         attr.frequency: attr.values for attr in builder.custom_attributes.values() if attr.references == "world"

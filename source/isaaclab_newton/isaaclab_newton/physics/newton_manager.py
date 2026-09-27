@@ -262,7 +262,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
             if getattr(source, attribute) is not data:
                 setattr(source, attribute, data)
                 self.geometry_timestamp += 1
-        return [(source, ranges) for source, ranges in self._geometry_batches if ranges]
+        return self._geometry_batches
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
