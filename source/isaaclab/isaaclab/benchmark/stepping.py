@@ -265,7 +265,6 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
 
         if self._measure_synchronized_step_breakdown:
             import torch  # noqa: PLC0415
-            import warp as wp  # noqa: PLC0415
 
             from ..utils.timer import Timer  # noqa: PLC0415
 
@@ -287,8 +286,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                 if not self._inside_environment_step:
                     return self._original_sim_step(*args, **kwargs)
                 synchronize_torch(active_cuda_devices)
-                wp.synchronize()
-                timer = Timer()
+                timer = Timer(synchronize="both")
                 timer.start()
                 try:
                     return self._original_sim_step(*args, **kwargs)
@@ -309,8 +307,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                 previous_cuda_devices = active_cuda_devices
                 active_cuda_devices = environment_cuda_devices | _find_cuda_devices(args) | _find_cuda_devices(kwargs)
                 synchronize_torch(active_cuda_devices)
-                wp.synchronize()
-                timer = Timer()
+                timer = Timer(synchronize="both")
                 timer.start()
                 self._inside_environment_step = True
                 try:

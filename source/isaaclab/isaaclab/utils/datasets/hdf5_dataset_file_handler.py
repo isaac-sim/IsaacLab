@@ -60,7 +60,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         self._hdf5_data_group = self._hdf5_file_stream["data"]
         self._demo_count = len(self._hdf5_data_group)
 
-    def create(self, file_path: str, env_name: str = None):
+    def create(self, file_path: str, env_name: str | None = None):
         """Create a new dataset file."""
         import h5py
 
@@ -84,8 +84,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         # set environment arguments
         # the environment type (we use gym environment type) is set to be compatible with robomimic
         # Ref: https://github.com/ARISE-Initiative/robomimic/blob/master/robomimic/envs/env_base.py#L15
-        env_name = env_name if env_name is not None else ""
-        self.add_env_args({"env_name": env_name, "type": 2})
+        self.add_env_args({"env_name": env_name or "", "type": 2})
 
     def __del__(self):
         """Destructor for the file handler."""
@@ -111,10 +110,7 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
     def get_env_name(self) -> str | None:
         """Get the environment name."""
         self._raise_if_not_initialized()
-        env_args = json.loads(self._hdf5_data_group.attrs["env_args"])
-        if "env_name" in env_args:
-            return env_args["env_name"]
-        return None
+        return json.loads(self._hdf5_data_group.attrs["env_args"]).get("env_name")
 
     def get_episode_names(self) -> Iterable[str]:
         """Get the names of the episodes in the file."""
@@ -222,22 +218,12 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
         if episode.is_empty():
             return
 
-        # Use custom demo id if provided, otherwise use default naming
-        if demo_id is not None:
-            episode_group_name = f"demo_{demo_id}"
-        else:
-            episode_group_name = f"demo_{self._demo_count}"
-
-        # create episode group with the specified name
+        episode_group_name = f"demo_{self._demo_count if demo_id is None else demo_id}"
         if episode_group_name in self._hdf5_data_group:
             raise ValueError(f"Episode group '{episode_group_name}' already exists in the dataset")
         h5_episode_group = self._hdf5_data_group.create_group(episode_group_name)
 
-        # store number of steps taken
-        if "actions" in episode.data:
-            h5_episode_group.attrs["num_samples"] = len(episode.data["actions"])
-        else:
-            h5_episode_group.attrs["num_samples"] = 0
+        h5_episode_group.attrs["num_samples"] = len(episode.data.get("actions", ()))
 
         if episode.seed is not None:
             h5_episode_group.attrs["seed"] = episode.seed
@@ -251,18 +237,16 @@ class HDF5DatasetFileHandler(DatasetFileHandlerBase):
                 key_group = group.create_group(key)
                 for sub_key, sub_value in value.items():
                     create_dataset_helper(key_group, sub_key, sub_value)
+            elif dataset_compression:
+                group.create_dataset(key, data=value.cpu().numpy(), compression="gzip", compression_opts=2)
             else:
-                if dataset_compression:
-                    group.create_dataset(key, data=value.cpu().numpy(), compression="gzip", compression_opts=2)
-                else:
-                    group.create_dataset(key, data=value.cpu().numpy())
+                group.create_dataset(key, data=value.cpu().numpy())
 
         for key, value in episode.data.items():
             create_dataset_helper(h5_episode_group, key, value)
 
         self._hdf5_data_group.attrs["total"] += h5_episode_group.attrs["num_samples"]
-
-        # Only increment demo count if using default indexing
+        # custom demo ids do not advance the default naming sequence
         if demo_id is None:
             self._demo_count += 1
 

@@ -1829,7 +1829,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1838,7 +1838,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1903,7 +1903,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1912,7 +1912,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"

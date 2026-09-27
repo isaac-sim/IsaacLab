@@ -173,7 +173,7 @@ def main():
         # Step simulation
         sim.step()
         # Update the pva sensor
-        with Timer(f"Pva sensor update with {num_envs}"):
+        with Timer(f"Pva sensor update with {num_envs}", synchronize="both", device=sim.device):
             pva.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1

@@ -404,11 +404,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, False],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Mark the link pose fresh so reads within the same step return the
@@ -418,7 +414,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_link_pose_to_sim_mask(
         self,
@@ -458,11 +454,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             shared_kernels.set_body_link_pose_to_sim_kernel(env_ids, body_ids),
             dim=(env_ids.shape[0], body_ids.shape[0]),
             inputs=[body_poses, env_ids, body_ids, True],
-            outputs=[
-                self.data._body_link_pose_w.data,
-                self.data._body_link_state_w.data,
-                self.data._body_state_w.data,
-            ],
+            outputs=[self.data._body_link_pose_w.data, self.data._body_link_state_w.data, self.data._body_state_w.data],
             device=self._device,
         )
         # Invalidate dependent timestamps
@@ -470,7 +462,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose()
         # set into simulation
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_index(
         self,
@@ -517,7 +509,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_pose_to_sim_mask(
         self,
@@ -572,7 +564,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             self.data._reset_pose(from_link=False)
         # set into simulation (OVPhysX only exposes the link frame)
         self._binding_write(TT.LINK_POSE, self.data._body_link_pose_w.data, env_ids=env_ids)
-        OvPhysxManager._scene_data_backend.transforms_version += 1
+        OvPhysxManager._scene_data_backend.transforms_timestamp += 1
 
     def write_body_com_velocity_to_sim_index(
         self,

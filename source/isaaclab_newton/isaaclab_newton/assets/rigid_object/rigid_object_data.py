@@ -13,13 +13,14 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.utils import capture_unsafe
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+from ..kernels import vec13f
 
 if TYPE_CHECKING:
     import torch
@@ -77,7 +78,6 @@ class RigidObjectData(BaseRigidObjectData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
-        self._fk_timestamp = 0.0
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2) so
         # per-env gravity randomization stays live; consumers normalize on read.
@@ -121,26 +121,9 @@ class RigidObjectData(BaseRigidObjectData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
-        if self._fk_timestamp >= 0.0:
-            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
-
-    def _ensure_fk_fresh(self) -> None:
-        """Run forward kinematics if the root state has changed since the last FK update.
-
-        Newton's ``state.body_q`` (per-body world transforms) is updated by ``eval_fk``,
-        invoked here through ``SimulationManager.forward()``. After a manual root write
-        that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to
-        ``-1.0`` to force a refresh on the next read of any property that depends on
-        body poses (``body_link_pose_w``, ``body_com_pose_w`` and the composite body
-        state buffers).
-        """
-        if self._fk_timestamp < self._sim_timestamp:
-            SimulationManager.forward()
-            self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
         self,
@@ -175,7 +158,6 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_com_state_w,
             ]
         )
-        self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
@@ -196,7 +178,6 @@ class RigidObjectData(BaseRigidObjectData):
         reset_timestamps(
             [
                 self._root_link_vel_w if from_com else None,
-                self._body_link_vel_w,
                 self._root_link_lin_vel_b,
                 self._root_link_ang_vel_b,
                 self._root_com_lin_vel_b,
@@ -207,7 +188,6 @@ class RigidObjectData(BaseRigidObjectData):
                 self._root_com_state_w,
             ]
         )
-        self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
@@ -309,24 +289,19 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
+        if self._root_link_vel_w.data is None:
+            self._root_link_vel_w.data = ProxyArray(wp.empty(self._num_instances, wp.spatial_vectorf, self.device))
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
-            # read the CoM velocity and compute link velocity
             self._read_launch_cache.launch(
                 "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_vel_w.warp,
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._root_link_vel_w.data,
-                ],
+                inputs=[self.root_com_vel_w, self.root_link_pose_w, self.body_com_pos_b],
+                outputs=[self._root_link_vel_w.data],
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
-        return self._root_link_vel_w_ta
+        return self._root_link_vel_w.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -337,23 +312,19 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the center of mass frame of the root rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
+        if self._root_com_pose_w.data is None:
+            self._root_com_pose_w.data = ProxyArray(wp.empty(self._num_instances, wp.transformf, self.device))
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
-            # apply local transform to center of mass frame
             self._read_launch_cache.launch(
                 "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._root_com_pose_w.data,
-                ],
+                inputs=[self.root_link_pose_w, self.body_com_pos_b],
+                outputs=[self._root_com_pose_w.data],
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
-        return self._root_com_pose_w_ta
+        return self._root_com_pose_w.data
 
     @property
     def root_com_vel_w(self) -> ProxyArray:
@@ -395,7 +366,7 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._ensure_fk_fresh()
+        SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -407,8 +378,9 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the actor frame of the root
         rigid body relative to the world.
         """
+        root_link_vel_w = self.root_link_vel_w
         if self._body_link_vel_w_ta is None:
-            self._body_link_vel_w_ta = ProxyArray(self.root_link_vel_w.warp.reshape((self._num_instances, 1)))
+            self._body_link_vel_w_ta = ProxyArray(root_link_vel_w.warp.reshape((self._num_instances, 1)))
         return self._body_link_vel_w_ta
 
     @property
@@ -423,7 +395,7 @@ class RigidObjectData(BaseRigidObjectData):
         # Refresh FK and re-derive the root com pose so a stale cache is recomputed after a write.
         # The reshape cached below is a view of ``root_com_pose_w``'s buffer, so once that buffer is
         # refreshed in place the cached view reflects the fresh data without reallocation.
-        self._ensure_fk_fresh()
+        SimulationManager.forward()
         root_com_pose_w = self.root_com_pose_w
         if self._body_com_pose_w_ta is None:
             self._body_com_pose_w_ta = ProxyArray(root_com_pose_w.warp.reshape((self._num_instances, 1)))
@@ -437,7 +409,7 @@ class RigidObjectData(BaseRigidObjectData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        self._ensure_fk_fresh()
+        SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property
@@ -489,21 +461,18 @@ class RigidObjectData(BaseRigidObjectData):
             category=UserWarning,
             stacklevel=2,
         )
+        if self._body_com_pose_b.data is None:
+            self._body_com_pose_b.data = ProxyArray(wp.empty((self._num_instances, 1), wp.transformf, self.device))
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            # set the buffer data and timestamp
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, 1),
-                inputs=[
-                    self.body_com_pos_b.warp,
-                ],
-                outputs=[
-                    self._body_com_pose_b.data,
-                ],
+                inputs=[self.body_com_pos_b],
+                outputs=[self._body_com_pose_b.data],
             )
             self._body_com_pose_b.timestamp = self._sim_timestamp
-        return self._body_com_pose_b_ta
+        return self._body_com_pose_b.data
 
     """
     Derived Properties.
@@ -516,16 +485,18 @@ class RigidObjectData(BaseRigidObjectData):
 
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
+        if self._projected_gravity_b.data is None:
+            self._projected_gravity_b.data = ProxyArray(wp.empty(self._num_instances, wp.vec3f, self.device))
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
+                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
-        return self._projected_gravity_b_ta
+        return self._projected_gravity_b.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -538,16 +509,18 @@ class RigidObjectData(BaseRigidObjectData):
             This quantity is computed by assuming that the forward-direction of the base
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
+        if self._heading_w.data is None:
+            self._heading_w.data = ProxyArray(wp.empty(self._num_instances, wp.float32, self.device))
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
-                inputs=[self.FORWARD_VEC_B.warp, self.root_link_quat_w.warp],
+                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
             )
             self._heading_w.timestamp = self._sim_timestamp
-        return self._heading_w_ta
+        return self._heading_w.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -559,9 +532,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_link_lin_vel_b is None:
-            self._root_link_lin_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
-            )
+            self._root_link_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_lin_vel_b_ta = ProxyArray(self._root_link_lin_vel_b.data)
         if self._root_link_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -583,9 +554,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_link_ang_vel_b is None:
-            self._root_link_ang_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
-            )
+            self._root_link_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_link_ang_vel_b_ta = ProxyArray(self._root_link_ang_vel_b.data)
         if self._root_link_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -607,9 +576,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_com_lin_vel_b is None:
-            self._root_com_lin_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
-            )
+            self._root_com_lin_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_lin_vel_b_ta = ProxyArray(self._root_com_lin_vel_b.data)
         if self._root_com_lin_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -631,9 +598,7 @@ class RigidObjectData(BaseRigidObjectData):
         rigid body's actor frame.
         """
         if self._root_com_ang_vel_b is None:
-            self._root_com_ang_vel_b = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=wp.vec3f, device=self.device
-            )
+            self._root_com_ang_vel_b = TimestampedBuffer(wp.empty(self._num_instances, wp.vec3f, self.device))
             self._root_com_ang_vel_b_ta = ProxyArray(self._root_com_ang_vel_b.data)
         if self._root_com_ang_vel_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
@@ -657,9 +622,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the position of the actor frame of the root rigid body relative to the world.
         """
-        self._root_link_pos_w = self._get_pos_from_transform(self._root_link_pos_w, self.root_link_pose_w.warp)
+        root_link_pose_w = self.root_link_pose_w.warp
         if self._root_link_pos_w_ta is None:
-            self._root_link_pos_w_ta = ProxyArray(self._root_link_pos_w)
+            self._root_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(root_link_pose_w))
         return self._root_link_pos_w_ta
 
     @property
@@ -669,9 +634,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         This quantity is the orientation of the actor frame of the root rigid body.
         """
-        self._root_link_quat_w = self._get_quat_from_transform(self._root_link_quat_w, self.root_link_pose_w.warp)
+        root_link_pose_w = self.root_link_pose_w.warp
         if self._root_link_quat_w_ta is None:
-            self._root_link_quat_w_ta = ProxyArray(self._root_link_quat_w)
+            self._root_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(root_link_pose_w))
         return self._root_link_quat_w_ta
 
     @property
@@ -681,11 +646,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's actor frame relative to the world.
         """
-        self._root_link_lin_vel_w = self._get_top_from_spatial_vector(
-            self._root_link_lin_vel_w, self.root_link_vel_w.warp
-        )
+        root_link_vel_w = self.root_link_vel_w.warp
         if self._root_link_lin_vel_w_ta is None:
-            self._root_link_lin_vel_w_ta = ProxyArray(self._root_link_lin_vel_w)
+            self._root_link_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(root_link_vel_w))
         return self._root_link_lin_vel_w_ta
 
     @property
@@ -695,11 +658,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the actor frame of the root rigid body relative to the world.
         """
-        self._root_link_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._root_link_ang_vel_w, self.root_link_vel_w.warp
-        )
+        root_link_vel_w = self.root_link_vel_w.warp
         if self._root_link_ang_vel_w_ta is None:
-            self._root_link_ang_vel_w_ta = ProxyArray(self._root_link_ang_vel_w)
+            self._root_link_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(root_link_vel_w))
         return self._root_link_ang_vel_w_ta
 
     @property
@@ -709,9 +670,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the position of the center of mass frame of the root rigid body relative to the world.
         """
-        self._root_com_pos_w = self._get_pos_from_transform(self._root_com_pos_w, self.root_com_pose_w.warp)
+        root_com_pose_w = self.root_com_pose_w.warp
         if self._root_com_pos_w_ta is None:
-            self._root_com_pos_w_ta = ProxyArray(self._root_com_pos_w)
+            self._root_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(root_com_pose_w))
         return self._root_com_pos_w_ta
 
     @property
@@ -721,9 +682,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.quatf. In torch this resolves to (num_instances, 4).
         This quantity is the orientation of the principal axes of inertia of the root rigid body relative to the world.
         """
-        self._root_com_quat_w = self._get_quat_from_transform(self._root_com_quat_w, self.root_com_pose_w.warp)
+        root_com_pose_w = self.root_com_pose_w.warp
         if self._root_com_quat_w_ta is None:
-            self._root_com_quat_w_ta = ProxyArray(self._root_com_quat_w)
+            self._root_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(root_com_pose_w))
         return self._root_com_quat_w_ta
 
     @property
@@ -733,9 +694,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the linear velocity of the root rigid body's center of mass frame relative to the world.
         """
-        self._root_com_lin_vel_w = self._get_top_from_spatial_vector(self._root_com_lin_vel_w, self.root_com_vel_w.warp)
+        root_com_vel_w = self.root_com_vel_w.warp
         if self._root_com_lin_vel_w_ta is None:
-            self._root_com_lin_vel_w_ta = ProxyArray(self._root_com_lin_vel_w)
+            self._root_com_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(root_com_vel_w))
         return self._root_com_lin_vel_w_ta
 
     @property
@@ -745,11 +706,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances,), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         This quantity is the angular velocity of the root rigid body's center of mass frame relative to the world.
         """
-        self._root_com_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._root_com_ang_vel_w, self.root_com_vel_w.warp
-        )
+        root_com_vel_w = self.root_com_vel_w.warp
         if self._root_com_ang_vel_w_ta is None:
-            self._root_com_ang_vel_w_ta = ProxyArray(self._root_com_ang_vel_w)
+            self._root_com_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(root_com_vel_w))
         return self._root_com_ang_vel_w_ta
 
     @property
@@ -759,9 +718,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the position of the rigid bodies' actor frame relative to the world.
         """
-        self._body_link_pos_w = self._get_pos_from_transform(self._body_link_pos_w, self.body_link_pose_w.warp)
+        body_link_pose_w = self.body_link_pose_w.warp
         if self._body_link_pos_w_ta is None:
-            self._body_link_pos_w_ta = ProxyArray(self._body_link_pos_w)
+            self._body_link_pos_w_ta = ProxyArray(self._get_pos_from_transform(body_link_pose_w))
         return self._body_link_pos_w_ta
 
     @property
@@ -771,9 +730,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
         This quantity is the orientation of the rigid bodies' actor frame relative to the world.
         """
-        self._body_link_quat_w = self._get_quat_from_transform(self._body_link_quat_w, self.body_link_pose_w.warp)
+        body_link_pose_w = self.body_link_pose_w.warp
         if self._body_link_quat_w_ta is None:
-            self._body_link_quat_w_ta = ProxyArray(self._body_link_quat_w)
+            self._body_link_quat_w_ta = ProxyArray(self._get_quat_from_transform(body_link_pose_w))
         return self._body_link_quat_w_ta
 
     @property
@@ -783,11 +742,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear velocity of the rigid bodies' actor frame relative to the world.
         """
-        self._body_link_lin_vel_w = self._get_top_from_spatial_vector(
-            self._body_link_lin_vel_w, self.body_link_vel_w.warp
-        )
+        body_link_vel_w = self.body_link_vel_w.warp
         if self._body_link_lin_vel_w_ta is None:
-            self._body_link_lin_vel_w_ta = ProxyArray(self._body_link_lin_vel_w)
+            self._body_link_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_link_vel_w))
         return self._body_link_lin_vel_w_ta
 
     @property
@@ -797,11 +754,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the angular velocity of the rigid bodies' actor frame relative to the world.
         """
-        self._body_link_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._body_link_ang_vel_w, self.body_link_vel_w.warp
-        )
+        body_link_vel_w = self.body_link_vel_w.warp
         if self._body_link_ang_vel_w_ta is None:
-            self._body_link_ang_vel_w_ta = ProxyArray(self._body_link_ang_vel_w)
+            self._body_link_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_link_vel_w))
         return self._body_link_ang_vel_w_ta
 
     @property
@@ -811,9 +766,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the position of the rigid bodies' center of mass frame.
         """
-        self._body_com_pos_w = self._get_pos_from_transform(self._body_com_pos_w, self.body_com_pose_w.warp)
+        body_com_pose_w = self.body_com_pose_w.warp
         if self._body_com_pos_w_ta is None:
-            self._body_com_pos_w_ta = ProxyArray(self._body_com_pos_w)
+            self._body_com_pos_w_ta = ProxyArray(self._get_pos_from_transform(body_com_pose_w))
         return self._body_com_pos_w_ta
 
     @property
@@ -823,9 +778,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
         This quantity is the orientation of the principal axes of inertia of the rigid bodies.
         """
-        self._body_com_quat_w = self._get_quat_from_transform(self._body_com_quat_w, self.body_com_pose_w.warp)
+        body_com_pose_w = self.body_com_pose_w.warp
         if self._body_com_quat_w_ta is None:
-            self._body_com_quat_w_ta = ProxyArray(self._body_com_quat_w)
+            self._body_com_quat_w_ta = ProxyArray(self._get_quat_from_transform(body_com_pose_w))
         return self._body_com_quat_w_ta
 
     @property
@@ -835,9 +790,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear velocity of the rigid bodies' center of mass frame.
         """
-        self._body_com_lin_vel_w = self._get_top_from_spatial_vector(self._body_com_lin_vel_w, self.body_com_vel_w.warp)
+        body_com_vel_w = self.body_com_vel_w.warp
         if self._body_com_lin_vel_w_ta is None:
-            self._body_com_lin_vel_w_ta = ProxyArray(self._body_com_lin_vel_w)
+            self._body_com_lin_vel_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_com_vel_w))
         return self._body_com_lin_vel_w_ta
 
     @property
@@ -847,11 +802,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the angular velocity of the rigid bodies' center of mass frame.
         """
-        self._body_com_ang_vel_w = self._get_bottom_from_spatial_vector(
-            self._body_com_ang_vel_w, self.body_com_vel_w.warp
-        )
+        body_com_vel_w = self.body_com_vel_w.warp
         if self._body_com_ang_vel_w_ta is None:
-            self._body_com_ang_vel_w_ta = ProxyArray(self._body_com_ang_vel_w)
+            self._body_com_ang_vel_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_com_vel_w))
         return self._body_com_ang_vel_w_ta
 
     @property
@@ -861,9 +814,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the linear acceleration of the rigid bodies' center of mass frame.
         """
-        self._body_com_lin_acc_w = self._get_top_from_spatial_vector(self._body_com_lin_acc_w, self.body_com_acc_w.warp)
+        body_com_acc_w = self.body_com_acc_w.warp
         if self._body_com_lin_acc_w_ta is None:
-            self._body_com_lin_acc_w_ta = ProxyArray(self._body_com_lin_acc_w)
+            self._body_com_lin_acc_w_ta = ProxyArray(self._get_top_from_spatial_vector(body_com_acc_w))
         return self._body_com_lin_acc_w_ta
 
     @property
@@ -873,11 +826,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.vec3f. In torch this resolves to (num_instances, 1, 3).
         This quantity is the angular acceleration of the rigid bodies' center of mass frame.
         """
-        self._body_com_ang_acc_w = self._get_bottom_from_spatial_vector(
-            self._body_com_ang_acc_w, self.body_com_acc_w.warp
-        )
+        body_com_acc_w = self.body_com_acc_w.warp
         if self._body_com_ang_acc_w_ta is None:
-            self._body_com_ang_acc_w_ta = ProxyArray(self._body_com_ang_acc_w)
+            self._body_com_ang_acc_w_ta = ProxyArray(self._get_bottom_from_spatial_vector(body_com_acc_w))
         return self._body_com_ang_acc_w_ta
 
     @property
@@ -888,9 +839,9 @@ class RigidObjectData(BaseRigidObjectData):
         Shape is (num_instances, 1), dtype = wp.quatf. In torch this resolves to (num_instances, 1, 4).
         This quantity is the orientation of the principal axes of inertia relative to its body's link frame.
         """
-        self._body_com_quat_b = self._get_quat_from_transform(self._body_com_quat_b, self.body_com_pose_b.warp)
+        body_com_pose_b = self.body_com_pose_b.warp
         if self._body_com_quat_b_ta is None:
-            self._body_com_quat_b_ta = ProxyArray(self._body_com_quat_b)
+            self._body_com_quat_b_ta = ProxyArray(self._get_quat_from_transform(body_com_pose_b))
         return self._body_com_quat_b_ta
 
     def _create_simulation_bindings(self) -> None:
@@ -960,6 +911,8 @@ class RigidObjectData(BaseRigidObjectData):
         """Create buffers for the root data."""
         super()._create_buffers()
         self._num_instances = self._root_view.count
+        num_instances, device = self._num_instances, self.device
+        body_shape = (num_instances, 1)
         # Initialize history for finite differencing. If the rigid object is fixed, the root com velocity is not
         # available, so we use zeros.
         if self._root_view.get_root_velocities(SimulationManager.get_state_0()) is None:
@@ -967,15 +920,11 @@ class RigidObjectData(BaseRigidObjectData):
                 "Failed to get root com velocity. If the rigid object is fixed, this is expected. "
                 "Setting root com velocity to zeros."
             )
-            self._sim_bind_root_com_vel_w = wp.zeros(
-                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-            )
-            self._sim_bind_body_com_vel_w = wp.zeros(
-                (self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-            )
+            self._sim_bind_root_com_vel_w = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
+            self._sim_bind_body_com_vel_w = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         # -- default root pose and velocity
-        self._default_root_pose = wp.zeros((self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._default_root_vel = wp.zeros((self._num_instances,), dtype=wp.spatial_vectorf, device=self.device)
+        self._default_root_pose = wp.zeros((num_instances,), dtype=wp.transformf, device=device)
+        self._default_root_vel = wp.zeros((num_instances,), dtype=wp.spatial_vectorf, device=device)
         self._default_root_state = None  # lazily allocated by deprecated default_root_state property
 
         # Initialize history for finite differencing
@@ -985,58 +934,21 @@ class RigidObjectData(BaseRigidObjectData):
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame
-        self._root_link_vel_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._root_link_vel_b = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._projected_gravity_b = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.vec3f, device=self.device)
-        self._heading_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.float32, device=self.device)
-        self._body_link_vel_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-        )
+        self._root_link_vel_w = TimestampedBuffer()
+        self._projected_gravity_b = TimestampedBuffer()
+        self._heading_w = TimestampedBuffer()
         # -- com frame w.r.t. world frame
-        self._root_com_pose_w = TimestampedBuffer(shape=(self._num_instances,), dtype=wp.transformf, device=self.device)
-        self._root_com_vel_b = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._root_com_acc_w = TimestampedBuffer(
-            shape=(self._num_instances,), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._body_com_acc_w = TimestampedBuffer(
-            shape=(self._num_instances, 1), dtype=wp.spatial_vectorf, device=self.device
-        )
-        self._body_com_pose_b = TimestampedBuffer(
-            shape=(self._num_instances, 1), dtype=wp.transformf, device=self.device
-        )
+        self._root_com_pose_w = TimestampedBuffer()
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
+        self._body_com_pose_b = TimestampedBuffer()
         # Empty memory pre-allocations
         self._root_state_w = None
         self._root_link_state_w = None
         self._root_com_state_w = None
-        self._body_com_quat_b = None
         self._root_link_lin_vel_b = None
         self._root_link_ang_vel_b = None
         self._root_com_lin_vel_b = None
         self._root_com_ang_vel_b = None
-        self._root_link_pos_w = None
-        self._root_link_quat_w = None
-        self._root_link_lin_vel_w = None
-        self._root_link_ang_vel_w = None
-        self._root_com_pos_w = None
-        self._root_com_quat_w = None
-        self._root_com_lin_vel_w = None
-        self._root_com_ang_vel_w = None
-        self._body_link_pos_w = None
-        self._body_link_quat_w = None
-        self._body_link_lin_vel_w = None
-        self._body_link_ang_vel_w = None
-        self._body_com_pos_w = None
-        self._body_com_quat_w = None
-        self._body_com_lin_vel_w = None
-        self._body_com_ang_vel_w = None
-        self._body_com_lin_acc_w = None
-        self._body_com_ang_acc_w = None
 
         # Pin all ProxyArray wrappers to current buffers.
         self._pin_proxy_arrays()
@@ -1050,36 +962,22 @@ class RigidObjectData(BaseRigidObjectData):
         """
         is_rebind = hasattr(self, "_root_link_pose_w_ta")
 
-        if is_rebind:
-            # Rebind sim-bound ProxyArrays to new solver arrays
-            self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
-            self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
-        else:
+        # Both initial binding and full reset borrow the current native arrays.
+        self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
+        self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
+        self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
+        self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
+        self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
+        self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
+        self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
+
+        if not is_rebind:
             # First-time creation: pin ProxyArrays to current buffers
-            # Category 1: sim-bound and pre-allocated buffers
-            # Newton wp.array pointers are stable, so a ProxyArray wrapping them is valid forever.
-            self._root_link_pose_w_ta = ProxyArray(self._sim_bind_root_link_pose_w)
-            self._root_com_vel_w_ta = ProxyArray(self._sim_bind_root_com_vel_w)
-            self._body_link_pose_w_ta = ProxyArray(self._sim_bind_body_link_pose_w)
-            self._body_com_vel_w_ta = ProxyArray(self._sim_bind_body_com_vel_w)
             self._default_root_pose_ta = ProxyArray(self._default_root_pose)
             self._default_root_vel_ta = ProxyArray(self._default_root_vel)
-            self._body_mass_ta = ProxyArray(self._sim_bind_body_mass)
-            self._body_inertia_ta = ProxyArray(self._sim_bind_body_inertia)
-            self._body_com_pos_b_ta = ProxyArray(self._sim_bind_body_com_pos_b)
 
             # Category 2: TimestampedBuffer properties
-            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
-            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
-            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
-            self._heading_w_ta = ProxyArray(self._heading_w.data)
 
             # -- deprecated state properties (lazy); type annotations declared once here
             self._root_link_lin_vel_b_ta: ProxyArray | None = None
@@ -1094,250 +992,68 @@ class RigidObjectData(BaseRigidObjectData):
             self._body_link_state_w_ta: ProxyArray | None = None
             self._body_com_state_w_ta: ProxyArray | None = None
 
-        # Invalidate lazy sliced ProxyArrays AND their backing wp.arrays so they are
-        # re-created from fresh data on next access.  On first init the backing fields
-        # are already None (set by _create_buffers), so the assignments below are
-        # harmless no-ops.  On rebind they reset stale pointers into freed transform
-        # memory after a sim reset.
+        # Recreate component views after native arrays are rebound.
         self._root_link_pos_w_ta: ProxyArray | None = None
-        self._root_link_pos_w = None
         self._root_link_quat_w_ta: ProxyArray | None = None
-        self._root_link_quat_w = None
         self._root_link_lin_vel_w_ta: ProxyArray | None = None
-        self._root_link_lin_vel_w = None
         self._root_link_ang_vel_w_ta: ProxyArray | None = None
-        self._root_link_ang_vel_w = None
         self._root_com_pos_w_ta: ProxyArray | None = None
-        self._root_com_pos_w = None
         self._root_com_quat_w_ta: ProxyArray | None = None
-        self._root_com_quat_w = None
         self._root_com_lin_vel_w_ta: ProxyArray | None = None
-        self._root_com_lin_vel_w = None
         self._root_com_ang_vel_w_ta: ProxyArray | None = None
-        self._root_com_ang_vel_w = None
         self._body_link_pos_w_ta: ProxyArray | None = None
-        self._body_link_pos_w = None
         self._body_link_quat_w_ta: ProxyArray | None = None
-        self._body_link_quat_w = None
         self._body_link_vel_w_ta: ProxyArray | None = None
         self._body_link_lin_vel_w_ta: ProxyArray | None = None
-        self._body_link_lin_vel_w = None
         self._body_link_ang_vel_w_ta: ProxyArray | None = None
-        self._body_link_ang_vel_w = None
         self._body_com_pose_w_ta: ProxyArray | None = None
         self._body_com_pos_w_ta: ProxyArray | None = None
-        self._body_com_pos_w = None
         self._body_com_quat_w_ta: ProxyArray | None = None
-        self._body_com_quat_w = None
         self._body_com_lin_vel_w_ta: ProxyArray | None = None
-        self._body_com_lin_vel_w = None
         self._body_com_ang_vel_w_ta: ProxyArray | None = None
-        self._body_com_ang_vel_w = None
         self._body_com_lin_acc_w_ta: ProxyArray | None = None
-        self._body_com_lin_acc_w = None
         self._body_com_ang_acc_w_ta: ProxyArray | None = None
-        self._body_com_ang_acc_w = None
         self._body_com_quat_b_ta: ProxyArray | None = None
-        self._body_com_quat_b = None
 
     """
     Internal helpers.
     """
 
-    def _get_pos_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
-        """Generates a position array from a transform array.
+    def _get_pos_from_transform(self, transform: wp.array) -> wp.array:
+        """Return a strided position view without copying the parent array."""
+        return wp.array(
+            ptr=transform.ptr, shape=transform.shape, dtype=wp.vec3f, strides=transform.strides, device=self.device
+        )
 
-        Args:
-            transform: The transform array. Shape is (N) dtype=wp.transformf.
+    def _get_quat_from_transform(self, transform: wp.array) -> wp.array:
+        """Return a strided quaternion view without copying the parent array."""
+        return wp.array(
+            ptr=transform.ptr + 3 * 4,
+            shape=transform.shape,
+            dtype=wp.quatf,
+            strides=transform.strides,
+            device=self.device,
+        )
 
-        Returns:
-            The position array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if transform.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=transform.ptr,
-                    shape=transform.shape,
-                    dtype=wp.vec3f,
-                    strides=transform.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches transform.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(transform.shape, dtype=wp.vec3f, device=self.device)
+    def _get_top_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Return a strided linear view without copying the parent array."""
+        return wp.array(
+            ptr=spatial_vector.ptr,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )
 
-        # If the array is not contiguous, we need to launch the kernel to get the position part of the transform.
-        if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the transform array.
-            if len(transform.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_pos", source.ptr),
-                    shared_kernels.split_transform_to_pos_2d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_pos", source.ptr),
-                    shared_kernels.split_transform_to_pos_1d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-        return source
-
-    def _get_quat_from_transform(self, source: wp.array | None, transform: wp.array) -> wp.array:
-        """Generates a quaternion array from a transform array.
-
-        Args:
-            transform: The transform array. Shape is (N) dtype=wp.transformf.
-
-        Returns:
-            The quaternion array. Shape is (N) dtype=wp.quatf.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if transform.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=transform.ptr + 3 * 4,
-                    shape=transform.shape,
-                    dtype=wp.quatf,
-                    strides=transform.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches transform.shape since each element is quatf (already contains 4 floats)
-                source = wp.zeros(transform.shape, dtype=wp.quatf, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the quaternion part of the transform.
-        if not transform.is_contiguous:
-            # Launch the right kernel based on the shape of the transform array.
-            if len(transform.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_quat", source.ptr),
-                    shared_kernels.split_transform_to_quat_2d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_transform_to_quat", source.ptr),
-                    shared_kernels.split_transform_to_quat_1d,
-                    dim=transform.shape,
-                    inputs=[transform],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
-
-    def _get_top_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
-        """Gets the top part of a spatial vector array.
-
-        For instance the linear velocity is the top part of a velocity vector.
-
-        Args:
-            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
-
-        Returns:
-            The top part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if spatial_vector.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=spatial_vector.ptr,
-                    shape=spatial_vector.shape,
-                    dtype=wp.vec3f,
-                    strides=spatial_vector.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the top part of the spatial vector.
-        if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the spatial_vector array.
-            if len(spatial_vector.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_top", source.ptr),
-                    shared_kernels.split_spatial_vector_to_top_2d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_top", source.ptr),
-                    shared_kernels.split_spatial_vector_to_top_1d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
-
-    def _get_bottom_from_spatial_vector(self, source: wp.array | None, spatial_vector: wp.array) -> wp.array:
-        """Gets the bottom part of a spatial vector array.
-
-        For instance the angular velocity is the bottom part of a velocity vector.
-
-        Args:
-            spatial_vector: The spatial vector array. Shape is (N) dtype=wp.spatial_vectorf.
-
-        Returns:
-            The bottom part of the spatial vector array. Shape is (N) dtype=wp.vec3f.
-        """
-        # Check if we already created the lazy buffer.
-        if source is None:
-            if spatial_vector.is_contiguous:
-                # Check if the array is contiguous. If so, we can just return a strided array.
-                # Then this update becomes a no-op.
-                return wp.array(
-                    ptr=spatial_vector.ptr + 3 * 4,
-                    shape=spatial_vector.shape,
-                    dtype=wp.vec3f,
-                    strides=spatial_vector.strides,
-                    device=self.device,
-                )
-            else:
-                # If the array is not contiguous, we need to create a new array to write to.
-                # Shape matches spatial_vector.shape since each element is vec3f (already contains 3 floats)
-                source = wp.zeros(spatial_vector.shape, dtype=wp.vec3f, device=self.device)
-
-        # If the array is not contiguous, we need to launch the kernel to get the bottom part of the spatial vector.
-        if not spatial_vector.is_contiguous:
-            # Launch the right kernel based on the shape of the spatial_vector array.
-            if len(spatial_vector.shape) > 1:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_bottom", source.ptr),
-                    shared_kernels.split_spatial_vector_to_bottom_2d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-            else:
-                self._read_launch_cache.launch(
-                    ("split_spatial_vector_to_bottom", source.ptr),
-                    shared_kernels.split_spatial_vector_to_bottom_1d,
-                    dim=spatial_vector.shape,
-                    inputs=[spatial_vector],
-                    outputs=[source],
-                )
-        # Return the source array. (no-op if the array is contiguous.)
-        return source
+    def _get_bottom_from_spatial_vector(self, spatial_vector: wp.array) -> wp.array:
+        """Return a strided angular view without copying the parent array."""
+        return wp.array(
+            ptr=spatial_vector.ptr + 3 * 4,
+            shape=spatial_vector.shape,
+            dtype=wp.vec3f,
+            strides=spatial_vector.strides,
+            device=self.device,
+        )
 
     """
     Deprecated properties.
@@ -1353,22 +1069,15 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_state_w.data],
             )
             self._root_state_w.timestamp = self._sim_timestamp
 
@@ -1384,22 +1093,15 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_link_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
+                outputs=[self._root_link_state_w.data],
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
 
@@ -1415,22 +1117,15 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_com_state_w.data,
-                ],
+                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_com_state_w.data],
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
 
@@ -1450,19 +1145,14 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._default_root_state is None:
-            self._default_root_state = wp.zeros((self._num_instances), dtype=shared_kernels.vec13f, device=self.device)
+            self._default_root_state = wp.zeros((self._num_instances), dtype=vec13f, device=self.device)
             self._default_root_state_ta = ProxyArray(self._default_root_state)
         self._read_launch_cache.launch(
             "default_root_state",
             shared_kernels.concat_root_pose_and_vel_to_state,
             dim=self._num_instances,
-            inputs=[
-                self._default_root_pose,
-                self._default_root_vel,
-            ],
-            outputs=[
-                self._default_root_state,
-            ],
+            inputs=[self._default_root_pose, self._default_root_vel],
+            outputs=[self._default_root_state],
         )
         return self._default_root_state_ta
 
@@ -1477,22 +1167,15 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_state_w
         if self._root_state_w is None:
-            self._root_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_state_w_ta = ProxyArray(self._root_state_w.data)
         if self._root_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_state_w.data],
             )
             self._root_state_w.timestamp = self._sim_timestamp
         if self._body_state_w_ta is None:
@@ -1510,22 +1193,15 @@ class RigidObjectData(BaseRigidObjectData):
         )
         # Access internal buffer directly to avoid cascading deprecation warnings from root_link_state_w
         if self._root_link_state_w is None:
-            self._root_link_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_link_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_link_state_w_ta = ProxyArray(self._root_link_state_w.data)
         if self._root_link_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_link_pose_w.warp,
-                    self.root_link_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_link_state_w.data,
-                ],
+                inputs=[self.root_link_pose_w.warp, self.root_link_vel_w.warp],
+                outputs=[self._root_link_state_w.data],
             )
             self._root_link_state_w.timestamp = self._sim_timestamp
         if self._body_link_state_w_ta is None:
@@ -1542,22 +1218,15 @@ class RigidObjectData(BaseRigidObjectData):
             stacklevel=2,
         )
         if self._root_com_state_w is None:
-            self._root_com_state_w = TimestampedBuffer(
-                shape=(self._num_instances,), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._root_com_state_w = TimestampedBuffer(wp.empty(self._num_instances, vec13f, self.device))
             self._root_com_state_w_ta = ProxyArray(self._root_com_state_w.data)
         if self._root_com_state_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_state_w",
                 shared_kernels.concat_root_pose_and_vel_to_state,
                 dim=self._num_instances,
-                inputs=[
-                    self.root_com_pose_w.warp,
-                    self.root_com_vel_w.warp,
-                ],
-                outputs=[
-                    self._root_com_state_w.data,
-                ],
+                inputs=[self.root_com_pose_w.warp, self.root_com_vel_w.warp],
+                outputs=[self._root_com_state_w.data],
             )
             self._root_com_state_w.timestamp = self._sim_timestamp
         if self._body_com_state_w_ta is None:

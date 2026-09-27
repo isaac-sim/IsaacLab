@@ -119,7 +119,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}"
+            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}",
+            synchronize="both",
+            device=sim.device,
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter

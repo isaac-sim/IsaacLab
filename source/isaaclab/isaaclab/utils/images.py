@@ -309,7 +309,6 @@ class CameraFrameStack:
         self._buffer.append(frame)
         stacked = self._buffer.stacked
         if defer_normalize:
-            # no ``out=``: each call allocates, so the trainer's previous observation stays intact
             return normalize(stacked, channel_dim=self._channel_dim, output_channel_dim=None)
         # ``stacked`` views the ring buffer, which the next step overwrites
         return stacked.clone()
@@ -502,11 +501,11 @@ def normalize_camera_output_for_display(tensor: torch.Tensor, data_type: str) ->
         max_val = normalized.max()
         if max_val > 0:
             normalized = normalized / max_val
-    elif data_type in {"albedo"}:
+    elif data_type == "albedo":
         normalized = normalized[..., :3] / 255.0
-    elif data_type in {"normals"}:
+    elif data_type == "normals":
         normalized = (normalized + 1.0) * 0.5
-    elif data_type in {"motion_vectors"}:
+    elif data_type == "motion_vectors":
         # Motion vectors are per-pixel (u, v) offsets that can be positive or negative. Clamp to [-1, 1],
         # remap to [0, 1], and pack the two channels into an RGB image (u -> R, v -> G, unused B -> 0)
         # so the result can be composed into a grid and saved as an image.
