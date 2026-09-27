@@ -286,8 +286,8 @@ class ObservationGroupCfg:
 
     ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
     the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
-    The ``"time"`` option requires :attr:`history_length` to be set, :attr:`flatten_history_dim` and
-    :attr:`concatenate_terms` to be true, and :attr:`concatenate_dim` to be ``-1``.
+    The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
     """
 
 

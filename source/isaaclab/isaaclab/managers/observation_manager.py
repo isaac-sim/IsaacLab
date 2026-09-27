@@ -600,7 +600,14 @@ class ObservationManager(ManagerBase):
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
-            self._group_obs_time_major[group_name] = self._use_time_major_history(group_name, group_cfg)
+            self._group_obs_time_major[group_name] = (
+                group_cfg.history_order == "time"
+                and group_cfg.history_length is not None
+                and group_cfg.history_length > 0
+                and group_cfg.flatten_history_dim
+                and group_cfg.concatenate_terms
+                and group_cfg.concatenate_dim == -1
+            )
 
             # check if config is dict already
             if isinstance(group_cfg, dict):
@@ -756,23 +763,3 @@ class ObservationManager(ManagerBase):
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
-
-    @staticmethod
-    def _use_time_major_history(group_name: str, group_cfg: ObservationGroupCfg) -> bool:
-        """Validate the requested history order and identify time-major groups."""
-        if group_cfg.history_order == "term":
-            return False
-        if group_cfg.history_order != "time":
-            raise ValueError(f"Invalid history_order for observation group '{group_name}': {group_cfg.history_order}")
-        if (
-            group_cfg.history_length is None
-            or group_cfg.history_length <= 0
-            or not group_cfg.flatten_history_dim
-            or not group_cfg.concatenate_terms
-            or group_cfg.concatenate_dim != -1
-        ):
-            raise ValueError(
-                f"Observation group '{group_name}' requires a group history, flattened concatenation along"
-                " the last dimension for history_order='time'."
-            )
-        return True
