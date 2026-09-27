@@ -148,6 +148,7 @@ class CircularBuffer:
         if isinstance(batch_ids, slice):
             self._num_pushes[batch_ids].fill_(0)
         else:
+            # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
             batch_ids_t = torch.as_tensor(batch_ids, device=self._device).long()
             self._num_pushes.index_fill_(0, batch_ids_t, 0)
         self._need_reset = True

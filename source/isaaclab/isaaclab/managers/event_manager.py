@@ -251,6 +251,7 @@ class EventManager(ManagerBase):
                         self._reset_term_last_triggered_step_id[index][env_ids].fill_(global_env_step_count)
                         self._reset_term_last_triggered_once[index][env_ids].fill_(True)
                     else:
+                        # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
                         env_ids_long = torch.as_tensor(env_ids, device=self.device).long()
                         self._reset_term_last_triggered_step_id[index].index_fill_(
                             0, env_ids_long, global_env_step_count

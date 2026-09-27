@@ -179,6 +179,7 @@ class JointAction(ActionTerm):
         if env_ids is None or isinstance(env_ids, slice):
             self._raw_actions[env_ids] = 0.0
         else:
+            # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
             self._raw_actions.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0.0)
 
 

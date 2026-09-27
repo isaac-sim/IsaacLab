@@ -120,6 +120,7 @@ class RewardManager(ManagerBase):
             if isinstance(env_ids, slice):
                 self._episode_sums[key][env_ids].fill_(0.0)
             else:
+                # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
                 self._episode_sums[key].index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0.0)
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:

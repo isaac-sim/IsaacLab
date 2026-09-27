@@ -469,6 +469,7 @@ class SensorBase(ABC):
             if isinstance(env_ids, slice):
                 self._reset_mask_torch[env_ids].fill_(True)
             else:
+                # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
                 self._reset_mask_torch.index_fill_(0, torch.as_tensor(env_ids, device=self._device).long(), True)
             return self._reset_mask
 

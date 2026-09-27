@@ -422,4 +422,5 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if isinstance(env_ids, slice):
             self.episode_length_buf[env_ids] = 0
         else:
+            # Assigning a Python scalar through CUDA tensor indices synchronizes; index_fill_ avoids it.
             self.episode_length_buf.index_fill_(0, torch.as_tensor(env_ids, device=self.device).long(), 0)
