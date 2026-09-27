@@ -133,19 +133,6 @@ class TestWaitForStreamingComplete:
         assert "RTX streaming did not complete within" in caplog.text
 
 
-def test_wait_for_stage_load_pumps_until_loaded_then_settles(mock_omni_usd, mock_omni_kit_app):
-    """Pumps while assets are pending, then pumps the requested settle frames."""
-    mock_app = MagicMock()
-    mock_omni_kit_app.get_app.return_value = mock_app
-    pending = [2, 1, 0, 0]
-    mock_omni_usd.get_context.return_value.get_stage_loading_status.side_effect = lambda: ("", 0, pending[0])
-    mock_app.update.side_effect = lambda: pending.pop(0) if len(pending) > 1 else None
-
-    rtx_utils.wait_for_stage_load(timeout_s=10.0, settle_frames=3)
-
-    assert mock_app.update.call_count == 2 + 3
-
-
 # ---------------------------------------------------------------------------
 # ensure_isaac_rtx_render_update
 # ---------------------------------------------------------------------------

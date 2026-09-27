@@ -13,7 +13,7 @@ import logging
 from typing import Any
 
 from .settings_manager import get_settings_manager
-from .sim_launcher import add_launcher_args, launch_simulation
+from .sim_launcher import _KIT_LAUNCHER, add_launcher_args, launch_simulation
 
 logger = logging.getLogger(__name__)
 
@@ -69,11 +69,9 @@ class AppLauncher:
     @staticmethod
     def is_available() -> bool:
         """Return whether the full Isaac Sim runtime is importable, i.e. Kit can be launched."""
-        from isaaclab_physx.physics import PhysxCfg
-
         from ..utils.string import string_to_callable
 
-        return string_to_callable(PhysxCfg.launcher_type).is_available()
+        return string_to_callable(_KIT_LAUNCHER).is_available()
 
     @staticmethod
     def has_gui() -> bool:

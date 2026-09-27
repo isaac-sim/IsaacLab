@@ -38,6 +38,14 @@ def test_create_new_stage():
     assert root_prim.IsValid()
 
 
+def test_is_current_stage_in_memory():
+    """Test the deprecated check for a stage outside Kit's USD context."""
+    stage = sim_utils.create_new_stage()
+    with sim_utils.use_stage(stage), pytest.warns(DeprecationWarning):
+        # no simulation attaches the stage to Kit's USD context
+        assert sim_utils.is_current_stage_in_memory() is True
+
+
 def test_save_and_open_stage():
     """Test saving and opening a stage."""
     with tempfile.TemporaryDirectory() as temp_dir:

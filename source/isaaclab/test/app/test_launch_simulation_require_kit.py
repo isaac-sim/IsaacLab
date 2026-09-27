@@ -25,6 +25,7 @@ import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
+from isaaclab.renderers import RendererCfg
 
 
 @pytest.fixture
@@ -141,6 +142,29 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
         calls.append("user")
 
     assert calls == ["register", "storage", "user"]
+
+
+def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch):
+    """A launcher named by a config's ``launcher_type`` starts with the simulation and closes after it."""
+    events = []
+
+    class FakeLauncher(SimulationLauncher):
+        def __init__(self, launcher_args):
+            events.append("start")
+
+        def close(self, exit_code=0):
+            events.append("close")
+
+    class CustomRendererCfg(RendererCfg):
+        launcher_type = "fake_runtime:FakeLauncher"
+
+    monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
+    cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
+
+    with launch_simulation(cfg):
+        events.append("user")
+
+    assert events == ["start", "user", "close"]
 
 
 def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):

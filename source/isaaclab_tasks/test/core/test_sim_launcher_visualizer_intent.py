@@ -133,13 +133,14 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
     """Kitless mode should persist explicit disable-all semantics for --viz none."""
     captured = {"types": None, "explicit": None, "disable_all": None}
 
-    def fake_sync(launcher_args: dict) -> None:
+    def fake_sync(launcher_args: argparse.Namespace) -> None:
+        launcher_args = vars(launcher_args)
         captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""
         captured["explicit"] = launcher_args["visualizer_explicit"]
         captured["disable_all"] = launcher_args["visualizer_disable_all"]
 
     _force_kitless(monkeypatch)
-    monkeypatch.setattr(sim_launcher, "sync_visualizer_cli_settings", fake_sync)
+    monkeypatch.setattr(sim_launcher, "_sync_visualizer_cli_settings", fake_sync)
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))
     launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True)

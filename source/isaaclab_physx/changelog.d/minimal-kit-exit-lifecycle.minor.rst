@@ -6,7 +6,8 @@ Added
 * Added ``launcher_type`` to :class:`~isaaclab_physx.physics.PhysxCfg`, naming the launcher its runtime needs.
 * Added :class:`~isaaclab_physx.app.KitStageBackendCfg`, the simulation backend that attaches the stage to
   Kit's USD context and closes it with the simulation.
-* Added :func:`~isaaclab_physx.app.show_stage_in_viewport`, formerly ``isaaclab.sim.utils.show_stage_in_viewport``.
+* Added :func:`~isaaclab_physx.app.show_stage_in_viewport`, which the deprecated
+  ``isaaclab.sim.utils.show_stage_in_viewport`` forwards to.
 * Added ``set_gravity`` to :class:`~isaaclab_physx.physics.PhysxManager` to set the scene-wide gravity.
 
 Changed

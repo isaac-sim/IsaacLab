@@ -11,6 +11,7 @@ import contextlib
 import logging
 import os
 import threading
+import warnings
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
@@ -170,6 +171,23 @@ def create_new_stage() -> Usd.Stage:
     _context.stage = stage
     UsdUtils.StageCache.Get().Insert(stage)
     return stage
+
+
+def is_current_stage_in_memory() -> bool:
+    """Return whether the current stage is not the stage attached to Kit's USD context.
+
+    .. deprecated::
+        The simulation stage is attached to Kit's USD context whenever Kit runs; check
+        :func:`~isaaclab.utils.version.has_kit` instead.
+    """
+    warnings.warn(
+        "`is_current_stage_in_memory` is deprecated; check `isaaclab.utils.version.has_kit()` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from ..simulation_context import SimulationContext  # noqa: PLC0415
+
+    return _get_kit_stage() is None or get_current_stage() is not SimulationContext.instance().stage
 
 
 def open_stage(usd_path: str) -> Usd.Stage:
@@ -516,3 +534,20 @@ def get_current_stage_id() -> int:
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
+
+
+def show_stage_in_viewport(usd_path: str) -> None:
+    """Open a USD file in the Kit viewport and keep the app running until the user closes it.
+
+    .. deprecated::
+        Use :func:`isaaclab_physx.app.show_stage_in_viewport` instead.
+    """
+    warnings.warn(
+        "`isaaclab.sim.utils.show_stage_in_viewport` is deprecated; use"
+        " `isaaclab_physx.app.show_stage_in_viewport` instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    from ...utils.string import string_to_callable  # noqa: PLC0415
+
+    string_to_callable("isaaclab_physx.app:show_stage_in_viewport")(usd_path)

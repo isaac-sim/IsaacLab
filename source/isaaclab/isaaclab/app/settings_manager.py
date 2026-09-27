@@ -13,8 +13,8 @@ This allows Isaac Lab to run visualizers like Rerun and Newton without requiring
 the full Omniverse/SimulationApp stack.
 """
 
-import contextlib
 import sys
+import warnings
 from typing import Any
 
 # Key for storing singleton in sys.modules to survive module reloads (e.g., from Hydra)
@@ -84,6 +84,24 @@ class SettingsManager:
             backend: A ``carb.settings``-compatible settings interface.
         """
         self._backend = backend
+
+    def initialize_carb_settings(self) -> None:
+        """Deprecated no-op; the Kit launcher sets the backend with :meth:`set_backend`."""
+        warnings.warn(
+            "`initialize_carb_settings` is deprecated and has no effect; the Kit launcher sets the settings backend.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+
+    @property
+    def is_omniverse_mode(self) -> bool:
+        """Deprecated. Whether a settings backend (``carb.settings`` under Kit) is set."""
+        warnings.warn(
+            "`is_omniverse_mode` is deprecated; check `isaaclab.utils.version.has_kit()` instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self._backend is not None
 
     def set(self, path: str, value: Any) -> None:
         """Set a setting value at the given path.
@@ -179,27 +197,10 @@ def get_settings_manager() -> SettingsManager:
     return instance
 
 
-def sync_visualizer_cli_settings(launcher_args: dict) -> None:
-    """Write the visualizer CLI selection and ``--max_visible_envs`` to the settings.
-
-    Args:
-        launcher_args: Launcher arguments, as normalized by :func:`~isaaclab.app.launch_simulation`.
-    """
-    visualizers = launcher_args.get("visualizer")
-
-    if "max_visible_envs" in launcher_args:
-        v = launcher_args["max_visible_envs"]
-        if v is not None and int(v) < 0:
-            raise ValueError(f"Invalid value for --max_visible_envs: {v}. Expected non-negative int.")
-
-    with contextlib.suppress(Exception):
-        settings = get_settings_manager()
-        settings.set_string("/isaaclab/visualizer/types", " ".join(visualizers) if visualizers else "")
-        settings.set_bool("/isaaclab/visualizer/explicit", bool(launcher_args.get("visualizer_explicit", False)))
-        settings.set_bool("/isaaclab/visualizer/disable_all", bool(launcher_args.get("visualizer_disable_all", False)))
-
-        # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
-        if "max_visible_envs" in launcher_args:
-            settings.set_int("/isaaclab/visualizer/max_visible_envs", int(launcher_args["max_visible_envs"]))
-        else:
-            settings.set_int("/isaaclab/visualizer/max_visible_envs", -1)
+def initialize_carb_settings() -> None:
+    """Deprecated no-op; the Kit launcher sets the settings backend."""
+    warnings.warn(
+        "`initialize_carb_settings` is deprecated and has no effect; the Kit launcher sets the settings backend.",
+        DeprecationWarning,
+        stacklevel=2,
+    )

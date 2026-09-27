@@ -231,6 +231,15 @@ def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
         parser.parse_args([deprecated_arg])
 
 
+def test_deprecated_cpu_flag_raises(monkeypatch: pytest.MonkeyPatch):
+    """Test that the deprecated ``--cpu`` flag points to ``--device cpu``."""
+    parser = argparse.ArgumentParser()
+    add_launcher_args(parser)
+
+    with pytest.raises(ValueError, match="--device cpu"):
+        _resolve_devices_and_kit_args(vars(parser.parse_args(["--cpu"])), monkeypatch)
+
+
 def test_help_on_parser_with_required_positionals(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture):
     """Launcher arguments reach the help output of a script that takes required positionals.
 
@@ -684,9 +693,9 @@ def test_load_extensions_publishes_has_gui_setting(
 
 def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
     settings = _DummySettings()
-    monkeypatch.setattr(settings_manager_module, "get_settings_manager", lambda: settings)
+    monkeypatch.setattr(sim_launcher, "get_settings_manager", lambda: settings)
 
-    settings_manager_module.sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
+    sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
 
     assert settings.values == {
         "/isaaclab/visualizer/types": "viser rerun",
@@ -702,19 +711,20 @@ def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
     def _unexpected_settings_manager():
         raise AssertionError("settings manager should not be queried for invalid values")
 
-    monkeypatch.setattr(settings_manager_module, "get_settings_manager", _unexpected_settings_manager)
+    monkeypatch.setattr(sim_launcher, "get_settings_manager", _unexpected_settings_manager)
 
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        settings_manager_module.sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
+        sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
-def test_sync_visualizer_settings_suppresses_settings_manager_errors(monkeypatch: pytest.MonkeyPatch):
-    def _raise_settings_error():
-        raise RuntimeError("settings unavailable")
-
-    monkeypatch.setattr(settings_manager_module, "get_settings_manager", _raise_settings_error)
-
-    settings_manager_module.sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": 3})
+def test_deprecated_settings_manager_api_warns():
+    manager = settings_manager_module.get_settings_manager()
+    with pytest.warns(DeprecationWarning):
+        settings_manager_module.initialize_carb_settings()
+    with pytest.warns(DeprecationWarning):
+        manager.initialize_carb_settings()
+    with pytest.warns(DeprecationWarning):
+        assert manager.is_omniverse_mode is (manager._backend is not None)
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
