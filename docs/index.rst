@@ -158,6 +158,7 @@ Table of Contents
    source/experimental-features/ray
    source/experimental-features/visuo_tactile_sensor
    source/experimental-features/rlinf_vla_posttraining
+   source/experimental-features/trail
 
 .. toctree::
    :maxdepth: 1

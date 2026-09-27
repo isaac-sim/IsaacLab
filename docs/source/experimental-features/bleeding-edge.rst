@@ -66,6 +66,9 @@ The following features are currently available in ``isaaclab_contrib``:
      - Extended deformable object support using the Newton physics backend with Vertex Block Descent (VBD),
        including proxy coupling between MJWarp and VBD.
      - API reference: :mod:`~isaaclab_contrib.deformable`, :mod:`~isaaclab_contrib.coupling`
+   * - **Trail Terrains**
+     - Library for colored trail terrains compatible with the terrain gerator.
+     - :doc:`trail`
 
 Contributing
 ------------
