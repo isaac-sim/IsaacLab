@@ -22,7 +22,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0")
 NUCLEUS_DATASET_PATH = os.path.join(ISAACLAB_NUCLEUS_DIR, "Tests", "Mimic", "dataset.hdf5")
 
-_SUBPROCESS_TIMEOUT = 5000
+_SUBPROCESS_TIMEOUT = 1500
 
 
 @pytest.fixture
@@ -135,6 +135,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
+        "--max_num_failures",
+        "10",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)

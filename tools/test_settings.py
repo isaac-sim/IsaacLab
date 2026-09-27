@@ -28,11 +28,11 @@ PER_TEST_TIMEOUTS = {
     "test_contrib_environments_kitless.py": 10000,
     "test_environment_determinism.py": 1000,  # This test runs through many the environments for 100 steps each
     "test_multi_agent_environments.py": 800,  # This test runs through multi-agent environments for 100 steps each
-    "test_generate_dataset_franka_state.py": 10000,  # This test runs annotation for 10 demos and generation for 1 demo
-    "test_generate_dataset_franka_visuomotor.py": 10000,  # This test runs generation until one succeeds
-    "test_generate_dataset_gr1t2_nutpour.py": 10000,  # This test runs generation until one succeeds
-    "test_generate_dataset_gr1t2_pickplace.py": 10000,  # This test runs generation until one succeeds
-    "test_generate_dataset_skillgen.py": 10000,  # This test runs generation for skillgen
+    "test_generate_dataset_franka_state.py": 3200,  # Annotation and generation each have a 1500 s subprocess cap
+    "test_generate_dataset_franka_visuomotor.py": 1600,
+    "test_generate_dataset_gr1t2_nutpour.py": 1600,
+    "test_generate_dataset_gr1t2_pickplace.py": 1600,
+    "test_generate_dataset_skillgen.py": 1600,
     "test_pink_ik.py": 1000,  # This test runs through all the pink IK environments through various motions
     "test_environments_training.py": (
         10000
