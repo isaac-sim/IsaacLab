@@ -119,6 +119,12 @@ default values for this tutorial.
    :language: python
    :pyobject: ObservationsCfg
 
+For a policy that needs a flattened history with all terms from each time step together, set
+``history_length`` and ``history_order="time"`` on its :class:`managers.ObservationGroupCfg`.
+The resulting observation has shape ``(num_envs, history_length * combined_term_dim)`` and can be
+reshaped to ``(num_envs, history_length, combined_term_dim)``. The default ``"term"`` order keeps
+each term's history together; use it for policies trained with the existing layout.
+
 Defining events
 ---------------
 

@@ -417,6 +417,7 @@ class ObservationManager(ManagerBase):
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+        time_major_history = self._group_obs_time_major[group_name]
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
@@ -478,7 +479,7 @@ class ObservationManager(ManagerBase):
                     )
                     circular_buffer.append(obs)
 
-                if term_cfg.flatten_history_dim:
+                if term_cfg.flatten_history_dim and not time_major_history:
                     obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
                     obs = circular_buffer.buffer
@@ -489,9 +490,13 @@ class ObservationManager(ManagerBase):
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
             if len(group_obs) == 1:
-                return next(iter(group_obs.values()))
-            # set the concatenate dimension, account for the batch dimension if positive dimension is given
-            return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
+                result = next(iter(group_obs.values()))
+            else:
+                # set the concatenate dimension, account for the batch dimension if positive dimension is given
+                result = torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
+            if time_major_history:
+                return result.reshape(self._env.num_envs, -1)
+            return result
         else:
             return group_obs
 
@@ -547,6 +552,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
+        self._group_obs_time_major: dict[str, bool] = {}
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
@@ -594,6 +600,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
+            self._group_obs_time_major[group_name] = self._use_time_major_history(group_name, group_cfg)
 
             # check if config is dict already
             if isinstance(group_cfg, dict):
@@ -608,6 +615,7 @@ class ObservationManager(ManagerBase):
                     "concatenate_terms",
                     "history_length",
                     "flatten_history_dim",
+                    "history_order",
                     "concatenate_dim",
                 ]:
                     continue
@@ -748,3 +756,23 @@ class ObservationManager(ManagerBase):
             # add history buffers for each group
             self._group_obs_term_delay_buffer[group_name] = group_entry_delay_buffer
             self._group_obs_term_history_buffer[group_name] = group_entry_history_buffer
+
+    @staticmethod
+    def _use_time_major_history(group_name: str, group_cfg: ObservationGroupCfg) -> bool:
+        """Validate the requested history order and identify time-major groups."""
+        if group_cfg.history_order == "term":
+            return False
+        if group_cfg.history_order != "time":
+            raise ValueError(f"Invalid history_order for observation group '{group_name}': {group_cfg.history_order}")
+        if (
+            group_cfg.history_length is None
+            or group_cfg.history_length <= 0
+            or not group_cfg.flatten_history_dim
+            or not group_cfg.concatenate_terms
+            or group_cfg.concatenate_dim != -1
+        ):
+            raise ValueError(
+                f"Observation group '{group_name}' requires a group history, flattened concatenation along"
+                " the last dimension for history_order='time'."
+            )
+        return True

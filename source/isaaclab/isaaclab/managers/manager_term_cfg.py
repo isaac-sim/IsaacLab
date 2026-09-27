@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
@@ -279,6 +279,15 @@ class ObservationGroupCfg:
 
     This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if
     ObservationGroupCfg.history_length is set.
+    """
+
+    history_order: Literal["term", "time"] = "term"
+    """Order of a flattened, concatenated group history. Defaults to ``"term"``.
+
+    ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
+    the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
+    The ``"time"`` option requires :attr:`history_length` to be set, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` to be true, and :attr:`concatenate_dim` to be ``-1``.
     """
 
 
