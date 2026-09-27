@@ -232,7 +232,7 @@ class ObservationsCfg:
             func=mdp.object_point_cloud_b,
             noise=Unoise(n_min=-0.0, n_max=0.0),
             clip=(-2.0, 2.0),  # [m]
-            params={"num_points": 64, "flatten": True},
+            params={"num_points": 64, "flatten": True, "visualize": False},
         )
 
         def __post_init__(self):

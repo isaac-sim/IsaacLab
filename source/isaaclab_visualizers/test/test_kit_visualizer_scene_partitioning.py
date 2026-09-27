@@ -129,8 +129,8 @@ def test_marker_partition_detection_uses_canonical_environment_root() -> None:
     assert markers._scene_partitioning_is_active()
 
 
-def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
-    """Omitted environment IDs should persist only while the marker count is unchanged."""
+def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
+    """Preserve ownership for stable counts and reject changed invalid IDs."""
     stage = Usd.Stage.CreateInMemory()
     for env_id in range(2):
         env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
@@ -142,15 +142,21 @@ def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
     markers._environment_ids = None
     markers._count = 0
 
+    environment_ids = torch.tensor([0, 1])
     markers.visualize(
         translations=torch.zeros((2, 3)),
         orientations=None,
         scales=None,
         marker_indices=None,
-        environment_ids=torch.tensor([0, 1]),
+        environment_ids=environment_ids,
     )
     primvar = UsdGeom.PrimvarsAPI(instancer).GetPrimvar("omni:scenePartition")
     assert list(primvar.Get()) == ["env_0", "env_1"]
+
+    environment_ids[0] = -1
+    with pytest.raises(ValueError, match="non-negative indices"):
+        markers.visualize(None, None, None, None, environment_ids)
+    environment_ids[0] = 0
 
     markers.visualize(
         translations=torch.ones((2, 3)),
