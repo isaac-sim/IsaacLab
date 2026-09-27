@@ -54,7 +54,9 @@ def create_trimesh_from_geom_shape(prim: Usd.Prim) -> trimesh.Trimesh:
         prim: The prim that should be converted to a trimesh.
 
     Returns:
-        A trimesh object representing the primitive.
+        A trimesh object representing the primitive in its local coordinates. Cylinders, capsules,
+        and cones respect their authored axis, with cone apices pointing along the positive axis.
+        Prim transforms are not applied.
 
     Raises:
         ValueError: If the prim is not a supported primitive. Check PRIMITIVE_MESH_TYPES for supported primitives.
@@ -127,11 +129,9 @@ def _create_sphere_trimesh(prim: Usd.Prim, subdivisions: int = 2) -> trimesh.Tri
 def _align_length_axis(mesh: trimesh.Trimesh, axis: str) -> trimesh.Trimesh:
     """Rotates a Z-aligned trimesh so its length points along the USD ``axis`` attribute."""
     if axis == "X":
-        # rotate −90° about Y to point the length along +X
-        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(-90), [0, 1, 0]))
+        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(90), [0, 1, 0]))
     elif axis == "Y":
-        # rotate +90° about X to point the length along +Y
-        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(90), [1, 0, 0]))
+        mesh.apply_transform(trimesh.transformations.rotation_matrix(np.radians(-90), [1, 0, 0]))
     return mesh
 
 
@@ -158,7 +158,7 @@ def _create_cone_trimesh(prim: Usd.Prim) -> trimesh.Trimesh:
     mesh = trimesh.creation.cone(radius=radius, height=height)
     # shift all vertices down by height/2 for usd / trimesh cone primitive definition discrepancy
     mesh.apply_translation((0.0, 0.0, -height / 2.0))
-    return mesh
+    return _align_length_axis(mesh, prim.GetAttribute("axis").Get())
 
 
 _MESH_CONVERTERS_CALLBACKS: dict[str, Callable[[Usd.Prim], trimesh.Trimesh]] = {
