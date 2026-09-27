@@ -114,13 +114,11 @@ class SO101StateObservationCfg:
 
 @configclass
 class SO101JointPosActionCfg:
-    """Absolute arm targets about home and an analog jaw target in [0, 1] rad."""
+    """Arm targets within joint limits and an analog jaw target in [0, 1] rad."""
 
-    arm = mdp.JointPositionActionCfg(
+    arm = mdp.JointPositionToLimitsActionCfg(
         asset_name="robot",
         joint_names=["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"],
-        scale=0.7,
-        use_default_offset=True,
     )
     gripper = mdp.JointPositionActionCfg(
         asset_name="robot",
@@ -152,6 +150,8 @@ class SO101EventCfg:
 class SO101LiftRewardCfg(lift.RewardsCfg):
     """Shared lift rewards with the SO-101 jaw contact binding."""
 
+    action_l2 = None
+    action_rate = RewTerm(func=mdp.action_rate_l2, weight=-0.05)
     orientation_tracking = None
     early_termination = None
     # One moving jaw provides the grasp-contact signal; a second contact-count term duplicates it.
@@ -165,6 +165,8 @@ class SO101LiftRewardCfg(lift.RewardsCfg):
         super().__post_init__()
         # Make transport competitive with maintaining jaw contact on the table.
         self.position_tracking.weight = 50.0
+        self.success.weight = 50.0
+        self.fingers_to_object.weight = 5.0
         self.fingers_to_object.params["asset_cfg"] = SceneEntityCfg(
             "robot", body_names=["gripper", "moving_jaw_so101_v1"]
         )
@@ -176,7 +178,7 @@ class SO101LiftRewardCfg(lift.RewardsCfg):
 
 @configclass
 class SO101TerminationCfg:
-    """End an episode at six seconds or when the cube falls off the table."""
+    """End an episode at its time limit or when the cube falls off the table."""
 
     timeout = DoneTerm(func=mdp.time_out, time_out=True)
     dropped = DoneTerm(
@@ -198,6 +200,11 @@ class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
     shared with Franka and Kuka lift. Target positions are sampled in the robot root
     frame within its reach. Orientation tracking is disabled, with no hold-duration
     requirement, physics randomization, reset bank, or curriculum.
+
+    A target is reached when object-to-target distance is below 5 cm while moving-jaw
+    contact exceeds 0.01 N. The shared reward's ``succeeded`` flag means at least one
+    target was reached during the episode; per-command success must be evaluated
+    separately over each command's 4-6 s interval.
     """
 
     scene: SO101SceneCfg = SO101SceneCfg(num_envs=2048, env_spacing=2.0, replicate_physics=True)
@@ -218,7 +225,7 @@ class SO101LiftEnvCfg(ManagerBasedRLEnvCfg):
         self.commands.object_pose.ranges.yaw = (0.0, 0.0)
         self.commands.object_pose.success_vis_asset_name = ""
         self.decimation = 4
-        self.episode_length_s = 6.0
+        self.episode_length_s = 12.0
         self.sim.dt = 1 / 120
         self.sim.render_interval = self.decimation
         self.sim.physics = lift.PhysicsCfg()
