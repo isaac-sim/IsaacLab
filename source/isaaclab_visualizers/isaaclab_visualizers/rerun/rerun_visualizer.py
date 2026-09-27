@@ -20,7 +20,7 @@ import newton
 import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
-from isaaclab_newton.physics import NewtonBackendCfg, resolve_newton_backend_cfg
+from isaaclab_newton.physics import resolve_newton_backend_cfg
 from newton.viewer import ViewerRerun
 
 from isaaclab.scene_data import SceneDataFormat
@@ -31,6 +31,7 @@ from isaaclab_visualizers.newton.newton_visualization_markers import render_newt
 from isaaclab_visualizers.newton_adapter import (
     apply_viewer_visible_worlds,
     log_geo_with_expanded_plane_scale,
+    resolve_streaming_renderer_cfg,
     resolve_visible_env_indices,
 )
 
@@ -40,54 +41,6 @@ if TYPE_CHECKING:
     from isaaclab.scene_data import SceneDataProvider
 
 logger = logging.getLogger(__name__)
-
-
-def _preload_ovrtx_native_deps() -> None:
-    """Pre-load ``libosdCPU.so`` from ``ovstage`` so ``ovrtx.Renderer`` can resolve it.
-
-    ``libovrtx.dylib.so`` depends on ``libosdCPU.so.3.6.0`` which ships inside the
-    ``ovstage`` wheel but is not on the system ``LD_LIBRARY_PATH``.  Loading it
-    explicitly places it in the process-wide ``dlopen`` cache.
-    """
-    import ctypes
-    import importlib.util
-    import pathlib
-
-    spec = importlib.util.find_spec("ovstage")
-    if spec is None:
-        return
-    lib = pathlib.Path(spec.origin).parent / "bin" / "plugins" / "libosdCPU.so.3.6.0"
-    if lib.exists():
-        with contextlib.suppress(OSError):
-            ctypes.CDLL(str(lib))
-
-
-def _resolve_streaming_renderer_cfg(renderer_name: str | None, newton_cfg: NewtonBackendCfg | None = None):
-    """Return a renderer cfg for the auto-created streaming camera."""
-    from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-    if renderer_name is None or renderer_name == "newton_warp":
-        return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
-    if renderer_name == "ovrtx":
-        _preload_ovrtx_native_deps()
-        from isaaclab_ov.renderers import OVRTXRendererCfg
-
-        return OVRTXRendererCfg()
-    if renderer_name == "isaac_rtx":
-        try:
-            from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-            import omni.replicator.core  # noqa: F401
-
-            return IsaacRtxRendererCfg()
-        except ModuleNotFoundError:
-            logger.info(
-                "[RerunVisualizer] streaming_cam_renderer='isaac_rtx' unavailable (kitless); using newton_warp."
-            )
-            return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
-    raise ValueError(
-        f"streaming_cam_renderer={renderer_name!r} unsupported. Use 'newton_warp', 'ovrtx', 'isaac_rtx', or None."
-    )
 
 
 _BACKEND_DISPLAY_NAMES = {
@@ -575,7 +528,7 @@ class RerunVisualizer(BaseVisualizer):
         # Auto-detect fallback: with Newton MJWarp replicate_physics=True, post-init prim
         # spawning only survives at env_0. Reuse the first scene camera with matching
         # renderer_type (or any scene camera with the right count as secondary fallback).
-        renderer_cfg = _resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer, self.cfg.newton_cfg)
+        renderer_cfg = resolve_streaming_renderer_cfg(self.cfg.streaming_cam_renderer, self.cfg.newton_cfg)
         renderer_type = getattr(renderer_cfg, "renderer_type", None)
         scene_cameras = self._scene_data_provider.get_camera_sensors()
         _fallback_cam = None

@@ -3,15 +3,58 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for viewer env selection (Newton viewers and Kit partial USD visibility)."""
+"""Shared Newton viewer configuration, geometry, and environment selection."""
 
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from isaaclab_newton.physics import NewtonBackendCfg
+
+    from isaaclab.renderers import RendererCfg
+
+logger = logging.getLogger(__name__)
 
 VISUALIZER_INFINITE_PLANE_SIZE = 1000.0
 """Finite render size used for Newton planes encoded as infinite."""
+
+
+def resolve_streaming_renderer_cfg(
+    renderer_name: str | None, newton_cfg: NewtonBackendCfg | None = None
+) -> RendererCfg:
+    """Select a streaming renderer without constructing native resources.
+
+    Args:
+        renderer_name: Renderer selector; None defaults to Newton Warp.
+        newton_cfg: Shared Newton model declaration, passed through to Newton cameras.
+
+    Returns:
+        Camera renderer configuration. Isaac RTX falls back to Newton Warp when Kit is unavailable.
+    """
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+    if renderer_name is None or renderer_name == "newton_warp":
+        return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
+    if renderer_name == "ovrtx":
+        from isaaclab_ov.renderers import OVRTXRendererCfg
+
+        return OVRTXRendererCfg()
+    if renderer_name == "isaac_rtx":
+        try:
+            from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+            import omni.replicator.core  # noqa: F401
+
+            return IsaacRtxRendererCfg()
+        except ModuleNotFoundError:
+            logger.info("streaming_cam_renderer='isaac_rtx' unavailable (kitless); using newton_warp.")
+            return NewtonWarpRendererCfg(newton_cfg=newton_cfg)
+    raise ValueError(
+        f"streaming_cam_renderer={renderer_name!r} unsupported. Use 'newton_warp', 'ovrtx', 'isaac_rtx', or None."
+    )
 
 
 def expand_infinite_plane_scale(

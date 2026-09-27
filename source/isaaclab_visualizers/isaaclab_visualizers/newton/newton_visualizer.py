@@ -61,7 +61,7 @@ from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
-from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
+from isaaclab_visualizers.newton_adapter import resolve_streaming_renderer_cfg, resolve_visible_env_indices
 
 from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, NewtonVisualizerCfg
 
@@ -1549,7 +1549,11 @@ class NewtonVisualizer(BaseVisualizer):
 
     def _pump_paused(self) -> None:
         """Keep the event loop alive while simulation is paused without advancing state."""
-        raise NotImplementedError
+        self._viewer.begin_frame(self._sim_time)
+        try:
+            self._log_pending_meshes()
+        finally:
+            self._viewer.end_frame()
 
     def _pre_step(self) -> None:
         """Per-frame hook called before the render block. No-op by default."""
@@ -1557,6 +1561,29 @@ class NewtonVisualizer(BaseVisualizer):
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame as a uint8 array with shape ``(H, W, 3)``."""
         raise NotImplementedError
+
+    def _render_headless_frame(self) -> None:
+        """Render on demand, borrowing current SDP arrays and preserving paused frames."""
+        if not self._runtime_headless or self.backend.state_0 is None or self._viewer.is_paused():
+            return
+        backend, provider = self.backend, self._scene_data_provider
+        poses = SceneDataFormat.Transform()
+        if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
+            backend.state_0.body_q = poses.transforms
+        if backend.geometry_offsets:
+            provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
+        self._pre_step()
+        self._viewer.begin_frame(self._sim_time)
+        try:
+            self._viewer.log_state(backend.state_0)
+            # RTX's USD scene does not support the GL marker overlays.
+            if self.cfg.enable_markers and not isinstance(self._viewer, NewtonViewerRTX):
+                render_newton_visualization_markers(
+                    self._viewer, self._resolved_visible_env_ids, num_envs=backend.model.num_envs
+                )
+            self._log_pending_meshes()
+        finally:
+            self._viewer.end_frame()
 
     def _log_streaming_image(self) -> None:
         """Push the composited streaming frame into the viewer image panel."""
@@ -1658,26 +1685,6 @@ class NewtonVisualizer(BaseVisualizer):
         """Resolve initial camera pose from config or USD camera path."""
         return self._resolve_cfg_camera_pose(type(self).__name__)
 
-    def _resolve_streaming_renderer_cfg(self):
-        """Return the renderer cfg for the auto-created streaming camera.
-
-        Uses :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_cam_renderer`
-        when set, otherwise falls back to :class:`~isaaclab_newton.renderers.NewtonWarpRendererCfg`.
-        """
-        from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-        renderer_name = self.cfg.streaming_cam_renderer
-        if renderer_name is None or renderer_name == "newton_warp":
-            return NewtonWarpRendererCfg(newton_cfg=self.cfg.newton_cfg)
-        if renderer_name == "ovrtx":
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
-            return OVRTXRendererCfg()
-        raise ValueError(
-            f"[{type(self).__name__}] streaming_cam_renderer={renderer_name!r} is not supported. "
-            "Valid values for Newton visualizers: 'newton_warp', 'ovrtx', None."
-        )
-
     def _setup_streaming_view(self, num_envs: int) -> None:
         """Resolve or create the camera sensor for the streaming view."""
         if not self._uses_streaming_view():
@@ -1731,7 +1738,13 @@ class NewtonVisualizer(BaseVisualizer):
             )
             return
 
-        renderer_cfg = self._resolve_streaming_renderer_cfg()
+        renderer_name = self.cfg.streaming_cam_renderer
+        if renderer_name not in (None, "newton_warp", "ovrtx"):
+            raise ValueError(
+                f"[{type(self).__name__}] streaming_cam_renderer={renderer_name!r} is not supported. "
+                "Valid values for Newton visualizers: 'newton_warp', 'ovrtx', None."
+            )
+        renderer_cfg = resolve_streaming_renderer_cfg(renderer_name, self.cfg.newton_cfg)
         count = max(1, len(env_ids))
         tile_w, tile_h = compute_tile_resolution(
             self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
@@ -2263,13 +2276,6 @@ class NewtonGLVisualizer(NewtonVisualizer):
             return
         self._viewer.camera.fov = self._focal_length_to_vertical_fov_degrees()
 
-    def _pump_paused(self) -> None:
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            self._log_pending_meshes()
-        finally:
-            self._viewer.end_frame()
-
     def render_rgb_array(self) -> np.ndarray:
         """Return the latest RGB frame rendered by the Newton GL viewer.
 
@@ -2284,28 +2290,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             raise RuntimeError("NewtonGLVisualizer must be initialized before capturing an RGB frame.")
-        if self._runtime_headless and self.backend.state_0 is not None and not self._viewer.is_paused():
-            backend, provider = self.backend, self._scene_data_provider
-            poses = SceneDataFormat.Transform()
-            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
-                backend.state_0.body_q = poses.transforms
-            if backend.geometry_offsets:
-                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-            self._pre_step()
-            self._viewer.begin_frame(self._sim_time)
-            try:
-                self._viewer.log_state(self.backend.state_0)
-                # The interactive render path logs markers every frame; a capture that
-                # skips them records the scene without its goal poses and command arrows.
-                if self.cfg.enable_markers:
-                    render_newton_visualization_markers(
-                        self._viewer,
-                        self._resolved_visible_env_ids,
-                        num_envs=self.backend.model.num_envs,
-                    )
-                self._log_pending_meshes()
-            finally:
-                self._viewer.end_frame()
+        self._render_headless_frame()
         return self._viewer.get_frame().numpy()
 
     def _log_streaming_image(self) -> None:
@@ -2451,17 +2436,6 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     def _pre_step(self) -> None:
         self._apply_rtx_fov_if_pending()
 
-    def _pump_paused(self) -> None:
-        # Both begin_frame/end_frame are required to close the imgui frame each tick.
-        # log_state() is skipped so the scene is frozen; the path-tracer accumulates
-        # samples on it, producing a progressively cleaner image while paused.
-        # Note: full RTX render cost is incurred every tick even while paused.
-        self._viewer.begin_frame(self._sim_time)
-        try:
-            self._log_pending_meshes()
-        finally:
-            self._viewer.end_frame()
-
     def render_rgb_array(self) -> np.ndarray | None:
         """Return the latest RGB frame rendered by the Newton RTX viewer.
 
@@ -2474,18 +2448,5 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         """
         if self._viewer is None:
             return None
-        if self._runtime_headless and self.backend.state_0 is not None and not self._viewer.is_paused():
-            backend, provider = self.backend, self._scene_data_provider
-            poses = SceneDataFormat.Transform()
-            if provider.get_transforms(poses, mapping=self._transform_mapping, count=backend.model.body_count):
-                backend.state_0.body_q = poses.transforms
-            if backend.geometry_offsets:
-                provider.get_geometry_points(output=backend.state_0.particle_q, offsets=backend.geometry_offsets)
-            self._pre_step()
-            self._viewer.begin_frame(self._sim_time)
-            try:
-                self._viewer.log_state(self.backend.state_0)
-                self._log_pending_meshes()
-            finally:
-                self._viewer.end_frame()
+        self._render_headless_frame()
         return self._viewer.get_frame()

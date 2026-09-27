@@ -60,30 +60,6 @@ _BACKEND_DISPLAY_NAMES = {
 }
 
 
-def _preload_ovrtx_native_deps() -> None:
-    """Pre-load ``libosdCPU.so`` from ``ovstage`` so ``ovrtx.Renderer`` can resolve it.
-
-    ``libovrtx.dylib.so`` depends on ``libosdCPU.so.3.6.0`` which ships in the
-    ``ovstage`` wheel but is not on the system ``LD_LIBRARY_PATH``.  Loading it
-    explicitly via :func:`ctypes.CDLL` places it in the process-wide ``dlopen`` cache
-    so the subsequent ``Renderer()`` instantiation in ``OVRTXRenderer.__init__`` can
-    find it.
-    """
-    import ctypes
-    import importlib.util
-    import pathlib
-
-    spec = importlib.util.find_spec("ovstage")
-    if spec is None:
-        return
-    lib = pathlib.Path(spec.origin).parent / "bin" / "plugins" / "libosdCPU.so.3.6.0"
-    if lib.exists():
-        import contextlib
-
-        with contextlib.suppress(OSError):
-            ctypes.CDLL(str(lib))
-
-
 class KitVisualizer(BaseVisualizer):
     """Kit visualizer using Isaac Sim viewport."""
 
@@ -699,7 +675,6 @@ class KitVisualizer(BaseVisualizer):
         """
         renderer_name = self.cfg.streaming_cam_renderer
         if renderer_name == "ovrtx":
-            _preload_ovrtx_native_deps()
             from isaaclab_ov.renderers import OVRTXRendererCfg
 
             return OVRTXRendererCfg()

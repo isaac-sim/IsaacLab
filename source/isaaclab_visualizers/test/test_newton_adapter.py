@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -28,10 +29,27 @@ from isaaclab_visualizers.newton_adapter import (
     apply_viewer_visible_worlds,
     expand_infinite_plane_scale,
     log_geo_with_expanded_plane_scale,
+    resolve_streaming_renderer_cfg,
     resolve_visible_env_indices,
 )
 
 from isaaclab.sim import SimulationContext
+
+
+@pytest.mark.parametrize("renderer", [None, "newton_warp", "ovrtx", "isaac_rtx", "invalid"])
+def test_streaming_renderer_cfg_preserves_shared_model_and_kitless_defaults(monkeypatch, renderer):
+    from isaaclab_newton.physics import NewtonBackendCfg
+
+    monkeypatch.setitem(sys.modules, "omni.replicator.core", None)
+    cfg = NewtonBackendCfg(device="cpu")
+    if renderer == "invalid":
+        with pytest.raises(ValueError, match="unsupported"):
+            resolve_streaming_renderer_cfg(renderer, cfg)
+        return
+    resolved = resolve_streaming_renderer_cfg(renderer, cfg)
+    assert resolved.renderer_type == ("ovrtx" if renderer == "ovrtx" else "newton_warp")
+    if resolved.renderer_type == "newton_warp":
+        assert resolved.newton_cfg == cfg
 
 
 @pytest.mark.parametrize(
@@ -587,8 +605,9 @@ class _SceneDataProvider:
         return True
 
 
-def _make_newton_visualizer(viewer, scene_data_provider=None, state=None):
-    visualizer = NewtonGLVisualizer(NewtonGLVisualizerCfg(enable_markers=False))
+def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg=None):
+    cfg = cfg or NewtonGLVisualizerCfg(enable_markers=False)
+    visualizer = cfg.class_type(cfg)
     visualizer._is_initialized = True
     visualizer._is_closed = False
     visualizer._sim_time = 0.0
@@ -764,24 +783,49 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
     assert viewer.logged_state is None
 
 
-def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch):
-    """Headless EGL should defer rendering until a frame is requested."""
-    from isaaclab_newton.physics import NewtonManager
+@pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
+def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, cfg_type):
+    """Headless viewers share on-demand binding, preserve pause, and close frames even on errors."""
 
-    state = SimpleNamespace(body_q=wp.empty(1, dtype=wp.transform, device="cpu"))
-    viewer = _Viewer()
+    class RTXViewer(_Viewer, NewtonViewerRTX):
+        def get_frame(self):
+            return super().get_frame().numpy()
 
-    monkeypatch.setattr(NewtonManager, "get_contacts", lambda: None)
-
-    visualizer = _make_newton_visualizer(viewer, state=state)
+    is_rtx = cfg_type is NewtonRTXVisualizerCfg
+    state = SimpleNamespace(
+        body_q=wp.empty(1, dtype=wp.transform, device="cpu"), particle_q=wp.empty(3, dtype=wp.vec3, device="cpu")
+    )
+    viewer = RTXViewer() if is_rtx else _Viewer()
+    markers = Mock()
+    monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
+    visualizer = _make_newton_visualizer(viewer, state=state, cfg=cfg_type(enable_markers=True))
+    provider = visualizer._scene_data_provider
+    provider.get_transforms = Mock(wraps=provider.get_transforms)
+    provider.get_geometry_points = Mock()
+    visualizer.backend.geometry_offsets = {"/Cloth": 0}
     visualizer._runtime_headless = True
     visualizer.step(0.1)
-
     assert viewer.logged_state is None
+    provider.get_transforms.assert_not_called()
 
-    visualizer.render_rgb_array()
-
+    assert visualizer.render_rgb_array().shape == (4, 6, 3)
     assert viewer.logged_state is state
+    assert viewer.events == ["begin_frame", "log_state", "end_frame"]
+    assert markers.call_count == (0 if is_rtx else 1)
+    provider.get_geometry_points.assert_called_once_with(output=state.particle_q, offsets={"/Cloth": 0})
+
+    viewer.paused = True
+    visualizer.render_rgb_array()
+    assert len(viewer.events) == 3
+    provider.get_transforms.assert_called_once()
+
+    viewer.paused = False
+    provider.poses = wp.empty(1, dtype=wp.transform, device="cpu")
+    viewer.log_state = Mock(side_effect=RuntimeError("render failed"))
+    with pytest.raises(RuntimeError, match="render failed"):
+        visualizer.render_rgb_array()
+    assert state.body_q is provider.poses
+    assert viewer.events[-2:] == ["begin_frame", "end_frame"]
 
 
 def test_newton_visualizer_contact_sensor_fallback_obeys_show_contacts(monkeypatch):
