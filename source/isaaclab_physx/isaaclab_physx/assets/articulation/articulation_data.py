@@ -980,7 +980,7 @@ class ArticulationData(BaseArticulationData):
             has_joint_ordering = self.has_joint_ordering
             if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
                 if self._body_com_jacobian_w.data is None:
-                    self._body_com_jacobian_w.data = wp.empty_like(backend_jacobian)
+                    self._body_com_jacobian_w.data = ProxyArray(wp.empty_like(backend_jacobian))
                 if has_body_ordering and self._jacobian_body_user_to_backend is None:
                     self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
                 self._read_launch_cache.launch(
@@ -998,12 +998,10 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._body_com_jacobian_w.data],
                 )
-            else:
-                self._body_com_jacobian_w.data = backend_jacobian
+            elif self._body_com_jacobian_w.data is None:
+                self._body_com_jacobian_w.data = ProxyArray(backend_jacobian)
             self._body_com_jacobian_w.timestamp = self._sim_timestamp
-        if self._body_com_jacobian_w_ta is None:
-            self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
-        return self._body_com_jacobian_w_ta
+        return self._body_com_jacobian_w.data
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
@@ -1012,22 +1010,17 @@ class ArticulationData(BaseArticulationData):
         PhysX implementation: applies the COM→origin shift kernel to
         :attr:`body_com_jacobian_w` (PhysX's engine output is COM-referenced).
         """
-        jacobian = self.body_com_jacobian_w.warp
-        if self._body_link_jacobian_w_ta is None:
-            self._body_link_jacobian_w_ta = ProxyArray(wp.empty_like(jacobian))
+        jacobian = self.body_com_jacobian_w
+        if self._body_link_jacobian_w is None:
+            self._body_link_jacobian_w = ProxyArray(wp.empty_like(jacobian.warp))
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
-            inputs=[
-                self.body_link_pose_w.warp,
-                self.body_com_pos_b.warp,
-                self._jacobian_link_offset,
-                jacobian,
-            ],
-            outputs=[self._body_link_jacobian_w_ta.warp],
+            inputs=[self.body_link_pose_w, self.body_com_pos_b, self._jacobian_link_offset, jacobian],
+            outputs=[self._body_link_jacobian_w],
         )
-        return self._body_link_jacobian_w_ta
+        return self._body_link_jacobian_w
 
     @property
     def mass_matrix(self) -> ProxyArray:
@@ -1036,7 +1029,7 @@ class ArticulationData(BaseArticulationData):
             source = self._root_view.get_generalized_mass_matrices()
             if self.has_joint_ordering or self._has_reversed_joints:
                 if self._mass_matrix.data is None:
-                    self._mass_matrix.data = wp.empty_like(source)
+                    self._mass_matrix.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
                     "mass_matrix",
                     ordering_kernels.reorder_mass_matrix_backend_to_user,
@@ -1050,12 +1043,10 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._mass_matrix.data],
                 )
-            else:
-                self._mass_matrix.data = source
+            elif self._mass_matrix.data is None:
+                self._mass_matrix.data = ProxyArray(source)
             self._mass_matrix.timestamp = self._sim_timestamp
-        if self._mass_matrix_ta is None:
-            self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
-        return self._mass_matrix_ta
+        return self._mass_matrix.data
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
@@ -1064,7 +1055,7 @@ class ArticulationData(BaseArticulationData):
             source = self._root_view.get_gravity_compensation_forces()
             if self.has_joint_ordering or self._has_reversed_joints:
                 if self._gravity_compensation_forces.data is None:
-                    self._gravity_compensation_forces.data = wp.empty_like(source)
+                    self._gravity_compensation_forces.data = ProxyArray(wp.empty_like(source))
                 self._read_launch_cache.launch(
                     "gravity_compensation_forces",
                     ordering_kernels.reorder_generalized_vector_backend_to_user,
@@ -1078,12 +1069,10 @@ class ArticulationData(BaseArticulationData):
                     ],
                     outputs=[self._gravity_compensation_forces.data],
                 )
-            else:
-                self._gravity_compensation_forces.data = source
+            elif self._gravity_compensation_forces.data is None:
+                self._gravity_compensation_forces.data = ProxyArray(source)
             self._gravity_compensation_forces.timestamp = self._sim_timestamp
-        if self._gravity_compensation_forces_ta is None:
-            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
-        return self._gravity_compensation_forces_ta
+        return self._gravity_compensation_forces.data
 
     """
     Joint state properties.
@@ -1954,10 +1943,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
         # Dynamics quantities (task-space controllers)
-        self._body_link_jacobian_w_ta: ProxyArray | None = None
-        self._body_com_jacobian_w_ta: ProxyArray | None = None
-        self._mass_matrix_ta: ProxyArray | None = None
-        self._gravity_compensation_forces_ta: ProxyArray | None = None
+        self._body_link_jacobian_w: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None

@@ -434,9 +434,10 @@ class TestArticulationDataProperties:
             for unread in names[index:]:
                 assert getattr(art.data, "_" + unread).data is None
             wrapper = getattr(art.data, name)
+            assert wrapper is getattr(art.data, "_" + name).data
             art.data.update(dt=0.01)
             assert getattr(art.data, name) is wrapper
-            assert art.data._body_link_jacobian_w_ta is None
+            assert art.data._body_link_jacobian_w is None
         wrapper = art.data.body_link_jacobian_w
         art.data.update(dt=0.01)
         assert art.data.body_link_jacobian_w is wrapper

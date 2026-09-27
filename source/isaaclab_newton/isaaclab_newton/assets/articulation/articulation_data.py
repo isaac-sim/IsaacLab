@@ -659,19 +659,18 @@ class ArticulationData(BaseArticulationData):
         relative to the world.
         """
         if self._root_link_vel_w.data is None:
-            self._root_link_vel_w.data = wp.empty(self._num_instances, dtype=wp.spatial_vectorf, device=self.device)
-            self._root_link_vel_w_ta = ProxyArray(self._root_link_vel_w.data)
+            self._root_link_vel_w.data = ProxyArray(wp.empty(self._num_instances, wp.spatial_vectorf, self.device))
         if self._root_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_link_vel_w",
                 shared_kernels.get_root_link_vel_from_root_com_vel,
                 dim=self._num_instances,
-                inputs=[self.root_com_vel_w.warp, self.root_link_pose_w.warp, self._sim_bind_body_com_pos_b],
+                inputs=[self.root_com_vel_w, self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_link_vel_w.data],
             )
             self._root_link_vel_w.timestamp = self._sim_timestamp
 
-        return self._root_link_vel_w_ta
+        return self._root_link_vel_w.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -684,19 +683,18 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._root_com_pose_w.data is None:
-            self._root_com_pose_w.data = wp.empty(self._num_instances, dtype=wp.transformf, device=self.device)
-            self._root_com_pose_w_ta = ProxyArray(self._root_com_pose_w.data)
+            self._root_com_pose_w.data = ProxyArray(wp.empty(self._num_instances, wp.transformf, self.device))
         if self._root_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "root_com_pose_w",
                 shared_kernels.get_root_com_pose_from_root_link_pose,
                 dim=self._num_instances,
-                inputs=[self.root_link_pose_w.warp, self._sim_bind_body_com_pos_b],
+                inputs=[self.root_link_pose_w, self._sim_bind_body_com_pos_b],
                 outputs=[self._root_com_pose_w.data],
             )
             self._root_com_pose_w.timestamp = self._sim_timestamp
 
-        return self._root_com_pose_w_ta
+        return self._root_com_pose_w.data
 
     @property
     def root_com_vel_w(self) -> ProxyArray:
@@ -759,19 +757,18 @@ class ArticulationData(BaseArticulationData):
         """
         if self._body_link_vel_w.data is None:
             shape = (self._num_instances, self._num_bodies)
-            self._body_link_vel_w.data = wp.empty(shape, wp.spatial_vectorf, self.device)
-            self._body_link_vel_w_ta = ProxyArray(self._body_link_vel_w.data)
+            self._body_link_vel_w.data = ProxyArray(wp.empty(shape, wp.spatial_vectorf, self.device))
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_link_vel_w",
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_com_vel_w.warp, self.body_link_pose_w.warp, self.body_com_pos_b.warp],
+                inputs=[self.body_com_vel_w, self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_link_vel_w.data],
             )
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
-        return self._body_link_vel_w_ta
+        return self._body_link_vel_w.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -785,19 +782,19 @@ class ArticulationData(BaseArticulationData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_w.data is None:
-            self._body_com_pose_w.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
-            self._body_com_pose_w_ta = ProxyArray(self._body_com_pose_w.data)
+            shape = (self._num_instances, self._num_bodies)
+            self._body_com_pose_w.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_w",
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_link_pose_w.warp, self.body_com_pos_b.warp],
+                inputs=[self.body_link_pose_w, self.body_com_pos_b],
                 outputs=[self._body_com_pose_w.data],
             )
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
-        return self._body_com_pose_w_ta
+        return self._body_com_pose_w.data
 
     @property
     def body_com_vel_w(self) -> ProxyArray:
@@ -867,18 +864,18 @@ class ArticulationData(BaseArticulationData):
             stacklevel=2,
         )
         if self._body_com_pose_b.data is None:
-            self._body_com_pose_b.data = wp.empty((self._num_instances, self._num_bodies), wp.transformf, self.device)
-            self._body_com_pose_b_ta = ProxyArray(self._body_com_pose_b.data)
+            shape = (self._num_instances, self._num_bodies)
+            self._body_com_pose_b.data = ProxyArray(wp.empty(shape, wp.transformf, self.device))
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self._num_instances, self._num_bodies),
-                inputs=[self.body_com_pos_b.warp],
+                inputs=[self.body_com_pos_b],
                 outputs=[self._body_com_pose_b.data],
             )
             self._body_com_pose_b.timestamp = self._sim_timestamp
-        return self._body_com_pose_b_ta
+        return self._body_com_pose_b.data
 
     """
     Dynamics quantities (task-space controllers).
@@ -1117,18 +1114,17 @@ class ArticulationData(BaseArticulationData):
         Shape is (num_instances), dtype = wp.vec3f. In torch this resolves to (num_instances, 3).
         """
         if self._projected_gravity_b.data is None:
-            self._projected_gravity_b.data = wp.empty(self._num_instances, dtype=wp.vec3f, device=self.device)
-            self._projected_gravity_b_ta = ProxyArray(self._projected_gravity_b.data)
+            self._projected_gravity_b.data = ProxyArray(wp.empty(self._num_instances, wp.vec3f, self.device))
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "projected_gravity_b",
                 shared_kernels.projected_gravity_b_kernel,
                 dim=self._num_instances,
-                inputs=[self.GRAVITY_VEC_W.warp, self.root_link_quat_w.warp],
+                inputs=[self.GRAVITY_VEC_W, self.root_link_quat_w],
                 outputs=[self._projected_gravity_b.data],
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
-        return self._projected_gravity_b_ta
+        return self._projected_gravity_b.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -1142,18 +1138,17 @@ class ArticulationData(BaseArticulationData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.data is None:
-            self._heading_w.data = wp.empty(self._num_instances, dtype=wp.float32, device=self.device)
-            self._heading_w_ta = ProxyArray(self._heading_w.data)
+            self._heading_w.data = ProxyArray(wp.empty(self._num_instances, wp.float32, self.device))
         if self._heading_w.timestamp < self._sim_timestamp:
             self._read_launch_cache.launch(
                 "heading_w",
                 shared_kernels.root_heading_w,
                 dim=self._num_instances,
-                inputs=[self.FORWARD_VEC_B.warp, self.root_link_quat_w.warp],
+                inputs=[self.FORWARD_VEC_B, self.root_link_quat_w],
                 outputs=[self._heading_w.data],
             )
             self._heading_w.timestamp = self._sim_timestamp
-        return self._heading_w_ta
+        return self._heading_w.data
 
     @property
     @capture_unsafe(_LAZY_CAPTURE_REASON)
@@ -2289,14 +2284,7 @@ class ArticulationData(BaseArticulationData):
             self._fixed_tendon_pos_limits_ta = ProxyArray(self._sim_bind_fixed_tendon_pos_limits)
 
             # Category 2: TimestampedBuffer properties
-            self._root_link_vel_w_ta: ProxyArray | None = None
-            self._body_link_vel_w_ta: ProxyArray | None = None
-            self._root_com_pose_w_ta: ProxyArray | None = None
-            self._body_com_pose_w_ta: ProxyArray | None = None
             self._body_com_acc_w_ta = ProxyArray(self._body_com_acc_w.data)
-            self._body_com_pose_b_ta: ProxyArray | None = None
-            self._projected_gravity_b_ta: ProxyArray | None = None
-            self._heading_w_ta: ProxyArray | None = None
             self._joint_acc_ta = ProxyArray(self._joint_acc.data)
             self._body_com_jacobian_w_ta: ProxyArray | None = None
             self._body_link_jacobian_w_ta: ProxyArray | None = None

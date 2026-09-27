@@ -1052,17 +1052,16 @@ class ArticulationData(BaseArticulationData):
     @property
     def body_com_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_com_jacobian_w`."""
-        if self._body_com_jacobian_w_ta is None:
+        if self._body_com_jacobian_w.data is None:
             body_count = self._num_bodies - self._jacobian_link_offset
             shape = (self._num_instances, body_count, 6, self._num_joints + self._num_base_dofs)
-            self._body_com_jacobian_w.data = wp.empty(shape, dtype=wp.float32, device=self.device)
-            self._body_com_jacobian_w_ta = ProxyArray(self._body_com_jacobian_w.data)
+            self._body_com_jacobian_w.data = ProxyArray(wp.empty(shape, wp.float32, self.device))
         if self._body_com_jacobian_w.timestamp < self._sim_timestamp:
             has_body_ordering = self.has_body_ordering
             has_joint_ordering = self.has_joint_ordering
             if has_body_ordering or has_joint_ordering or self._has_reversed_joints:
                 if self._body_com_jacobian_w_backend is None:
-                    self._body_com_jacobian_w_backend = wp.empty_like(self._body_com_jacobian_w.data)
+                    self._body_com_jacobian_w_backend = wp.empty_like(self._body_com_jacobian_w.data.warp)
                 if has_body_ordering and self._jacobian_body_user_to_backend is None:
                     self._jacobian_body_user_to_backend = self._make_jacobian_body_user_to_backend()
                 self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w_backend)
@@ -1082,41 +1081,35 @@ class ArticulationData(BaseArticulationData):
                     outputs=[self._body_com_jacobian_w.data],
                 )
             else:
-                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w.data)
+                self._binding_read(TT.JACOBIAN, self._body_com_jacobian_w.data.warp)
             self._body_com_jacobian_w.timestamp = self._sim_timestamp
-        return self._body_com_jacobian_w_ta
+        return self._body_com_jacobian_w.data
 
     @property
     def body_link_jacobian_w(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.body_link_jacobian_w`."""
-        jacobian = self.body_com_jacobian_w.warp
-        if self._body_link_jacobian_w_ta is None:
-            self._body_link_jacobian_w_ta = ProxyArray(wp.empty_like(jacobian))
+        jacobian = self.body_com_jacobian_w
+        if self._body_link_jacobian_w is None:
+            self._body_link_jacobian_w = ProxyArray(wp.empty_like(jacobian.warp))
         self._read_launch_cache.launch(
             "body_link_jacobian_w",
             articulation_kernels.shift_jacobian_com_to_origin,
             dim=jacobian.shape[:2] + (jacobian.shape[3],),
-            inputs=[
-                self.body_link_pose_w.warp,
-                self.body_com_pos_b.warp,
-                self._jacobian_link_offset,
-                jacobian,
-            ],
-            outputs=[self._body_link_jacobian_w_ta.warp],
+            inputs=[self.body_link_pose_w, self.body_com_pos_b, self._jacobian_link_offset, jacobian],
+            outputs=[self._body_link_jacobian_w],
         )
-        return self._body_link_jacobian_w_ta
+        return self._body_link_jacobian_w
 
     @property
     def mass_matrix(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.mass_matrix`."""
-        if self._mass_matrix_ta is None:
+        if self._mass_matrix.data is None:
             shape = self._view.binding_for(TT.MASS_MATRIX).shape
-            self._mass_matrix.data = wp.empty(shape, dtype=wp.float32, device=self.device)
-            self._mass_matrix_ta = ProxyArray(self._mass_matrix.data)
+            self._mass_matrix.data = ProxyArray(wp.empty(shape, wp.float32, self.device))
         if self._mass_matrix.timestamp < self._sim_timestamp:
             if self.has_joint_ordering or self._has_reversed_joints:
                 if self._mass_matrix_backend is None:
-                    self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data)
+                    self._mass_matrix_backend = wp.empty_like(self._mass_matrix.data.warp)
                 self._binding_read(TT.MASS_MATRIX, self._mass_matrix_backend)
                 self._read_launch_cache.launch(
                     "mass_matrix",
@@ -1132,27 +1125,27 @@ class ArticulationData(BaseArticulationData):
                     outputs=[self._mass_matrix.data],
                 )
             else:
-                self._binding_read(TT.MASS_MATRIX, self._mass_matrix.data)
+                self._binding_read(TT.MASS_MATRIX, self._mass_matrix.data.warp)
             self._mass_matrix.timestamp = self._sim_timestamp
-        return self._mass_matrix_ta
+        return self._mass_matrix.data
 
     @property
     def gravity_compensation_forces(self) -> ProxyArray:
         """See :attr:`isaaclab.assets.BaseArticulationData.gravity_compensation_forces`."""
-        if self._gravity_compensation_forces_ta is None:
+        if self._gravity_compensation_forces.data is None:
             shape = self._view.binding_for(TT.GRAVITY_FORCE).shape
-            self._gravity_compensation_forces.data = wp.empty(shape, dtype=wp.float32, device=self.device)
-            self._gravity_compensation_forces_ta = ProxyArray(self._gravity_compensation_forces.data)
+            self._gravity_compensation_forces.data = ProxyArray(wp.empty(shape, wp.float32, self.device))
         if self._gravity_compensation_forces.timestamp < self._sim_timestamp:
+            forces = self._gravity_compensation_forces.data
             # OVPhysX gravity forces already use the public joint directions.
             if self.has_joint_ordering:
                 if self._gravity_compensation_forces_backend is None:
-                    self._gravity_compensation_forces_backend = wp.empty_like(self._gravity_compensation_forces.data)
+                    self._gravity_compensation_forces_backend = wp.empty_like(forces.warp)
                 self._binding_read(TT.GRAVITY_FORCE, self._gravity_compensation_forces_backend)
                 self._read_launch_cache.launch(
                     "gravity_compensation_forces",
                     ordering_kernels.reorder_generalized_vector_backend_to_user,
-                    dim=self._gravity_compensation_forces.data.shape,
+                    dim=forces.shape,
                     inputs=[
                         self._gravity_compensation_forces_backend,
                         self.joint_ordering.user_to_backend,
@@ -1160,12 +1153,12 @@ class ArticulationData(BaseArticulationData):
                         self._num_base_dofs,
                         True,
                     ],
-                    outputs=[self._gravity_compensation_forces.data],
+                    outputs=[forces],
                 )
             else:
-                self._binding_read(TT.GRAVITY_FORCE, self._gravity_compensation_forces.data)
+                self._binding_read(TT.GRAVITY_FORCE, forces.warp)
             self._gravity_compensation_forces.timestamp = self._sim_timestamp
-        return self._gravity_compensation_forces_ta
+        return self._gravity_compensation_forces.data
 
     """
     Joint state properties.
@@ -2214,10 +2207,7 @@ class ArticulationData(BaseArticulationData):
         self._body_com_acc_w_ta: ProxyArray | None = None
         self._body_com_pose_b_ta: ProxyArray | None = None
         # Dynamics quantities (task-space controllers)
-        self._body_com_jacobian_w_ta: ProxyArray | None = None
-        self._body_link_jacobian_w_ta: ProxyArray | None = None
-        self._mass_matrix_ta: ProxyArray | None = None
-        self._gravity_compensation_forces_ta: ProxyArray | None = None
+        self._body_link_jacobian_w: ProxyArray | None = None
         # Body properties
         self._body_mass_ta: ProxyArray | None = None
         self._body_inertia_ta: ProxyArray | None = None
