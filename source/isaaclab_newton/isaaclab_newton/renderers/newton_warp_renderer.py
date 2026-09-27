@@ -554,24 +554,21 @@ class NewtonWarpRenderer(BaseRenderer):
 
         # Build the shared segmentation mapper and its per-kind lookup tables up-front for all
         # requested segmentation outputs.
-        if (
-            RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
-            or RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
-        ):
-            if self._seg_mapper is None:
-                clone_plan = SimulationContext.instance().get_clone_plan()
-                self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, clone_plan)
-        if RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types:
+        has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
+        has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
+        if (has_semantic or has_instance) and self._seg_mapper is None:
+            plan = SimulationContext.instance().get_clone_plan()
+            self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, plan)
+        if has_semantic:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.SEMANTIC_SEGMENTATION, bool(self.cfg.colorize_semantic_segmentation)
             )
-        if RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types:
+        if has_instance:
             self._seg_mapper.build_mapping(
                 RenderBufferKind.INSTANCE_SEGMENTATION, bool(self.cfg.colorize_instance_segmentation)
             )
 
-        render_data = RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
-        return render_data
+        return RenderData(self.newton_sensor, spec, seg_mapper=self._seg_mapper, renderer_cfg=self.cfg)
 
     def set_outputs(self, render_data: RenderData, output_data: dict[str, ProxyArray]):
         """Store output buffers. See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.set_outputs`."""

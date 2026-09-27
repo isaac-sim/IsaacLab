@@ -45,7 +45,7 @@ from flaky import flaky
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
+from isaaclab_ov.cloner import OvPhysxReplicateContext  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
@@ -55,7 +55,7 @@ from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab import cloner  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
@@ -618,21 +618,14 @@ def test_nested_rigid_body_hierarchy(device, body_pattern, num_envs, body_names)
             debug_vis=False,
             update_period=0.0,
         )
-        clone_plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (contact_sensor_cfg,), num_envs, 3.0)
-        assert clone_plan.env_ids is not None and clone_plan.positions is not None
-        env_positions = clone_plan.positions
+        asset_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot")
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
+        env_positions = plan.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        ovphysx_replicate(
-            stage,
-            clone_plan.sources,
-            clone_plan.destinations,
-            clone_plan.env_ids,
-            clone_plan.clone_mask,
-            positions=clone_plan.positions,
-        )
+        OvPhysxReplicateContext(sim).replicate(plan, (0,))
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 

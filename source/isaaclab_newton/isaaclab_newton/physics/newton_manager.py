@@ -41,11 +41,12 @@ from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, 
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner.path import rebase, under
-from isaaclab.cloner.query import iter_sources
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import ClonePlan, make_clone_plan
+from isaaclab.cloner import path as cloner_path
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
-from isaaclab.sim import SimulationContext
+from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.utils import checked_apply
@@ -72,7 +73,6 @@ from isaaclab_newton.renderers.visual_material import (
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
-    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -219,19 +219,19 @@ class NewtonSceneDataBackend(SceneDataBackend):
         ranges, visual_ranges = {}, {}
         indices, weights = [], []
         visual_offset = 0
+        if NewtonManager._deformable_registry:
+            templates, starts = cloner_path.get_world_prototype_asset_templates(plan)
         for entry in NewtonManager._deformable_registry:
-            paths = [
-                rebase(path, source, template.format(env_id))
-                for source, template, path, env_ids in iter_sources(plan, entry.vis_mesh_prim_path)
-                for env_id in env_ids
-            ]
-            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
-                paths.append(entry.vis_mesh_prim_path)
+            asset_ids = cloner_path.get_asset_prototypes(plan, entry.prim_path)
+            suffix = entry.vis_mesh_prim_path[len(entry.prim_path) :]
+            paths = []
+            for world, prototype in enumerate((-1, *plan.topology.world_prototype_layout), -1):
+                for index in range(*starts[prototype + 1 : prototype + 3]):
+                    if plan.topology.world_prototypes[index] in asset_ids:
+                        paths.append(templates[index].format(world) + suffix)
             if entry.volume_vis_remap is None:
-                ranges.update(
-                    (path, (offset, entry.particles_per_body))
-                    for path, offset in zip(paths, entry.particle_offsets, strict=True)
-                )
+                for path, offset in zip(paths, entry.particle_offsets, strict=True):
+                    ranges[path] = offset, entry.particles_per_body
             else:
                 prototype_indices = entry.volume_vis_remap.tet_vertex_indices.numpy()
                 prototype_weights = entry.volume_vis_remap.bary_weights.numpy()
@@ -484,7 +484,7 @@ class NewtonManager(PhysicsManager):
     _world_xforms: list[wp.transform] | None = None
     # Per-source builders retained from replication, keyed by clone-plan source
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
-    # model from these and resolve it via ``query.path_to_source``.
+    # model from these using the asset prototype's native source path.
     _cl_protos: dict[str, ModelBuilder] = {}
     _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
@@ -502,7 +502,6 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         cls.clone_context_type = NewtonReplicateContext
-        sim_context.clone_contexts[NewtonReplicateContext] = NewtonReplicateContext(sim_context)
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
@@ -1531,16 +1530,13 @@ class NewtonManager(PhysicsManager):
                 translation = world_xform.ExtractTranslation()
                 rotation = world_xform.ExtractRotationQuat()
                 imag = rotation.GetImaginary()
-                poses.append(
-                    (
-                        (translation[0], translation[1], translation[2]),
-                        (imag[0], imag[1], imag[2], rotation.GetReal()),
-                    )
-                )
+                poses.append((tuple(translation), (*imag, rotation.GetReal())))
 
             positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
             quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
-            mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
+            env_template = proto_path.rsplit("_", 1)[0] + "_{}"
+            asset = AssetBaseCfg(prim_path=proto_path, spawn=SpawnerCfg(spawn_path=proto_path))
+            plan = make_clone_plan((asset,), ((0,),), len(env_paths), positions=positions, env_template=env_template)
 
             def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
                 if source == proto_path:
@@ -1554,11 +1550,11 @@ class NewtonManager(PhysicsManager):
 
             local_site_map, world_xforms, _ = replicate_builder_mapping(
                 builder=builder,
-                sources=(proto_path,),
-                mapping=mapping,
+                plan=plan,
                 positions=positions,
                 quaternions=quaternions,
                 source_builders=source_builders,
+                env_ids=np.asarray([index for index, _ in env_paths]),
                 source_site_indices=source_site_indices,
                 env_root_sites=env_root_sites,
                 per_world_builder_hooks=cls._per_world_builder_hooks,
