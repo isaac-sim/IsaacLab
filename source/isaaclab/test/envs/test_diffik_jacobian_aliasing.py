@@ -23,6 +23,7 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
     OperationalSpaceControllerAction,
 )
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
@@ -121,6 +122,37 @@ def test_body_offset_jacobian_uses_offset_in_root_frame(compute, returns_jacobia
     torch.testing.assert_close(stub._jacobian_b, expected)
     if returns_jacobian:
         torch.testing.assert_close(result, expected)
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(("ee_quat", "ik_offset"), [((0.0, 0.0, 0.0, 1.0), 1.0), ((0.0, 0.0, 0.0, 0.0), 0.0)])
+def test_apply_actions_holds_joints_for_uninitialized_frame(device, ee_quat, ik_offset):
+    """IK targets are applied for a valid frame pose and joints hold for all-zero quaternions, without a sync."""
+    joint_pos = torch.tensor([[0.1, 0.2], [0.3, 0.4]], device=device)
+    frame_pose = (torch.zeros(2, 3, device=device), torch.tensor([ee_quat] * 2, device=device))
+    written = {}
+    stub = SimpleNamespace(
+        cfg=SimpleNamespace(controller=SimpleNamespace(joint_limit_avoidance_gain=0.0)),
+        _asset=SimpleNamespace(
+            data=SimpleNamespace(joint_pos=SimpleNamespace(torch=joint_pos)),
+            set_joint_position_target_index=lambda target, joint_ids: written.update(target=target),
+        ),
+        _joint_ids=slice(None),
+        _limits_injected=True,
+        _compute_frame_pose=lambda: frame_pose,
+        _compute_frame_jacobian=lambda: torch.zeros(2, 6, 2, device=device),
+        _ik_controller=SimpleNamespace(compute=lambda ee_pos, ee_quat, jacobian, joint_pos: joint_pos + 1.0),
+    )
+    previous = torch.cuda.get_sync_debug_mode() if device.startswith("cuda") else None
+    if previous is not None:
+        torch.cuda.synchronize(device)
+        torch.cuda.set_sync_debug_mode("error")
+    try:
+        DifferentialInverseKinematicsAction.apply_actions(stub)
+    finally:
+        if previous is not None:
+            torch.cuda.set_sync_debug_mode(previous)
+    torch.testing.assert_close(written["target"], joint_pos + ik_offset)
 
 
 if __name__ == "__main__":

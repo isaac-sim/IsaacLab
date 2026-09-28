@@ -4,12 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from collections import namedtuple
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
+from isaaclab.test.utils import test_devices
 from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.unit
@@ -162,3 +164,55 @@ def test_invalid_reward_config(env):
     }
     with pytest.raises(ValueError):
         RewardManager(cfg, env)
+
+
+def env_index_scaled(env, factor: float):
+    return factor * env.step * torch.arange(env.num_envs, dtype=torch.float, device=env.device)
+
+
+def first_half_active(env):
+    return torch.arange(env.num_envs, device=env.device) < env.num_envs // 2
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_compute_and_reset_match_reference(device):
+    """Rewards, per-term step rewards, episodic sums and reset logs match a per-term reference."""
+    num_envs, dt, max_episode_length_s = 8, 0.1, 2.0
+    sim = MagicMock()
+    sim.is_playing.return_value = False
+    env = SimpleNamespace(num_envs=num_envs, device=device, sim=sim, max_episode_length_s=max_episode_length_s, step=0)
+    cfg = {
+        "scaled": RewardTermCfg(func=env_index_scaled, weight=-0.5, params={"factor": 2.0}),
+        "mask": RewardTermCfg(func=first_half_active, weight=3.0),
+        "scalar": RewardTermCfg(func=grilled_chicken, weight=10),
+        "disabled": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.0, params={"bbq": True}),
+    }
+    rew_man = RewardManager(cfg, env)
+
+    env_index = torch.arange(num_envs, dtype=torch.float64)
+    expected_sums = {name: torch.zeros(num_envs, dtype=torch.float64) for name in cfg}
+    for step in range(1, 4):
+        env.step = step
+        expected_step = {
+            "scaled": -0.5 * 2.0 * step * env_index,
+            "mask": 3.0 * (env_index < num_envs // 2).double(),
+            "scalar": torch.full((num_envs,), 10.0, dtype=torch.float64),
+            "disabled": torch.zeros(num_envs, dtype=torch.float64),
+        }
+        rewards = rew_man.compute(dt=dt)
+        torch.testing.assert_close(rewards.cpu(), (sum(expected_step.values()) * dt).float())
+        for index, name in enumerate(cfg):
+            expected_sums[name] += expected_step[name] * dt
+            torch.testing.assert_close(rew_man._step_reward[:, index].cpu(), expected_step[name].float())
+            torch.testing.assert_close(rew_man._episode_sums[name].cpu(), expected_sums[name].float())
+
+    env_ids = torch.tensor([1, 6], device=device)
+    extras = rew_man.reset(env_ids)
+    for name in cfg:
+        value = extras["Episode_Reward/" + name]
+        assert value.ndim == 0
+        expected = expected_sums[name][[1, 6]].mean() / max_episode_length_s
+        torch.testing.assert_close(value.cpu(), expected.float())
+        # only the reset envs start a new episodic sum
+        expected_sums[name][[1, 6]] = 0.0
+        torch.testing.assert_close(rew_man._episode_sums[name].cpu(), expected_sums[name].float())

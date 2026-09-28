@@ -371,6 +371,37 @@ def test_compute_preserves_shared_scratch_outputs(setup_env):
     torch.testing.assert_close(result[:, 3:], torch.full_like(env.data.pos_w, 2.0))
 
 
+def in_place_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
+    """Custom noise that modifies its input."""
+    return data.add_(0.2)
+
+
+@pytest.mark.parametrize(
+    "noise_cfg",
+    [
+        noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1),
+        noise.UniformNoiseCfg(n_min=0.0, n_max=0.0),
+        noise.GaussianNoiseCfg(func=noise.gaussian_noise, mean=0.1, std=0.2),
+        noise.ConstantNoiseCfg(bias=0.3, operation="abs"),
+        noise.NoiseCfg(func=in_place_noise),
+    ],
+    ids=["uniform", "zero_uniform", "gaussian_callable", "constant_abs", "custom_in_place"],
+)
+def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg):
+    """Noise, clipping and scaling leave the term's source storage intact and draw the expected samples."""
+    env = setup_env
+    cfg = ObservationGroupCfg(enable_corruption=True)
+    cfg.position = ObservationTermCfg(func=pos_w_data, noise=noise_cfg, clip=(0.0, 0.5), scale=2.0)
+    manager = ObservationManager({"policy": cfg}, env)
+    source = env.data.pos_w.clone()
+    torch.manual_seed(0)
+    result = manager.compute()["policy"]
+    torch.manual_seed(0)
+    expected = noise_cfg.func(source.clone(), noise_cfg).clip(0.0, 0.5) * 2.0
+    torch.testing.assert_close(env.data.pos_w, source)
+    torch.testing.assert_close(result, expected)
+
+
 def test_compute_with_2d_history(setup_env):
     env = setup_env
     """Test the observation computation with history buffers for 2D observations."""

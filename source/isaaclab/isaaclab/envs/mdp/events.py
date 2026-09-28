@@ -14,7 +14,9 @@ the event introduced by the function.
 
 from __future__ import annotations
 
+import functools
 import logging
+from collections.abc import Sequence
 from types import ModuleType
 from typing import TYPE_CHECKING, Literal
 
@@ -36,6 +38,29 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=128)
+def _cached_range_tensor(values: tuple[tuple[float, float], ...], device: str) -> torch.Tensor:
+    return torch.tensor(values, dtype=torch.float32, device=device)
+
+
+def _range_tensor(ranges: dict[str, tuple[float, float]], keys: Sequence[str], device: str) -> torch.Tensor:
+    """Return the ``(min, max)`` bounds of ``keys`` as a device tensor of shape ``(len(keys), 2)``.
+
+    The tensor is cached by value, so repeated calls avoid a host-to-device copy while range edits (for
+    example by a curriculum) still take effect. Callers must not modify the returned tensor.
+
+    Args:
+        ranges: The ``(min, max)`` range for each key. Missing keys use ``(0.0, 0.0)``.
+        keys: The keys to read, in output row order.
+        device: The device of the returned tensor.
+
+    Returns:
+        The range bounds. Shape is ``(len(keys), 2)``.
+    """
+    values = tuple(tuple(float(v) for v in ranges.get(key, (0.0, 0.0))) for key in keys)
+    return _cached_range_tensor(values, str(device))
 
 
 def randomize_rigid_body_scale(
@@ -522,8 +547,7 @@ class randomize_rigid_body_com(ManagerTermBase):
         env_rows = env_ids[:, None] if not isinstance(env_ids, slice) and not isinstance(body_ids, slice) else env_ids
 
         # sample random CoM values
-        range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-        ranges = torch.tensor(range_list, device=self.asset.device)
+        ranges = _range_tensor(com_range, ("x", "y", "z"), self.asset.device)
         num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         rand_samples = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (num_envs, 3), device=self.asset.device
@@ -1257,8 +1281,7 @@ def push_by_setting_velocity(
     # velocities
     vel_w = asset.data.root_vel_w.torch[env_ids]
     # sample random velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), asset.device)
     vel_w += math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], vel_w.shape, device=asset.device)
     # set the velocities into the physics simulation
     asset.write_root_velocity_to_sim_index(root_velocity=vel_w, env_ids=env_ids)
@@ -1277,19 +1300,7 @@ class reset_root_state_uniform(ManagerTermBase):
     The term takes a dictionary of pose and velocity ranges for each axis and rotation. The keys of the
     dictionary are ``x``, ``y``, ``z``, ``roll``, ``pitch``, and ``yaw``. The values are tuples of the form
     ``(min, max)``. If the dictionary does not contain a key, the position or velocity is set to zero for that axis.
-
-    The range dictionaries are materialized as device tensors once at construction.
     """
-
-    def __init__(self, cfg: EventTermCfg, env: ManagerBasedEnv):
-        super().__init__(cfg, env)
-        keys = ("x", "y", "z", "roll", "pitch", "yaw")
-        pose_range = cfg.params.get("pose_range", {})
-        velocity_range = cfg.params.get("velocity_range", {})
-        self._pose_ranges = torch.tensor([tuple(pose_range.get(key, (0.0, 0.0))) for key in keys], device=env.device)
-        self._velocity_ranges = torch.tensor(
-            [tuple(velocity_range.get(key, (0.0, 0.0))) for key in keys], device=env.device
-        )
 
     def __call__(
         self,
@@ -1304,7 +1315,7 @@ class reset_root_state_uniform(ManagerTermBase):
         default_root_pose = asset.data.default_root_pose.torch[env_ids]
         default_root_vel = asset.data.default_root_vel.torch[env_ids]
 
-        ranges = self._pose_ranges
+        ranges = _range_tensor(pose_range, ("x", "y", "z", "roll", "pitch", "yaw"), asset.device)
         rand_samples = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
         )
@@ -1313,7 +1324,7 @@ class reset_root_state_uniform(ManagerTermBase):
         orientations_delta = math_utils.quat_from_euler_xyz(rand_samples[:, 3], rand_samples[:, 4], rand_samples[:, 5])
         orientations = math_utils.quat_mul(default_root_pose[:, 3:7], orientations_delta)
         # velocities
-        ranges = self._velocity_ranges
+        ranges = _range_tensor(velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), asset.device)
         rand_samples = math_utils.sample_uniform(
             ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
         )
@@ -1356,8 +1367,7 @@ def reset_root_state_with_random_orientation(
     default_root_vel = asset.data.default_root_vel.torch[env_ids].clone()
 
     # poses
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(pose_range, ("x", "y", "z"), asset.device)
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 3), device=asset.device
     )
@@ -1366,8 +1376,7 @@ def reset_root_state_with_random_orientation(
     orientations = math_utils.random_orientation(default_root_pose.shape[0], device=asset.device)
 
     # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), asset.device)
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (default_root_pose.shape[0], 6), device=asset.device
     )
@@ -1426,16 +1435,14 @@ def reset_root_state_from_terrain(
     positions = valid_positions[terrain.terrain_levels[env_ids], terrain.terrain_types[env_ids], ids]
     positions += asset.data.default_root_pose.torch[env_ids, :3]
     # sample random orientations
-    range_list = [pose_range.get(key, (0.0, 0.0)) for key in ["roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(pose_range, ("roll", "pitch", "yaw"), asset.device)
     rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 3), device=asset.device)
 
     # convert to quaternions
     orientations = math_utils.quat_from_euler_xyz(rand_samples[:, 0], rand_samples[:, 1], rand_samples[:, 2])
 
     # sample random velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z", "roll", "pitch", "yaw"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(velocity_range, ("x", "y", "z", "roll", "pitch", "yaw"), asset.device)
     rand_samples = math_utils.sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 6), device=asset.device)
 
     velocities = asset.data.default_root_vel.torch[env_ids] + rand_samples
@@ -1699,8 +1706,7 @@ def reset_nodal_state_uniform(
     nodal_state = asset.data.default_nodal_state_w.torch[env_ids].clone()
 
     # position
-    range_list = [position_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(position_range, ("x", "y", "z"), asset.device)
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (nodal_state.shape[0], 1, 3), device=asset.device
     )
@@ -1708,8 +1714,7 @@ def reset_nodal_state_uniform(
     nodal_state[..., :3] += rand_samples
 
     # velocities
-    range_list = [velocity_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
-    ranges = torch.tensor(range_list, device=asset.device)
+    ranges = _range_tensor(velocity_range, ("x", "y", "z"), asset.device)
     rand_samples = math_utils.sample_uniform(
         ranges[:, 0], ranges[:, 1], (nodal_state.shape[0], 1, 3), device=asset.device
     )
