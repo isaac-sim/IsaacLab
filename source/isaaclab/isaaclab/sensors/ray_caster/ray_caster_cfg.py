@@ -91,6 +91,12 @@ class RayCasterCfg(SensorBaseCfg):
     rays outside the carrier's geometry in that case.
     """
 
+    use_cuda_graph: bool = True
+    """Capture Newton BVH queries independently of the physics solver's graph setting.
+
+    CPU queries and the static Warp-mesh implementations run eagerly.
+    """
+
     drift_range: tuple[float, float] = (0.0, 0.0)
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 

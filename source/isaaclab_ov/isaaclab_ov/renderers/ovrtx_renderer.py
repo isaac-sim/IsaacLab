@@ -20,6 +20,7 @@ How it fits together
 from __future__ import annotations
 
 import contextlib
+import ctypes
 import logging
 import math
 import os
@@ -269,6 +270,11 @@ class OVRTXBackend:
     """Own one native renderer and its optional detached stage, without camera or transport policy."""
 
     def __init__(self, cfg: OVRTXBackendCfg):
+        # Resolve the wheel's native dependency here, including callers without a viewer.
+        dependency = Path(ovstage.__file__).parent / "bin/plugins/libosdCPU.so.3.6.0"
+        if dependency.exists():
+            with contextlib.suppress(OSError):
+                ctypes.CDLL(str(dependency))
         native_cfg = RendererConfig(
             log_file_path=cfg.renderer_cfg.log_file_path,
             log_level=cfg.renderer_cfg.log_level,

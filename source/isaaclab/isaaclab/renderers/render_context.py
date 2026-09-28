@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import warnings
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import torch
 import warp as wp
@@ -18,9 +18,6 @@ import warp as wp
 from ..sensors.camera.camera_data import CameraData
 from .base_renderer import BaseRenderer, VisualMaterialBatch
 from .renderer_cfg import RendererCfg
-
-if TYPE_CHECKING:
-    from ..sim import BackendCfg
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +78,7 @@ class RenderContext:
         "_consumers_finalized",
     )
 
-    def __init__(self, backend_registry: list[tuple[BackendCfg, Any]]) -> None:
+    def __init__(self, backend_registry: list[tuple[Any, Any]]) -> None:
         self.clone_contexts: set[type | str] = set()
         """Scene representations declared by camera renderers and visualizers before cloning."""
         self._backend_registry = backend_registry

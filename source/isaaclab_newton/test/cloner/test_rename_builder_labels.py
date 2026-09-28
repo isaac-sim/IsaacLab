@@ -16,6 +16,7 @@ from isaaclab_newton.cloner import NewtonReplicateContext
 from isaaclab_newton.cloner import newton_clone_utils as newton_clone_utils_module
 from isaaclab_newton.cloner import replicate as replicate_module
 from isaaclab_newton.cloner.newton_clone_utils import replicate_builder_mapping
+from isaaclab_newton.physics import NewtonBackendCfg
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
@@ -23,7 +24,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.cloner import path as cloner_path
 from isaaclab.sensors import SensorBaseCfg
-from isaaclab.sim import SpawnerCfg
+from isaaclab.sim import SimulationContext, SpawnerCfg
 from isaaclab.sim.schemas import define_deformable_curve_properties
 
 
@@ -102,12 +103,17 @@ class TestReplicateBuilderMapping(unittest.TestCase):
 
 class TestVisualizationClonePlan(unittest.TestCase):
     def setUp(self):
-        self.sim = SimpleNamespace(
-            cfg=SimpleNamespace(physics=object()),
-            device="cpu",
-            stage=None,
-            physics_manager=SimpleNamespace(register_callback=mock.Mock()),
-        )
+        self.sim = object.__new__(SimulationContext)
+        self.sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+        self.sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+        self.sim.stage, self.sim._backend_registry = None, []
+        patch = mock.patch.object(SimulationContext, "instance", return_value=self.sim)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    def tearDown(self):
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
     @staticmethod
     def _define_xform(stage, path, translation=None):
@@ -131,12 +137,16 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_label, ["/World/Declared"])
         self.assertIsNone(stage_info)
         self.assertEqual(site_index_map, {})
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
         # A non-cloning sensor must not exclude the body selected from its owner's subtree.
         cfgs = AssetBaseCfg(prim_path="/World"), SensorBaseCfg(prim_path="/World/Declared")
         plan = make_clone_plan(cfgs, ((),), 1, shared_assets=(0, 1))
         builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0,))
         self.assertCountEqual(builder.body_label, ["/World/Declared", "/World/Undeclared", "/World/Excluded"])
+        for _, resource in tuple(self.sim._backend_registry):
+            self.sim.close_backend(resource)
 
         assets = (
             AssetBaseCfg(prim_path="/Copies/env_[^/]+/Body", spawn=SpawnerCfg(spawn_path="/World/Declared")),
@@ -158,6 +168,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 np.testing.assert_allclose(source_position, np.zeros(3) if positions is None else positions[0])
                 offset = np.zeros(3) if positions is None else positions[1] - positions[0]
                 np.testing.assert_allclose(target_position - source_position, offset)
+                for _, resource in tuple(self.sim._backend_registry):
+                    self.sim.close_backend(resource)
 
         # The same definition can also be shared and appear twice in each replicated world.
         plan = make_clone_plan((AssetBaseCfg(prim_path="/World/Declared"),), ((0, 0),), 2, shared_assets=(0,))
@@ -169,7 +181,7 @@ class TestVisualizationClonePlan(unittest.TestCase):
         self.assertEqual(builder.body_world, [-1, 0, 0, 1, 1])
         self.assertEqual(len(set(builder.body_label)), 5)
 
-    def test_cable_import_binds_only_supported_native_instances_without_destination_prims(self):
+    def test_cable_import_keeps_physics_bindings_without_destination_prims(self):
         stage = self.sim.stage = Usd.Stage.CreateInMemory()
         source = "/Scene/copy_7/Rope"
         shared = ("/Scene/SharedRope", "/Scene/PeriodicRope", "/Scene/MultiRope", "/Scene/CubicRope", "/Scene/OnePoint")
@@ -195,14 +207,13 @@ class TestVisualizationClonePlan(unittest.TestCase):
         )
         assets += tuple(AssetBaseCfg(prim_path=path) for path in shared)
         plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=range(2, len(assets)), env_template="/Scene/copy_{}")
-        builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
-        model = builder.finalize(device="cpu")
-        bindings = replicate_module.NewtonManager._cable_bindings
-        self.assertEqual(set(bindings), {"/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"})
-        for path, shape_ids in bindings.items():
-            self.assertEqual(
-                [model.shape_label[index] for index in shape_ids], [f"{path}_edge_capsule_{i}" for i in range(2)]
-            )
+        bindings = {"/PhysicsOwned": [0]}
+        with mock.patch.object(replicate_module.NewtonManager, "_cable_bindings", bindings):
+            builder, _, _ = NewtonReplicateContext(self.sim).replicate(plan, (0, *range(2, len(shared) + 2)))
+            self.assertIs(replicate_module.NewtonManager._cable_bindings, bindings)
+        for path in ("/Scene/SharedRope", "/Scene/copy_0/Rope", "/Scene/copy_1/Rope"):
+            self.assertTrue(all(f"{path}_edge_capsule_{index}" in builder.shape_label for index in range(2)))
+        self.assertFalse(any("OtherRope" in path for path in builder.shape_label))
         self.assertFalse(stage.GetPrimAtPath("/Scene/copy_1/Rope"))
 
     def test_visualization_builder_disables_collision_pairs(self):
@@ -235,6 +246,9 @@ class TestVisualizationClonePlan(unittest.TestCase):
 
         self.assertEqual(model.shape_count, 4)
         self.assertEqual(len(model.shape_collision_filter_pairs), 0)
+        self.assertEqual(
+            model.body_label, [f"/World/envs/env_{env}/Robot/{body}" for env in range(2) for body in ("A", "B")]
+        )
         self.assertEqual(model.shape_contact_pair_count, 0)
 
     def test_visualization_builder_uses_clone_plan_sources_and_rewrites_labels(self):
@@ -315,6 +329,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
         quaternions = np.asarray([[0, 0, 0, 1], [0, 0, 0, 1], [0, 0, 2**-0.5, 2**-0.5]], dtype=np.float32)
         for positions in (np.array([[10, 0, 0], [20, 0, 0], [30, 0, 0]], dtype=np.float32), None):
             with self.subTest(positions=positions):
+                for _, resource in tuple(self.sim._backend_registry):
+                    self.sim.close_backend(resource)
                 options = dict(shared_assets=(3,), env_template="/Scene/copy_{}")
                 options.update(clone_strategy=lambda _weights, _count: np.array([0, 1, 0]), positions=positions)
                 plan = make_clone_plan(assets, ((0,), (1, 1, 2)), 3, **options)
@@ -324,9 +340,11 @@ class TestVisualizationClonePlan(unittest.TestCase):
                     options = dict(plan=plan, asset_prototype_ids=range(4))
                     options.update(positions=positions, quaternions=quaternions)
                     builder, _, _ = replicate_module._replicate_newton(stage, env_ids, self.sim, **options)
+                cfg = NewtonBackendCfg(physics_cfg=self.sim.cfg.physics, device=self.sim.device)
+                backend = self.sim.get_or_create_backend(cfg)
+                offsets = backend.geometry_offsets
                 self.assertEqual(add_cloth.call_count, 3)  # Three prototypes, not five destination meshes.
                 np.testing.assert_array_equal(np.bincount(np.asarray(builder.particle_world) + 1), [3, 3, 16, 3])
-                offsets = self.sim.physics_manager.register_callback.call_args.args[0].args[1]
                 expected = {"/Shared/sim": vertices[:3]}
                 origins = np.zeros((3, 3)) if positions is None else positions
                 for world, env_id in enumerate(env_ids):
@@ -341,7 +359,8 @@ class TestVisualizationClonePlan(unittest.TestCase):
                 self.assertEqual(set(offsets), set(expected))
                 for path, points in expected.items():
                     start = offsets[path]
-                    np.testing.assert_allclose(builder.particle_q[start : start + len(points)], points, atol=1e-5)
+                    native = backend.state_0.particle_q.numpy()[start : start + len(points)]
+                    np.testing.assert_allclose(native, points, atol=1e-5)
                 self.assertFalse(stage.GetPrimAtPath("/Scene/copy_12"))
 
 

@@ -562,7 +562,10 @@ class NewtonSiteFrameView(BaseFrameView):
         # Bodies sync at render cadence, so after a ``render=False`` step the local derivation below
         # would read a stale parent. No-op when clean.
         sim = sim_utils.SimulationContext.instance()
-        sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        fabric.update_transforms(sim.get_scene_data_provider())
 
         count = self._fabric_sel.count
         pos_ta, quat_ta = self._get_world_poses_impl(None)

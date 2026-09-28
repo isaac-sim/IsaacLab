@@ -30,6 +30,7 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
+from .fabric import FabricBackendCfg
 from .isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
@@ -200,7 +201,7 @@ class IsaacRtxRenderer(BaseRenderer):
     def initialize(self) -> None:
         """Bind shared Fabric destinations after scene creation."""
         sim = SimulationContext.instance()
-        self._fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         self._fabric.bind_transforms(sim.get_scene_data_provider())
 
     @property
