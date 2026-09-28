@@ -15,9 +15,9 @@ from isaaclab.utils import validate
 
 from ... import schemas
 from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-from .._utils import apply_schema_props, resolve_material_path
 from ..materials.physics_materials import spawn_physics_material
 from ..spawner_cfg import RigidObjectSpawnerCfg
+from ..utils import apply_schema_props, resolve_material_path
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -56,7 +56,7 @@ def spawn_sphere(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    return _spawn_geom_from_prim_type(prim_path, cfg, "Sphere", {"radius": cfg.radius}, translation, orientation)
+    return spawn_geom_from_prim_type(prim_path, cfg, "Sphere", {"radius": cfg.radius}, translation, orientation)
 
 
 @clone
@@ -98,7 +98,7 @@ def spawn_cuboid(
     """
     size = min(cfg.size)
     scale = [dim / size for dim in cfg.size]
-    return _spawn_geom_from_prim_type(prim_path, cfg, "Cube", {"size": size}, translation, orientation, scale)
+    return spawn_geom_from_prim_type(prim_path, cfg, "Cube", {"size": size}, translation, orientation, scale)
 
 
 @clone
@@ -135,7 +135,7 @@ def spawn_cylinder(
         ValueError: If a prim already exists at the given path.
     """
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    return _spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
+    return spawn_geom_from_prim_type(prim_path, cfg, "Cylinder", attributes, translation, orientation)
 
 
 @clone
@@ -172,7 +172,7 @@ def spawn_capsule(
         ValueError: If a prim already exists at the given path.
     """
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    return _spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
+    return spawn_geom_from_prim_type(prim_path, cfg, "Capsule", attributes, translation, orientation)
 
 
 @clone
@@ -209,7 +209,7 @@ def spawn_cone(
         ValueError: If a prim already exists at the given path.
     """
     attributes = {"radius": cfg.radius, "height": cfg.height, "axis": cfg.axis.upper()}
-    return _spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
+    return spawn_geom_from_prim_type(prim_path, cfg, "Cone", attributes, translation, orientation)
 
 
 @clone
@@ -251,7 +251,7 @@ def spawn_cable(
         "wrap": UsdGeom.Tokens.nonperiodic,
         "widths": [cfg.physics_material.thickness],
     }
-    prim = _spawn_geom_from_prim_type(
+    prim = spawn_geom_from_prim_type(
         prim_path,
         cfg,
         "BasisCurves",
@@ -270,7 +270,7 @@ Helper functions.
 """
 
 
-def _spawn_geom_from_prim_type(
+def spawn_geom_from_prim_type(
     prim_path: str,
     cfg: shapes_cfg.ShapeCfg | shapes_cfg.CableCfg,
     prim_type: str,

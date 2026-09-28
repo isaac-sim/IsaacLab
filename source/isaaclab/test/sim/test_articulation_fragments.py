@@ -607,7 +607,7 @@ def _author_articulation_usd(path: str) -> None:
 @pytest.mark.parametrize("articulation_props", [None, {}], ids=["none", "empty"])
 def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articulation_props):
     """None and an empty fragment mapping both honor the independent topology flag."""
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     sim_utils.create_new_stage()
@@ -616,7 +616,7 @@ def test_spawn_from_usd_file_topology_only_honors_fix_root_link(tmp_path, articu
     _author_articulation_usd(usd_path)
 
     cfg = UsdFileCfg(usd_path=usd_path, articulation_props=articulation_props, fix_root_link=True)
-    _spawn_from_usd_file("/World/FromUsdTopology", usd_path, cfg)
+    spawn_from_usd_file("/World/FromUsdTopology", usd_path, cfg)
 
     stage = sim_utils.get_current_stage()
     assert any(prim.IsA(UsdPhysics.FixedJoint) for prim in stage.Traverse())
@@ -629,7 +629,7 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
     from isaaclab_newton.sim.schemas import NewtonArticulationCfg
     from isaaclab_physx.sim.schemas import PhysxArticulationCfg
 
-    from isaaclab.sim.spawners.from_files.from_files import _spawn_from_usd_file
+    from isaaclab.sim.spawners.from_files.from_files import spawn_from_usd_file
     from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
     sim_utils.create_new_stage()
@@ -647,7 +647,7 @@ def test_spawn_from_usd_file_applies_composed_fragment_list(tmp_path):
         fix_root_link=True,
     )
 
-    _spawn_from_usd_file("/World/FromUsdFragments", usd_path, cfg)
+    spawn_from_usd_file("/World/FromUsdFragments", usd_path, cfg)
 
     stage = sim_utils.get_current_stage()
     root = stage.GetPrimAtPath("/World/FromUsdFragments")

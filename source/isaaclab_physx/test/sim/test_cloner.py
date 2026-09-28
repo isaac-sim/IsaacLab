@@ -25,8 +25,8 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.cloner import (
-    _fabric_notices,
     disabled_fabric_change_notifies,
+    fabric_notices,
     make_clone_plan,
     usd_replicate,
 )
@@ -485,7 +485,7 @@ def test_disabled_fabric_change_notifies_toggles_ifabricusd_flag(sim):
     """Regression: ``disabled_fabric_change_notifies`` actually toggles the IFabricUsd flag.
 
     The PR's perf win depends on ``setEnableChangeNotifies`` being driven correctly by the
-    ctypes binding in ``_fabric_notices.py``. That binding reads hardcoded vtable offsets
+    ctypes binding in ``fabric_notices.py``. That binding reads hardcoded vtable offsets
     and could silently no-op if Kit's ABI shifts (offsets drift) or libcarb fails to load.
 
     A perf-delta assertion can't be done reliably in synthetic isolation — the listener's
@@ -498,7 +498,7 @@ def test_disabled_fabric_change_notifies_toggles_ifabricusd_flag(sim):
     import usdrt
     from pxr import UsdUtils
 
-    bindings = _fabric_notices.get_bindings()
+    bindings = fabric_notices.get_bindings()
     if bindings is None:
         pytest.skip("omni::fabric::IFabricUsd unavailable — Fabric notice path inert here")
 

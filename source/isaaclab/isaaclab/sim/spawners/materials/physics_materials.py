@@ -12,7 +12,7 @@ from pxr import Usd, UsdPhysics, UsdShade
 from isaaclab.utils import validate
 from isaaclab.utils.string import string_to_callable
 
-from ...schemas.schemas import _apply_namespaced_schemas
+from ...schemas.schemas import apply_namespaced_schemas
 from ...utils import clone
 from ...utils.stage import get_current_stage
 from . import physics_materials_cfg
@@ -199,7 +199,7 @@ def spawn_rigid_body_material(prim_path: str, cfg: physics_materials_cfg.RigidBo
 
     # All fields routed by the helper: base friction/restitution under ``physics:*``,
     # PhysX-subclass fields (compliant-contact, combine modes) under ``physxMaterial:*``.
-    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+    apply_namespaced_schemas(prim, cfg, cfg_dict)
 
     # return the prim
     return prim
@@ -247,6 +247,6 @@ def spawn_deformable_body_material(
     if not prim.IsA(UsdShade.Material):
         raise ValueError(f"A prim already exists at path: '{prim_path}' but is not a material.")
     cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg) if f.name != "func"}
-    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+    apply_namespaced_schemas(prim, cfg, cfg_dict)
     # return the prim
     return prim

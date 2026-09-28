@@ -27,11 +27,11 @@ from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from ...actuators._compat import _resolve_limit_aliases
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from ...actuators.actuator_compat import resolve_limit_aliases
 from ...utils import clone
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
-from .schemas import _drive_instance_name
+from .schemas import drive_instance_name
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
@@ -79,7 +79,7 @@ def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     return False
 
 
-def _validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
+def validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
     """Reject explicit actuator configurations that Newton cannot author."""
     unsupported_groups = []
     for group_name, cfg in actuator_cfgs.items():
@@ -197,10 +197,10 @@ def define_actuator_properties(
         return
     articulation_prim_path = str(first_prim.GetPath())
 
-    _author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
+    author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
 
 
-def _author_actuator_prims(
+def author_actuator_prims(
     stage: Any,
     articulation_prim_path: str,
     actuator_cfgs: dict[str, Any],
@@ -210,7 +210,7 @@ def _author_actuator_prims(
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
 
-    _validate_newton_native_actuator_cfgs(actuator_cfgs)
+    validate_newton_native_actuator_cfgs(actuator_cfgs)
 
     joint_inventory = _collect_joint_prims(art_prim)
     all_joint_names = list(joint_inventory.keys())
@@ -229,7 +229,7 @@ def _author_actuator_prims(
         resolved_cfg = clone(cfg)
         # Collection construction emits the deprecation warning later in the
         # normal asset lifecycle. Authoring only needs the normalized value.
-        _resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
+        resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
         cfg_entries.append((group_name, resolved_cfg, joint_names))
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
@@ -280,7 +280,7 @@ def _author_actuator_prims(
                 meta["torque_scale"] = cfg.torque_scale
             else:
                 meta["model_type"] = "lstm"
-            patched_model_path = _resave_checkpoint_with_metadata(cfg.network_file, meta)
+            patched_model_path = resave_checkpoint_with_metadata(cfg.network_file, meta)
 
         for jname in joint_names:
             joint_prim_path = joint_inventory[jname]
@@ -356,7 +356,7 @@ _JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
     """Read a revolute or prismatic joint's authored USD drive effort limit."""
     joint_prim = stage.GetPrimAtPath(joint_prim_path)
-    drive_name = _drive_instance_name(joint_prim)
+    drive_name = drive_instance_name(joint_prim)
     if drive_name is None:
         return None
     value = UsdPhysics.DriveAPI(joint_prim, drive_name).GetMaxForceAttr().Get()
@@ -399,7 +399,7 @@ def _remove_actuator_prims_for_joints(
         prim.SetActive(False)
 
 
-def _resave_checkpoint_with_metadata(
+def resave_checkpoint_with_metadata(
     original_path: str,
     metadata: dict[str, Any],
 ) -> str:

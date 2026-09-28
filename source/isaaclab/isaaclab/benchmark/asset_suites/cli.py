@@ -11,7 +11,7 @@ import argparse
 from collections.abc import Sequence
 from pathlib import Path
 
-from .._cli import parse_non_negative_int, parse_positive_int
+from ..cli import parse_non_negative_int, parse_positive_int
 from ..method_benchmark import MethodBenchmarkRunnerConfig
 from .dispatch import get_asset_benchmark_adapter
 from .runner import resolve_method_benchmarks, run_asset_benchmark

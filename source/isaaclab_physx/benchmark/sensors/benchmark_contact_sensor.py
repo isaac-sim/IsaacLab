@@ -27,7 +27,7 @@ import traceback
 from functools import partial
 
 from isaaclab.app import AppLauncher
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 from isaaclab.benchmark.sensor_suites import (
     add_sensor_benchmark_args,
     create_contact_sensor_scene_cfg,

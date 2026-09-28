@@ -30,7 +30,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
-from ..utils._device import set_cuda_device
+from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from .logging_utils import apply_python_logging_level, resolve_python_logging_level
 from .settings_manager import get_settings_manager

@@ -31,7 +31,9 @@ from ...utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from .._utils import (
+from ..materials import SurfaceDeformableBodyMaterialBaseCfg
+from ..materials.physics_materials import spawn_physics_material
+from ..utils import (
     apply_schema_props,
     bare_fragments,
     fragment_mapping,
@@ -39,8 +41,6 @@ from .._utils import (
     resolve_material_path,
     subtree_carries_api,
 )
-from ..materials import SurfaceDeformableBodyMaterialBaseCfg
-from ..materials.physics_materials import spawn_physics_material
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
@@ -89,7 +89,7 @@ def spawn_from_usd(
         FileNotFoundError: If the USD file does not exist at the given path.
     """
     # spawn asset from the given usd file
-    return _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -133,7 +133,7 @@ def spawn_from_urdf(
     # urdf loader to convert urdf to usd
     urdf_loader = converters.UrdfConverter(cfg)
     # spawn asset from the generated usd file
-    return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -175,7 +175,7 @@ def spawn_from_mjcf(
     # mjcf loader to convert mjcf to usd
     mjcf_loader = converters.MjcfConverter(cfg)
     # spawn asset from the generated usd file
-    return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -233,7 +233,7 @@ def spawn_from_mesh(
             physics_material_path=cfg.physics_material_path,
             physics_material=cfg.physics_material,
         )
-        return _spawn_from_usd_file(prim_path, mesh_converter.usd_path, usd_cfg, translation, orientation)
+        return spawn_from_usd_file(prim_path, mesh_converter.usd_path, usd_cfg, translation, orientation)
 
     return _spawn_mesh_data(prim_path, cfg, translation, orientation)
 
@@ -638,7 +638,7 @@ def _spawn_mesh_data(
     return root_prim
 
 
-def _spawn_from_usd_file(
+def spawn_from_usd_file(
     prim_path: str,
     usd_path: str,
     cfg: from_files_cfg.FileCfg,
@@ -783,7 +783,7 @@ def spawn_from_usd_with_compliant_contact_material(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-    prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    prim = spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
     stiff = cfg.compliant_contact_stiffness
     damp = cfg.compliant_contact_damping
     if cfg.physics_material_prim_path is None:

@@ -133,13 +133,13 @@ def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatc
     """Fabric notice suspension no-ops when Carbonite bindings exist but ``usdrt`` does not."""
     import builtins
 
-    from isaaclab.cloner import _fabric_notices
+    from isaaclab.cloner import fabric_notices
 
     class _FakeBindings:
         def validate_with(self, fabric_id: int) -> bool:
             raise AssertionError("missing usdrt should prevent fabric-id lookup")
 
-    monkeypatch.setattr(_fabric_notices, "get_bindings", lambda: _FakeBindings())
+    monkeypatch.setattr(fabric_notices, "get_bindings", lambda: _FakeBindings())
 
     real_import = builtins.__import__
 
@@ -150,7 +150,7 @@ def test_disabled_fabric_change_notifies_noops_when_usdrt_unavailable(monkeypatc
 
     monkeypatch.setattr(builtins, "__import__", _import_without_usdrt)
 
-    with _fabric_notices.disabled_fabric_change_notifies(Usd.Stage.CreateInMemory()):
+    with fabric_notices.disabled_fabric_change_notifies(Usd.Stage.CreateInMemory()):
         pass
 
 

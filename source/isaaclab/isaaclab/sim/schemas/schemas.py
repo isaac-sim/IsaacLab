@@ -31,7 +31,7 @@ from ..utils import (
 )
 from ..utils.stage import get_current_stage
 from . import schemas_cfg
-from ._backend_hooks import _skip_joint_drive
+from .backend_hooks import skip_joint_drive
 
 logger = logging.getLogger(__name__)
 
@@ -148,7 +148,7 @@ def _resolve_func(cfg: schemas_cfg.SchemaFragment) -> Callable:
     return cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
 
 
-def _apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
+def apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
     """Route every cfg field to its declaring class's namespace and apply schemas.
 
     The helper handles the common ``AddAppliedSchema`` + namespaced-attribute write
@@ -524,7 +524,7 @@ def modify_articulation_root_properties(
     cfg_dict = _cfg_fields(cfg)
     # writer-side (non-USD) flag; the joint is processed after the attribute writes
     fix_root_link = cfg_dict.pop("fix_root_link", None)
-    _apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
+    apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     if fix_root_link is not None:
         existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
@@ -915,7 +915,7 @@ def modify_rigid_body_properties(
         return False
     # base fields route to ``physics:*``, ``disable_gravity`` via field exceptions, PhysX-subclass
     # fields to ``physxRigidBody:*``
-    _apply_namespaced_schemas(rigid_body_prim, cfg, _cfg_fields(cfg))
+    apply_namespaced_schemas(rigid_body_prim, cfg, _cfg_fields(cfg))
     return True
 
 
@@ -1045,7 +1045,7 @@ def modify_collision_properties(
         modify_mesh_collision_properties.__wrapped__(prim_path, mesh_collision_cfg, stage)
     # ``collision_enabled`` routes to ``physics:*``, the offsets via field exceptions, PhysX-subclass
     # fields to ``physxCollision:*``
-    _apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
+    apply_namespaced_schemas(collider_prim, cfg, cfg_dict)
     return True
 
 
@@ -1165,7 +1165,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     rigid_prim = stage.GetPrimAtPath(prim_path)
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
-    _apply_namespaced_schemas(rigid_prim, cfg, _cfg_fields(cfg))
+    apply_namespaced_schemas(rigid_prim, cfg, _cfg_fields(cfg))
     return True
 
 
@@ -1232,7 +1232,7 @@ Joint drive properties.
 """
 
 
-def _drive_instance_name(prim) -> str | None:
+def drive_instance_name(prim) -> str | None:
     """Return the ``UsdPhysics.DriveAPI`` instance for a joint prim, or ``None`` if it has no drive.
 
     Revolute joints use the ``"angular"`` instance, prismatic joints the ``"linear"`` instance; any
@@ -1286,9 +1286,9 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    drive_api_name = _drive_instance_name(prim)
+    drive_api_name = drive_instance_name(prim)
     # skip non-joints and joints a backend owns (e.g. PhysX tendon members)
-    if drive_api_name is None or _skip_joint_drive(prim):
+    if drive_api_name is None or skip_joint_drive(prim):
         return False
     usd_drive_api = _get_or_apply_drive_api(prim, drive_api_name)
     _write_drive_attributes(usd_drive_api, drive_api_name, cfg.drive_type, cfg.max_force, cfg.stiffness, cfg.damping)
@@ -1391,13 +1391,13 @@ def apply_joint_drive_properties(
 
     # non-joint matches are ignored silently since a subtree expression matches every descendant
     targets, _, any_skipped = _match_fragment_targets(
-        prim_path_expr, lambda p: _drive_instance_name(p) is not None and not _skip_joint_drive(p), stage
+        prim_path_expr, lambda p: drive_instance_name(p) is not None and not skip_joint_drive(p), stage
     )
 
     count_success = 0
     for joint_prim in targets:
         joint_prim_path = joint_prim.GetPath().pathString
-        drive_api_name = _drive_instance_name(joint_prim)
+        drive_api_name = drive_instance_name(joint_prim)
         if create_if_missing:
             _get_or_apply_drive_api(joint_prim, drive_api_name)
         results = [bool(func(cfg, joint_prim_path, stage)) for cfg, func in zip(fragments, dispatchers)]
@@ -1494,7 +1494,7 @@ def modify_joint_drive_properties(
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         raise ValueError(f"Prim path '{prim_path}' is not valid.")
-    drive_api_name = _drive_instance_name(prim)
+    drive_api_name = drive_instance_name(prim)
     if drive_api_name is None:
         return False
     # tendon child prims are controlled by the tendon, not a drive
@@ -1516,7 +1516,7 @@ def modify_joint_drive_properties(
     # solver-common ``UsdPhysics.DriveAPI`` fields; the remainder is PhysX-namespaced
     drive_values = [cfg_dict.pop(name, None) for name in ("drive_type", "max_force", "stiffness", "damping")]
     _write_drive_attributes(usd_drive_api, drive_api_name, *drive_values)
-    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+    apply_namespaced_schemas(prim, cfg, cfg_dict)
     return True
 
 
@@ -1849,7 +1849,7 @@ def modify_mesh_collision_properties(
     # PhysX cooking subclasses author their tuning fields under e.g. ``physxConvexHullCollision:*``;
     # the helper applies the cooking schema only when a tuning field is set, so Newton-targeted
     # prims stay free of PhysX schemas they did not opt in to
-    _apply_namespaced_schemas(prim, cfg, cfg_dict)
+    apply_namespaced_schemas(prim, cfg, cfg_dict)
     return True
 
 
@@ -2229,5 +2229,5 @@ def modify_deformable_body_properties(
             "Kinematic deformable bodies are not fully supported in the current version of Omni Physics. "
             "Setting kinematic_enabled to True may lead to unexpected behavior."
         )
-    _apply_namespaced_schemas(deformable_body_prim, cfg, cfg_dict)
+    apply_namespaced_schemas(deformable_body_prim, cfg, cfg_dict)
     return True

@@ -15,7 +15,6 @@ from pxr import Usd, UsdPhysics
 
 from ... import schemas
 from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
-from .._utils import apply_schema_props, fragment_mapping, props_expr, resolve_material_path
 from ..materials import (
     DeformableBodyMaterialBaseCfg,
     RigidBodyMaterialBaseCfg,
@@ -23,6 +22,7 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
+from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_material_path
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -314,7 +314,7 @@ def _spawn_mesh_geom_from_mesh(
 ) -> Usd.Prim:
     """Create a `USDGeomMesh`_ prim from the given mesh.
 
-    This function is similar to :func:`shapes._spawn_geom_from_prim_type` but spawns the prim from a given mesh.
+    This function is similar to :func:`shapes.spawn_geom_from_prim_type` but spawns the prim from a given mesh.
     In case of the mesh, it is spawned as a USDGeomMesh prim with the given vertices and faces.
 
     There is a difference in how the properties are applied to the prim based on the type of object:

@@ -13,7 +13,7 @@ from pxr import Gf, Tf, Usd, UsdGeom, UsdPhysics, UsdUtils
 
 from ..schemas import schemas
 from ..schemas.schemas_cfg import SchemaFragment
-from ..spawners._utils import apply_schema_props
+from ..spawners.utils import apply_schema_props
 from ..utils import delete_prim, enable_extension, export_prim_to_file
 from .asset_converter_base import AssetConverterBase
 from .mesh_converter_cfg import MeshConverterCfg
