@@ -253,7 +253,10 @@ class randomize_visual_color(ManagerTermBase):
         """
         super().__init__(cfg, env)
 
-        self._rep = rep = _get_replicator(env)
+        self._rep = rep = _get_replicator()
+        # this term draws from Replicator's random streams, so they follow the environment seed
+        if env.cfg.seed is not None:
+            rep.set_global_seed(env.cfg.seed)
 
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
@@ -377,7 +380,10 @@ class randomize_visual_texture_material(ManagerTermBase):
                 " by setting 'replicate_physics' to False in 'InteractiveSceneCfg'."
             )
 
-        self._rep = rep = _get_replicator(env)
+        self._rep = rep = _get_replicator()
+        # this term draws from Replicator's random streams, so they follow the environment seed
+        if env.cfg.seed is not None:
+            rep.set_global_seed(env.cfg.seed)
 
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         asset = env.scene[asset_cfg.name]
@@ -471,15 +477,13 @@ class randomize_visual_texture_material(ManagerTermBase):
             rep.functional.modify.attribute(self.material_prims, "texture_rotate", random_rotations)
 
 
-def _get_replicator(env: ManagerBasedEnv) -> ModuleType:
-    """Import Replicator after enabling its Kit extension, seeded with the environment seed when set."""
+def _get_replicator() -> ModuleType:
+    """Import Replicator after enabling its Kit extension."""
     if not has_kit():
         raise NotImplementedError("Replicator visual events require Isaac Sim (Omniverse Kit).")
     sim_utils.enable_extension("omni.replicator.core")
     import omni.replicator.core as rep
 
-    if env.cfg.seed is not None:
-        rep.set_global_seed(env.cfg.seed)
     return rep
 
 
