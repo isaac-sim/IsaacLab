@@ -116,11 +116,14 @@ class _RenderStrategy(ABC):
         """
         return []
 
-    def release_render_data(self, render_data: OVRTXCameraRenderData) -> None:
-        """Stop delivering queued frames into ``render_data``.
+    def release_camera(self, render_data: OVRTXCameraRenderData, binding: Any | None) -> None:
+        """Release the strategy's per-camera state while the camera is still valid.
 
-        A camera calls this when it releases its buffers. Queued renders still complete, but they
-        no longer deliver into the released buffers. The default does nothing.
+        The renderer calls this before it releases the camera's buffers and unbinds ``binding``.
+        Queued frames are delivered first, into buffers that are still valid, and the binding's
+        staging state is dropped: Python can reuse a released binding's ``id()`` for a new one.
+        Delivery failures are logged, so the caller's release always proceeds. The default does
+        nothing.
         """
 
     def settle_before_scene_write(self) -> None:
@@ -137,14 +140,6 @@ class _RenderStrategy(ABC):
         earlier delivery fails. The default does nothing.
         """
         return []
-
-    def release_binding(self, binding: Any) -> None:
-        """Drop any staging state kept for ``binding``.
-
-        The renderer calls this before it unbinds a camera's pose binding. Python can reuse the
-        released binding's ``id()`` for a new binding, so stale entries must not survive it. The
-        default does nothing.
-        """
 
     @abstractmethod
     def stage_object_transforms(
@@ -202,8 +197,9 @@ class _SyncRenderStrategy(_RenderStrategy):
         del num_envs  # Buffers are allocated on first use, sized by their staging calls.
         self._camera_buffers.clear()
 
-    def release_binding(self, binding: Any) -> None:
-        """Drop the binding's staging buffers. See :meth:`_RenderStrategy.release_binding`."""
+    def release_camera(self, render_data: OVRTXCameraRenderData, binding: Any | None) -> None:
+        """Drop the binding's staging buffers. See :meth:`_RenderStrategy.release_camera`."""
+        del render_data
         self._camera_buffers.pop(id(binding), None)
 
     @contextmanager
@@ -544,20 +540,16 @@ class _AsyncRenderStrategy(_RenderStrategy):
                 errors.append(e)
         return errors
 
-    def release_render_data(self, render_data: OVRTXCameraRenderData) -> None:
-        """Stop delivering queued frames into ``render_data``.
+    def release_camera(self, render_data: OVRTXCameraRenderData, binding: Any | None) -> None:
+        """Deliver queued frames, then drop the camera's delivery target and staging state.
 
-        See :meth:`_RenderStrategy.release_render_data`. The queued renders still complete. Their
-        delivery then skips the released camera. A camera re-created with the same buffers primes
-        again.
+        See :meth:`_RenderStrategy.release_camera`. Draining empties the ring even when a
+        delivery fails, so nothing can deliver into the camera after this call. A camera
+        re-created with the same buffers primes again.
         """
-        for entry in self._ring:
-            if any(camera is render_data for camera in entry.render_data):
-                entry.render_data = tuple(camera for camera in entry.render_data if camera is not render_data)
+        for error in self.drain_pending_renders():
+            logger.warning("Error draining in-flight render during camera release: %s", error)
         self._primed_render_data.discard(render_data)
-
-    def release_binding(self, binding: Any) -> None:
-        """Drop the binding's staging state. See :meth:`_RenderStrategy.release_binding`."""
         for slot in self._slots:
             slot.camera_buffers.pop(id(binding), None)
         self._staged_bindings.discard(id(binding))

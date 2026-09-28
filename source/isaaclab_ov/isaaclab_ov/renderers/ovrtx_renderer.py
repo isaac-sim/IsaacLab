@@ -1624,15 +1624,10 @@ class OVRTXRenderer(BaseRenderer):
         """
         if render_data is None:
             return
-        # A queued asynchronous frame may still read this camera's product and pose binding.
-        # Deliver it before the binding is unbound, then detach the released buffers so a
-        # late delivery skips this camera instead of writing into cleared dictionaries. A failed
-        # delivery must not abort the release below, so failures are logged, not raised.
-        for error in self._strategy.drain_pending_renders():
-            logger.warning("Error draining in-flight render during camera cleanup: %s", error)
-        self._strategy.release_render_data(render_data)
-        if render_data.camera_xform_binding is not None:
-            self._strategy.release_binding(render_data.camera_xform_binding)
+        # A queued asynchronous frame may still read this camera's product and pose binding. The
+        # strategy delivers it while they are still valid, then drops its per-camera state. It
+        # logs delivery failures, so the release below always runs.
+        self._strategy.release_camera(render_data, render_data.camera_xform_binding)
         render_data.cleanup()
         if render_data in self._camera_render_data:
             self._camera_render_data.remove(render_data)

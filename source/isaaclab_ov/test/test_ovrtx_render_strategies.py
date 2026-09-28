@@ -197,25 +197,30 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     assert delivered == [(second_target,)]
 
 
-def test_released_render_data_is_not_delivered_into(strategy, timeline):
-    """Per-camera cleanup disowns queued frames. Their ops still drain, but nothing delivers into
-    the released buffers."""
+def test_release_camera_delivers_pending_frames_and_reprimes(strategy, timeline):
+    """Releasing a camera delivers its queued frame while the buffers are still valid, and a
+    camera re-created with the same buffers primes again."""
     renderer = _FakeRenderer(timeline)
     camera = object()
+    binding = _FakeBinding()
     delivered: list[object] = []
 
     def consume(render_data, products):
-        delivered.append(render_data)
+        delivered.extend(render_data)
 
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)
-    strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)  # primed and delivered
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)  # queued
     delivered.clear()
 
-    strategy.release_render_data(camera)
-    strategy.settle_before_scene_write()
+    strategy.release_camera(camera, binding)
 
-    assert delivered == []
+    assert delivered == [camera], "the queued frame is delivered before the release"
     assert all(op.waited for op in renderer.ops)
+    assert not strategy._has_pending_ops()
+
+    delivered.clear()
+    strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)
+    assert delivered == [camera], "a re-registered camera primes again"
 
 
 class _CompletedWriteOp:
@@ -394,7 +399,7 @@ def test_released_binding_drops_its_staging_buffers(timeline):
     binding = _FakeBinding()
 
     first = _stage_camera(strategy, binding)
-    strategy.release_binding(binding)
+    strategy.release_camera(object(), binding)
     second = _stage_camera(strategy, binding)
     assert second is not first, "released bindings must not keep staging buffers alive"
 
