@@ -86,12 +86,6 @@
   <!--   <parent link="world" /> -->
   <!--   <child link="torso" /> -->
   <!-- </joint> -->
-  <link name="world"/>
-  <joint name="world_joint" type="fixed">
-    <origin rpy="0 0 0" xyz="0 0 0.0"/>
-    <parent link="world"/>
-    <child link="base_link"/>
-  </joint>
   <link name="base_link">
 
     <collision>

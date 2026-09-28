@@ -84,6 +84,9 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
             ),
         )
 
+        # Hold joints without an action term (left arm, neck, left gripper) at their default pose
+        self.events.reset_all.params = {"reset_joint_targets": True}
+
         # ── Simple desk-sized table block instead of the SeattleLab table ────
         # URDF FK (zero pose): shoulder at z=1.00, hanging palm at z=0.46 in
         # the base frame — a 0.75 m desk puts the tabletop in the natural
@@ -227,10 +230,10 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         # Note: the URDF importer nests bodies as parent→child prim chains under
-        # Robot/Geometry/world/. Prim path patterns are matched per path segment
+        # Robot/Geometry/. Prim path patterns are matched per path segment
         # (".*" spans a single level), so the full kinematic chain is spelled out.
         _r_palm_prim = (
-            "{ENV_REGEX_NS}/Robot/Geometry/world/base_link/back_bar/torso"
+            "{ENV_REGEX_NS}/Robot/Geometry/base_link/back_bar/torso"
             "/r_shoulder_base_link/r_shoulder_dummy_link1/r_shoulder_dummy_link2"
             "/r_shoulder_first_link/r_shoulder_ball_link/r_shoulder_fix_link"
             "/r_elbow_arm_link/r_elbow_base_link/r_elbow_dummy_link1"
@@ -240,7 +243,7 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
             "/r_wrist_ball_link/r_wrist_out_link/r_hand_palm_link"
         )
         self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/Geometry/world/base_link",
+            prim_path="{ENV_REGEX_NS}/Robot/Geometry/base_link",
             debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[

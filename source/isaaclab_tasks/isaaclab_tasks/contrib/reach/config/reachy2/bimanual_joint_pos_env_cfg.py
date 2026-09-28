@@ -17,12 +17,15 @@ from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
+
+from . import mdp as reachy2_mdp
 
 ##
 # Pre-defined configs
@@ -48,6 +51,10 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         self.scene.ground.init_state.pos = (0.0, 0.0, 0.0)
         # Only validated on PhysX
         self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
+        # Hold joints without an action term (idle arm, neck, grippers) at their default pose
+        self.events.hold_default_joint_targets = EventTerm(
+            func=reachy2_mdp.reset_joint_targets_to_default, mode="reset"
+        )
 
         # ── Robot ──────────────────────────────────────────────────────────
         self.scene.robot = replace(

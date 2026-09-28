@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Configuration for the Pollen Robotics Reachy 2 bimanual humanoid robot.
+r"""Configuration for the Pollen Robotics Reachy 2 bimanual humanoid robot.
 
 The following configurations are available:
 
@@ -30,31 +30,23 @@ Asset generation:
 
         git clone https://github.com/pollen-robotics/reachy2_core /path/to/reachy2_core
 
-    .. code-block:: python
+    .. code-block:: bash
 
-        # run via: uv run python <this-script>
-        from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
+        REACHY2_CORE=/path/to/reachy2_core
+        ASSET_DIR=source/isaaclab_assets/isaaclab_assets/robots/reachy2
+        uv run python scripts/tools/convert_urdf.py \
+            $ASSET_DIR/reachy2_fixed.urdf $ASSET_DIR/reachy2.usd --joint_target_type position \
+            --ros_package_path reachy_description $REACHY2_CORE/reachy_description \
+            --ros_package_path dynamixel_description \
+            $REACHY2_CORE/reachy_controllers/dynamixel_control/dynamixel_description
 
-        base = "source/isaaclab_assets/isaaclab_assets/robots/reachy2"
-        cfg = UrdfConverterCfg(
-            asset_path=f"{base}/reachy2_fixed.urdf",
-            usd_dir=f"{base}/reachy2.usd",
-            fix_base=True,
-            joint_drive=UrdfConverterCfg.JointDriveCfg(target_type="position"),
-            ros_package_paths=[
-                {"name": "reachy_description", "path": "/path/to/reachy2_core/reachy_description"},
-                {
-                    "name": "dynamixel_description",
-                    "path": "/path/to/reachy2_core/reachy_controllers/dynamixel_control/dynamixel_description",
-                },
-            ],
-        )
-        UrdfConverter(cfg)
+    Convert without ``--fix-base``: :data:`REACHY2_CFG` fixes the base through the spawner. A
+    world joint authored in the USD anchors every cloned environment to the first one.
 
     Note: the URDF has been pre-processed from the original in
     ``reachy2_symbolic_ik``: Gazebo-specific blocks and non-existent meshes
     removed, mobile-base and torso-bar visuals stripped (fixed-base
-    simulation), and gripper ``<mimic>`` tags removed — the importer drops the
+    simulation), the ``world`` link removed, and gripper ``<mimic>`` tags removed — the importer drops the
     mimic offset, which displaces the finger linkage; the finger joints are
     instead position-driven directly with kinematically consistent commands.
 """
@@ -71,7 +63,7 @@ from isaaclab.utils import clone
 
 ##
 # USD path — local to this repo until the asset is hosted on Nucleus.
-# Generated from reachy2_fixed.urdf via scripts/tools/convert_urdf.py --fix-base:
+# Generated from reachy2_fixed.urdf via scripts/tools/convert_urdf.py (see the module docstring):
 #   source/isaaclab_assets/isaaclab_assets/robots/reachy2/reachy2.usd/reachy2_fixed/reachy2_fixed.usda
 ##
 _REACHY2_USD = os.path.join(
@@ -90,6 +82,8 @@ REACHY2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_REACHY2_USD,
         activate_contact_sensors=False,
+        # Fix the base per environment; a world joint authored in the USD pins every clone to env 0
+        fix_root_link=True,
         articulation_props=[
             PhysxArticulationCfg(
                 enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
