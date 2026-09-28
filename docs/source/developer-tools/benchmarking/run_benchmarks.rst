@@ -88,10 +88,6 @@ sets actuator targets before physics. Both modes still step physics. Direct posi
 requires ``scene.lazy_sensor_update=True``. With Isaac RTX, use ``--visualizer none``
 in this mode: a Kit visualizer would render before the pose write.
 
-Leaving ``BENCHMARK_MODE`` unset selects ``render``; selecting either mode does not
-enable timing scopes. Use ``presets=ovphysx,ovrtx`` to run this task with OvPhysX
-physics and OVRTX rendering without Kit.
-
 Set ``ISAACLAB_PHYSICS_PROFILE=1`` to collect synchronized physics-step timings during
 the runtime measurement loop. The benchmark wraps the selected physics
 manager's ``step`` through :func:`~isaaclab.benchmark.stepping.profile_physics_steps`
