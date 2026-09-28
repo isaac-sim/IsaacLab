@@ -265,12 +265,12 @@ class _ProgressReward(ManagerTermBase):
         if self._prev_command is None:
             self._prev_command = command.clone()
         else:
-            self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
+            self.best_error.masked_fill_((self._prev_command != command).any(dim=1), float("inf"))
             self._prev_command.copy_(command)
         unseeded = torch.isinf(self.best_error)
-        self.best_error[unseeded] = error[unseeded]
+        torch.where(unseeded, error, self.best_error, out=self.best_error)
         improved = gate & (error < self.best_error - min_improvement)
-        self.best_error[improved] = error[improved]
+        torch.where(improved, error, self.best_error, out=self.best_error)
         return improved.float()
 
 

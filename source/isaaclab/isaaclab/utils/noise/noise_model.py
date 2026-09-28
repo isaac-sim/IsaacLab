@@ -63,6 +63,9 @@ def uniform_noise(data: torch.Tensor, cfg: noise_cfg.UniformNoiseCfg) -> torch.T
         The data modified by the noise parameters provided.
     """
 
+    if cfg.operation == "add" and not isinstance(cfg.n_min, torch.Tensor) and not isinstance(cfg.n_max, torch.Tensor):
+        if cfg.n_min == 0.0 and cfg.n_max == 0.0:
+            return data
     _move_params_to_device(cfg, data, "n_min", "n_max")
     noise = torch.rand_like(data) * (cfg.n_max - cfg.n_min) + cfg.n_min
     return _apply_noise(data, noise, cfg.operation)
