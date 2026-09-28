@@ -12,8 +12,8 @@ and slide overlays remain outside this directory.
 
 ## Quick start
 
-Kit is the default for the material, rigid-equivalence, and G1 examples. Surface
-meshes require Newton GL or Newton RTX.
+Kit is the default for the material, rigid-equivalence, and G1 examples. The
+surface example defaults to Newton GL; Newton RTX requires the `ovrtx` extra.
 
 ```bash
 # Controlled material comparison

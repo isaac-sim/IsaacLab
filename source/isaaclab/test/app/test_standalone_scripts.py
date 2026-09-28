@@ -115,6 +115,27 @@ assert [type(cfg).__name__ for cfg in configs] == ['NewtonGLVisualizerCfg', 'New
     assert result.returncode == 0, result.stdout + result.stderr
 
 
+def test_mpm_surface_reconstruction_defaults_to_newton_gl():
+    """The surface example must launch with base Newton dependencies by default."""
+    script = script_cases.ROOT / "examples" / "mpm" / "tuning" / "surface_reconstruction.py"
+    code = """
+import runpy
+import sys
+
+script = sys.argv[1]
+sys.argv = [script]
+namespace = runpy.run_path(script)
+assert namespace['args_cli'].visualizer == ['newton_gl']
+sys.argv = [script, '--visualizer', 'newton_rtx']
+namespace = runpy.run_path(script)
+assert namespace['args_cli'].visualizer == ['newton_rtx']
+"""
+    result = subprocess.run(
+        [sys.executable, "-c", code, str(script)], capture_output=True, text=True, timeout=60, check=False
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+
+
 @pytest.mark.parametrize(
     "script_path",
     ["newton_mpm_granular.py", "tuning/material_parameters.py", "tuning/surface_reconstruction.py"],

@@ -11,11 +11,11 @@ presets so each run isolates reconstruction choices rather than material motion.
 
 .. code-block:: bash
 
+    uv run isaaclab example mpm-surface-reconstruction \
+      --device cuda:0 --surface_preset coarse_grid
+
     uv run --extra ovrtx isaaclab example mpm-surface-reconstruction \
       --device cuda:0 --visualizer newton_rtx
-
-    uv run isaaclab example mpm-surface-reconstruction \
-      --device cuda:0 --visualizer newton_gl --surface_preset coarse_grid
 """
 
 from __future__ import annotations
@@ -157,7 +157,7 @@ parser.add_argument(
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument("--disable_cuda_graph", action="store_true", help="Disable CUDA graph capture for debugging.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_rtx"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
 if not 0.0 <= args_cli.surface_opacity <= 1.0:
