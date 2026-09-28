@@ -31,6 +31,9 @@ parser.add_argument(
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="cosmos")
 parser.add_argument("--probability", type=float, default=1.0, help="1.0 so every dumped frame is generated")
 parser.add_argument("--max_batch", type=int, default=None, help="Override the backend's frames per call")
+parser.add_argument("--recipe", type=str, default=None, help="Visual DR YAML recipe; CLI flags override it")
+parser.add_argument("--resolution", default=None, choices=("480", "720"))
+parser.add_argument("--shift", type=float, default=None)
 parser.add_argument("--checkpoint", default=None, help="Registered name, s3:// URI, or local checkpoint directory")
 parser.add_argument("--num_steps", type=int, default=None, help="Override sampler steps")
 parser.add_argument("--guidance", type=float, default=None, help="Classifier-free guidance on the prompt")
@@ -41,8 +44,18 @@ parser.add_argument(
     help="Lower lets the prompt invent background geometry instead of following depth",
 )
 parser.add_argument(
-    "--mask_guidance", action="store_true", help="Send the preserved mask to Cosmos for guided denoising"
+    "--mask_guidance",
+    action=argparse.BooleanOptionalAction,
+    default=None,
+    help="Send the preserved mask to Cosmos for guided denoising",
 )
+parser.add_argument(
+    "--mask_step_threshold",
+    type=int,
+    default=None,
+    help="Sampler steps over which the masked region is held to the source",
+)
+parser.add_argument("--mask_strength", type=float, default=None, help="How hard the mask holds, 0-1")
 parser.add_argument("--boundary_px", type=int, default=None, help="Dilate the preserved region")
 parser.add_argument(
     "--mask_downsample",
@@ -58,9 +71,9 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
-# Camera sensors need the rendering extensions in a headless, viewport-free launch.
-args.enable_cameras = True
 
+# The task config is constructed after launch, so select the camera experience explicitly.
+args.enable_cameras = True
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
@@ -71,8 +84,9 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_contrib.visual_dr import PassthroughBackend, PromptBankCfg, RemoteCosmosBackendCfg, VisualDRRuntime
+from isaaclab_contrib.visual_dr import PassthroughBackend, PromptBankCfg, VisualDRRuntime
 from isaaclab_contrib.visual_dr.observations import preserve_mask
+from isaaclab_contrib.visual_dr.recipes import apply_visual_dr_recipe, remote_cosmos_cfg
 
 from isaaclab_tasks.contrib.stack.config.franka.stack_visual_dr_env_cfg import FrankaStackRuntimeDRCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -109,6 +123,12 @@ def save_contact_sheet(path: Path, panels: list[tuple[str, torch.Tensor]]) -> No
 def main() -> None:
     out = Path(args.out)
     cfg = FrankaStackRuntimeDRCfg()
+    if args.recipe:
+        cfg.visual_dr = apply_visual_dr_recipe(cfg.visual_dr, args.recipe)
+    if args.resolution is not None:
+        cfg.visual_dr.backend.resolution = args.resolution
+    if args.shift is not None:
+        cfg.visual_dr.backend.shift = args.shift
     cfg.scene.num_envs = args.num_envs
     # Constructing the config directly skips Hydra, which is what normally resolves
     # the physics preset ``StackEnvCfg`` leaves on ``sim.physics``.
@@ -130,31 +150,14 @@ def main() -> None:
         cfg.visual_dr.backend.prompts = PromptBankCfg(variants=(args.prompt,))
     worker_devices = tuple(int(d) for d in args.workers.split(",") if d.strip())
     if worker_devices:
-        # Same settings, generated elsewhere: copy the configured backend across so
-        # the only difference from an in-process run is where the model lives.
-        from isaaclab_contrib.visual_dr.remote import RemoteCosmosBackend
+        cfg.visual_dr.backend = remote_cosmos_cfg(cfg.visual_dr.backend, worker_devices)
+    if args.mask_guidance is not None:
+        cfg.visual_dr.backend.mask_guidance = args.mask_guidance
 
-        source = cfg.visual_dr.backend
-        cfg.visual_dr.backend = RemoteCosmosBackendCfg(
-            class_type=RemoteCosmosBackend,
-            devices=worker_devices,
-            max_batch=len(worker_devices),
-            checkpoint=source.checkpoint,
-            control_kind=source.control_kind,
-            control_guidance=source.control_guidance,
-            control_weight=source.control_weight,
-            depth_range_m=source.depth_range_m,
-            num_steps=source.num_steps,
-            resolution=source.resolution,
-            aspect_ratio=source.aspect_ratio,
-            guidance=source.guidance,
-            compile=source.compile,
-            fp8=source.fp8,
-            prompts=source.prompts,
-        )
-    if args.mask_guidance:
-        cfg.visual_dr.backend.mask_guidance = True
-
+    if args.mask_step_threshold is not None:
+        cfg.visual_dr.backend.mask_step_threshold = args.mask_step_threshold
+    if args.mask_strength is not None:
+        cfg.visual_dr.backend.mask_strength = args.mask_strength
     if args.boundary_px is not None:
         for camera_cfg in cfg.visual_dr.cameras.values():
             camera_cfg.boundary_px = args.boundary_px

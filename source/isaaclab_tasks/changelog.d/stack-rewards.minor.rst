@@ -13,3 +13,6 @@ Added
   the runtime because it is a task configuration and imports ``isaaclab_tasks``;
   ``isaaclab_contrib`` cannot depend on ``isaaclab_tasks``, since the dependency
   runs the other way through ``isaaclab_assets``.
+
+* Added a Franka stacking configuration and demo scripts for runtime visual domain
+  randomization, with segmentation controls and preserved robot/table/object masks.

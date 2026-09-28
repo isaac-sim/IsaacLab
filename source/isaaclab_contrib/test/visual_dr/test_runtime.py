@@ -108,6 +108,21 @@ def test_foreground_is_preserved_exactly_and_repeat_reads_match(cpu_frames):
     assert runtime.backend.generate.call_count == 1
 
 
+def test_cleared_composite_lets_the_generated_frame_stand(cpu_frames):
+    # The mask is still built -- a backend may send it to the model as a guidance
+    # signal -- so only the paste may be skipped, not the mask.
+    cfg = make_cfg()
+    cfg.cameras["cam_0"].composite_foreground = False
+    runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
+    runtime.backend = Mock()
+    runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
+    runtime.activate()
+    runtime.sync(make_env(1, [0], step=1))
+
+    frame = make_frame(1, preserve=True)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))
+
+
 def test_background_is_replaced_where_nothing_is_preserved(cpu_frames):
     runtime = VisualDRRuntime(make_cfg(), num_envs=1, device="cpu")
     runtime.backend = Mock()
@@ -207,6 +222,50 @@ def test_preserve_mask_accepts_rgba_label_keys():
     labels = {"(33, 243, 3, 255)": {"class": "cube_2"}, "(0, 0, 0, 0)": {"class": "BACKGROUND"}}
     mask = preserve_mask(segmentation, labels, CameraDRCfg(preserve_classes=("cube_2",)))
     assert mask.flatten().tolist() == [True, False]
+
+
+def test_boundary_erosion_only_releases_selected_classes_at_the_outer_silhouette():
+    segmentation = torch.zeros((1, 7, 8, 1), dtype=torch.int32)
+    segmentation[:, 1:6, 2:7] = 1  # table
+    segmentation[:, 1, 4] = 2  # thin robot structure on the outer edge
+    segmentation[:, 3, 4] = 2  # robot touching the table interior
+    labels = {"0": {"class": "ground"}, "1": {"class": "table"}, "2": {"class": "robot"}}
+    cfg = CameraDRCfg(preserve_classes=("table", "robot"), boundary_erosion_px={"table": 1}, composite_foreground=False)
+    actual = preserve_mask(segmentation, labels, cfg)
+    expected = segmentation == 2
+    expected[:, 2:5, 3:6] = True
+    assert torch.equal(actual, expected)
+
+
+@pytest.mark.parametrize(
+    "kwargs",
+    [
+        {"boundary_erosion_px": {"table": -1}},
+        {"boundary_erosion_px": {"ground": 1}},
+        {"boundary_erosion_px": {"table": 1}, "boundary_px": 1},
+    ],
+)
+def test_boundary_erosion_rejects_invalid_or_conflicting_settings(kwargs):
+    with pytest.raises(ValueError):
+        CameraDRCfg(preserve_classes=("table",), **kwargs)
+
+
+def test_union_erosion_shrinks_combined_mask_without_gaps_between_classes():
+    segmentation = torch.zeros((1, 7, 8, 1), dtype=torch.int32)
+    segmentation[:, 1:6, 1:4] = 1
+    segmentation[:, 1:6, 4:7] = 2
+    segmentation[:, 3, 3] = 9  # unknown but preserved
+    labels = {"0": {"class": "ground"}, "1": {"class": "table"}, "2": {"class": "robot"}}
+    cfg = CameraDRCfg(preserve_classes=("table", "robot"), boundary_erosion_px=1)
+    expected = torch.zeros_like(segmentation, dtype=torch.bool)
+    expected[:, 2:5, 2:6] = True
+    assert torch.equal(preserve_mask(segmentation, labels, cfg), expected)
+
+
+@pytest.mark.parametrize("radius,boundary", [(-1, 0), (1, 1)])
+def test_union_erosion_rejects_negative_radius_and_dilation(radius, boundary):
+    with pytest.raises(ValueError):
+        CameraDRCfg(preserve_classes=("table",), boundary_erosion_px=radius, boundary_px=boundary)
 
 
 def test_segmentation_control_map_recovers_the_renderer_palette():
@@ -441,14 +500,19 @@ def test_a_checkpoint_path_that_does_not_exist_is_named_early(tmp_path):
         backend._build()
 
 
-def test_a_registered_checkpoint_name_is_not_mistaken_for_a_path():
+@pytest.mark.parametrize("checkpoint", ["Cosmos3-Nano", "nvidia/Cosmos3-Nano"])
+def test_a_registered_checkpoint_name_is_not_mistaken_for_a_path(monkeypatch, checkpoint):
+    from isaaclab_contrib.visual_dr import cosmos
     from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
-    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
 
-    cfg = CosmosBackendCfg(class_type=CosmosBackend, prompts=PromptBankCfg(variants=("a lab",)))
-    # The default is a registered name; it carries no slash and must not be
-    # rejected by the path check.
-    assert "/" not in cfg.checkpoint
+    reached_loader = Mock(side_effect=RuntimeError("reached loader"))
+    monkeypatch.setattr(cosmos, "_install_patches", reached_loader)
+    cfg = CosmosBackendCfg(
+        class_type=cosmos.CosmosBackend, checkpoint=checkpoint, prompts=PromptBankCfg(variants=("a lab",))
+    )
+    with pytest.raises(RuntimeError, match="reached loader"):
+        cosmos.CosmosBackend(cfg).activate()
+    reached_loader.assert_called_once()
 
 
 def test_the_mask_is_built_even_when_the_composite_is_off():
@@ -459,3 +523,183 @@ def test_the_mask_is_built_even_when_the_composite_is_off():
     labels = {"1": {"class": "robot"}, "2": {"class": "ground"}}
     cfg = CameraDRCfg(preserve_classes=("robot",), composite_foreground=False)
     assert preserve_mask(segmentation, labels, cfg).flatten().tolist() == [True, False]
+
+
+def test_recipe_retains_task_fields_and_remote_settings(tmp_path):
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+    from isaaclab_contrib.visual_dr.recipes import apply_visual_dr_recipe, remote_cosmos_cfg
+
+    cfg = make_cfg()
+    cfg.backend = CosmosBackendCfg(class_type=CosmosBackend, prompts=PromptBankCfg(variants=("lab",)))
+    path = tmp_path / "recipe.yaml"
+    path.write_text(
+        "backend: {num_steps: 4, shift: 5, mask_guidance: true, mask_strength: 0.6}\n"
+        "camera: {composite_foreground: false, boundary_erosion_px: 8}\n"
+    )
+    updated = apply_visual_dr_recipe(cfg, path)
+    remote = remote_cosmos_cfg(updated.backend, (1, 2))
+    assert cfg.backend.num_steps == 50
+    assert remote.num_steps == 4 and remote.shift == 5
+    assert remote.mask_guidance and remote.mask_strength == 0.6
+    assert remote.mask_step_threshold is None
+    assert remote.prompts.variants == ("lab",)
+    assert remote.max_batch == 2
+    assert updated.cameras["cam_0"].preserve_classes == ("robot",)
+    assert not updated.cameras["cam_0"].composite_foreground
+    assert updated.cameras["cam_0"].boundary_erosion_px == 8
+    path.write_text("backend: {misspelled_setting: true}")
+    with pytest.raises(TypeError, match="misspelled_setting"):
+        apply_visual_dr_recipe(cfg, path)
+
+
+def test_camera_sized_bucket_is_restored_after_failure():
+    pytest.importorskip("cosmos_framework")
+    from cosmos_framework.data.generator.utils import IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO
+
+    from isaaclab_contrib.visual_dr.cfg import CosmosBackendCfg, PromptBankCfg
+    from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
+
+    cfg = CosmosBackendCfg(
+        class_type=CosmosBackend,
+        prompts=PromptBankCfg(variants=("lab",)),
+        resolution="480",
+        aspect_ratio="4,3",
+        native_resolution=True,
+    )
+    backend = CosmosBackend(cfg)
+    original = [table["480"]["4,3"] for table in (IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO)]
+    with pytest.raises(RuntimeError, match="generation failed"):
+        with backend._resolution_override(640, 480):
+            assert IMAGE_RES_SIZE_INFO["480"]["4,3"] == (640, 480)
+            raise RuntimeError("generation failed")
+    assert [table["480"]["4,3"] for table in (IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO)] == original
+
+
+@pytest.mark.parametrize("kind", ["fixed", "unipc"])
+@pytest.mark.parametrize("strength", [0.0, 0.6, 1.0])
+def test_public_projection_preserves_source_or_disables_cleanly(kind, strength):
+    pytest.importorskip("cosmos_framework")
+    from cosmos_framework.model.generator.diffusion.samplers.fixed_step import FixedStepSampler
+    from cosmos_framework.model.generator.diffusion.samplers.unipc import UniPCSampler
+
+    from isaaclab_contrib.visual_dr.cosmos_guidance import project_sampling
+
+    sampler = (
+        FixedStepSampler([1.0, 0.9375, 0.8333333333333, 0.625])
+        if kind == "fixed"
+        else UniPCSampler(tensor_kwargs={"device": "cpu"})
+    )
+    noise = torch.linspace(-2, 2, 19)
+    source = torch.linspace(0, 1, 16)
+
+    def velocity(state, timestep):
+        return [x * 0.3 + x.sin() * 0.2 for x in state]
+
+    unguided = sampler(velocity, [noise.clone()], num_steps=4, seed=[42])[0]
+    actual = project_sampling(
+        sampler,
+        velocity,
+        [noise.clone()],
+        num_steps=4,
+        seed=[42],
+        source=source,
+        mask=torch.ones_like(source) * strength,
+        threshold=3,
+        steps=4,
+        train_steps=1000,
+    )[0]
+    # A prefix representing conditioning must remain untouched by the projection.
+    torch.testing.assert_close(actual[:3], unguided[:3])
+    if strength == 0:
+        torch.testing.assert_close(actual, unguided)
+    elif strength == 1:
+        torch.testing.assert_close(actual[-16:], source)
+    else:
+        assert not torch.equal(actual[-16:], source)
+        assert not torch.equal(actual, unguided)
+
+
+@pytest.mark.parametrize("kind", ["fixed", "unipc"])
+@pytest.mark.parametrize("threshold", [0, 3])
+def test_public_adapter_matches_native_gitlab_hook(kind, threshold):
+    import inspect
+
+    pytest.importorskip("cosmos_framework")
+    from cosmos_framework.model.generator.diffusion.samplers.fixed_step import FixedStepSampler
+    from cosmos_framework.model.generator.diffusion.samplers.unipc import UniPCSampler
+
+    from isaaclab_contrib.visual_dr.cosmos_guidance import project_sampling
+
+    sampler = (
+        FixedStepSampler([1.0, 0.9375, 0.8333333333333, 0.625])
+        if kind == "fixed"
+        else UniPCSampler(tensor_kwargs={"device": "cpu"})
+    )
+    signature = sampler.__call__ if kind == "fixed" else sampler.forward
+    if "state_projector" not in inspect.signature(signature).parameters:
+        pytest.skip("Cross-implementation comparison requires the GitLab native hook")
+    noise = torch.linspace(-2, 2, 19)
+    source = torch.linspace(0, 1, 16)
+    mask = torch.linspace(0, 1, 16)
+
+    def velocity(state, timestep):
+        return state * 0.3 + state.sin() * 0.2
+
+    def native_projector(state, timestep, index):
+        if index > threshold:
+            return state
+        result = state.clone()
+        sigma = timestep.reshape(()) / 1000
+        result[-16:] = mask * ((1 - sigma) * source + sigma * noise[-16:]) + (1 - mask) * state[-16:]
+        return result
+
+    expected = sampler(velocity, noise.clone(), num_steps=4, seed=42, state_projector=native_projector)
+    actual = project_sampling(
+        sampler,
+        velocity,
+        noise.clone(),
+        num_steps=4,
+        seed=42,
+        source=source,
+        mask=mask,
+        threshold=threshold,
+        steps=4,
+        train_steps=1000,
+    )
+    torch.testing.assert_close(actual, expected, atol=1e-6, rtol=1e-6)
+
+
+def test_old_export_gets_modality_defaults_without_rewriting_checkpoint(tmp_path):
+    import json
+
+    from isaaclab_contrib.visual_dr.cosmos import _checkpoint_view
+
+    source = tmp_path / "original"
+    source.mkdir()
+    config = {"model": {"config": {"diffusion_expert_config": {"enable_sound_modality_embedding": False}}}}
+    original = json.dumps(config)
+    (source / "config.json").write_text(original)
+    (source / "weights.safetensors").write_bytes(b"weights")
+    view = tmp_path / "view"
+    view.mkdir()
+    from pathlib import Path
+
+    resolved = Path(_checkpoint_view(str(source), view))
+    expert = json.loads((resolved / "config.json").read_text())["model"]["config"]["diffusion_expert_config"]
+    assert not expert["enable_vision_modality_embeddings"]
+    assert expert["enable_action_modality_embedding"]
+    assert not expert["enable_sound_modality_embedding"]
+    assert (source / "config.json").read_text() == original
+    assert (resolved / "weights.safetensors").resolve() == source / "weights.safetensors"
+
+
+def test_worker_startup_failure_survives_queue_deserialization():
+    from isaaclab_contrib.visual_dr.remote import _Worker
+
+    worker = object.__new__(_Worker)
+    # Queue deserialization does not preserve Python string identity.
+    worker._ready = Mock()
+    worker._ready.get.return_value = ("".join(("fail", "ed")), "checkpoint load failed")
+    with pytest.raises(RuntimeError, match="checkpoint load failed"):
+        worker.await_ready(1)

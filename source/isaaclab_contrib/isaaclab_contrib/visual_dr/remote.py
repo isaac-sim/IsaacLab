@@ -8,8 +8,8 @@
 The simulator cannot share a GPU with a diffusion model and still go fast: one
 frame costs seconds, and while it runs the simulator waits. Moving generation to
 dedicated GPUs removes that contention, and running several workers lets the
-environments randomized in one step be generated at once -- which is the only
-parallelism available while Cosmos rejects batched transfer inference.
+environments randomized in one step be generated at once. Public Cosmos
+processes transfer samples individually; GitLab can also pack compatible samples.
 
 Payloads move by CUDA IPC. Sending a CUDA tensor through a ``torch.multiprocessing``
 queue shares the allocation rather than copying it, and the receiving worker's
@@ -113,7 +113,7 @@ class _Worker:
 
     def await_ready(self, timeout: float) -> None:
         status, payload = self._ready.get(timeout=timeout)
-        if status is _FAILED:
+        if status == _FAILED:
             raise RuntimeError(payload)
 
     def call(self, message: dict, timeout: float) -> dict:

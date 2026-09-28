@@ -240,6 +240,11 @@ class VisualDRRuntime:
                 )
             # Foreground preservation is this paste. Without mask-guided denoising
             # the generated background does not know what will be pasted over it,
-            # so boundary_px exists to hide the seam.
-            output[chunk] = torch.where(sub.preserve, sub.rgb, generated)
+            # so boundary_px exists to hide the seam. Cleared, the generated frame
+            # stands as it is -- the mask is still built, since a backend may have
+            # sent it to the model as a guidance signal.
+            if self.cfg.cameras[camera].composite_foreground:
+                output[chunk] = torch.where(sub.preserve, sub.rgb, generated)
+            else:
+                output[chunk] = generated
         return output

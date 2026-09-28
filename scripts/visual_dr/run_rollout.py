@@ -42,10 +42,41 @@ parser.add_argument(
     help="Let the model render the foreground too, instead of pasting the render back",
 )
 parser.add_argument("--num_steps", type=int, default=None, help="Override the backend's sampler steps")
+parser.add_argument("--recipe", type=str, default=None, help="Visual DR YAML recipe; CLI flags override it")
+parser.add_argument("--resolution", default=None, choices=("480", "720"))
+parser.add_argument("--shift", type=float, default=None)
 parser.add_argument("--checkpoint", default=None, help="Registered name, s3:// URI, or local checkpoint directory")
 parser.add_argument("--guidance", type=float, default=None, help="Classifier-free guidance on the prompt")
+parser.add_argument("--control_guidance", type=float, default=None, help="Control guidance; use 1.0 for DMD2 transfer")
 parser.add_argument(
-    "--mask_guidance", action="store_true", help="Send the preserved mask to Cosmos for guided denoising"
+    "--mask_guidance",
+    action=argparse.BooleanOptionalAction,
+    default=None,
+    help="Send the preserved mask to Cosmos for guided denoising",
+)
+parser.add_argument(
+    "--mask_strength", type=float, default=None, help="How hard the guidance mask holds the foreground, 0-1"
+)
+parser.add_argument("--mask_step_threshold", type=int, default=None, help="Last guided update, inclusive")
+parser.add_argument("--mask_downsample", choices=("max", "area", "trilinear"), default=None)
+parser.add_argument("--boundary_px", type=int, default=None, help="Dilate the preserved region")
+erosion_args = parser.add_mutually_exclusive_group()
+erosion_args.add_argument(
+    "--table_boundary_erosion_px",
+    type=int,
+    default=None,
+    help="Release a band inside the table silhouette; keeps full robot and cube masks",
+)
+erosion_args.add_argument(
+    "--boundary_erosion_px",
+    type=int,
+    default=None,
+    help="Erode the union of all preserved regions, including robot and table",
+)
+parser.add_argument(
+    "--native_resolution",
+    action="store_true",
+    help="Generate at the camera resolution instead of resizing to a Cosmos bucket",
 )
 parser.add_argument("--backend", choices=("cosmos", "passthrough"), default="passthrough")
 parser.add_argument("--offload_at", default="", help="Comma-separated steps at which to offload and re-activate")
@@ -63,8 +94,14 @@ parser.add_argument(
 )
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
-args.enable_cameras = True
+for radius in (args.table_boundary_erosion_px, args.boundary_erosion_px):
+    if radius is not None and radius < 0:
+        parser.error("Boundary erosion must be non-negative")
+    if radius and args.boundary_px:
+        parser.error("Use --boundary_px 0 with boundary erosion")
 
+# The task config is constructed after launch, so select the camera experience explicitly.
+args.enable_cameras = True
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 
@@ -77,7 +114,8 @@ import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
-from isaaclab_contrib.visual_dr import PassthroughBackend, RemoteCosmosBackendCfg, VisualDRRuntime
+from isaaclab_contrib.visual_dr import PassthroughBackend, VisualDRRuntime
+from isaaclab_contrib.visual_dr.recipes import apply_visual_dr_recipe, remote_cosmos_cfg
 
 from isaaclab_tasks.contrib.stack.config.franka.stack_visual_dr_env_cfg import FrankaStackRuntimeDRCfg
 from isaaclab_tasks.utils import PresetCfg
@@ -133,8 +171,28 @@ def _write_videos(recording: dict[str, list], out: Path, env) -> None:
         print(f"[rollout] wrote {path} ({len(frames)} frames @ {fps} fps)", flush=True)
 
 
+def _configure_camera_masks(cfg: FrankaStackRuntimeDRCfg) -> None:
+    for camera_cfg in cfg.visual_dr.cameras.values():
+        if args.boundary_px is not None:
+            camera_cfg.boundary_px = args.boundary_px
+        if args.table_boundary_erosion_px is not None:
+            camera_cfg.boundary_px = 0
+            camera_cfg.boundary_erosion_px = {"table": args.table_boundary_erosion_px}
+        if args.boundary_erosion_px is not None:
+            camera_cfg.boundary_px = 0
+            camera_cfg.boundary_erosion_px = args.boundary_erosion_px
+        if args.no_composite:
+            camera_cfg.composite_foreground = False
+
+
 def main() -> None:
     cfg = FrankaStackRuntimeDRCfg()
+    if args.recipe:
+        cfg.visual_dr = apply_visual_dr_recipe(cfg.visual_dr, args.recipe)
+    if args.resolution is not None:
+        cfg.visual_dr.backend.resolution = args.resolution
+    if args.shift is not None:
+        cfg.visual_dr.backend.shift = args.shift
     cfg.scene.num_envs = args.num_envs
     physics = cfg.sim.physics
     if isinstance(physics, PresetCfg):
@@ -148,39 +206,26 @@ def main() -> None:
         cfg.visual_dr.backend.checkpoint = args.checkpoint
     if args.guidance is not None:
         cfg.visual_dr.backend.guidance = args.guidance
-    if args.mask_guidance:
-        cfg.visual_dr.backend.mask_guidance = True
+    if args.control_guidance is not None:
+        cfg.visual_dr.backend.control_guidance = args.control_guidance
+    if args.mask_guidance is not None:
+        cfg.visual_dr.backend.mask_guidance = args.mask_guidance
+    if args.mask_step_threshold is not None:
+        cfg.visual_dr.backend.mask_step_threshold = args.mask_step_threshold
+    if args.mask_downsample is not None:
+        cfg.visual_dr.backend.mask_downsample_mode = args.mask_downsample
     if args.num_steps is not None:
         cfg.visual_dr.backend.num_steps = args.num_steps
 
-    if args.no_composite:
-        for camera_cfg in cfg.visual_dr.cameras.values():
-            camera_cfg.composite_foreground = False
+    if args.native_resolution:
+        cfg.visual_dr.backend.native_resolution = True
+    if args.mask_strength is not None:
+        cfg.visual_dr.backend.mask_strength = args.mask_strength
+    _configure_camera_masks(cfg)
 
     worker_devices = tuple(int(d) for d in args.workers.split(",") if d.strip())
     if worker_devices:
-        # Same settings, generated elsewhere: copy the configured backend across so
-        # the only difference from an in-process run is where the model lives.
-        from isaaclab_contrib.visual_dr.remote import RemoteCosmosBackend
-
-        source = cfg.visual_dr.backend
-        cfg.visual_dr.backend = RemoteCosmosBackendCfg(
-            class_type=RemoteCosmosBackend,
-            devices=worker_devices,
-            max_batch=len(worker_devices),
-            checkpoint=source.checkpoint,
-            control_kind=source.control_kind,
-            control_guidance=source.control_guidance,
-            control_weight=source.control_weight,
-            depth_range_m=source.depth_range_m,
-            num_steps=source.num_steps,
-            resolution=source.resolution,
-            aspect_ratio=source.aspect_ratio,
-            guidance=source.guidance,
-            compile=source.compile,
-            fp8=source.fp8,
-            prompts=source.prompts,
-        )
+        cfg.visual_dr.backend = remote_cosmos_cfg(cfg.visual_dr.backend, worker_devices)
     if args.backend == "passthrough":
         cfg.visual_dr.backend.class_type = PassthroughBackend
 

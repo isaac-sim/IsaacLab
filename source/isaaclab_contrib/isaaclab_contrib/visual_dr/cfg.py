@@ -82,19 +82,12 @@ class CameraDRCfg:
     appears raises rather than silently regenerating everything."""
 
     composite_foreground: bool = True
-    """Whether the runtime pastes the preserved pixels back over the generated frame.
+    """Paste source pixels over the generated foreground when enabled.
 
-    Set, the foreground is bit-identical to the render: what the policy sees of the
-    robot and the objects it manipulates is exactly what the simulator produced. The
-    cost is that the generator never saw the foreground, so the two do not share
-    lighting, reflections or contact shadows, and the mask boundary is a visible seam.
-
-    Clear it to let the model render the whole frame, foreground included. The result
-    is coherently lit and has no seam, but nothing constrains the appearance of the
-    objects: in this task's own scene the cubes come back cyan and the robot black,
-    which is fatal for a policy that must pick a cube out by colour. Worth it when
-    nothing in view is task-relevant, or with a model conditioned tightly enough to
-    keep the foreground faithful -- not as a default."""
+    This guarantees pixel identity but also restores the source lighting. Disable
+    to observe the model's foreground and any relighting from generation. Mask
+    guidance is a separate latent-space constraint and is not pixel-exact.
+    """
 
     unknown_policy: Literal["preserve", "randomize"] = "preserve"
     """What to do with a semantic ID absent from ``preserve_classes``."""
@@ -102,9 +95,38 @@ class CameraDRCfg:
     boundary_px: int = 0
     """Dilate the preserved region by this many pixels, protecting object edges."""
 
+    boundary_erosion_px: int | dict[str, int] = {}
+    """Release an inner boundary band of the preserve mask.
+
+    An integer, e.g. ``8``, erodes the union of all preserved regions, including
+    preserved unknown IDs. Erosion occurs after union, so touching classes do not
+    acquire gaps. The radius uses a square pixel neighborhood.
+
+    For example, ``{"table": 8}`` allows Cosmos to regenerate eight pixels inside
+    the table's outer silhouette, reducing background contamination in its VAE
+    boundary cells. Other preserved classes, such as thin robot fingers and small
+    objects, keep their full masks. Shared edges between preserved objects are
+    untouched. Released pixels are also excluded from foreground compositing.
+    Cannot be combined with positive ``boundary_px`` dilation.
+    """
+
     def __post_init__(self):
         if self.boundary_px < 0:
             raise ValueError("CameraDRCfg.boundary_px cannot be negative")
+        if isinstance(self.boundary_erosion_px, int):
+            radii = [self.boundary_erosion_px]
+        elif isinstance(self.boundary_erosion_px, dict):
+            for name in self.boundary_erosion_px:
+                if name not in self.preserve_classes:
+                    raise ValueError(f"boundary_erosion_px class {name!r} must appear in preserve_classes")
+            radii = list(self.boundary_erosion_px.values())
+        else:
+            raise ValueError("boundary_erosion_px must be an integer or a class-to-radius mapping")
+        for radius in radii:
+            if not isinstance(radius, int) or radius < 0:
+                raise ValueError("boundary_erosion_px values must be non-negative integers")
+        if self.boundary_px and any(radii):
+            raise ValueError("boundary_erosion_px cannot be combined with boundary_px dilation")
         if self.composite_foreground and not self.preserve_classes:
             raise ValueError(
                 "CameraDRCfg.preserve_classes must name the foreground while composite_foreground is set; "
@@ -133,18 +155,15 @@ class DRBackendCfg:
 
 @configclass
 class CosmosBackendCfg(DRBackendCfg):
-    """Depth-guided transfer against a public Cosmos3 checkpoint.
+    """Cosmos image transfer with optional mask-guided denoising.
 
-    Foreground preservation is a composite performed by the runtime, not masked
-    denoising: the background is generated without knowledge of what will be
-    pasted over it. That is the cost of running a stock checkpoint and a stock
-    ``cosmos-framework``; revisit it if boundary artifacts show up in rollouts.
+    Both public and GitLab Cosmos Framework checkouts support this backend. The
+    GitLab mask API is used when present; public samplers use an IsaacLab adapter.
+    Foreground pixel compositing is controlled separately by ``CameraDRCfg``.
     """
 
-    checkpoint: str = "Cosmos3-Nano"
-    """A name registered in ``cosmos_framework.inference.args._CHECKPOINTS``, an
-    ``s3://`` URI, or a local checkpoint directory. Registered names download from
-    the Hugging Face Hub on first use."""
+    checkpoint: str = "nvidia/Cosmos3-Nano"
+    """Public Nano Hub ID, registered Cosmos name, S3 URI, or local export directory."""
 
     control_kind: Literal["depth", "seg"] = "depth"
     """Which control hint carries the scene into the generated background. Depth
@@ -158,8 +177,10 @@ class CosmosBackendCfg(DRBackendCfg):
     depth hint. Its own per-hint values are depth 1.5, seg 2.0, edge/blur 1.5 and
     wsm 3.0; these apply only when the request omits the field, and this backend
     always sends it, so a task using a non-depth hint should set the matching
-    value. Below 1.0 the control is progressively ignored, which widens the visual
-    distribution at the cost of any agreement with the scene."""
+    value. These are base-model settings; start with 1.0 for a distilled transfer
+    checkpoint, avoiding an extra control-CFG branch. Below 1.0 the control is
+    progressively ignored, which widens the visual distribution at the cost of
+    agreement with the scene."""
 
     control_weight: float = 1.0
     """Weight of the control hint within the transfer spec."""
@@ -171,62 +192,53 @@ class CosmosBackendCfg(DRBackendCfg):
     the control signal is effectively lost. Clamp to the range the scene actually
     occupies."""
 
-    num_steps: int = 16
-    """Sampler steps, and the main latency control: measured on an H100 at 200x200,
-    cost is about 0.205 s per step plus 0.085 s fixed, so 2/6/16/35 steps take
-    0.49/1.32/3.36/7.26 s per frame.
+    num_steps: int = 50
+    """Denoising steps. A distilled export must use its fixed schedule (typically 4)."""
 
-    Sixteen is the point where this checkpoint resolves a detailed scene under the
-    default guidance; below about six, high guidance blows out into hard contrast
-    instead of detail, and thirty-five (Cosmos' own default) is sharper again for
-    a bit over twice the cost. If throughput matters more than background detail,
-    a distilled checkpoint is the right answer rather than fewer steps here --
-    ``Cosmos3-Nano`` is a base model and is being pushed below its comfortable
-    range well before it gets fast."""
+    resolution: str = "720"
+    """Stock Cosmos resolution tier; 720/4:3 generates 1104x832 pixels."""
 
-    resolution: str = "480"
-    """Generation resolution bucket."""
+    shift: float = 10.0
+    """Flow-matching shift: 10 for public 720, 5 for 480; ignored by fixed-step samplers."""
+
+    native_resolution: bool = False
+    """Override the bucket with camera dimensions, for a validated custom checkpoint.
+
+    This means camera-sized generation, not the public checkpoint's native tier.
+    Leave disabled for public Nano. For the tested 640x480 distilled checkpoint,
+    enable with resolution=480. Dimensions must be positive multiples of 32;
+    the override is restored after each request, including failed requests.
+    """
 
     aspect_ratio: str = "1,1"
     """Generation aspect-ratio bucket. Square suits policies that consume square
     crops; the generated grid must not fall below the policy's input size."""
 
     mask_guidance: bool = False
-    """Send the preserved-foreground mask to Cosmos so it denoises around it.
+    """Preserve source regions during denoising, independently of final compositing."""
 
-    Stock ``cosmos-framework`` has no guided-generation support, so this requires a
-    checkout that adds it and raises on load otherwise rather than silently
-    generating without a mask. Where it is available it is strictly better than
-    compositing alone: the model knows what occupies the foreground, so the
-    background it produces can agree with it on lighting and contact shadows
-    instead of being pasted over blind. Compositing stays useful alongside it --
-    guidance preserves approximately, in latent space, while the paste is exact."""
+    mask_strength: float = 1.0
+    """Per-update latent blend weight in [0, 1].
 
-    mask_step_threshold: int = 3
-    """Sampler steps over which the masked region is held to the source. Higher
-    preserves harder and leaves less room for the background to settle around it."""
+    Higher strength preserves source appearance, including its illumination.
+    Lower strength permits relighting and geometry changes. The same weight over
+    50 updates is not equivalent to four updates. Even 1.0 is not pixel-exact.
+    """
+
+    mask_step_threshold: int | None = None
+    """Last guided update index (inclusive); None guides all denoising updates.
+
+    Thus four-step exports use 3 and the public 50-step recipe uses 49. Explicit
+    earlier release permits unconstrained late updates and can alter geometry.
+    """
 
     mask_downsample_mode: Literal["max", "area", "trilinear"] = "area"
-    """How the pixel mask is reduced to latent resolution.
-
-    ``max`` keeps a latent cell whenever any of its pixels are foreground, so it
-    over-preserves: a rim of original background is held around every object and,
-    against a regenerated scene, reads as a bright halo tracing each silhouette.
-    ``area`` averages and thresholds instead, which measured markedly cleaner --
-    the halo fell by close to half -- while still keeping thin structures such as
-    the gripper fingers. Prefer ``max`` only if something thin is being lost.
-
-    Note that ``CameraDRCfg.boundary_px`` compounds this: dilating the preserved
-    region helps hide the composite's seam but widens the same rim under guidance,
-    so leave it at zero when generating with a mask and no composite."""
+    """Reduce the pixel mask to latent cells. Area retains fractional boundaries;
+    max protects thin structures but can retain a fringe of source background.
+    """
 
     guidance: float = 3.0
-    """Classifier-free guidance on the prompt, matching what Cosmos tunes for every
-    transfer hint. At 1.0 guidance is effectively off and the prompt barely
-    influences the result -- backgrounds come out washed out and generic. The
-    ``image2image`` default of 6.0 is for the mode with no control hint at all, and
-    is too strong here. A distilled checkpoint is the exception: those are trained
-    to run without guidance."""
+    """Text classifier-free guidance. Use 1.0 with a distilled checkpoint."""
 
     compile: bool = False
     """Compile the transfer network. Costs a warmup per process."""
@@ -235,20 +247,25 @@ class CosmosBackendCfg(DRBackendCfg):
     """Quantize the reasoner to fp8, trading load-time memory for setup cost."""
 
     max_batch: int = 1
-    """One frame per call. Stock ``cosmos-framework`` rejects batched transfer
-    inference outright (``Batching is not supported for transfer inference``), so
-    N randomized environments cost N sequential calls. Raising this requires
-    multi-sample control packing to land upstream in Cosmos first."""
+    """Frames per request. Public transfer runs them sequentially; the GitLab
+    checkout can pack compatible samples into a model batch.
+    """
 
     prompts: PromptBankCfg = MISSING
     """Background styles to sample from."""
 
     def __post_init__(self):
         super().__post_init__()
+        if self.shift <= 0:
+            raise ValueError("CosmosBackendCfg.shift must be positive")
+        if self.mask_step_threshold is not None and self.mask_step_threshold < 0:
+            raise ValueError("CosmosBackendCfg.mask_step_threshold must be non-negative or None")
         if self.num_steps < 1:
             raise ValueError("CosmosBackendCfg.num_steps must be positive")
         if not 0.0 <= self.control_guidance <= 10.0:
             raise ValueError("CosmosBackendCfg.control_guidance must be within [0, 10]")
+        if not 0.0 <= self.mask_strength <= 1.0:
+            raise ValueError("CosmosBackendCfg.mask_strength must be within [0, 1]")
 
 
 @configclass
@@ -257,7 +274,7 @@ class RemoteCosmosBackendCfg(CosmosBackendCfg):
 
     Two problems at once: the simulator stops competing with a diffusion model for
     a GPU, and several workers generate the environments of one step in parallel --
-    the only parallelism available while Cosmos rejects batched transfer inference.
+    including public Cosmos, which processes transfer samples individually.
 
     Same-node only. Image payloads move by CUDA IPC and peer copy, never through
     host memory; crossing machines needs a real transport behind the same class.

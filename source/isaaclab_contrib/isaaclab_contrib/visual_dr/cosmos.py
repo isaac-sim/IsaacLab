@@ -3,17 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Depth-guided transfer backend, against a stock ``cosmos-framework`` checkout.
+"""Cosmos image-transfer backend for public and guided-generation checkouts.
 
-No patched checkout and no private checkpoint: the default is the public
-``Cosmos3-Nano``. Foreground preservation is the runtime's composite, which is
-what lets this run on stock code -- mask-guided denoising lives in files that
-would have to be forked.
-
-``cosmos-framework``'s inference API is file-oriented, so this module patches its
-two media choke points to serve tensors from memory. Image payloads therefore
-never reach disk, but they do make a CPU round trip inside Cosmos itself; a
-tensor-native entry point upstream would remove it.
+Framework source, checkpoint, mask guidance, and pixel compositing are independent
+choices. Tensor I/O uses a scoped registry because Cosmos accepts media paths.
 """
 
 from __future__ import annotations
@@ -23,6 +16,7 @@ import json
 import shutil
 import tempfile
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -37,6 +31,7 @@ _FRAMES: dict[str, torch.Tensor] = {}
 _OUTPUTS: dict[str, torch.Tensor] = {}
 _WANTED: set[str] = set()
 _LOCK = threading.Lock()
+_GENERATION_LOCK = threading.RLock()
 _PATCHED = False
 _ATTENTION_PATCHED = False
 
@@ -123,12 +118,7 @@ def _release_retained_weights(pointers: set[int]) -> int:
 
 
 def _supports_mask_guidance(setup_args) -> bool:
-    """Whether this checkout's sample arguments accept a guided-generation mask.
-
-    Stock ``cosmos-framework`` does not: masked denoising lives in a patched
-    checkout. Detecting it rather than assuming keeps the same configuration valid
-    against both, and turns a silently unmasked generation into a load-time error.
-    """
+    """Detect the GitLab mask API; otherwise use the local sampler adapter."""
     try:
         overrides = setup_args.get_sample_overrides_cls()
     except Exception:  # noqa: BLE001 - an unexpected API shape is simply unsupported
@@ -145,6 +135,39 @@ def _supports_mask_guidance(setup_args) -> bool:
             return True
         pending.extend(base for base in getattr(cls, "__mro__", ())[1:] if base is not object)
     return False
+
+
+def _checkpoint_view(checkpoint: str, work_dir: Path) -> str:
+    """Supply legacy modality defaults for local exports without changing weights.
+
+    New public loaders read these nested fields directly instead of supplying the
+    defaults documented in DiffusionExpertConfig. Old exports predate the fields.
+    """
+    source = Path(checkpoint).expanduser()
+    config_path = source / "config.json"
+    if not config_path.is_file():
+        return checkpoint
+    config = json.loads(config_path.read_text())
+    expert = config.get("model", {}).get("config", {}).get("diffusion_expert_config")
+    if not isinstance(expert, dict):
+        return checkpoint
+    defaults = {
+        "enable_vision_modality_embeddings": False,
+        "enable_media_modality_embedding": False,
+        "enable_action_modality_embedding": True,
+        "enable_sound_modality_embedding": True,
+    }
+    if defaults.keys() <= expert.keys():
+        return checkpoint
+    for name, value in defaults.items():
+        expert.setdefault(name, value)
+    view = work_dir / "checkpoint"
+    view.mkdir()
+    for entry in source.iterdir():
+        if entry.name != "config.json":
+            (view / entry.name).symlink_to(entry.resolve(), target_is_directory=entry.is_dir())
+    (view / "config.json").write_text(json.dumps(config))
+    return str(view)
 
 
 def _abs(path) -> str:
@@ -199,9 +222,12 @@ def _install_patches() -> None:
                     _OUTPUTS[save_fp_wo_ext] = sample.detach().float().clamp(0.0, 1.0)
                 # Cosmos asserts the vision file exists right after this call.
                 return original_save(sample, save_fp_wo_ext, *args, **kwargs)
-            # Every other save is a control-hint dump: a debug artifact nothing
-            # reads back, and one JPEG encode per frame of rollout if left on.
-            return None
+            # Skip only this backend's control-hint dumps. Unrelated pipelines
+            # in the same process must retain their normal file output.
+            with _LOCK:
+                owned = any(Path(stub).parent == Path(save_fp_wo_ext).parent for stub in _WANTED)
+            if owned:
+                return None
         return original_save(sample, save_fp_wo_ext, *args, **kwargs)
 
     _inference.save_img_or_video = save_img_or_video
@@ -239,6 +265,8 @@ class CosmosBackend:
         # that does not exist otherwise fails deep inside Cosmos with a message
         # about config resolution, so name the real problem here.
         checkpoint = str(self.cfg.checkpoint)
+        if checkpoint == "nvidia/Cosmos3-Nano":
+            checkpoint = "Cosmos3-Nano"
         if ("/" in checkpoint or checkpoint.startswith(".")) and not checkpoint.startswith("s3://"):
             if not Path(checkpoint).expanduser().is_dir():
                 raise FileNotFoundError(
@@ -255,6 +283,7 @@ class CosmosBackend:
                 flush=True,
             )
         self._work_dir = Path(tempfile.mkdtemp(prefix="isaaclab_visual_dr_"))
+        checkpoint = _checkpoint_view(checkpoint, self._work_dir)
 
         # One sentinel per concurrent sample: the registry is keyed by path, so a
         # batch sharing one path would collide.
@@ -271,7 +300,7 @@ class CosmosBackend:
             self._slots.append(paths)
 
         setup = OmniSetupOverrides.model_construct(
-            checkpoint_path=str(self.cfg.checkpoint),
+            checkpoint_path=checkpoint,
             output_dir=self._work_dir / "out",
             guardrails=False,
             benchmark=False,
@@ -289,13 +318,23 @@ class CosmosBackend:
             max_num_seqs=self.cfg.max_batch,
         )
         self._setup_args = setup.build_setup()
-        if self.cfg.mask_guidance and not _supports_mask_guidance(self._setup_args):
-            raise RuntimeError(
-                "mask_guidance is set but this cosmos-framework checkout has no guided-generation "
-                "support: its sample arguments accept no 'guided_generation_mask'. Install a checkout "
-                "that adds it, or clear mask_guidance and rely on the runtime's composite."
-            )
+        self._native_mask_api = _supports_mask_guidance(self._setup_args)
         self._pipe = self._setup_args.get_inference_cls().create(self._setup_args)
+        fixed = self._pipe.model.config.fixed_step_sampler_config
+        self._num_steps = self.cfg.num_steps
+        if fixed is not None:
+            schedule = list(fixed.t_list)
+            effective = len(schedule) - int(schedule[-1] == 0)
+            if self._num_steps != effective:
+                raise ValueError(
+                    f"Checkpoint uses {effective} fixed steps; set num_steps={effective} and "
+                    "guidance=control_guidance=1 (see the distilled recipe)"
+                )
+        self._mask_threshold = (
+            self._num_steps - 1 if self.cfg.mask_step_threshold is None else self.cfg.mask_step_threshold
+        )
+        if self.cfg.mask_guidance and not 0 <= self._mask_threshold < self._num_steps:
+            raise ValueError("mask_step_threshold must be within the checkpoint's denoising schedule")
         if self.cfg.fp8:
             self._quantize()
 
@@ -348,8 +387,33 @@ class CosmosBackend:
 
     # -- generation --------------------------------------------------------
 
+    @contextmanager
+    def _resolution_override(self, width: int, height: int):
+        """Scope the opt-in camera-sized bucket to one call, including failures."""
+        if not self.cfg.native_resolution:
+            yield
+            return
+        if any(side <= 0 or side % 32 for side in (width, height)):
+            raise ValueError("native_resolution requires camera dimensions that are positive multiples of 32")
+        from cosmos_framework.data.generator.utils import IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO
+
+        tables = (IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO)
+        tier, aspect = str(self.cfg.resolution), str(self.cfg.aspect_ratio)
+        previous = [table[tier][aspect] for table in tables]
+        try:
+            for table in tables:
+                table[tier][aspect] = (width, height)
+            yield
+        finally:
+            for table, size in zip(tables, previous):
+                table[tier][aspect] = size
+
     @torch.no_grad()
     def generate(self, frame: DRFrame, request: DRRequest) -> torch.Tensor:
+        with _GENERATION_LOCK, self._resolution_override(int(frame.rgb.shape[2]), int(frame.rgb.shape[1])):
+            return self._generate(frame, request)
+
+    def _generate(self, frame: DRFrame, request: DRRequest) -> torch.Tensor:
         """Restyle a batch of frames in a single Cosmos generate call."""
         if not self._active:
             raise RuntimeError("Activate the Cosmos backend before generating")
@@ -396,18 +460,19 @@ class CosmosBackend:
                     "num_outputs": 1,
                     "guidance": float(self.cfg.guidance),
                     "control_guidance": float(self.cfg.control_guidance),
+                    "shift": float(self.cfg.shift),
                     self.cfg.control_kind: {
                         "control_path": register(slot["control"], control[i]),
                         "weight": float(self.cfg.control_weight),
                     },
                 }
-                if self.cfg.mask_guidance:
+                if self.cfg.mask_guidance and self._native_mask_api:
                     # Cosmos preserves where the mask is 1, which is the polarity
                     # ``preserve`` already uses, so it goes across unchanged.
                     manifest["guided_generation_mask"] = register(
-                        slot["mask"], frame.preserve[i].permute(2, 0, 1).float()
+                        slot["mask"], frame.preserve[i].permute(2, 0, 1).float() * self.cfg.mask_strength
                     )
-                    manifest["guided_generation_step_threshold"] = int(self.cfg.mask_step_threshold)
+                    manifest["guided_generation_step_threshold"] = self._mask_threshold
                     manifest["guided_generation_latent_mask_downsample_mode"] = str(self.cfg.mask_downsample_mode)
                 negative = getattr(self.cfg.prompts, "negative_prompt", None)
                 if negative:
@@ -432,7 +497,39 @@ class CosmosBackend:
                     _OUTPUTS.pop(stub, None)
                     _WANTED.add(stub)
 
-            self._pipe.generate(samples)
+            if self.cfg.mask_guidance and not self._native_mask_api:
+                from cosmos_framework.inference.vision import _resize_and_center_crop, read_and_resize_media
+
+                from .cosmos_guidance import guided_image_sampling
+
+                # Stock transfer is singleton. Encoding after its own resize keeps
+                # the source projection aligned with controls and target latents.
+                for i, sample in enumerate(samples):
+                    source, _, _, _ = read_and_resize_media(
+                        self._slots[i]["vision"],
+                        resolution=sample.resolution,
+                        aspect_ratio=sample.aspect_ratio,
+                        max_frames=1,
+                    )
+                    source = source.unsqueeze(0).to(self.device).float().div(127.5).sub(1)
+                    mask = frame.preserve[i].permute(2, 0, 1).unsqueeze(0).float()
+                    mask = _resize_and_center_crop(mask, *source.shape[-2:])
+                    with guided_image_sampling(
+                        self._pipe.model,
+                        source,
+                        mask,
+                        steps=self._num_steps,
+                        threshold=self._mask_threshold,
+                        strength=self.cfg.mask_strength,
+                        mode=self.cfg.mask_downsample_mode,
+                    ):
+                        self._pipe.generate([sample])
+            else:
+                # Also accept max_batch > 1 on public checkouts: their packer
+                # cannot combine transfer samples. The GitLab branch can.
+                batches = [samples] if self._native_mask_api else [[s] for s in samples]
+                for batch in batches:
+                    self._pipe.generate(batch)
             torch.cuda.synchronize(self.device)
 
             height, width = frame.rgb.shape[1:3]

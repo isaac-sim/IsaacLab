@@ -27,13 +27,8 @@
 
 set -euo pipefail
 
-SOURCE="${1:-}"
+SOURCE="${1:-https://github.com/NVIDIA/cosmos-framework.git}"
 VENV="${2:-.venv}"
-
-if [[ -z "${SOURCE}" ]]; then
-    sed -n '7,27p' "$0" | sed 's/^# \{0,1\}//'
-    exit 1
-fi
 
 if [[ ! -x "${VENV}/bin/python" ]]; then
     echo "error: no virtual environment at '${VENV}'. Run 'uv sync --extra isaacsim --extra teleop' first." >&2
@@ -83,24 +78,13 @@ except Exception:  # noqa: BLE001 - the probe must not fail the install
 
 print(f"    cosmos-framework {version}")
 print(f"    from {path}")
-print(f"    guided generation (mask support): {'yes' if guided else 'no'}")
-if not guided:
-    print("    -> leave CosmosBackendCfg.mask_guidance unset; the runtime composite preserves the foreground")
+print(f"    native guided-generation API: {'yes' if guided else 'no (Isaac Lab sampler adapter)'}")
 PY
 
 cat <<'EOF'
 
-Point the backend at a checkpoint with CosmosBackendCfg.checkpoint. It accepts a
-registered name (the default, "Cosmos3-Nano"), an s3:// URI, or a local directory,
-for example one fetched with:
-
-    hf download nvidia/<repo> --revision <rev> \
-        --include '<checkpoint-name>/**' --local-dir <local-path>
-
-    checkpoint="<local-path>/<checkpoint-name>"
-
-A distilled checkpoint wants different sampling from the base model: roughly
-num_steps=4 and guidance=1.0, since distillation trains the model to run without
-classifier-free guidance. The defaults here (16 steps, guidance 3.0) are tuned for
-the base Cosmos3-Nano and will be both slower and wrong for a distilled one.
+Start with scripts/visual_dr/recipes/cosmos_nano.yaml for nvidia/Cosmos3-Nano.
+For a custom four-step export, use cosmos_distilled.yaml and --checkpoint PATH.
+Either framework supports mask guidance on or off. See
+source/isaaclab_contrib/docs/visual_dr_setup.md for resolution and guidance settings.
 EOF

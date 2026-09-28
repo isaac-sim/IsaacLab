@@ -10,7 +10,7 @@ rollout actually uses, and loads the model once so the sweep is cheap. Writes on
 contact sheet comparing every step count against the raw frame, because the only
 way to choose a step count is to look at what it produces.
 
-    .venv/bin/python scripts/visual_dr/bench_steps.py --steps 1,2,4,8 --repeats 3
+    .venv/bin/python scripts/visual_dr/bench_steps.py --steps 10,20,35,50 --repeats 3
 """
 
 from __future__ import annotations
@@ -20,14 +20,15 @@ import argparse
 from isaaclab.app import AppLauncher
 
 parser = argparse.ArgumentParser("bench_steps")
-parser.add_argument("--steps", default="1,2,3,4,6,8", help="Comma-separated sampler step counts")
+parser.add_argument("--steps", default="10,20,35,50", help="Comma-separated sampler step counts")
 parser.add_argument("--repeats", type=int, default=3, help="Generations per step count, after a warmup")
 parser.add_argument("--camera", default="table_cam")
 parser.add_argument("--out", default="/tmp/dr_steps")
 AppLauncher.add_app_launcher_args(parser)
 args = parser.parse_args()
-args.enable_cameras = True
 
+# The task config is constructed after launch, so select the camera experience explicitly.
+args.enable_cameras = True
 app_launcher = AppLauncher(args)
 simulation_app = app_launcher.app
 

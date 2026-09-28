@@ -64,6 +64,7 @@ def preserve_mask(segmentation: torch.Tensor, labels: dict, cfg: CameraDRCfg) ->
 
     keep_unknown = cfg.unknown_policy == "preserve"
     preserve = torch.full_like(segmentation, keep_unknown, dtype=torch.bool)
+    erosion_regions: list[tuple[torch.Tensor, int]] = []
     matched = False
     for key, entry in labels.items():
         name = entry.get("class") if isinstance(entry, dict) else entry
@@ -73,6 +74,10 @@ def preserve_mask(segmentation: torch.Tensor, labels: dict, cfg: CameraDRCfg) ->
         if name in cfg.preserve_classes:
             preserve |= is_class
             matched = True
+            if isinstance(cfg.boundary_erosion_px, dict):
+                radius = cfg.boundary_erosion_px.get(name, 0)
+                if radius:
+                    erosion_regions.append((is_class, radius))
         elif keep_unknown:
             preserve &= ~is_class
     if not matched:
@@ -81,6 +86,15 @@ def preserve_mask(segmentation: torch.Tensor, labels: dict, cfg: CameraDRCfg) ->
             f"({sorted({e.get('class') for e in labels.values() if isinstance(e, dict)})}); "
             "the whole image would be regenerated"
         )
+
+    if isinstance(cfg.boundary_erosion_px, int) and cfg.boundary_erosion_px:
+        erosion_regions.append((preserve, cfg.boundary_erosion_px))
+    if erosion_regions:
+        # Measure from the union so touching preserved objects do not gain a gap.
+        background = (~preserve).permute(0, 3, 1, 2).float()
+        for region, radius in erosion_regions:
+            near_background = F.max_pool2d(background, 2 * radius + 1, stride=1, padding=radius)
+            preserve &= ~(region & near_background.permute(0, 2, 3, 1).bool())
 
     if cfg.boundary_px:
         width = 2 * cfg.boundary_px + 1

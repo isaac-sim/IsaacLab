@@ -62,9 +62,8 @@ CLIPPING_RANGE = (0.05, 50.0)
 background prompt is supposed to fill."""
 
 CAMERA_RESOLUTION = (640, 480)
-"""Width and height. Matches the 480 bucket at 4:3 exactly, so the frame goes to
-Cosmos and comes back with no resampling in either direction -- the task's 200x200
-was upsampled to 640x640 to generate and squeezed back down again."""
+"""Camera width and height. Cosmos uses its configured generation bucket and
+resizes the generated image back to this observation grid."""
 
 TABLE_CAM_POSITION = (1.35, 0.0, 0.7)
 """Pulled back and raised from the task's (1.0, 0.0, 0.4). The table is preserved
@@ -133,7 +132,7 @@ class StackRewardsCfg:
 
 @configclass
 class FrankaStackRuntimeDRCfg(FrankaCubeStackVisuomotorCosmosEnvCfg):
-    """Cube stacking with both cameras randomized.
+    """Cube stacking with runtime visual DR on the table camera.
 
     Cameras emit uncolored semantic IDs so the mask can be built from class
     names, and the auxiliary image observations are dropped because the policy
@@ -208,7 +207,7 @@ class FrankaStackRuntimeDRCfg(FrankaCubeStackVisuomotorCosmosEnvCfg):
                 # prompting puts researchers in it.
                 control_kind="seg",
                 control_guidance=2.0,  # Cosmos' tuned value for the seg hint.
-                # 640x480 is the 480 bucket at 4:3, matching the camera exactly.
+                # Keep the camera field of view; public 720/4:3 generates at 1104x832.
                 aspect_ratio="4,3",
             ),
         )

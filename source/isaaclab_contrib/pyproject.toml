@@ -22,7 +22,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-# Support for the patched Cosmos source checkout installed separately with --no-deps.
+# Public or GitLab Cosmos checkout, installed separately with --no-deps.
 # Its upstream metadata has no inference-only extra compatible with the shared env.
 cosmos-runtime = [
     # Cosmos' own runtime dependencies, minus anything that would drag in a second
