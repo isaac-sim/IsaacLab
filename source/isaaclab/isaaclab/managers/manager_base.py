@@ -144,6 +144,8 @@ class ManagerBase(ABC):
         # store the inputs
         self.cfg = copy.deepcopy(cfg)
         self._env = env
+        # scene entities resolved for the terms; finalized once every term is constructed
+        self._scene_entity_cfgs: list[SceneEntityCfg] = []
 
         # flag for whether the scene entities have been resolved
         # if sim is playing, we resolve the scene entities directly while preparing the terms
@@ -173,6 +175,8 @@ class ManagerBase(ABC):
         # parse config to create terms information
         if self.cfg:
             self._prepare_terms()
+            if self._is_scene_entities_resolved:
+                self._finalize_scene_entities()
 
     def __del__(self):
         """Delete the manager."""
@@ -287,6 +291,7 @@ class ManagerBase(ABC):
             # process attributes at runtime
             # these properties are only resolvable once the simulation starts playing
             self._process_term_cfg_at_play(term_name, term_cfg)
+        self._finalize_scene_entities()
         self._is_scene_entities_resolved = True
 
     """
@@ -400,6 +405,15 @@ class ManagerBase(ABC):
         if inspect.isclass(term_cfg.func):
             term_cfg.func = term_cfg.func(cfg=term_cfg, env=self._env)
 
+    def _finalize_scene_entities(self) -> None:
+        """Finalize resolved scene-entity selections once every term has been constructed.
+
+        Class-based terms read host selections during construction; term calls then receive
+        device selections. See :meth:`SceneEntityCfg.finalize`.
+        """
+        for scene_entity_cfg in self._scene_entity_cfgs:
+            scene_entity_cfg.finalize(self.device)
+
     def _resolve_param_value(
         self, term_name: str, key: str | int, value: Any, *, resolve_callable: bool = False
     ) -> Any:
@@ -411,6 +425,7 @@ class ManagerBase(ABC):
                 value.resolve(self._env.scene)
             except ValueError as e:
                 raise ValueError(f"Error while parsing '{term_name}:{key}'. {e}")
+            self._scene_entity_cfgs.append(value)
         elif isinstance(value, ManagerTermBaseCfg):
             self._process_term_cfg_at_play(f"{term_name}.{key}", value)
         elif isinstance(value, ModifierCfg):

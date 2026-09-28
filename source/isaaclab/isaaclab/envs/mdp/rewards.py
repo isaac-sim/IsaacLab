@@ -370,7 +370,7 @@ def position_command_error(env: ManagerBasedRLEnv, command_name: str, asset_cfg:
     # obtain the desired and current positions in the world frame
     des_pos_b = command[:, :3]
     des_pos_w, _ = combine_frame_transforms(asset.data.root_pos_w.torch, asset.data.root_quat_w.torch, des_pos_b)
-    curr_pos_w = asset.data.body_pos_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
+    curr_pos_w = asset.data.body_pos_w.torch[:, asset_cfg.body_ids][:, 0]  # type: ignore
     return torch.linalg.norm(curr_pos_w - des_pos_w, dim=1)
 
 
@@ -399,5 +399,5 @@ def orientation_command_error(env: ManagerBasedRLEnv, command_name: str, asset_c
     # obtain the desired and current orientations in the world frame
     des_quat_b = command[:, 3:7]
     des_quat_w = quat_mul(asset.data.root_quat_w.torch, des_quat_b)
-    curr_quat_w = asset.data.body_quat_w.torch[:, asset_cfg.body_ids[0]]  # type: ignore
+    curr_quat_w = asset.data.body_quat_w.torch[:, asset_cfg.body_ids][:, 0]  # type: ignore
     return quat_error_magnitude(curr_quat_w, des_quat_w)

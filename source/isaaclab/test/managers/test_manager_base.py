@@ -14,13 +14,14 @@ require an Isaac Sim launch, so they can run without AppLauncher.
 
 from collections import namedtuple
 from collections.abc import Sequence
+from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.envs import ManagerBasedEnv
-from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg
+from isaaclab.managers import ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.managers.manager_base import ManagerBase
 from isaaclab.physics import PhysicsEvent
 from isaaclab.utils import configclass, modifiers, to_dict, update_from_dict
@@ -131,6 +132,17 @@ class list_terms_class(ManagerTermBase):
     def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, term_list: list) -> None:
         for term_cfg in term_list:
             term_cfg.func(env, env_ids, **term_cfg.params)
+
+
+class record_joint_selection_class(ManagerTermBase):
+    """A class-based term that records the joint selection seen during construction."""
+
+    def __init__(self, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv):
+        super().__init__(cfg, env)
+        self.init_joint_ids = cfg.params["asset_cfg"].joint_ids
+
+    def __call__(self, env: ManagerBasedEnv, env_ids: torch.Tensor, asset_cfg: SceneEntityCfg) -> None:
+        pass
 
 
 @pytest.fixture
@@ -290,3 +302,21 @@ def test_terms_resolve_when_physics_is_ready_if_created_before_play(env):
     env.dummy2[:] = 42.0
     manager.apply(torch.arange(env.num_envs, device=env.device))
     torch.testing.assert_close(env.dummy2, torch.zeros_like(env.dummy2))
+
+
+@pytest.mark.parametrize("playing", [True, False])
+def test_scene_entities_finalize_after_class_terms_are_constructed(env, playing):
+    """Class terms read host selections during construction; term calls receive device selections."""
+    env.sim.is_playing.return_value = playing
+    env = SimpleNamespace(**env._asdict(), scene=dict(robot=SimpleNamespace(joint_names=["a", "b", "c"])))
+    asset_cfg = SceneEntityCfg("robot", joint_ids=[2, 0])
+    cfg = {"term": ManagerTermBaseCfg(func=record_joint_selection_class, params={"asset_cfg": asset_cfg})}
+    manager = SimpleManager(cfg, env)
+    if not playing:
+        callback, _ = env.sim.physics_manager.register_callback.call_args.args
+        callback(None)
+
+    term_cfg = manager._term_cfgs[0][1]
+    assert term_cfg.func.init_joint_ids == [2, 0]
+    assert isinstance(term_cfg.params["asset_cfg"].joint_ids, torch.Tensor)
+    assert term_cfg.params["asset_cfg"].joint_ids.tolist() == [2, 0]
