@@ -42,7 +42,10 @@ class SuccessMonitor:
         self.device = device
 
         num_slots = num_partitions * partition_size
-        self.success_buf = torch.zeros((num_slots, cfg.monitored_history_len), device=device)
+        # a trailing scratch row absorbs masked and overflowing outcomes, so updates need no
+        # data-dependent indexing (and therefore no host synchronization)
+        self._outcome_buf = torch.zeros((num_slots + 1, cfg.monitored_history_len), device=device)
+        self.success_buf = self._outcome_buf[:num_slots]
         self.success_rate = torch.zeros(num_slots, device=device)
         self.success_pointer = torch.zeros(num_slots, device=device, dtype=torch.long)
         self.success_size = torch.zeros(num_slots, device=device, dtype=torch.long)
@@ -51,32 +54,47 @@ class SuccessMonitor:
         """Return a copy of every slot's measured success rate."""
         return self.success_rate.clone()
 
-    def get_mean_success_rate(self) -> float:
-        """Average rates across slots that have recorded outcomes."""
-        measured = self.success_size > 0
-        return float(self.success_rate[measured].mean()) if bool(measured.any()) else 0.0
+    def get_mean_success_rate(self) -> torch.Tensor:
+        """Average rates across slots that have recorded outcomes, as a 0-d tensor; zero before any outcome.
 
-    def success_update(self, slot_ids: torch.Tensor, success: torch.Tensor):
-        """Append outcomes to their slots' ring buffers and update success rates."""
+        Returned on the device so per-step logging does not synchronize; loggers read it when they report.
+        """
+        measured = self.success_size > 0
+        return (self.success_rate * measured).sum() / measured.sum().clamp(min=1)
+
+    def success_update(self, slot_ids: torch.Tensor, success: torch.Tensor, valid: torch.Tensor | None = None):
+        """Append outcomes to their slots' ring buffers and update success rates.
+
+        Outcomes for the same slot are appended in input order; when a slot receives more outcomes than
+        :attr:`SuccessMonitorCfg.monitored_history_len`, only its latest ones are kept.
+
+        Args:
+            slot_ids: Slot of each outcome, shape (N,).
+            success: Whether each outcome succeeded, shape (N,).
+            valid: Which outcomes to record, shape (N,). Defaults to None, which records all of them.
+        """
         if len(slot_ids) == 0:
             return
         history = self.cfg.monitored_history_len
+        scratch = self.success_rate.shape[0]
+        if valid is not None:
+            slot_ids = torch.where(valid, slot_ids, scratch)
+        counts = torch.zeros(scratch + 1, dtype=torch.long, device=self.device)
+        counts.index_add_(0, slot_ids, torch.ones(len(slot_ids), dtype=torch.long, device=self.device))
+
+        # rank each outcome within its slot, in input order, then keep the latest ``history`` of them
         order = torch.argsort(slot_ids, stable=True)
         ordered_slots = slot_ids[order]
-        unique_slots, counts = torch.unique_consecutive(ordered_slots, return_counts=True)
-
         starts = counts.cumsum(0) - counts
-        offset = torch.arange(len(ordered_slots), device=self.device) - starts.repeat_interleave(counts)
-        offset -= (counts - history).clamp(min=0).repeat_interleave(counts)
-        kept = offset >= 0
+        offset = torch.arange(len(ordered_slots), device=self.device) - starts[ordered_slots]
+        offset -= (counts[ordered_slots] - history).clamp(min=0)
+        rows = torch.where((offset >= 0) & (ordered_slots < scratch), ordered_slots, scratch)
+        positions = (self.success_pointer[rows.clamp(max=scratch - 1)] + offset) % history
+        self._outcome_buf[rows, positions] = success[order].to(dtype=self._outcome_buf.dtype)
 
-        slots = ordered_slots[kept]
-        positions = (self.success_pointer[slots] + offset[kept]) % history
-        self.success_buf[slots, positions] = success[order][kept].to(dtype=self.success_buf.dtype)
-
-        written = counts.clamp(max=history)
-        self.success_pointer[unique_slots] = (self.success_pointer[unique_slots] + written) % history
-        self.success_size[unique_slots] = (self.success_size[unique_slots] + written).clamp(max=history)
+        written = counts[:scratch].clamp(max=history)
+        self.success_pointer.add_(written).remainder_(history)
+        self.success_size.add_(written).clamp_(max=history)
         self.success_rate[:] = self.success_buf.sum(dim=1) / self.success_size.clamp(min=1)
 
     def target_weights(self) -> torch.Tensor:
