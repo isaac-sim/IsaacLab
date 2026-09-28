@@ -166,7 +166,13 @@ class SpatialSoftmaxCNNModel(MLPModel):
             softmax = SpatialSoftmax(int(channels), int(height), int(width), init_temperature)
             cnns[obs_group] = cnn
             softmaxes[obs_group] = softmax
-            normalizers[obs_group] = CameraImageNormalizer(obs[obs_group].dtype == torch.uint8)
+            dtype = obs[obs_group].dtype
+            if dtype != torch.uint8 and not dtype.is_floating_point:
+                raise ValueError(
+                    f"Observation group '{obs_group}' has dtype {dtype}; the camera normalizer expects uint8 color"
+                    " or floating-point depth images. Enable segmentation colorization for label images."
+                )
+            normalizers[obs_group] = CameraImageNormalizer(dtype == torch.uint8)
             self.keypoint_dim += softmax.output_dim
 
         super().__init__(
@@ -187,13 +193,11 @@ class SpatialSoftmaxCNNModel(MLPModel):
         self, obs: TensorDict, masks: torch.Tensor | None = None, hidden_state: HiddenState = None
     ) -> torch.Tensor:
         """Build the model latent from keypoint coordinates and normalized 1D groups."""
-        latent_2d = torch.cat(
-            [
-                self.softmaxes[group](self.cnns[group](self.image_normalizers[group](obs[group])))
-                for group in self.obs_groups_2d
-            ],
-            dim=-1,
-        )
+        latents_2d = []
+        for group in self.obs_groups_2d:
+            images = self.image_normalizers[group](obs[group])
+            latents_2d.append(self.softmaxes[group](self.cnns[group](images)))
+        latent_2d = torch.cat(latents_2d, dim=-1)
         if not self.obs_groups:
             return latent_2d
         return torch.cat([MLPModel.get_latent(self, obs), latent_2d], dim=-1)

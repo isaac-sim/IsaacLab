@@ -5,14 +5,12 @@
 
 """Configuration for the Kuka-Allegro lift and reorient environments."""
 
-import isaaclab.envs.mdp as base_mdp
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.images import is_depth_like
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -144,25 +142,6 @@ class KukaAllegroMixinCfg:
                 "distribution": "log_uniform",
             },
         )
-
-    def validate_config(self) -> None:
-        """Select image terms from the resolved camera data types before managers initialize."""
-        for sensor_name, group_name, term_name in (
-            ("base_camera", "base_image", "object_observation_b"),
-            ("wrist_camera", "wrist_image", "wrist_observation"),
-        ):
-            camera = getattr(self.scene, sensor_name)
-            if camera is None:
-                continue
-            term = getattr(getattr(self.observations, group_name), term_name)
-            data_type = camera.data_types[0]
-            if is_depth_like(data_type):
-                term.func = base_mdp.image_depth
-            elif "segmentation" in data_type:
-                term.func = base_mdp.image_segmentation
-            else:
-                term.func = base_mdp.image_rgb
-            term.params["data_type"] = data_type
 
 
 @configclass
