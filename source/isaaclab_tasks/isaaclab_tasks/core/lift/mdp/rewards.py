@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import functools
 import warnings
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -22,16 +21,6 @@ if TYPE_CHECKING:
     from isaaclab.assets import Articulation, CableObject, DeformableObject, RigidObject
     from isaaclab.envs import ManagerBasedRLEnv
     from isaaclab.sensors import ContactSensor, FrameTransformer
-
-
-def _device_ids(ids: list[int] | slice, device: str) -> torch.Tensor | slice:
-    """Return body IDs as a cached device tensor."""
-    return ids if isinstance(ids, slice) else _cached_device_ids(tuple(ids), device)
-
-
-@functools.cache
-def _cached_device_ids(ids: tuple[int, ...], device: str) -> torch.Tensor:
-    return torch.tensor(ids, device=device)
 
 
 def object_ee_distance(
@@ -59,7 +48,7 @@ def object_ee_distance(
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     obj: RigidObject = env.scene[object_cfg.name]
-    asset_pos = asset.data.body_pos_w.torch[:, _device_ids(asset_cfg.body_ids, env.device)]
+    asset_pos = asset.data.body_pos_w.torch[:, asset_cfg.body_ids]
     object_pos = obj.data.root_pos_w.torch
     distance = torch.linalg.norm(asset_pos - object_pos[:, None, :], dim=-1).max(dim=-1).values
     contact_bonus = contacts(env, contact_threshold, thumb_name, finger_names).float().clamp(0.1, 1.0)
