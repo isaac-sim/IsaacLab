@@ -509,7 +509,7 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
 def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
     """Compose local and remote dependency chains without editing the authored layers."""
     import omni.client
-    from pxr import Usd
+    from pxr import Sdf, Usd
 
     layers = {
         "local.usda": '#usda 1.0\ndef Shader "local" {\n asset info:mdl:sourceAsset = @OmniPBR.mdl@\n}\n',
@@ -540,7 +540,9 @@ def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, m
         package_path = asset_cache / "scene.usdz"
         package_root = asset_cache / "package.usda"
         package_root.write_text('#usda 1.0\n(subLayers = [@local.usda@])\ndef Xform "cartpole" {}\n')
-        with Usd.ZipFileWriter.CreateNew(str(package_path)) as package:
+        # ZipFileWriter moved from Usd to Sdf in OpenUSD 25.08, and 26.05 dropped the Usd alias.
+        zip_file_writer = getattr(Sdf, "ZipFileWriter", None) or Usd.ZipFileWriter
+        with zip_file_writer.CreateNew(str(package_path)) as package:
             package.AddFile(str(package_root), "package.usda")
             package.AddFile(str(asset_cache / "local.usda"), "local.usda")
         payloads[source[layout]] = package_path.read_bytes()
