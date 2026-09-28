@@ -8,8 +8,8 @@
 These types live in :mod:`isaaclab.scene_data` rather than
 :mod:`isaaclab.scene` so that physics backends (``isaaclab_physx``,
 ``isaaclab_newton``) can subclass :class:`SceneDataBackend` without pulling
-:mod:`isaaclab.scene` into the ``AppLauncher`` pre-launch import chain.
-``AppLauncher._create_app`` pops ``*lab*`` modules from ``sys.modules``
+:mod:`isaaclab.scene` into the Kit launcher pre-launch import chain.
+``KitLauncher._create_app`` pops ``*lab*`` modules from ``sys.modules``
 during Kit init and any submodule imported during that window ends up
 orphaned from its parent's ``__dict__`` after restoration.
 """

@@ -123,7 +123,9 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     if "kit" in visualizers:
         # a Kit app that resolved without a GUI has no viewport to display the asset in
         if AppLauncher.has_gui():
-            sim_utils.show_stage_in_viewport(usd_path)
+            from isaaclab_physx.app import show_stage_in_viewport
+
+            show_stage_in_viewport(usd_path)
         return
 
     # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the

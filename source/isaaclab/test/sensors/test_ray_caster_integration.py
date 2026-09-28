@@ -63,7 +63,6 @@ def _make_sim_and_ground():
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=_DT))
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
-    sim_utils.update_stage()
     return sim
 
 
@@ -122,7 +121,6 @@ def test_rigid_body_view_path(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
 
     sensor = RayCaster(_single_downward_ray_cfg(prim_path))
     sim.reset()
@@ -317,7 +315,6 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
         asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
     )
     sim.set_clone_plan(plan)
-    sim_utils.update_stage()
 
     cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Sensor",
@@ -450,7 +447,6 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, col_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(col_path))
-    sim_utils.update_stage()
 
     # Create a sensor prim to mount the MultiMeshRayCaster on
     sensor_path = "/World/SensorMount"

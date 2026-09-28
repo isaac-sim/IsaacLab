@@ -93,7 +93,8 @@ simulation_app = app_launcher.app
 
 import os
 
-import isaaclab.sim as sim_utils
+from isaaclab_physx.app import show_stage_in_viewport
+
 from isaaclab.sim.converters import MeshConverter, MeshConverterCfg
 from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
@@ -182,7 +183,7 @@ def main():
 
     # Show the converted asset if the launch resolved to a window or livestream
     if AppLauncher.has_gui():
-        sim_utils.show_stage_in_viewport(mesh_converter.usd_path)
+        show_stage_in_viewport(mesh_converter.usd_path)
 
 
 if __name__ == "__main__":

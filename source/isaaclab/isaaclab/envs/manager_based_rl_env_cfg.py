@@ -16,6 +16,9 @@ class ManagerBasedRLEnvCfg(ManagerBasedEnvCfg):
     """Configuration for a reinforcement learning environment with the manager-based workflow."""
 
     # ui settings
+    class_type: type | str = "{DIR}.manager_based_rl_env:ManagerBasedRLEnv"
+    """The environment class constructed from this configuration."""
+
     ui_window_class_type: type | str | None = "isaaclab.envs.ui.manager_based_rl_env_window:ManagerBasedRLEnvWindow"
 
     # general settings

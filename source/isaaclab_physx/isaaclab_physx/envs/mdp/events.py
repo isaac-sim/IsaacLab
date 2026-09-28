@@ -254,6 +254,9 @@ class randomize_visual_color(ManagerTermBase):
         super().__init__(cfg, env)
 
         self._rep = rep = _get_replicator()
+        # this term draws from Replicator's random streams, so they follow the environment seed
+        if env.cfg.seed is not None:
+            rep.set_global_seed(env.cfg.seed)
 
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         mesh_name: str = cfg.params.get("mesh_name", "")  # type: ignore
@@ -378,6 +381,9 @@ class randomize_visual_texture_material(ManagerTermBase):
             )
 
         self._rep = rep = _get_replicator()
+        # this term draws from Replicator's random streams, so they follow the environment seed
+        if env.cfg.seed is not None:
+            rep.set_global_seed(env.cfg.seed)
 
         asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg")
         asset = env.scene[asset_cfg.name]

@@ -181,8 +181,6 @@ def setup(sensor_type: str = "cube"):
     # Get the requested sensor configuration using the factory function
     sensor_cfg = get_sensor_cfg_by_type(sensor_type)
 
-    # load stage
-    sim_utils.update_stage()
     return sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg
 
 

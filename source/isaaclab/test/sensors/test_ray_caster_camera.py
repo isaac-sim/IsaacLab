@@ -91,8 +91,6 @@ def setup() -> tuple[sim_utils.SimulationContext, RayCasterCameraCfg, float]:
     # Add lighting for RTX rendering
     light_cfg = sim_utils.DomeLightCfg(intensity=2000.0)
     light_cfg.func("/World/Light", light_cfg)
-    # load stage
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 

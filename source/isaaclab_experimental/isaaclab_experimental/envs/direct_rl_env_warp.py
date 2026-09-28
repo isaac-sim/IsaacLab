@@ -518,14 +518,6 @@ class DirectRLEnvWarp(DirectRLEnv):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -534,15 +526,18 @@ class DirectRLEnvWarp(DirectRLEnv):
         By convention, if mode is:
 
         - **human**: Render to the current display and return nothing. Usually for human consumption.
-        - **rgb_array**: Return an numpy.ndarray with shape (x, y, 3), representing RGB values for an
-          x-by-y pixel image, suitable for turning into a video.
+
+        .. note::
+            ``render_mode="rgb_array"`` is no longer supported.  Use
+            :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` on
+            ``env_cfg.video_recorders`` instead.
 
         Args:
             recompute: Whether to force a render even if the simulator has already rendered the scene.
                 Defaults to False.
 
         Returns:
-            The rendered image as a numpy array if mode is "rgb_array". Otherwise, returns None.
+            None.
 
         Raises:
             RuntimeError: If mode is set to "rgb_data" and simulation render mode does not support it.
@@ -555,40 +550,18 @@ class DirectRLEnvWarp(DirectRLEnv):
         if not (hasattr(self.sim, "has_rtx_sensors") and self.sim.has_rtx_sensors()) and not recompute:
             self.sim.render()
         # decide the rendering mode
+        if self.render_mode == "rgb_array":
+            import warnings
+
+            warnings.warn(
+                "render_mode='rgb_array' is deprecated and will be removed in a future release. "
+                "Use VideoRecorderCfg on env_cfg.video_recorders to capture frames instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            return None
         if self.render_mode == "human" or self.render_mode is None:
             return None
-        elif self.render_mode == "rgb_array":
-            # rendering requires a GUI or offscreen rendering (mirrors the stable env)
-            if not (self.sim.has_gui or self.sim.has_offscreen_render):
-                render_mode_name = "NO_GUI_OR_RENDERING"
-                raise RuntimeError(
-                    f"Cannot render '{self.render_mode}' when the simulation render mode is"
-                    f" '{render_mode_name}'. Please set the simulation render mode"
-                    " to:'PARTIAL_RENDERING' or"
-                    " 'FULL_RENDERING'."
-                )
-            # create the annotator if it does not exist
-            if not hasattr(self, "_rgb_annotator"):
-                import omni.replicator.core as rep
-
-                # create render product from the main Kit viewport camera
-                _cam_prim_path = "/OmniverseKit_Persp"
-                _resolution = (1280, 720)
-                self._render_product = rep.create.render_product(_cam_prim_path, _resolution)
-                self._render_resolution = _resolution
-                # create rgb annotator -- used to read data from the render product
-                self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
-                self._rgb_annotator.attach([self._render_product])
-            # obtain the rgb data
-            rgb_data = self._rgb_annotator.get_data()
-            # convert to numpy array
-            rgb_data = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
-            # return the rgb data
-            # note: initially the renerer is warming up and returns empty data
-            if rgb_data.size == 0:
-                return np.zeros((self._render_resolution[1], self._render_resolution[0], 3), dtype=np.uint8)
-            else:
-                return rgb_data[:, :, :3]
         else:
             raise NotImplementedError(
                 f"Render mode '{self.render_mode}' is not supported. Please use: {self.metadata['render_modes']}."

@@ -13,7 +13,7 @@ correctly handles:
 - Multi-node: WORLD_SIZE > local GPU count (local_rank still maps correctly)
 - JAX_LOCAL_RANK: added to local_rank for JAX distributed training
 - Non-distributed: no device override applied
-- launch_simulation device propagation from AppLauncher
+- launch_simulation device propagation from the Kit launcher
 
 No actual GPUs required — ``torch.cuda.device_count`` and the shared CUDA
 device-selection helper are mocked throughout.
@@ -109,6 +109,8 @@ class TestResolveDistributedDeviceNamespace:
             sim_launcher._resolve_distributed_device(env_cfg, args)
 
         assert env_cfg.sim.device == "cuda:3"
+        # the Kit launcher reads the resolved device from the launcher args
+        assert args.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")
 
     @patch.object(sim_launcher, "set_cuda_device")
@@ -280,42 +282,32 @@ class TestResolveDistributedDeviceMultiNode:
 
 
 # ---------------------------------------------------------------------------
-# launch_simulation integration — verify device propagation from AppLauncher
+# launch_simulation integration — verify device propagation from the Kit launcher
 # ---------------------------------------------------------------------------
 
 
 class TestLaunchSimulationDevicePropagation:
-    """Verify that launch_simulation propagates AppLauncher.device to env_cfg."""
+    """Verify that launch_simulation propagates the Kit launcher's device to env_cfg."""
 
-    def test_kit_path_propagates_applauncher_device(self, monkeypatch):
-        """When Kit is needed, AppLauncher.device should be written to env_cfg.sim.device."""
+    def test_kit_path_propagates_launcher_device(self, monkeypatch):
+        """When Kit is needed, the Kit launcher's device should be written to env_cfg.sim.device."""
 
-        class _FakeAppLauncher:
-            is_available = staticmethod(lambda: True)
+        class _FakeKitLauncher:
+            device = "cuda:3"  # Simulate resolved device
 
             def __init__(self, launcher_args):
-                self.device = "cuda:3"  # Simulate resolved device
-                self.app = types.SimpleNamespace(close=lambda: None)
+                pass
 
-        # Mock has_kit to return False so AppLauncher gets created
-        mock_isaaclab_utils = types.ModuleType("isaaclab.utils")
-        mock_isaaclab_utils.has_kit = lambda: False
-        monkeypatch.setitem(sys.modules, "isaaclab.utils", mock_isaaclab_utils)
+            def close(self, exit_code=0):
+                pass
+
         monkeypatch.setitem(
             sys.modules,
             "isaaclab.utils.assets",
             types.SimpleNamespace(configure_storage_profile=lambda: None),
         )
 
-        monkeypatch.setitem(
-            sys.modules,
-            "isaaclab.app",
-            types.SimpleNamespace(AppLauncher=_FakeAppLauncher),
-        )
-        monkeypatch.setattr(
-            "importlib.util.find_spec",
-            lambda name: object() if name == "omni.kit" else None,
-        )
+        monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
             sim_launcher,

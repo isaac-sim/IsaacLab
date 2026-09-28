@@ -125,8 +125,6 @@ def create_dummy_sensor(request, device):
 
     sensor_cfg = DummySensorCfg()
 
-    sim_utils.update_stage()
-
     yield sensor_cfg, sim, dt
 
     # stop simulation and clean up
@@ -319,7 +317,6 @@ def test_rigid_body_ancestor_expr_trims_only_terminal_suffix(create_dummy_sensor
     sim_utils.create_prim(parent_path, "Xform")
     sim_utils.create_prim(child_path, "Xform")
     UsdPhysics.RigidBodyAPI.Apply(sim_utils.get_current_stage().GetPrimAtPath(parent_path))
-    sim_utils.update_stage()
 
     sensor_cfg.prim_path = "{ENV_REGEX_NS}/Robot/link/link"
     sensor = DummySensor(cfg=sensor_cfg)

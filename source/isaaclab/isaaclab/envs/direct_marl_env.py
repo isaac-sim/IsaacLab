@@ -499,14 +499,6 @@ class DirectMARLEnv(gym.Env):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:

@@ -46,7 +46,7 @@ class SimulationCfg:
     Valid options are:
 
     - ``"cpu"``: Use CPU.
-    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab.app.AppLauncher`'s config.
+    - ``"cuda"``: Use GPU, where the device ID is inferred from :class:`~isaaclab_physx.app.KitLauncher`'s config.
     - ``"cuda:N"``: Use GPU, where N is the device ID. For example, "cuda:0".
     """
 
