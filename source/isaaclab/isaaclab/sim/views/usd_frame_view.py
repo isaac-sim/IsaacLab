@@ -91,6 +91,8 @@ class UsdFrameView(BaseFrameView):
 
         stage = sim_utils.get_current_stage() if stage is None else stage
         self._prims: list[Usd.Prim] = sim_utils.find_matching_prims(prim_path, stage=stage)
+        # string paths are built lazily on first access of :attr:`prim_paths`
+        self._prim_paths: list[str] | None = None
 
         if validate_xform_ops:
             for prim in self._prims:
@@ -129,7 +131,7 @@ class UsdFrameView(BaseFrameView):
 
         The conversion is performed lazily on first access and cached.
         """
-        if not hasattr(self, "_prim_paths"):
+        if self._prim_paths is None:
             self._prim_paths = [prim.GetPath().pathString for prim in self._prims]
         return self._prim_paths
 

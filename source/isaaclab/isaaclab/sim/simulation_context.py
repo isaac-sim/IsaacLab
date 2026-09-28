@@ -466,7 +466,7 @@ class SimulationContext:
         class defaults. Backend-specific defaults, such as the streaming renderer,
         do not transfer between visualizer types.
         """
-        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        default_cfg = self.cfg.default_visualizer_cfg
         if default_cfg is None:
             return
         try:
@@ -508,8 +508,7 @@ class SimulationContext:
         if max_visible < 0:
             return
         for cfg in visualizer_cfgs:
-            if hasattr(cfg, "max_visible_envs"):
-                cfg.max_visible_envs = max_visible
+            cfg.max_visible_envs = max_visible
 
     def _is_cli_visualizer_explicit(self) -> bool:
         """Return ``True`` when visualizers were explicitly provided via CLI."""
@@ -534,9 +533,7 @@ class SimulationContext:
             return []
         if self._is_cli_visualizer_explicit():
             return self._get_cli_visualizer_types()
-        return [
-            cfg.visualizer_type for cfg in self._configured_visualizer_cfgs() if getattr(cfg, "visualizer_type", None)
-        ]
+        return [cfg.visualizer_type for cfg in self._configured_visualizer_cfgs() if cfg.visualizer_type]
 
     def _has_continuous_visualizers(self) -> bool:
         """Return whether the resolved visualizers require per-step updates."""
@@ -547,16 +544,12 @@ class SimulationContext:
         visualizer_cfgs = self._configured_visualizer_cfgs()
         if self._is_cli_visualizer_explicit():
             for visualizer_type in visualizer_types:
-                matching_cfgs = [
-                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == visualizer_type
-                ]
+                matching_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type == visualizer_type]
                 if not matching_cfgs or any(not getattr(cfg, "headless", False) for cfg in matching_cfgs):
                     return True
             return False
 
-        return any(
-            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs
-        )
+        return any(cfg.visualizer_type and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs)
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Resolve final visualizer configs from cfg and optional CLI override.
@@ -587,10 +580,10 @@ class SimulationContext:
         else:
             # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
             cli_requested_set = set(canonical_requested)
-            resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested_set]
+            resolved = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in cli_requested_set]
             for cfg in resolved:
                 self._apply_default_visualizer_cfg(cfg)
-            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            existing_types = {cfg.visualizer_type for cfg in resolved}
             for viz_type in cli_requested:
                 if _VISUALIZER_ALIASES.get(viz_type, viz_type) not in existing_types:
                     resolved.extend(self._create_default_visualizer_configs([viz_type]))
@@ -602,7 +595,7 @@ class SimulationContext:
         # missing packages that _create_default_visualizer_configs silently
         # skips.
         if cli_explicit and cli_requested:
-            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
+            resolved_types = {cfg.visualizer_type for cfg in resolved}
             missing = [
                 t
                 for t, canonical in zip(cli_requested, canonical_requested, strict=True)
@@ -622,7 +615,7 @@ class SimulationContext:
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
-            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
+            has_kit = any(cfg.visualizer_type == "kit" for cfg in resolved)
             if not has_kit:
                 try:
                     mod = importlib.import_module("isaaclab_visualizers.kit")
@@ -739,7 +732,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            getattr(cfg, "visualizer_type", None) in {"newton_gl", "newton_rtx"}
+            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )
@@ -833,7 +826,7 @@ class SimulationContext:
         # consumes that state later in this method. Live-plot panels register in the same
         # registry and their flag is independent of markers, so gate on either capability.
         if any(
-            viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True))
+            viz.supports_markers() or (viz.supports_live_plots() and viz.cfg.enable_live_plots)
             for viz in self._visualizers
         ):
             self.vis_marker_registry.dispatch_callbacks()
