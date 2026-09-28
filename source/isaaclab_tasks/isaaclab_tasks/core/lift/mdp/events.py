@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import functools
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -72,6 +73,20 @@ def reset_joints_shared_offset(
     )
 
 
+def _xyz_ranges(ranges: dict[str, tuple[float, float]], device: str | torch.device) -> torch.Tensor:
+    """Per-axis ``(low, high)`` bounds [m] of the ``x``, ``y``, ``z`` keys as a device tensor, shape ``(3, 2)``.
+
+    Missing axes are ``(0, 0)``. The tensor is cached so resets do not upload the constant bounds.
+    """
+    bounds = tuple(tuple(ranges.get(axis, (0.0, 0.0))) for axis in ("x", "y", "z"))
+    return _cached_xyz_ranges(bounds, str(device))
+
+
+@functools.cache
+def _cached_xyz_ranges(bounds: tuple[tuple[float, float], ...], device: str) -> torch.Tensor:
+    return torch.tensor(bounds, device=device)
+
+
 def reset_cable_state_uniform(
     env: ManagerBasedEnv,
     env_ids: torch.Tensor,
@@ -82,7 +97,7 @@ def reset_cable_state_uniform(
     asset: CableObject = env.scene[asset_cfg.name]
     segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
     segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
-    ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
+    ranges = _xyz_ranges(position_range, asset.device)
     offset = sample_uniform(ranges[:, 0], ranges[:, 1], (segment_pose.shape[0], 3), device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
     asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
@@ -822,7 +837,7 @@ def reset_deformable_over_support(
     deformable: DeformableObject = env.scene[asset_cfg.name]
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
+    ranges = _xyz_ranges(position_range, deformable.device)
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     offset = sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 3), device=deformable.device)
 

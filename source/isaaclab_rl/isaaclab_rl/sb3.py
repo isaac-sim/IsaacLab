@@ -245,8 +245,6 @@ class Sb3VecEnvWrapper(VecEnv):
     def step_wait(self) -> VecEnvStepReturn:  # noqa: D102
         # record step information
         obs_dict, rew, terminated, truncated, extras = self.env.step(self._async_actions)
-        # compute reset ids
-        dones = terminated | truncated
 
         # convert data types to numpy depending on backend
         # note: ManagerBasedRLEnv uses torch backend (by default).
@@ -254,7 +252,8 @@ class Sb3VecEnvWrapper(VecEnv):
         rewards = rew.detach().cpu().numpy()
         terminated = terminated.detach().cpu().numpy()
         truncated = truncated.detach().cpu().numpy()
-        dones = dones.detach().cpu().numpy()
+        # compute reset ids on the host copies, which saves a device-to-host transfer
+        dones = terminated | truncated
 
         reset_ids = dones.nonzero()[0]
 

@@ -45,26 +45,36 @@ class ReorientDirectEnv(DirectRLEnv):
 
         # -- robot introspection: joints, bodies, limits --
         self.num_hand_dofs = self.hand.num_joints
-        self.actuated_dof_indices, _ = self.hand.find_joints(cfg.actuated_joint_names)
-        if len(self.actuated_dof_indices) != len(cfg.actuated_joint_names):
+        actuated_dof_indices, _ = self.hand.find_joints(cfg.actuated_joint_names)
+        if len(actuated_dof_indices) != len(cfg.actuated_joint_names):
             raise ValueError(
-                f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(self.actuated_dof_indices)}."
+                f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(actuated_dof_indices)}."
             )
+        # device indices: indexing a CUDA tensor with a host list uploads it on every call
+        self.actuated_dof_indices = torch.tensor(actuated_dof_indices, dtype=torch.long, device=self.device)
+        # a slice avoids the gather/scatter when every joint is actuated (``find_joints`` returns sorted ids)
+        all_actuated = actuated_dof_indices == list(range(self.num_hand_dofs))
+        self._actuated_dof_ids = slice(None) if all_actuated else self.actuated_dof_indices
 
-        self.finger_bodies, fingertip_body_names = self.hand.find_bodies(self.cfg.fingertip_body_names)
-        if len(self.finger_bodies) != len(self.cfg.fingertip_body_names):
+        finger_bodies, fingertip_body_names = self.hand.find_bodies(self.cfg.fingertip_body_names)
+        if len(finger_bodies) != len(self.cfg.fingertip_body_names):
             raise ValueError(
-                f"Expected {len(self.cfg.fingertip_body_names)} fingertip bodies, found {len(self.finger_bodies)}."
+                f"Expected {len(self.cfg.fingertip_body_names)} fingertip bodies, found {len(finger_bodies)}."
             )
-        self.num_fingertips = len(self.finger_bodies)
+        self.finger_bodies = torch.tensor(finger_bodies, dtype=torch.long, device=self.device)
+        self.num_fingertips = len(finger_bodies)
         self.finger_wrench_bodies = []
         if self._joint_wrench_sensor is not None:
-            for body_name in fingertip_body_names:
-                self.finger_wrench_bodies.append(self._joint_wrench_sensor.body_names.index(body_name))
-            self.finger_wrench_bodies.sort()
+            finger_wrench_bodies = sorted(
+                self._joint_wrench_sensor.body_names.index(name) for name in fingertip_body_names
+            )
+            self.finger_wrench_bodies = torch.tensor(finger_wrench_bodies, dtype=torch.long, device=self.device)
         joint_pos_limits = self.hand.data.joint_limits.torch.to(self.device)
         self.hand_dof_lower_limits = joint_pos_limits[..., 0]
         self.hand_dof_upper_limits = joint_pos_limits[..., 1]
+        # the joint limits are static, so the actuated subset is gathered once rather than every substep
+        self._actuated_lower_limits = self.hand_dof_lower_limits[:, self._actuated_dof_ids]
+        self._actuated_upper_limits = self.hand_dof_upper_limits[:, self._actuated_dof_ids]
 
         # -- actuation targets (EMA-smoothed joint position targets) --
         self.prev_targets = torch.zeros((self.num_envs, self.num_hand_dofs), dtype=torch.float, device=self.device)
@@ -94,7 +104,7 @@ class ReorientDirectEnv(DirectRLEnv):
         self.z_unit_tensor = torch.tensor([0, 0, 1], dtype=torch.float, device=self.device).repeat((self.num_envs, 1))
 
         # -- articulation write handles --
-        self._set_joint_pos_target = self.hand.set_joint_position_target_index
+        self._set_joint_pos_target = self.hand.actuators.target_command.set_position_index
         self._write_obj_root_pose = self.object.write_root_pose_to_sim_index
         self._write_obj_root_vel = self.object.write_root_velocity_to_sim_index
         self._write_hand_joint_pos = self.hand.write_joint_position_to_sim_index
@@ -106,27 +116,19 @@ class ReorientDirectEnv(DirectRLEnv):
     def _apply_action(self) -> None:
         # Joint actions come first, matching the manager task's action-term order. A hand whose
         # motors also pull tendons consumes the remaining columns in its own subclass.
+        ids = self._actuated_dof_ids
         num_joint_actions = len(self.actuated_dof_indices)
-        self.cur_targets[:, self.actuated_dof_indices] = unscale_transform(
-            self.actions[:, :num_joint_actions],
-            self.hand_dof_lower_limits[:, self.actuated_dof_indices],
-            self.hand_dof_upper_limits[:, self.actuated_dof_indices],
+        targets = unscale_transform(
+            self.actions[:, :num_joint_actions], self._actuated_lower_limits, self._actuated_upper_limits
         )
-        self.cur_targets[:, self.actuated_dof_indices] = (
-            self.cfg.act_moving_average * self.cur_targets[:, self.actuated_dof_indices]
-            + (1.0 - self.cfg.act_moving_average) * self.prev_targets[:, self.actuated_dof_indices]
+        targets = (
+            self.cfg.act_moving_average * targets + (1.0 - self.cfg.act_moving_average) * self.prev_targets[:, ids]
         )
-        self.cur_targets[:, self.actuated_dof_indices] = saturate(
-            self.cur_targets[:, self.actuated_dof_indices],
-            self.hand_dof_lower_limits[:, self.actuated_dof_indices],
-            self.hand_dof_upper_limits[:, self.actuated_dof_indices],
-        )
+        targets = saturate(targets, self._actuated_lower_limits, self._actuated_upper_limits)
+        self.cur_targets[:, ids] = targets
+        self.prev_targets[:, ids] = targets
 
-        self.prev_targets[:, self.actuated_dof_indices] = self.cur_targets[:, self.actuated_dof_indices]
-
-        self._set_joint_pos_target(
-            target=self.cur_targets[:, self.actuated_dof_indices], joint_ids=self.actuated_dof_indices
-        )
+        self._set_joint_pos_target(value=targets, joint_ids=ids)
 
     def _get_observations(self) -> dict:
         if self.cfg.asymmetric_obs:
@@ -244,8 +246,8 @@ class ReorientDirectEnv(DirectRLEnv):
         self._reset_target_pose(env_ids)
 
         # reset object
-        object_default_pose = self.object.data.default_root_pose.torch.clone()[env_ids]
-        object_default_vel = self.object.data.default_root_vel.torch.clone()[env_ids]
+        object_default_pose = self.object.data.default_root_pose.torch[env_ids]
+        object_default_vel = self.object.data.default_root_vel.torch[env_ids]
         pos_noise = sample_uniform(-1.0, 1.0, (len(env_ids), 3), device=self.device)
         # global object positions
         object_default_pose[:, 0:3] = (
@@ -272,7 +274,7 @@ class ReorientDirectEnv(DirectRLEnv):
         self.prev_targets[env_ids] = dof_pos
         self.cur_targets[env_ids] = dof_pos
 
-        self._set_joint_pos_target(target=dof_pos, env_ids=env_ids)
+        self._set_joint_pos_target(value=dof_pos, env_ids=env_ids)
         self._write_hand_joint_pos(position=dof_pos, env_ids=env_ids)
         self._write_hand_joint_vel(velocity=dof_vel, env_ids=env_ids)
 

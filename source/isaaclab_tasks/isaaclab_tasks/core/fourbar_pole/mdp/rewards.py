@@ -35,7 +35,8 @@ class pole_upright(ManagerTermBase):
         self._hold_steps = max(1, round(hold_time_s / env.step_dt))
 
     def reset(self, env_ids: torch.Tensor):
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._success[env_ids].mean().item()
+        # 0-dim device tensor: no host sync on reset
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._success[env_ids].mean()
         index_fill_(self._consecutive_upright, env_ids, 0.0)
 
     def __call__(

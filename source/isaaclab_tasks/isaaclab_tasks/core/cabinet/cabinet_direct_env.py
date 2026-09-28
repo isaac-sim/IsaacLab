@@ -29,8 +29,11 @@ class CabinetDirectEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self._robot, self._cabinet = self.scene["robot"], self.scene["cabinet"]
-        self.arm_joint_ids, _ = self._robot.find_joints(self.cfg.arm_joint_names)
-        self.finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
+        arm_joint_ids, _ = self._robot.find_joints(self.cfg.arm_joint_names)
+        finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
+        # device indices: indexing a CUDA tensor with a host list uploads it on every call
+        self.arm_joint_ids = torch.tensor(arm_joint_ids, dtype=torch.long, device=self.device)
+        self.finger_joint_ids = torch.tensor(finger_joint_ids, dtype=torch.long, device=self.device)
         self.ee_body_idx = self._robot.find_bodies(self.cfg.ee_body_name)[0][0]
         self.left_finger_body_idx = self._robot.find_bodies(self.cfg.left_finger_body_name)[0][0]
         self.right_finger_body_idx = self._robot.find_bodies(self.cfg.right_finger_body_name)[0][0]
@@ -52,6 +55,8 @@ class CabinetDirectEnv(DirectRLEnv):
 
         self.previous_actions = torch.zeros_like(self.actions)
         self.arm_joint_targets = torch.zeros((self.num_envs, len(self.arm_joint_ids)), device=self.device)
+        # the default arm pose is static, so its gather is hoisted out of the per-step action path
+        self._arm_default_joint_pos = self._robot.data.default_joint_pos.torch[:, self.arm_joint_ids]
         self.finger_joint_targets = torch.zeros((self.num_envs, len(self.finger_joint_ids)), device=self.device)
 
         # frame offsets, repeated for every environment
@@ -89,8 +94,7 @@ class CabinetDirectEnv(DirectRLEnv):
         self.actions[:] = actions
 
         self.arm_joint_targets[:] = (
-            self._robot.data.default_joint_pos.torch[:, self.arm_joint_ids]
-            + self.cfg.arm_action_scale * self.actions[:, : len(self.arm_joint_ids)]
+            self._arm_default_joint_pos + self.cfg.arm_action_scale * self.actions[:, : len(self.arm_joint_ids)]
         )
         self.finger_joint_targets[:] = torch.where(
             self.actions[:, -1:] < 0.0,
@@ -99,14 +103,9 @@ class CabinetDirectEnv(DirectRLEnv):
         )
 
     def _apply_action(self) -> None:
-        self._robot.set_joint_position_target_index(
-            target=self.arm_joint_targets,
-            joint_ids=self.arm_joint_ids,
-        )
-        self._robot.set_joint_position_target_index(
-            target=self.finger_joint_targets,
-            joint_ids=self.finger_joint_ids,
-        )
+        target_command = self._robot.actuators.target_command
+        target_command.set_position_index(value=self.arm_joint_targets, joint_ids=self.arm_joint_ids)
+        target_command.set_position_index(value=self.finger_joint_targets, joint_ids=self.finger_joint_ids)
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
         robot_joint_pos = self._robot.data.joint_pos.torch - self._robot.data.default_joint_pos.torch
@@ -211,8 +210,9 @@ class CabinetDirectEnv(DirectRLEnv):
             env_ids = torch.arange(self.num_envs, device=self.device)
 
         log = self.extras.setdefault("log", {})
-        log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean().item()
-        log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean().item()
+        # 0-dim device tensors: no host sync on reset
+        log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
+        log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean()
         for name, episode_sum in self._episode_reward_sums.items():
             log[f"Episode_Reward/{name}"] = torch.mean(episode_sum[env_ids]) / self.max_episode_length_s
             index_fill_(episode_sum, env_ids, 0.0)
