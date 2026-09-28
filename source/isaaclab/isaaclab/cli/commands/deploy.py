@@ -17,7 +17,7 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
 
 from ...app import add_launcher_args, launch_simulation
-from ...app.sim_launcher import fuse_kit_args
+from ...app.argv import fuse_kit_args
 
 
 def command_deploy_leapp(argv: list[str] | None = None) -> int:

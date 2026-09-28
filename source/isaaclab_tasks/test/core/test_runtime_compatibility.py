@@ -34,8 +34,9 @@ _CAMERA_PRESETS_TASK = "Isaac-Cartpole-Camera-Direct"
 
 def validate_runtime_compatibility(env_cfg, launcher_args=None):
     """Run the single-scan runtime validation for *env_cfg* (test adapter)."""
-    config_scan = scan(env_cfg, launcher_args)
-    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
+    args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args or {}
+    config_scan = scan(env_cfg, args)
+    kit_sources = _get_kit_runtime_sources(config_scan, args)
     _validate_runtime(config_scan, kit_sources)
     return config_scan
 

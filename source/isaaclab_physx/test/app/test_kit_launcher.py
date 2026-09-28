@@ -18,6 +18,7 @@ from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
+from isaaclab.app.argv import fuse_kit_args
 from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -199,10 +200,10 @@ def test_explicit_spectator_setting_overrides_visualizer_default(monkeypatch):
 )
 def test_fuse_kit_args(argv: list[str], expected: list[str]):
     """Fuse only ``--kit_args`` pairs whose value argparse would mistake for an option."""
-    assert sim_launcher.fuse_kit_args(argv) == expected
+    assert fuse_kit_args(argv) == expected
 
 
-def test_add_app_launcher_args_registers_every_launcher_option():
+def test_add_launcher_args_registers_every_launcher_option():
     """Every launcher option is a command-line option."""
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
@@ -236,7 +237,7 @@ def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
 def test_help_on_parser_with_required_positionals(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture):
     """Launcher arguments reach the help output of a script that takes required positionals.
 
-    ``add_app_launcher_args`` probes the command line to check for name collisions. That probe
+    ``add_launcher_args`` probes the command line to check for name collisions. That probe
     exits when a required argument is missing, which is the case for every tool script invoked
     with ``--help``, so it must not take the parser down before the arguments are added.
     """
@@ -375,7 +376,7 @@ def test_explicit_simulation_manager_callback_setting_takes_precedence(monkeypat
 def test_make_physics_cfg_builds_core_vbd():
     from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 
-    physics_cfg = sim_launcher.make_physics_cfg("newton_vbd")
+    physics_cfg = sim_launcher._make_physics_cfg("newton_vbd")
 
     assert isinstance(physics_cfg, NewtonCfg)
     assert isinstance(physics_cfg.solver_cfg, VBDSolverCfg)
@@ -384,7 +385,7 @@ def test_make_physics_cfg_builds_core_vbd():
 def test_livestream_injects_kit_visualizer_when_missing():
     args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
 
-    _normalize_launcher_args(args)
+    _normalize_launcher_args(vars(args))
 
     assert args.visualizer == ["kit"]
     assert args.visualizer_explicit is True
@@ -394,7 +395,7 @@ def test_livestream_rejects_disabled_visualizers():
     args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=True)
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        _normalize_launcher_args(args)
+        _normalize_launcher_args(vars(args))
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
@@ -416,7 +417,8 @@ def test_explicit_experience_requires_isaac_sim_runtime():
         has_ovphysx_physics=False,
         needs_kit=False,
     )
-    args = argparse.Namespace(experience="isaaclab.python.kit", visualizer=None)
+    args = {"experience": "isaaclab.python.kit", "visualizer": None}
+    _normalize_launcher_args(args)
 
     assert _get_kit_runtime_sources(scan, args)
 
@@ -431,8 +433,8 @@ def _resolve_headless_for_case(
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
     _normalize_launcher_args(launcher_args)
-    config_scan = SimpleNamespace(visualizer_intent={"has_kit_visualizer": cfg_has_kit})
-    launcher_args["kit_visualizer"] = sim_launcher._has_kit_visualizer(config_scan, launcher_args)
+    cfg = SimpleNamespace(visualizer_cfgs=[SimpleNamespace(visualizer_type="kit")] if cfg_has_kit else [])
+    launcher_args["kit_visualizer"] = sim_launcher._get_visualizer_intent(cfg, launcher_args)["has_kit_visualizer"]
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._kit_visualizer = launcher_args["kit_visualizer"]
     launcher._livestream = launcher_args["livestream"]
@@ -542,18 +544,6 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
     assert received_args["enable_cameras"] is True
 
 
-def test_deferred_cuda_device_synchronizes_torch_and_warp(monkeypatch: pytest.MonkeyPatch):
-    """The post-Kit device hook must synchronize both CUDA runtimes."""
-    devices = []
-    monkeypatch.setattr(kit_launcher_module, "set_cuda_device", devices.append)
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._deferred_cuda_device_id = 2
-
-    launcher._set_deferred_cuda_device()
-
-    assert devices == [2]
-
-
 def test_preloaded_torch_cuda_is_initialized_before_kit(monkeypatch: pytest.MonkeyPatch):
     """Drain PyTorch's queued CUDA checks before Kit can change visible device indices."""
     init_calls = []
@@ -601,13 +591,7 @@ class _DummySettings:
     def __init__(self):
         self.values = {}
 
-    def set_string(self, path: str, value: str) -> None:
-        self.values[path] = value
-
-    def set_int(self, path: str, value: int) -> None:
-        self.values[path] = value
-
-    def set_bool(self, path: str, value: bool) -> None:
+    def set(self, path: str, value) -> None:
         self.values[path] = value
 
 

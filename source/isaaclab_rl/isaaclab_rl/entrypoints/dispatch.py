@@ -14,6 +14,8 @@ from typing import TYPE_CHECKING
 
 import gymnasium as gym
 
+from isaaclab.app.argv import fuse_kit_args
+
 if TYPE_CHECKING:
     from .simple_agents import PolicyName
 
@@ -130,9 +132,6 @@ def _normalize_argv(argv: list[str] | None) -> list[str]:
     The backends parse this explicit list rather than ``sys.argv``, so the fusing that
     :func:`~isaaclab.app.add_launcher_args` applies to ``sys.argv`` never reaches it.
     """
-    # imported here so that importing this module stays lightweight
-    from isaaclab.app.sim_launcher import fuse_kit_args
-
     if argv is None:
         argv = sys.argv[1:]
     return fuse_kit_args(argv)

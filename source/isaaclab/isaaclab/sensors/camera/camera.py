@@ -260,15 +260,15 @@ class Camera(SensorBase):
             from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
-            settings.set_bool("/isaaclab/render/rtx_sensors", True)
-            settings.set_bool("/physics/fabricUpdateTransformations", True)
+            settings.set("/isaaclab/render/rtx_sensors", True)
+            settings.set("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
-                settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
             from ...app.settings_manager import get_settings_manager
 
-            get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings set_bool is a no-op for ovrtx
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+            # FIXME: settings.set is a no-op for ovrtx
             # warning only since it affects only ParticleField3DGaussianSplat scene
             logger.warning(
                 "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."

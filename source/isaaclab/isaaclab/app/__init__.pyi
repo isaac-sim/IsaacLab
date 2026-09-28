@@ -9,8 +9,8 @@ __all__ = [
     "SettingsManager",
     "get_settings_manager",
     "add_launcher_args",
+    "fuse_kit_args",
     "launch_simulation",
-    "make_physics_cfg",
     "scan",
     "Scan",
     "LoadingScreen",
@@ -18,6 +18,7 @@ __all__ = [
 ]
 
 from .app_launcher import AppLauncher
+from .argv import fuse_kit_args
 from .loading_screen import LoadingScreen, report_activity
 from .settings_manager import SettingsManager, get_settings_manager
 from .sim_launcher import (
@@ -25,6 +26,5 @@ from .sim_launcher import (
     SimulationLauncher,
     add_launcher_args,
     launch_simulation,
-    make_physics_cfg,
     scan,
 )

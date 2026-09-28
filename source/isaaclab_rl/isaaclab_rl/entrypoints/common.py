@@ -1004,7 +1004,7 @@ def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
         ValueError: If ``--viz none`` or only streaming visualizers were requested.
     """
     # _parse_visualizer_csv("none") yields None rather than ["none"], so an explicitly disabled
-    # visualizer is only recognizable through the ExplicitAction sentinel
+    # visualizer is only recognizable through the _ExplicitAction sentinel
     if getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None:
         raise ValueError(
             "--video is not compatible with --viz none: there is no active visualizer to record from. "

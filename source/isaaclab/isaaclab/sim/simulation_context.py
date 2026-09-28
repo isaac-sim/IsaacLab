@@ -17,7 +17,7 @@ import torch
 import warp as wp
 
 from .. import sim as sim_utils
-from ..app.settings_manager import SettingsManager
+from ..app.settings_manager import SettingsManager, get_settings_manager
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -69,15 +69,7 @@ class SettingsHelper:
 
     def set(self, name: str, value: Any) -> None:
         """Set a setting with automatic type routing."""
-        if isinstance(value, bool):
-            self._settings.set_bool(name, value)
-        elif isinstance(value, int):
-            self._settings.set_int(name, value)
-        elif isinstance(value, float):
-            self._settings.set_float(name, value)
-        elif isinstance(value, str):
-            self._settings.set_string(name, value)
-        elif isinstance(value, (list, tuple)):
+        if isinstance(value, (bool, int, float, str, list, tuple)):
             self._settings.set(name, value)
         else:
             raise ValueError(f"Unsupported value type for setting '{name}': {type(value)}")
@@ -189,7 +181,7 @@ class SimulationContext:
             self.get_or_create_backend(KitStageBackendCfg(stage=self.stage))
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
-        self.settings = SettingsManager.instance()
+        self.settings = get_settings_manager()
         self._settings_helper = SettingsHelper(self.settings)
 
         # Initialize USD physics scene and physics manager
@@ -1140,7 +1132,7 @@ def build_simulation_context(
             sim_cfg.device = device
 
         if visualizers:
-            SettingsManager.instance().set_string("/isaaclab/visualizer/types", " ".join(visualizers))
+            get_settings_manager().set("/isaaclab/visualizer/types", " ".join(visualizers))
 
         sim = SimulationContext(sim_cfg)
 
