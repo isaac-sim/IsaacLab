@@ -114,3 +114,20 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
         A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
     """
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
+
+
+def vector_tensor_from_warp(values: wp.array, components: int) -> ovstage.DLTensor:
+    """Describe a Warp float32 vector array as a lane-folded DLTensor without copying it.
+
+    This is used for vector-valued USD columns whose component count is not the ``point3f``
+    specialization above, such as the four float components of a particle-field orientation.
+
+    Args:
+        values: Contiguous Warp array with ``components`` float32 values per leading element.
+        components: Number of float32 components in each logical element.
+
+    Returns:
+        A device-backed :class:`ovstage.DLTensor` with one dimension and ``components`` lanes.
+    """
+    dtype = ovstage.DLDataType(code=ovstage.DLDataTypeCode.kDLFloat, bits=32, lanes=components)
+    return ovstage.make_dltensor(values, dtype=dtype)
