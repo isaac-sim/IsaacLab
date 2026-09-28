@@ -245,13 +245,6 @@ class BaseContactSensor(SensorBase):
         """
         raise NotImplementedError(f"Update buffers is not implemented for {self.__class__.__name__}.")
 
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        # call parent
-        super()._invalidate_initialize_callback(event)
-        # set all existing views to None to invalidate them
-        # TODO: invalidate NewtonManager if necessary
-
     @property
     def num_bodies(self) -> int:
         """Deprecated property. Please use `num_sensors` instead."""
