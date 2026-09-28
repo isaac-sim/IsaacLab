@@ -39,6 +39,11 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
+    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
+    # The strategy takes the renderer's resolved Warp device; tests fake it with just the pieces
+    # the strategy reads (allocation device and the current stream handle).
+    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
+    renderer._strategy.set_device(renderer._warp_device)
     return renderer, renderer.backend.renderer
 
 
@@ -189,3 +194,31 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     assert updated is matrices
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(updated.numpy(), expected)
+
+
+def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
+    """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
+    renderer, _ = _make_renderer_without_backend()
+    binding = MagicMock()
+    render_data = SimpleNamespace(camera_xform_binding=binding)
+    allocated = []
+
+    monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
+
+    def _fake_empty(*args, **kwargs):
+        arr = object()
+        allocated.append(arr)
+        return arr
+
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", _fake_empty)
+    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
+    renderer._strategy.set_device(SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7)))
+
+    positions = SimpleNamespace(shape=(2,), warp=object())
+    renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
+
+    # The strategy allocates ``(quats, transforms)`` on first use; the write hands over transforms.
+    (written,), kwargs = binding.write.call_args
+    assert written is allocated[1]
+    assert kwargs["data_access"] is DataAccess.ASYNC
+    assert kwargs["cuda_stream"] == 7
