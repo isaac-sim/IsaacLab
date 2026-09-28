@@ -28,7 +28,7 @@ Example usage::
 
 import ast
 import sys
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 
 import hydra
 from hydra.core.config_store import ConfigStore
@@ -43,7 +43,6 @@ from isaaclab.utils import (
 )
 from isaaclab.utils.presets import PresetCfg as PresetCfg
 from isaaclab.utils.presets import (
-    _known_preset_names,
     _normalize_preset_name,
     _resolve_active_presets,
     collect_presets,
@@ -57,169 +56,6 @@ from .preset_target import PresetTarget
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
-# Preset resolution
-# ============================================================================
-
-
-def _pick_alternative(
-    preset_obj: PresetCfg,
-    selected,
-    path: str = "",
-    explicit_name: str | None = None,
-    consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
-):
-    """Choose the best alternative from a PresetCfg.
-
-    Priority: first match in ``selected``, then ``default`` (preferring
-    class-level over instance-level).
-
-    Raises:
-        ValueError: If no matching name and no ``default`` field exists.
-    """
-    fields = _preset_fields(preset_obj)
-    field_names = set(fields)
-    if explicit_name is not None:
-        explicit_name = _normalize_preset_name(explicit_name, field_names)
-        if explicit_name in fields:
-            return fields[explicit_name]
-        avail = list(fields)
-        hint = ""
-        if explicit_name in PresetTarget.all_legacy_aliases():
-            replacement = PresetTarget.all_legacy_aliases()[explicit_name]
-            hint = (
-                f" '{explicit_name}' was renamed to '{replacement}'; this path does not declare '{replacement}' either."
-            )
-        raise ValueError(f"Unknown preset '{explicit_name}' for {path}. Available: {avail}.{hint}")
-
-    match_name = None
-    match_value = None
-    for name in selected:
-        raw_name = name
-        name = _normalize_preset_name(raw_name, field_names)
-        if name not in fields or name == match_name:
-            continue
-        val = fields[name]
-        if consumed_selected is not None:
-            consumed_selected.add(raw_name)
-            consumed_selected.add(name)
-        if typed_hits is not None:
-            # record which typed targets (physics/renderer) this name landed on
-            targets = {target for target in PresetTarget if target.base_classes and target.matches(val)}
-            if targets:
-                typed_hits.setdefault(raw_name, set()).update(targets)
-                typed_hits.setdefault(name, set()).update(targets)
-        if match_name is not None:
-            if match_value is not val and match_value != val:
-                raise ValueError(
-                    f"Conflicting global presets: '{match_name}' and '{name}' both define preset for '{path}'"
-                )
-        match_name, match_value = name, val
-    if match_name is not None:
-        return match_value
-    if "default" in fields:
-        return fields["default"]
-    raise ValueError(
-        f"PresetCfg {type(preset_obj).__name__} at '{path}' has no 'default' field "
-        f"and none of the selected presets {selected} match its fields {set(fields.keys())}."
-    )
-
-
-def _resolve_active_presets(
-    cfg,
-    selected=(),
-    explicit: dict[str, str] | None = None,
-    root_path: str = "",
-    *,
-    strict_explicit: bool = True,
-    consumed_selected: set[str] | None = None,
-    typed_hits: dict[str, set[PresetTarget]] | None = None,
-    consumed_explicit: set[str] | None = None,
-):
-    """Resolve presets by walking only the currently active tree.
-
-    Preset alternatives are choice nodes. Once a choice is resolved, only the
-    selected replacement is queued for further traversal, so inactive sibling
-    branches cannot contribute descendant presets.
-    """
-    explicit = explicit or {}
-    consumed_explicit = consumed_explicit if consumed_explicit is not None else set()
-
-    def resolve_chain(preset_obj: PresetCfg, path: str):
-        seen: set[int] = set()
-        val = preset_obj
-        while isinstance(val, PresetCfg):
-            if id(val) in seen:
-                raise ValueError(
-                    f"Cyclic PresetCfg chain detected at '{path}': {type(val).__name__} was already visited."
-                )
-            seen.add(id(val))
-            val = _pick_alternative(
-                val,
-                selected,
-                path=path,
-                explicit_name=explicit.get(path),
-                consumed_selected=consumed_selected,
-                typed_hits=typed_hits,
-            )
-        return val
-
-    if isinstance(cfg, PresetCfg):
-        if root_path in explicit:
-            consumed_explicit.add(root_path)
-        cfg = resolve_chain(cfg, root_path or "<root>")
-
-    queue = deque([(root_path, cfg)])
-    while queue:
-        path, obj = queue.popleft()
-        if not _is_walkable_cfg(obj):
-            continue
-        for key, val in _iter_cfg_items(obj):
-            child_path = f"{path}.{key}" if path else str(key)
-            if isinstance(val, PresetCfg):
-                if child_path in explicit:
-                    consumed_explicit.add(child_path)
-                resolved = resolve_chain(val, child_path or "<root>")
-                if isinstance(obj, list):
-                    obj[int(key)] = resolved
-                elif isinstance(obj, dict):
-                    obj[key] = resolved
-                else:
-                    setattr(obj, key, resolved)
-                if _is_walkable_cfg(resolved):
-                    queue.append((child_path, resolved))
-            elif _is_walkable_cfg(val):
-                queue.append((child_path, val))
-
-    missing = sorted(set(explicit) - consumed_explicit)
-    if strict_explicit and missing:
-        raise ValueError(f"Unknown or inactive preset group(s): {', '.join(missing)}")
-    return cfg
-
-
-def resolve_presets(cfg, selected=()):
-    """Replace every :class:`PresetCfg` in the tree with the best alternative.
-
-    For each ``PresetCfg`` found during an active-tree breadth-first walk:
-
-    1. Pick the first name from *selected* that exists as a field on the
-       preset, otherwise fall back to ``default``.
-    2. Replace the preset in its parent (dict key or dataclass attr).
-    3. Continue walking the replacement (which may contain more presets).
-
-    Args:
-        cfg: A configclass, dict, or PresetCfg to resolve in-place.
-        selected: Set of preset names chosen by the user (e.g. from CLI
-            ``presets=peg_insert_4mm,eval``).
-
-    Returns:
-        The resolved ``cfg`` (possibly a different object if the root itself
-        was a PresetCfg).
-    """
-    return _resolve_active_presets(cfg, selected)
-
-
-=======
 # ============================================================================
 # CLI / Hydra integration
 # ============================================================================

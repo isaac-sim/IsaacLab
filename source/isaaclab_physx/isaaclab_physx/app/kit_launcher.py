@@ -365,7 +365,7 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=lambda value: None if value.lower() == "none" else value.split(","),
+            type=lambda value: [] if value.lower() == "none" else value.split(","),
             action=_StoreAndMarkExplicit,
             default=None,
             help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",

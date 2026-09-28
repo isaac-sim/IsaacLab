@@ -3203,9 +3203,9 @@ RL libraries.
 
 **Running Benchmarks**
 
-The physics (and rendering) backend is selected with Hydra preset tokens — ``presets=``,
-exactly as for the training workflow. There is no ``--physics`` or ``--render`` flag; pass
-``presets=physx``, ``presets=newton_mjwarp``, etc. to choose the backend.
+Physics and rendering use task presets, as in training: ``physics=newton_mjwarp`` and
+``renderer=newton_renderer``. The equivalent flags are ``--physics newton_mjwarp`` and
+``--renderer newton_renderer``; there is no ``--render`` flag.
 
 **Before (Isaac Lab 2.x):**
 

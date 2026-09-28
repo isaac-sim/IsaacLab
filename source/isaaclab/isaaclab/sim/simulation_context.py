@@ -398,7 +398,6 @@ class SimulationContext:
         """Return the visualizer types selected during configuration composition."""
         return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs]
 
-
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""
         for cfg in self.cfg.visualizer_cfgs:

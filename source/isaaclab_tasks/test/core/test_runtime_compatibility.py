@@ -26,7 +26,6 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab.app import SimulationLauncher, scan
 from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -218,7 +217,7 @@ def test_auto_physx_configured_kit_visualizer_resolves_to_isaac_sim_backends():
     """Config-declared Kit visualizers should drive automatic PhysX and RTX resolution."""
 
     env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    env_cfg.sim.visualizer_cfgs = VisualizerCfg(visualizer_type="kit")
+    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg()
     config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)

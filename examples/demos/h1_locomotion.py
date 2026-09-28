@@ -14,6 +14,7 @@
 
 import argparse
 import math
+import sys
 from importlib import metadata
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -29,12 +30,10 @@ parser = argparse.ArgumentParser(
 cli_args.add_rsl_rl_args(parser)
 parser.add_argument("--num_envs", type=int, default=9, help="Number of H1 robots to spawn.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
-parser.add_argument(
-    "--physics", default="newton_mjwarp", choices=["isaacsim_physx", "newton_mjwarp"], help="Physics backend."
-)
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["newton_gl"])
-args_cli, preset_args = setup_preset_cli(parser)
+parser.set_defaults(physics="newton_mjwarp", visualizer=["newton_gl"])
+args_cli, hydra_args = setup_preset_cli(parser)
+sys.argv = [sys.argv[0], *hydra_args]
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
@@ -188,7 +187,7 @@ class H1RoughDemo:
 
 def main() -> None:
     """Run interactive H1 policy inference."""
-    env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=[f"physics={args_cli.physics}", *preset_args])
+    env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=hydra_args)
     env_cfg.scene.num_envs = args_cli.num_envs
     # Place the robots in a compact grid so they share one view instead of scattering across terrain tiles.
     env_cfg.scene.terrain.use_terrain_origins = False
@@ -200,9 +199,7 @@ def main() -> None:
     if args_cli.device is not None:
         env_cfg.sim.device = args_cli.device
 
-    # The physics preset is already selected above; forwarding --physics would replace the
-    # task's tuned solver settings with backend defaults the policy was not trained on.
-    with launch_simulation(env_cfg, vars(args_cli) | {"physics": None}):
+    with launch_simulation(env_cfg, args_cli):
         demo_h1 = H1RoughDemo(env_cfg)
         demo_h1.env.reset()
         sim = demo_h1.env.unwrapped.sim

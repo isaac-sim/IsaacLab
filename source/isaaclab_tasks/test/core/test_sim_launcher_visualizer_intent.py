@@ -25,18 +25,26 @@ from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
 @pytest.mark.parametrize("selection", ["kit", "newton_gl", "newton_rtx", "rerun", "viser", "none", "kit,newton_gl"])
 def test_visualizer_aliases_compose_the_same_task(selection):
-    """Both CLI aliases and the typed selector resolve before runtime selection."""
-    for option in ([f"visualizer={selection}"], ["--viz", selection], ["--visualizer", selection]):
+    """All selector spellings compose cameras and viewers before runtime selection."""
+    options = (
+        ["physics=newton_mjwarp", "renderer=newton_renderer", f"visualizer={selection}"],
+        ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", selection],
+        ["--physics=newton_mjwarp", "--renderer=newton_renderer", "--visualizer", selection],
+    )
+    for option in options:
         parser = argparse.ArgumentParser()
         sim_launcher.add_launcher_args(parser)
         args, remaining = setup_preset_cli(parser, option)
-        cfg, _ = resolve_task_config("Isaac-Cartpole-Direct", "", overrides=["physics=newton_mjwarp", *remaining])
+        cfg, _ = resolve_task_config("Isaac-Cartpole-Camera-Direct", "", overrides=remaining)
+        physics, renderer = cfg.sim.physics, cfg.scene.tiled_camera.renderer_cfg
         selected = cfg.sim.visualizer_cfgs
         selected = selected if isinstance(selected, list) else [selected]
         expected = [] if selection == "none" else selection.split(",")
         assert [viewer.visualizer_type for viewer in selected] == expected
-        assert "visualizer" not in vars(args)
+        assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
         launchers = sim_launcher.scan(cfg, args).launcher_types
+        assert cfg.sim.physics is physics and isinstance(physics, NewtonCfg)
+        assert cfg.scene.tiled_camera.renderer_cfg is renderer and renderer.renderer_type == "newton_warp"
         assert (sim_launcher._KIT_LAUNCHER in launchers) == ("kit" in expected)
         if selection == "none":
             with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
@@ -85,7 +93,7 @@ def test_launch_simulation_uses_configured_viewers_and_releases_runtime(monkeypa
         assert all(viewer.max_visible_envs == 3 for viewer in cfg.visualizer_cfgs)
     assert closed == [0]
 
-    monkeypatch.setattr(sim_launcher, "resolve_python_logging_level", lambda _: 42)
+    monkeypatch.setattr(sim_launcher, "_resolve_python_logging_level", lambda _: 42)
     levels = []
     monkeypatch.setattr(sim_launcher, "apply_python_logging_level", levels.append)
     with sim_launcher.launch_simulation(SimulationCfg(physics=NewtonCfg()), {}):

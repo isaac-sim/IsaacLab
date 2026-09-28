@@ -48,11 +48,6 @@ def user_stacklevel() -> int:
     return level
 
 
-def _known_preset_names(presets: dict) -> set[str]:
-    """Return all preset names declared in a collected preset dictionary."""
-    return {name for section in presets.values() for fields in section.values() for name in fields}
-
-
 def _normalize_preset_name(name: str, known_names: set[str], aliases: Mapping[str, str] | None = None) -> str:
     """Map a deprecated preset name to its replacement and emit a warning.
 

@@ -3,16 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the typed-preset CLI front-end.
+"""CLI spelling, defaults, and isolation from launcher arguments.
 
-:func:`setup_preset_cli` registers the preset-selection help description and
-runs ``parse_known_args``, returning the verbatim remainder. The
-``physics=``/``renderer=``/``presets=`` tokens are passed through unchanged;
-Hydra's :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly.
-
-Name validation, alias rewriting, typed-selector enforcement, and resolution
-all live in :mod:`isaaclab_tasks.utils.hydra` and have their own tests in
-``test_hydra.py``; this file does not re-cover them.
+Preset-name validation and task composition are covered in ``test_hydra.py``.
 """
 
 from __future__ import annotations
@@ -30,7 +23,7 @@ def _make_parser() -> argparse.ArgumentParser:
 
 
 # ---------------------------------------------------------------------------
-# setup_preset_cli: parse-only, returns the pre-fold remainder verbatim
+# setup_preset_cli: normalize task selectors without changing launcher settings
 # ---------------------------------------------------------------------------
 
 
@@ -74,50 +67,35 @@ def test_setup_preset_cli_passes_typed_tokens_verbatim(monkeypatch):
     ]
 
 
-def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
-    """Preset tokens are never registered with argparse, so the parsed
-    Namespace gains no ``physics`` / ``renderer`` / ``presets`` attribute.
-
-    This is the bug-class-level guarantee against the Kit launcher's name-based
-    forwarding (``_SIM_APP_CONFIG_KEYS & launcher_args.keys()``,
-    ``kit_launcher.py``): an attribute that doesn't exist can't collide.
-    """
-    monkeypatch.setattr(
-        "sys.argv",
-        ["train.py", "--task=Foo-v0", "physics=newton_mjwarp", "renderer=newton_renderer", "presets=albedo"],
-    )
+@pytest.mark.parametrize("spelling", ["hydra", "flags", "equals"])
+def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch, spelling):
+    """Task selectors never leak into Kit arguments; explicit Kit settings stay untouched."""
+    selections = dict(physics="newton_mjwarp", renderer="newton_renderer", visualizer="newton_gl")
+    tokens = []
+    for key, value in selections.items():
+        if spelling == "flags":
+            tokens.extend((f"--{key}", value))
+        else:
+            tokens.append(f"{key}={value}" if spelling == "hydra" else f"--{key}={value}")
+    kit_args = "--renderer=PathTracing --/rtx/pathtracing/spp=16"
+    original = ["train.py", "--task=Foo-v0", *tokens, "presets=albedo", "--kit_args", kit_args]
+    monkeypatch.setattr("sys.argv", original)
     from isaaclab_tasks.utils.preset_cli import setup_preset_cli
 
-    args, _ = setup_preset_cli(_make_parser())
-    for attr in ("physics", "renderer", "presets"):
-        assert not hasattr(args, attr), (
-            f"setup_preset_cli wrote ``args.{attr}`` to the namespace -- the Kit launcher's name-based"
-            " forwarding can then push it into SimulationApp config. Drop the argparse registration"
-            " for preset selectors and use Hydra-style tokens instead."
-        )
-
-
-# ---------------------------------------------------------------------------
-# External-callback intersection: typed selectors survive on the raw remainder
-#
-# rsl_rl/{train,play}.py intersect the parsed remainder with an
-# ``--external_callback`` return list before assigning ``sys.argv``. Because
-# nothing rewrites the tokens, both sides share the same vocabulary and a typed
-# selector present in both survives the intersection unchanged.
-# ---------------------------------------------------------------------------
-
-
-def test_intersection_preserves_typed_selection():
-    """A typed selector present in both the remainder and the callback return
-    survives ``list_intersection`` verbatim; a callback-owned flag is dropped."""
-    from isaaclab.utils.string import list_intersection
-
-    main_remainder = ["physics=newton_mjwarp", "--my_callback_flag=42", "env.lr=3e-4"]
-    callback_remainder = ["physics=newton_mjwarp", "env.lr=3e-4"]
-
-    intersected = list_intersection(main_remainder, callback_remainder)
-
-    assert intersected == ["physics=newton_mjwarp", "env.lr=3e-4"]
+    parser = _make_parser()
+    parser.add_argument("--kit_args")
+    parser.set_defaults(physics="isaacsim_physx", renderer="isaacsim_rtx", visualizer=["kit"])
+    args, remaining = setup_preset_cli(parser)
+    assert remaining == [*(f"{key}={value}" for key, value in selections.items()), "presets=albedo"]
+    assert vars(args) == dict(task="Foo-v0", kit_args=kit_args)
+    assert sys.argv == original
+    _, defaults = setup_preset_cli(parser, [])
+    assert defaults == ["physics=isaacsim_physx", "renderer=isaacsim_rtx", "visualizer=kit"]
+    with pytest.raises(SystemExit):
+        setup_preset_cli(parser, [*tokens, "renderer=ovrtx"])
+    for key in selections:
+        with pytest.raises(SystemExit):
+            setup_preset_cli(parser, [f"--{key}"])
 
 
 # ---------------------------------------------------------------------------

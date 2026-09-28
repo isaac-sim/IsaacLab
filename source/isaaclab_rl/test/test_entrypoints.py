@@ -675,13 +675,14 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
-def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:
-    """RSL-RL parses tasks registered by its external callback."""
-    from isaaclab_rl.entrypoints.backends import train_rsl_rl
-
+@pytest.mark.parametrize("mode", ["train", "play"])
+def test_rsl_registers_external_task_before_agent_discovery(monkeypatch, mode) -> None:
+    """External task registration preserves selector aliases through callback filtering."""
+    entrypoint = importlib.import_module(f"isaaclab_rl.entrypoints.backends.{mode}_rsl_rl")
     task_name = "Isaac-ExternalCallbackOrderTest"
     callback_module_name = "_external_callback_order_test"
     callback_module = types.ModuleType(callback_module_name)
+    selections = ["--physics", "newton_mjwarp", "--renderer", "newton_renderer", "--viz", "kit"]
 
     def register_task() -> list[str]:
         gym.register(
@@ -689,23 +690,23 @@ def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch
             entry_point="dummy:Env",
             kwargs={"rsl_rl_cfg_entry_point": "dummy:AgentCfg"},
         )
-        return []
+        return selections
 
     callback_module.register_task = register_task
     monkeypatch.setitem(sys.modules, callback_module_name, callback_module)
-    monkeypatch.setattr(
-        sys,
-        "argv",
-        ["train.py", "--task", task_name, "--external_callback", f"{callback_module_name}.register_task"],
-    )
+    argv = [f"{mode}.py", "--task", task_name]
+    argv += ["--external_callback", f"{callback_module_name}.register_task", *selections, "--callback_option=42"]
+    monkeypatch.setattr(sys, "argv", argv)
     gym.registry.pop(task_name, None)
 
     try:
-        args = train_rsl_rl._parse_args(sys.argv[1:])
+        args = entrypoint._parse_args(sys.argv[1:])
     finally:
         gym.registry.pop(task_name, None)
 
     assert args.task == task_name
+    assert sys.argv[1:] == ["physics=newton_mjwarp", "renderer=newton_renderer", "visualizer=kit"]
+    assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
 
 
 def test_skrl_training_restores_jax_backend(monkeypatch) -> None:
