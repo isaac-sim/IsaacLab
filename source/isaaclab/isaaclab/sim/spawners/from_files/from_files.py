@@ -38,7 +38,6 @@ from ..utils import (
     bare_fragments,
     fragment_mapping,
     props_expr,
-    resolve_material_path,
     subtree_carries_api,
 )
 
@@ -617,11 +616,19 @@ def _spawn_mesh_data(
                 schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
 
     if cfg.visual_material is not None:
-        material_path = resolve_material_path(cfg.visual_material_path, prim_path)
+        material_path = (
+            cfg.visual_material_path
+            if cfg.visual_material_path.startswith("/")
+            else f"{prim_path}/{cfg.visual_material_path}"
+        )
         cfg.visual_material.func(material_path, cfg.visual_material)
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
     if cfg.physics_material is not None:
-        material_path = resolve_material_path(cfg.physics_material_path, prim_path)
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
@@ -729,7 +736,11 @@ def spawn_from_usd_file(
         if not has_kit():
             logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
         else:
-            material_path = resolve_material_path(cfg.visual_material_path, prim_path)
+            material_path = (
+                cfg.visual_material_path
+                if cfg.visual_material_path.startswith("/")
+                else f"{prim_path}/{cfg.visual_material_path}"
+            )
             cfg.visual_material.func(material_path, cfg.visual_material)
             bind_visual_material(prim_path, material_path, stage=stage)
 
@@ -747,7 +758,11 @@ def spawn_from_usd_file(
 
     # apply physics material
     if cfg.physics_material is not None:
-        material_path = resolve_material_path(cfg.physics_material_path, prim_path)
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(prim_path, material_path, stage=stage)
     return stage.GetPrimAtPath(prim_path)

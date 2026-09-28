@@ -111,19 +111,6 @@ def apply_schema_props(
         apply_func(props_expr(anchor_path, pattern), fragments, create_if_missing=True, stage=stage)
 
 
-def resolve_material_path(material_path: str, parent_path: str) -> str:
-    """Resolve a material path from a spawner configuration.
-
-    Args:
-        material_path: An absolute prim path, or a name relative to ``parent_path``.
-        parent_path: The prim path relative material names are placed under.
-
-    Returns:
-        The absolute prim path of the material.
-    """
-    return material_path if material_path.startswith("/") else f"{parent_path}/{material_path}"
-
-
 def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
     """Report whether a prim or any of its descendants carries a USD API schema.
 

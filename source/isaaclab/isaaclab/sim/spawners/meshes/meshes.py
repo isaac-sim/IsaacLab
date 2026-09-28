@@ -22,7 +22,7 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
-from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_material_path
+from ..utils import apply_schema_props, fragment_mapping, props_expr
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -439,11 +439,19 @@ def _spawn_mesh_geom_from_mesh(
         )
 
     if cfg.visual_material is not None:
-        material_path = resolve_material_path(cfg.visual_material_path, geom_prim_path)
+        material_path = (
+            cfg.visual_material_path
+            if cfg.visual_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.visual_material_path}"
+        )
         cfg.visual_material.func(material_path, cfg.visual_material)
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
     if cfg.physics_material is not None:
-        material_path = resolve_material_path(cfg.physics_material_path, geom_prim_path)
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(prim_path, material_path, stage=stage)
 

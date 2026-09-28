@@ -17,7 +17,7 @@ from ... import schemas
 from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 from ..materials.physics_materials import spawn_physics_material
 from ..spawner_cfg import RigidObjectSpawnerCfg
-from ..utils import apply_schema_props, resolve_material_path
+from ..utils import apply_schema_props
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -333,11 +333,19 @@ def spawn_geom_from_prim_type(
             stage,
         )
     if cfg.visual_material is not None:
-        material_path = resolve_material_path(cfg.visual_material_path, geom_prim_path)
+        material_path = (
+            cfg.visual_material_path
+            if cfg.visual_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.visual_material_path}"
+        )
         cfg.visual_material.func(material_path, cfg.visual_material)
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
     if cfg.physics_material is not None:
-        material_path = resolve_material_path(cfg.physics_material_path, geom_prim_path)
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{geom_prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
