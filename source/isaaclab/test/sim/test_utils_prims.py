@@ -23,7 +23,7 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, unmirror_file_path
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -95,8 +95,7 @@ def test_create_prim():
     for prim_spec in prim.GetPrimStack():
         references.extend(prim_spec.referenceList.prependedItems)
     assert len(references) == 1
-    expected_path = retrieve_file_path(franka_usd)
-    assert str(references[0].assetPath) == expected_path
+    assert unmirror_file_path(str(references[0].assetPath)) == franka_usd
 
     # check adding semantic label
     prim = sim_utils.create_prim(
@@ -126,6 +125,19 @@ def test_create_prim():
     # check xform operation order
     op_names = [op.GetOpName() for op in UsdGeom.Xformable(prim).GetOrderedXformOps()]
     assert op_names == ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
+
+
+def test_create_prim_retries_after_missing_usd(tmp_path):
+    """Leave no prim when the requested file is missing, so creating the file permits retry."""
+    stage = Usd.Stage.CreateInMemory()
+    prim_path = "/World/RetryUSDReference"
+    usd_path = tmp_path / "asset.usda"
+    with pytest.raises(FileNotFoundError):
+        sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage)
+    assert not stage.GetPrimAtPath(prim_path).IsValid()
+
+    usd_path.write_text('#usda 1.0\n(defaultPrim = "Asset")\ndef Xform "Asset" {}\n', encoding="utf-8")
+    assert sim_utils.create_prim(prim_path, usd_path=str(usd_path), stage=stage).IsValid()
 
 
 @pytest.mark.parametrize(
@@ -351,8 +363,7 @@ def test_get_usd_references():
     # Check that it has the expected reference (remote URLs are resolved to local paths)
     refs = sim_utils.get_usd_references("/World/WithReference", stage=stage)
     assert len(refs) == 1
-    expected_path = retrieve_file_path(franka_usd)
-    assert refs == [expected_path]
+    assert unmirror_file_path(refs[0]) == franka_usd
 
     # Test with invalid prim path
     with pytest.raises(ValueError, match="not valid"):

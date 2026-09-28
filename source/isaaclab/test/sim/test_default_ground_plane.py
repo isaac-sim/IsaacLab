@@ -22,16 +22,14 @@ SMOOTH = 13
 
 
 @pytest.fixture(scope="module")
-def default_ground_plane_asset() -> tuple[Path, Path]:
-    """Retrieve the ground-plane USD and its texture directory from Nucleus."""
-    local_usd_path = Path(retrieve_file_path(USD_PATH))
-    return local_usd_path, local_usd_path.parent / "Materials" / "Textures"
+def default_ground_plane_asset() -> Usd.Stage:
+    """Retrieve and compose the ground-plane USD from Nucleus."""
+    return Usd.Stage.Open(retrieve_file_path(USD_PATH))
 
 
-def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Path, Path]):
+def test_default_ground_plane_usd_contract(default_ground_plane_asset: Usd.Stage):
     """Validate the ground plane's spawner-compatible structure and metric UV mapping."""
-    local_usd_path, texture_dir = default_ground_plane_asset
-    stage = Usd.Stage.Open(str(local_usd_path))
+    stage = default_ground_plane_asset
     assert stage is not None
     assert stage.GetDefaultPrim().GetPath() == "/World"
 
@@ -57,6 +55,7 @@ def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Pat
     ]
 
     shader = UsdShade.Shader.Get(stage, "/World/Looks/theGrid/Shader")
+    assert shader.GetSourceAsset("mdl").path == "OmniPBR.mdl"
     assert shader.GetInput("project_uvw").Get() is False
     assert tuple(shader.GetInput("texture_scale").Get()) == pytest.approx((1.0, 1.0))
     assert shader.GetInput("reflection_roughness_constant").Get() == pytest.approx(1.0)
@@ -65,14 +64,15 @@ def test_default_ground_plane_usd_contract(default_ground_plane_asset: tuple[Pat
         ("diffuse_texture", "default_ground_plane_albedo.png"),
         ("reflectionroughness_texture", "default_ground_plane_roughness.png"),
     ):
-        assert shader.GetInput(input_name).Get().path == f"./Materials/Textures/{filename}"
-        assert (texture_dir / filename).is_file()
+        texture_path = Path(shader.GetInput(input_name).Get().resolvedPath)
+        assert texture_path.name == filename
+        assert texture_path.is_file()
 
 
-def test_default_ground_plane_texture_contract(default_ground_plane_asset: tuple[Path, Path]):
+def test_default_ground_plane_texture_contract(default_ground_plane_asset: Usd.Stage):
     """Validate the 1 m checker cells and 2 m NVIDIA-green landmarks."""
-    _, texture_dir = default_ground_plane_asset
-    with Image.open(texture_dir / "default_ground_plane_albedo.png") as image:
+    shader = UsdShade.Shader.Get(default_ground_plane_asset, "/World/Looks/theGrid/Shader")
+    with Image.open(shader.GetInput("diffuse_texture").Get().resolvedPath) as image:
         assert image.size == (512, 512)
         assert set(image.get_flattened_data()) == {OFF_WHITE, DARK_GREY, NVIDIA_GREEN}
 
@@ -87,7 +87,7 @@ def test_default_ground_plane_texture_contract(default_ground_plane_asset: tuple
         for corner in ((0, 0), (image.width - 1, 0), (0, image.height - 1), (image.width - 1,) * 2):
             assert image.getpixel(corner) == NVIDIA_GREEN
 
-    with Image.open(texture_dir / "default_ground_plane_roughness.png") as image:
+    with Image.open(shader.GetInput("reflectionroughness_texture").Get().resolvedPath) as image:
         assert image.size == (512, 512)
         assert set(image.get_flattened_data()) == {SMOOTH, ROUGH}
         assert image.getpixel((128, 128)) == ROUGH
