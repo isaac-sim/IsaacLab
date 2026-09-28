@@ -5,11 +5,10 @@
 
 """Regression guard for OMPE-105749: a deforming cable culled by its own scene partition.
 
-Kit RTX measures the bounding box of a ``UsdGeom.BasisCurves`` prim once and never refreshes it as
-the curve deforms, so a per-environment scene partition sized from that box culls the cable as soon
-as it moves outside it. ``Isaac-Lift-Cable-Franka-Camera`` pins its partition to the whole workspace
-with two marker cubes. The golden AOV tests in ``test_rendering_franka_cable.py`` capture a settled
-cable, so they never leave the spawn bounding box and cannot catch this.
+Kit RTX historically measured the bounding box of a ``UsdGeom.BasisCurves`` prim once and never
+refreshed it as the curve deformed, so a per-environment scene partition sized from that box culled
+the cable as soon as it moved outside it. The golden AOV tests in ``test_rendering_franka_cable.py``
+capture a settled cable, so they never leave the spawn bounding box and cannot catch this.
 """
 
 from isaaclab.test.utils import launch_test_simulation
@@ -58,7 +57,6 @@ def _cable_pixels(camera: Camera) -> int:
 def test_cable_visible_beyond_partition_bounds():
     """The cable still renders after moving past the bounds an unpinned partition would have."""
     if not isaac_rtx_per_env_scene_partition_enabled():
-        # The env drops the markers when partitioning is off, so there is no workaround to guard.
         pytest.skip("partitioning disabled by ISAAC_LAB_ENABLE_ISAAC_RTX_PER_ENV_SCENE_PARTITION")
 
     env_cfg = resolve_presets(FrankaCableCameraEnvCfg(), {"newton_mjwarp_vbd_proxy", "isaacsim_rtx"})
@@ -109,8 +107,7 @@ def test_cable_visible_beyond_partition_bounds():
         moved = _cable_pixels(camera)
         assert moved > 0, (
             f"cable vanished after moving {_PROBE_OFFSET_Y} m in y ({settled} px at spawn, {moved} px"
-            " after): the scene partition is culling the deforming curve. Check that the"
-            " partition-bounds markers still spawn and still envelop the probe pose (OMPE-105749)."
+            " after): the scene partition is culling the deforming curve (OMPE-105749)."
         )
     finally:
         # Explicit cleanup before pytest teardown, otherwise OV native code can complain about leaks.
