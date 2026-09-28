@@ -7,7 +7,8 @@ Added
   so terms could resolve renderer inputs before setup. Added ``rgb_radiance`` for scene-linear RGB
   before exposure and camera response, in renderer-relative intensity units. Preserved existing
   ``rgb_hdr`` settings when radiance was not requested. Prepared all cameras' renderer inputs before
-  shared stage export, including public outputs and private processor inputs.
+  shared stage export, including public outputs and private processor inputs. Added the
+  ``Camera.render_generation`` attribute to track completed render batches without advancing on cached reads.
 
 Removed
 ^^^^^^^

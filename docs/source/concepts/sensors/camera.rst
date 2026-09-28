@@ -491,7 +491,7 @@ prepared term, retaining its processor state and allocated buffers for its lifet
 
 The camera provides rendered inputs and a frame generation counter. Other consumers can call
 ``Camera.request_render_inputs(("rgb_radiance",))`` before camera initialization, then read
-``render_outputs`` for persistent raw buffers. ``render_generation`` changes after an actual render,
+``render_outputs`` for persistent raw buffers. The ``render_generation`` attribute changes after an actual render,
 and the existing per-view ``frame`` counters identify updated views. ``render_buffer_specs`` and ``camera_prim_paths``
 are available during preparation.
 

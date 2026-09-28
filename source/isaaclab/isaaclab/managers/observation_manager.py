@@ -653,13 +653,7 @@ class ObservationManager(ManagerBase):
             # iterate over all the terms in each group
             for term_name, term_cfg in term_cfg_items:
                 # skip non-obs settings
-                if term_name in [
-                    "enable_corruption",
-                    "concatenate_terms",
-                    "history_length",
-                    "flatten_history_dim",
-                    "concatenate_dim",
-                ]:
+                if term_name in ObservationGroupCfg.__dataclass_fields__:
                     continue
                 # check for non config
                 if term_cfg is None:

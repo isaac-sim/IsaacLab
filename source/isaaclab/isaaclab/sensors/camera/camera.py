@@ -187,6 +187,9 @@ class Camera(SensorBase):
     cfg: CameraCfg
     """The configuration parameters."""
 
+    render_generation: int
+    """Monotonic generation of the last rendered batch; cached reads do not advance it."""
+
     UNSUPPORTED_TYPES: set[str] = {
         "instance_id_segmentation",
         "bounding_box_2d_tight",
@@ -213,7 +216,7 @@ class Camera(SensorBase):
         # initialize base class
         super().__init__(cfg)
         self._requested_render_inputs: tuple[str, ...] = ()
-        self._render_generation = 0
+        self.render_generation = 0
 
         # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
@@ -368,11 +371,6 @@ class Camera(SensorBase):
         return self._render_camera_data.output
 
     @property
-    def render_generation(self) -> int:
-        """Monotonic generation of the last rendered batch; cached reads do not advance it."""
-        return self._render_generation
-
-    @property
     def image_shape(self) -> tuple[int, int]:
         """A tuple containing (height, width) of the camera sensor."""
         return (self.cfg.height, self.cfg.width)
@@ -405,18 +403,7 @@ class Camera(SensorBase):
             self._enable_hdr_rendering()
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None and self._renderer is not None:
-            paths = self.camera_prim_paths
-            clone_plan = sim_ctx.get_clone_plan()
-            count = clone_plan.env_ids.size if clone_plan is not None and clone_plan.env_ids is not None else len(paths)
-            spec = CameraRenderSpec(
-                cfg=self.cfg,
-                device=str(sim_ctx.device),
-                num_instances=int(count),
-                camera_prim_paths=paths,
-                view_count=int(count),
-                render_data_types=tuple(dict.fromkeys((*self.cfg.data_types, *self._requested_render_inputs))),
-            )
-            self._renderer.prepare_cameras(self.stage, spec)
+            self._prepare_rendering()
 
     def _enable_hdr_rendering(self) -> None:
         """Configure HDR routing before renderer stage preparation."""
@@ -839,7 +826,7 @@ class Camera(SensorBase):
 
     def _finish_capture(self) -> None:
         """Publish a completed raw capture and its metadata."""
-        self._render_generation += 1
+        self.render_generation += 1
         for name in self._data.info:
             if name in self._render_camera_data.info:
                 self._data.info[name] = self._render_camera_data.info[name]
