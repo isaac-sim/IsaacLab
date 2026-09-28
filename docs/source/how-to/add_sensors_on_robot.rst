@@ -39,7 +39,7 @@ The tutorial corresponds to the ``add_sensors_on_robot.py`` script in the
 
    .. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
       :language: python
-      :emphasize-lines: 72-95, 143-153, 167-168
+      :emphasize-lines: 74-96, 147-160, 177-178
       :linenos:
 
 
@@ -89,6 +89,16 @@ and ``"front_cam"`` is the name of the prim associated with the camera sensor.
    :language: python
    :start-at: camera = CameraCfg(
    :end-before: height_scanner = RayCasterCfg(
+
+Camera sensors need the simulator's rendering extensions, also when running without a visualizer.
+:func:`~app.launch_simulation` enables them automatically when the configuration it is given contains a
+camera. Since this script passes only the simulation configuration and the camera lives in the scene
+configuration, the script requests camera rendering explicitly after parsing its arguments:
+
+.. literalinclude:: ../../../scripts/tutorials/04_sensors/add_sensors_on_robot.py
+   :language: python
+   :start-at: args_cli = parser.parse_args()
+   :end-at: args_cli.enable_cameras = True
 
 Height scanner
 --------------

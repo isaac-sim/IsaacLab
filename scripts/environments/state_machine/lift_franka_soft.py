@@ -35,7 +35,6 @@ from isaaclab.visualizers import VisualizerCfg
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift a deformable with a robotic arm.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to simulate.")
 parser.add_argument("--num_steps", type=int, default=1000, help="Number of environment steps to run.")

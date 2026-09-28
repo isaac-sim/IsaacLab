@@ -19,6 +19,7 @@ using Isaac-Velocity-Rough-H1. The robot is commanded to move forward at a const
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on inferencing a policy on an H1 robot in a warehouse.")
@@ -32,7 +33,6 @@ import os
 
 import torch
 
-from isaaclab.envs import ManagerBasedRLEnv
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, read_file
 
@@ -62,12 +62,12 @@ def main():
 
     with launch_simulation(env_cfg, args_cli):
         # create environment
-        env = ManagerBasedRLEnv(cfg=env_cfg)
+        env = instantiate(env_cfg)
 
         # run inference with the policy
         obs, _ = env.reset()
         with torch.inference_mode():
-            while env.sim.is_headless_or_exist_active_visualizer():
+            while env.sim.is_running():
                 action = policy(obs["policy"])
                 obs, _, _, _, _ = env.step(action)
         env.close()

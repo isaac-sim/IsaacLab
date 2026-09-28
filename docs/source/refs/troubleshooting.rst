@@ -312,7 +312,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:

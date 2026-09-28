@@ -337,7 +337,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 250 == 0:
             # reset counter
             count = 0
@@ -395,7 +395,6 @@ def main():
         None: The function drives the simulation for its side-effects.
     """
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -408,14 +407,10 @@ def main():
         with Timer("[INFO] Time to create scene: "):
             scene = instantiate(scene_cfg)
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main execution
     main()

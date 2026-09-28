@@ -235,7 +235,7 @@ def run_simulator(
     print("  Move handler: Control pose of the end-effector")
     print("  Button A: Open | Button B: Close | Button C: Rotate EE (60°)\n")
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if reset_count % 10000 == 0:
             reset_count = 1
             root_pose = robot.data.default_root_pose.torch.clone()

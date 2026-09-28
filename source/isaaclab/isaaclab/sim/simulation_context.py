@@ -218,6 +218,7 @@ class SimulationContext:
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
+        self._visualizers_started = False
         self._reset_requested: bool = False
         # Set by the visualizers and renderers in use; read by the scene data provider.
         self.requires_usd_stage = False
@@ -344,9 +345,13 @@ class SimulationContext:
             self.get_setting("/isaaclab/video/auto_start_kit")
         )
 
-    def is_headless_or_exist_active_visualizer(self) -> bool:
-        """Return whether the simulation should keep stepping without visualizers or with an active visualizer."""
-        return not self._visualizers or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
+    def is_running(self) -> bool:
+        """Return whether the simulation should keep running.
+
+        Without visualizers it keeps running until the caller stops. Once visualizers were started, it keeps
+        running while one of them is still open, so closing the last one ends the loop.
+        """
+        return not self._visualizers_started or any(viz.is_running() and not viz.is_closed for viz in self._visualizers)
 
     def require_visual_shapes(self) -> None:
         """Record that something in this simulation draws the physics model's visual-only shapes.
@@ -669,6 +674,7 @@ class SimulationContext:
             visualizer.initialize(self._scene_data_provider)
             self._pending_visualizers.remove(visualizer)
             self._visualizers.append(visualizer)
+            self._visualizers_started = True
             if self._pending_camera_view is not None:
                 visualizer.set_camera_view(*self._pending_camera_view)
         if not self._pending_visualizers:
