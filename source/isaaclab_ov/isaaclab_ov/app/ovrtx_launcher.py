@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from isaaclab.app.simulation_launcher import SimulationLauncher
+from isaaclab.app.sim_launcher import SimulationLauncher
 
 
 class OvrtxLauncher(SimulationLauncher):

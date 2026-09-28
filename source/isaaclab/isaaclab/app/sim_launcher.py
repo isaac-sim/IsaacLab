@@ -45,6 +45,32 @@ _KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
 """Launcher for Kit needs that no config names, e.g. a default-renderer camera or ``--viz kit``."""
 
 
+class SimulationLauncher:
+    """Starts the process runtime a resolved simulation config requires, and stops it.
+
+    A backend package subclasses this and names the subclass in its config's ``launcher_type``.
+    :func:`launch_simulation` constructs it, which starts the runtime, and calls :meth:`close` when the
+    simulation ends.
+    """
+
+    device: str | None = None
+    """Simulation device chosen by the runtime, or None to keep the config's device."""
+
+    def __init__(self, launcher_args: argparse.Namespace | dict | None = None):
+        """Start the runtime.
+
+        Args:
+            launcher_args: Parsed launcher arguments.
+        """
+
+    def close(self, exit_code: int = 0) -> None:
+        """Stop the runtime.
+
+        Args:
+            exit_code: Exit status of the simulation, for runtimes that end the process.
+        """
+
+
 def add_launcher_args(parser: argparse.ArgumentParser) -> None:
     """Add simulation-launcher CLI arguments (``--device``, ``--viz``, etc.) to *parser*.
 
