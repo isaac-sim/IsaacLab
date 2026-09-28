@@ -19,7 +19,8 @@ Do not use this skill as a replacement for the contribution guide. Read the auth
 
 1. Read the `Coding Style` section of `docs/source/refs/contributing.rst` and apply the relevant subsections.
 2. Check `AGENTS.md` and any more-specific instructions for repository workflow constraints.
-3. Inspect surrounding code and the guide's code skeleton before choosing local structure.
+3. Inspect surrounding code and the guide's ordering rules before choosing local structure; its minimal
+   function example illustrates signatures and docstrings.
 4. For validation, follow the guide's `Unit Testing` and `Tools` sections. For test changes, apply
    [the test-audit skill](../test-audit/SKILL.md) before adding or removing coverage.
 
@@ -50,5 +51,5 @@ Keep this skill synchronized with `AGENTS.md`, `docs/source/refs/contributing.rs
 ## References
 
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
-- [Code skeleton](../../../docs/source/refs/snippets/code_skeleton.py)
+- [Minimal function example](../../../docs/source/refs/snippets/code_skeleton.py)
 - [Examples](examples.md)

@@ -22,7 +22,7 @@ Do not use this skill to bypass repository checks or to push to `origin`.
 3. Run targeted tests for the touched behavior. For added, changed, or removed tests, apply
    [the test-audit skill](../test-audit/SKILL.md) and record the focused evidence it requires.
 4. For skill changes, inspect the changed skill's adjacent `evaluations.md` when present, plus directly linked `examples.md` or `reference.md`, and confirm the representative scenarios still match the skill guidance.
-5. If the PR changes documentation, run `uv run isaaclab --docs` and require a successful build with no warnings or errors. This keeps validation in a temporary environment with the `dev` extra, and the CLI treats Sphinx warnings as errors.
+5. If the PR changes documentation, follow the contribution guide's clean-output build commands and require a successful build with no warnings or errors.
 6. Run formatting and lint checks with `uv run isaaclab -f`.
 7. Add package changelog fragments when `source/<package>/` code changes.
 8. Check whether `CONTRIBUTORS.md` needs an update for a new contributor.
@@ -43,11 +43,7 @@ For targeted tests, use:
 uv run python -m pytest PATH_TO_TEST
 ```
 
-If documentation changed, require a warning-free build:
-
-```bash
-uv run isaaclab --docs
-```
+If documentation changed, use the [contribution guide's PR validation commands](../../../docs/source/refs/contributing.rst#contributing-documentation) to clear generated HTML and require a warning-free build.
 
 If skills changed, run:
 

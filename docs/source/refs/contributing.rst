@@ -115,11 +115,13 @@ in the terminal:
    using a different operating system, you can use the appropriate command to open the file in the browser.
 
 
-To do a clean build, run the following command in the terminal:
+For PR validation, remove the generated HTML before building so deleted pages cannot leave stale output.
+Run these commands from the repository root; they preserve the Sphinx cache:
 
 .. code:: bash
 
-   rm -rf docs/_build && uv run isaaclab --docs
+   uv run python -c "import shutil; shutil.rmtree('docs/_build/current', ignore_errors=True)"
+   uv run isaaclab --docs
 
 
 Contributing assets
@@ -376,7 +378,7 @@ class.
 Include only the members a class needs; this ordering is not a checklist of methods to implement.
 For classes that own resources, expose explicit cleanup through ``close()`` or a context manager.
 
-.. dropdown:: Code skeleton
+.. dropdown:: Minimal function example
    :icon: code
 
    .. literalinclude:: snippets/code_skeleton.py
@@ -732,7 +734,10 @@ Use the same commands on Linux and Windows:
    # Run all tests in a particular file
    uv run python -m pytest source/isaaclab/test/utils/test_circular_buffer.py
 
-   # Run the repository test runner
+   # Run source-package tests through the repository test runner
+   uv run python tools/run_all_tests.py
+
+   # Run tooling tests under tools/
    uv run isaaclab --test
 
 All of these commands exit with a nonzero code when tests fail, so a test

@@ -15,7 +15,7 @@ Expected workflow:
 
 1. Apply the guide's functional-design and helper-extraction criteria.
 2. Check whether an existing function already owns the operation.
-3. Follow the code skeleton for an operation that warrants its own function; keep trivial expressions inline.
+3. Use the minimal function example for signature and docstring style when an operation warrants a function; keep trivial expressions inline.
 4. Use the test-audit gate to decide whether existing coverage needs extension.
 
 ## Public API Change
