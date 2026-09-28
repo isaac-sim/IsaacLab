@@ -344,14 +344,9 @@ class _NewtonGroceryView:
         positions, body_ids = self._selection(indices)
         mass = wp.to_torch(self._model.body_mass)
         inverse_mass = wp.to_torch(self._model.body_inv_mass)
-        inertia = wp.to_torch(self._model.body_inertia)
-        inverse_inertia = wp.to_torch(self._model.body_inv_inertia)
         new_mass = wp.to_torch(masses).flatten().to(mass.device)[positions]
-        scale = new_mass / mass[body_ids]
         mass[body_ids] = new_mass
         inverse_mass[body_ids] = 1.0 / new_mass
-        inertia[body_ids] = inertia[body_ids] * scale[:, None, None]
-        inverse_inertia[body_ids] = inverse_inertia[body_ids] / scale[:, None, None]
         self._manager.add_model_change(self._mass_change_flag)
 
 
