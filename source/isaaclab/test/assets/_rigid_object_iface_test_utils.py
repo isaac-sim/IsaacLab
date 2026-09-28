@@ -10,7 +10,7 @@
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+import _iface_test_boot  # noqa: F401  (starts the runtime)
 
 import numpy as np
 import warp as wp

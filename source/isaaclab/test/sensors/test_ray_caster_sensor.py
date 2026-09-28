@@ -9,9 +9,9 @@
 
 from typing import Literal
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import numpy as np
 import pytest

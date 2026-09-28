@@ -3,14 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
 # Pink IK tests strip task cameras before environment construction.
-simulation_app = AppLauncher(headless=True).app
+from isaaclab.test.utils import launch_test_simulation
 
-"""Rest everything follows."""
+launch_test_simulation()
 
 import contextlib
 import json
@@ -223,7 +219,7 @@ def run_movement_test(test_setup, test_config, test_cfg, aux_function=None):
         phase = "initial"
         steps_in_phase = 0
 
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        while True:
             num_runs += 1
             steps_in_phase += 1
 

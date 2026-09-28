@@ -5,10 +5,9 @@
 
 """Shared MDP events against native PhysX views."""
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_test_simulation()
 
 from collections.abc import Iterator
 from pathlib import Path

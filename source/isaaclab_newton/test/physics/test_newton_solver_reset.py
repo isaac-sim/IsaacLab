@@ -5,10 +5,9 @@
 
 """Tests for the solver-internal reset performed when env-reset masks are consumed."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from unittest.mock import patch
 

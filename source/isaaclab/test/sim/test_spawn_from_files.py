@@ -3,21 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-"""Launch Isaac Sim Simulator first."""
+launch_test_simulation()
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+import os
 
 import pytest
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import omni.kit.app
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
+import isaaclab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
@@ -106,16 +103,11 @@ def test_spawn_usd_fails(sim):
 @pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
-    # enable the URDF importer extension
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-        manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-    # retrieve path to urdf importer extension
-    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-    extension_path = manager.get_extension_path(extension_id)
-    # Spawn franka from URDF
+    # Spawn franka from the repository's URDF; the converter loads the importer itself
     cfg = sim_utils.UrdfFileCfg(
-        asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
+        asset_path=os.path.join(
+            os.path.dirname(isaaclab.__file__), "controllers", "config", "data", "lula_franka_gen.urdf"
+        ),
         fix_base=True,
         joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
             gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)

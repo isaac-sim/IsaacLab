@@ -9,7 +9,7 @@
 
 """Real-backend tests for the OVPhysX RigidObject.
 
-Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
+Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no the Kit launcher).
 
 The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
 its first ``ovphysx.PhysX`` instance and cannot switch it without a process
