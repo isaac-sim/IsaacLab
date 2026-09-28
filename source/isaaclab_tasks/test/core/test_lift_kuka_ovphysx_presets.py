@@ -18,14 +18,13 @@ from isaaclab_tasks.utils import resolve_task_config
 @pytest.mark.parametrize(
     "task_name,preset_args",
     [
+        ("Isaac-Lift-KukaAllegro", ("physics=ovphysx",)),
         ("Isaac-Lift-KukaAllegro", ("physics=ovphysx", "presets=shapes")),
         ("Isaac-Reorient-KukaAllegro", ("presets=shapes", "physics=ovphysx")),
     ],
 )
-def test_ovphysx_accepts_heterogeneous_shapes_independent_of_argument_order(
-    task_name: str, preset_args: tuple[str, str]
-):
-    """OVPhysX should resolve the heterogeneous shapes preset in either CLI order."""
+def test_ovphysx_uses_heterogeneous_shapes(task_name: str, preset_args: tuple[str, ...]):
+    """OVPhysX defaults to heterogeneous shapes and accepts explicit selection in either CLI order."""
     old_argv = sys.argv.copy()
     try:
         sys.argv = [sys.argv[0], *preset_args]
