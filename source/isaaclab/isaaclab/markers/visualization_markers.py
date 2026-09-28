@@ -223,8 +223,6 @@ class VisualizationMarkers:
             None if value is None else value.to(device=target_device)
             for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
         )
-        if norm_environment_ids is not None and torch.any(norm_environment_ids < 0):
-            raise ValueError("Expected `environment_ids` to contain non-negative indices.")
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
         marker_counts = {value.shape[0] for value in marker_values if value is not None}

@@ -7,19 +7,11 @@
 This script checks that the ``isaaclab.python.kit`` experience launches and steps the simulation without hanging.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
-
 import pytest
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-app_launcher = AppLauncher(experience="isaaclab.python.kit", headless=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
-
+launch_test_simulation(experience="isaaclab.python.kit")
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
@@ -45,7 +37,7 @@ def run_simulator(
     count = 0
 
     # Simulate physics
-    while simulation_app.is_running() and count < 100:
+    while sim.is_headless_or_exist_active_visualizer() and count < 100:
         # perform step
         sim.step()
         count += 1

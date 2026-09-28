@@ -6,7 +6,7 @@
 """Shared core-only environment configurations for Isaac Lab tests.
 
 The configuration classes and factories in this module are safe to import, construct, and
-validate without starting :class:`isaaclab.app.AppLauncher`. Creating environments from the
+validate without starting :class:`~isaaclab_physx.app.KitLauncher`. Creating environments from the
 resulting configurations still requires a running simulator.
 """
 

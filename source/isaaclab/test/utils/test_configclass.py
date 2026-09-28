@@ -670,6 +670,15 @@ def test_dir_resolution_uses_declaring_class_for_inherited_field():
     # a field declared on the subclass resolves against the subclass module
     assert str(cfg.extra) == "other_pkg.child.child_mod:ChildSymbol"
 
+    # a subclass without @configclass, e.g. a scene cfg in a script, still resolves against the declarers
+    class _PlainCfg(_ChildCfg):
+        pass
+
+    _PlainCfg.__module__ = "__main__"
+    plain_cfg = _PlainCfg()
+    assert str(plain_cfg.class_type) == "test_pkg.parent.base_mod:BaseSymbol"
+    assert str(plain_cfg.extra) == "other_pkg.child.child_mod:ChildSymbol"
+
 
 def test_config_update_different_iterable_lengths():
     """Iterables are whole replaced, even if their lengths are different."""

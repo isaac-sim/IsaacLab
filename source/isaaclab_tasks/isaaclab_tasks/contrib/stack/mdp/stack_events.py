@@ -320,6 +320,9 @@ def randomize_visual_texture_material(
     # we import the module here since we may not always need the replicator
     import omni.replicator.core as rep
 
+    if env.cfg.seed is not None:
+        rep.set_global_seed(env.cfg.seed)
+
     # check to make sure replicate_physics is set to False, else raise error
     # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode
     #   and the event manager doesn't check in that case.

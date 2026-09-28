@@ -1758,8 +1758,10 @@ class NewtonVisualizer(BaseVisualizer):
         """Update generated camera poses from env origins or follow prims."""
         if self._camera_sensor is None or not self._camera_is_owned:
             return
+        from isaaclab.sim import SimulationContext
+
         target_positions = prim_world_positions(
-            self._scene_data_provider.get_usd_stage(),
+            SimulationContext.instance().stage,
             self.cfg.streaming_cam_target_prim_path,
             self._camera_env_indices,
             scene=self._scene_data_provider.get_interactive_scene(),

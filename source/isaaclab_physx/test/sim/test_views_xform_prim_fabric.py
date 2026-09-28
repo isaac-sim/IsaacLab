@@ -41,7 +41,6 @@ PARENT_POS = (0.0, 0.0, 1.0)
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()
