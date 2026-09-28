@@ -1,4 +1,4 @@
-Test-only change: removed the OpenUSD work-thread limit from the environment smoke
-tests and the kit-less rendering fixture. usd-exchange 3.0.0 supplies OpenUSD 26.08,
-which satisfies the >=26.5 precondition the workaround was gated on. No user-facing
-behavior changes.
+Test-only change: removed the OpenUSD work-thread limit from the kit-less environment smoke
+tests and rendering fixture. usd-exchange 3.0.0 supplies OpenUSD 26.08 to kit-less processes,
+which satisfies the >=26.5 precondition the workaround was gated on. Kit-backed tests are
+unchanged: this bump does not change Kit's bundled OpenUSD. No user-facing behavior changes.

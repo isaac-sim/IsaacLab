@@ -90,7 +90,7 @@ The issue and upstream fix are described in `OpenUSD PR #4002`_.
    For kitless workflows, Isaac Lab obtains the ``pxr`` modules from ``usd-exchange``.
    ``usd-exchange`` and ``usd-core`` are alternative Python distributions of the same OpenUSD
    runtime and should not be installed together because both provide ``pxr``. They use different
-   distribution version schemes: for example, ``usd-exchange==2.3.0`` provides OpenUSD 25.05.
+   distribution version schemes: for example, ``usd-exchange==3.0.0`` provides OpenUSD 26.08.
    Isaac Sim instead uses its own Kit-bundled OpenUSD runtime.
 
 As a workaround for an affected kitless or pre-6.1 Isaac Sim runtime, limit OpenUSD to one worker
