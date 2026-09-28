@@ -16,6 +16,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg
+from isaaclab.utils import index_fill_, replace
 
 from isaaclab_newton.controllers.differential_ik import NewtonDifferentialIKController
 from isaaclab_newton.controllers.operational_space import NewtonOperationalSpaceController
@@ -72,7 +73,7 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._jacobian_b = torch.zeros(self.num_envs, 6, self._num_joints, device=self.device)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     def _joint_pos_target(self, target: str) -> torch.Tensor:
         """Resolve a named joint posture target for the controlled joints."""
@@ -128,7 +129,7 @@ class NewtonDifferentialInverseKinematicsAction(_NewtonTaskSpaceAction):
 
         controller_cfg = self.cfg.controller
         if self.cfg.command_type == "position" and controller_cfg.axis_weight is None:
-            controller_cfg = controller_cfg.replace(axis_weight=(1.0, 1.0, 1.0, 0.0, 0.0, 0.0))
+            controller_cfg = replace(controller_cfg, axis_weight=(1.0, 1.0, 1.0, 0.0, 0.0, 0.0))
         self._controller = NewtonDifferentialIKController(controller_cfg, self.num_envs, self._num_joints, self.device)
 
         if self.cfg.command_type == "position":

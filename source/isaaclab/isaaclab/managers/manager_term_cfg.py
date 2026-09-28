@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
@@ -225,15 +225,6 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """Whether or not the observation manager should flatten history-based observation terms to a 2-D (N, D) tensor.
     Defaults to True."""
 
-    clone_output: bool = True
-    """Whether the observation manager clones the term output before post-processing. Defaults to True.
-
-    The clone keeps in-place post-processing and later consumers of the observation from aliasing
-    buffers owned by the term, such as sensor data. Set it to False only for terms that return a
-    new tensor on every call, e.g. :class:`~isaaclab.envs.mdp.observations.image_rgb`,
-    to skip a redundant copy.
-    """
-
     def validate_config(self):
         """Validate observation delay bounds."""
         if type(self.delay_min_lag) is not int or type(self.delay_max_lag) is not int:
@@ -288,6 +279,15 @@ class ObservationGroupCfg:
 
     This parameter will override all :attr:`ObservationTermCfg.flatten_history_dim` in the group if
     ObservationGroupCfg.history_length is set.
+    """
+
+    history_order: Literal["term", "time"] = "term"
+    """Order of a flattened, concatenated group history. Defaults to ``"term"``.
+
+    ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
+    the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
+    The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
     """
 
 

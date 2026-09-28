@@ -39,7 +39,7 @@ from isaaclab.sensors.contact_sensor import BaseContactSensor
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
 from isaaclab.sim.utils.stage import get_current_stage
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Custom helper classes.
@@ -490,12 +490,12 @@ def test_cube_stack_contact_filtering(setup_simulation, device):
         sim._app_control_on_stop_handle = None
         # Instance new scene for the current terrain and contact prim.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -643,8 +643,8 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 1.0)
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
@@ -702,8 +702,8 @@ def test_contact_history_updates_at_sensor_period(
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             update_period=update_period_steps * sim_dt,

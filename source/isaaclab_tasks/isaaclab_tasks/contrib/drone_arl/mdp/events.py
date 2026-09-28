@@ -13,6 +13,7 @@ import torch
 
 import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.utils import index_fill_
 
 from .curriculums import get_obstacle_curriculum_term
 
@@ -136,7 +137,7 @@ def reset_obstacles_with_individual_ranges(
     for env_idx in range(num_envs):
         num_active = obstacles_per_env[env_idx].item()
         perm = torch.randperm(len(obstacle_indices), device=env.device)[:num_active]
-        active_masks[env_idx, perm] = True
+        index_fill_(active_masks[env_idx], perm, True)
 
     # place obstacles
     for obj_list_idx in range(len(obstacle_indices)):

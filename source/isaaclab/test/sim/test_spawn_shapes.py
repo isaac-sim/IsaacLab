@@ -27,7 +27,6 @@ def sim():
     sim_utils.create_new_stage()
     dt = 0.1
     sim = SimulationContext(SimulationCfg(dt=dt))
-    sim_utils.update_stage()
     yield sim
     sim._disable_app_control_on_stop_handle = True  # prevent timeout
     sim.stop()

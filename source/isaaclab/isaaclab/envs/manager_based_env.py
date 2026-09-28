@@ -18,6 +18,7 @@ from ..managers import ActionManager, EventManager, ObservationManager, Recorder
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import validate
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
 from .common import VecEnvObs, _apply_deprecated_viewer_cfg
@@ -88,7 +89,7 @@ class ManagerBasedEnv:
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # initialize internal variables
@@ -583,14 +584,6 @@ class ManagerBasedEnv:
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except (ModuleNotFoundError, AttributeError):
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def close(self):

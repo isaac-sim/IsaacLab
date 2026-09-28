@@ -45,6 +45,7 @@ import torch
 import warp as wp
 
 from isaaclab.sensors import FrameTransformer
+from isaaclab.utils import index_fill_
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import CabinetEnvCfg
@@ -233,11 +234,9 @@ class OpenDrawerSm:
 
     def reset_idx(self, env_ids: Sequence[int] | None = None):
         """Reset the state machine."""
-        if env_ids is None:
-            env_ids = slice(None)
         # reset state machine
-        self.sm_state[env_ids] = 0
-        self.sm_wait_time[env_ids] = 0.0
+        index_fill_(self.sm_state, env_ids, 0)
+        index_fill_(self.sm_wait_time, env_ids, 0.0)
 
     def compute(self, ee_pose: torch.Tensor, handle_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""

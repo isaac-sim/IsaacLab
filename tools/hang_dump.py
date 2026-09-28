@@ -12,10 +12,8 @@ no handler ever ran. This module closes that gap by giving the runner a signal t
 
 Two constraints decide which signal that can be:
 
-* ``SIGTERM`` and ``SIGABRT`` are unusable. :class:`~isaaclab.app.AppLauncher` binds both to a handler that
-  calls ``SimulationApp.close()``, which is itself what a shutdown hang is stuck inside, so sending either
-  re-enters the hang rather than reporting it. Binding ``SIGABRT`` also displaces ``faulthandler``'s own
-  handler for it.
+* ``SIGTERM`` and ``SIGABRT`` are unusable. A Kit process keeps their default actions, so either ends the
+  process (``SIGABRT`` through the carb crash reporter) instead of reporting where it hangs.
 * A Python-level :mod:`signal` handler would not run anyway. Those execute between bytecodes, and a thread
   wedged in a native Kit, CUDA, or renderer call never returns to the interpreter loop -- the same reason
   ``isaaclab.cli.multigpu`` escalates to ``SIGKILL`` when reaping stragglers.

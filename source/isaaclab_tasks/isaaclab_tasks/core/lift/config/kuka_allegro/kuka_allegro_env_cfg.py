@@ -11,7 +11,8 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, ContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
+from isaaclab.utils.images import is_depth_like
 
 from isaaclab_assets.robots import KUKA_ALLEGRO_CFG
 
@@ -39,7 +40,7 @@ class KukaAllegroSceneCfg(lift.SceneCfg):
     environment configuration populates them.
     """
 
-    robot: ArticulationCfg = KUKA_ALLEGRO_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(KUKA_ALLEGRO_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     base_camera: CameraCfg | None = None
     wrist_camera: CameraCfg | None = None
 
@@ -155,7 +156,7 @@ class KukaAllegroMixinCfg:
                 continue
             term = getattr(getattr(self.observations, group_name), term_name)
             data_type = camera.data_types[0]
-            if data_type in ("depth", "distance_to_image_plane", "distance_to_camera"):
+            if is_depth_like(data_type):
                 term.func = base_mdp.image_depth
             elif "segmentation" in data_type:
                 term.func = base_mdp.image_segmentation

@@ -17,6 +17,7 @@ to controller arrays.
 
 from __future__ import annotations
 
+from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -29,6 +30,7 @@ from newton._src.utils.selection import FrequencyLayout
 from newton.actuators import Actuator, Clamping, Delay
 from newton.selection import ArticulationView
 
+from ...utils import index_fill_
 from .kernels import (
     build_implicit_dof_mask,
     build_per_dof_env_mask_kernel,
@@ -131,8 +133,8 @@ class NewtonActuatorAdapter:
         """
         sim_control.joint_computed_f = self._computed_effort
 
-    def step(self, sim_state: Any, sim_control: Any, dt: float) -> None:
-        """Zero actuated DOFs, step all actuators, and swap state buffers.
+    def step(self, sim_state: Any, sim_control: Any, dt: float, *, swap_state: bool = True) -> None:
+        """Zero actuated DOFs, step all actuators, and advance state buffers.
 
         Args:
             sim_state: Object with ``joint_q``, ``joint_qd``, etc.
@@ -144,6 +146,9 @@ class NewtonActuatorAdapter:
                 :class:`~isaaclab.actuators.newton.physx_wrapper.PhysxActuatorWrapper`
                 on the PhysX backend.
             dt: Physics timestep [s].
+            swap_state: Swap state buffers after stepping. Set to ``False`` on the last step
+                of an odd-length graph to copy the output back into the input buffers instead,
+                keeping their addresses stable across replays.
         """
         # Zero before scatter-add (actuators accumulate into this buffer).
         self._computed_effort.zero_()
@@ -155,7 +160,12 @@ class NewtonActuatorAdapter:
             )
         for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
             act.step(sim_state, sim_control, sa, sb, dt=dt)
-        self._swap_state_buffers()
+        if swap_state:
+            self._swap_state_buffers()
+        else:
+            for sa, sb in zip(self._states_a, self._states_b):
+                if sa is not None:
+                    sa.assign(sb)
 
     def _swap_state_buffers(self) -> None:
         """Advance the actuator state ping-pong after an eager step or graph replay."""
@@ -385,7 +395,7 @@ def write_group_parameter(
     if env_ids is not None and env_ids != slice(None):
         env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
         mask_torch = torch.zeros(collection.num_instances, dtype=torch.bool, device=device)
-        mask_torch[env_rows] = True
+        index_fill_(mask_torch, env_ids, True)
         mask = wp.from_torch(mask_torch, dtype=wp.bool)
     values = values.to(device)
     for actuator, owner in owners:
@@ -602,8 +612,6 @@ def _create_actuators_from_usd(
     as ``SHARED_PARAMS`` (e.g. ``model_path``, ``lookup_positions``) remain
     part of the grouping key and are passed through directly.
     """
-    from collections import defaultdict  # noqa: PLC0415
-
     from newton.actuators import parse_actuator_prim  # noqa: PLC0415
 
     from pxr import Usd  # noqa: PLC0415

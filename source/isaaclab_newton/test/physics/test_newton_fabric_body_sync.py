@@ -42,7 +42,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 
 
@@ -301,6 +301,8 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
 
             sim.reset()
             scene.reset()
+            fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+            fabric.bind_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_scale(body_path), authored_scale, rtol=0.0, atol=1.0e-5)
@@ -313,7 +315,7 @@ def test_root_pose_sync_preserves_authored_scale(device, renderer_cfg):
             scene["cube"].write_root_link_pose_to_sim_index(root_pose=target_pose)
             if isinstance(renderer_cfg, NewtonWarpRendererCfg):
                 assert not sim.visualizers
-                NewtonManager.sync_transforms_to_fabric()
+                fabric.update_transforms(sim.get_scene_data_provider())
             _render(sim, scene)
 
             torch.testing.assert_close(_fabric_position(body_path), target_pose[0, :3].cpu(), rtol=0.0, atol=1.0e-4)
@@ -332,7 +334,7 @@ def test_nested_bodies_keep_independent_world_poses():
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
     )
     scene_cfg = _RenderSceneCfg(num_envs=1, env_spacing=2.0)
-    scene_cfg.child = scene_cfg.cube.replace(prim_path="{ENV_REGEX_NS}/Cube/Child")
+    scene_cfg.child = replace(scene_cfg.cube, prim_path="{ENV_REGEX_NS}/Cube/Child")
     scene_cfg.cube = AssetBaseCfg(prim_path=scene_cfg.cube.prim_path, spawn=scene_cfg.cube.spawn)
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None
@@ -358,7 +360,7 @@ def test_nested_bodies_keep_independent_world_poses():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
-def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
+def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
     with build_simulation_context(sim_cfg=cfg) as sim:
@@ -392,7 +394,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
                 get_geometry_batches=lambda _format=SceneDataFormat.Points: batches,
             )
         )
-        fabric = sim.get_or_create_backend(sim.fabric_cfg)
+        fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
         fabric.update_geometries(provider, 0)
         simulation_app.update()
         wp.synchronize_device(sim.device)
@@ -429,6 +431,10 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence():
         mesh = fabric.stage.GetPrimAtPath(mesh_path)
         mesh.CreateAttribute("test:geometryBucket", RtSdf.ValueTypeNames.Bool, custom=True).Set(True)
         mesh.GetAttribute("points").Set(Vt.Vec3fArray([Gf.Vec3f(99.0)] * 3))
+        with monkeypatch.context() as patch:
+            patch.setattr(provider, "get_geometry_points", Mock(side_effect=RuntimeError("conversion failed")))
+            with pytest.raises(RuntimeError, match="conversion failed"):
+                fabric.update_geometries(provider, 3)
         fabric.update_geometries(provider, 3)
         wp.synchronize_device(sim.device)
         np.testing.assert_allclose(_fabric_curve_points_world(mesh_path), points[mesh_path].numpy(), atol=1.0e-6)

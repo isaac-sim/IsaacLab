@@ -47,7 +47,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -134,7 +134,7 @@ class _SceneCfg(InteractiveSceneCfg):
     """Scene cfg shared across FrameTransformer tests; ``frame_transformer`` is filled per-test."""
 
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     frame_transformer: FrameTransformerCfg = None  # filled per-test
 
     # block
@@ -228,7 +228,7 @@ def test_frame_transformer_feet_wrt_base(device):
             ],
         )
         scene_cfg.ft_thigh = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/LF_THIGH", target_frames=[lf_foot.replace(), rf_foot.replace()]
+            prim_path="{ENV_REGEX_NS}/Robot/LF_THIGH", target_frames=[replace(lf_foot), replace(rf_foot)]
         )
         scene_cfg.ft_cube = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base",
@@ -480,10 +480,11 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
 
         # Create scene config with appropriate prim paths
         scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-        scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-        scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+        scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+        scene_cfg.robot_1 = replace(
+            ANYMAL_C_CFG,
             prim_path=f"{path_prefix}/Robot_1",
-            init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+            init_state=replace(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
         )
 
         # Frame transformer tracking same-named bodies from both robots

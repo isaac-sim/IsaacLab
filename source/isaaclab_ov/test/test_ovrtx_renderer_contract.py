@@ -6,6 +6,7 @@
 """Tests for the OVRTX renderer output contract."""
 
 import contextlib
+import ctypes
 import importlib.util
 import sys
 import types
@@ -16,9 +17,11 @@ import pytest
 import torch
 import warp as wp
 
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
+from isaaclab.utils import replace
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -97,13 +100,23 @@ def _simulation_registry(monkeypatch):
 
 
 @pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: pytest.MonkeyPatch, use_ovstage):
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
-    destroyed = []
+    destroyed, redirected = [], []
+    dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
+    dependency.parent.mkdir(parents=True)
+    dependency.touch()
+    loaded = []
+    monkeypatch.setattr(ovrtx_renderer_module.ovstage, "__file__", str(tmp_path / "__init__.py"))
+    monkeypatch.setattr(ctypes, "CDLL", lambda path: loaded.append(path))
+    # Cache redirection can load the SDK too; isolate it with the other native entry points.
+    monkeypatch.setenv("OVRTX_SHADER_CACHE_PATH", str(tmp_path / "shader-cache"))
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirected.append)
 
     class RecordingRendererConfig:
         def __init__(self, **kwargs):
+            assert loaded, "The renderer must load its native dependencies without viewer setup."
             config_kwargs.update(kwargs)
 
     monkeypatch.setattr(ovrtx_renderer_module, "RendererConfig", RecordingRendererConfig)
@@ -118,11 +131,13 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     shared = OVRTXRenderer(renderer.cfg)
 
     assert shared.backend is renderer.backend
+    assert loaded == [str(dependency)]
+    assert len(redirected) == 1
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert len(SimulationContext.instance()._backend_registry) == 1
-    other = OVRTXRenderer(renderer.cfg.replace(enable_shadows=True))
+    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
     assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()
@@ -134,6 +149,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch: py
     SimulationContext.instance().close_backend(renderer.backend)
     SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
+    assert redirected == destroyed
     assert not SimulationContext.instance()._backend_registry
 
 
@@ -232,7 +248,7 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
-    from isaaclab.cloner.clone_plan import ClonePlan
+    from isaaclab.cloner import make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
@@ -260,13 +276,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
 
     renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer._exported_usd_string = stage.ExportToString()
-    renderer._clone_plan = ClonePlan(
-        sources=("/World/envs/env_0",),
-        destinations=("/World/envs/env_{}",),
-        clone_mask=np.ones((1, 2), dtype=np.bool_),
-        env_ids=np.arange(2, dtype=np.int64),
-        positions=np.zeros((2, 3), dtype=np.float32),
+    plan = make_clone_plan(
+        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
+    renderer._clone_plan = plan
     cameras = []
 
     def camera_scope_exists(rd):

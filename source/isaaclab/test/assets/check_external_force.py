@@ -20,6 +20,7 @@ This script checks if the external force is applied correctly on the robot.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script demonstrates how to external force on a legged robot.")
@@ -69,7 +70,7 @@ def main():
     robot_cfg.spawn.func("/World/Anymal_c/Robot_1", robot_cfg.spawn, translation=(0.0, -0.5, 0.65))
     robot_cfg.spawn.func("/World/Anymal_c/Robot_2", robot_cfg.spawn, translation=(0.0, 0.5, 0.65))
     # create handles for the robots
-    robot = Articulation(robot_cfg.replace(prim_path="/World/Anymal_c/Robot[^/]*"))
+    robot = Articulation(replace(robot_cfg, prim_path="/World/Anymal_c/Robot[^/]*"))
 
     # Play the simulator
     sim.reset()

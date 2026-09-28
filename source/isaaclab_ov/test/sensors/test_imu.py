@@ -62,7 +62,7 @@ from isaaclab.assets import Articulation, RigidObject, RigidObjectCfg  # noqa: E
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors.imu import Imu, ImuCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
 
@@ -147,7 +147,7 @@ def _spawn_anymal(num_envs: int) -> Articulation:
     The :class:`Articulation` performs the per-env spawn itself once the env
     Xform containers exist; :func:`_spawn_envs` must be called first.
     """
-    cfg = ANYMAL_C_CFG.replace(prim_path="/World/env_[^/]+/robot")
+    cfg = replace(ANYMAL_C_CFG, prim_path="/World/env_[^/]+/robot")
     cfg.init_state.pos = (0.0, 2.0, 1.0)
     # bump solver iteration counts to match the PhysX test's scene cfg -- the counts live on the
     # PhysX articulation fragment

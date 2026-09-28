@@ -28,6 +28,7 @@ from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.physics import PhysicsEvent
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
 from isaaclab.utils.string import resolve_matching_names, resolve_matching_names_values
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
@@ -37,6 +38,7 @@ from isaaclab.utils.wrench_composer import WrenchComposer
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.assets.articulation import kernels as articulation_kernels
 from isaaclab_newton.assets.articulation.joint_coordinates import scatter_joint_coordinates
+from isaaclab_newton.physics import NewtonBuilderCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 from .actuator_control import NewtonActuatorControl
@@ -82,63 +84,6 @@ def _resolve_articulation_root_prim_path_expr(cfg: ArticulationCfg) -> str:
 
     resolve_kwargs = {"predicate": has_articulation_root_api, "expected_num_matches": 1}
     return resolve_matching_prims_from_source(cfg.prim_path, **resolve_kwargs)[0][1]
-
-
-def _configure_builder_joint_target_modes(builder, cfg: ArticulationCfg) -> None:
-    """Resolve configured actuator gains into Newton builder target modes before finalization."""
-    root_prim_path_regex = _resolve_articulation_root_prim_path_expr(cfg)
-    articulation_ids, _ = resolve_matching_names(
-        root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
-    )
-    source_dof_ids = None
-    for articulation_id in articulation_ids:
-        joint_start = builder.articulation_start[articulation_id]
-        joint_end = builder.articulation_end[articulation_id]
-        dof_ids: list[int] = []
-        dof_names: list[str] = []
-        for joint_id in range(joint_start, joint_end):
-            if builder.joint_type[joint_id] in (JointType.FREE, JointType.FIXED):
-                continue
-            dof_start = builder.joint_qd_start[joint_id]
-            dof_end = (
-                builder.joint_qd_start[joint_id + 1]
-                if joint_id + 1 < len(builder.joint_qd_start)
-                else len(builder.joint_target_mode)
-            )
-            joint_name = builder.joint_label[joint_id].rsplit("/", maxsplit=1)[-1]
-            for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
-                dof_ids.append(dof_id)
-                dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
-
-        if source_dof_ids is not None:
-            for source_dof_id, dof_id in zip(source_dof_ids, dof_ids, strict=True):
-                builder.joint_target_mode[dof_id] = builder.joint_target_mode[source_dof_id]
-            continue
-
-        for actuator_cfg in cfg.actuators.values():
-            matched_indices, matched_names = resolve_matching_names(
-                actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
-            )
-            if not matched_indices:
-                continue
-            selected_dof_ids = [dof_ids[index] for index in matched_indices]
-            stiffness_values = _resolve_actuator_gain_values(
-                actuator_cfg.stiffness,
-                matched_names,
-                [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
-            )
-            damping_values = _resolve_actuator_gain_values(
-                actuator_cfg.damping,
-                matched_names,
-                [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
-            )
-            for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
-                builder.joint_target_mode[dof_id] = int(
-                    _target_mode_from_gains(stiffness, damping)
-                    if _is_implicit_actuator_cfg(actuator_cfg)
-                    else JointTargetMode.EFFORT
-                )
-        source_dof_ids = dof_ids
 
 
 class Articulation(BaseArticulation):
@@ -212,8 +157,6 @@ class Articulation(BaseArticulation):
         Args:
             cfg: A configuration instance.
         """
-        from isaaclab.sim import SimulationContext  # noqa: PLC0415
-
         super().__init__(cfg)
 
         sim_ctx = SimulationContext.instance()
@@ -232,10 +175,62 @@ class Articulation(BaseArticulation):
         )
 
     def _configure_joint_target_modes(self, _event) -> None:
-        """Apply configured actuator modes to the private Newton model builder."""
-        builder = SimulationManager._builder
-        if builder is not None:
-            _configure_builder_joint_target_modes(builder, self.cfg)
+        """Apply configured actuator modes to the shared builder before model allocation."""
+        sim = SimulationContext.instance()
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+        root_prim_path_regex = _resolve_articulation_root_prim_path_expr(self.cfg)
+        articulation_ids, _ = resolve_matching_names(
+            root_prim_path_regex, builder.articulation_label, raise_when_no_match=False
+        )
+        source_dof_ids = None
+        for articulation_id in articulation_ids:
+            joint_start = builder.articulation_start[articulation_id]
+            joint_end = builder.articulation_end[articulation_id]
+            dof_ids: list[int] = []
+            dof_names: list[str] = []
+            for joint_id in range(joint_start, joint_end):
+                if builder.joint_type[joint_id] in (JointType.FREE, JointType.FIXED):
+                    continue
+                dof_start = builder.joint_qd_start[joint_id]
+                dof_end = (
+                    builder.joint_qd_start[joint_id + 1]
+                    if joint_id + 1 < len(builder.joint_qd_start)
+                    else len(builder.joint_target_mode)
+                )
+                joint_name = builder.joint_label[joint_id].rsplit("/", maxsplit=1)[-1]
+                for axis_index, dof_id in enumerate(range(dof_start, dof_end)):
+                    dof_ids.append(dof_id)
+                    dof_names.append(joint_name if dof_end - dof_start == 1 else f"{joint_name}:{axis_index}")
+
+            if source_dof_ids is not None:
+                for source_dof_id, dof_id in zip(source_dof_ids, dof_ids, strict=True):
+                    builder.joint_target_mode[dof_id] = builder.joint_target_mode[source_dof_id]
+                continue
+
+            for actuator_cfg in self.cfg.actuators.values():
+                matched_indices, matched_names = resolve_matching_names(
+                    actuator_cfg.joint_names_expr, dof_names, raise_when_no_match=False
+                )
+                if not matched_indices:
+                    continue
+                selected_dof_ids = [dof_ids[index] for index in matched_indices]
+                stiffness_values = _resolve_actuator_gain_values(
+                    actuator_cfg.stiffness,
+                    matched_names,
+                    [builder.joint_target_ke[dof_id] for dof_id in selected_dof_ids],
+                )
+                damping_values = _resolve_actuator_gain_values(
+                    actuator_cfg.damping,
+                    matched_names,
+                    [builder.joint_target_kd[dof_id] for dof_id in selected_dof_ids],
+                )
+                for dof_id, stiffness, damping in zip(selected_dof_ids, stiffness_values, damping_values, strict=True):
+                    builder.joint_target_mode[dof_id] = int(
+                        _target_mode_from_gains(stiffness, damping)
+                        if _is_implicit_actuator_cfg(actuator_cfg)
+                        else JointTargetMode.EFFORT
+                    )
+            source_dof_ids = dof_ids
 
     """
     Properties
@@ -1829,7 +1824,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1838,7 +1833,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
@@ -1903,7 +1898,7 @@ class Articulation(BaseArticulation):
             outputs=[
                 joint_pos_limits_lower_user,
                 joint_pos_limits_upper_user,
-                self.data._joint_pos_limits,
+                self.data._joint_pos_limits.data,
                 self.data._sim_bind_joint_pos_limits_lower,
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
@@ -1912,7 +1907,7 @@ class Articulation(BaseArticulation):
             ],
             device=self.device,
         )
-        self.data._joint_pos_limits_timestamp = self.data._sim_timestamp
+        self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
         if clamped_defaults.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"

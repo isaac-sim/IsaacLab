@@ -408,7 +408,7 @@ The renderer system consists of:
 
    # Create a Newton Warp renderer (no Isaac Sim required)
    sim_ctx = sim_utils.SimulationContext.instance()
-   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   # Reuse a matching renderer or construct one through instantiate(cfg).
    renderer: BaseRenderer = sim_ctx.get_or_create_backend(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
 
@@ -422,7 +422,7 @@ For the RTX renderer (requires Isaac Sim):
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
-   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   # Reuse a matching renderer or construct one through instantiate(cfg).
    renderer: BaseRenderer = sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())
 
 For RTX renderer settings, see

@@ -8,53 +8,18 @@
 from __future__ import annotations
 
 import contextlib
-import ctypes
 import gc
 import inspect
 import logging
 import re
 from abc import abstractmethod
 from collections.abc import Callable, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 import torch
 import warp as wp
-
-# Load CUDA runtime for relaxed-mode graph capture (RTX-compatible).
-# cudaStreamCaptureModeRelaxed (2) allows the RTX compositor's background
-# CUDA stream to keep running during capture without invalidating it.
-# Match the CUDA runtime already loaded by PyTorch.
-try:
-    _cudart = ctypes.CDLL(f"libcudart.so.{torch.version.cuda.split('.')[0]}") if torch.version.cuda else None
-except OSError:
-    _cudart = None
-
-
-@contextlib.contextmanager
-def _paused_gc():
-    """Pause Python garbage collection for the duration of a CUDA graph capture.
-
-    A garbage-collection pass inside a capture window can drop the last
-    reference to an array allocated earlier in the capture. While the capture
-    is paused for a ``wp.capture_while``/``wp.capture_if`` conditional body,
-    Warp then inserts the memory free node into the body graph with dependency
-    nodes from the parent graph, which fails and latches a sticky CUDA error
-    that poisons a later, unrelated copy. Reference-count-driven frees are
-    deterministic solver behavior and remain allowed; only the collector is
-    deferred, and a collection runs immediately after the capture window,
-    where freeing graph-scoped allocations is handled correctly.
-    """
-    was_enabled = gc.isenabled()
-    gc.disable()
-    try:
-        yield
-    finally:
-        if was_enabled:
-            gc.enable()
-            gc.collect()
-
-
 from newton import (
     Axis,
     CollisionPipeline,
@@ -72,42 +37,40 @@ from newton.selection import ArticulationView
 from newton.sensors import SensorContact as NewtonContactSensor
 from newton.sensors import SensorFrameTransform
 from newton.sensors import SensorIMU as NewtonSensorIMU
-from newton.solvers import SolverBase, SolverKamino, SolverMuJoCo
+from newton.solvers import SolverBase, SolverMuJoCo
 from newton.usd import SchemaResolver, SchemaResolverMjc, SchemaResolverNewton, SchemaResolverPhysx
 
 from pxr import Usd, UsdGeom
 
-from isaaclab.cloner.path import rebase, under
-from isaaclab.cloner.query import iter_sources
+import isaaclab.cloner as cloner
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.newton_model_utils import replace_newton_builder_shape_colors
-from isaaclab.sim.utils.stage import get_current_stage
-from isaaclab.utils import checked_apply
+from isaaclab.utils import checked_apply, to_dict
+from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
 from isaaclab.utils.version import has_kit
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
 
-from isaaclab_newton.cloner.newton_clone_utils import (
-    _restore_visible_colliders_without_visual_shapes,
-    replicate_builder_mapping,
-)
 from isaaclab_newton.physics.featherstone_manager_cfg import FeatherstoneSolverCfg
 from isaaclab_newton.physics.mjwarp_manager_cfg import MJWarpSolverCfg
-from isaaclab_newton.physics.newton_manager_cfg import NewtonBackendCfg, NewtonCfg, NewtonShapeCfg, NewtonSolverCfg
+from isaaclab_newton.physics.newton_manager_cfg import (
+    NewtonBackendCfg,
+    NewtonBuilderCfg,
+    NewtonCfg,
+    NewtonShapeCfg,
+    NewtonSolverCfg,
+)
 from isaaclab_newton.physics.xpbd_manager_cfg import XPBDSolverCfg
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
     VisualShapeColorWriter,
-    import_builder_visual_material_paths,
 )
 
 if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
-    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
@@ -187,27 +150,145 @@ def _scatter_world_reset_mask_from_ids(env_ids: wp.array(dtype=wp.int32), world_
     world_mask[env_ids[wp.tid()]] = True
 
 
+def create_newton_builder(cfg: NewtonBuilderCfg) -> ModelBuilder:
+    """Construct a native builder through the selected physics manager's factory.
+
+    Args:
+        cfg: The selected physics configuration.
+
+    Returns:
+        An empty builder with the selected solver schemas and shape/BVH defaults.
+    """
+    if isinstance(cfg.physics_cfg, NewtonCfg):
+        return cfg.physics_cfg.class_type.create_builder(physics_cfg=cfg.physics_cfg)
+    return ModelBuilder()
+
+
 class NewtonBackend:
     """Own one finalized Newton model and its native state and control buffers."""
 
     def __init__(self, cfg: NewtonBackendCfg):
-        self.model = cfg.builder.finalize(device=cfg.device)
-        self.model.num_envs = self.model.world_count if cfg.num_envs is None else cfg.num_envs
-        if cfg.gravity is not None:
-            self.model.set_gravity(cfg.gravity)
-        if cfg.soft_contact_cfg is not None:
-            self.model.soft_contact_ke = float(cfg.soft_contact_cfg.soft_contact_ke)
-            self.model.soft_contact_kd = float(cfg.soft_contact_cfg.soft_contact_kd)
-            self.model.soft_contact_mu = float(cfg.soft_contact_cfg.soft_contact_mu)
-        if cfg.contact_attributes:
-            self.model.request_contact_attributes(*cfg.contact_attributes)
+        builder = SimulationContext.instance().get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
+        self.model = builder.finalize(device=cfg.device)
+        self.particle_ranges: dict[str, tuple[int, int]] = {}
+        # Newton 1.6 preserves groups through builder replication but not finalization.
+        # Remove this snapshot when the pinned Newton includes newton-physics/newton#3326.
+        self.deformable_ranges = {
+            label: (start, end - start, kind)
+            for family, kind in (("cloth", "surface"), ("soft", "volume"))
+            for label, start, end in zip(
+                getattr(builder, f"_{family}_label"),
+                getattr(builder, f"_{family}_particle_start"),
+                getattr(builder, f"_{family}_particle_end"),
+                strict=True,
+            )
+        }
+        self.model.num_envs = self.model.world_count
+        simulation = isinstance(cfg.physics_cfg, NewtonCfg)
+        soft_contact = cfg.physics_cfg.soft_contact_cfg if simulation else None
+        if soft_contact is not None:
+            self.model.soft_contact_ke = float(soft_contact.soft_contact_ke)
+            self.model.soft_contact_kd = float(soft_contact.soft_contact_kd)
+            self.model.soft_contact_mu = float(soft_contact.soft_contact_mu)
         self.state_0 = self.model.state()
-        self.state_1 = self.model.state() if cfg.simulation else None
-        self.control = self.model.control() if cfg.simulation else None
+        self.state_1 = self.model.state() if simulation else None
+        self.control = self.model.control() if simulation else None
+        self.geometry_offsets = (
+            {} if simulation else {path: bounds[0] for path, bounds in self.deformable_ranges.items()}
+        )
+        self.bvh_refit = TimestampedBuffer()
+
+    def create_visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
+        """Bind material writes to this resource's native shape-color buffer."""
+        return VisualMaterialWriter(self.model, batches)
 
     def close(self) -> None:
         """Drop native handles after consumers release their bindings."""
         self.control = self.state_1 = self.state_0 = self.model = None
+        self.deformable_ranges.clear()
+        self.particle_ranges = {}
+        self.geometry_offsets = {}
+        self.bvh_refit = TimestampedBuffer()
+
+
+class NewtonQueries:
+    """Stateless query and capture functions operating on an explicit Newton resource."""
+
+    @staticmethod
+    def run_query(
+        backend: NewtonBackend,
+        timestamp: int,
+        query: Callable[[], None],
+        graph: tuple[tuple[int, ...], wp.Graph] | None,
+        *,
+        use_cuda_graph: bool = True,
+    ) -> tuple[tuple[int, ...], wp.Graph] | None:
+        """Refresh shared BVHs once per publication and run a consumer-owned query graph.
+
+        Args:
+            backend: Shared model, state, and acceleration structures.
+            timestamp: Sum of the monotonic SDP transform and geometry timestamps for this state.
+            query: Camera or ray-cast work using the supplied backend.
+            graph: This consumer's previous captured query and pointer layout, or None.
+            use_cuda_graph: Whether to capture GPU queries. CPU queries always run eagerly.
+
+        Returns:
+            The consumer's captured query and pointer layout, or None for eager execution.
+        """
+        model, state = backend.model, backend.state_0
+        pointers = tuple(array.ptr if array is not None else 0 for array in (state.body_q, state.particle_q))
+        cached = backend.bvh_refit
+        if cached.timestamp != timestamp:
+            if model.device.is_cuda and use_cuda_graph:
+                if cached.data is None or cached.data[0] != pointers:
+                    refit = partial(NewtonQueries._refit_bvh, backend)
+                    cached.data = pointers, NewtonQueries.capture_graph(str(model.device), refit, relaxed=has_kit())
+                wp.capture_launch(cached.data[1])
+            else:
+                NewtonQueries._refit_bvh(backend)
+            cached.timestamp = timestamp
+        if not model.device.is_cuda or not use_cuda_graph:
+            query()
+            return None
+        if graph is None or graph[0] != pointers:
+            graph = pointers, NewtonQueries.capture_graph(str(model.device), query, relaxed=has_kit())
+        wp.capture_launch(graph[1])
+        return graph
+
+    @staticmethod
+    def capture_graph(device: str, capture_target: Callable[[], None], *, relaxed: bool = False) -> wp.Graph:
+        """Record work without an eager warmup or graph replay, using Warp's public capture API."""
+        stream = wp.get_stream(device)
+        mode = wp.CaptureMode.THREAD_LOCAL
+        if relaxed:
+            # RTX uses the legacy CUDA stream. A nonblocking stream avoids implicit synchronization.
+            stream = wp.stream_from_torch(torch.cuda.Stream(device=device))
+            mode = wp.CaptureMode.RELAXED
+        with NewtonQueries._paused_gc(), wp.ScopedStream(stream):
+            with wp.ScopedCapture(stream=stream, capture_mode=mode) as capture:
+                capture_target()
+        return capture.graph
+
+    @staticmethod
+    def _refit_bvh(backend: NewtonBackend) -> None:
+        model, state = backend.model, backend.state_0
+        if model.shape_count:
+            model.bvh_refit_shapes(state)
+        if model.particle_count:
+            model.bvh_refit_particles(state)
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _paused_gc():
+        """Keep collection-driven frees out of CUDA graph capture."""
+        was_enabled = gc.isenabled()
+        gc.disable()
+        try:
+            yield
+        finally:
+            if was_enabled:
+                gc.enable()
+                gc.collect()
 
 
 class NewtonSceneDataBackend(SceneDataBackend):
@@ -220,46 +301,18 @@ class NewtonSceneDataBackend(SceneDataBackend):
 
     def __init__(self):
         self._transforms = SceneDataFormat.Transform()
-        self.transforms_version = 0
+        self.transforms_timestamp = 0
         self.geometry_timestamp = 0
         self._geometry_batches = []
 
-    def initialize_geometry(self, plan: ClonePlan) -> None:
+    def initialize_geometry(self) -> None:
         """Bind imported geometry paths to native particle ranges and capsule endpoints."""
-        ranges, visual_ranges = {}, {}
-        indices, weights = [], []
-        visual_offset = 0
-        for entry in NewtonManager._deformable_registry:
-            paths = [
-                rebase(path, source, template.format(env_id))
-                for source, template, path, env_ids in iter_sources(plan, entry.vis_mesh_prim_path)
-                for env_id in env_ids
-            ]
-            if not paths and any(under(entry.vis_mesh_prim_path, root) for root in plan.global_paths):
-                paths.append(entry.vis_mesh_prim_path)
-            if entry.volume_vis_remap is None:
-                ranges.update(
-                    (path, (offset, entry.particles_per_body))
-                    for path, offset in zip(paths, entry.particle_offsets, strict=True)
-                )
-            else:
-                prototype_indices = entry.volume_vis_remap.tet_vertex_indices.numpy()
-                prototype_weights = entry.volume_vis_remap.bary_weights.numpy()
-                count = len(prototype_indices)
-                for path, offset in zip(paths, entry.particle_offsets, strict=True):
-                    indices.append(prototype_indices + offset)
-                    weights.append(prototype_weights)
-                    visual_ranges[path] = (visual_offset, count)
-                    visual_offset += count
-        source = SceneDataFormat.Points()
-        source.points = self.state.particle_q
-        self._geometry_batches = [(source, ranges)]
-        if visual_ranges:
-            source = SceneDataFormat.WeightedPoints()
-            source.points = self.state.particle_q
-            source.indices = wp.array(np.concatenate(indices), dtype=wp.int32, device=source.points.device)
-            source.weights = wp.array(np.concatenate(weights), dtype=wp.float32, device=source.points.device)
-            self._geometry_batches.append((source, visual_ranges))
+        state = NewtonManager.get_state_0()
+        self._geometry_batches = [
+            (source, ranges)
+            for source, ranges in self._geometry_batches
+            if source._cls is not SceneDataFormat.CapsuleEndpoints
+        ]
         endpoints, ranges = [], {}
         offset = 0
         for path, shapes in NewtonManager._cable_bindings.items():
@@ -275,7 +328,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         if endpoints:
             model = self.model
             source = SceneDataFormat.CapsuleEndpoints()
-            source.transforms = self.state.body_q
+            source.transforms = state.body_q
             source.shape_body = model.shape_body
             source.shape_transform = model.shape_transform
             source.shape_scale = model.shape_scale
@@ -295,7 +348,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
             if getattr(source, attribute) is not data:
                 setattr(source, attribute, data)
                 self.geometry_timestamp += 1
-        return [(source, ranges) for source, ranges in self._geometry_batches if ranges]
+        return self._geometry_batches
 
     @property
     def transforms(self) -> SceneDataFormat.Transform:
@@ -303,7 +356,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         transforms = self.state.body_q
         if self._transforms.transforms is not transforms:
             self._transforms.transforms = transforms
-            self.transforms_version += 1
+            self.transforms_timestamp += 1
         return self._transforms
 
     @property
@@ -325,12 +378,11 @@ class NewtonSceneDataBackend(SceneDataBackend):
     @property
     def state(self) -> State:
         """Return native physics state without entering the rendering consumer path."""
-        if NewtonManager._transforms_may_change_on_graph_replay:
+        if NewtonManager.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
-            self.transforms_version += 1
+            self.transforms_timestamp += 1
             self.geometry_timestamp += 1
-        if NewtonManager._eval_fk is not _eval_fk_unbound:
-            NewtonManager.forward()
+        NewtonManager.forward()
         return NewtonManager.get_state_0()
 
 
@@ -362,7 +414,6 @@ class NewtonManager(PhysicsManager):
     Concrete subclasses (one per solver) implement :meth:`_build_solver` and
     may extend :meth:`_initialize_contacts`, :meth:`_prepare_builder_for_finalize`,
     :meth:`_step_solver`, :meth:`_supports_cuda_graph_capture`,
-    :meth:`_requires_initial_reset_before_graph_capture`,
     :meth:`_reset_solver_internals`,
     :meth:`_solver_specific_clear`, :meth:`_check_solver_status`, and
     :meth:`_log_solver_debug`.
@@ -389,7 +440,6 @@ class NewtonManager(PhysicsManager):
     """Whether the solver consumes applied rigid-body forces from :class:`State`."""
 
     # Native ownership and physics orchestration
-    _builder: ModelBuilder = None
     backend: ClassVar[NewtonBackend | None] = None
     """Borrowed native resource shared by physics and scene consumers; the simulation registry owns it."""
     _solver: SolverBase | None = None
@@ -418,7 +468,7 @@ class NewtonManager(PhysicsManager):
     # Newton reserves the final slot for global entities in world -1.
     _world_reset_mask: wp.array | None = None  # (num_envs + 1,) wp.bool
     _fk_reset_mask: wp.array | None = None  # (articulation_count,) wp.bool — for eval_fk(mask=...)
-    _reconciliation_pending: bool = False
+    kinematics_dirty: bool = False
     # Solver-specialized FK delegate. Bound in initialize_solver() to the active subclass's choice of FK implementation.
     _eval_fk: Callable[[wp.array | None, wp.array | None], None] = _eval_fk_unbound
     # Solver-specialized reset delegate. Like _eval_fk, this must dispatch correctly through the base manager.
@@ -442,21 +492,8 @@ class NewtonManager(PhysicsManager):
     _graph = None
     _graph_capture_pending: bool = False
 
-    # Newton scene-query scheduling and graph execution.
-    _sensor_tasks: dict[str, Callable[[], None]] = {}
-    _sensor_eager_tasks: set[str] = set()
-    _sensor_graph: wp.Graph | None = None
-    _sensor_flags: wp.array | None = None
-    _sensor_flags_host: np.ndarray | None = None
-    _sensor_state: State | None = None
-    _sensor_state_dirty: bool = True
-    _sensor_graph_capture_failed: bool = False
-    _sensor_bvh_shape_flags: ShapeFlags = ShapeFlags.VISIBLE
-
-    # USD/Fabric sync
-    _usdrt_stage = None
-    _clone_physics_only = False
-    _transforms_may_change_on_graph_replay: bool = False
+    # Native scene-data publication.
+    transforms_may_change_on_graph_replay: bool = False
     _cable_bindings: dict[str, list[int]] = {}
 
     # Model changes (callbacks use unified system from PhysicsManager)
@@ -468,17 +505,8 @@ class NewtonManager(PhysicsManager):
     # Scene data backend
     _scene_data_backend: NewtonSceneDataBackend | None = None
 
-    # Visualization-only state used when the sim backend is PhysX. Populated
-    # from the clone plan in :meth:`_initialize_visualization_model` and updated each render
-    # frame in :meth:`update_visualization_state`.
-    _transform_mapping: wp.array | None = None
-    _transforms_version_last_update: int | None = None
-    _geometry_offsets: dict[str, int] = {}
-    _geometry_timestamp_last_update: int | None = None
-    _visualization_stop_callback: CallbackHandle | None = None
-
     _builder_attribute_solvers: tuple[type[SolverBase], ...] = ()
-    _mpm_object_registry: list = []
+    _particle_ranges: dict[str, tuple[int, int]] = {}
 
     # CL: Cloning / Replication logic
     # TODO: These attributes support cloning-specific logic and should be moved into a cloner class
@@ -492,13 +520,11 @@ class NewtonManager(PhysicsManager):
     _LocalSite = tuple[None, list[list[int]]]
     _SiteEntry = _GlobalSite | _LocalSite
     _cl_site_index_map: dict[str, _SiteEntry] = {}
-    _cl_fabric_body_bindings: list[tuple[str, int]] | None = None
     _world_xforms: list[wp.transform] | None = None
     # Per-source builders retained from replication, keyed by clone-plan source
     # path. Single-model consumers (e.g. batched Newton IK) finalize a single-env
-    # model from these and resolve it via ``query.path_to_source``.
+    # model from these using the asset prototype's native source path.
     _cl_protos: dict[str, ModelBuilder] = {}
-    _deformable_registry: list = []
     _per_world_builder_hooks: list[Callable[[ModelBuilder, int, np.ndarray, np.ndarray], None]] = []
 
     @classmethod
@@ -514,25 +540,11 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         cls.clone_context_type = NewtonReplicateContext
-        sim_context.clone_contexts[NewtonReplicateContext] = NewtonReplicateContext(sim_context)
 
         # Newton-specific setup: get gravity from SimulationCfg (not physics manager cfg)
         sim = PhysicsManager._sim
         if sim is not None:
             NewtonManager._gravity_vector = sim.cfg.gravity  # type: ignore[union-attr]
-
-            # USD/Fabric sync for Omniverse rendering (visualizer) or Newton+RTX (Kit cameras)
-            try:
-                requested = sim.resolve_visualizer_types()
-            except Exception:
-                requested = []
-                viz_raw = sim.get_setting("/isaaclab/visualizer/types")
-                if isinstance(viz_raw, str):
-                    requested = [v for part in viz_raw.split(",") for v in part.split() if v]
-            from isaaclab.app.settings_manager import get_settings_manager
-
-            cameras_enabled = bool(get_settings_manager().get("/isaaclab/cameras_enabled", False))
-            cls._clone_physics_only = not has_kit() or ("kit" not in requested and not cameras_enabled)
 
         NewtonManager._scene_data_backend = NewtonSceneDataBackend()
 
@@ -554,6 +566,8 @@ class NewtonManager(PhysicsManager):
             soft: If True, skip full reinitialization.
         """
         if not soft:
+            if NewtonManager.backend is not None:
+                cls.dispatch_event(PhysicsEvent.STOP)
             # Release the cached collision pipeline, contacts and CUDA graph;
             # they point at the old model's freed buffers (CUDA 700 on next step).
             NewtonManager._graph = None
@@ -564,8 +578,6 @@ class NewtonManager(PhysicsManager):
             NewtonManager._eval_fk = _eval_fk_unbound
             NewtonManager._reset_solver_internals_delegate = _reset_solver_internals_unbound
             NewtonManager._adapter = None
-            cls._invalidate_sensor_graph()
-            NewtonManager._sensor_state = None
             if NewtonManager.backend is not None:
                 SimulationContext.instance().close_backend(NewtonManager.backend)
                 NewtonManager.backend = None
@@ -601,13 +613,10 @@ class NewtonManager(PhysicsManager):
         updated. The masks are consumed (zeroed) afterwards so the next :meth:`step` does not
         redundantly re-solve them.
 
-        The delegate (rather than a direct ``cls._eval_fk_impl`` call) is required because the
-        data layer invokes ``NewtonManager.forward()`` on the base class, where ``cls`` is the
-        base ``NewtonManager``; the bound delegate dispatches to the concrete subclass override.
+        Asset and scene-data reads share the same pending work. The bound delegate dispatches
+        calls on ``NewtonManager`` to the active solver's implementation.
         """
-        if cls._eval_fk is not _eval_fk_unbound and not (
-            cls._reconciliation_pending or cls._transforms_may_change_on_graph_replay
-        ):
+        if not (cls.kinematics_dirty or cls.transforms_may_change_on_graph_replay):
             return
         cls._reset_solver_internals_delegate(cls._world_reset_mask)
         cls._eval_fk(cls._world_reset_mask, cls._fk_reset_mask)
@@ -615,8 +624,7 @@ class NewtonManager(PhysicsManager):
             cls._fk_reset_mask.zero_()
         if cls._world_reset_mask is not None:
             cls._world_reset_mask.zero_()
-        NewtonManager._reconciliation_pending = False
-        cls._mark_sensor_state_dirty()
+        NewtonManager.kinematics_dirty = False
 
     @classmethod
     def video_capture_backend(cls) -> str:
@@ -624,38 +632,16 @@ class NewtonManager(PhysicsManager):
         return "newton_gl"
 
     @classmethod
-    def sync_transforms_to_fabric(cls) -> None:
-        """Publish rigid-body poses through SDP to Fabric, leaving authored USD untouched."""
-        if cls._usdrt_stage is None or cls.backend is None:
-            return
-        sim = PhysicsManager._sim
-        sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
-
-    @classmethod
-    def sync_transforms_to_usd(cls) -> None:
-        """Write Newton body_q to Fabric world matrices for Kit viewport / RTX rendering.
-
-        .. deprecated:: v6.3.0
-            Renamed to :meth:`sync_transforms_to_fabric`, which describes where the write
-            actually lands. This alias will be removed in a future release.
-        """
-        logger.warning(
-            "The method 'NewtonManager.sync_transforms_to_usd' is deprecated because it writes Fabric, not the USD"
-            " stage. Please use 'NewtonManager.sync_transforms_to_fabric' instead."
-        )
-        cls.sync_transforms_to_fabric()
-
-    @classmethod
     def _mark_transforms_changed(cls) -> None:
         """Publish authored rigid-body changes and invalidate cable geometry."""
         if NewtonManager._scene_data_backend is not None:
-            NewtonManager._scene_data_backend.transforms_version += 1
+            NewtonManager._scene_data_backend.transforms_timestamp += 1
             NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = PhysicsManager._device
         if device is not None:
             device = wp.get_device(device)
             if device.is_cuda and device.stream.is_capturing:
-                NewtonManager._transforms_may_change_on_graph_replay = True
+                NewtonManager.transforms_may_change_on_graph_replay = True
 
     @classmethod
     def _mark_particles_dirty(cls) -> None:
@@ -663,18 +649,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._scene_data_backend.geometry_timestamp += 1
         device = wp.get_device(PhysicsManager._device)
         if device.is_cuda and device.stream.is_capturing:
-            NewtonManager._transforms_may_change_on_graph_replay = True
-
-    @classmethod
-    def register_particle_visual_prim(cls, prim_path: str, particle_offset: int, particle_count: int) -> None:
-        """Publish a declared point prim's native particle range.
-
-        Args:
-            prim_path: Planned point-geometry destination.
-            particle_offset: First native particle index.
-            particle_count: Number of particles.
-        """
-        NewtonManager._scene_data_backend._geometry_batches[0][1][prim_path] = (particle_offset, particle_count)
+            NewtonManager.transforms_may_change_on_graph_replay = True
 
     @classmethod
     def step(cls) -> None:
@@ -718,41 +693,15 @@ class NewtonManager(PhysicsManager):
                     cls._solver.notify_model_changed(change)
                 NewtonManager._model_changes = set()
 
-        # Lazy CUDA graph capture
+        # Reset-authored state and persistent solver resources must be ready before capture.
+        cls.forward()
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        capture_pending = cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph and "cuda" in device  # type: ignore[union-attr]
-        state_reconciled = False
-        if capture_pending and cls._usdrt_stage is None:
-            # Reconcile reset-authored solver resources before standard capture.
-            cls.forward()
-            state_reconciled = True
-
-        if capture_pending:
+        if cls._graph_capture_pending and cfg is not None and cfg.use_cuda_graph:
+            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
+            with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+                NewtonManager._graph = cls._capture_graph(simulate)
             NewtonManager._graph_capture_pending = False
-            if cls._usdrt_stage is None:
-                simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                    with _paused_gc(), wp.ScopedCapture(device=device, force_module_load=False) as capture:
-                        simulate()
-                NewtonManager._graph = capture.graph
-                logger.info("Newton CUDA graph captured (deferred standard mode)")
-            else:
-                NewtonManager._graph = cls._capture_relaxed_graph(device)
-                if cls._graph is not None:
-                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                    # first step() inside graph capture. Replay once to pin those
-                    # memory-pool addresses before any eager solver.reset() call.
-                    if isinstance(cls._solver, SolverKamino):
-                        wp.capture_launch(cls._graph)
-                    logger.info("Newton CUDA graph captured (deferred relaxed mode, RTX-compatible)")
-                else:
-                    logger.warning("Newton deferred CUDA graph capture failed; using eager execution")
-
-        # Reconcile authored state after any mutating graph warmup and before the requested physics step.
-        if not state_reconciled:
-            cls.forward()
 
         physics_dt = cls._solver_dt * cls._num_substeps
         use_graph = cfg is not None and cfg.use_cuda_graph and cls._graph is not None and "cuda" in device  # type: ignore[union-attr]
@@ -780,7 +729,6 @@ class NewtonManager(PhysicsManager):
             PhysicsManager._sim_time += physics_dt
 
         cls._mark_transforms_changed()
-        cls._mark_sensor_state_dirty()
 
         cls._check_solver_status()
 
@@ -823,12 +771,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def clear(cls):
         """Clear all Newton-specific state (callbacks cleared by super().close())."""
-        callback = NewtonManager._visualization_stop_callback
-        NewtonManager._visualization_stop_callback = None
-        if callback is not None:
-            callback.deregister()
         NewtonManager._num_envs = None
-        NewtonManager._builder = None
         NewtonManager._solver = None
         NewtonManager._use_single_state = None
         NewtonManager._supports_rigid_body_force_input = False
@@ -859,31 +802,18 @@ class NewtonManager(PhysicsManager):
         # Per-world reset masks
         NewtonManager._world_reset_mask = None
         NewtonManager._fk_reset_mask = None
-        NewtonManager._reconciliation_pending = False
+        NewtonManager.kinematics_dirty = False
         NewtonManager._graph = None
         NewtonManager._graph_capture_pending = False
-        NewtonManager._sensor_tasks = {}
-        NewtonManager._sensor_eager_tasks = set()
-        NewtonManager._invalidate_sensor_graph()
-        NewtonManager._sensor_state = None
-        NewtonManager._sensor_state_dirty = True
-        NewtonManager._sensor_bvh_shape_flags = ShapeFlags.VISIBLE
-        NewtonManager._usdrt_stage = None
-        NewtonManager._transforms_may_change_on_graph_replay = False
+        NewtonManager.transforms_may_change_on_graph_replay = False
         NewtonManager._cable_bindings = {}
-        NewtonManager._mpm_object_registry = []
-        NewtonManager._deformable_registry = []
+        NewtonManager._particle_ranges = {}
         NewtonManager._per_world_builder_hooks = []
         NewtonManager._up_axis = "Z"
-        NewtonManager._transform_mapping = None
-        NewtonManager._transforms_version_last_update = None
-        NewtonManager._geometry_offsets = {}
-        NewtonManager._geometry_timestamp_last_update = None
         NewtonManager._model_changes = set()
         NewtonManager._scene_data_backend = None
         NewtonManager._cl_pending_sites = {}
         NewtonManager._cl_site_index_map = {}
-        NewtonManager._cl_fabric_body_bindings = None
         NewtonManager._world_xforms = None
         NewtonManager._cl_protos = {}
         NewtonManager._pending_extended_state_attributes = set()
@@ -897,12 +827,9 @@ class NewtonManager(PhysicsManager):
             NewtonManager.backend = None
 
     @classmethod
-    def set_builder(cls, builder: ModelBuilder) -> None:
-        """Set the Newton model builder."""
-        NewtonManager._builder = builder
-
-    @classmethod
-    def create_builder(cls, up_axis: str | None = None, **kwargs) -> ModelBuilder:
+    def create_builder(
+        cls, up_axis: str | None = None, *, physics_cfg: NewtonCfg | None = None, **kwargs
+    ) -> ModelBuilder:
         """Create a :class:`ModelBuilder` configured with default settings.
 
         Forwards :class:`NewtonShapeCfg` defaults onto Newton's upstream
@@ -913,6 +840,7 @@ class NewtonManager(PhysicsManager):
         Args:
             up_axis: Override for the up-axis. Defaults to ``None``, which uses
                 the manager's ``_up_axis``.
+            physics_cfg: Explicit builder settings; None uses the active physics configuration.
             **kwargs: Forwarded to :class:`ModelBuilder`.
 
         Returns:
@@ -921,14 +849,14 @@ class NewtonManager(PhysicsManager):
         # Resolve which NewtonShapeCfg to apply: user override if active config
         # is NewtonCfg, else the wrapper's own defaults so callers from non-Newton
         # contexts (tests, early construction) still get the rough-terrain margin.
-        cfg = PhysicsManager._cfg
+        cfg = PhysicsManager._cfg if physics_cfg is None else physics_cfg
 
         builder = ModelBuilder(up_axis=up_axis or cls._up_axis, **kwargs)
         builder.default_bvh_cfg = ModelBuilder.BvhConfig(
             mesh_constructor=cfg.bvh_constructor_geometry if isinstance(cfg, NewtonCfg) else None,
             gaussian_constructor=cfg.bvh_constructor_gaussian if isinstance(cfg, NewtonCfg) else None,
             shape_constructor=cfg.bvh_constructor_scene if isinstance(cfg, NewtonCfg) else None,
-            shape_flags=cls._sensor_bvh_shape_flags,
+            shape_flags=ShapeFlags.VISIBLE,
         )
 
         cls._register_builder_attributes(builder)
@@ -1025,7 +953,7 @@ class NewtonManager(PhysicsManager):
         main_builder: ModelBuilder,
         source_builders: dict[str, ModelBuilder],
     ) -> tuple[dict[str, int], dict[int, dict[str, list[int]]], dict[str, wp.transform]]:
-        """Inject registered sites into plan-owned builders before replication.
+        """Inject registered sites into source builders or an explicitly supplied main builder.
 
         Body sites are matched against source builders, then the main builder containing
         shared assets. Bodyless global sites are added to *main_builder* with ``body=-1``.
@@ -1063,9 +991,8 @@ class NewtonManager(PhysicsManager):
             for source_builder in (*source_builders.values(), main_builder):
                 if source_builder is main_builder and any_matched:
                     break
-                body_labels = list(source_builder.body_label)
                 matched_indices, matched_names = resolve_matching_names(
-                    body_pattern, body_labels, raise_when_no_match=False
+                    body_pattern, source_builder.body_label, raise_when_no_match=False
                 )
                 if not matched_indices:  # Pattern has no matches in this source builder
                     continue
@@ -1076,56 +1003,14 @@ class NewtonManager(PhysicsManager):
                     site_label = f"{body_name}/{label}"
                     source_site_idx = source_builder.add_site(body=body_idx, xform=xform, label=site_label)
                     site_indices.append(source_site_idx)
-                    logger.debug(f"Injected site '{site_label}' into clone-plan builder")
+                    logger.debug(f"Injected site '{site_label}' into builder")
                 source_site_indices.setdefault(id(source_builder), {})[label] = site_indices
 
             if not any_matched:
-                raise ValueError(
-                    f"Site '{label}' with body_pattern '{body_pattern}' matched no clone-plan builder bodies."
-                )
+                raise ValueError(f"Site '{label}' with body_pattern '{body_pattern}' matched no builder bodies.")
 
         cls._cl_pending_sites.clear()
         return global_site_indices, source_site_indices, env_root_sites
-
-    @classmethod
-    def _cl_inject_sites_fallback(cls) -> None:
-        """Inject pending sites into the flat builder (no-replication path).
-
-        Populates :attr:`_cl_site_index_map` with the unified per-world structure:
-
-        - Global sites (``body_pattern is None``): ``(shape_idx, None)``
-        - Local and world sites: ``(None, [[idx, ...]])`` — one sublist for the single world.
-        """
-        builder = cls._builder
-        body_labels = list(builder.body_label)
-
-        for (body_pattern, per_world, _xform_key), (label, xform) in cls._cl_pending_sites.items():
-            if per_world:
-                site_idx = builder.add_site(body=-1, xform=xform, label=label)
-                cls._cl_site_index_map[label] = (None, [[site_idx]])
-                continue
-            if body_pattern is None:
-                site_idx = builder.add_site(body=-1, xform=xform, label=label)
-                cls._cl_site_index_map[label] = (site_idx, None)
-            else:
-                try:
-                    matched_indices, matched_names = resolve_matching_names(body_pattern, body_labels)
-                except ValueError as e:
-                    raise ValueError(
-                        f"Site '{label}' with body_pattern '{body_pattern}' matched no bodies "
-                        f"in the flat builder. Available body labels: {body_labels}."
-                    ) from e
-
-                site_indices: list[int] = []
-                for body_idx in matched_indices:
-                    site_label = f"{builder.body_label[body_idx]}/{label}"
-                    site_idx = builder.add_site(body=body_idx, xform=xform, label=site_label)
-                    site_indices.append(site_idx)
-
-                # Single world (no replication): one-element outer list
-                cls._cl_site_index_map[label] = (None, [site_indices])
-
-        cls._cl_pending_sites.clear()
 
     @classmethod
     def add_model_change(cls, change: ModelFlags) -> None:
@@ -1134,10 +1019,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_fk(
-        cls,
-        env_mask: wp.array | None = None,
-        env_ids: wp.array | None = None,
-        articulation_ids: wp.array | None = None,
+        cls, env_mask: wp.array | None = None, env_ids: wp.array | None = None, articulation_ids: wp.array | None = None
     ) -> None:
         """Mark environments as needing FK recomputation and solver reset.
 
@@ -1158,7 +1040,7 @@ class NewtonManager(PhysicsManager):
 
         if cls._world_reset_mask is None or cls._fk_reset_mask is None:
             return
-        NewtonManager._reconciliation_pending = True
+        NewtonManager.kinematics_dirty = True
 
         if articulation_ids is not None and env_mask is not None:
             wp.launch(
@@ -1183,9 +1065,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_body_state(
-        cls,
-        env_ids: wp.array(dtype=wp.int32) | None = None,
-        env_mask: wp.array(dtype=wp.bool) | None = None,
+        cls, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
     ) -> None:
         """Mark selected maximal-coordinate body state as changed without requesting FK.
 
@@ -1196,7 +1076,7 @@ class NewtonManager(PhysicsManager):
         cls._mark_transforms_changed()
         if cls._world_reset_mask is None:
             return
-        NewtonManager._reconciliation_pending = True
+        NewtonManager.kinematics_dirty = True
         if env_mask is not None:
             wp.launch(
                 _or_world_reset_mask_from_mask,
@@ -1276,48 +1156,50 @@ class NewtonManager(PhysicsManager):
         This function finalizes the model and initializes the simulation state.
         Note: Collision pipeline is initialized later in initialize_solver() after
         we determine whether the solver needs external collision detection.
-
-        Raises:
-            RuntimeError: If neither clone-plan replication nor :meth:`set_builder` supplied a builder.
         """
-        logger.debug(f"Builder: {cls._builder}")
-        if cls._builder is None:
-            raise RuntimeError(
-                "Newton simulation requires an explicitly supplied builder. Replicate a ClonePlan or call"
-                " NewtonManager.set_builder() before starting the simulation."
-            )
-
+        sim = SimulationContext.instance()
+        cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
         cls._drain_stale_cuda_error()
-        cls._register_builder_attributes(cls._builder)
 
         logger.info("Dispatching MODEL_INIT callbacks")
         cls.dispatch_event(PhysicsEvent.MODEL_INIT)
 
-        # Inject any pending site requests (no-replication fallback path).
-        # In the replication path, _cl_inject_sites() already ran from newton_replicate.
-        cls._cl_inject_sites_fallback()
+        # Explicit builders and MODEL_INIT callbacks use the same site import as clone prototypes.
+        if cls._cl_pending_sites:
+            global_sites, body_sites, world_sites = cls._cl_inject_sites(builder, {})
+            cls._cl_site_index_map.update((label, (index, None)) for label, index in global_sites.items())
+            cls._cl_site_index_map.update(
+                (label, (None, [indices])) for label, indices in body_sites.get(id(builder), {}).items()
+            )
+            for label, xform in world_sites.items():
+                index = builder.add_site(body=-1, xform=xform, label=label)
+                cls._cl_site_index_map[label] = (None, [[index]])
 
         device = PhysicsManager._device
         logger.info(f"Finalizing model on device: {device}")
-        cls._builder.up_axis = Axis.from_string(cls._up_axis)
+        builder.up_axis = Axis.from_string(cls._up_axis)
         # Forward pending extended attribute requests to builder and clear them. The requests are
         # retained because initialize_solver() runs afterwards and must know which sensors depend
         # on state that MuJoCo's sensor stage fills.
         if cls._pending_extended_state_attributes:
-            cls._builder.request_state_attributes(*cls._pending_extended_state_attributes)
+            builder.request_state_attributes(*cls._pending_extended_state_attributes)
             NewtonManager._active_extended_state_attributes |= cls._pending_extended_state_attributes
             NewtonManager._pending_extended_state_attributes = set()
-        cls._prepare_builder_for_finalize(cls._builder)
-        with Timer(name="newton_finalize_builder", msg="Finalize builder took:", activity="Finalizing physics model"):
-            cfg = NewtonBackendCfg(
-                builder=cls._builder,
-                device=device,
-                num_envs=cls._num_envs,
-                gravity=cls._gravity_vector,
-                soft_contact_cfg=PhysicsManager._cfg.soft_contact_cfg,
-                contact_attributes=tuple(sorted(cls._pending_extended_contact_attributes)),
-            )
-            NewtonManager.backend = SimulationContext.instance().get_or_create_backend(cfg)
+        cls._prepare_builder_for_finalize(builder)
+        builder.request_contact_attributes(*sorted(cls._pending_extended_contact_attributes))
+        with Timer(
+            name="newton_finalize_builder",
+            msg="Finalize builder took:",
+            activity="Finalizing physics model",
+            synchronize="both",
+            device=device,
+        ):
+            NewtonManager.backend = sim.get_or_create_backend(cfg)
+            cls.backend.particle_ranges = cls._particle_ranges
+            cls.backend.model.set_gravity(cls._gravity_vector)
+            if cls._num_envs is not None:
+                cls.backend.model.num_envs = cls._num_envs
             NewtonManager._num_envs = cls.backend.model.num_envs
         NewtonManager._pending_extended_contact_attributes = set()
         # The initial body-state update from joint coordinates is deferred to the tail of
@@ -1336,64 +1218,9 @@ class NewtonManager(PhysicsManager):
         NewtonManager._world_reset_mask = wp.zeros(cls.backend.model.world_count + 1, dtype=wp.bool, device=device)
         NewtonManager._fk_reset_mask = wp.zeros(cls.backend.model.articulation_count, dtype=wp.bool, device=device)
 
-        # Setup USD/Fabric sync for Kit viewport rendering
-        if not cls._clone_physics_only:
-            import usdrt
-
-            body_paths = list(cls.backend.model.body_label)
-            NewtonManager._usdrt_stage = get_current_stage(fabric=True)
-            body_bindings = NewtonManager._cl_fabric_body_bindings
-            if body_bindings is None:
-                # Non-replicated Newton stages do not pass through NewtonReplicateContext.
-                body_bindings = [(body_path, i) for i, body_path in enumerate(body_paths)]
-
-            fabric_hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
-                cls._usdrt_stage.GetFabricId(), cls._usdrt_stage.GetStageIdAsStageId()
-            )
-
-            NewtonManager._initialize_fabric_body_prims(cls._usdrt_stage, fabric_hierarchy, usdrt, body_bindings)
-
-        cls._scene_data_backend.initialize_geometry(PhysicsManager._sim.get_clone_plan())
+        cls._scene_data_backend.initialize_geometry()
         logger.info("Dispatching PHYSICS_READY callbacks")
         cls.dispatch_event(PhysicsEvent.PHYSICS_READY)
-
-    @staticmethod
-    def _initialize_fabric_body_prims(stage, fabric_hierarchy, usdrt, body_bindings: Sequence[tuple[str, int]]) -> None:
-        """Initialize Fabric body prims used by Newton transform sync."""
-        for prim_path, _ in body_bindings:
-            prim = stage.GetPrimAtPath(prim_path)
-            if prim.IsValid():
-                xformable_prim = usdrt.Rt.Xformable(prim)
-                xformable_prim.SetWorldXformFromUsd()
-            else:
-                prim = stage.DefinePrim(prim_path, "Xform")
-                xformable_prim = usdrt.Rt.Xformable(prim)
-                xformable_prim.CreateFabricHierarchyWorldMatrixAttr()
-
-            # Include native bodies absent from USD in the SDP rigid-transform binding.
-            prim.AddAppliedSchema("PhysicsRigidBodyAPI")
-
-        fabric_hierarchy.update_world_xforms()
-
-    @classmethod
-    def collect_cable_segment_shape_ids(cls) -> dict[str, list[int]]:
-        """Map each renderable cable prim path to its ordered Newton segment shape ids.
-
-        Concrete destination paths and segment order come from Newton ``shape_label`` values
-        ``{curve}_edge_capsule_{N}``. Each returned id is the index of that capsule in Newton's
-        shape arrays after finalization (``shape_body``, ``shape_transform``, ``shape_scale``, …),
-        not the ``_edge_capsule_N`` suffix. Example:
-        ``{"/World/envs/env_0/Cable/geometry/mesh": [42, 43, 44]}`` means segments ``0..2`` came
-        from labels ``.../mesh_edge_capsule_0``, ``_1``, ``_2``, and Newton assigned those shapes
-        indices ``42..44`` after earlier scene shapes.
-
-        Bindings are recorded during native import and cloning, including destinations that
-        exist only in a native backend. No completed-stage lookup is needed.
-
-        Returns:
-            Concrete cable prim paths mapped to ordered Newton segment shape ids.
-        """
-        return cls._cable_bindings
 
     @classmethod
     def _inject_terrain_heightfields(
@@ -1459,11 +1286,6 @@ class NewtonManager(PhysicsManager):
         return ignore_paths
 
     @classmethod
-    def _get_usd_import_ignore_paths(cls) -> list[str]:
-        """Return solver-specific prim paths excluded from USD import."""
-        return []
-
-    @classmethod
     def _get_usd_import_schema_resolvers(cls) -> list[SchemaResolver]:
         """Return ordered schema resolvers for physics-model USD imports.
 
@@ -1478,147 +1300,8 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def instantiate_builder_from_stage(cls):
-        """Create builder from USD stage.
-
-        Detects env Xforms (e.g. ``/World/Env_0``, ``/World/Env_1``) and builds
-        each as a separate Newton world via ``begin_world``/``end_world``.
-        Falls back to a flat ``add_usd`` when no env Xforms are found.
-
-        """
-        import re
-
-        from pxr import UsdGeom
-
-        # MPMObject imports NewtonManager, so defer this reciprocal import until model construction.
-        from isaaclab_newton.assets.mpm_object.mpm_object import (  # noqa: PLC0415
-            record_registered_mpm_particle_ranges,
-            reset_registered_mpm_particle_ranges,
-        )
-
-        stage = get_current_stage()
-        reset_registered_mpm_particle_ranges()
-        up_axis = UsdGeom.GetStageUpAxis(stage)
-
-        # Scan /World children for env-like Xforms (Env_0, env_1, ...)
-        env_pattern = re.compile(r"^[Ee]nv_(\d+)$")
-        world_prim = stage.GetPrimAtPath("/World")
-        env_paths: list[tuple[int, str]] = []
-        if world_prim and world_prim.IsValid():
-            for child in world_prim.GetChildren():
-                m = env_pattern.match(child.GetName())
-                if m:
-                    env_paths.append((int(m.group(1)), child.GetPath().pathString))
-        env_paths.sort(key=lambda x: x[0])
-
-        builder = cls.create_builder(up_axis=up_axis)
-
-        schema_resolvers = cls._get_usd_import_schema_resolvers()
-
-        # NOTE: None of the add_usd calls below pass joint_ordering or
-        # bodies_follow_joint_ordering, so the live articulation's native
-        # joint/body order comes from Newton's ModelBuilder.add_usd defaults
-        # (joint_ordering="dfs", bodies_follow_joint_ordering=True).
-        # isaaclab.assets.articulation.ordering_resolvers hardcodes matching
-        # constants to emulate that same order for cross-backend name
-        # resolution (see _get_mjwarp_names_from_newton_usd_builder). If
-        # ordering arguments are ever passed here, update the resolver
-        # constants in lockstep or MJWarp resolution will silently diverge
-        # from the live backend.
-        hf_ignore_paths = cls._inject_terrain_heightfields(stage, builder, root_paths=("/",))
-        solver_ignore_paths = cls._get_usd_import_ignore_paths()
-
-        if not env_paths:
-            # No env Xforms — flat loading
-            import_result = builder.add_usd(
-                stage, ignore_paths=[*hf_ignore_paths, *solver_ignore_paths], schema_resolvers=schema_resolvers
-            )
-            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
-            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
-            import_builder_visual_material_paths(builder, stage)
-            NewtonManager._world_xforms = [wp.transform()]
-            for hook in cls._per_world_builder_hooks:
-                hook(
-                    builder,
-                    0,
-                    np.zeros(3, dtype=np.float32),
-                    np.asarray((0.0, 0.0, 0.0, 1.0), dtype=np.float32),
-                )
-        else:
-            # Load everything except the env subtrees (ground plane, lights, etc.)
-            # and any terrain colliders already added as heightfields above.
-            ignore_paths = [path for _, path in env_paths] + hf_ignore_paths + solver_ignore_paths
-            import_result = builder.add_usd(stage, ignore_paths=ignore_paths, schema_resolvers=schema_resolvers)
-            record_registered_mpm_particle_ranges(import_result.get("path_particle_map", {}))
-            _restore_visible_colliders_without_visual_shapes(builder, stage, import_result["path_shape_map"])
-            replace_newton_builder_shape_colors(builder, stage)
-            import_builder_visual_material_paths(builder, stage)
-
-            _, proto_path = env_paths[0]
-            source_builders = {proto_path: cls.create_builder(up_axis=up_axis)}
-            import_result = source_builders[proto_path].add_usd(
-                stage,
-                root_path=proto_path,
-                ignore_paths=solver_ignore_paths,
-                schema_resolvers=schema_resolvers,
-            )
-            _restore_visible_colliders_without_visual_shapes(
-                source_builders[proto_path], stage, import_result["path_shape_map"]
-            )
-            replace_newton_builder_shape_colors(source_builders[proto_path], stage)
-            import_builder_visual_material_paths(source_builders[proto_path], stage)
-            cls._cl_protos = source_builders
-
-            global_site_indices, source_site_indices, env_root_sites = cls._cl_inject_sites(builder, source_builders)
-            xform_cache = UsdGeom.XformCache()
-            poses = []
-            for _, env_path in env_paths:
-                world_xform = xform_cache.GetLocalToWorldTransform(stage.GetPrimAtPath(env_path))
-                translation = world_xform.ExtractTranslation()
-                rotation = world_xform.ExtractRotationQuat()
-                imag = rotation.GetImaginary()
-                poses.append(
-                    (
-                        (translation[0], translation[1], translation[2]),
-                        (imag[0], imag[1], imag[2], rotation.GetReal()),
-                    )
-                )
-
-            positions = np.asarray([pos for pos, _ in poses], dtype=np.float32)
-            quaternions = np.asarray([quat for _, quat in poses], dtype=np.float32)
-            mapping = np.ones((1, len(env_paths)), dtype=np.bool_)
-
-            def record_source_particle_ranges(source, particle_offset, source_builder, source_xform) -> None:
-                if source == proto_path:
-                    record_registered_mpm_particle_ranges(
-                        import_result.get("path_particle_map", {}),
-                        particle_offset,
-                        builder=builder,
-                        source_builder=source_builder,
-                        source_xform=source_xform,
-                    )
-
-            local_site_map, world_xforms, _ = replicate_builder_mapping(
-                builder=builder,
-                sources=(proto_path,),
-                mapping=mapping,
-                positions=positions,
-                quaternions=quaternions,
-                source_builders=source_builders,
-                source_site_indices=source_site_indices,
-                env_root_sites=env_root_sites,
-                per_world_builder_hooks=cls._per_world_builder_hooks,
-                source_builder_added=record_source_particle_ranges if cls._mpm_object_registry else None,
-            )
-
-            NewtonManager._cl_site_index_map = {label: (idx, None) for label, idx in global_site_indices.items()}
-            NewtonManager._cl_site_index_map.update(
-                (label, (None, per_world)) for label, per_world in local_site_map.items()
-            )
-            NewtonManager._world_xforms = world_xforms
-            NewtonManager._num_envs = len(env_paths)
-
-        cls.set_builder(builder)
+        """Import the explicitly declared clone plan into the Newton builder."""
+        cloner.replicate(PhysicsManager._sim.get_clone_plan())
 
     @classmethod
     def _initialize_contacts(cls) -> None:
@@ -1719,7 +1402,7 @@ class NewtonManager(PhysicsManager):
         are always excluded — ``model`` is passed positionally at construction.
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = {k: v for k, v in to_dict(solver_cfg).items() if k in valid}
         if "deterministic" in valid:
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs
@@ -1862,24 +1545,21 @@ class NewtonManager(PhysicsManager):
     def initialize_solver(cls) -> None:
         """Initialize the solver and collision pipeline.
 
-        Thin orchestrator: delegates solver construction to
-        :meth:`_build_solver` (overridden by each solver subclass), allocates
-        the collision pipeline (when applicable) via
-        :meth:`_initialize_contacts`, then either captures the CUDA graph
-        immediately or defers capture until the first :meth:`step` call
-        (RTX-active path).
-
-        .. warning::
-            When using a CUDA-enabled device, the simulation is graphed.
-            This means the function steps the simulation once to capture the
-            graph, so it should only be called after everything else in the
-            simulation is initialized.
+        Construct the solver and contacts, establish the initial body state, and schedule
+        graph capture for the first step after the environment has authored its initial state.
+        Initialization and capture do not advance physics.
         """
         cfg = PhysicsManager._cfg
         if cfg is None:
             return
 
-        with Timer(name="newton_initialize_solver", msg="Initialize solver took:", activity="Initializing solver"):
+        with Timer(
+            name="newton_initialize_solver",
+            msg="Initialize solver took:",
+            activity="Initializing solver",
+            synchronize="both",
+            device=cls.get_device(),
+        ):
             NewtonManager._num_substeps = cfg.num_substeps  # type: ignore[union-attr]
             NewtonManager._collision_decimation = cfg.collision_decimation  # type: ignore[union-attr]
             deterministic_mode = cls._apply_deterministic_request(cfg)  # type: ignore[arg-type]
@@ -1913,74 +1593,27 @@ class NewtonManager(PhysicsManager):
 
         # Establish the initial kinematically-consistent body state through the
         # solver-specialized FK delegate, now that the solver and the delegate both exist.
-        # Runs before graph capture below so the capture warmup sees a valid body_q.
         cls._eval_fk(None, None)
         cls._mark_transforms_changed()
 
-        # Fully graphable Newton actuators defer capture until ``set_decimation``
-        # provides the environment's final decimation value. Other paths capture
-        # the solver here; non-graphable actuators otherwise leave it eager.
-        if not cls._is_all_graphable():
-            cls._capture_or_defer_graph()
+        cls._invalidate_graph()
 
     @classmethod
-    def _capture_or_defer_graph(cls) -> None:
-        """Capture (or schedule deferred capture of) the CUDA graph.
-
-        Called by :meth:`start_simulation` and :meth:`set_decimation`
-        whenever the graph needs to be (re-)captured.
-
-        * **No USDRT / headless**: captures immediately via
-          ``wp.ScopedCapture`` unless the solver requires reset-dependent setup.
-        * **RTX active**: defers capture to the first :meth:`step` call
-          via :meth:`_capture_relaxed_graph`, because RTX background
-          streams are not yet idle during initialisation.
-        * **CUDA graphs disabled**: clears the graph reference.
-        """
+    def _invalidate_graph(cls) -> None:
+        """Schedule capture after reset and decimation setup, without advancing physics."""
+        NewtonManager._graph = None
+        NewtonManager._graph_capture_pending = False
         cfg = PhysicsManager._cfg
         device = PhysicsManager._device
-        if cfg is None or device is None:
+        if cfg is None or device is None or not cfg.use_cuda_graph or "cuda" not in device:
             return
-
-        use_cuda_graph = cfg.use_cuda_graph and "cuda" in device
-        if use_cuda_graph and not cls._supports_cuda_graph_capture():
-            NewtonManager._graph = None
-            NewtonManager._graph_capture_pending = False
+        if not cls._supports_cuda_graph_capture():
             logger.warning(
                 "%s does not support CUDA graph capture for the current solver configuration; using eager execution.",
                 cls.__name__,
             )
             return
-
-        if use_cuda_graph:
-            with Timer(name="newton_cuda_graph", msg="CUDA graph took:", activity="Capturing CUDA graph"):
-                if cls._usdrt_stage is None and not cls._requires_initial_reset_before_graph_capture():
-                    simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-                    with _paused_gc(), wp.ScopedCapture(device=device) as capture:
-                        simulate()
-                    NewtonManager._graph = capture.graph
-                    logger.info("Newton CUDA graph captured (standard Warp mode)")
-
-                    # Kamino: StateKamino.from_newton() lazily allocates body_f_total,
-                    # joint_q_prev, and joint_lambdas via wp.clone/wp.zeros during the
-                    # first step() inside graph capture. Replay once to pin those
-                    # memory-pool addresses before any eager solver.reset() call.
-                    if isinstance(cls._solver, SolverKamino):
-                        wp.capture_launch(cls._graph)
-                else:
-                    # RTX capture and reset-dependent headless capture both wait until
-                    # the first step. RTX retains its existing relaxed capture path.
-                    NewtonManager._graph = None
-                    NewtonManager._graph_capture_pending = True
-                    reason = "initial environment reset" if cls._usdrt_stage is None else "RTX active"
-                    logger.info("Newton CUDA graph capture deferred until first step() (%s)", reason)
-        else:
-            NewtonManager._graph = None
-
-    @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Return whether graph capture must wait until the initial environment reset."""
-        return False
+        NewtonManager._graph_capture_pending = True
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
@@ -1988,133 +1621,11 @@ class NewtonManager(PhysicsManager):
         return True
 
     @classmethod
-    def _capture_relaxed_graph(cls, device: str, capture_target: Callable[[], None] | None = None):
-        """Capture Newton physics (only) as a CUDA graph, RTX-compatible.
-
-        Uses a hybrid approach to work around two conflicting requirements:
-
-        1. RTX background threads use CUDA's legacy stream (stream 0) for async operations
-           like ``cudaImportExternalMemory``.  A standard ``wp.ScopedCapture()`` uses
-           ``cudaStreamCaptureModeThreadLocal`` on Warp's default stream (a blocking stream).
-           A blocking stream synchronises implicitly with legacy stream 0, so RTX ops inside
-           the capture window fail with error 906.
-
-        2. ``mujoco_warp`` calls ``wp.capture_while`` inside ``solver.solve()``.
-           ``wp.capture_while`` checks ``device.captures`` (populated by ``wp.capture_begin``)
-           to decide whether to insert a conditional graph node (graph-capture path) or to run
-           eagerly with ``wp.synchronize_stream`` (non-capture path).  Without an entry in
-           ``device.captures``, it synchronises the capturing stream — which raises "Cannot
-           synchronize stream while graph capture is active".
-
-        Solution:
-
-        - Create a **non-blocking** stream (``cudaStreamNonBlocking = 0x01``): no implicit sync
-          with legacy stream 0, so RTX background threads are unaffected (avoids error 906).
-        - Start the capture externally via ``cudaStreamBeginCapture`` with
-          ``cudaStreamCaptureModeRelaxed`` so no other CUDA activity is disrupted.
-        - Call ``wp.capture_begin(external=True, stream=fresh_stream)``:
-          this registers the capture in Warp's ``device.captures`` *without* calling
-          ``cudaStreamBeginCapture`` (already done) and *without* changing device-wide memory
-          pool attributes (avoids error 900 in RTX's ``cudaMallocAsync``).
-        - Run the simulate function inside ``ScopedStream(fresh_stream)``:
-          kernels dispatch to ``fresh_stream`` and are captured; ``wp.capture_while`` finds the
-          active capture and inserts a conditional graph node instead of synchronising.
-        - Call ``wp.capture_end(stream=fresh_stream)`` to finalise the Warp-level capture.
-        - Call ``cudaStreamEndCapture`` to close the CUDA stream capture and get the graph.
-
-        Warmup run pre-allocates all solver scratch buffers so no ``cudaMalloc`` occurs during
-        capture.  ``sync_transforms_to_fabric`` (which calls ``wp.synchronize_device``) is
-        excluded from the capture and runs eagerly in ``step()`` after ``wp.capture_launch``.
-
-        When ``capture_target`` is provided it is captured instead of the physics simulate
-        function (used for secondary graphs such as the sensor manager graph).
-
-        Returns a ``wp.Graph`` on success, or ``None`` on failure.
-        """
-        if _cudart is None:
-            logger.warning("libcudart not available; cannot use relaxed graph capture")
-            return None
-
-        # Warmup: pre-allocate all solver scratch buffers so the capture window has
-        # no new cudaMalloc calls (which are forbidden inside graph capture).
-        if capture_target is not None:
-            simulate = capture_target
-        else:
-            simulate = cls._simulate_full if cls._is_all_graphable() else cls._simulate_physics_only
-        with wp.ScopedDevice(device):
-            simulate()
-        wp.synchronize_stream(wp.get_stream(device))
-
-        # Create a non-blocking stream (cudaStreamNonBlocking = 0x01).
-        raw_handle = ctypes.c_void_p()
-        ret = _cudart.cudaStreamCreateWithFlags(ctypes.byref(raw_handle), ctypes.c_uint(0x01))
-        if ret != 0:
-            logger.warning("cudaStreamCreateWithFlags(NonBlocking) failed (code %d)", ret)
-            return None
-        fresh_handle = raw_handle.value
-        fresh_stream = wp.Stream(device, cuda_stream=fresh_handle, owner=False)
-
-        with _paused_gc():
-            # Start capture in relaxed mode BEFORE entering ScopedStream.
-            ret = _cudart.cudaStreamBeginCapture(ctypes.c_void_p(fresh_handle), ctypes.c_int(2))
-            if ret != 0:
-                _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-                logger.warning("cudaStreamBeginCapture(relaxed) failed (code %d)", ret)
-                return None
-
-            try:
-                wp.capture_begin(stream=fresh_stream, external=True)
-            except Exception as exc:
-                raw_graph = ctypes.c_void_p()
-                _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
-                if raw_graph.value:
-                    _cudart.cudaGraphDestroy(raw_graph)
-                _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-                logger.warning("wp.capture_begin(external=True) failed: %s", exc)
-                return None
-
-            err_during_capture = None
-            with wp.ScopedStream(fresh_stream, sync_enter=False):
-                try:
-                    simulate()
-                except Exception as exc:
-                    err_during_capture = exc
-
-            if err_during_capture is None:
-                try:
-                    graph = wp.capture_end(stream=fresh_stream)
-                except Exception as exc:
-                    err_during_capture = exc
-                    graph = None
-            else:
-                with contextlib.suppress(Exception):
-                    wp.capture_end(stream=fresh_stream)
-                graph = None
-
-            raw_graph = ctypes.c_void_p()
-            end_ret = _cudart.cudaStreamEndCapture(ctypes.c_void_p(fresh_handle), ctypes.byref(raw_graph))
-            _cudart.cudaStreamDestroy(ctypes.c_void_p(fresh_handle))
-
-        if err_during_capture is not None:
-            if raw_graph.value:
-                _cudart.cudaGraphDestroy(raw_graph)
-            logger.warning("Newton graph capture aborted during simulate: %s", err_during_capture)
-            return None
-
-        if end_ret != 0 or not raw_graph.value:
-            logger.warning("cudaStreamEndCapture failed (code %d)", end_ret)
-            return None
-
-        # Patch the Warp Graph object with the raw CUDA graph handle obtained
-        # from our external cudaStreamEndCapture.  wp.capture_end(external=True)
-        # returns a Graph with a stale handle; we overwrite it so that
-        # wp.capture_launch() replays the correct graph.
-        # NOTE: This relies on Warp internals (Graph.graph / Graph.graph_exec).
-        # Setting graph_exec = None triggers lazy cudaGraphInstantiate on
-        # the next capture_launch.  Replace with public API when available.
-        graph.graph = raw_graph
-        graph.graph_exec = None
-        return graph
+    def _capture_graph(cls, capture_target: Callable[[], None]) -> wp.Graph:
+        """Record physics or scene queries without an eager warmup or graph replay."""
+        sim = PhysicsManager._sim
+        relaxed = has_kit() and (sim.has_gui or sim.has_offscreen_render)
+        return NewtonQueries.capture_graph(PhysicsManager._device, capture_target, relaxed=relaxed)
 
     # ------------------------------------------------------------------
     # Building blocks — used by _simulate_full / _simulate_physics_only
@@ -2179,12 +1690,17 @@ class NewtonManager(PhysicsManager):
         physics_dt = cls._solver_dt * cls._num_substeps
         contacts = cls._contacts if cls._needs_collision_pipeline else None
 
-        for _ in range(cls._decimation):
+        for i in range(cls._decimation):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
 
             if cls._adapter is not None:
-                cls._adapter.step(cls.backend.state_0, cls.backend.control, physics_dt)
+                cls._adapter.step(
+                    cls.backend.state_0,
+                    cls.backend.control,
+                    physics_dt,
+                    swap_state=cls._decimation % 2 == 0 or i < cls._decimation - 1,
+                )
             for cb in cls._post_actuator_callbacks:
                 cb()
 
@@ -2216,7 +1732,7 @@ class NewtonManager(PhysicsManager):
     @classmethod
     def create_visual_material_writer(cls, batches: tuple[VisualMaterialBatch, ...]) -> VisualMaterialWriter:
         """Compile material-to-shape addresses for the active Newton model."""
-        return VisualMaterialWriter(cls.get_model(), batches)
+        return cls.backend.create_visual_material_writer(batches)
 
     @classmethod
     def create_visual_shape_color_writer(
@@ -2236,7 +1752,7 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def get_model(cls) -> Model:
-        """Return the native or render-only model initialized from the clone-built representation."""
+        """Return the active physics model. Render consumers acquire their backend from the registry."""
         return None if cls.backend is None else cls.backend.model
 
     @classmethod
@@ -2245,313 +1761,18 @@ class NewtonManager(PhysicsManager):
         return None if cls.backend is None else cls.backend.state_0
 
     @classmethod
-    def get_state(cls, scene_data_provider: SceneDataProvider | None = None) -> State:
-        """Get the current Newton state with derived transforms refreshed.
-
-        Use this method from sensors, visualizers, renderers, and video recorders that need
-        a backend-agnostic Newton ``State``. When the sim backend is PhysX this
-        refreshes the shadow ``backend.state_0.body_q`` from the live PhysX scene via
-        :meth:`update_visualization_state` before returning, so callers never
-        observe stale transforms. Under the Newton sim backend, pending
-        forward kinematics is applied before returning the live state.
-        """
-        if scene_data_provider is None:
-            scene_data_provider = cls.get_scene_data_provider()
-        if cls._backend_is_newton(scene_data_provider):
-            scene_data_provider.get_transforms(SceneDataFormat.Transform())
-        else:
-            cls.update_visualization_state(scene_data_provider)
-        return cls.get_state_0()
-
-    @classmethod
     def get_contacts(cls) -> Contacts | None:
         """Get the current Newton contact buffer, if the active solver exposes one."""
         return cls._contacts
-
-    @classmethod
-    def _register_sensor_task(cls, name: str, update_fn: Callable[[], None], *, graph_capturable: bool = True) -> None:
-        """Register a scene-query task.
-
-        Args:
-            name: Unique task name.
-            update_fn: Callable run by :meth:`_update_sensor_tasks`.
-            graph_capturable: Whether ``update_fn`` supports conditional CUDA graph capture.
-        """
-        if name in cls._sensor_tasks:
-            raise ValueError(f"Newton sensor task '{name}' is already registered.")
-        model = cls.get_model()
-        state = cls.get_state_0()
-        if model is None or state is None:
-            raise RuntimeError("Registering a Newton sensor task requires an initialized model and state.")
-        if model.shape_count > 0 and model.bvh_shapes is None:
-            model.bvh_build_shapes(state)
-        if model.particle_count > 0 and model.bvh_particles is None:
-            model.bvh_build_particles(state)
-        cls._sensor_tasks[name] = update_fn
-        if not graph_capturable:
-            cls._sensor_eager_tasks.add(name)
-        cls._sensor_state = state
-        cls._sensor_state_dirty = True
-        cls._invalidate_sensor_graph()
-
-    @classmethod
-    def _unregister_sensor_task(cls, name: str) -> None:
-        """Remove a scene-query task, ignoring unknown names."""
-        if cls._sensor_tasks.pop(name, None) is not None:
-            cls._sensor_eager_tasks.discard(name)
-            cls._invalidate_sensor_graph()
-
-    @classmethod
-    def _update_sensor_tasks(cls, *names: str) -> None:
-        """Refresh derived state, refit the BVHs, and run the requested scene-query tasks."""
-        for name in names:
-            if name not in cls._sensor_tasks:
-                raise KeyError(f"Newton sensor task '{name}' is not registered.")
-
-        # Resolve pending FK before entering the graph-capturable sensor pipeline.
-        state = cls.get_state()
-        if state is not cls._sensor_state:
-            cls._sensor_state = state
-            cls._sensor_state_dirty = True
-            cls._invalidate_sensor_graph()
-        if cls._sensor_eager_tasks.intersection(names):
-            if cls._sensor_state_dirty:
-                cls._refit_sensor_bvh()
-                cls._sensor_state_dirty = False
-            for name in names:
-                cls._sensor_tasks[name]()
-            return
-        cfg = PhysicsManager._cfg
-        use_cuda_graph = bool(getattr(cfg, "use_cuda_graph", False)) and "cuda" in str(PhysicsManager._device)
-        if use_cuda_graph and cls._sensor_graph is None and not cls._sensor_graph_capture_failed:
-            cls._capture_sensor_graph()
-        if cls._sensor_graph is None:
-            if cls._sensor_state_dirty:
-                cls._refit_sensor_bvh()
-                cls._sensor_state_dirty = False
-            for name in names:
-                cls._sensor_tasks[name]()
-            return
-
-        assert cls._sensor_flags_host is not None
-        assert cls._sensor_flags is not None
-        cls._sensor_flags_host.fill(0)
-        cls._sensor_flags_host[0] = int(cls._sensor_state_dirty)
-        task_names = tuple(name for name in cls._sensor_tasks if name not in cls._sensor_eager_tasks)
-        for name in names:
-            cls._sensor_flags_host[1 + task_names.index(name)] = 1
-        cls._sensor_flags.assign(cls._sensor_flags_host)
-        wp.capture_launch(cls._sensor_graph)
-        cls._sensor_state_dirty = False
-
-    @classmethod
-    def _mark_sensor_state_dirty(cls) -> None:
-        """Bind the current state and mark the shape and particle BVHs stale.
-
-        Writes through :class:`NewtonManager` rather than ``cls`` because the
-        sensor-task registry and its dirty flag are singleton state owned by the
-        base class (sensors and renderers reach it via ``NewtonManager``). This
-        method is invoked from the step loop where ``cls`` is the active solver
-        subclass, so assigning through ``cls`` would shadow the base attribute
-        and the per-step refit request would never reach the sensor tasks.
-        """
-        if NewtonManager.backend is None:
-            return
-        if NewtonManager.backend.state_0 is not NewtonManager._sensor_state:
-            NewtonManager._sensor_state = NewtonManager.backend.state_0
-            NewtonManager._invalidate_sensor_graph()
-        NewtonManager._sensor_state_dirty = True
-
-    @classmethod
-    def _refit_sensor_bvh(cls) -> None:
-        """Refit the model shape and particle BVHs against the current state."""
-        if cls.backend is None:
-            return
-
-        model = cls.backend.model
-        refit_shapes = model.shape_count > 0 and model.bvh_shapes is not None
-        refit_particles = model.particle_count > 0 and model.bvh_particles is not None
-        if not refit_shapes and not refit_particles:
-            return
-
-        if cls._sensor_state is None:
-            raise RuntimeError("Refitting Newton sensor BVHs requires an initialized sensor state.")
-
-        if refit_shapes:
-            model.bvh_refit_shapes(cls._sensor_state)
-
-        if refit_particles:
-            model.bvh_refit_particles(cls._sensor_state)
-
-    @classmethod
-    def _invalidate_sensor_graph(cls) -> None:
-        """Discard captured scene-query graph resources."""
-        cls._sensor_graph = None
-        cls._sensor_flags = None
-        cls._sensor_flags_host = None
-        cls._sensor_graph_capture_failed = False
-
-    @classmethod
-    def _capture_sensor_graph(cls) -> None:
-        """Capture BVH refit and scene-query tasks into a conditional graph."""
-        graph_tasks = tuple(
-            update_fn for name, update_fn in cls._sensor_tasks.items() if name not in cls._sensor_eager_tasks
-        )
-        with wp.ScopedDevice(PhysicsManager._device):
-            cls._refit_sensor_bvh()
-            for update_fn in graph_tasks:
-                update_fn()
-
-        cls._sensor_flags = wp.zeros(1 + len(graph_tasks), dtype=wp.int32, device=PhysicsManager._device)
-        cls._sensor_flags_host = np.zeros(1 + len(graph_tasks), dtype=np.int32)
-
-        def pipeline() -> None:
-            assert cls._sensor_flags is not None
-            wp.capture_if(cls._sensor_flags[0:1], cls._refit_sensor_bvh)
-            for index, update_fn in enumerate(graph_tasks):
-                wp.capture_if(cls._sensor_flags[index + 1 : index + 2], update_fn)
-
-        device = PhysicsManager._device
-        if cls._usdrt_stage is not None:
-            cls._sensor_graph = cls._capture_relaxed_graph(device, capture_target=pipeline)
-        else:
-            try:
-                with wp.ScopedCapture(device=device) as capture:
-                    pipeline()
-                cls._sensor_graph = capture.graph
-            except Exception:
-                logger.exception("[NewtonManager] sensor CUDA graph capture failed")
-                cls._sensor_graph = None
-        if cls._sensor_graph is None:
-            cls._sensor_flags = None
-            cls._sensor_flags_host = None
-            cls._sensor_graph_capture_failed = True
-            logger.warning("Newton sensor graph capture failed; falling back to eager execution.")
-        else:
-            logger.info("Captured Newton sensor graph with %d task(s).", len(graph_tasks))
 
     @classmethod
     def get_num_envs(cls) -> int:
         return cls._num_envs
 
     @classmethod
-    def _backend_is_newton(cls, scene_data_provider: SceneDataProvider | None = None) -> bool:
-        """Return ``True`` when the active sim backend is Newton."""
-        if scene_data_provider is not None:
-            return isinstance(scene_data_provider.backend, NewtonSceneDataBackend)
-        return isinstance(cls.get_scene_data_provider().backend, NewtonSceneDataBackend)
-
-    @classmethod
-    def _initialize_visualization_model(
-        cls, cfg: NewtonBackendCfg, geometry_offsets: dict[str, int], _event: Any
-    ) -> None:
-        """Acquire the completed clone representation when foreign physics becomes ready."""
-        if cls.backend is not None:
-            return
-        sim = SimulationContext.instance()
-        NewtonManager.backend = sim.get_or_create_backend(cfg)
-        NewtonManager._num_envs = cls.backend.model.num_envs
-        NewtonManager._transform_mapping = None
-        NewtonManager._transforms_version_last_update = None
-        NewtonManager._geometry_offsets = geometry_offsets
-        NewtonManager._geometry_timestamp_last_update = None
-        cls.update_visualization_state()
-        NewtonManager._visualization_stop_callback = sim.physics_manager.register_callback(
-            lambda _payload: NewtonManager.clear(),
-            PhysicsEvent.STOP,
-            name="newton_visualization_state",
-            wrap_weak_ref=False,
-        )
-
-    @classmethod
     def get_scene_data_provider(cls) -> SceneDataProvider:
         """Return the active scene data provider."""
-        sim = SimulationContext.instance()
-        assert sim is not None
-        return sim.get_scene_data_provider()
-
-    @classmethod
-    def update_visualization_state(cls, scene_data_provider: SceneDataProvider | None = None) -> None:
-        """Refresh visualization state for the active sim backend.
-
-        Newton sim backend: no-op — ``_state_0`` is the live, authoritative state
-        already advanced by :meth:`step` / forward kinematics.
-
-        PhysX / OVPhysX sim backend: bind shared SDP rigid-body transforms to
-        ``state_0.body_q`` without copying. Consumers must treat this array as
-        read-only. Deformable points still copy into the shadow ``particle_q``
-        buffer, including simulation-to-visual mesh remapping.
-
-        Invoked lazily from :meth:`get_state` so consumers do not need to
-        coordinate the sync explicitly.
-        """
-
-        if scene_data_provider is None:
-            scene_data_provider = cls.get_scene_data_provider()
-
-        assert scene_data_provider is not None
-
-        if cls._backend_is_newton(scene_data_provider):
-            return
-
-        if cls.backend is None:
-            return
-
-        if cls.backend.state_0.body_q is not None:
-            if cls._transforms_version_last_update is None:
-                body_labels = list(cls.backend.model.body_label)
-                body_paths = cls._resolve_scene_data_body_paths(body_labels, scene_data_provider.usd_stage)
-                if len(set(body_paths)) != cls.backend.model.body_count or not set(body_paths).issubset(
-                    scene_data_provider.backend.transform_paths
-                ):
-                    raise ValueError("Every Newton render body must have one unique SDP transform path.")
-                cls._transform_mapping = scene_data_provider.create_mapping(body_paths)
-
-            transforms = SceneDataFormat.Transform()
-            if scene_data_provider.get_transforms(
-                transforms, mapping=cls._transform_mapping, count=cls.backend.model.body_count
-            ):
-                if cls.backend.state_0.body_q is not transforms.transforms:
-                    cls.backend.state_0.body_q = transforms.transforms
-                    cls._invalidate_sensor_graph()
-                if cls._transforms_version_last_update != scene_data_provider.backend.transforms_version:
-                    cls._mark_sensor_state_dirty()
-            cls._transforms_version_last_update = scene_data_provider.backend.transforms_version
-
-        if cls._geometry_offsets:
-            scene_data_provider.get_geometry_points(
-                output=cls.backend.state_0.particle_q, offsets=cls._geometry_offsets
-            )
-            timestamp = scene_data_provider.backend.geometry_timestamp
-            if cls._geometry_timestamp_last_update != timestamp:
-                cls._mark_sensor_state_dirty()
-                cls._geometry_timestamp_last_update = timestamp
-
-    @staticmethod
-    def _resolve_scene_data_body_paths(body_paths: list[str | None], stage) -> list[str | None]:
-        """Map Newton joint labels to their target rigid-body prim paths."""
-        if stage is None:
-            return body_paths
-
-        from pxr import UsdPhysics
-
-        def _joint_body_path(prim):
-            joint = UsdPhysics.Joint(prim)
-            for rel in (joint.GetBody1Rel(), joint.GetBody0Rel()):
-                for target_path in rel.GetTargets():
-                    target_prim = stage.GetPrimAtPath(target_path)
-                    if target_prim.IsValid() and target_prim.HasAPI(UsdPhysics.RigidBodyAPI):
-                        return target_path.pathString
-            return None
-
-        resolved_paths = body_paths.copy()
-        for index, body_path in enumerate(body_paths):
-            if body_path is None:
-                continue
-            prim = stage.GetPrimAtPath(body_path)
-            if prim.IsValid() and prim.IsA(UsdPhysics.Joint):
-                resolved_paths[index] = _joint_body_path(prim) or body_path
-        return resolved_paths
+        return SimulationContext.instance().get_scene_data_provider()
 
     @classmethod
     def get_state_1(cls) -> State:
@@ -2716,15 +1937,12 @@ class NewtonManager(PhysicsManager):
         (actuators + solver substeps, repeated *decimation* times)
         is captured as a single CUDA graph.
 
-        If a CUDA graph was previously captured, it is automatically
-        re-captured with the new decimation count using the same strategy as
-        :meth:`start_simulation`: standard ``wp.ScopedCapture`` when no USDRT
-        stage is active, or deferred relaxed capture when RTX is running.
-        Solvers with reset-dependent topology may also defer standard capture.
+        Invalidate the existing graph when the loop changes. Its replacement is captured
+        immediately before the next requested step, after authored state is reconciled.
         """
         cls._decimation = max(1, decimation)
         if cls._is_all_graphable():
-            cls._capture_or_defer_graph()
+            cls._invalidate_graph()
 
     @classmethod
     def handles_decimation(cls) -> bool:
@@ -2784,7 +2002,12 @@ class NewtonManager(PhysicsManager):
             _hashable_key(contact_partners_shape_expr),
         )
 
-        with Timer(name="newton_contact_sensor", msg="Contact sensor construction took:"):
+        with Timer(
+            name="newton_contact_sensor",
+            msg="Contact sensor construction took:",
+            synchronize="both",
+            device=cls.get_device(),
+        ):
             sensor = NewtonContactSensor(
                 cls.backend.model,
                 sensing_bodies=_compile_label_pattern(body_names_expr),

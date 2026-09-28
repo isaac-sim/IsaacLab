@@ -5,15 +5,11 @@
 
 """Test dataset generation for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
 
+import h5py
 import pytest
 from mimic_test_utils import run_script
 
@@ -22,7 +18,7 @@ from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 DATASETS_DOWNLOAD_DIR = tempfile.mkdtemp(suffix="_Isaac-Stack-Cube-Franka-IK-Rel-Mimic-v0")
 NUCLEUS_DATASET_PATH = os.path.join(ISAACLAB_NUCLEUS_DIR, "Tests", "Mimic", "dataset.hdf5")
 
-_SUBPROCESS_TIMEOUT = 5000
+_SUBPROCESS_TIMEOUT = 1500
 
 
 @pytest.fixture
@@ -135,6 +131,8 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
         str(num_envs),
         "--generation_num_trials",
         "1",
+        "--max_num_failures",
+        "10",
     ]
 
     result = run_script(command, timeout=_SUBPROCESS_TIMEOUT)
@@ -153,6 +151,9 @@ def _run_generation(workflow_root: str, input_file: str, output_file: str, num_e
     assert expected_output in combined_output, (
         f"Could not find '{expected_output}' in output.\nstdout: {result.stdout}\nstderr: {result.stderr}"
     )
+
+    with h5py.File(output_file) as dataset:
+        assert len(dataset["data"]) > 0, "The generated dataset contains no demonstrations."
 
 
 def test_generate_dataset_franka_state_multi_env(setup_test_environment):

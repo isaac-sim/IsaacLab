@@ -38,6 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, to_dict
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
@@ -126,7 +127,9 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     if "kit" in visualizers:
         # a Kit app that resolved without a GUI has no viewport to display the asset in
         if AppLauncher.has_gui():
-            sim_utils.show_stage_in_viewport(usd_path)
+            from isaaclab_physx.app import show_stage_in_viewport
+
+            show_stage_in_viewport(usd_path)
         return
 
     # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the
@@ -138,7 +141,7 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
     scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
-    _scene = scene_cfg.class_type(scene_cfg)
+    _scene = instantiate(scene_cfg)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
@@ -184,7 +187,7 @@ def main():
     print("-" * 80)
     print(f"Input URDF file: {urdf_path}")
     print("URDF importer config:")
-    print_dict(urdf_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(urdf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

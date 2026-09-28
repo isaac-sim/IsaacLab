@@ -16,7 +16,8 @@ import warp as wp
 from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
-from isaaclab.utils.buffers import TimestampedBufferWarp
+from isaaclab.utils import replace
+from isaaclab.utils.buffers import TimestampedBuffer
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
@@ -57,7 +58,7 @@ def _install_test_body_ordering(art, mode: str = "reversed") -> np.ndarray:
     else:
         raise ValueError(f"Unsupported body ordering mode: {mode}")
     body_ordering = (names[0], *movable) if art.is_fixed_base else tuple(movable)
-    art.cfg = art.cfg.replace(body_ordering=body_ordering)
+    art.cfg = replace(art.cfg, body_ordering=body_ordering)
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
     # articulation.
@@ -68,7 +69,7 @@ def _install_test_body_ordering(art, mode: str = "reversed") -> np.ndarray:
 
 def _install_test_joint_ordering(art, mode: str = "reversed") -> np.ndarray:
     """Install a reversed or cyclic public joint ordering on an already constructed articulation."""
-    art.cfg = art.cfg.replace(joint_ordering=_joint_ordering_for_mode(mode, art.num_joints))
+    art.cfg = replace(art.cfg, joint_ordering=_joint_ordering_for_mode(mode, art.num_joints))
     # Re-resolve and re-stage the ordering maps exactly as backend initialization
     # does after a config change installs a new ordering on an already-initialized
     # articulation.
@@ -105,9 +106,9 @@ def _body_ordering_for_mode(mode: str, num_bodies: int) -> tuple[str, ...] | Non
     raise ValueError(f"Unsupported body ordering mode: {mode}")
 
 
-def _ordering_shadow_shape(buffer: wp.array | TimestampedBufferWarp) -> tuple[int, ...]:
+def _ordering_shadow_shape(buffer: wp.array | TimestampedBuffer) -> tuple[int, ...]:
     """Return the allocation shape for a raw or timestamped ordering shadow."""
-    if isinstance(buffer, TimestampedBufferWarp):
+    if isinstance(buffer, TimestampedBuffer):
         buffer = buffer.data
     return tuple(buffer.shape)
 
@@ -1091,6 +1092,9 @@ class TestArticulationDataBodyState:
         )
         _set_dynamics_ordering_backend_data(backend, identity_art, identity_raw, *raw_dynamics_data)
         _set_dynamics_ordering_backend_data(backend, ordered_art, ordered_raw, *raw_dynamics_data)
+        if backend != "newton":
+            for name in ("body_com_jacobian_w", "mass_matrix", "gravity_compensation_forces"):
+                getattr(ordered_art.data, name)
         # Cyclic orderings are not involutions, so a user_to_backend/backend_to_user swap shows up.
         body_user_to_backend = _install_test_body_ordering(ordered_art, "cyclic")
         joint_user_to_backend = _install_test_joint_ordering(ordered_art, "cyclic")

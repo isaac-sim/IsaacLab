@@ -202,10 +202,10 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
-        super()._prepare_builder_for_finalize(builder)
-        for entry in PhysicsManager._cfg.solver_cfg.entries:
-            entry.solver_cfg.class_type._prepare_builder_for_finalize(builder)
+        """Prepare the shared builder once per selected solver manager."""
+        entries = PhysicsManager._cfg.solver_cfg.entries
+        for prepare in dict.fromkeys(entry.solver_cfg.class_type._prepare_builder_for_finalize for entry in entries):
+            prepare(builder)
 
     @classmethod
     def _initialize_contacts(cls) -> None:
@@ -224,11 +224,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         """Clear VBD hooks and cached nested-MPM solver references."""
         super()._solver_specific_clear()
         NewtonMPMManager._solver_specific_clear()
-
-    @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Capture coupled MPM only after the task authors its initial particle state."""
-        return bool(NewtonMPMManager._implicit_mpm_solvers())
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:

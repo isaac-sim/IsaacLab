@@ -16,7 +16,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import class_to_dict, modifiers, noise
+from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
@@ -61,6 +61,12 @@ class ObservationManager(ManagerBase):
     If a noise model or custom modifier is registered for a term, the function is called to corrupt
     the observation. The corruption function is expected to return a tensor with the same shape as the observation.
     The observations are clipped and scaled as per the configuration settings.
+
+    Returned observations are independent snapshots, including dictionary entries and history.
+    Copies are made before mutating borrowed storage or retaining it across term evaluations.
+    Ordinary term and custom callback outputs are treated as borrowed. Terms declaring the
+    keyword-only parameter ``out=None`` write into a fresh manager allocation. Clipping and scaling create
+    independent storage when needed, allowing subsequent processing to reuse that storage.
     """
 
     def __init__(self, cfg: object, env: ManagerBasedEnv):
@@ -410,32 +416,53 @@ class ObservationManager(ManagerBase):
             )
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
-        obs_terms = zip(group_term_names, self._group_obs_term_cfgs[group_name])
+        term_cfgs = self._group_obs_term_cfgs[group_name]
+        obs_terms = zip(group_term_names, term_cfgs)
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
         for term_name, term_cfg in obs_terms:
-            obs: torch.Tensor = term_cfg.func(self._env, **term_cfg.params)
-            if term_cfg.clone_output:
-                obs = obs.clone()
+            output_spec = self._term_output_specs.get((group_name, term_name))
+            owned = output_spec is not None
+            if output_spec is not None:
+                shape, dtype, device = output_spec
+                obs = torch.empty(shape, dtype=dtype, device=device)
+                if term_cfg.func(self._env, **term_cfg.params, out=obs) is not obs:
+                    raise ValueError(
+                        f"Observation term '{group_name}/{term_name}' must return the supplied 'out' tensor."
+                    )
+            else:
+                obs = term_cfg.func(self._env, **term_cfg.params)
             # apply post-processing
             if term_cfg.modifiers is not None:
                 for modifier in term_cfg.modifiers:
+                    owned = False
+                    # Custom callbacks may modify or retain their input.
+                    obs = obs.clone()
                     if isinstance(modifier.func, modifiers.ModifierBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs, term_cfg.noise)
+                obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
+                owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs)
+                obs = term_cfg.noise.func(obs.clone())
+                owned = False
             if term_cfg.clip:
-                obs = obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                obs = (
+                    obs.clip_(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                    if owned
+                    else obs.clip(min=term_cfg.clip[0], max=term_cfg.clip[1])
+                )
+                owned = True
             if term_cfg.scale is not None:
-                obs = obs.mul_(term_cfg.scale)
+                obs = obs.mul_(term_cfg.scale) if owned else obs * term_cfg.scale
+                owned = True
             if term_name in self._group_obs_term_delay_buffer[group_name]:
                 obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
                     obs, update_history=update_history
                 )
+                owned = False
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
@@ -448,21 +475,27 @@ class ObservationManager(ManagerBase):
                         max_len=circular_buffer.max_length,
                         batch_size=circular_buffer.batch_size,
                         device=circular_buffer.device,
+                        stack_dim=1 if obs.ndim > 1 else None,
                     )
                     circular_buffer.append(obs)
 
                 if term_cfg.flatten_history_dim:
-                    group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
+                    obs = circular_buffer.buffer.reshape(self._env.num_envs, -1)
                 else:
-                    group_obs[term_name] = circular_buffer.buffer
-            else:
-                group_obs[term_name] = obs
+                    obs = circular_buffer.buffer
+                owned = False
+            # Secure borrowed storage before another term can overwrite it, including shared scratch buffers.
+            group_obs[term_name] = obs if owned else obs.clone()
 
         # concatenate all observations in the group together
         if self._group_obs_concatenate[group_name]:
-            # a single term is already a fresh copy, unless it is a view of the history buffer
-            if len(group_obs) == 1 and self._group_obs_term_cfgs[group_name][0].history_length == 0:
+            if len(group_obs) == 1:
                 return next(iter(group_obs.values()))
+            if self._group_obs_time_major[group_name]:
+                history_length = term_cfgs[0].history_length
+                return torch.cat(
+                    [obs.reshape(self._env.num_envs, history_length, -1) for obs in group_obs.values()], dim=-1
+                ).reshape(self._env.num_envs, -1)
             # set the concatenate dimension, account for the batch dimension if positive dimension is given
             return torch.cat(list(group_obs.values()), dim=self._group_obs_concatenate_dim[group_name])
         else:
@@ -479,7 +512,7 @@ class ObservationManager(ManagerBase):
                 term_name: (
                     term_cfg.func.serialize()
                     if isinstance(term_cfg.func, ManagerTermBase)
-                    else {"cfg": class_to_dict(term_cfg)}
+                    else {"cfg": to_dict(term_cfg)}
                 )
                 for term_name, term_cfg in zip(
                     self._group_obs_term_names[group_name],
@@ -495,16 +528,32 @@ class ObservationManager(ManagerBase):
     Helper functions.
     """
 
+    def _prepare_term_output(self, group_name: str, term_name: str, term_cfg: ObservationTermCfg) -> tuple[int, ...]:
+        """Probe output dimensions and cache destination specifications for explicitly supported terms."""
+        if "out" in term_cfg.params:
+            raise ValueError(f"Observation term '{group_name}/{term_name}': 'out' is reserved for the manager.")
+        out_param = inspect.signature(term_cfg.func).parameters.get("out")
+        writes_output = out_param is not None and out_param.kind is inspect.Parameter.KEYWORD_ONLY
+        if writes_output and out_param.default is not None:
+            raise ValueError(f"Observation term '{group_name}/{term_name}' must declare keyword-only 'out=None'.")
+        sample = term_cfg.func(self._env, **term_cfg.params)
+        shape = tuple(sample.shape)
+        if writes_output:
+            self._term_output_specs[group_name, term_name] = (shape, sample.dtype, sample.device)
+        return shape
+
     def _prepare_terms(self):
         """Prepares a list of observation terms functions."""
         # create buffers to store information for each observation group
         # TODO: Make this more convenient by using data structures.
+        self._term_output_specs: dict[tuple[str, str], tuple[tuple[int, ...], torch.dtype, torch.device]] = {}
         self._group_obs_term_names: dict[str, list[str]] = {}
         self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
+        self._group_obs_time_major: dict[str, bool] = {}
 
         self._group_obs_term_delay_buffer: dict[str, dict[str, DelayBuffer]] = {}
         self._group_obs_term_history_buffer: dict[str, dict] = {}
@@ -552,6 +601,14 @@ class ObservationManager(ManagerBase):
             self._group_obs_concatenate_dim[group_name] = (
                 group_cfg.concatenate_dim + 1 if group_cfg.concatenate_dim >= 0 else group_cfg.concatenate_dim
             )
+            self._group_obs_time_major[group_name] = (
+                group_cfg.history_order == "time"
+                and group_cfg.history_length is not None
+                and group_cfg.history_length > 0
+                and group_cfg.flatten_history_dim
+                and group_cfg.concatenate_terms
+                and group_cfg.concatenate_dim == -1
+            )
 
             # check if config is dict already
             if isinstance(group_cfg, dict):
@@ -566,6 +623,7 @@ class ObservationManager(ManagerBase):
                     "concatenate_terms",
                     "history_length",
                     "flatten_history_dim",
+                    "history_order",
                     "concatenate_dim",
                 ]:
                     continue
@@ -593,7 +651,7 @@ class ObservationManager(ManagerBase):
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
 
                 # call function the first time to fill up dimensions
-                obs_dims = tuple(term_cfg.func(self._env, **term_cfg.params).shape)
+                obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
                 # if scale is set, check if single float or tuple
                 if term_cfg.scale is not None:
@@ -660,7 +718,7 @@ class ObservationManager(ManagerBase):
 
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
-                    term_cfg.noise.func = term_cfg.noise.class_type(
+                    term_cfg.noise.func = instantiate(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
                     # verify the instance is the correct type
@@ -683,7 +741,10 @@ class ObservationManager(ManagerBase):
                 # create history buffers and calculate history term dimensions
                 if term_cfg.history_length > 0:
                     group_entry_history_buffer[term_name] = CircularBuffer(
-                        max_len=term_cfg.history_length, batch_size=self._env.num_envs, device=self._env.device
+                        max_len=term_cfg.history_length,
+                        batch_size=self._env.num_envs,
+                        device=self._env.device,
+                        stack_dim=1 if len(obs_dims) > 1 else None,
                     )
                     old_dims = list(obs_dims)
                     old_dims.insert(1, term_cfg.history_length)

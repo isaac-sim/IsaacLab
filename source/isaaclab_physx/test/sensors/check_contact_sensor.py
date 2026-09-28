@@ -17,6 +17,7 @@ This script demonstrates how to use the contact sensor sensor in Isaac Lab.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Contact Sensor Test Script")
@@ -95,7 +96,7 @@ def main():
     # Design props
     design_scene()
     # Spawn things into the scene
-    robot_cfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.activate_contact_sensors = True
     robot = Articulation(cfg=robot_cfg)
     # Contact sensor
@@ -168,9 +169,9 @@ def main():
         count += 1
         # update the buffers
         if sim.is_playing():
-            with Timer() as timer:
+            with Timer(synchronize="both", device=sim.device) as timer:
                 contact_sensor.update(sim_dt, force_recompute=True)
-                dt.append(timer.time_elapsed)
+            dt.append(timer.total_run_time)
 
             contact_sensor.update(sim_dt, force_recompute=True)
             if count % 100 == 0:

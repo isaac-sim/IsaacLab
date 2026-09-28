@@ -19,6 +19,7 @@ currently only supported on the CPU.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import clone
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on spawning and interacting with a Surface Gripper.")
@@ -67,7 +68,7 @@ def design_scene():
     sim_utils.create_prim("/World/Origin2", "Xform", translation=origins[1])
 
     # Articulation: First we define the robot config
-    pick_and_place_robot_cfg = PICK_AND_PLACE_CFG.copy()
+    pick_and_place_robot_cfg = clone(PICK_AND_PLACE_CFG)
     pick_and_place_robot_cfg.prim_path = "/World/Origin.*/Robot"
     pick_and_place_robot = Articulation(cfg=pick_and_place_robot_cfg)
 

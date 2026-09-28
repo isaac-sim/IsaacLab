@@ -17,7 +17,9 @@ import gymnasium as gym
 import pytest
 from isaaclab_physx.physics import PhysxCfg
 
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.physics import PhysicsCfg, PhysxAutoCfg
+from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
@@ -123,6 +125,17 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
                 assert fields.get("isaacsim_physx") == fields["physx"], location
+
+
+def test_registered_manager_based_configs_name_their_env_class():
+    """A manager-based task's ``class_type`` constructs the env class its registration names."""
+
+    for task_id, task_spec in gym.registry.items():
+        if not task_id.startswith(("Isaac-", "IsaacContrib-")) or "env_cfg_entry_point" not in task_spec.kwargs:
+            continue
+        env_cfg = load_cfg_from_registry(task_id, "env_cfg_entry_point")
+        if isinstance(env_cfg, ManagerBasedEnvCfg):
+            assert string_to_callable(str(env_cfg.class_type)) is string_to_callable(task_spec.entry_point), task_id
 
 
 def test_physx_and_isaacsim_physx_presets_conflict():

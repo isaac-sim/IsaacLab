@@ -17,6 +17,7 @@ from tqdm import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
+from isaaclab.utils import instantiate
 from isaaclab.utils.math import quat_apply, random_orientation, sample_uniform
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
@@ -249,8 +250,8 @@ class conditional_reset(ManagerTermBase):
             return ok
 
         if not self._prefilled:
-            # envs sharing a clone-mask column are clones of the same unique asset combination
-            _, group = np.unique(env.scene.clone_plan.clone_mask.T, axis=0, return_inverse=True)
+            # The plan already identifies the world prototype selected by each environment.
+            _, group = np.unique(env.scene.clone_plan.topology.world_prototype_layout, return_inverse=True)
             self._group = torch.as_tensor(group, device=env.device)
             num_groups = int(self._group.max().item()) + 1
             # without a descriptor there is nothing to spread over, so harvesting extra is waste
@@ -314,9 +315,7 @@ class conditional_reset(ManagerTermBase):
                 self._keep_most_spread(num_groups, harvest_size, buffer_size_per_group)
             if success_monitor is not None:
                 # one monitored slot per banked state, partitioned exactly like the bank
-                self._monitor = success_monitor.class_type(
-                    success_monitor, num_groups, buffer_size_per_group, env.device
-                )
+                self._monitor = instantiate(success_monitor, num_groups, buffer_size_per_group, env.device)
             self._prefilled = True
             # drop the prefill-only terms/criteria so their device memory is freed
             terms.clear()
@@ -381,8 +380,7 @@ class conditional_reset(ManagerTermBase):
                 )
         played = self._playing_row[env_ids]
         # an environment that has not been restored yet has no episode to credit
-        started = played >= 0
-        monitor.success_update(played[started], self._success_term.succeeded[env_ids][started])
+        monitor.success_update(played, self._success_term.succeeded[env_ids], valid=played >= 0)
 
 
 class grasp_travel_distance(ManagerTermBase):
@@ -637,8 +635,13 @@ class mesh_clearance(ManagerTermBase):
         object_meshes = []
         env_object_mesh = np.zeros(env.num_envs, dtype=np.int32)
         mesh_by_path: dict[str, int] = {}
-        clone_plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        for _, _, source_path, env_ids in cloner.query.iter_sources(clone_plan, self._object.cfg.prim_path):
+        plan = sim_utils.SimulationContext.instance().get_clone_plan()
+        source_paths = cloner.path.get_asset_prototype_paths(plan)
+        for index in cloner.path.get_asset_prototypes(plan, self._object.cfg.prim_path):
+            env_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, index)
+            if not len(env_ids):
+                continue
+            source_path = source_paths[index]
             if source_path not in mesh_by_path:
                 object_prim = sim_utils.get_current_stage().GetPrimAtPath(source_path)
                 object_mesh_by_id = collect_collision_meshes(object_prim, lambda prim: (0, object_prim))

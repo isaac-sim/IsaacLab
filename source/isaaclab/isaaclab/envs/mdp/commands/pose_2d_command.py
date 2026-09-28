@@ -16,6 +16,7 @@ from isaaclab.assets import Articulation
 from isaaclab.managers import CommandTerm
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.terrains import TerrainImporter
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_apply_inverse, quat_from_euler_xyz, wrap_to_pi, yaw_quat
 
 if TYPE_CHECKING:
@@ -107,7 +108,7 @@ class UniformPose2dCommand(CommandTerm):
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
                 self._succeeded[env_ids].float().mean().item()
             )
-            self._succeeded[env_ids] = False
+            index_fill_(self._succeeded, env_ids, False)
         return extras
 
     def _resample_command(self, env_ids: Sequence[int]):

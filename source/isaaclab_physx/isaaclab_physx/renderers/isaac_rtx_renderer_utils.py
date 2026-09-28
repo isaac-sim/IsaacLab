@@ -15,6 +15,7 @@ import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
@@ -116,6 +117,8 @@ def _apply_isaac_rtx_global_settings(
 
     antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
     if antialiasing_mode is not None:
+        # Some Kit experiences (e.g. the viewport-only app) do not preload Replicator.
+        enable_extension("omni.replicator.core")
         import omni.replicator.core as rep
 
         rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
@@ -233,7 +236,10 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
-    sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
+    from .fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+    fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+    fabric.update_transforms(sim.get_scene_data_provider())
 
     import omni.kit.app
 

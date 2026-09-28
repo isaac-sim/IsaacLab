@@ -10,6 +10,7 @@
     NewtonManager
     NewtonCfg
     NewtonBackendCfg
+    NewtonBuilderCfg
     NewtonSoftContactCfg
     NewtonCollisionPipelineCfg
     NewtonFeatherstoneManager
@@ -58,6 +59,13 @@ Physics Configuration
   :members:
   :show-inheritance:
   :exclude-members: __init__
+
+.. autoclass:: NewtonBuilderCfg
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autofunction:: create_newton_builder
 
 .. autoclass:: NewtonSoftContactCfg
   :members:

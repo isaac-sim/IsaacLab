@@ -7,6 +7,7 @@
 
 from isaaclab.app import AppLauncher
 from isaaclab.test.utils import resolve_test_sim_device, test_devices
+from isaaclab.utils import clone, instantiate, replace
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
@@ -25,6 +26,8 @@ import omni.physics.tensors
 import omni.timeline
 
 import isaaclab.sim as sim_utils
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.physics import PhysicsEvent
 from isaaclab.sim import SimulationCfg, SimulationContext
 
@@ -140,9 +143,9 @@ def test_singleton():
         (),
         (None,),
         (sim.cfg,),
-        (sim.cfg.copy(),),
-        (sim.cfg.replace(dt=2.0 * live_dt),),
-        (sim.cfg.replace(device=other_device),),
+        (clone(sim.cfg),),
+        (replace(sim.cfg, dt=2.0 * live_dt),),
+        (replace(sim.cfg, device=other_device),),
     ):
         with pytest.raises(RuntimeError, match=r"SimulationContext\.instance\(\)"):
             SimulationContext(*args)
@@ -196,12 +199,17 @@ def test_timeline_play_stop(monkeypatch):
     sim = SimulationContext()
     scene_data = sim.physics_manager.get_scene_data_backend()
     publication = scene_data.transforms
-    cube_cfg = sim_utils.CuboidCfg(
-        size=(0.1, 0.1, 0.1),
-        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+    cube_cfg = AssetBaseCfg(
+        prim_path="/World/Cube",
+        spawn=sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
     )
-    cube_cfg.func("/World/Cube", cube_cfg)
+    plan = clone_plan_from_env_0(CloneCfg(), (cube_cfg,), 1, 0.0)
+    instantiate(cube_cfg)
+    replicate(plan)
 
     # initially simulation should be stopped
     assert sim.is_stopped()

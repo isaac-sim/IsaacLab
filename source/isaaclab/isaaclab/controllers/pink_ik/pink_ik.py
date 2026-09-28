@@ -14,6 +14,7 @@ Reference:
 
 from __future__ import annotations
 
+import logging
 import os
 import tempfile
 from contextlib import ExitStack
@@ -27,6 +28,7 @@ from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
 from ...assets import ArticulationCfg
+from ...utils import instantiate
 from ...utils.assets import retrieve_file_path
 from ...utils.string import resolve_matching_names_values
 from .. import utils as controller_utils
@@ -37,6 +39,7 @@ from .pink_task_cfg import PinkIKTaskCfg
 if TYPE_CHECKING:
     from .pink_ik_cfg import PinkIKControllerCfg
 
+logger = logging.getLogger(__name__)
 
 _QP_SOLVER = "daqp"
 
@@ -120,8 +123,8 @@ class PinkIKController:
         )
         self.init_joint_positions = np.zeros(len(pink_joint_names))
         self.init_joint_positions[indices] = np.array(values)
-        self._variable_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.variable_input_tasks]
-        self._fixed_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.fixed_input_tasks]
+        self._variable_input_tasks = [instantiate(task_cfg) for task_cfg in cfg.variable_input_tasks]
+        self._fixed_input_tasks = [instantiate(task_cfg) for task_cfg in cfg.fixed_input_tasks]
         self.cfg.variable_input_tasks = cast(list[Task | PinkIKTaskCfg], self._variable_input_tasks)
         self.cfg.fixed_input_tasks = cast(list[Task | PinkIKTaskCfg], self._fixed_input_tasks)
 
@@ -129,10 +132,10 @@ class PinkIKController:
             # If task is a NullSpacePostureTask, set the target to the initial joint positions
             if isinstance(task, NullSpacePostureTask):
                 task.set_target(self.init_joint_positions)
-                continue
-            getattr(task, "set_target_from_configuration")(self.pink_configuration)
+            else:
+                task.set_target_from_configuration(self.pink_configuration)
         for task in self._fixed_input_tasks:
-            getattr(task, "set_target_from_configuration")(self.pink_configuration)
+            task.set_target_from_configuration(self.pink_configuration)
 
         # Create joint ordering mappings
         self._setup_joint_ordering_mappings()
@@ -160,18 +163,15 @@ class PinkIKController:
         if cfg.all_joint_names is None:
             raise ValueError("cfg.all_joint_names cannot be None")
         actual_joint_names = [cfg.all_joint_names[idx] for idx in controlled_joint_indices]
-        if actual_joint_names != cfg.joint_names:
-            mismatches = []
-            for i, (actual, expected) in enumerate(zip(actual_joint_names, cfg.joint_names)):
-                if actual != expected:
-                    mismatches.append(
-                        f"Index {i}: index {controlled_joint_indices[i]} points to '{actual}' but expected '{expected}'"
-                    )
-            if mismatches:
-                raise ValueError(
-                    "Joint name mismatch between controlled_joint_indices and cfg.joint_names:\n"
-                    + "\n".join(mismatches)
-                )
+        mismatches = [
+            f"Index {i}: index {controlled_joint_indices[i]} points to '{actual}' but expected '{expected}'"
+            for i, (actual, expected) in enumerate(zip(actual_joint_names, cfg.joint_names))
+            if actual != expected
+        ]
+        if mismatches:
+            raise ValueError(
+                "Joint name mismatch between controlled_joint_indices and cfg.joint_names:\n" + "\n".join(mismatches)
+            )
 
     def _setup_joint_ordering_mappings(self):
         """Setup joint ordering mappings between Isaac Lab and Pink conventions."""
@@ -250,9 +250,9 @@ class PinkIKController:
 
         def _return_current_joint_positions(error: Exception) -> torch.Tensor:
             if self.cfg.show_ik_warnings:
-                print(
-                    "Warning: IK quadratic solver could not find a solution! Did not update the target joint"
-                    f" positions.\nError: {error}"
+                logger.warning(
+                    "IK quadratic solver could not find a solution! Did not update the target joint positions."
+                    f"\nError: {error}"
                 )
 
             if self.cfg.xr_enabled:
@@ -287,7 +287,7 @@ class PinkIKController:
                     "``pyproject.toml``."
                 ) from e
             return _return_current_joint_positions(e)
-        except (AssertionError, Exception) as e:
+        except Exception as e:
             return _return_current_joint_positions(e)
 
         # Reorder the joint angle changes back to Isaac Lab conventions

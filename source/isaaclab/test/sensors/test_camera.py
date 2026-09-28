@@ -9,6 +9,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True, enable_cameras=True).app
@@ -80,8 +81,6 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
-    # load stage
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -514,7 +513,6 @@ def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, f
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
     _populate_scene()
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -868,7 +866,7 @@ def test_camera_pose_update_reflected_in_render(setup_camera_device, device):
 def test_camera_invalidate_before_initialize(setup_sim_camera):
     """Invalidation on a camera that never initialized does not raise."""
     _, camera_cfg, _ = setup_sim_camera
-    camera = Camera(camera_cfg.replace(prim_path="/World/NeverInitialized", spawn=None))
+    camera = Camera(replace(camera_cfg, prim_path="/World/NeverInitialized", spawn=None))
     try:
         assert camera._view is None
         camera._invalidate_initialize_callback(None)

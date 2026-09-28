@@ -45,7 +45,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.math import (
     combine_frame_transforms,
     matrix_from_quat,
@@ -97,7 +97,7 @@ class SceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    robot = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.actuators["panda_shoulder"].stiffness = 0.0
     robot.actuators["panda_shoulder"].damping = 0.0
     robot.actuators["panda_forearm"].stiffness = 0.0
@@ -139,10 +139,10 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     osc = OperationalSpaceController(osc_cfg, num_envs=scene.num_envs, device=sim.device)
 
     # Markers
-    frame_marker_cfg = FRAME_MARKER_CFG.copy()
+    frame_marker_cfg = clone(FRAME_MARKER_CFG)
     frame_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-    ee_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_current"))
-    goal_marker = VisualizationMarkers(frame_marker_cfg.replace(prim_path="/Visuals/ee_goal"))
+    ee_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_current"))
+    goal_marker = VisualizationMarkers(replace(frame_marker_cfg, prim_path="/Visuals/ee_goal"))
 
     # Define targets for the arm (x,y,z,qx,qy,qz,qw)
     ee_goal_pose_set_tilted_b = torch.tensor(
