@@ -783,7 +783,10 @@ def bind_visual_material(
 
     binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
     return binding_api.Bind(
-        UsdShade.Material(material_prim), bindingStrength=_binding_strength(stronger_than_descendants)
+        UsdShade.Material(material_prim),
+        bindingStrength=UsdShade.Tokens.strongerThanDescendants
+        if stronger_than_descendants
+        else UsdShade.Tokens.weakerThanDescendants,
     )
 
 
@@ -851,19 +854,12 @@ def bind_physics_material(
         material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
     material_binding_api.Bind(
         UsdShade.Material(stage.GetPrimAtPath(material_path)),
-        bindingStrength=_binding_strength(stronger_than_descendants),
+        bindingStrength=UsdShade.Tokens.strongerThanDescendants
+        if stronger_than_descendants
+        else UsdShade.Tokens.weakerThanDescendants,
         materialPurpose="physics",
     )  # type: ignore
     return True
-
-
-def _binding_strength(stronger_than_descendants: bool):
-    """Resolve the ``UsdShade`` binding-strength token for a material binding."""
-    from pxr import UsdShade  # noqa: PLC0415
-
-    if stronger_than_descendants:
-        return UsdShade.Tokens.strongerThanDescendants
-    return UsdShade.Tokens.weakerThanDescendants
 
 
 """

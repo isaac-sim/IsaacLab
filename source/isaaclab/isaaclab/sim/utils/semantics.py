@@ -54,17 +54,14 @@ def get_labels(prim: Usd.Prim) -> dict[str, list[str]]:
     from pxr import UsdSemantics  # noqa: PLC0415
 
     result = {}
-    for instance_name in _label_instance_names(prim):
+    for schema_name in prim.GetAppliedSchemas():
+        if not schema_name.startswith("SemanticsLabelsAPI:"):
+            continue
+        instance_name = schema_name.removeprefix("SemanticsLabelsAPI:")
         labels_attr = UsdSemantics.LabelsAPI(prim, instance_name).GetLabelsAttr()
         labels = labels_attr.Get() if labels_attr else None
         result[instance_name] = list(labels) if labels is not None else []
     return result
-
-
-def _label_instance_names(prim: Usd.Prim) -> list[str]:
-    """Return the instance names of all ``UsdSemantics.LabelsAPI`` schemas applied to a prim."""
-    prefix = "SemanticsLabelsAPI:"
-    return [schema_name[len(prefix) :] for schema_name in prim.GetAppliedSchemas() if schema_name.startswith(prefix)]
 
 
 def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_descendants: bool = False):
@@ -80,7 +77,10 @@ def remove_labels(prim: Usd.Prim, instance_name: str | None = None, include_desc
     from pxr import Usd, UsdSemantics  # noqa: PLC0415
 
     for target_prim in Usd.PrimRange(prim) if include_descendants else [prim]:
-        for current_instance in _label_instance_names(target_prim):
+        for schema_name in target_prim.GetAppliedSchemas():
+            if not schema_name.startswith("SemanticsLabelsAPI:"):
+                continue
+            current_instance = schema_name.removeprefix("SemanticsLabelsAPI:")
             if instance_name is None or current_instance == instance_name:
                 target_prim.RemoveAPI(UsdSemantics.LabelsAPI, current_instance)
 
@@ -111,7 +111,8 @@ def check_missing_labels(prim_path: str | None = None, stage: Usd.Stage | None =
     return [
         prim.GetPath().pathString
         for prim in Usd.PrimRange(start_prim)
-        if prim.IsA(UsdGeom.Gprim) and not _label_instance_names(prim)
+        if prim.IsA(UsdGeom.Gprim)
+        and not any(name.startswith("SemanticsLabelsAPI:") for name in prim.GetAppliedSchemas())
     ]
 
 

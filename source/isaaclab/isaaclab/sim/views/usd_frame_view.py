@@ -322,7 +322,7 @@ class UsdFrameView(BaseFrameView):
         for idx, prim_idx in enumerate(indices_list):
             scales[idx] = Gf.Vec3d(self._prims[prim_idx].GetAttribute("xformOp:scale").Get())
 
-        return self._to_proxy(scales)
+        return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
 
     def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         indices_list = self._resolve_indices(indices)
@@ -368,10 +368,6 @@ class UsdFrameView(BaseFrameView):
             return data.numpy()
         return data.cpu().numpy()
 
-    def _to_proxy(self, values: Vt.Vec3dArray | Vt.QuatdArray) -> ProxyArray:
-        """Copy a USD value array to a float32 warp array on the view's device."""
-        return ProxyArray(wp.array(np.array(values, dtype=np.float32), dtype=wp.float32, device=self._device))
-
     def _poses_from_transforms(
         self, indices: wp.array | None, transform_of: Callable[[Usd.Prim], Gf.Matrix4d]
     ) -> tuple[ProxyArray, ProxyArray]:
@@ -386,7 +382,10 @@ class UsdFrameView(BaseFrameView):
             positions[idx] = prim_tf.ExtractTranslation()
             orientations[idx] = prim_tf.ExtractRotationQuat()
 
-        return self._to_proxy(positions), self._to_proxy(orientations)
+        return (
+            ProxyArray(wp.array(np.array(positions, dtype=np.float32), dtype=wp.float32, device=self._device)),
+            ProxyArray(wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)),
+        )
 
 
 # ----------------------------------------------------------------------
