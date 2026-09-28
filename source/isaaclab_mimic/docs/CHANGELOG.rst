@@ -1,6 +1,16 @@
 Changelog
 ---------
 
+2.0.11 (2026-09-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--max_num_failures`` to the Mimic dataset generation script to bound unsuccessful generation attempts.
+* Added ``class_type`` to the environment configs that use a custom environment class, naming that class.
+
+
 2.0.10 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~~
 
