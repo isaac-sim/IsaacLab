@@ -51,6 +51,8 @@ class Reachy2RightReachEnvCfg(ReachEnvCfg):
         self.events.hold_default_joint_targets = EventTerm(
             func=reachy2_mdp.reset_joint_targets_to_default, mode="reset"
         )
+        # The arms rest far from the targets; penalizing raw action magnitude stalls reaching
+        self.rewards.action_magnitude = None
 
         # Switch robot to Reachy 2
         self.scene.robot = replace(
@@ -131,6 +133,8 @@ class Reachy2LeftReachEnvCfg(ReachEnvCfg):
         self.events.hold_default_joint_targets = EventTerm(
             func=reachy2_mdp.reset_joint_targets_to_default, mode="reset"
         )
+        # The arms rest far from the targets; penalizing raw action magnitude stalls reaching
+        self.rewards.action_magnitude = None
 
         self.scene.robot = replace(
             REACHY2_CFG,

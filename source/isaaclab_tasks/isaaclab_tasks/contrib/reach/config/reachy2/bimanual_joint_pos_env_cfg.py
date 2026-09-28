@@ -55,6 +55,8 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         self.events.hold_default_joint_targets = EventTerm(
             func=reachy2_mdp.reset_joint_targets_to_default, mode="reset"
         )
+        # The arms rest far from the targets; penalizing raw action magnitude stalls reaching
+        self.rewards.action_magnitude = None
 
         # ── Robot ──────────────────────────────────────────────────────────
         self.scene.robot = replace(
