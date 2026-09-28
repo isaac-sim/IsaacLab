@@ -18,7 +18,6 @@ from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.argv import fuse_kit_args
 from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -200,7 +199,7 @@ def test_explicit_spectator_setting_overrides_visualizer_default(monkeypatch):
 )
 def test_fuse_kit_args(argv: list[str], expected: list[str]):
     """Fuse only ``--kit_args`` pairs whose value argparse would mistake for an option."""
-    assert fuse_kit_args(argv) == expected
+    assert sim_launcher.fuse_kit_args(argv) == expected
 
 
 def test_add_launcher_args_registers_every_launcher_option():

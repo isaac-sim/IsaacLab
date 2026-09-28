@@ -1,9 +1,3 @@
-Added
-^^^^^
-
-* Added :func:`~isaaclab.app.fuse_kit_args` to the :mod:`isaaclab.app` exports. It moved to the lightweight
-  ``isaaclab.app.argv`` module; import it from :mod:`isaaclab.app` instead of ``isaaclab.app.sim_launcher``.
-
 Removed
 ^^^^^^^
 

@@ -12,8 +12,6 @@ import importlib
 import sys
 from typing import TYPE_CHECKING, Any
 
-from ..app.argv import fuse_kit_args
-
 if TYPE_CHECKING:
     from .api import BenchmarkLauncherConfig, BenchmarkRequest, BenchmarkResult
 
@@ -79,7 +77,7 @@ def run_benchmark_cli(argv: list[str] | None = None) -> int:
 
     if argv is None:
         argv = sys.argv[1:]
-    argv = fuse_kit_args(argv)
+    argv = _fuse_kit_args(argv)
     multigpu_workflows = tuple(f"{name}{multigpu.MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS)
     legacy_multigpu_workflows = tuple(
         f"{name}{multigpu.LEGACY_MULTIGPU_SUFFIX}" for name in multigpu.MULTIGPU_WORKFLOWS
@@ -122,7 +120,7 @@ def run_play_cli(argv: list[str] | None = None) -> int:
 def _run_rl_cli(workflow: str, argv: list[str] | None) -> int:
     if argv is None:
         argv = sys.argv[1:]
-    argv = fuse_kit_args(argv)
+    argv = _fuse_kit_args(argv)
     backends = _RL_WORKFLOW_MODULES[workflow]
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--rl_library", choices=sorted(backends))
@@ -201,7 +199,7 @@ def _request_argv(request: BenchmarkRequest) -> list[str]:
     if request.presets:
         argv.append(f"presets={','.join(request.presets)}")
     argv.extend(request.hydra_args)
-    return fuse_kit_args(argv)
+    return _fuse_kit_args(argv)
 
 
 def _output_argv(output: Any) -> list[str]:
@@ -232,9 +230,16 @@ def _launcher_argv(launcher: BenchmarkLauncherConfig) -> list[str]:
         argv.append("--verbose")
     if launcher.info:
         argv.append("--info")
-    return fuse_kit_args(argv)
+    return _fuse_kit_args(argv)
 
 
 def _append_value(argv: list[str], option: str, value: object | None) -> None:
     if value is not None:
         argv.extend((option, str(value)))
+
+
+def _fuse_kit_args(argv: list[str]) -> list[str]:
+    # imported here so that importing this module stays lightweight
+    from ..app.sim_launcher import fuse_kit_args
+
+    return fuse_kit_args(argv)
