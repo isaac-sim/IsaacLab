@@ -44,7 +44,7 @@ def reset_reorient_hand(
     default_position = robot.data.default_joint_pos.torch[env_ids]
     limits = robot.data.joint_limits.torch[env_ids]
     joint_position = sample_joint_positions_within_limits(default_position, limits, joint_position_noise)
-    velocity_sample = math_utils.sample_uniform(-1.0, 1.0, (len(env_ids), robot.num_joints), device=env.device)
+    velocity_sample = math_utils.sample_uniform(-1.0, 1.0, default_position.shape, device=env.device)
     joint_velocity = robot.data.default_joint_vel.torch[env_ids] + joint_velocity_noise * velocity_sample
     robot.set_joint_position_target_index(target=joint_position, env_ids=env_ids)
     robot.write_joint_position_to_sim_index(position=joint_position, env_ids=env_ids)

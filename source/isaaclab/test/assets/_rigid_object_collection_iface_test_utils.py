@@ -29,6 +29,7 @@ try:
         RigidObjectCollectionData as PhysXRigidObjectCollectionData,
     )
     from isaaclab_physx.physics import PhysxManager as SimulationManager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockRigidBodyViewWarp as PhysXMockRigidBodyViewWarp
 except ImportError:
     pass
@@ -37,6 +38,7 @@ else:
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
+    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
     BACKENDS.append("physx")
 
@@ -63,10 +65,13 @@ try:
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 except ImportError:
     pass
 else:
     if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
+        # Writers bump the scene-data transform version that ``initialize()`` would normally create.
+        OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
         BACKENDS.append("ovphysx")
 
 
@@ -101,8 +106,8 @@ def create_physx_rigid_object_collection(
     data.body_names = [f"object_{i}" for i in range(num_bodies)]
 
     # Create wrench composers
-    mock_inst_wrench = WrenchComposer(collection)
-    mock_perm_wrench = WrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -260,8 +265,8 @@ def create_ovphysx_rigid_object_collection(
     collection._create_buffers()
 
     # Use production wrench composers for interface coverage.
-    mock_inst_wrench = WrenchComposer(collection)
-    mock_perm_wrench = WrenchComposer(collection)
+    mock_inst_wrench = WrenchComposer(collection, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(collection, supports_world_at_com=True)
     object.__setattr__(collection, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(collection, "_permanent_wrench_composer", mock_perm_wrench)
 

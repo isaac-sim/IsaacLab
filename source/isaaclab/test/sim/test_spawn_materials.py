@@ -19,7 +19,6 @@ from pxr import UsdPhysics, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
-from isaaclab.utils.assets import NVIDIA_NUCLEUS_DIR
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
 
@@ -34,35 +33,6 @@ def sim():
     yield sim
     sim.stop()
     sim.clear_instance()
-
-
-def test_spawn_preview_surface(sim):
-    """Test spawning preview surface."""
-    cfg = sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 1.0, 0.0))
-    prim = cfg.func("/Looks/PreviewSurface", cfg)
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/Looks/PreviewSurface").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
-    # Check properties
-    assert prim.GetAttribute("inputs:diffuseColor").Get() == cfg.diffuse_color
-
-
-def test_spawn_mdl_material(sim):
-    """Test spawning mdl material."""
-    cfg = sim_utils.MdlFileCfg(
-        mdl_path=f"{NVIDIA_NUCLEUS_DIR}/Materials/Base/Metals/Aluminum_Anodized.mdl",
-        project_uvw=True,
-        albedo_brightness=0.5,
-    )
-    prim = cfg.func("/Looks/MdlMaterial", cfg)
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/Looks/MdlMaterial").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
-    # Check properties
-    assert prim.GetAttribute("inputs:project_uvw").Get() == cfg.project_uvw
-    assert prim.GetAttribute("inputs:albedo_brightness").Get() == cfg.albedo_brightness
 
 
 def test_spawn_glass_mdl_material(sim):

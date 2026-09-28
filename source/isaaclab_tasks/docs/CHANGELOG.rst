@@ -1,6 +1,130 @@
 Changelog
 ---------
 
+21.2.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed camera tasks to use the per-modality image terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`,
+  :class:`~isaaclab.envs.mdp.observations.image_normals` and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the removed
+  ``isaaclab.envs.mdp.image``.
+* Changed the Cartpole camera, Kuka Allegro ``vision_camera`` and drone VAE observations to use the
+  shared normalizers and frame stack in :mod:`isaaclab.utils.images`. Observation values are unchanged,
+  except that NaN depth is now replaced like infinite depth.
+* **Breaking:** Removed ``frame_stack`` from the manager-based Cartpole camera environment
+  configuration. Set it on the image term instead, e.g. ``env.observations.policy.image.params.frame_stack=4``.
+  The direct Cartpole camera environment keeps its ``frame_stack`` field.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`isaaclab_tasks.core.cartpole.mdp.CameraImageStack`. Use ``image_rgb``,
+  ``image_depth`` or ``image_segmentation`` with ``channel_first=True`` and ``frame_stack``.
+
+Fixed
+^^^^^
+
+* Handled full and strided reset slices in sampled deformable observations and deployment noise models.
+* Used existing device indices for multitask reset slices without implicitly converting caller-provided indices.
+* Preserved full and partial slices in task reset events, curricula, and commands, using selected data
+  shapes or slice bounds when only a batch size was required.
+* Fixed keyboard reset-buffer partial batches to sample distinct environments across the full scene
+  instead of favoring its first clone variants. Buffer capacity was unchanged.
+
+
+21.1.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Cartpole camera observations to use shared fused image normalization, including direct
+  channel-first output conversion where needed.
+
+Fixed
+^^^^^
+
+* Removed the redundant backend-specific Jacobian refresh from the NIST
+  ``reset_end_effector_around_asset`` event. Articulation data refreshes forward kinematics on demand
+  after joint writes, avoiding access to ``root_physx_view`` on OVPhysX.
+* Fixed the Cartpole camera observations reading the sensor's ``ProxyArray`` directly, which left
+  colorized semantic segmentation unscaled.
+* Corrected the SO101 Keyboard task's initial pose for the SysID asset: rotated
+  the robot base toward the keyboard and restored the task's zero joint-position
+  reset-IK seed. Shared SO101 defaults, actuator parameters, and reset IK budgets
+  remained unchanged. Removed the need for a manual task-specific base rotation.
+* Fixed :func:`~isaaclab_tasks.contrib.stack.mdp.terminations.cubes_stacked` reporting success for a
+  cube that is still falling: the check tested an instantaneous configuration, which a dropped cube
+  satisfies on the way down. Cubes must now also be at rest, controlled by the new ``max_lin_vel``
+  argument (default ``0.05`` m/s). Reported stack success rates drop slightly as a result; pass
+  ``max_lin_vel=None`` to restore the previous behaviour.
+
+
+21.1.0 (2026-09-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``benchmark_mode`` option to the ``Isaac-RenderBenchmark-Franka-Cabinet`` task, read from the
+  ``BENCHMARK_MODE`` environment variable. The default ``"render"`` mode wrote analytic joint poses after
+  physics and required ``scene.lazy_sensor_update=True`` so rendering followed the pose write.
+  Isaac RTX direct posing also rejected visualizers that pumped the Kit app; use ``--visualizer none``.
+  Set ``BENCHMARK_MODE=physics_render`` to preserve actuator-driven animation. Both modes still stepped physics.
+  The renderer sweep enabled physics and render timers and reported per-frame and combined timings
+  from the profiling JSON file.
+
+Changed
+^^^^^^^
+
+* Changed the reach table collider, the UR10 particle-push colliders, and the NIST factory Newton
+  Franka rigid-body properties to author their physics schemas with schema fragments
+  (:class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg`,
+  :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`, and
+  :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`) instead of the deprecated legacy
+  property configs, so loading these tasks no longer emits their ``DeprecationWarning``. The
+  authored USD is unchanged. Configurations that tune these spawner slots in place should select
+  the fragment that owns the field (e.g. the :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+  entry of the UR10 particle-push ``collision_props`` list for ``contact_margin``).
+
+Fixed
+^^^^^
+
+* Fixed the Kuka Allegro wrist camera rendering from its reset pose for the whole episode in the
+  ``duo_camera`` presets. The camera is mounted on the palm, so ``update_latest_camera_pose`` is now
+  enabled and its rendered view follows the arm.
+* Fixed :func:`~isaaclab_tasks.contrib.forge.forge_utils.change_FT_frame` applying the inverse rotation and the
+  wrong lever-arm sign when re-expressing a force/torque reading in another frame. The FORGE force observation
+  is unchanged because the environment uses identity rotations and only consumes the force components.
+
+
+21.0.3 (2026-09-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Increased the MJWarp line-search iteration limit for lift tasks to prevent solver overflow warnings from
+  degrading simulation performance in contact-rich states.
+* Fixed the KukaAllegro Lift and Reorient camera tasks defaulting to state-based
+  RSL-RL actors. They now select the single-camera CNN actor without requiring
+  an explicit ``single_camera`` preset.
+
+
+21.0.2 (2026-09-22)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Reused the default ground plane for the Franka Pour and UR10 Particle Push MPM tasks instead of
+  adding task-specific MPM ground colliders.
+
+
 21.0.1 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~~
 

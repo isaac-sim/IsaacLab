@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import random
 import re
 from abc import ABC, abstractmethod
@@ -18,16 +19,16 @@ from urllib.parse import urlparse
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from isaaclab.managers import ManagerBase
-    from isaaclab.renderers.base_renderer import VisualMaterialBatch
-    from isaaclab.scene_data import SceneDataProvider
-
+    from ..managers import ManagerBase
+    from ..renderers.base_renderer import VisualMaterialBatch
+    from ..scene_data import SceneDataProvider
     from .visualizer_cfg import VisualizerCfg
 
 
 logger = logging.getLogger(__name__)
 
 _USD_DEFAULT_VERTICAL_APERTURE_MM = 15.2908
+_ENV_CAMERA_PATH_PATTERN = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
 
 
 class BaseVisualizer(ABC):
@@ -153,8 +154,8 @@ class BaseVisualizer(ABC):
             Backend name string, or ``None`` when no simulation context is active yet.
         """
         try:
-            from isaaclab.sim.simulation_context import SimulationContext
-            from isaaclab.utils.backend_utils import FactoryBase
+            from ..sim.simulation_context import SimulationContext
+            from ..utils.backend_utils import FactoryBase
 
             if SimulationContext.instance() is None:
                 return None
@@ -205,24 +206,20 @@ class BaseVisualizer(ABC):
             return
         if not getattr(self.cfg, "enable_live_plots", True):
             return
-        import os
 
         if os.environ.get("ISAACLAB_DISABLE_LIVE_PLOTS", "0") == "1":
             return
-        from isaaclab.ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
+        from ..ui.live_plots.manager_live_plots import DirectScalarLivePlots, ManagerLivePlots
 
         # Scalar groups (e.g. episode metrics) are placed first so they appear at
         # the top of every visualizer's plot list regardless of backend ordering.
-        self._live_plot_sources = []
-        if scalars:
-            for group_name, scalar_dict in scalars.items():
-                self._live_plot_sources.append(DirectScalarLivePlots(group_name, scalar_dict))
+        self._live_plot_sources = [DirectScalarLivePlots(name, group) for name, group in (scalars or {}).items()]
         for name, mgr in managers.items():
             # Skip managers that have no active terms — they contribute nothing to plots
             # and would create empty panels in Rerun, Viser, and the Kit live-plot window.
             active = getattr(mgr, "active_terms", None)
             if active is not None:
-                has_terms = bool(active) if not isinstance(active, dict) else any(v for v in active.values())
+                has_terms = any(active.values()) if isinstance(active, dict) else bool(active)
                 if not has_terms:
                     continue
             self._live_plot_sources.append(ManagerLivePlots(name, mgr, (term_names or {}).get(name)))
@@ -358,8 +355,7 @@ class BaseVisualizer(ABC):
         Returns:
             Tuple of environment id and templated camera path.
         """
-        env_pattern = re.compile(r"(?P<root>/World/envs/env_)(?P<id>\d+)(?P<path>/.*)")
-        if match := env_pattern.match(usd_path):
+        if match := _ENV_CAMERA_PATH_PATTERN.match(usd_path):
             return int(match.group("id")), match.group("root") + "%d" + match.group("path")
         return 0, usd_path
 
@@ -408,7 +404,7 @@ class BaseVisualizer(ABC):
         """
         import torch
 
-        from isaaclab.utils.math import quat_apply
+        from ..utils.math import quat_apply
 
         quat = torch.tensor(quat_xyzw, dtype=torch.float32).unsqueeze(0)
         vector = torch.tensor(vec, dtype=torch.float32).unsqueeze(0)

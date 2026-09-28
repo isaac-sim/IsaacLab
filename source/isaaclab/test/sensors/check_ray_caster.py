@@ -9,7 +9,7 @@ This script shows how to use the ray caster from the Isaac Lab framework.
 .. code-block:: bash
 
     # Usage
-    uv run python source/isaaclab/test/sensors/test_ray_caster.py
+    uv run python source/isaaclab/test/sensors/check_ray_caster.py
 """
 
 """Launch Isaac Sim Simulator first."""
@@ -175,7 +175,9 @@ def main():
         # Step simulation
         sim.step()
         # Update the ray-caster
-        with Timer(f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays"):
+        with Timer(
+            f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays", synchronize="both", device=sim.device
+        ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1

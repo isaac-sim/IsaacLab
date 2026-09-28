@@ -9,6 +9,6 @@ This sub-package contains configuration classes and implementations for
 different renderer backends that can be used with Isaac Lab.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

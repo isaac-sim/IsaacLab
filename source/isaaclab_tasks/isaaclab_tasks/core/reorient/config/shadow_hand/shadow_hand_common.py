@@ -21,7 +21,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -160,13 +160,15 @@ class ShadowHandRobotCfg(PresetCfg):
     """
 
     # ``spawn_path`` authors only the prototype env; the scene clone plan replicates the rest
-    newton_mjwarp = SHADOW_HAND_NEWTON_CFG.replace(
+    newton_mjwarp = replace(
+        SHADOW_HAND_NEWTON_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_NEWTON_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
+        spawn=replace(SHADOW_HAND_NEWTON_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
     )
-    isaacsim_physx = SHADOW_HAND_PHYSX_CFG.replace(
+    isaacsim_physx = replace(
+        SHADOW_HAND_PHYSX_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=SHADOW_HAND_PHYSX_CFG.spawn.replace(spawn_path="/World/envs/env_0/Robot"),
+        spawn=replace(SHADOW_HAND_PHYSX_CFG.spawn, spawn_path="/World/envs/env_0/Robot"),
     )
     physx = isaacsim_physx
     ovphysx = isaacsim_physx

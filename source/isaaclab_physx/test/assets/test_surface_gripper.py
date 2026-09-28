@@ -12,6 +12,7 @@
 import os
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -117,8 +118,8 @@ def generate_surface_gripper(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_surface_grippers):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
+    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
+    surface_gripper_cfg = replace(surface_gripper_cfg, prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations
@@ -168,56 +169,6 @@ def sim(request):
     _RUNNING_CI,
     reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
 )
-def test_initialization(sim, num_articulations, device, add_ground_plane) -> None:
-    """Test initialization for articulation with a surface gripper.
-
-    This test verifies that:
-    1. The surface gripper is initialized correctly.
-    2. The command and state buffers have the correct shapes.
-    3. The command and state are initialized to the correct values.
-
-    Args:
-        num_articulations: The number of articulations to initialize.
-        device: The device to run the test on.
-        add_ground_plane: Whether to add a ground plane to the simulation.
-    """
-    if has_kit() and get_isaac_sim_version().major < 5:
-        return
-    surface_gripper_cfg, articulation_cfg = generate_surface_gripper_cfgs(kinematic_enabled=False)
-    surface_gripper, articulation, _ = generate_surface_gripper(
-        surface_gripper_cfg, articulation_cfg, num_articulations, device
-    )
-
-    sim.reset()
-
-    assert articulation.is_initialized
-    assert surface_gripper.is_initialized
-
-    # Check that the command and state buffers have the correct shapes
-    assert surface_gripper.command.shape == (num_articulations,)
-    assert surface_gripper.state.shape == (num_articulations,)
-
-    # Check that the command and state are initialized to the correct values
-    assert wp.to_torch(surface_gripper.command).item() == 0.0  # Idle command after a reset
-    assert wp.to_torch(surface_gripper.state).item() == -1.0  # Open state after a reset
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
-        surface_gripper.update(sim.cfg.dt)
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", ["cpu"])
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.isaacsim_ci
-@pytest.mark.skipif(
-    _RUNNING_CI,
-    reason="Isaac Sim SurfaceGripperView initialization can deadlock in CI; keep CUDA fail-fast coverage only.",
-)
 def test_close_and_open_command(sim, num_articulations, device, add_ground_plane) -> None:
     """Test that the close/open commands actually drive the surface gripper status.
 
@@ -245,8 +196,12 @@ def test_close_and_open_command(sim, num_articulations, device, add_ground_plane
 
     sim.reset()
 
+    assert articulation.is_initialized
     assert surface_gripper.is_initialized
-    # after a reset the gripper is open (-1.0)
+    assert surface_gripper.command.shape == (num_articulations,)
+    assert surface_gripper.state.shape == (num_articulations,)
+    # after a reset the gripper is idle (0.0) and open (-1.0)
+    assert torch.all(wp.to_torch(surface_gripper.command) == 0.0)
     assert torch.all(wp.to_torch(surface_gripper.state) == -1.0)
 
     # send a single close command (the action term is edge-triggered, so commands are sent once)
@@ -288,7 +243,7 @@ def test_raise_error_if_not_cpu(sim, device, add_ground_plane) -> None:
         surface_gripper_cfg, articulation_cfg, num_articulations, device
     )
 
-    with pytest.raises(Exception):
+    with pytest.raises(Exception, match="only supported on CPU"):
         sim.reset()
 
 

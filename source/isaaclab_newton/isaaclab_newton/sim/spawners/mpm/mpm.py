@@ -35,8 +35,8 @@ def spawn_mpm_particles(
     The asset root remains an ``Xform`` for normal Isaac Lab pose and cloning
     workflows. Explicit simulation points and their physics material are authored
     below it and imported by Newton during scene replication. The simulation
-    points stay invisible because :class:`~isaaclab_newton.assets.MPMObject`
-    maintains a separate mutable render cloud at ``<asset>/Particles``.
+    points stay invisible. A render cloud at ``<asset>/Particles`` is authored
+    alongside them so every backend clones the same declared geometry.
 
     Args:
         prim_path: Prim path or pattern at which to create the particle asset.
@@ -59,9 +59,9 @@ def spawn_mpm_particles(
         raise TypeError(f"Unsupported MPM particle spawner config type: {type(cfg).__name__}")
     cfg.spawn_path = prim_path
 
-    from pxr import Sdf, UsdGeom, UsdShade, Vt  # noqa: PLC0415
+    from pxr import Gf, Sdf, UsdGeom, UsdShade, Vt  # noqa: PLC0415
 
-    from isaaclab.sim.utils import get_current_stage  # noqa: PLC0415
+    from isaaclab.sim.utils import bind_visual_material, get_current_stage  # noqa: PLC0415
 
     stage = get_current_stage()
     scene_prim = _find_owning_mpm_scene(stage)
@@ -90,6 +90,21 @@ def spawn_mpm_particles(
     material = UsdShade.Material.Define(stage, f"{prim_path}{_PHYSICS_MATERIAL_SUFFIX}")
     _author_mpm_material(material.GetPrim(), cfg.material)
     UsdShade.MaterialBindingAPI.Apply(points_prim).Bind(material, materialPurpose="physics")
+    if cfg.visible:
+        visual_path = f"{prim_path}/Particles"
+        visual_points = UsdGeom.Points.Define(stage, visual_path)
+        visual_points.CreatePointsAttr(points.GetPointsAttr().Get())
+        visual_points.CreateWidthsAttr(points.GetWidthsAttr().Get())
+        visual_points.SetWidthsInterpolation(UsdGeom.Tokens.vertex)
+        visual_points.CreateDisplayColorAttr([Gf.Vec3f(*(float(value) for value in cfg.visual_color))])
+        visual_points.GetPrim().CreateAttribute("isaaclab:pointsUpdateFrequency", Sdf.ValueTypeNames.Int).Set(
+            cfg.visual_update_frequency
+        )
+        if cfg.visual_material is not None:
+            UsdGeom.Scope.Define(stage, f"{prim_path}/Looks")
+            material_path = f"{prim_path}/Looks/visualMaterial"
+            cfg.visual_material.func(material_path, cfg.visual_material)
+            bind_visual_material(visual_path, material_path, stage=stage)
     return root_prim
 
 

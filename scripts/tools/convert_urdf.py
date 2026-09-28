@@ -38,6 +38,7 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 import argparse
 
 from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, to_dict
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a URDF into USD format.")
@@ -104,7 +105,9 @@ if args_cli.require_kit and not AppLauncher.is_available():
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab.assets import AssetBaseCfg  # noqa: E402
 from isaaclab.physics import PhysicsCfg  # noqa: E402
+from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
@@ -131,10 +134,12 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
-    light_cfg = sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
-    light_cfg.func("/World/Light", light_cfg)
-    asset_cfg = sim_utils.UsdFileCfg(usd_path=usd_path)
-    asset_cfg.func("/World/ConvertedAsset", asset_cfg)
+    scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
+    scene_cfg.light = AssetBaseCfg(
+        prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
+    )
+    scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
+    _scene = instantiate(scene_cfg)
     sim.reset()
 
     # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
@@ -180,7 +185,7 @@ def main():
     print("-" * 80)
     print(f"Input URDF file: {urdf_path}")
     print("URDF importer config:")
-    print_dict(urdf_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(urdf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

@@ -1,6 +1,36 @@
 Changelog
 ---------
 
+2.0.3 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Migrated deformable storage to the shared ``TimestampedBuffer`` container and removed redundant
+  zero initialization from fully overwritten read caches.
+
+Fixed
+^^^^^
+
+* Accepted environment slices in :meth:`~isaaclab_contrib.assets.Multirotor.reset` and sized thruster
+  parameter resampling from the selected slice, so partial slice resets no longer fail.
+* Applied Newton's deferred capture lifecycle to coupled solvers and kept fixed MPM entries with
+  an unbounded active-cell partition eager. Set the entry's ``max_active_cell_count`` to a positive
+  capacity to enable capture for fixed grids.
+
+
+2.0.2 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Published deformable geometry through SDP using clone-plan paths and native particle ranges,
+  preserving nonconsecutive environment IDs, custom paths, and position writes between renders.
+  Removed the internal Fabric-sync helper; rendering consumers now bind through SDP.
+
+
 2.0.1 (2026-08-23)
 ~~~~~~~~~~~~~~~~~~
 

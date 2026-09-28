@@ -26,6 +26,7 @@ from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 HEALTHCARE_S3 = "https://omniverse-content-production.s3-us-west-2.amazonaws.com/Assets/Isaac/Healthcare/0.5.0/132c82d"
@@ -282,7 +283,7 @@ H1_CFG = ArticulationCfg(
 """Configuration for the Unitree H1 Humanoid robot."""
 
 
-H1_MINIMAL_CFG = H1_CFG.copy()
+H1_MINIMAL_CFG = clone(H1_CFG)
 H1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/H1/h1_minimal.usd"
 """Configuration for the Unitree H1 Humanoid robot with fewer collision meshes.
 
@@ -401,7 +402,7 @@ G1_CFG = ArticulationCfg(
 """Configuration for the Unitree G1 Humanoid robot."""
 
 
-G1_MINIMAL_CFG = G1_CFG.copy()
+G1_MINIMAL_CFG = clone(G1_CFG)
 G1_MINIMAL_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_minimal.usd"
 """Configuration for the Unitree G1 Humanoid robot with fewer collision meshes.
 
@@ -574,11 +575,11 @@ Key features:
 
 Usage examples:
     # For fixed base scenarios (upper body manipulation only)
-    fixed_base_cfg = G1_29DOF_CFG.copy()
+    fixed_base_cfg = clone(G1_29DOF_CFG)
     fixed_base_cfg.spawn.fix_root_link = True
 
     # For mobile scenarios (locomotion + manipulation)
-    mobile_cfg = G1_29DOF_CFG.copy()
+    mobile_cfg = clone(G1_29DOF_CFG)
     mobile_cfg.spawn.fix_root_link = False
 """
 
@@ -590,7 +591,7 @@ The merging code for the hand and robot can be found here: https://github.com/un
 Necessary modifications should be made to ensure the correct parent–child relationship.
 """
 # Inherit PD settings from G1_29DOF_CFG, with minor adjustments for grasping task
-G1_INSPIRE_FTP_CFG = G1_29DOF_CFG.copy()
+G1_INSPIRE_FTP_CFG = clone(G1_29DOF_CFG)
 G1_INSPIRE_FTP_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/Unitree/G1/g1_29dof_inspire_hand.usd"
 G1_INSPIRE_FTP_CFG.spawn.activate_contact_sensors = True
 G1_INSPIRE_FTP_CFG.spawn.rigid_props.disable_gravity = True

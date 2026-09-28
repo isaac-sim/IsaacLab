@@ -13,11 +13,12 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import index_fill_
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import RewardTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class RewardManager(ManagerBase):
@@ -49,9 +50,9 @@ class RewardManager(ManagerBase):
             env: The environment instance.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[RewardTermCfg] = list()
-        self._class_term_cfgs: list[RewardTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[RewardTermCfg] = []
+        self._class_term_cfgs: list[RewardTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -108,10 +109,8 @@ class RewardManager(ManagerBase):
         Returns:
             Dictionary of episodic sum of individual reward terms.
         """
-        # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        # store information
         extras = {}
         for key in self._episode_sums.keys():
             # store information
@@ -119,11 +118,10 @@ class RewardManager(ManagerBase):
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
             extras["Episode_Reward/" + key] = episodic_sum_avg / self._env.max_episode_length_s
             # reset episodic sum
-            self._episode_sums[key][env_ids] = 0.0
+            index_fill_(self._episode_sums[key], env_ids, 0.0)
         # reset all the reward terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, dt: float) -> torch.Tensor:

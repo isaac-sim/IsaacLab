@@ -79,26 +79,7 @@ def test_add_and_get_labels():
 
 
 def test_add_labels_with_overwrite():
-    """Test add_labels() function with overwriting existing labels."""
-    # get stage handle
-    stage = sim_utils.get_current_stage()
-    # create a test prim
-    prim = stage.DefinePrim("/test", "Xform")
-
-    # Add labels
-    sim_utils.add_labels(prim, ["label_a", "label_b"], instance_name="class")
-    sim_utils.add_labels(prim, ["shape_a"], instance_name="shape")
-
-    # Overwrite existing labels for a specific instance
-    sim_utils.add_labels(prim, ["replaced_label"], instance_name="class", overwrite=True)
-    labels_dict = sim_utils.get_labels(prim)
-    assert labels_dict["class"] == ["replaced_label"]
-    assert "shape" in labels_dict
-    assert labels_dict["shape"] == ["shape_a"]
-
-
-def test_add_labels_without_overwrite():
-    """Test add_labels() function without overwriting existing labels."""
+    """Test add_labels() appends without overwrite and replaces one instance with overwrite."""
     # get stage handle
     stage = sim_utils.get_current_stage()
     # create a test prim
@@ -112,6 +93,13 @@ def test_add_labels_without_overwrite():
     sim_utils.add_labels(prim, ["label_c"], instance_name="class", overwrite=False)
     labels_dict = sim_utils.get_labels(prim)
     assert sorted(labels_dict["class"]) == sorted(["label_a", "label_b", "label_c"])
+
+    # Overwrite existing labels for a specific instance
+    sim_utils.add_labels(prim, ["replaced_label"], instance_name="class", overwrite=True)
+    labels_dict = sim_utils.get_labels(prim)
+    assert labels_dict["class"] == ["replaced_label"]
+    assert "shape" in labels_dict
+    assert labels_dict["shape"] == ["shape_a"]
 
 
 def test_remove_all_labels():

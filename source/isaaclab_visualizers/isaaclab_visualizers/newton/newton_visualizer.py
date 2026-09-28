@@ -12,7 +12,9 @@ import logging
 import math
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import numpy as np  # noqa: F401 — used in type hints and colorization helpers
@@ -29,6 +31,7 @@ if __import__("sys").platform not in ("win32", "darwin") and not __import__("os"
     _pyglet_headless_init.options["headless"] = True
     del _pyglet_headless_init
 
+import newton
 from isaaclab_newton.physics import NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
@@ -54,6 +57,7 @@ from isaaclab.envs.utils.camera_view import (
 )
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton.newton_visualization_markers import render_newton_visualization_markers
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
@@ -104,6 +108,27 @@ class _MeshSubmission:
     metallic: float | None
     dynamic: bool
     opacity: float | None
+
+
+_NEWTON_ICON_DIR = Path(newton.__file__).parent / "_src" / "viewer" / "gl"
+
+
+def _apply_newton_icon(window) -> None:
+    """Set Newton's bundled icon on a ``ViewerRTX`` window, which unlike ``ViewerGL`` never sets one.
+
+    TODO(Newton): remove once ``ViewerRTX`` sets its own icon
+    (https://github.com/newton-physics/newton/issues/4321).
+    """
+    import pyglet
+
+    try:
+        images = [pyglet.image.load(str(_NEWTON_ICON_DIR / f"icon_{size}.png")) for size in (16, 32, 64)]
+    except (OSError, pyglet.util.DecodeException) as error:
+        logger.warning("Could not load Newton's bundled icon for the RTX viewer window: %s", error)
+        return
+    # Headless/EGL windows may not support icons.
+    with contextlib.suppress(Exception):
+        window.set_icon(*images)
 
 
 if TYPE_CHECKING:
@@ -717,6 +742,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
         super()._init_window()
+        _apply_newton_icon(self._window)
         # Disable imgui's automatic ini file I/O — the file would be written to the
         # current working directory (often the repo root), polluting it with
         # session-specific UI state and causing hard-to-diagnose bugs when a stale
@@ -778,6 +804,7 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
             self._patch_image_logger()
 
         self.register_ui_callback(self._render_training_controls, position="side")
+        self._close_requested = False
 
     def is_training_paused(self) -> bool:
         """Return whether simulation is paused by viewer controls."""
@@ -790,6 +817,16 @@ class NewtonViewerGL(_NewtonViewerUIMixin, ViewerGL):
         in-place, outside the Isaac Lab "Pause Rendering" button.
         """
         return self._paused
+
+    def request_close(self) -> None:
+        """Close the window once the current frame ends."""
+        self._close_requested = True
+
+    def end_frame(self) -> None:
+        """Finish the frame, then close the window if :meth:`request_close` was called."""
+        super().end_frame()
+        if self._close_requested:
+            self.renderer.close()
 
     def on_key_press(self, symbol, modifiers):
         """Forward key presses unless UI is currently capturing input."""
@@ -1368,6 +1405,19 @@ class NewtonVisualizer(BaseVisualizer):
         if not self._is_initialized or self._viewer is None:
             return False
         return self._viewer.is_rendering_paused()
+
+    def is_key_down(self, key: str) -> bool:
+        """Return whether a key is held in the viewer window.
+
+        Args:
+            key: Key name, such as ``"i"`` or ``"space"``.
+
+        Returns:
+            True if the viewer is open and the key is held, False otherwise.
+        """
+        if not self._is_initialized or self._viewer is None:
+            return False
+        return bool(self._viewer.is_key_down(key))
 
     def set_camera_view(
         self, eye: tuple[float, float, float] | list[float], target: tuple[float, float, float] | list[float]
@@ -2030,6 +2080,9 @@ class NewtonGLVisualizer(NewtonVisualizer):
                     entry.window_initialized = False
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerGL:
+        if not runtime_headless:
+            # pyglet sets WM_CLASS from the window caption, which ViewerGL defaults to "Newton".
+            write_desktop_entry("isaaclab-newton-gl-viewer", "Newton", "Newton", _NEWTON_ICON_DIR / "icon_64.png")
         return NewtonViewerGL(
             width=self.cfg.window_width,
             height=self.cfg.window_height,
@@ -2037,6 +2090,25 @@ class NewtonGLVisualizer(NewtonVisualizer):
             metadata=metadata,
             update_frequency=self.cfg.update_frequency,
         )
+
+    def register_ui_callback(self, callback: Callable[[Any], None], position: str = "side") -> None:
+        """Add a panel to the viewer's ImGui interface.
+
+        Args:
+            callback: Callable invoked with the ``imgui`` module every UI frame.
+            position: Newton viewer UI slot, such as ``"side"`` or ``"panel"``.
+        """
+        if self._viewer is not None:
+            self._viewer.register_ui_callback(callback, position=position)
+
+    def request_close(self) -> None:
+        """Close the viewer window once the current frame ends.
+
+        Safe to call from a UI callback, where closing immediately would destroy the GL context
+        mid-frame.
+        """
+        if self._viewer is not None:
+            self._viewer.request_close()
 
     def supports_live_plots(self) -> bool:
         """Newton GL supports live scalar/array plots via the ImGui sidebar."""
@@ -2323,6 +2395,11 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        if not runtime_headless:
+            # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
+            write_desktop_entry(
+                "isaaclab-newton-rtx-viewer", "Newton RTX Viewer", "Newton RTX Viewer", _NEWTON_ICON_DIR / "icon_64.png"
+            )
         return NewtonViewerRTX(
             width=self.cfg.window_width,
             height=self.cfg.window_height,

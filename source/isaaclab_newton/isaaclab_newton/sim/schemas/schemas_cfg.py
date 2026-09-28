@@ -682,9 +682,9 @@ class NewtonMaterialPropertiesCfg(RigidBodyMaterialBaseCfg):
 class MujocoFixedTendonCfg(FixedTendonFragment):
     """``mjc:*`` fixed-tendon attributes for a ``MjcTendon`` prim.
 
-    The Mujoco fixed-tendon fragment. Newton has no tendon solver; this models only the ``mjc:*``
-    tune path the Newton/Mujoco importer reads from a ``MjcTendon`` prim, carrying only the fields
-    that path maps. Overrides :attr:`func` with a custom applier
+    Newton's MuJoCo solver supports fixed tendons. This fragment tunes the spring stiffness and
+    damping read from a ``MjcTendon`` prim; limit response is configured separately in MuJoCo.
+    Overrides :attr:`func` with a custom applier
     (:func:`~isaaclab_newton.sim.schemas.apply_mujoco_fixed_tendon`) that gates on the ``MjcTendon``
     prim type. Can be combined with
     :class:`~isaaclab_physx.sim.schemas.PhysxTendonAxisRootCfg` in the same fragment list passed to

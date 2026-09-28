@@ -17,7 +17,7 @@ from isaaclab.managers import (
 )
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
 import isaaclab_tasks.core.velocity.mdp as mdp
@@ -43,9 +43,10 @@ class DigitPhysicsCfg(PresetCfg):
     # ``class_type`` is reset to ``None`` because ``NewtonCfg.__post_init__`` re-derives it from
     # ``solver_cfg`` and refuses an explicit value -- ``replace()`` would otherwise carry the
     # already-derived value from the source instance forward as one.
-    newton_mjwarp = _ROUGH_NEWTON_MJWARP.replace(
+    newton_mjwarp = replace(
+        _ROUGH_NEWTON_MJWARP,
         class_type=None,
-        solver_cfg=_ROUGH_NEWTON_MJWARP.solver_cfg.replace(njmax=5000, nconmax=2000),
+        solver_cfg=replace(_ROUGH_NEWTON_MJWARP.solver_cfg, njmax=5000, nconmax=2000),
     )
     default = isaacsim_physx
 
@@ -255,7 +256,7 @@ class DigitRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = DIGIT_V4_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(DIGIT_V4_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_base"
         self.scene.contact_forces.history_length = self.decimation
         self.scene.contact_forces.update_period = self.sim.dt

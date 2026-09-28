@@ -29,6 +29,8 @@ class NewtonWarpRendererCfg(RendererCfg):
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
 
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
     enable_textures: bool = True
     """Enable texture-mapped rendering for meshes."""
 

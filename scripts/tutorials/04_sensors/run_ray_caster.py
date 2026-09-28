@@ -75,9 +75,9 @@ def design_scene() -> dict:
         prim_path="/World/Origin.*/ball",
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
     )
@@ -119,7 +119,9 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         # Update the ray-caster
         with Timer(
             f"Ray-caster update with {4} x {ray_caster.num_rays} rays with max height of"
-            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}"
+            f" {torch.max(ray_caster.data.pos_w.torch).item():.2f}",
+            synchronize="both",
+            device=sim.device,
         ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter

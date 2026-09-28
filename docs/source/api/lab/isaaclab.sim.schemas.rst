@@ -280,10 +280,19 @@ Tendon
 .. autofunction:: modify_fixed_tendon_properties
 .. autofunction:: modify_spatial_tendon_properties
 
-Tendon cfg classes are PhysX-only and live in
-:mod:`isaaclab_physx.sim.schemas`
-(:class:`~isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg`,
-:class:`~isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg`).
+PhysX tendon schemas are configured through :mod:`isaaclab_physx.sim.schemas`.
+Newton's MuJoCo solver also supports tendons;
+:class:`~isaaclab_newton.sim.schemas.MujocoFixedTendonCfg` tunes fixed-tendon spring stiffness and damping.
+
+Position limits specify a range of the accumulated tendon coordinate on both backends. Their force response
+uses different parameters: PhysX uses force stiffness and shares tendon damping with the limit, while
+MuJoCo uses separate ``solreflimit`` and ``solimplimit`` parameters. Newton already
+`converts force gains for joint limits
+<https://github.com/newton-physics/newton/blob/v1.6.0/newton/_src/solvers/mujoco/kernels.py#L2622-L2732>`_
+using inverse inertia and impedance. The corresponding tendon conversion is not implemented, so Isaac Lab's
+shared tendon limit-stiffness API still raises :class:`NotImplementedError`. This is an implementation gap;
+MuJoCo supports stiffness/damping through its
+`solver parameters <https://mujoco.readthedocs.io/en/stable/modeling.html#reference>`_.
 
 Deformable Body
 ---------------

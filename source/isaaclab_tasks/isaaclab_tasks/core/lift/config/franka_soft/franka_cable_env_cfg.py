@@ -20,7 +20,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -63,7 +63,7 @@ class PhysicsCfg(PresetCfg):
                     name="rigid",
                     solver_cfg=MJWarpSolverCfg(
                         cone="elliptic",
-                        ls_iterations=20,
+                        ls_iterations=50,
                         integrator="implicitfast",
                     ),
                     bodies=[r"/World/envs/env_.*/Robot"],
@@ -113,8 +113,8 @@ class FrankaCableSceneCfg(soft.FrankaSoftBaseSceneCfg):
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=soft.TABLE_SPAWN_CFG.replace(
-            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
+        spawn=replace(
+            soft.TABLE_SPAWN_CFG, physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01)
         ),
     )
 
@@ -186,11 +186,15 @@ class CommandsCfg:
         success_visualizer_cfg=VisualizationMarkersCfg(
             prim_path="/Visuals/SuccessMarkers",
             markers={
-                "failure": soft.TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)), visible=True
+                "failure": replace(
+                    soft.TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+                    visible=True,
                 ),
-                "success": soft.TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)), visible=True
+                "success": replace(
+                    soft.TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
+                    visible=True,
                 ),
             },
         ),

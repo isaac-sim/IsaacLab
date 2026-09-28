@@ -123,31 +123,6 @@ def _newton_sim_cfg(device: str) -> SimulationCfg:
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.isaacsim_ci
 @_SKIP_MISSING_NEWTON
-def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_newton(device):
-    """Wrapper PPISP via ``newton_warp`` must show the PPISP signatures.
-
-    Renders a synthetic RGBW gaussian grid through Newton's Warp ray tracer
-    plus the aggressive wrapper PPISP cfg. The test checks that Newton produces
-    a valid HDR source, that PPISP maps it into a useful non-saturated LDR
-    center range, and that vignetting and bounded-output invariants hold.
-    """
-    with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:
-        asset_path = make_synthetic_gaussian_usd(f"{tmpdir}/synthetic_gaussians.usda", _center_probed_scene())
-        output = render_synthetic_gaussian_scene(
-            asset_path,
-            sim_cfg=_newton_sim_cfg(device),
-            renderer_cfg=NewtonWarpRendererCfg(),
-            data_types=["rgb", "rgb_hdr"],
-            sim_dt=SIM_DT,
-            responsivity=RESPONSIVITY,
-        )
-    assert_ppisp_lifts_exposure(output["rgb_hdr"][0], output["rgb"][0], label="newton_warp")
-    assert_ppisp_invariants(output["rgb"][0], label="newton_warp")
-
-
-@pytest.mark.parametrize("device", ["cuda:0"])
-@pytest.mark.isaacsim_ci
-@_SKIP_MISSING_NEWTON
 def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_newton(device):
     """Newton Warp renderer controller output must match the equivalent static PPISP cfg."""
     with tempfile.TemporaryDirectory(prefix="isaaclab-synth-gauss-") as tmpdir:

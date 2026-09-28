@@ -1,6 +1,118 @@
 Changelog
 ---------
 
+7.2.5 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used timestamped buffers for native pose/geometry reads and Fabric geometry destinations,
+  retaining native geometry batches across reads and preserving rendering cadence.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Allocated articulation Jacobian, mass-matrix, and gravity-compensation outputs only when
+  requested, retaining native views when no reordering was required. With CUDA memory pools
+  disabled, access these quantities before graph capture.
+
+Fixed
+^^^^^
+
+* Accepted partial environment slices at indexed asset write boundaries using views of cached device
+  indices, without creating or uploading host index lists.
+* Shared pending kinematic refresh between articulation and scene-data reads so one state write
+  did not trigger redundant FK for separate consumers.
+* Fixed PVA and contact-sensor diagnostic timings to measure device-synchronized update durations.
+  Contact-sensor samples were recorded after synchronization rather than while GPU work could still be pending.
+
+
+7.2.4 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized PhysX deformable publications from clone-plan paths and unpadded node counts,
+  including partially replicated assets and shared geometry, without completed-stage discovery.
+* Published native padded nodal views and Fabric points through SDP. Moved foreign geometry updates
+  into the shared Fabric resource, including same-step position changes and MPM render cadence.
+* Removed redundant native Fabric geometry requests, preserving standalone rendering without a clone plan.
+* Converted foreign mesh geometry directly into GPU Fabric destinations. Routed Points and
+  BasisCurves through CPU Fabric for Hydra without USD point writes, transferring only due geometry.
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_mask` rejecting position limits in
+  the layout the asset stores and reports them in. They now take ``wp.vec2f`` arrays of shape
+  (num_envs, num_fixed_tendons), or torch tensors with a trailing dimension of 2, like the joint position limits.
+* Corrected tendon configuration documentation that incorrectly described tendons as a PhysX-only feature.
+
+
+7.2.3 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``body_ids`` argument of the :class:`~isaaclab_physx.assets.RigidObjectCollection` mask writers
+  listed above. Pass a boolean ``body_mask`` of shape (num_bodies,) instead, or use the ``*_index`` writers with
+  ``body_ids``.
+
+Fixed
+^^^^^
+
+* Avoided repeated Isaac RTX render-update checks by checking once per camera batch before
+  extracting each camera's annotator outputs.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_velocity_to_sim_mask`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_velocity_to_sim_mask` not accepting the
+  ``body_mask`` argument that the base class and the other backends declare.
+
+
+7.2.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`, so a wrench that is
+  already local-frame, or already global-frame at the center of mass, is sent to PhysX without
+  reading the body transforms.
+* Published PhysX rigid transforms and their producer-owned version through SDP, and routed Isaac RTX
+  transform updates through one simulation-owned ``FabricBackend`` shared with Kit while preserving
+  native PhysX Fabric updates. Stage/device identified the resource; transforms remained binding state,
+  with SDP passed explicitly to updates. Fabric selection and hierarchy state moved out of core ``RenderContext``.
+  Kit app updates requested current SDP transforms without an additional physics ``forward()`` call.
+
+Fixed
+^^^^^
+
+* Fixed joint-wrench sensors applying an extra frame transformation to PhysX readings, which already used
+  the child-side joint frame and anchor. Removed the redundant USD frame buffers. Force and torque values
+  changed for joints with non-identity child frames; the sensor's documented frame convention was preserved.
+* Replaced circular frame-conversion checks with a shared Newton/PhysX integration test using a known mass,
+  gravity, and lever arm to calculate the expected nonzero wrench independently.
+
+
+7.2.1 (2026-09-22)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Applied runtime camera calibration directly to Fabric columns with Warp, removing per-camera USD
+  writes and matrix-batch host transfers. Cached camera selections were released with render data.
+  Compiled the write kernel on first use, avoiding its compilation during camera initialization.
+  This did not change the native RTX tiled renderer's restrictions on independent view projections.
+* Released Fabric camera tags on stop and restored authored calibration on reinitialization so
+  rendered projections matched the reported intrinsic matrices after stop/reset.
+
+Fixed
+^^^^^
+
+* Fixed PhysX ``FrameTransformer`` reusing the last offset when distinct bodies
+  share the same implicit frame name.
+
+
 7.2.0 (2026-09-21)
 ~~~~~~~~~~~~~~~~~~
 

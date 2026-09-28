@@ -264,11 +264,6 @@ class NewtonMPMManager(NewtonManager):
         cls._project_outside_colliders = solver_cfg.project_outside_colliders
 
     @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Capture MPM only after the task authors its initial particle state."""
-        return True
-
-    @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
         """Return whether the active MPM grid has capture-stable storage."""
         return cls._solver_supports_cuda_graph_capture(cls._solver)
@@ -277,7 +272,8 @@ class NewtonMPMManager(NewtonManager):
     def _solver_supports_cuda_graph_capture(solver: SolverImplicitMPM) -> bool:
         """Return whether an implicit-MPM solver satisfies Newton's capture contract."""
         if solver.grid_type == "fixed":
-            return True
+            # An unbounded active partition reads its cell count back to the CPU on every step.
+            return solver.max_active_cell_count > 0
         if solver.grid_type != "sparse":
             return False
 

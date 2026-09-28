@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.string import _resolve_matching_values_dense
+from ..utils.string import _resolve_matching_values_dense
 
 from .actuator_base_cfg import _is_implicit_actuator_cfg
 

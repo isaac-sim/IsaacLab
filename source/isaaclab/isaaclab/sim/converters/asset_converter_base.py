@@ -13,9 +13,10 @@ import random
 import tempfile
 from datetime import datetime
 
-from isaaclab.sim.converters.asset_converter_base_cfg import AssetConverterBaseCfg
-from isaaclab.utils.assets import check_file_path
-from isaaclab.utils.io import dump_yaml
+from ...utils import to_dict, validate
+from ...utils.assets import check_file_path
+from ...utils.io import dump_yaml
+from .asset_converter_base_cfg import AssetConverterBaseCfg
 
 logger = logging.getLogger(__name__)
 
@@ -60,7 +61,7 @@ class AssetConverterBase(abc.ABC):
             ValueError: When provided asset file does not exist.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # check if the asset file exists
         if not check_file_path(cfg.asset_path):
             raise ValueError(f"The asset path does not exist: {cfg.asset_path}")
@@ -86,15 +87,11 @@ class AssetConverterBase(abc.ABC):
         else:
             self._usd_file_name = usd_file_name
 
-        # create the USD directory
         os.makedirs(self.usd_dir, exist_ok=True)
-        # check if usd files exist
         self._usd_file_exists = os.path.isfile(self.usd_path)
         # path to read/write asset hash file
         self._dest_hash_path = os.path.join(self.usd_dir, ".asset_hash")
-        # create asset hash to check if the asset has changed
         self._asset_hash = self._config_to_hash(cfg)
-        # read the saved hash
         try:
             with open(self._dest_hash_path) as f:
                 existing_asset_hash = f.readline()
@@ -114,7 +111,7 @@ class AssetConverterBase(abc.ABC):
             with open(self._dest_hash_path, "w") as f:
                 f.write(self._asset_hash)
             # dump the configuration to a file
-            dump_yaml(os.path.join(self.usd_dir, "config.yaml"), cfg.to_dict())
+            dump_yaml(os.path.join(self.usd_dir, "config.yaml"), to_dict(cfg))
             # add comment to top of the saved config file with information about the converter
             current_date = datetime.now().strftime("%Y-%m-%d")
             current_time = datetime.now().strftime("%H:%M:%S")
@@ -223,7 +220,7 @@ class AssetConverterBase(abc.ABC):
         """
 
         # convert to dict and remove path related info
-        config_dic = cfg.to_dict()
+        config_dic = to_dict(cfg)
         _ = config_dic.pop("asset_path")
         _ = config_dic.pop("usd_dir")
         _ = config_dic.pop("usd_file_name")

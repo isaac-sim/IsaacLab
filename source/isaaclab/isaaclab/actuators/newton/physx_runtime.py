@@ -17,7 +17,7 @@ from .adapter import NewtonActuatorAdapter, build_implicit_dof_mask
 from .physx_wrapper import PhysxActuatorWrapper
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
+    from .. import ActuatorCollection
 
 
 class PhysxActuatorRuntime:
