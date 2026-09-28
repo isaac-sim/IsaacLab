@@ -17,7 +17,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims, _resave_checkpoint_with_metadata
+from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, resave_checkpoint_with_metadata
 from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
@@ -66,7 +66,7 @@ def _make_actuator_stage() -> Usd.Stage:
     for joint, body in zip(joints, bodies, strict=True):
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
 
-    _author_actuator_prims(
+    author_actuator_prims(
         stage,
         "/World/Robot",
         {
@@ -127,7 +127,7 @@ def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, t
     monkeypatch.setattr("isaaclab.utils.assets.retrieve_file_path", lambda _: str(checkpoint_path))
 
     with pytest.raises(ValueError, match="expected a TorchScript archive"):
-        _resave_checkpoint_with_metadata(str(checkpoint_path), {})
+        resave_checkpoint_with_metadata(str(checkpoint_path), {})
 
     assert not marker_path.exists()
 
@@ -196,7 +196,7 @@ def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, 
         max_delay=0,
     )
 
-    _author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
+    author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
 
     for joint_name, expected_limit in zip(("pd_a", "pd_b"), expected_limits, strict=True):
         actuator_prim = stage.GetPrimAtPath(f"/World/Robot/fallback_{joint_name}_actuator")
@@ -221,7 +221,7 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
     )
 
     with pytest.raises(ValueError):
-        _author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
+        author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
 
 
 @pytest.mark.parametrize(
@@ -259,7 +259,7 @@ def test_schema_authoring_rejects_unsupported_explicit_cfg_before_removal(group_
     actuator_path = "/World/Robot/pd_a_pd_a_actuator"
 
     with pytest.raises(ValueError, match=rf"{group_name}.*{type(cfg).__name__}.*use_newton_actuators"):
-        _author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
+        author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
 
     assert stage.GetPrimAtPath(actuator_path).IsValid()
 
@@ -277,6 +277,6 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
         saturation_effort=4.0,
     )
 
-    _author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
+    author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
 
     assert stage.GetPrimAtPath("/World/Robot/public_alias_pd_a_actuator").IsValid()

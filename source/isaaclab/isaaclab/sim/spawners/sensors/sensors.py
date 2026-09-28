@@ -99,8 +99,8 @@ def _author_opencv_distortion(prim: Usd.Prim, cfg: sensors_cfg.OpenCvDistortionC
         Sdf.ValueTypeNames.Int2,
         Gf.Vec2i(int(cfg.image_size[0]), int(cfg.image_size[1])),
     )
-    for name in ("fx", "fy", "cx", "cy"):
-        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(getattr(cfg, name)))
+    for name, value in (("fx", cfg.fx), ("fy", cfg.fy), ("cx", cfg.cx), ("cy", cfg.cy)):
+        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(value))
     # coefficients are muted (authored as zero) unless apply_lens_distortion is set
     for name in _OPENCV_DISTORTION_COEFFS[cfg.model]:
         value = float(getattr(cfg, name)) if cfg.apply_lens_distortion else 0.0
@@ -142,12 +142,7 @@ def spawn_camera(
         ValueError: If a prim already exists at the given path.
     """
     stage = get_current_stage()
-
-    # spawn camera if it doesn't exist.
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
+    prim = create_prim(prim_path, "Camera", translation=translation, orientation=orientation, stage=stage)
 
     # lock camera from viewport (this disables viewport movement for camera)
     if cfg.lock_camera:
@@ -179,10 +174,7 @@ def spawn_camera(
         "spawn_path",
         "distortion",
     ]
-    # get camera prim
-    prim = stage.GetPrimAtPath(prim_path)
-    # create attributes for the fisheye camera model
-    # note: for pinhole those are already part of the USD camera prim
+    # custom camera-model attributes are not part of the USD camera schema and must be created first
     for attr_name, attr_type in attribute_types.values():
         if prim.GetAttribute(attr_name).Get() is None:
             prim.CreateAttribute(attr_name, attr_type)
@@ -194,7 +186,7 @@ def spawn_camera(
         else:
             prim_prop_name = to_camel_case(param_name, to="cC")
         prim.GetAttribute(prim_prop_name).Set(param_value)
-    # author the OpenCV lens-distortion model (renderer-agnostic; RTX/OVRTX honors it natively)
+    # the OpenCV lens-distortion model is renderer-agnostic; RTX/OVRTX honors it natively
     if cfg.distortion is not None:
         _author_opencv_distortion(prim, cfg.distortion)
     return prim
@@ -229,15 +221,4 @@ def spawn_sensor_frame(
     Raises:
         ValueError: If a prim already exists at the given path.
     """
-    stage = get_current_stage()
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        prim = create_prim(
-            prim_path,
-            "Xform",
-            translation=translation,
-            orientation=orientation,
-            stage=stage,
-        )
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-    return prim
+    return create_prim(prim_path, "Xform", translation=translation, orientation=orientation)

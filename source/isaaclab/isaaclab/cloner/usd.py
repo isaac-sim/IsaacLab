@@ -10,8 +10,8 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ._fabric_notices import disabled_fabric_change_notifies
 from .clone_plan import path as cloner_path
+from .fabric_notices import disabled_fabric_change_notifies
 
 if TYPE_CHECKING:
     from pxr import Usd
