@@ -54,6 +54,13 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
+        # start with unset callback handles so cleanup is safe if construction fails part way
+        self._initialize_handle = None
+        self._invalidate_initialize_handle = None
+        self._prim_deletion_handle = None
+        # handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        self._debug_vis_handle = None
+
         validate(cfg)
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         self.cfg = clone(cfg)
@@ -62,9 +69,6 @@ class SensorBase(ABC):
         self.stage = sim_utils.get_current_stage()
 
         self._register_callbacks()
-
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
-        self._debug_vis_handle = None
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self, _sys=sys):
@@ -169,13 +173,7 @@ class SensorBase(ABC):
                 if sim_ctx is not None:
                     self._debug_vis_handle = sim_ctx.vis_marker_registry.add_debug_vis_callback(self)
         else:
-            # remove the subscriber if it exists
-            sim_ctx = sim_utils.SimulationContext.instance()
-            if sim_ctx is not None:
-                sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-            else:
-                self._debug_vis_handle = None
-        # return success
+            self._clear_debug_vis_handle()
         return True
 
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None) -> None:
@@ -377,11 +375,7 @@ class SensorBase(ABC):
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""
         self._is_initialized = False
-        sim_ctx = sim_utils.SimulationContext.instance()
-        if sim_ctx is not None:
-            sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)
-        else:
-            self._debug_vis_handle = None
+        self._clear_debug_vis_handle()
 
     def _on_prim_deletion(self, event) -> None:
         """Invalidates and deletes the callbacks when the prim is deleted.
@@ -393,10 +387,7 @@ class SensorBase(ABC):
             This function is called when the prim is deleted.
         """
         prim_path = event.payload["prim_path"]
-        if prim_path == "/":
-            self._clear_callbacks()
-            return
-        if sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
+        if prim_path == "/" or sim_utils.matches_path_expr_prefix(self.cfg.prim_path, prim_path):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
@@ -411,6 +402,10 @@ class SensorBase(ABC):
             self._prim_deletion_handle.deregister()
             self._prim_deletion_handle = None
         # Clear debug visualization
+        self._clear_debug_vis_handle()
+
+    def _clear_debug_vis_handle(self) -> None:
+        """Removes the debug visualization subscriber, if any."""
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None:
             sim_ctx.vis_marker_registry.clear_debug_vis_callback(self)

@@ -233,7 +233,10 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if not force and not sim.is_rendering:
         return
 
-    sim.get_or_create_backend(sim.fabric_cfg).update_transforms(sim.get_scene_data_provider())
+    from .fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+    fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+    fabric.update_transforms(sim.get_scene_data_provider())
 
     import omni.kit.app
 

@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sensors import (
     LegacyMultiMeshRayCaster,
@@ -136,11 +136,12 @@ def test_rays_hit_ground_plane(sim, generic_cfg):
     The generic row uses the backend-dispatching :class:`RayCasterCfg` with ``global_world_only=True``,
     which must select the Newton BVH implementation.
     """
+    # Another consumer may acquire the shared builder before this sensor is constructed.
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     scene_cfg = GenericRaycastTestSceneCfg(num_envs=2) if generic_cfg else RaycastTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
-    assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
-    assert NewtonManager._builder.default_bvh_cfg.shape_flags == expected_bvh_flags
+    assert builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)
 
@@ -261,50 +262,55 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
     )
 
 
-def test_renderer_and_raycast_share_newton_manager_graph(sim):
-    """Shared graph replay preserves camera depth, clipping, and ray hits after a pose write."""
+def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
+    """Independent queries preserve depth, clipping, and ray hits across pose writes and hard resets."""
     cfg = RaycastCameraSceneCfg(num_envs=1)
+    cfg.raycast.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    cfg.camera.renderer_cfg.use_cuda_graph = sim.cfg.physics.use_cuda_graph
     cfg.camera.update_latest_camera_pose = True
     cfg.camera.renderer_cfg.depth_clipping_behavior = "max" if sim.cfg.physics.use_cuda_graph else "none"
     scene = InteractiveScene(cfg)
-    sim.reset()
-    sim.step()
-    scene.update(sim.get_physics_dt())
-
-    camera = scene["camera"]
-    matrix = camera.data.intrinsic_matrices.torch[0]
     y, x = torch.meshgrid(
         torch.arange(cfg.camera.height, device=sim.device),
         torch.arange(cfg.camera.width, device=sim.device),
         indexing="ij",
     )
-    ray_length = torch.sqrt(
-        1 + ((x + 0.5 - matrix[0, 2]) / matrix[0, 0]) ** 2 + ((y + 0.5 - matrix[1, 2]) / matrix[1, 1]) ** 2
-    )
     far_clip = cfg.camera.spawn.clipping_range[1]
     background = far_clip if cfg.camera.renderer_cfg.depth_clipping_behavior == "max" else 0.0
-    for height in (RAY_START_HEIGHT, RAY_START_HEIGHT + 0.1):
-        carrier = scene["sensor_body"]
-        pose = carrier.data.root_link_pose_w.torch.clone()
-        pose[:, 2] = height + RAY_OFFSET
-        carrier.write_root_pose_to_sim_index(root_pose=pose)
+    for _ in range(2):
+        sim.reset()
         sim.step()
         scene.update(sim.get_physics_dt())
 
-        # A downward camera sees constant planar depth; oblique rays travel farther to the ground.
-        expected_ray = height * ray_length
-        hit = expected_ray < far_clip
-        assert hit.any() and (~hit).any()
-        expected_plane = torch.where(hit, height, background)
-        expected_ray = torch.where(hit, expected_ray, background)
-        outputs = camera.data.output
-        for name in ("depth", "distance_to_image_plane"):
-            torch.testing.assert_close(outputs[name].torch[0, ..., 0], expected_plane, atol=1e-5, rtol=1e-5)
-        torch.testing.assert_close(outputs["distance_to_camera"].torch[0, ..., 0], expected_ray, atol=1e-5, rtol=1e-5)
-        distances = scene["raycast"].data.ray_distances.torch
-        torch.testing.assert_close(distances, torch.full_like(distances, height), atol=1e-3, rtol=0)
+        camera = scene["camera"]
+        matrix = camera.data.intrinsic_matrices.torch[0]
+        ray_length = torch.sqrt(
+            1 + ((x + 0.5 - matrix[0, 2]) / matrix[0, 0]) ** 2 + ((y + 0.5 - matrix[1, 2]) / matrix[1, 1]) ** 2
+        )
+        for height in (RAY_START_HEIGHT, RAY_START_HEIGHT + 0.1):
+            carrier = scene["sensor_body"]
+            pose = carrier.data.root_link_pose_w.torch.clone()
+            pose[:, 2] = height + RAY_OFFSET
+            carrier.write_root_pose_to_sim_index(root_pose=pose)
+            sim.step()
+            scene.update(sim.get_physics_dt())
 
-    task_names = sorted(NewtonManager._sensor_tasks)
-    assert any(name.startswith("newton_raycast:") for name in task_names)
-    assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert (NewtonManager._sensor_graph is not None) == sim.cfg.physics.use_cuda_graph
+            # A downward camera sees constant planar depth; oblique rays travel farther to the ground.
+            expected_ray = height * ray_length
+            hit = expected_ray < far_clip
+            assert hit.any() and (~hit).any()
+            expected_plane = torch.where(hit, height, background)
+            expected_ray = torch.where(hit, expected_ray, background)
+            outputs = camera.data.output
+            for name in ("depth", "distance_to_image_plane"):
+                torch.testing.assert_close(outputs[name].torch[0, ..., 0], expected_plane, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(
+                outputs["distance_to_camera"].torch[0, ..., 0], expected_ray, atol=1e-5, rtol=1e-5
+            )
+            distances = scene["raycast"].data.ray_distances.torch
+            torch.testing.assert_close(distances, torch.full_like(distances, height), atol=1e-3, rtol=0)
+
+        camera, raycast = scene["camera"], scene["raycast"]
+        assert camera._renderer.backend is raycast.backend is NewtonManager.backend
+        assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
+        assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph

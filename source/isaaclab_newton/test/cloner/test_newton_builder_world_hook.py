@@ -21,7 +21,7 @@ from pxr import Sdf, Usd, UsdGeom, UsdLux, UsdPhysics, UsdShade
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
-from isaaclab.sim import SimulationCfg, SpawnerCfg, build_simulation_context
+from isaaclab.sim import SimulationCfg, SimulationContext, SpawnerCfg, build_simulation_context
 
 replicate_module = importlib.import_module("isaaclab_newton.cloner.replicate")
 
@@ -117,24 +117,22 @@ def test_explicit_global_import_uses_global_world(
         _get_usd_import_schema_resolvers=NewtonManager._get_usd_import_schema_resolvers,
         _inject_terrain_heightfields=mock.Mock(return_value=[]),
     )
-    monkeypatch.setattr(
-        replicate_module.PhysicsManager,
-        "_sim",
-        SimpleNamespace(
-            physics_manager=manager,
-            device="cpu",
-            cfg=SimpleNamespace(
-                physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene"
-            ),
-            is_rendering=is_rendering,
-            can_render_rgb_array=lambda: rgb_array,
-            visual_shapes_required=visual_shapes_required,
+    sim = SimpleNamespace(
+        physics_manager=manager,
+        device="cpu",
+        cfg=SimpleNamespace(
+            physics=NewtonCfg(load_visual_shapes=load_visual_shapes), physics_prim_path="/physicsScene", device="cpu"
         ),
+        is_rendering=is_rendering,
+        can_render_rgb_array=lambda: rgb_array,
+        visual_shapes_required=visual_shapes_required,
+        _backend_registry=[],
     )
+    sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
+    monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
     monkeypatch.setattr(replicate_module.NewtonManager, "_cl_inject_sites", mock.Mock(return_value=({}, {}, {})))
     monkeypatch.setattr(NewtonManager, "_per_world_builder_hooks", ())
-    monkeypatch.setattr(NewtonManager, "_builder", None)
     monkeypatch.setattr(NewtonManager, "_cl_site_index_map", {})
     monkeypatch.setattr(NewtonManager, "_world_xforms", None)
     monkeypatch.setattr(NewtonManager, "_cl_protos", {})

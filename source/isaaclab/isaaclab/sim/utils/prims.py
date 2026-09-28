@@ -144,14 +144,15 @@ def create_prim(
     if stage.GetPrimAtPath(prim_path).IsValid():
         raise ValueError(f"A prim already exists at path: '{prim_path}'.")
 
-    prim = stage.DefinePrim(prim_path, prim_type)
+    if usd_path is None:
+        prim = stage.DefinePrim(prim_path, prim_type)
+    else:
+        prim = add_usd_reference(prim_path=prim_path, usd_path=usd_path, prim_type=prim_type, stage=stage)
     if not prim.IsValid():
         raise ValueError(f"Failed to create prim at path: '{prim_path}' of type: '{prim_type}'.")
     if attributes is not None:
         for k, v in attributes.items():
             prim.GetAttribute(k).Set(v)
-    if usd_path is not None:
-        add_usd_reference(prim_path=prim_path, usd_path=usd_path, stage=stage)
     if semantic_label is not None:
         add_labels(prim, labels=[semantic_label], instance_name=semantic_type)
 
@@ -898,9 +899,7 @@ def add_usd_reference(
     This function adds a reference to an external USD file at the specified prim path on the provided stage.
     If the prim does not exist, it will be created with the specified type.
 
-    The function also handles stage units verification to ensure compatibility. For instance,
-    if the current stage is in meters and the referenced USD file is in centimeters, the function will
-    convert the units to match. This is done using the :mod:`omni.metrics.assembler` functionality.
+    The file is localized in the stage's resolver context before any prim is authored.
 
     Args:
         prim_path: The prim path where the reference will be attached.
@@ -915,23 +914,20 @@ def add_usd_reference(
         FileNotFoundError: When the input USD file is not found at the specified path.
         RuntimeError: When retrieving the file or adding the USD reference fails.
     """
-    usd_path = retrieve_file_path(usd_path)
+    from pxr import Ar  # noqa: PLC0415
 
     stage = get_current_stage() if stage is None else stage
+    with Ar.ResolverContextBinder(stage.GetPathResolverContext()):
+        usd_path = retrieve_file_path(usd_path)
     prim = stage.GetPrimAtPath(prim_path)
     if not prim.IsValid():
         prim = stage.DefinePrim(prim_path, prim_type)
 
-    def _add_reference_to_prim(prim: Usd.Prim) -> Usd.Prim:
-        """Helper function to add a reference to a prim."""
-        success_bool = prim.GetReferences().AddReference(usd_path)
-        if not success_bool:
-            raise RuntimeError(
-                f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
-            )
-        return prim
-
-    return _add_reference_to_prim(prim)
+    if not prim.GetReferences().AddReference(usd_path):
+        raise RuntimeError(
+            f"Unable to add USD reference to the prim at path: {prim_path} from the USD file at path: {usd_path}"
+        )
+    return prim
 
 
 def get_usd_references(prim_path: str, stage: Usd.Stage | None = None) -> list[str]:

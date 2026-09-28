@@ -139,11 +139,7 @@ class OperationalSpaceController:
         # -- -- zero out the axes that are not motion controlled, as keeping them non-zero will cause other axes
         # -- -- to act due to coupling
         self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-        self._motion_d_gains_task = torch.diag_embed(
-            2
-            * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-            * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(1, -1)
-        )
+        self._motion_d_gains_task = self._critically_damped_gains(self._cfg_motion_damping_ratio())
         # -- -- motion control gains in root frame
         self._motion_p_gains_b = torch.zeros_like(self._motion_p_gains_task)
         self._motion_d_gains_b = torch.zeros_like(self._motion_d_gains_task)
@@ -287,13 +283,7 @@ class OperationalSpaceController:
             self._task_space_target_task[:] = task_space_command.squeeze(dim=-1)
             self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
             self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task[:] = torch.diag_embed(
-                2
-                * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt()
-                * torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device).reshape(
-                    1, -1
-                )
-            )
+            self._motion_d_gains_task[:] = self._critically_damped_gains(self._cfg_motion_damping_ratio())
         elif self.cfg.impedance_mode == "variable":
             # split input command
             task_space_command, stiffness, damping_ratio = torch.split(command, [self.target_dim, 6, 6], dim=-1)
@@ -308,9 +298,7 @@ class OperationalSpaceController:
             self._task_space_target_task[:] = task_space_command
             self._motion_p_gains_task[:] = torch.diag_embed(stiffness)
             self._motion_p_gains_task[:] = self._selection_matrix_motion_task @ self._motion_p_gains_task[:]
-            self._motion_d_gains_task[:] = torch.diag_embed(
-                2 * torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1).sqrt() * damping_ratio
-            )
+            self._motion_d_gains_task[:] = self._critically_damped_gains(damping_ratio)
         else:
             raise ValueError(f"Invalid impedance mode: {self.cfg.impedance_mode}.")
 
@@ -581,3 +569,24 @@ class OperationalSpaceController:
             joint_efforts += tau_null.squeeze(-1)
 
         return joint_efforts
+
+    """
+    Helper functions.
+    """
+
+    def _cfg_motion_damping_ratio(self) -> torch.Tensor:
+        """Return the configured task-space damping ratio in shape (1, 6)."""
+        damping_ratio = torch.as_tensor(self.cfg.motion_damping_ratio_task, dtype=torch.float, device=self._device)
+        return damping_ratio.reshape(1, -1)
+
+    def _critically_damped_gains(self, damping_ratio: torch.Tensor) -> torch.Tensor:
+        """Derive the diagonal damping gains from the current stiffness gains and a damping ratio.
+
+        Args:
+            damping_ratio: The damping ratio in shape (N, 6) or (1, 6).
+
+        Returns:
+            The damping gains ``2 * sqrt(kp) * damping_ratio`` as diagonal matrices in shape (N, 6, 6).
+        """
+        stiffness = torch.diagonal(self._motion_p_gains_task, dim1=-2, dim2=-1)
+        return torch.diag_embed(2 * stiffness.sqrt() * damping_ratio)

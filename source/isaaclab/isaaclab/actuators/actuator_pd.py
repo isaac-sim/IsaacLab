@@ -413,8 +413,6 @@ class DCMotor(IdealPDActuator):
         self._vel_at_effort_lim = self.actuator_velocity_limit * (
             1 + self.actuator_effort_limit / self._saturation_effort
         )
-        # create buffer for zeros effort
-        self._zeros_effort = torch.zeros_like(self.computed_effort)
 
     """
     Helper functions.
@@ -457,8 +455,7 @@ class DelayedPDActuator(IdealPDActuator):
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
+        self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
     def reset(self, env_ids: Sequence[int]):
         super().reset(env_ids)
@@ -474,14 +471,10 @@ class DelayedPDActuator(IdealPDActuator):
             dtype=torch.int,
             device=self._device,
         )
-        # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.positions_delay_buffer.reset(env_ids)
-        self.velocities_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
+        # set delays and reset buffers
+        for delay_buffer in self._delay_buffers:
+            delay_buffer.set_time_lag(time_lags, env_ids)
+            delay_buffer.reset(env_ids)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

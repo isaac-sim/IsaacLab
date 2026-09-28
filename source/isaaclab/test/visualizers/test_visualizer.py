@@ -14,6 +14,7 @@ import pytest
 import torch
 
 from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -37,9 +38,16 @@ pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 )
 def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implementation):
     cfg_type = getattr(pytest.importorskip(module_name), cfg_name)
-    class_type = cfg_type().class_type
+    cfg = cfg_type()
+    class_type = cfg.class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
+    renderer_cfg = cfg.streaming_cam_renderer_cfg
+    assert renderer_cfg.renderer_type == ("isaac_rtx" if cfg_name == "KitVisualizerCfg" else "newton_warp")
+    assert isinstance(renderer_cfg.class_type, ResolvableString)
+    custom = RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom")
+    assert cfg_type(streaming_cam_renderer_cfg=custom).streaming_cam_renderer_cfg == custom
+    assert not hasattr(cfg, "streaming_cam_renderer")
 
 
 def test_visualizer_cfg_streaming_view_is_opt_in():
@@ -48,7 +56,7 @@ def test_visualizer_cfg_streaming_view_is_opt_in():
     assert cfg.background_color == (0.3, 0.55, 0.82)
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
-    assert cfg.streaming_cam_renderer is None
+    assert cfg.streaming_cam_renderer_cfg is None
 
 
 def test_visualizer_cfg_validates_background_color():
@@ -86,7 +94,7 @@ def _make_cfg(**kwargs):
         "randomly_sample_visible_envs": False,
     }
     cfg.update(kwargs)
-    return SimpleNamespace(**cfg)
+    return VisualizerCfg(**cfg)
 
 
 _HAS_ISAACLAB_VIZ = importlib.util.find_spec("isaaclab_visualizers") is not None
