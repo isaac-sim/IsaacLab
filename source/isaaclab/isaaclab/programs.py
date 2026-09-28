@@ -109,7 +109,6 @@ EXAMPLES = (
         "bin-packing",
         "examples/bin_packing.py",
         "Clone heterogeneous randomized bin layouts.",
-        **_ISAACSIM,
     ),
     ProgramSpec("cables", "examples/cables.py", "Simulate colliding cables with Newton VBD."),
     ProgramSpec(
@@ -197,7 +196,6 @@ EXAMPLES = (
         "arl-robot-1",
         "examples/arl_robot_1.py",
         "Fly ARL Robot 1 with its position controller.",
-        **_ISAACSIM,
     ),
     ProgramSpec(
         "haply-teleoperation",

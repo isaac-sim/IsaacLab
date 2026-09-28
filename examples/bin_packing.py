@@ -18,15 +18,15 @@ slots cycle through eight YCB grocery models, spawned by a custom spawner that
 authors the rigid bodies and colliders the visual models ship without. The
 simulation periodically re-drops every spawned grocery into its bin with pose,
 velocity, and mass noise, teleporting out-of-bounds objects back in.
-
-.. note::
-    Heterogeneous per-environment object counts require the PhysX backend, so
-    this example runs on PhysX only.
+Newton VBD supports the varying body counts; Newton MJWarp requires homogeneous worlds.
 
 .. code-block:: bash
 
-    # Usage with default PhysX physics and default kit visualizer.
-    uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing
+    # Newton physics and Newton GL visualizer.
+    uvx isaaclab example bin-packing
+
+    # PhysX physics and Kit visualizer.
+    uvx --from 'isaaclab[isaacsim]' isaaclab example bin-packing --physics isaacsim_physx --viz kit
 
 """
 
@@ -42,15 +42,18 @@ parser = argparse.ArgumentParser(
     conflict_handler="resolve",
 )
 parser.add_argument("--num_envs", type=int, default=16, help="Number of environments to spawn.")
-parser.add_argument("--physics", default="isaacsim_physx", choices=["isaacsim_physx"], help="Physics backend.")
+parser.add_argument(
+    "--physics", default="newton_vbd", choices=["isaacsim_physx", "newton_vbd"], help="Physics backend."
+)
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 add_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
 import math
+import re
 from dataclasses import MISSING
 from random import Random
 
@@ -60,7 +63,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import CloneCfg, InclusionSet, sequential
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
@@ -237,7 +240,7 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
     # rigid object
-    object: RigidObjectCfg = RigidObjectCfg(
+    object: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Object",
         spawn=sim_utils.UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/KLT_Bin/small_KLT.usd",
@@ -248,7 +251,7 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
             ],
             mass_props=sim_utils.MassCfg(mass=1.0),
         ),
-        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
+        init_state=AssetBaseCfg.InitialStateCfg(pos=(0.0, 0.0, 0.15)),
     )
 
     # grocery slots, one per object that may end up in the bin
@@ -293,6 +296,65 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
         self.clone_cfg.clone_combinations = self.clone_cfg.clone_combinations[: self.num_envs]
 
 
+class _NewtonGroceryView:
+    """Flat access to groceries in Newton's heterogeneous worlds."""
+
+    def __init__(self):
+        from isaaclab_newton.physics import NewtonManager
+        from newton import ModelFlags
+
+        model = NewtonManager.get_model()
+        matches = [
+            (index, path)
+            for index, path in enumerate(model.body_label)
+            if re.fullmatch(r"/World/envs/env_\d+/Groceries/Grocery_\d+", path)
+        ]
+        self.prim_paths = [path for _, path in matches]
+        self.count = len(matches)
+        self._body_ids = torch.tensor([index for index, _ in matches], device=str(model.device))
+        self._model = model
+        self._manager = NewtonManager
+        self._mass_change_flag = ModelFlags.BODY_INERTIAL_PROPERTIES
+
+    def _selection(self, indices: wp.array) -> tuple[torch.Tensor, torch.Tensor]:
+        positions = wp.to_torch(indices).to(device=self._body_ids.device, dtype=torch.long)
+        return positions, self._body_ids[positions]
+
+    def get_transforms(self) -> torch.Tensor:
+        return wp.to_torch(self._manager.get_state_0().body_q)[self._body_ids]
+
+    def set_transforms(self, transforms: wp.array, indices: wp.array) -> None:
+        positions, body_ids = self._selection(indices)
+        wp.to_torch(self._manager.get_state_0().body_q)[body_ids] = wp.to_torch(transforms)[positions]
+        self._manager.invalidate_body_state()
+
+    def get_velocities(self) -> torch.Tensor:
+        velocity = wp.to_torch(self._manager.get_state_0().body_qd)[self._body_ids]
+        return torch.cat((velocity[:, 3:], velocity[:, :3]), dim=-1)
+
+    def set_velocities(self, velocities: wp.array, indices: wp.array) -> None:
+        positions, body_ids = self._selection(indices)
+        velocity = wp.to_torch(velocities)[positions]
+        wp.to_torch(self._manager.get_state_0().body_qd)[body_ids] = torch.cat(
+            (velocity[:, 3:], velocity[:, :3]), dim=-1
+        )
+        self._manager.invalidate_body_state()
+
+    def set_masses(self, masses: wp.array, indices: wp.array) -> None:
+        positions, body_ids = self._selection(indices)
+        mass = wp.to_torch(self._model.body_mass)
+        inverse_mass = wp.to_torch(self._model.body_inv_mass)
+        inertia = wp.to_torch(self._model.body_inertia)
+        inverse_inertia = wp.to_torch(self._model.body_inv_inertia)
+        new_mass = wp.to_torch(masses).flatten().to(mass.device)[positions]
+        scale = new_mass / mass[body_ids]
+        mass[body_ids] = new_mass
+        inverse_mass[body_ids] = 1.0 / new_mass
+        inertia[body_ids] = inertia[body_ids] * scale[:, None, None]
+        inverse_inertia[body_ids] = inverse_inertia[body_ids] / scale[:, None, None]
+        self._manager.add_model_change(self._mass_change_flag)
+
+
 ##
 # Simulation Loop
 ##
@@ -301,14 +363,17 @@ class BinPackingSceneCfg(InteractiveSceneCfg):
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
     """Runs the simulation loop that coordinates spawn randomization and stepping.
 
-    A flat physics view manages every grocery present in the heterogeneous scene.
+    A flat view manages every grocery present in the heterogeneous scene.
 
     Returns:
         None: The simulator side-effects are applied through ``scene`` and ``sim``.
     """
     device = scene.device
-    physics_sim_view = sim.physics_manager.get_physics_sim_view()
-    root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
+    if args_cli.physics == "newton_vbd":
+        root_view = _NewtonGroceryView()
+    else:
+        physics_sim_view = sim.physics_manager.get_physics_sim_view()
+        root_view = physics_sim_view.create_rigid_body_view("/World/envs/env_*/Groceries/Grocery_*")
     if root_view.count == 0:
         raise RuntimeError("The flat grocery view matched no rigid bodies.")
 
@@ -327,7 +392,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     cpu_indices_t = torch.arange(root_view.count, dtype=torch.int32, device="cpu")
     all_indices = wp.from_torch(all_indices_t)
     cpu_indices = wp.from_torch(cpu_indices_t)
-    print(f"[INFO] Grocery RigidBodyView: 1 flat view managing {root_view.count} rigid bodies")
+    print(f"[INFO] Grocery view: {root_view.count} rigid bodies")
 
     pose_ranges = torch.tensor([POSE_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)
     velocity_ranges = torch.tensor([VELOCITY_RANGE[axis] for axis in ("roll", "pitch", "yaw")], device=device)

@@ -150,6 +150,10 @@ def test_example_catalog_lists_packaged_examples(capsys):
 
     output = capsys.readouterr().out
     assert "bin-packing" in output
+    bin_packing_line = next(line for line in output.splitlines() if line.startswith("bin-packing "))
+    assert "uvx --from" not in bin_packing_line
+    arl_line = next(line for line in output.splitlines() if line.startswith("arl-robot-1 "))
+    assert "uvx --from" not in arl_line
     assert "newton-dominoes" in output
     assert "mpm-two-way-coupling" in output
     camera_line = next(line for line in output.splitlines() if line.startswith("camera "))
