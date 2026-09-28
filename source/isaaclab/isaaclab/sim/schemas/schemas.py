@@ -138,11 +138,6 @@ def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
     return None
 
 
-def _cfg_fields(cfg) -> dict[str, object]:
-    """Return the dataclass field values of a cfg; class-level ``_usd_*`` metadata is not a field."""
-    return {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
-
-
 def apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
     """Route every cfg field to its declaring class's namespace and apply schemas.
 
@@ -259,10 +254,11 @@ def apply_namespaced(cfg: schemas_cfg.SchemaFragment, prim_path: str, stage: Usd
         prim.AddAppliedSchema(applied)
     # ``func`` is the only non-USD field; ``mesh_approximation_name`` is the shared ``physics:approximation``
     # token written by ``apply_mesh_collision``, not a ``<namespace>:meshApproximationName`` attribute
-    for name, value in _cfg_fields(cfg).items():
-        if name in ("func", "mesh_approximation_name") or value is None:
+    for f in dataclasses.fields(cfg):
+        value = getattr(cfg, f.name)
+        if f.name in ("func", "mesh_approximation_name") or value is None:
             continue
-        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{to_camel_case(name, 'cC')}", value, camel_case=False)
+        safe_set_attribute_on_usd_prim(prim, f"{namespace}:{to_camel_case(f.name, 'cC')}", value, camel_case=False)
     return True
 
 
@@ -515,7 +511,7 @@ def modify_articulation_root_properties(
     if not UsdPhysics.ArticulationRootAPI(articulation_prim):
         return False
 
-    cfg_dict = _cfg_fields(cfg)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # writer-side (non-USD) flag; the joint is processed after the attribute writes
     fix_root_link = cfg_dict.pop("fix_root_link", None)
     apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
@@ -909,7 +905,7 @@ def modify_rigid_body_properties(
         return False
     # base fields route to ``physics:*``, ``disable_gravity`` via field exceptions, PhysX-subclass
     # fields to ``physxRigidBody:*``
-    apply_namespaced_schemas(rigid_body_prim, cfg, _cfg_fields(cfg))
+    apply_namespaced_schemas(rigid_body_prim, cfg, {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)})
     return True
 
 
@@ -1032,7 +1028,7 @@ def modify_collision_properties(
     collider_prim = stage.GetPrimAtPath(prim_path)
     if not UsdPhysics.CollisionAPI(collider_prim):
         return False
-    cfg_dict = _cfg_fields(cfg)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # the nested mesh-collision cfg is dispatched to its own legacy writer
     mesh_collision_cfg = cfg_dict.pop("mesh_collision_property", None)
     if mesh_collision_cfg is not None:
@@ -1159,7 +1155,7 @@ def modify_mass_properties(prim_path: str, cfg: schemas_cfg.MassPropertiesCfg, s
     rigid_prim = stage.GetPrimAtPath(prim_path)
     if not UsdPhysics.MassAPI(rigid_prim):
         return False
-    apply_namespaced_schemas(rigid_prim, cfg, _cfg_fields(cfg))
+    apply_namespaced_schemas(rigid_prim, cfg, {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)})
     return True
 
 
@@ -1284,17 +1280,9 @@ def apply_drive(cfg, prim_path: str, stage: Usd.Stage | None = None) -> bool:
     # skip non-joints and joints a backend owns (e.g. PhysX tendon members)
     if drive_api_name is None or skip_joint_drive(prim):
         return False
-    usd_drive_api = _get_or_apply_drive_api(prim, drive_api_name)
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name) or UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
     _write_drive_attributes(usd_drive_api, drive_api_name, cfg.drive_type, cfg.max_force, cfg.stiffness, cfg.damping)
     return True
-
-
-def _get_or_apply_drive_api(prim: Usd.Prim, drive_api_name: str) -> UsdPhysics.DriveAPI:
-    """Return the joint's ``UsdPhysics.DriveAPI`` instance, applying it when absent."""
-    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name)
-    if not usd_drive_api:
-        usd_drive_api = UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
-    return usd_drive_api
 
 
 def _write_drive_attributes(
@@ -1392,7 +1380,8 @@ def apply_joint_drive_properties(
         joint_prim_path = joint_prim.GetPath().pathString
         drive_api_name = drive_instance_name(joint_prim)
         if create_if_missing:
-            _get_or_apply_drive_api(joint_prim, drive_api_name)
+            if not UsdPhysics.DriveAPI(joint_prim, drive_api_name):
+                UsdPhysics.DriveAPI.Apply(joint_prim, drive_api_name)
         results = [bool(cfg.func(cfg, joint_prim_path, stage)) for cfg in fragments]
         if not any(results):
             continue
@@ -1408,11 +1397,6 @@ def apply_joint_drive_properties(
             prim_path_expr,
         )
     return count_success > 0 and not any_skipped
-
-
-def _is_passive_drive(usd_drive_api: UsdPhysics.DriveAPI) -> bool:
-    """Return whether a drive has neither stiffness nor damping authored (or both are zero)."""
-    return not usd_drive_api.GetStiffnessAttr().Get() and not usd_drive_api.GetDampingAttr().Get()
 
 
 def _ensure_drive_exists(drive_cfg: schemas_cfg.UsdPhysicsDriveCfg, prim: Usd.Prim, drive_api_name: str) -> None:
@@ -1431,8 +1415,8 @@ def _ensure_drive_exists(drive_cfg: schemas_cfg.UsdPhysicsDriveCfg, prim: Usd.Pr
     """
     if drive_cfg.stiffness is not None or drive_cfg.damping is not None:
         return
-    usd_drive_api = _get_or_apply_drive_api(prim, drive_api_name)
-    if _is_passive_drive(usd_drive_api):
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name) or UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
+    if not usd_drive_api.GetStiffnessAttr().Get() and not usd_drive_api.GetDampingAttr().Get():
         # like the legacy writer, 1e-3 is given in per-radian units, so an angular drive gets 1e-3 * pi / 180
         _write_drive_attributes(usd_drive_api, drive_api_name, None, None, 1e-3, None)
 
@@ -1494,13 +1478,13 @@ def modify_joint_drive_properties(
     applied_schemas_str = str(prim.GetAppliedSchemas())
     if "PhysxTendonAxisAPI" in applied_schemas_str and "PhysxTendonAxisRootAPI" not in applied_schemas_str:
         return False
-    usd_drive_api = _get_or_apply_drive_api(prim, drive_api_name)
+    usd_drive_api = UsdPhysics.DriveAPI(prim, drive_api_name) or UsdPhysics.DriveAPI.Apply(prim, drive_api_name)
 
-    cfg_dict = _cfg_fields(cfg)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     # seed a minimal stiffness on a passive drive so backends like Newton treat it as active
     ensure_drives = cfg_dict.pop("ensure_drives_exist", False)
     if ensure_drives and cfg_dict["stiffness"] is None and cfg_dict["damping"] is None:
-        if _is_passive_drive(usd_drive_api):
+        if not usd_drive_api.GetStiffnessAttr().Get() and not usd_drive_api.GetDampingAttr().Get():
             cfg_dict["stiffness"] = 1e-3
     # PhysX stores angular velocities in deg/s
     if drive_api_name == "angular" and cfg_dict.get("max_joint_velocity") is not None:
@@ -1836,7 +1820,7 @@ def modify_mesh_collision_properties(
     prim = stage.GetPrimAtPath(prim_path)
     if not UsdPhysics.MeshCollisionAPI(prim):
         UsdPhysics.MeshCollisionAPI.Apply(prim)
-    cfg_dict = _cfg_fields(cfg)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     _write_mesh_approximation(prim, cfg_dict.pop("mesh_approximation_name", "none"))
     # PhysX cooking subclasses author their tuning fields under e.g. ``physxConvexHullCollision:*``;
     # the helper applies the cooking schema only when a tuning field is set, so Newton-targeted
@@ -2215,7 +2199,7 @@ def modify_deformable_body_properties(
     deformable_body_prim = stage.GetPrimAtPath(prim_path)
     if not deformable_body_prim.IsValid() or not has_deformable_body_api(deformable_body_prim):
         return False
-    cfg_dict = _cfg_fields(cfg)
+    cfg_dict = {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
     if cfg_dict.get("kinematic_enabled"):
         logger.warning(
             "Kinematic deformable bodies are not fully supported in the current version of Omni Physics. "
