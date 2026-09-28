@@ -148,6 +148,12 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         _r_cfg = SceneEntityCfg("robot", body_names=[_r_ee])
         self.rewards.end_effector_position_tracking.params["asset_cfg"] = _r_cfg
         self.rewards.end_effector_position_tracking.params["command_name"] = "ee_pose"
+        # Fine-grained position tracking: the both-arm success bonus alone is too sparse
+        self.rewards.end_effector_position_tracking_fine_grained = RewTerm(
+            func=mdp.position_command_error_tanh,
+            weight=0.1,
+            params={"asset_cfg": _r_cfg, "std": 0.1, "command_name": "ee_pose"},
+        )
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"] = _r_cfg
         self.rewards.end_effector_orientation_tracking.params["command_name"] = "ee_pose"
 
@@ -157,6 +163,11 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
             func=mdp.position_command_error,
             weight=-0.2,
             params={"asset_cfg": _l_cfg, "command_name": "ee_pose_left"},
+        )
+        self.rewards.l_end_effector_position_tracking_fine_grained = RewTerm(
+            func=mdp.position_command_error_tanh,
+            weight=0.1,
+            params={"asset_cfg": _l_cfg, "std": 0.1, "command_name": "ee_pose_left"},
         )
         self.rewards.l_end_effector_orientation_tracking = RewTerm(
             func=mdp.orientation_command_error,
