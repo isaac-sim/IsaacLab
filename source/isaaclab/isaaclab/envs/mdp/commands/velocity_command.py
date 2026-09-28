@@ -130,7 +130,7 @@ class UniformVelocityCommand(CommandTerm):
         self._error_yaw_sum += error_yaw
         self._step_count += 1.0
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
         # Finalize the just-ended episode's metrics into ``self.metrics`` BEFORE the base
         # class reads them. ``success_rate`` is per-env binary: the *episode-mean* error
         # is below both thresholds. Then super().reset() logs and zeros ``self.metrics``;
@@ -181,17 +181,14 @@ class UniformVelocityCommand(CommandTerm):
         """
         # Compute angular velocity from heading direction
         if self.cfg.heading_command:
-            # resolve indices of heading envs
-            env_ids = self.is_heading_env.nonzero(as_tuple=False).flatten()
-            # compute angular velocity
-            heading_error = math_utils.wrap_to_pi(
-                self.heading_target[env_ids] - self.robot.data.heading_w.torch[env_ids]
-            )
-            self.vel_command_b[env_ids, 2] = torch.clip(
+            # compute angular velocity for all envs, then select heading envs without a host sync
+            heading_error = math_utils.wrap_to_pi(self.heading_target - self.robot.data.heading_w.torch)
+            heading_ang_vel = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,
                 min=self.cfg.ranges.ang_vel_z[0],
                 max=self.cfg.ranges.ang_vel_z[1],
             )
+            self.vel_command_b[:, 2] = torch.where(self.is_heading_env, heading_ang_vel, self.vel_command_b[:, 2])
         # Enforce standing (i.e., zero velocity command) for standing envs
         index_fill_(self.vel_command_b, self.is_standing_env, 0.0)
 

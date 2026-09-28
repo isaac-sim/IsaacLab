@@ -90,7 +90,7 @@ class CurriculumManager(ManagerBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float | torch.Tensor]:
         """Returns the current state of individual curriculum terms.
 
         Note:
@@ -102,6 +102,7 @@ class CurriculumManager(ManagerBase):
             Dictionary of curriculum terms and their states.
         """
         extras = {}
+        # tensors are snapshotted on device: a host read would synchronize, and terms may update state in place
         for term_name, term_state in self._curriculum_state.items():
             if term_state is not None:
                 # deal with dict
@@ -109,12 +110,12 @@ class CurriculumManager(ManagerBase):
                     # each key is a separate state to log
                     for key, value in term_state.items():
                         if isinstance(value, torch.Tensor):
-                            value = value.item()
+                            value = value.detach().clone()
                         extras[f"Curriculum/{term_name}/{key}"] = value
                 else:
                     # log directly if not a dict
                     if isinstance(term_state, torch.Tensor):
-                        term_state = term_state.item()
+                        term_state = term_state.detach().clone()
                     extras[f"Curriculum/{term_name}"] = term_state
         # reset all the curriculum terms
         for term_cfg in self._class_term_cfgs:
@@ -161,12 +162,12 @@ class CurriculumManager(ManagerBase):
                     # each key is a separate state to log
                     for key, value in term_state.items():
                         if isinstance(value, torch.Tensor):
-                            value = value.item()
+                            value = value.detach().clone()
                         data.append(value)
                 else:
                     # log directly if not a dict
                     if isinstance(term_state, torch.Tensor):
-                        term_state = term_state.item()
+                        term_state = term_state.detach().clone()
                     data.append(term_state)
                 terms.append((term_name, data))
 

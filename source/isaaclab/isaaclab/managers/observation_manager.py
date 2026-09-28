@@ -16,13 +16,21 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import instantiate, modifiers, noise, to_dict
+from ..utils import callable_to_string, instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
+
+# Built-in noise functions that never modify their input, so the manager can skip the defensive copy.
+# Configurations hold them as callables or as unresolved ``module:function`` strings.
+_OUT_OF_PLACE_NOISE_FUNCS = tuple(
+    ref
+    for func in (noise.constant_noise, noise.gaussian_noise, noise.uniform_noise)
+    for ref in (func, callable_to_string(func))
+)
 
 
 class ObservationManager(ManagerBase):
@@ -443,8 +451,14 @@ class ObservationManager(ManagerBase):
                     else:
                         obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
-                owned = False
+                if term_cfg.noise.func in _OUT_OF_PLACE_NOISE_FUNCS:
+                    noisy_obs = term_cfg.noise.func(obs, term_cfg.noise)
+                    # a new result is owned; a returned input keeps its ownership
+                    owned = owned or noisy_obs is not obs
+                    obs = noisy_obs
+                else:
+                    obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
+                    owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
                 obs = term_cfg.noise.func(obs.clone())
                 owned = False
@@ -462,7 +476,8 @@ class ObservationManager(ManagerBase):
                 obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
                     obs, update_history=update_history
                 )
-                owned = False
+                # the delay buffer returns storage independent of its history
+                owned = True
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
