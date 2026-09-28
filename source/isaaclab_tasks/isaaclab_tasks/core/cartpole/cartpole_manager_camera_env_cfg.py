@@ -11,6 +11,7 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.utils import configclass
+from isaaclab.utils.images import is_depth_like
 from isaaclab.visualizers import VisualizerCfg
 
 from isaaclab_tasks.utils import PresetCfg
@@ -39,20 +40,34 @@ class CartpoleCameraSceneCfg(CartpoleSceneCfg):
 def image_observations_cfg(data_type: str):
     """Build a single-camera-image policy observation group.
 
+    The policy image is channel-first and stacks the last two frames; set the term's
+    ``frame_stack`` parameter to change the stack size.
+
     Args:
         data_type: Camera data type to read from the tiled camera (e.g. ``"rgb"``, ``"depth"``).
 
     Returns:
         An observations config with camera policy observations and privileged state critic observations.
     """
+    if is_depth_like(data_type):
+        image_term = mdp.image_depth
+    elif "segmentation" in data_type:
+        image_term = mdp.image_segmentation
+    else:
+        image_term = mdp.image_rgb
 
     @configclass
     class ImageObservationsCfg:
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
-                func=mdp.CameraImageStack,
-                params={"sensor_cfg": SceneEntityCfg("tiled_camera"), "data_type": data_type},
+                func=image_term,
+                params={
+                    "sensor_cfg": SceneEntityCfg("tiled_camera"),
+                    "data_type": data_type,
+                    "channel_first": True,
+                    "frame_stack": 2,
+                },
             )
 
             def __post_init__(self):
@@ -120,12 +135,6 @@ class CartpoleCameraEnvCfg(PresetCfg):
     @configclass
     class BaseCartpoleCameraEnvCfg(CartpoleEnvCfg):
         """Camera variant of :class:`CartpoleEnvCfg`; only the fields that differ are overridden."""
-
-        frame_stack: int = 2
-        """Number of frames to stack along the channel dimension.
-
-        Values less than two disable stacking.
-        """
 
         # scene: fewer, more-spaced envs so each camera renders cleanly
         scene: CartpoleCameraSceneCfg = CartpoleCameraSceneCfg(num_envs=512, env_spacing=20.0)

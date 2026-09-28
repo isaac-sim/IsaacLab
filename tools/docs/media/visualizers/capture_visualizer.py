@@ -731,7 +731,7 @@ def configure_playback_hero() -> list[str]:
 def _hero_configure_capture(env_cfg: AnymalDTileCaptureCfg) -> None:
     """Attach the requested visualizer and video recorder to the AnymalD flat config."""
     # Read the visualizer selection from HERO_VISUALIZER, not --viz off sys.argv: by the time
-    # __post_init__ runs, rsl_rl has already rewritten sys.argv and AppLauncher's parser has
+    # __post_init__ runs, rsl_rl has already rewritten sys.argv and the launcher's parser has
     # consumed --viz.
     visualizer = os.environ.get("HERO_VISUALIZER")
     if visualizer != "combined" and visualizer not in _HERO_VISUALIZER_BUILDERS:

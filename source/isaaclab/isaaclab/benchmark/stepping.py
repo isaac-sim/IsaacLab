@@ -65,24 +65,24 @@ def profile_renderers(
     originals = []
     try:
         for _, renderer in render_context._renderer_entries:
-            render = renderer.render
-            original = vars(renderer).get("render", missing)
+            render = renderer.render_batch
+            original = vars(renderer).get("render_batch", missing)
 
             @wraps(render)
             def timed_render(render_data: Any, _render=render) -> None:
                 with wp.ScopedTimer(RENDER_PROFILE_SCOPE, dict=scope_timings, print=False, synchronize=True):
                     return _render(render_data)
 
-            renderer.render = timed_render
+            renderer.render_batch = timed_render
             originals.append((renderer, original))
 
         yield timings
     finally:
         for renderer, original in reversed(originals):
             if original is missing:
-                del renderer.render
+                del renderer.render_batch
             else:
-                renderer.render = original
+                renderer.render_batch = original
 
 
 @contextmanager
@@ -265,7 +265,6 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
 
         if self._measure_synchronized_step_breakdown:
             import torch  # noqa: PLC0415
-            import warp as wp  # noqa: PLC0415
 
             from ..utils.timer import Timer  # noqa: PLC0415
 
@@ -287,8 +286,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                 if not self._inside_environment_step:
                     return self._original_sim_step(*args, **kwargs)
                 synchronize_torch(active_cuda_devices)
-                wp.synchronize()
-                timer = Timer()
+                timer = Timer(synchronize="both")
                 timer.start()
                 try:
                     return self._original_sim_step(*args, **kwargs)
@@ -309,8 +307,7 @@ class EnvironmentStepTimingRecorder(AbstractContextManager):
                 previous_cuda_devices = active_cuda_devices
                 active_cuda_devices = environment_cuda_devices | _find_cuda_devices(args) | _find_cuda_devices(kwargs)
                 synchronize_torch(active_cuda_devices)
-                wp.synchronize()
-                timer = Timer()
+                timer = Timer(synchronize="both")
                 timer.start()
                 self._inside_environment_step = True
                 try:

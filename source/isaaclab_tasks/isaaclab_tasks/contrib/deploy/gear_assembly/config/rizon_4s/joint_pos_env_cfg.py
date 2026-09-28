@@ -14,7 +14,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.noise import UniformNoiseCfg
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
@@ -279,9 +279,11 @@ class Rizon4sGearAssemblyEnvCfg(GearAssemblyEnvCfg):
         )
 
         # Switch robot to Flexiv Rizon 4s with Grav gripper
-        self.scene.robot = FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.replace(
+        self.scene.robot = replace(
+            FLEXIV_RIZON4S_GRAV_GRIPPER_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn.replace(
+            spawn=replace(
+                FLEXIV_RIZON4S_GRAV_GRIPPER_CFG.spawn,
                 rigid_props=PhysxRigidBodyCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,

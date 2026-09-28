@@ -22,6 +22,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -82,7 +83,7 @@ class DirectRLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -145,7 +146,7 @@ class DirectRLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = self.cfg.scene.class_type(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -222,11 +223,11 @@ class DirectRLEnv(gym.Env):
 
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
-            self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
+            self._action_noise_model: NoiseModel = instantiate(
                 self.cfg.action_noise_model, num_envs=self.num_envs, device=self.device
             )
         if self.cfg.observation_noise_model:
-            self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
+            self._observation_noise_model: NoiseModel = instantiate(
                 self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
 
@@ -314,6 +315,7 @@ class DirectRLEnv(gym.Env):
         This function calls the :meth:`_reset_idx` function to reset all the environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
+        Configured observation noise is applied to the policy observation before returning.
 
         Args:
             seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
@@ -350,7 +352,7 @@ class DirectRLEnv(gym.Env):
 
         # return observations
         # store the buffer like step() does, so consumers can read the latest observations
-        self.obs_buf = self._get_observations()
+        self.obs_buf = self._compute_observations()
         return self.obs_buf, self.extras
 
     def step(self, action: torch.Tensor) -> VecEnvStepReturn:
@@ -401,33 +403,17 @@ class DirectRLEnv(gym.Env):
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             self._apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self._apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -462,10 +448,10 @@ class DirectRLEnv(gym.Env):
             else:
                 not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
                 if len(reset_env_ids) > 0:
-                    not_yet_reset[reset_env_ids] = False
+                    index_fill_(not_yet_reset, reset_env_ids, False)
                 manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
-                self.reset_terminated[manual_reset_ids] = True
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
@@ -477,12 +463,7 @@ class DirectRLEnv(gym.Env):
         for recorder in self.video_recorders:
             recorder.step()
 
-        self.obs_buf = self._get_observations()
-
-        # add observation noise
-        # note: we apply no noise to the state space (since it is used for critic networks)
-        if self.cfg.observation_noise_model:
-            self.obs_buf["policy"] = self._observation_noise_model(self.obs_buf["policy"])
+        self.obs_buf = self._compute_observations()
 
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
@@ -496,14 +477,6 @@ class DirectRLEnv(gym.Env):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -704,10 +677,7 @@ class DirectRLEnv(gym.Env):
             # apply the same observation noise as the returned obs (policy space only) so the
             # bootstrapped terminal value matches the distribution the policy is trained on.
             if self.cfg.compute_final_obs:
-                terminal_obs = self._get_observations()
-                if self.cfg.observation_noise_model:
-                    terminal_obs["policy"] = self._observation_noise_model(terminal_obs["policy"])
-                self.extras["final_obs"] = terminal_obs
+                self.extras["final_obs"] = self._compute_observations()
             self._reset_idx(reset_env_ids)
         return reset_env_ids
 
@@ -730,9 +700,7 @@ class DirectRLEnv(gym.Env):
         if self.cfg.observation_noise_model:
             self._observation_noise_model.reset(env_ids)
 
-        self.episode_length_buf[env_ids] = 0
-
-        self.sim.render_context.reset_scene_state_cadence()
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
     """
     Implementation-specific functions.
@@ -766,6 +734,13 @@ class DirectRLEnv(gym.Env):
         physics time-step.
         """
         raise NotImplementedError(f"Please implement the '_apply_action' method for {self.__class__.__name__}.")
+
+    def _compute_observations(self) -> VecEnvObs:
+        """Compute observations and apply configured noise to the policy observation."""
+        obs = self._get_observations()
+        if self.cfg.observation_noise_model:
+            obs["policy"] = self._observation_noise_model(obs["policy"])
+        return obs
 
     @abstractmethod
     def _get_observations(self) -> VecEnvObs:

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms, compute_pose_error, quat_error_magnitude, quat_mul
 
 if TYPE_CHECKING:
@@ -112,9 +113,7 @@ class success_reward(ManagerTermBase):
         self.succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self.succeeded[env_ids] = False
+        index_fill_(self.succeeded, env_ids, False)
 
     def __call__(
         self,
@@ -245,9 +244,7 @@ class _ProgressReward(ManagerTermBase):
         self._prev_command: torch.Tensor | None = None
 
     def reset(self, env_ids: Sequence[int] | None = None):
-        if env_ids is None:
-            env_ids = slice(None)
-        self.best_error[env_ids] = float("inf")
+        index_fill_(self.best_error, env_ids, float("inf"))
 
     def _progress(
         self, error: torch.Tensor, gate: torch.Tensor, min_improvement: float, command: torch.Tensor
@@ -268,12 +265,12 @@ class _ProgressReward(ManagerTermBase):
         if self._prev_command is None:
             self._prev_command = command.clone()
         else:
-            self.best_error[(self._prev_command != command).any(dim=1)] = float("inf")
+            self.best_error.masked_fill_((self._prev_command != command).any(dim=1), float("inf"))
             self._prev_command.copy_(command)
         unseeded = torch.isinf(self.best_error)
-        self.best_error[unseeded] = error[unseeded]
+        torch.where(unseeded, error, self.best_error, out=self.best_error)
         improved = gate & (error < self.best_error - min_improvement)
-        self.best_error[improved] = error[improved]
+        torch.where(improved, error, self.best_error, out=self.best_error)
         return improved.float()
 
 
@@ -417,7 +414,7 @@ class _GoalDistanceReward(ManagerTermBase):
         if env_ids is None:
             env_ids = slice(None)
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean().item()
-        self._succeeded[env_ids] = False
+        index_fill_(self._succeeded, env_ids, False)
 
 
 class DeformableComGoalDistance(_GoalDistanceReward):

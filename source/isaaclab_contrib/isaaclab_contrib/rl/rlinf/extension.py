@@ -422,10 +422,10 @@ def _create_generic_env_wrapper(task_id: str) -> type:
     """Create a generic wrapper class for an IsaacLab task.
 
     The wrapper class will load the task configuration at runtime
-    (after AppLauncher starts) and configure observation mapping accordingly.
+    (after the simulation runtime starts) and configure observation mapping accordingly.
 
     This follows the same pattern as i4h's rlinf_ext: all isaaclab-dependent
-    imports happen inside _make_env_function, after AppLauncher starts.
+    imports happen inside _make_env_function, after the simulation runtime starts.
 
     Args:
         task_id: The gymnasium task ID.
@@ -472,7 +472,7 @@ def _create_generic_env_wrapper(task_id: str) -> type:
             """Create the environment factory function.
 
             This function runs in a child process (via ``SubProcIsaacLabEnv``).
-            All IsaacLab-dependent imports happen here, after ``AppLauncher`` starts.
+            All IsaacLab-dependent imports happen here, after the simulation runtime starts.
 
             Returns:
                 A callable that creates and returns the IsaacLab environment and sim app.
@@ -483,16 +483,19 @@ def _create_generic_env_wrapper(task_id: str) -> type:
 
                 Returns:
                     A tuple of ``(env, sim_app)`` where ``env`` is the unwrapped
-                    gymnasium environment and ``sim_app`` is the Isaac Sim application.
+                    gymnasium environment and ``sim_app`` stops the simulation runtime on ``close()``.
                 """
-                from isaaclab.app import AppLauncher
+                import contextlib
 
-                sim_app = AppLauncher(headless=True, enable_cameras=True).app
                 import gymnasium as gym
+
+                from isaaclab.app import launch_simulation
 
                 from isaaclab_tasks.utils import parse_env_cfg
 
                 isaac_env_cfg = parse_env_cfg(self.isaaclab_env_id, num_envs=self.cfg.init_params.num_envs)
+                sim_app = contextlib.ExitStack()
+                sim_app.enter_context(launch_simulation(isaac_env_cfg, {"enable_cameras": True}))
 
                 env = gym.make(self.isaaclab_env_id, cfg=isaac_env_cfg, render_mode="rgb_array").unwrapped
 

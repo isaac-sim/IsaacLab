@@ -13,7 +13,7 @@ Use these checks to route investigation, not as standalone migration docs:
 | Symptom or old pattern | Current source of truth |
 | --- | --- |
 | Task names include the old Gym version suffix, such as `-v0` | Current task docs and the environment catalog; use suffixless task names in examples |
-| Visualizer launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/app_launcher.py` |
+| Visualizer launch behavior changed | `docs/source/migration/migrating_to_isaaclab_3-0.rst` and `source/isaaclab/isaaclab/app/sim_launcher.py` |
 | Camera examples include obsolete launch options | Current sensor, renderer, and visualization docs; camera support is automatic |
 | Backend-specific physics or schema cfgs | `docs/source/concepts/backend_architecture.rst` and `docs/source/concepts/schema_cfgs.rst` |
 | Imports of PhysX/Newton schema cfgs from `isaaclab.sim.schemas` | Move backend-specific imports to `isaaclab_physx.sim.schemas` or `isaaclab_newton.sim.schemas`; core forwarding shims are deprecated |

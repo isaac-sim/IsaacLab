@@ -104,9 +104,9 @@ class BaseRayCaster(SensorBase):
     def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
         # reset the timers and counters
         super().reset(env_ids, env_mask)
-        # resolve to indices for torch indexing
+        # determine the selected batch size
         if env_ids is not None:
-            num_envs_ids = len(env_ids)
+            num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         elif env_mask is not None:
             env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
             num_envs_ids = len(env_ids)
@@ -194,9 +194,6 @@ class BaseRayCaster(SensorBase):
                 wp_mesh = convert_to_warp_mesh(mesh.vertices, mesh.faces, device=self._device)
                 logger.info(f"Created infinite plane mesh prim: {mesh_prim.GetPath()}.")
             BaseRayCaster.meshes[mesh_key] = wp_mesh
-
-        if all((path, self._device) not in BaseRayCaster.meshes for path in self.cfg.mesh_prim_paths):
-            raise RuntimeError(f"No meshes found for ray-casting! Please check paths: {self.cfg.mesh_prim_paths}")
 
     def _initialize_rays_impl(self):
         # Compute ray starts and directions from pattern (torch, init-time only)
@@ -319,27 +316,19 @@ class BaseRayCaster(SensorBase):
         )
 
     def _set_debug_vis_impl(self, debug_vis: bool):
-        if debug_vis:
-            if not hasattr(self, "ray_visualizer"):
-                self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
-            self.ray_visualizer.set_visibility(True)
-        else:
-            if hasattr(self, "ray_visualizer"):
-                self.ray_visualizer.set_visibility(False)
+        if debug_vis and not hasattr(self, "ray_visualizer"):
+            self.ray_visualizer = VisualizationMarkers(self.cfg.visualizer_cfg)
+        if hasattr(self, "ray_visualizer"):
+            self.ray_visualizer.set_visibility(debug_vis)
 
     def _debug_vis_callback(self, event):
         if self._data._ray_hits_w is None:
             return
-        ray_hits_torch = wp.to_torch(self._data._ray_hits_w)
-        # remove possible inf values
-        viz_points = ray_hits_torch.reshape(-1, 3)
-        viz_points = viz_points[~torch.any(torch.isinf(viz_points), dim=1)]
-
-        # if no points to visualize, skip
-        if viz_points.shape[0] == 0:
-            return
-
-        self.ray_visualizer.visualize(viz_points)
+        # drop missed rays (inf) before visualizing
+        viz_points = wp.to_torch(self._data._ray_hits_w).reshape(-1, 3)
+        viz_points = viz_points[~torch.isinf(viz_points).any(dim=1)]
+        if viz_points.shape[0] > 0:
+            self.ray_visualizer.visualize(viz_points)
 
     """
     Internal simulation callbacks.

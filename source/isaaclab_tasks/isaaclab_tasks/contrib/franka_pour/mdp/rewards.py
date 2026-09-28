@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, TerminationTermCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 from .observations import nearest_grasp_to_tcp_quat
@@ -229,9 +230,9 @@ class PourResetLearningProgress(ManagerTermBase):
 
         self._target_potential[env_ids] = target
         self._requires_terminal_success[env_ids] = target >= 1.0 - 1.0e-6
-        self.is_success[env_ids] = False
-        self.new_success[env_ids] = False
-        self.ever_success[env_ids] = False
+        index_fill_(self.is_success, env_ids, False)
+        index_fill_(self.new_success, env_ids, False)
+        index_fill_(self.ever_success, env_ids, False)
 
     def __call__(
         self,

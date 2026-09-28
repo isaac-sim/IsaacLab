@@ -32,6 +32,7 @@ from ..managers import CommandManager, EventManager
 from ..scene import InteractiveScene
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import validate
 from ..utils.seed import configure_seed
 
 logger = logging.getLogger(__name__)
@@ -230,7 +231,7 @@ class LeappDeploymentEnv:
 
         self._is_closed = True
         cfg.scene.num_envs = 1
-        cfg.validate()
+        validate(cfg)
         self.cfg = cfg
         self._leapp_yaml_path = leapp_yaml_path
         self._sim_step_counter = 0

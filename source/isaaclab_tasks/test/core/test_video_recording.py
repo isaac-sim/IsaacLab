@@ -18,12 +18,9 @@ try:
 except ImportError:
     pytest.skip("moviepy is not installed; install with: pip install 'moviepy<2'", allow_module_level=True)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import logging
 import os

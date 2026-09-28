@@ -113,12 +113,12 @@ class CameraObservationsCfg:
         """
 
         rgb = ObsTerm(
-            func=mdp.image,
+            func=mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("base_camera"),
                 "data_type": "rgb",
                 "normalize": False,
-                "permute": True,
+                "channel_first": True,
             },
             modifiers=[modifiers.ModifierCfg(func=modifiers.scale, params={"multiplier": 1.0 / 255.0})],
             noise=mdp.EpisodeCameraNoiseCfg(),

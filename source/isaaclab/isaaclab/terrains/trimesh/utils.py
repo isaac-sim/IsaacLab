@@ -120,6 +120,8 @@ def make_box(
     # -- cap the rotation along the y and x axis
     if degrees:
         max_yx_angle = max_yx_angle / 180.0
+    else:
+        max_yx_angle = max_yx_angle / np.pi
     euler_zyx[1:] *= max_yx_angle
     # -- apply the rotation
     transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
@@ -151,6 +153,8 @@ def make_cylinder(
     # -- cap the rotation along the y and x axis
     if degrees:
         max_yx_angle = max_yx_angle / 180.0
+    else:
+        max_yx_angle = max_yx_angle / np.pi
     euler_zyx[1:] *= max_yx_angle
     # -- apply the rotation
     transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()
@@ -181,6 +185,8 @@ def make_cone(
     # -- cap the rotation along the y and x axis
     if degrees:
         max_yx_angle = max_yx_angle / 180.0
+    else:
+        max_yx_angle = max_yx_angle / np.pi
     euler_zyx[1:] *= max_yx_angle
     # -- apply the rotation
     transform[0:3, 0:3] = tf.Rotation.from_euler("zyx", euler_zyx).as_matrix()

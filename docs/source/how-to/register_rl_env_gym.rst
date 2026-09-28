@@ -8,8 +8,7 @@ Registering an Environment
 .. currentmodule:: isaaclab
 
 In the previous tutorial, we learned how to create a custom cartpole environment. We manually
-created an instance of the environment by importing the environment class and its configuration
-class.
+created an instance of the environment from the class named by its configuration's ``class_type``.
 
 .. dropdown:: Environment creation in the previous tutorial
    :icon: code
@@ -17,7 +16,7 @@ class.
    .. literalinclude:: ../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
       :start-at: # create environment configuration
-      :end-at: env = ManagerBasedRLEnv(cfg=env_cfg)
+      :end-at: env = instantiate(env_cfg)
 
 While straightforward, this approach is not scalable as we have a large suite of environments.
 In this tutorial, we will show how to use the :meth:`gymnasium.register` method to register

@@ -8,25 +8,22 @@
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectMARLEnv
 from isaaclab.test.env_cfgs import make_empty_direct_marl_env_cfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.integration
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+# Close bookkeeping is device independent; per-agent spaces are covered in test_direct_marl_env_unit.py.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_initialization_and_close(device):
     """DirectMARLEnv initializes its spaces and releases its simulation context."""
     sim_utils.create_new_stage()
@@ -36,9 +33,6 @@ def test_initialization_and_close(device):
         assert not env._is_closed
         assert sim_utils.SimulationContext.instance() is env.sim
         assert env.num_agents == 2
-        assert env.max_num_agents == 2
-        assert len(env.observation_spaces) == 2
-        assert len(env.action_spaces) == 2
         assert env.state_space.shape == (7,)
     finally:
         env.close()

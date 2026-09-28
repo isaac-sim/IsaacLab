@@ -119,6 +119,8 @@ def test_isaac_rtx_global_settings(monkeypatch):
     utils = importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
     settings = _FakeSettings()
     monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
+    # the stubs replace Replicator, so there is no Kit extension to enable
+    monkeypatch.setattr(utils, "enable_extension", lambda _name: None)
     global_settings = IsaacRtxRendererGlobalSettingsCfg(
         enable_translucency=True,
         enable_reflections=True,
@@ -174,7 +176,7 @@ def test_isaac_rtx_global_settings(monkeypatch):
 
 
 def test_isaac_rtx_determinism_settings(monkeypatch):
-    """Write RTPT reproducibility carb settings."""
+    """Write RTPT reproducibility carb settings to the global or a provided settings manager."""
     utils = _import_isaac_rtx_utils(monkeypatch)
     settings = _FakeSettings()
     monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
@@ -185,11 +187,7 @@ def test_isaac_rtx_determinism_settings(monkeypatch):
     assert settings.get("/rtx/rtpt/cached/enabled") is False
     assert settings.get("/rtx/rtpt/lightcache/cached/enabled") is False
 
-
-def test_isaac_rtx_determinism_settings_accepts_explicit_manager(monkeypatch):
-    """Use the provided settings manager when one is passed."""
-    utils = _import_isaac_rtx_utils(monkeypatch)
-
+    # a provided settings manager is used instead of the global one
     def _fail():
         raise AssertionError("global settings manager should not be queried when one is provided")
 

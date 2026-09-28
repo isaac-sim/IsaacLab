@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 import torch
 
@@ -143,7 +143,7 @@ class CurriculumTermCfg(ManagerTermBaseCfg):
     func: Callable[..., float | dict[str, float] | None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input and return the curriculum state for
     logging purposes. If the function returns None, the curriculum state
     is not logged.
@@ -289,6 +289,15 @@ class ObservationGroupCfg:
     ObservationGroupCfg.history_length is set.
     """
 
+    history_order: Literal["term", "time"] = "term"
+    """Order of a flattened, concatenated group history. Defaults to ``"term"``.
+
+    ``"term"`` keeps each term's full history together. ``"time"`` groups all terms by time step, so
+    the flattened output can be reshaped to ``(num_envs, history_length, combined_term_dim)``.
+    The ``"time"`` option applies when :attr:`history_length` is positive, :attr:`flatten_history_dim` and
+    :attr:`concatenate_terms` are true, and :attr:`concatenate_dim` is ``-1``.
+    """
+
 
 ##
 # Event manager
@@ -302,7 +311,7 @@ class EventTermCfg(ManagerTermBaseCfg):
     func: Callable[..., None] = MISSING
     """The name of the function to be called.
 
-    This function should take the environment object, environment indices
+    This function should take the environment object, an environment slice or device-resident indices
     and any other parameters as input.
     """
 

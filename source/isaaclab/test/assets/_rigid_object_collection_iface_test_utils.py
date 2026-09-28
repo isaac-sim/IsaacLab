@@ -10,7 +10,7 @@
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+import _iface_test_boot  # noqa: F401  (starts the runtime)
 
 import numpy as np
 import warp as wp
@@ -65,10 +65,13 @@ try:
         RigidObjectCollectionData as OvPhysxRigidObjectCollectionData,
     )
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 except ImportError:
     pass
 else:
     if hasattr(OvPhysxRigidObjectCollection, "_create_buffers"):
+        # Writers bump the scene-data transform version that ``initialize()`` would normally create.
+        OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
         BACKENDS.append("ovphysx")
 
 

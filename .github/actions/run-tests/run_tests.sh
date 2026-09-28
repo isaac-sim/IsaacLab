@@ -38,6 +38,7 @@ run_tests() {
   local warp_cache_host_dir="${25}"
   local extra_uv_packages="${26}"
   local ovrtx_shader_cache_host_dir="${27}"
+  local test_jobs="${28}"
   local logs_pid=""
   local wait_pid=""
   local docker_wait_file="/tmp/.docker_exit_${container_name}"
@@ -194,6 +195,11 @@ run_tests() {
     echo "Setting per-file pytest -k expression: $test_k_expr"
   fi
 
+  if [ -n "$test_jobs" ]; then
+    docker_env_args+=(-e "TEST_JOBS=$test_jobs")
+    echo "Setting TEST_JOBS=$test_jobs"
+  fi
+
   if [ -n "$ci_marker" ]; then
     docker_env_args+=(-e "CI_MARKER=$ci_marker")
     echo "Setting CI_MARKER=$ci_marker"
@@ -276,7 +282,7 @@ run_tests() {
 
   if [ -n "$ovrtx_shader_cache_host_dir" ]; then
     # Canonical OVRTX shader cache mount layout; other boundaries refer here.
-    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit rendering)
     #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
     #
     # kit/ is a nested bind mount overlaying the nv_shadercache directory that the

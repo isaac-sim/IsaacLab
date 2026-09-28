@@ -8,16 +8,16 @@ from collections.abc import Generator
 import pytest
 import torch
 
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import DelayBuffer
 
 pytestmark = pytest.mark.unit
 
 
-@pytest.fixture(params=test_devices())
-def delay_buffer(request):
+@pytest.fixture
+def delay_buffer():
     """Create a delay buffer for testing."""
-    device: str = request.param
+    device: str = "cpu"
     batch_size: int = 10
     history_length: int = 4
     return DelayBuffer(history_length, batch_size=batch_size, device=device)
@@ -135,12 +135,11 @@ def test_compute_result_independent_of_internal_buffer(delay_buffer):
     assert torch.all(second == 1)
 
 
-def test_delay_buffer_cuda_graph(delay_buffer):
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_delay_buffer_cuda_graph(delay_buffer, device):
     """Sampling and ring writes work during graph replay, including across partial resets."""
-    if not delay_buffer.device.startswith("cuda"):
-        pytest.skip("CUDA graph replay requires CUDA.")
-    with torch.cuda.device(delay_buffer.device):
-        delay_buffer = DelayBuffer(4, delay_buffer.batch_size, delay_buffer.device, min_lag=1, hold_prob=0.5)
+    with torch.cuda.device(device):
+        delay_buffer = DelayBuffer(4, delay_buffer.batch_size, device, min_lag=1, hold_prob=0.5)
         data = torch.zeros(delay_buffer.batch_size, 1, device=delay_buffer.device)
         delay_buffer.compute(data)
         graph = torch.cuda.CUDAGraph()

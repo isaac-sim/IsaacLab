@@ -839,7 +839,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.stage``
      - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
        ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
-       ``clear_stage``, ``update_stage``, ``use_stage``)
+       ``clear_stage``, ``use_stage``)
    * - ``isaacsim.core.utils.prims``
      - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
        ``change_prim_property``, ``bind_visual_material``,
@@ -1613,9 +1613,10 @@ For configuration and data access examples, see the :ref:`overview_sensors_joint
    import torch
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    sensor = env.scene.sensors["joint_wrench"]
@@ -1643,9 +1644,10 @@ depend on the joint-wrench sensor instead:
    from isaaclab.managers import ObservationTermCfg as ObsTerm
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    feet_body_forces = ObsTerm(
@@ -2352,25 +2354,22 @@ The previous ``write_*_to_sim(data, env_ids)`` methods have been removed.
      - ``write_body_link_velocity_to_sim_index`` / ``write_body_link_velocity_to_sim_mask``
 
 
-.. rubric:: TimestampedBufferWarp
+.. rubric:: Timestamped buffers
 
-If you have custom asset or sensor data classes that subclass the Isaac Lab base data classes,
-note that internal buffers have changed from :class:`~isaaclab.utils.buffers.TimestampedBuffer`
-to :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`. The new class takes ``(shape, device,
-wp_dtype)`` as constructor arguments instead of a ``torch.Tensor``:
+Custom asset and sensor data classes use :class:`~isaaclab.utils.buffers.TimestampedBuffer`
+with explicitly allocated Torch or Warp storage. The separate ``TimestampedBufferWarp``
+allocator was removed; replace it with ``TimestampedBuffer(wp.zeros(...))``.
 
 .. code-block:: python
 
    import warp as wp
-   from isaaclab.utils.buffers import TimestampedBufferWarp
+   from isaaclab.utils.buffers import TimestampedBuffer
 
    # Before (Isaac Lab 2.x)
    self._data.root_pos_w = TimestampedBuffer(torch.zeros(num_envs, 3, device=device))
 
    # After (Isaac Lab 3.x)
-   self._data.root_pos_w = TimestampedBufferWarp(
-       shape=(num_envs,), device=device, wp_dtype=wp.vec3f
-   )
+   self._data.root_pos_w = TimestampedBuffer(wp.zeros(num_envs, dtype=wp.vec3f, device=device))
 
 
 Reinforcement Learning
@@ -2643,8 +2642,9 @@ tracking is handled directly by :class:`~isaaclab_visualizers.kit.KitVisualizer`
 The ``tiled_cam_*`` configuration fields on visualizer configs (e.g. ``tiled_cam_view``,
 ``tiled_cam_num``, ``tiled_cam_prim_path``) have been removed and replaced by the unified
 ``streaming_*`` API available on all four visualizer backends.  A one-release deprecation
-shim forwards each removed field to its ``streaming_*`` equivalent and emits
+shim forwards the old fields except renderer selection to their ``streaming_*`` equivalents and emits
 :class:`DeprecationWarning`; the shim will be removed in the next major release.
+Renderer selection now takes a configuration directly, without a nickname compatibility path.
 
 .. list-table:: Field rename reference
    :header-rows: 1
@@ -2666,8 +2666,15 @@ shim forwards each removed field to its ``streaming_*`` equivalent and emits
      - ``streaming_cam_eye``
      -
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer``
-     - Accepts ``"newton_warp"``, ``"ovrtx"``, ``"isaac_rtx"``, or ``None``
+     - ``streaming_cam_renderer_cfg``
+     - Renderer configuration, not a nickname
+
+Replace ``streaming_cam_renderer="ovrtx"`` with ``streaming_cam_renderer_cfg=OVRTXRendererCfg()``
+(imported from ``isaaclab_ov.renderers``). Likewise, pass ``NewtonWarpRendererCfg()`` or
+``IsaacRtxRendererCfg()`` for Newton Warp or Isaac RTX. Custom configurations use their existing
+``class_type`` class or resolvable string. Kit defaults to Isaac RTX; the other visualizers default
+to Newton Warp. An unavailable explicitly selected renderer raises its construction error instead
+of silently selecting another renderer.
 
 .. code-block:: python
 

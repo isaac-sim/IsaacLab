@@ -81,14 +81,8 @@ def test_deploy_resolves_play_mode_and_injects_simulation_controller():
 
     calls = []
 
-    class FakeAppLauncher:
-        @staticmethod
-        def add_app_launcher_args(parser):
-            parser.add_argument("--device", default=None)
-
-        @staticmethod
-        def _fuse_kit_args(argv):
-            return argv
+    def fake_add_launcher_args(parser):
+        parser.add_argument("--device", default=None)
 
     class FakeDeploymentEnv:
         @classmethod
@@ -100,7 +94,7 @@ def test_deploy_resolves_play_mode_and_injects_simulation_controller():
             self.cfg = cfg
             self.num_envs = 1
             self.step_dt = cfg.sim.dt * cfg.decimation
-            self.sim = SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True)
+            self.sim = SimpleNamespace(is_running=lambda: True)
 
         def reset(self):
             calls.append("env_reset")
@@ -123,7 +117,7 @@ def test_deploy_resolves_play_mode_and_injects_simulation_controller():
         calls.append("launch_close")
 
     with (
-        mock.patch.object(deploy_module, "AppLauncher", FakeAppLauncher),
+        mock.patch.object(deploy_module, "add_launcher_args", fake_add_launcher_args),
         mock.patch.object(deploy_module, "launch_simulation", fake_launch_simulation),
         mock.patch.object(deploy_module, "resolve_task_config", resolve),
         mock.patch.dict(sys.modules, {"isaaclab.envs": fake_envs_module}),

@@ -16,7 +16,8 @@ import torch
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
 
-from ...app import AppLauncher, launch_simulation
+from ...app import add_launcher_args, launch_simulation
+from ...app.sim_launcher import fuse_kit_args
 
 
 def command_deploy_leapp(argv: list[str] | None = None) -> int:
@@ -39,17 +40,16 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
         "--max_steps",
         type=int,
         default=-1,
-        help="Maximum policy steps to run, or -1 to continue until the visualizer closes.",
+        help="Maximum policy steps to run, or -1 to continue until simulation stops.",
     )
-    AppLauncher.add_app_launcher_args(parser)
+    add_launcher_args(parser)
 
     if argv is None:
         argv = sys.argv[1:]
-    args_cli, hydra_args = parser.parse_known_args(AppLauncher._fuse_kit_args(argv))
+    args_cli, hydra_args = parser.parse_known_args(fuse_kit_args(argv))
 
     original_argv = sys.argv
     sys.argv = [original_argv[0]] + hydra_args
-    env = None
     try:
         task_name = args_cli.task.split(":")[-1]
         env_cfg, _ = resolve_task_config(task_name, "", play_mode=True)
@@ -60,15 +60,17 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             env_cfg.sim.device = args_cli.device
 
         with launch_simulation(env_cfg, args_cli):
+            # Runtime environment classes load simulation modules and must only be
+            # imported after the simulation runtime has started.
+            from ...envs import LeappDeploymentEnv
+
+            env = LeappDeploymentEnv(
+                env_cfg,
+                args_cli.pipeline,
+                controller_owned_write_handlers=LeappDeploymentEnv.simulated_controller_owned_write_handlers(),
+            )
+
             try:
-                from isaaclab.envs import LeappDeploymentEnv
-
-                env = LeappDeploymentEnv(
-                    env_cfg,
-                    args_cli.pipeline,
-                    controller_owned_write_handlers=LeappDeploymentEnv.simulated_controller_owned_write_handlers(),
-                )
-
                 if getattr(args_cli, "headless", False):
                     print(
                         "[WARN]: Running deploy without a viewport. This happens when headless mode is active, "
@@ -85,15 +87,11 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
                 env.reset()
                 step_count = 0
                 with torch.inference_mode():
-                    while env.sim.is_headless_or_exist_active_visualizer() and (
-                        args_cli.max_steps < 0 or step_count < args_cli.max_steps
-                    ):
+                    while env.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                         env.step()
                         step_count += 1
             finally:
-                if env is not None:
-                    env.close()
-                    env = None
+                env.close()
     except KeyboardInterrupt:
         return 0
     finally:

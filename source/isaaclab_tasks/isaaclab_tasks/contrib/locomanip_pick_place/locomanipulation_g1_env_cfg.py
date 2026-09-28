@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
@@ -294,14 +294,15 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
-    robot_pov_cam = robot_pov_camera_cfg(
-        parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
-        offset_pos=(0.04485, 0.0, 0.35325),
-        offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
-    ).replace(
+    robot_pov_cam = replace(
+        robot_pov_camera_cfg(
+            parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
+            offset_pos=(0.04485, 0.0, 0.35325),
+            offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
+        ),
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam",
         height=480,
         width=640,
@@ -388,12 +389,10 @@ class ObservationsCfg:
         )
 
         robot_pov_cam = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
                 "normalize": False,
-                "clone": False,
             },
         )
 

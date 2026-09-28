@@ -115,9 +115,9 @@ def test_camera_actor_has_only_deployable_observations(stack_cfgs):
     image = cfg.observations.base_image.rgb
 
     assert cfg.scene.base_camera.height == cfg.scene.base_camera.width == 128
-    assert image.func is mdp.image
+    assert image.func is mdp.image_rgb
     assert image.params["normalize"] is False
-    assert image.params["permute"] is True
+    assert image.params["channel_first"] is True
     assert image.modifiers[0].func is modifiers.scale
     assert image.modifiers[0].params["multiplier"] == pytest.approx(1.0 / 255.0)
     assert not hasattr(cfg.observations.policy, "object")

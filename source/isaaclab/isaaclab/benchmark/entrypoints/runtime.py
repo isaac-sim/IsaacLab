@@ -45,7 +45,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Parsed arguments and the remaining Hydra overrides.
     """
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
     from isaaclab.benchmark.distributed import add_distributed_arg
 
     from isaaclab_tasks.utils import setup_preset_cli

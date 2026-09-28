@@ -10,6 +10,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
+import torch
+
 from ..utils import configclass
 
 if TYPE_CHECKING:
@@ -23,6 +25,12 @@ class SceneEntityCfg:
 
     This class is used to specify the name of the scene entity that is queried from the
     :class:`InteractiveScene` and passed to the manager's term function.
+
+    Selections follow a build-then-finalize lifecycle. :meth:`resolve` fills the ``*_ids`` fields with
+    host lists, which class-based terms may read during construction. :meth:`finalize` then replaces each
+    list with a ``torch.long`` tensor on the device. Slices stay slices. Managers finalize their term
+    configurations once all terms are constructed, so term calls index with device selections directly.
+    Tensors are only produced by :meth:`finalize`; configure selections with names, integer lists, or slices.
     """
 
     name: str = MISSING
@@ -38,10 +46,10 @@ class SceneEntityCfg:
     The names can be either joint names or a regular expression matching the joint names.
 
     These are converted to joint indices on initialization of the manager and passed to the term
-    function as a list of joint indices under :attr:`joint_ids`.
+    function as joint indices under :attr:`joint_ids`.
     """
 
-    joint_ids: list[int] | slice = slice(None)
+    joint_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the joints from the asset required by the term. Defaults to slice(None), which means
     all the joints in the asset (if present).
 
@@ -55,10 +63,10 @@ class SceneEntityCfg:
     The names can be either joint names or a regular expression matching the joint names.
 
     These are converted to fixed tendon indices on initialization of the manager and passed to the term
-    function as a list of fixed tendon indices under :attr:`fixed_tendon_ids`.
+    function as fixed tendon indices under :attr:`fixed_tendon_ids`.
     """
 
-    fixed_tendon_ids: list[int] | slice = slice(None)
+    fixed_tendon_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the fixed tendons from the asset required by the term. Defaults to slice(None), which means
     all the fixed tendons in the asset (if present).
 
@@ -72,10 +80,10 @@ class SceneEntityCfg:
     The names can be either body names or a regular expression matching the body names.
 
     These are converted to body indices on initialization of the manager and passed to the term
-    function as a list of body indices under :attr:`body_ids`.
+    function as body indices under :attr:`body_ids`.
     """
 
-    body_ids: list[int] | slice = slice(None)
+    body_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the bodies from the asset required by the term. Defaults to slice(None), which means
     all the bodies in the asset.
 
@@ -89,10 +97,10 @@ class SceneEntityCfg:
     The names can be either names or a regular expression matching the object names in the collection.
 
     These are converted to object indices on initialization of the manager and passed to the term
-    function as a list of object indices under :attr:`object_collection_ids`.
+    function as object indices under :attr:`object_collection_ids`.
     """
 
-    object_collection_ids: list[int] | slice = slice(None)
+    object_collection_ids: list[int] | slice | torch.Tensor = slice(None)
     """The indices of the objects from the rigid object collection required by the term. Defaults to slice(None),
     which means all the objects in the collection.
 
@@ -147,6 +155,22 @@ class SceneEntityCfg:
 
         # convert object collection names to indices based on regex
         self._resolve_object_collection_names(scene)
+
+    def finalize(self, device: str) -> None:
+        """Move resolved index selections to the device.
+
+        Each non-slice ``*_ids`` selection becomes a ``torch.long`` tensor, so indexing and asset write
+        methods use it without a host-to-device upload. Terms share the tensor, so callers must not modify
+        it in place. Slices are kept. Finalization is one-way and
+        must follow :meth:`resolve`; calling it again is a no-op.
+
+        Args:
+            device: Device on which to allocate the index tensors.
+        """
+        for name in ("joint_ids", "fixed_tendon_ids", "body_ids", "object_collection_ids"):
+            indices = getattr(self, name)
+            if not isinstance(indices, (slice, torch.Tensor)):
+                setattr(self, name, torch.tensor(indices, dtype=torch.long, device=device))
 
     def _resolve_joint_names(self, scene: InteractiveScene):
         # convert joint names to indices based on regex
