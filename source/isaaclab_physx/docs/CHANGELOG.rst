@@ -1,6 +1,46 @@
 Changelog
 ---------
 
+7.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.app.KitLauncher`, the Isaac Sim / Kit launcher formerly
+  ``isaaclab.app.AppLauncher``. :func:`~isaaclab.app.launch_simulation` constructs it; scripts do not.
+* Added ``launcher_type`` to :class:`~isaaclab_physx.physics.PhysxCfg`, naming the launcher its runtime needs.
+* Added :class:`~isaaclab_physx.app.KitStageBackendCfg`, the simulation backend that attaches the stage to
+  Kit's USD context and closes it with the simulation.
+* Added :func:`~isaaclab_physx.app.show_stage_in_viewport`, which replaces ``isaaclab.sim.utils.show_stage_in_viewport``.
+* Added ``set_gravity`` to :class:`~isaaclab_physx.physics.PhysxManager` to set the scene-wide gravity.
+
+Changed
+^^^^^^^
+
+* Moved physics randomization implementations into backend ``envs.mdp.events`` modules.
+  The shared ``isaaclab.envs.mdp`` terms kept their API and selected the backend internally.
+* Moved Replicator color and texture implementations into the Isaac Sim backend while
+  preserving the shared terms and their material and RNG attributes. Selection remained
+  independent of physics; kitless runtimes reported the Kit requirement at construction.
+* Removed the ``carb.Float3`` conversion from PhysX gravity randomization.
+* Acquired the shared Fabric resource from an explicit stage/device configuration in Kit rendering
+  consumers, without relying on a backend-specific field on ``SimulationContext``.
+* Changed the Isaac RTX renderer to enable ``omni.replicator.core`` itself, so scripts no longer load it.
+* Changed the ``randomize_visual_color`` and ``randomize_visual_texture_material`` Replicator event terms
+  to seed Replicator with ``env.cfg.seed`` when set, since the environments' ``seed()`` no longer does.
+
+Fixed
+^^^^^
+
+* Published canonical articulation-link paths for SDP and moved foreign-physics Fabric prim
+  preparation into the shared rendering resource.
+* Avoided reloading GPU PhysX scenes after explicit attachment while preserving CPU initialization
+  through the Kit bridge.
+* Waited for GPU-to-host copies before PhysX consumed rigid-body mass, center-of-mass, and inertia
+  updates, preventing stale pinned-memory reads.
+
+
 7.2.5 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~
 

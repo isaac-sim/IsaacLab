@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import omni.usd
@@ -134,6 +135,16 @@ def _get_stage_streaming_busy() -> bool:
     return usd_context.get_stage_streaming_status()
 
 
+def _pump_app_while(busy: Callable[[], bool], timeout_s: float) -> float:
+    """Pump ``app.update()`` while ``busy()`` holds, up to ``timeout_s`` seconds; return the elapsed time [s]."""
+    import omni.kit.app
+
+    start = time.monotonic()
+    while busy() and (time.monotonic() - start) < timeout_s:
+        omni.kit.app.get_app().update()
+    return time.monotonic() - start
+
+
 def _wait_for_streaming_complete() -> None:
     """Pump ``app.update()`` until RTX streaming reports idle or timeout.
 
@@ -142,11 +153,7 @@ def _wait_for_streaming_complete() -> None:
     """
     import omni.kit.app
 
-    start = time.monotonic()
-    while _get_stage_streaming_busy() and (time.monotonic() - start) < _STREAMING_WAIT_TIMEOUT_S:
-        omni.kit.app.get_app().update()
-
-    elapsed = time.monotonic() - start
+    elapsed = _pump_app_while(_get_stage_streaming_busy, _STREAMING_WAIT_TIMEOUT_S)
     if _get_stage_streaming_busy():
         logger.warning(
             "RTX streaming did not complete within %.1f s – proceeding anyway.",
@@ -156,6 +163,37 @@ def _wait_for_streaming_complete() -> None:
         logger.info("RTX streaming completed in %.2f s.", elapsed)
 
     omni.kit.app.get_app().update()
+
+
+def _get_stage_loading_count() -> int:
+    """Return the number of USD stage assets still loading."""
+    usd_context = omni.usd.get_context()
+    if usd_context is None:
+        return 0
+    # get_stage_loading_status -> (message, count_loaded, count_loading)
+    return usd_context.get_stage_loading_status()[2]
+
+
+def wait_for_stage_load(timeout_s: float, settle_frames: int = 0) -> None:
+    """Pump ``app.update()`` until the USD stage has no assets pending, then ``settle_frames`` more.
+
+    The extra frames let the renderer finish shader compilation and material warm-up after
+    every referenced asset has been resolved.
+
+    Args:
+        timeout_s: Upper bound on the wait for pending assets [s]; a warning is logged when reached.
+        settle_frames: Number of additional app updates pumped after loading completes.
+    """
+    import omni.kit.app
+
+    elapsed = _pump_app_while(lambda: _get_stage_loading_count() > 0, timeout_s)
+    pending = _get_stage_loading_count()
+    if pending:
+        logger.warning("Stage still reports %d assets pending after %.1f s; proceeding anyway.", pending, elapsed)
+    else:
+        logger.info("Stage load completed in %.2f s.", elapsed)
+    for _ in range(settle_frames):
+        omni.kit.app.get_app().update()
 
 
 def ensure_rtx_hydra_engine_attached() -> None:

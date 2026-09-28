@@ -1854,6 +1854,7 @@ def rendering_test_lift_kuka(
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass
 
@@ -1941,6 +1942,10 @@ def rendering_test_lift_kuka(
         env_cfg.events.joint_friction = None
         env_cfg.events.object_scale_mass = None
         env_cfg.events.finger_closing_speed = None
+        # No policy image term accepts motion vectors, but the camera must still be read every step.
+        env_cfg.observations.base_image.object_observation_b = ObservationTermCfg(
+            func=lambda env: env.scene.sensors["base_camera"].data.output["motion_vectors"].torch
+        )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
 

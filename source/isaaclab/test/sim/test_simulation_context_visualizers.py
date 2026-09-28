@@ -142,6 +142,7 @@ class _FakeVisualizer(BaseVisualizer):
 def _make_context(visualizers, provider=None):
     ctx = object.__new__(SimulationContext)
     ctx._visualizers = list(visualizers)
+    ctx._visualizers_started = bool(visualizers)
     ctx._scene_data_provider = provider
     ctx.physics_manager = _FakePhysicsManager()
     ctx.vis_marker_registry = VisMarkerRegistry()
@@ -191,6 +192,18 @@ def test_update_visualizers_removes_closed_nonrunning_and_failed(caplog):
     assert paused_viz.step_calls == [0.0]
     assert healthy_viz.step_calls == [0.1]
     assert any("Error stepping visualizer" in r.message for r in caplog.records)
+
+
+def test_is_running_until_the_last_visualizer_closes():
+    """Headless runs keep going; once the last visualizer closes and is dropped, the run ends."""
+    assert _make_context([]).is_running()
+
+    stopped_viz = _FakeVisualizer(running=False)
+    ctx = _make_context([stopped_viz], provider=_FakeProvider())
+    ctx.update_visualizers(0.1)
+
+    assert ctx._visualizers == []
+    assert not ctx.is_running()
 
 
 def test_update_visualizers_skips_zero_dt_for_paused_app_pumping_visualizer():

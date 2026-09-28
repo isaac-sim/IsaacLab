@@ -5,13 +5,9 @@
 
 """Scene-level regression test for cloned visual materials and bindings."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-simulation_app = AppLauncher(headless=True).app
-
-"""Everything else follows."""
+launch_test_simulation()
 
 import pytest
 import torch

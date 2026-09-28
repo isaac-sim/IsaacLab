@@ -6,15 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils import replace
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import copy
 import random
@@ -25,7 +20,6 @@ import scipy.spatial.transform as tf
 import torch
 import warp as wp
 
-import omni.replicator.core as rep
 from pxr import Gf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
@@ -86,8 +80,6 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
 
 def teardown(sim: sim_utils.SimulationContext):
     # Cleanup
-    # close all the opened viewport from before.
-    rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
     sim.stop()
     # clear the stage

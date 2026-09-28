@@ -5,15 +5,9 @@
 
 """Tests to verify contact sensor functionality on rigid object prims."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import DeviceScope, test_devices
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 from dataclasses import MISSING
 from enum import Enum

@@ -208,9 +208,7 @@ def main() -> None:
         sim = demo_h1.env.unwrapped.sim
         step_count = 0
         try:
-            while sim.is_headless_or_exist_active_visualizer() and (
-                args_cli.max_steps < 0 or step_count < args_cli.max_steps
-            ):
+            while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                 demo_h1.update_controls()
                 with torch.inference_mode():
                     obs = demo_h1.apply_commands()

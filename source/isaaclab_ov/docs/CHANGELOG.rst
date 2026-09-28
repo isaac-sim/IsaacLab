@@ -1,6 +1,32 @@
 Changelog
 ---------
 
+3.5.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_ov.app.OvrtxLauncher` and ``launcher_type`` on
+  :class:`~isaaclab_ov.renderers.OVRTXRendererCfg`, so :func:`~isaaclab.app.launch_simulation` registers the
+  OVRTX USD schemas through the renderer's launcher.
+
+Changed
+^^^^^^^
+
+* Moved physics randomization implementations into backend ``envs.mdp.events`` modules.
+  The shared ``isaaclab.envs.mdp`` terms kept their API and selected the backend internally.
+
+Fixed
+^^^^^
+
+* Bound SDP rigid-body poses through one native OVPhysX view, removing USD discovery,
+  clone-path reconstruction, and an extra view adapter. Published canonical articulation-link
+  paths instead of root aliases, with native metadata initialized on both CPU and GPU.
+* Loaded OVRTX's bundled native dependency when constructing its backend, so renderer creation
+  no longer depended on viewer-specific setup.
+
+
 3.4.2 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~
 

@@ -7,10 +7,8 @@
 
 from __future__ import annotations
 
-import contextlib
 from dataclasses import field
 
-import omni.kit.app
 import omni.usd
 from pxr import Usd, UsdUtils
 
@@ -45,29 +43,3 @@ class KitStageBackendCfg(BackendCfg):
 
     class_type: type = KitStageBackend
     stage: Usd.Stage = field(kw_only=True, metadata={"copy": False})
-
-
-def show_stage_in_viewport(usd_path: str) -> None:
-    """Open a USD file in the Kit viewport and keep the app running until the user closes it.
-
-    Opens the stage through the Kit USD context so it appears in the viewport (or the
-    livestream client), then spins the Kit update loop until the window is closed or the
-    loop is interrupted. Must only be called inside a running Kit process with a GUI.
-
-    Args:
-        usd_path: Path of the USD file to display.
-
-    Raises:
-        RuntimeError: If the stage cannot be opened.
-    """
-    # A failed open leaves the previously loaded stage in the viewport, which would look like a
-    # successful preview of the wrong asset, so surface the failure instead of blocking on it.
-    result = omni.usd.get_context().open_stage(usd_path)
-    opened = result[0] if isinstance(result, tuple) else result
-    if opened is False:
-        raise RuntimeError(f"Failed to open the USD stage in the Kit viewport: {usd_path}")
-
-    app = omni.kit.app.get_app_interface()
-    with contextlib.suppress(KeyboardInterrupt):
-        while app.is_running():
-            app.update()

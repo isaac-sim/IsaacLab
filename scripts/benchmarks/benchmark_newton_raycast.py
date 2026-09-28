@@ -17,8 +17,6 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
 
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
-
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
