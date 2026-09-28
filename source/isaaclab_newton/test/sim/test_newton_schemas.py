@@ -5,12 +5,9 @@
 
 """Tests for Newton and MuJoCo schema cfg classes in isaaclab_newton."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 

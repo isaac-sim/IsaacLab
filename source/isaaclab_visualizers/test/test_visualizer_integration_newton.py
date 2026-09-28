@@ -8,14 +8,10 @@
 import sys
 from pathlib import Path
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch Kit app
-simulation_app = AppLauncher(
-    headless=True,
-    enable_cameras=True,
-    visualizer_intent={"has_any_visualizers": True, "has_kit_visualizer": True},
-).app
+launch_test_simulation(enable_cameras=True, visualizer_intent={"has_kit_visualizer": True})
+
 
 import pytest  # noqa: E402
 
@@ -24,8 +20,6 @@ if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
 import visualizer_integration_utils as _viz_utils  # noqa: E402
-
-_viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 run_cartpole_env_visualizers_motion_with_play_pause = _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause
 run_cartpole_env_visualizers_tiled_camera_motion = _viz_utils.run_cartpole_env_visualizers_tiled_camera_motion

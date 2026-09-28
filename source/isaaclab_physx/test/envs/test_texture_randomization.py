@@ -5,14 +5,9 @@
 
 """Replicator texture and color events on a cartpole scene."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
-
-simulation_app = AppLauncher(headless=True, enable_cameras=True, device=resolve_test_sim_device()).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import math
 

@@ -8,7 +8,7 @@
 """Real-backend tests for the OVPhysX IMU sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_imu.py
-but runs kitless under uv run python -m pytest — no AppLauncher needed.
+but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit), and
 UsdFileCfg(usd_path=ISAAC_NUCLEUS_DIR/...) downloads Nucleus assets via
 omni.client (which works standalone in Kit's Python).

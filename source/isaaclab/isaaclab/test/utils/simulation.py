@@ -14,24 +14,22 @@ from .devices import resolve_test_sim_device
 _RUNTIME = contextlib.ExitStack()
 
 
-def launch_test_simulation(**launcher_args):
-    """Start Isaac Sim / Kit for the rest of the test process through :func:`~isaaclab.app.launch_simulation`.
+def launch_test_simulation(cfg=None, **launcher_args) -> None:
+    """Start the runtime *cfg* needs for the rest of the test process through :func:`~isaaclab.app.launch_simulation`.
 
-    Call it at module level, before importing modules that need Kit. The runtime stays up until the
-    process exits, when the Kit launcher closes it with the process's exit status.
+    Call it at module level, before importing modules that need the runtime. The runtime stays up
+    until the process exits, when its launcher closes it with the process's exit status.
 
     Args:
+        cfg: Config tree whose physics, renderers, and sensors select the runtime. Defaults to
+            :class:`~isaaclab.sim.SimulationCfg`, whose default physics backend selects the runtime.
         **launcher_args: Launcher arguments, for example ``device`` or ``enable_cameras``. ``device``
             defaults to :func:`~isaaclab.test.utils.resolve_test_sim_device`.
-
-    Returns:
-        The running Kit application, for tests that pump it with ``update()``.
     """
     from isaaclab.app import launch_simulation
+    from isaaclab.sim import SimulationCfg
 
     if "device" not in launcher_args:
         launcher_args["device"] = resolve_test_sim_device()
-    _RUNTIME.enter_context(launch_simulation(None, {"require_kit": True, "headless": True, **launcher_args}))
-    import omni.kit.app
-
-    return omni.kit.app.get_app()
+    cfg = SimulationCfg() if cfg is None else cfg
+    _RUNTIME.enter_context(launch_simulation(cfg, {"headless": True, **launcher_args}))

@@ -8,7 +8,7 @@
 """Real-backend tests for the OVPhysX PVA sensor.
 
 Mirrors the structure of source/isaaclab_physx/test/sensors/test_pva.py
-but runs kitless under uv run python -m pytest — no AppLauncher needed.
+but runs kitless under uv run python -m pytest — no Kit launch needed.
 SimulationContext is instantiated directly (it does not require Kit).
 
 Tests that load the PhysX pendulum URDF (``test_single_dof_pendulum`` and
