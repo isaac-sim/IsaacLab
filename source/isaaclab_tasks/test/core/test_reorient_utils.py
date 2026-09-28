@@ -68,6 +68,25 @@ def test_episode_error_recorder_skips_episodes_without_samples():
     assert recorder.reset(torch.tensor([0, 1])) == {}
 
 
+def test_episode_error_recorder_reset_excludes_episodes_without_samples():
+    """Verify reset statistics cover only sampled episodes, and are NaN when none of them is."""
+    recorder = reorient_utils.EpisodeErrorRecorder(num_envs=5, device="cpu")
+    nan = float("nan")
+    # envs 1 and 4 only see non-finite errors, so they have no sample
+    recorder.update(torch.tensor([0.3, nan, 0.1, 0.4, torch.inf]))
+    recorder.update(torch.tensor([0.2, nan, 0.5, 0.35, nan]))
+
+    statistics = recorder.reset(torch.tensor([0, 1, 2, 3]))
+    sampled = torch.tensor([0.2, 0.1, 0.35])
+    assert {k: v.item() for k, v in statistics.items()} == pytest.approx(
+        {"mean": sampled.mean().item(), "median": sampled.median().item(), "p90": torch.quantile(sampled, 0.9).item()}
+    )
+
+    statistics = recorder.reset(torch.tensor([4]))
+    assert set(statistics) == {"mean", "median", "p90"}
+    assert all(torch.isnan(value) for value in statistics.values())
+
+
 def test_episode_error_recorder_update_matches_masked_indexing_reference():
     """Verify the sync-free update equals boolean-mask indexing on NaN/inf/finite mixes."""
 
@@ -163,7 +182,7 @@ def test_resolve_actuated_tendons_returns_indices_in_action_order_and_limit_tens
         hand, ["rh_LFJ0", "rh_FFJ0"], num_envs=3, device="cpu", position_limits=(0.0, 2.0)
     )
 
-    assert indices == [3, 0]
+    assert torch.equal(indices, torch.tensor([3, 0]))
     assert torch.equal(lower, torch.zeros(3, 2))
     assert torch.equal(upper, torch.full((3, 2), 2.0))
 

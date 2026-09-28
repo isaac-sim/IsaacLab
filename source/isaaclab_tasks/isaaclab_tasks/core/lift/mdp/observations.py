@@ -53,16 +53,7 @@ class body_state_b(ManagerTermBase):
 
     The state for each body is stacked horizontally as
     ``[position(3), quaternion(4)(xyzw), linvel(3), angvel(3)]`` and then concatenated over bodies.
-
-    The body indices are baked to a device tensor at construction.
     """
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        body_ids = cfg.params["body_asset_cfg"].body_ids
-        if isinstance(body_ids, list):
-            body_ids = torch.tensor(body_ids, dtype=torch.long, device=env.device)
-        self._body_ids = body_ids
 
     def __call__(
         self,
@@ -86,10 +77,10 @@ class body_state_b(ManagerTermBase):
         body_asset: Articulation = env.scene[body_asset_cfg.name]
         base_asset: Articulation = env.scene[base_asset_cfg.name]
         # world pose of the bodies, flattened over environments
-        body_pos_w = body_asset.data.body_pos_w.torch[:, self._body_ids]
+        body_pos_w = body_asset.data.body_pos_w.torch[:, body_asset_cfg.body_ids]
         num_bodies = body_pos_w.shape[1]
         body_pos_w = body_pos_w.reshape(-1, 3)
-        body_quat_w = body_asset.data.body_quat_w.torch[:, self._body_ids].reshape(-1, 4)
+        body_quat_w = body_asset.data.body_quat_w.torch[:, body_asset_cfg.body_ids].reshape(-1, 4)
         # world pose of the base frame, broadcast over the bodies
         root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 3)
         root_quat_w = base_asset.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 4)
@@ -99,8 +90,8 @@ class body_state_b(ManagerTermBase):
         # and contact-response differences); pose-only states with observation history transfer across
         # physics backends, velocity states do not
         if include_vel:
-            body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, self._body_ids].view(-1, 3)
-            body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, self._body_ids].view(-1, 3)
+            body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
+            body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
             body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
             body_ang_vel_b = quat_apply_inverse(root_quat_w, body_ang_vel_w)
             out = torch.cat((body_pos_b, body_quat_b, body_lin_vel_b, body_ang_vel_b), dim=1)

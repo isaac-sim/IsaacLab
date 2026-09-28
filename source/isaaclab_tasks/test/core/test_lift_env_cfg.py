@@ -13,6 +13,7 @@ import warp as wp
 
 from pxr import Usd
 
+from isaaclab.assets import Asset
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import select_usd_variants
 from isaaclab.utils.warp import ProxyArray
@@ -116,9 +117,10 @@ def test_camera_normalization_is_stationary() -> None:
     assert torch.allclose(depth_obs.flatten(), torch.tanh(torch.tensor([0.0, 2.0]) / 2) - 0.5)
 
 
-def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every lift pose, goal, and success marker should retain its environment ownership."""
-    num_envs = 3
+def _make_pose_command(
+    monkeypatch: pytest.MonkeyPatch, num_envs: int, success_asset: object
+) -> tuple[ObjectUniformPoseCommand, torch.Tensor]:
+    """Build a pose command around fake assets and spy markers; returns it with the shared root positions."""
     environment_ids = torch.arange(num_envs)
     identity_quat = torch.zeros((num_envs, 4))
     identity_quat[:, 3] = 1.0
@@ -139,7 +141,6 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
             root_link_pose_w=SimpleNamespace(torch=root_pose_w),
         )
     )
-    success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=root_pos_w)))
     scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = SimpleNamespace(
@@ -161,8 +162,15 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
     monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
+    return ObjectUniformPoseCommand(cfg, env), root_pos_w
 
-    command = ObjectUniformPoseCommand(cfg, env)
+
+def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Every lift pose, goal, and success marker should retain its environment ownership."""
+    num_envs = 3
+    environment_ids = torch.arange(num_envs)
+    success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=torch.zeros((num_envs, 3)))))
+    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, success_asset)
     command._set_debug_vis_impl(True)
     command._debug_vis_callback(None)
     command.cfg.position_only = False
@@ -182,6 +190,57 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         assert len(visualizer.calls) == expected_count
         for _, kwargs in visualizer.calls:
             assert torch.equal(kwargs["environment_ids"], environment_ids)
+
+
+def test_lift_static_success_markers_update_only_marker_indices(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Success markers on a static asset are placed once; per-step updates only switch the prototype."""
+    num_envs = 3
+    static_table = object.__new__(Asset)
+    static_table.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
+    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, static_table)
+    # env 1 is at the goal, the others are not
+    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
+
+    for update_metrics in (
+        ObjectUniformPoseCommand._update_metrics,
+        DeformableUniformPoseCommand._update_metrics,
+        CableUniformPoseCommand._update_metrics,
+    ):
+        command._segment_position_w = lambda: root_pos_w
+        update_metrics(command)
+
+    calls = command.success_visualizer.calls
+    placement_args, placement_kwargs = calls[0]
+    assert torch.equal(placement_args[0], torch.tensor([[0.5, 0.0, 0.0]] * num_envs))
+    assert torch.equal(placement_kwargs["environment_ids"], torch.arange(num_envs))
+    assert len(calls) == 4
+    for args, kwargs in calls[1:]:
+        assert args == ()
+        assert kwargs.keys() == {"marker_indices"}
+        assert torch.equal(kwargs["marker_indices"], torch.tensor([0, 1, 0], dtype=torch.int32))
+
+
+def test_lift_contact_terms_match_per_sensor_reference() -> None:
+    """Contact gating and counting from stacked sensor forces match a per-sensor evaluation."""
+    num_envs, threshold = 64, 1.0
+    names = ["thumb", "index", "middle", "ring"]
+    # contact forces [N] straddling the threshold, shape (num_envs, 1 body, 1 filter, 3)
+    forces = {name: 1.2 * torch.rand(num_envs, 1, 1, 3) for name in names}
+    sensors = {
+        name: SimpleNamespace(data=SimpleNamespace(normal_force_matrix_w=ProxyArray(wp.from_torch(force))))
+        for name, force in forces.items()
+    }
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=SimpleNamespace(sensors=sensors))
+    in_contact = {
+        name: torch.linalg.norm(force.view(num_envs, 3), dim=-1) > threshold for name, force in forces.items()
+    }
+
+    expected_contacts = in_contact["thumb"] & (in_contact["index"] | in_contact["middle"] | in_contact["ring"])
+    expected_count = sum(in_contact[name].float() for name in names) / len(names)
+
+    assert torch.equal(mdp.contacts(env, threshold, "thumb", names[1:]), expected_contacts)
+    assert torch.equal(mdp.contact_count(env, threshold, names), expected_count)
+    assert not mdp.contacts(env, threshold, "thumb", []).any()
 
 
 def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:

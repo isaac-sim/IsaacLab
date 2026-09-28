@@ -67,14 +67,8 @@ def contacts(env: ManagerBasedRLEnv, threshold: float, thumb_name: str, finger_n
     Returns:
         Boolean tensor indicating good contact condition per environment.
     """
-    thumb_mag = _contact_force_mag(env.scene.sensors[thumb_name], env.num_envs)
-
-    any_finger_contact = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-    for finger_name in finger_names:
-        finger_mag = _contact_force_mag(env.scene.sensors[finger_name], env.num_envs)
-        any_finger_contact = any_finger_contact | (finger_mag > threshold)
-
-    return (thumb_mag > threshold) & any_finger_contact
+    in_contact = _contact_force_mags(env, [thumb_name, *finger_names]) > threshold
+    return in_contact[:, 0] & in_contact[:, 1:].any(dim=1)
 
 
 def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[str]) -> torch.Tensor:
@@ -91,11 +85,7 @@ def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[s
     Returns:
         Tensor of shape (num_envs,) with the count of sensors in contact per environment.
     """
-    count = torch.zeros(env.num_envs, dtype=torch.float32, device=env.device)
-
-    for sensor_name in sensor_names:
-        mag = _contact_force_mag(env.scene.sensors[sensor_name], env.num_envs)
-        count += (mag > threshold).float()
+    count = (_contact_force_mags(env, sensor_names) > threshold).float().sum(dim=1)
     return count / len(sensor_names)
 
 
@@ -413,7 +403,8 @@ class _GoalDistanceReward(ManagerTermBase):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         if env_ids is None:
             env_ids = slice(None)
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean().item()
+        # 0-dim device tensor: no host sync on reset
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
         index_fill_(self._succeeded, env_ids, False)
 
 
@@ -513,10 +504,21 @@ def cable_segment_goal_reached(
     return (distance < success_threshold).float()
 
 
-def _contact_force_mag(sensor: ContactSensor, num_envs: int) -> torch.Tensor:
-    """Per-environment contact force magnitude [N] of a single-body, single-filter contact sensor."""
-    force = sensor.data.normal_force_matrix_w.torch.view(num_envs, 3)
-    return torch.linalg.norm(force, dim=-1)
+def _contact_force_mags(env: ManagerBasedRLEnv, sensor_names: Sequence[str]) -> torch.Tensor:
+    """Per-environment contact force magnitudes [N] of single-body, single-filter contact sensors.
+
+    The forces are stacked so a single norm covers every sensor.
+
+    Args:
+        env: The environment instance.
+        sensor_names: Names of the contact sensors in the scene.
+
+    Returns:
+        Force magnitudes [N], shape ``(num_envs, len(sensor_names))``.
+    """
+    sensors: list[ContactSensor] = [env.scene.sensors[name] for name in sensor_names]
+    forces = torch.stack([sensor.data.normal_force_matrix_w.torch.view(env.num_envs, 3) for sensor in sensors], dim=1)
+    return torch.linalg.norm(forces, dim=-1)
 
 
 def _deformable_com_goal_metrics(
