@@ -17,22 +17,23 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from isaaclab import sim as sim_utils
-from isaaclab.app.logging_utils import force_log_level
-from isaaclab.renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
-from isaaclab.sensors.camera.camera_data import CameraData
-from isaaclab.sensors.sensor_base import SensorBase
-from isaaclab.sim.views import FrameView
-from isaaclab.utils.math import (
+from ... import sim as sim_utils
+from ...app.logging_utils import force_log_level
+from ...physics import PhysicsEvent, PhysicsManager
+from ...renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
+from ...sim.views import FrameView
+from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
-from isaaclab.utils.warp import ProxyArray
+from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
+from ...utils.warp import ProxyArray
+from ..sensor_base import SensorBase
+from .camera_data import CameraData
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.camera.camera_cfg import CameraCfg
+    from .camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
 
@@ -214,7 +215,6 @@ class Camera(SensorBase):
         super().__init__(cfg)
         self._legacy_isp: VisualProcessingPipeline | None = None
         self._requested_render_inputs: tuple[str, ...] = ()
-        self._neutral_exposure = False
         self._render_generation = 0
 
         # Compute camera orientation (convention conversion) and spawn.
@@ -258,12 +258,12 @@ class Camera(SensorBase):
         # and several env classes read it before the renderer's __init__ runs.
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type == "isaac_rtx":
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
             settings.set_bool("/physics/fabricUpdateTransformations", True)
-        if "rgb_hdr" in self.cfg.data_types or self.cfg.isp_cfg is not None:
+        if {"rgb_hdr", "rgb_radiance"}.intersection(self.cfg.data_types) or self.cfg.isp_cfg is not None:
             self._enable_hdr_rendering()
 
         # UsdGeom Camera prim for the sensor
@@ -383,17 +383,15 @@ class Camera(SensorBase):
     Configuration
     """
 
-    def request_render_inputs(self, data_types: tuple[str, ...], *, neutral_exposure: bool = False) -> None:
+    def request_render_inputs(self, data_types: tuple[str, ...]) -> None:
         """Request private renderer buffers before sensor initialization.
 
-        Repeated calls merge requests without changing :attr:`CameraCfg.data_types`. Exposure
-        requirements apply to the entire camera, including its public raw outputs, and are
-        prepared immediately so shared renderers export all camera overrides together.
+        Repeated calls merge requests without changing :attr:`CameraCfg.data_types`. The
+        renderer prepares the requested signals immediately so shared renderers export all
+        camera settings together. Any required camera settings also affect its public outputs.
 
         Args:
             data_types: Renderer buffer names required by a consumer.
-            neutral_exposure: Request unexposed scene-linear HDR. False makes no exposure request
-                and does not cancel requests from other consumers of this camera.
 
         Raises:
             RuntimeError: If the camera is already initialized.
@@ -405,8 +403,7 @@ class Camera(SensorBase):
         if unsupported:
             raise ValueError(f"Camera renderer does not support requested inputs: {sorted(unsupported)}.")
         self._requested_render_inputs = tuple(dict.fromkeys((*self._requested_render_inputs, *data_types)))
-        self._neutral_exposure |= neutral_exposure
-        if "rgb_hdr" in data_types:
+        if {"rgb_hdr", "rgb_radiance"}.intersection(data_types):
             self._enable_hdr_rendering()
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is not None and self._renderer is not None:
@@ -420,7 +417,6 @@ class Camera(SensorBase):
                 camera_prim_paths=paths,
                 view_count=int(count),
                 render_data_types=tuple(dict.fromkeys((*self.cfg.data_types, *self._requested_render_inputs))),
-                neutral_exposure=self._neutral_exposure,
             )
             self._renderer.prepare_cameras(self.stage, spec)
 
@@ -428,7 +424,7 @@ class Camera(SensorBase):
         """Configure HDR routing before renderer stage preparation."""
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type in {"isaac_rtx", "ovrtx"}:
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
             get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
             if renderer_type == "ovrtx":
@@ -743,53 +739,13 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         if sim_ctx is None:
             raise RuntimeError("SimulationContext is not initialized.")
-        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
-        if self._renderer is None:
-            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
-
-        # Resolve compatibility ISP discovery before per-camera setup and stage export.
-        cam_paths = self.camera_prim_paths
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
-        if self._legacy_isp is not None:
-            self._legacy_isp.close()
-            self._legacy_isp = None
-        render_types = tuple(self.cfg.data_types)
-        neutral_exposure = self._neutral_exposure
-        if self.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispProcessorCfg
-            except ModuleNotFoundError as exc:
-                if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-                    raise
-                raise ModuleNotFoundError(
-                    "CameraCfg.isp_cfg requires the optional isaaclab-ppisp package.", name="isaaclab_ppisp"
-                ) from exc
-            self._legacy_isp = VisualProcessingPipeline(
-                [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg)],
-                VisualProcessorContext(
-                    self.stage, cam_paths, self._num_envs, self.cfg.height, self.cfg.width, device_str
-                ),
-                self.render_buffer_specs,
-                self.cfg.data_types,
+        render_spec = self._prepare_rendering()
+        if render_spec.num_instances != self._num_envs:
+            raise RuntimeError(
+                f"Prepared camera view count ({render_spec.num_instances}) does not match"
+                f" the initialized environment count ({self._num_envs})."
             )
-            render_types = self._legacy_isp.render_data_types
-            neutral_exposure |= self._legacy_isp.neutral_exposure
-        self._render_data_types = tuple(dict.fromkeys((*render_types, *self._requested_render_inputs)))
-        render_spec = CameraRenderSpec(
-            cfg=self.cfg,
-            device=device_str,
-            num_instances=self._num_envs,
-            camera_prim_paths=cam_paths,
-            view_count=self._num_envs,
-            render_data_types=self._render_data_types,
-            neutral_exposure=neutral_exposure,
-        )
-
-        # Delegate per-camera USD setup to the renderer — must run **before**
-        # ``ensure_prepare_stage`` so renderers that snapshot the stage
-        # (ovrtx's ``stage.Export``) capture the resulting overrides in their
-        # exported USD.
-        self._renderer.prepare_cameras(self.stage, render_spec)
+        cam_paths = render_spec.camera_prim_paths
 
         # Stage preprocessing must happen before creating the view because the view keeps
         # references to prims located in the stage.
@@ -826,6 +782,55 @@ class Camera(SensorBase):
 
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
+
+    def _prepare_rendering(self) -> CameraRenderSpec:
+        """Resolve camera signals before any shared renderer exports the stage."""
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            raise RuntimeError("SimulationContext is not initialized.")
+        # Normally created in ``__init__``; only missing when the camera was built without a simulation.
+        if self._renderer is None:
+            self._renderer = sim_ctx.get_or_create_backend(self.cfg.renderer_cfg)
+
+        cam_paths = self.camera_prim_paths
+        clone_plan = sim_ctx.get_clone_plan()
+        num_views = (
+            int(clone_plan.env_ids.size)
+            if clone_plan is not None and clone_plan.env_ids is not None
+            else len(cam_paths)
+        )
+        device_str = str(sim_ctx.device)
+        if self.cfg.isp_cfg is not None and self._legacy_isp is None:
+            try:
+                from isaaclab_ppisp import PpispProcessorCfg
+            except ModuleNotFoundError as exc:
+                if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
+                    raise
+                raise ModuleNotFoundError(
+                    "CameraCfg.isp_cfg requires the optional isaaclab-ppisp package.", name="isaaclab_ppisp"
+                ) from exc
+            self._legacy_isp = VisualProcessingPipeline(
+                [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg)],
+                VisualProcessorContext(self.stage, cam_paths, num_views, self.cfg.height, self.cfg.width, device_str),
+                self.render_buffer_specs,
+                self.cfg.data_types,
+            )
+        render_types = (
+            self._legacy_isp.render_data_types if self._legacy_isp is not None else tuple(self.cfg.data_types)
+        )
+        self._render_data_types = tuple(dict.fromkeys((*render_types, *self._requested_render_inputs)))
+        render_spec = CameraRenderSpec(
+            cfg=self.cfg,
+            device=device_str,
+            num_instances=num_views,
+            camera_prim_paths=cam_paths,
+            view_count=num_views,
+            render_data_types=self._render_data_types,
+        )
+
+        # This also runs at initialization for direct callers that do not dispatch physics events.
+        self._renderer.prepare_cameras(self.stage, render_spec)
+        return render_spec
 
     def _prepare_camera(self, env_mask: wp.array) -> None:
         """Advance capture frames and refresh requested poses before rendering."""
@@ -922,20 +927,18 @@ class Camera(SensorBase):
     def _create_buffers(self):
         """Create buffers for storing data."""
         device_str = self._device if isinstance(self._device, str) else str(self._device)
-        render_outputs = {}
-        if self._legacy_isp is not None:
-            public_outputs = self._legacy_isp.allocate()
-            render_outputs.update(self._legacy_isp.render_outputs)
         allocated = CameraData.allocate(
-            data_types=[name for name in self._render_data_types if name not in render_outputs],
+            data_types=list(self._render_data_types),
             height=self.cfg.height,
             width=self.cfg.width,
             num_views=self._view.count,
             device=device_str,
             supported_specs=self.render_buffer_specs,
         )
-        render_outputs.update(allocated.output)
-        if self._legacy_isp is None:
+        render_outputs = allocated.output
+        if self._legacy_isp is not None:
+            public_outputs = self._legacy_isp.allocate(render_outputs)
+        else:
             public_names = set(self.cfg.data_types)
             if not public_names.isdisjoint({"rgb", "rgba"}):
                 public_names.update({"rgb", "rgba"})
@@ -1151,6 +1154,27 @@ class Camera(SensorBase):
     """
     Internal simulation callbacks.
     """
+
+    def _register_callbacks(self):
+        super()._register_callbacks()
+        physics_manager = sim_utils.SimulationContext.instance().physics_manager
+        # Prepare every camera before the inherited initialization callbacks (order 10).
+        self._prepare_rendering_handle = physics_manager.register_callback(
+            self._prepare_rendering_callback, PhysicsEvent.PHYSICS_READY, order=9
+        )
+
+    def _prepare_rendering_callback(self, event):
+        if not self._is_initialized:
+            PhysicsManager.safe_callback_invoke(
+                self._prepare_rendering, physics_manager=sim_utils.SimulationContext.instance().physics_manager
+            )
+
+    def _clear_callbacks(self):
+        handle = getattr(self, "_prepare_rendering_handle", None)
+        if handle is not None:
+            handle.deregister()
+            self._prepare_rendering_handle = None
+        super()._clear_callbacks()
 
     def _invalidate_initialize_callback(self, event):
         """Invalidates the scene elements."""

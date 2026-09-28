@@ -15,8 +15,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_ppisp.cfg import PpispCfg, resolve_and_normalize
-from isaaclab_ppisp.pipeline import PpispPipeline
+from .cfg import PpispCfg, resolve_and_normalize
+from .pipeline import PpispPipeline
 
 
 def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorContext) -> VisualProcessor | None:
@@ -42,7 +42,7 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
 
     def initialize(inputs: dict[str, ProxyArray], outputs: dict[str, ProxyArray]) -> None:
         nonlocal hdr, rgba
-        hdr = inputs["rgb_hdr"].warp
+        hdr = inputs["rgb_radiance"].warp
         rgba = outputs["rgba"].warp
         pipeline.initialize(hdr)
 
@@ -65,7 +65,6 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
         initialize=initialize,
         process=process,
         close=close,
-        neutral_exposure=True,
     )
 
 
@@ -73,7 +72,7 @@ def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorCont
 class PpispProcessorCfg(VisualProcessorCfg):
     """PPISP stage for :class:`~isaaclab.envs.mdp.visual_observations.processed_image`.
 
-    Consumes scene-linear HDR and produces RGB/RGBA with PPISP's camera response
+    Consumes unexposed scene-linear ``rgb_radiance`` and produces RGB/RGBA with PPISP's camera response
     function (``color_space="camera_response"``). The RGB output aliases the first three channels of RGBA. Inputs
     and intermediate outputs are allocated even when omitted from the camera's
     requested public outputs. Each observation term owns independent processing state.
@@ -82,7 +81,7 @@ class PpispProcessorCfg(VisualProcessorCfg):
     func = resolve_ppisp_processor
 
     inputs: dict[str, RenderBufferSpec] = {
-        "rgb_hdr": RenderBufferSpec(channels=3, dtype=wp.float32, color_space="scene_linear"),
+        "rgb_radiance": RenderBufferSpec(channels=3, dtype=wp.float32, color_space="scene_linear"),
     }
 
     outputs: dict[str, RenderBufferSpec] = {

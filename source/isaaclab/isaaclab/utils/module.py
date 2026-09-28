@@ -20,7 +20,6 @@ import lazy_loader as lazy
 
 def _parse_stub(
     stub_file: str,
-    package_name: str | None = None,
 ) -> tuple[str | None, list[str], list[str], dict[str, list[str]]]:
     """Parse a ``.pyi`` stub in a single AST pass.
 
@@ -42,9 +41,7 @@ def _parse_stub(
         wildcard imports (``from .mod import *``).
 
         *absolute_named* maps fully-qualified package names to the list of
-        explicit names imported from them (``from pkg import a, b``). Named
-        imports from descendants of *package_name* are normalized to relative
-        imports so they remain lazy.
+        explicit names imported from them (``from pkg import a, b``).
     """
     with open(stub_file) as f:
         source = f.read()
@@ -60,16 +57,6 @@ def _parse_stub(
     for node in tree.body:
         if isinstance(node, ast.ImportFrom):
             is_star = any(alias.name == "*" for alias in node.names)
-            if (
-                node.level == 0
-                and not is_star
-                and package_name is not None
-                and node.module is not None
-                and node.module.startswith(f"{package_name}.")
-            ):
-                node.module = node.module[len(package_name) + 1 :]
-                node.level = 1
-                needs_filter = True
             if node.level == 1 and not is_star:
                 filtered_body.append(node)
                 continue
@@ -105,11 +92,10 @@ def lazy_export(
 
     * ``from .rewards import foo, bar`` — lazy-loads specific names from a
       local submodule (existing ``lazy_loader`` behaviour).
-      Absolute named imports from submodules of the current package also remain lazy.
     * ``from .rewards import *`` — eagerly imports the submodule and
       re-exports all of its public names at ``lazy_export()`` time.
     * ``from isaaclab.envs.mdp import foo, bar`` — eagerly re-exports
-      specific names when importing from another package.
+      specific names from an absolute package.
     * ``from isaaclab.envs.mdp import *`` — sets up a lazy fallback so that
       any name not found locally is resolved from the specified package.
 
@@ -152,7 +138,7 @@ def lazy_export(
     absolute_named: dict[str, list[str]] = {}
 
     if has_stub:
-        filtered_path, stub_fallbacks, relative_wildcards, absolute_named = _parse_stub(stub_file, package_name)
+        filtered_path, stub_fallbacks, relative_wildcards, absolute_named = _parse_stub(stub_file)
         if stub_fallbacks:
             fallback_packages = list(dict.fromkeys(fallback_packages + stub_fallbacks))
 

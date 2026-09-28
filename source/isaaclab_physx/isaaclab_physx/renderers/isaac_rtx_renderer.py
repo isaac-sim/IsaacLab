@@ -31,13 +31,13 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
+from .isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
 )
-from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
+from .visual_material import FabricVisualMaterialWriter
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
+from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 # RTX simple-shading constants.
 #
@@ -187,12 +187,14 @@ class IsaacRtxRenderer(BaseRenderer):
         return FabricVisualMaterialWriter
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Apply neutral exposure when the sensor requests scene-linear rendering.
+        """Neutralize camera exposure for unexposed ``rgb_radiance`` requests.
+
+        ``rgb_hdr`` uses the active camera exposure and aliases radiance when both are requested.
 
         :attr:`~isaaclab.sensors.camera.CameraCfg.background_color` is applied
         per-render-product in :meth:`create_render_data` via USD attributes.
         """
-        if spec.neutral_exposure:
+        if RenderBufferKind.RGB_RADIANCE in spec.data_types:
             apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
@@ -279,7 +281,8 @@ class IsaacRtxRenderer(BaseRenderer):
         if isaac_sim_version.major >= 6:
             simple_shading_mode = self._resolve_simple_shading_mode(spec)
             needs_color_render = any(
-                data_type in spec.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
+                data_type in spec.data_types
+                for data_type in ("rgb", "rgba", RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE)
             )
             has_gui = settings.get("/isaaclab/has_gui")
             if simple_shading_mode is None and (not needs_color_render or has_gui):
@@ -359,8 +362,11 @@ class IsaacRtxRenderer(BaseRenderer):
                 aov=SIMPLE_SHADING_AOV, output_data_type=np.uint8, output_channels=4
             )
 
-        needs_hdr_color = str(RenderBufferKind.RGB_HDR) in spec.data_types
-        if needs_hdr_color:
+        hdr_color_type = next(
+            (name for name in spec.data_types if name in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE)),
+            None,
+        )
+        if hdr_color_type is not None:
             rep.AnnotatorRegistry.register_annotator_from_aov(
                 aov="HdrColor", output_data_type=np.float32, output_channels=4
             )
@@ -371,10 +377,10 @@ class IsaacRtxRenderer(BaseRenderer):
             if annotator_type == "rgba" or annotator_type == "rgb":
                 annotator = rep.AnnotatorRegistry.get_annotator("rgb", device=spec.device, do_array_copy=False)
                 annotators["rgba"] = annotator
-            elif annotator_type == str(RenderBufferKind.RGB_HDR):
-                if str(RenderBufferKind.RGB_HDR) not in annotators:
+            elif annotator_type in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE):
+                if hdr_color_type not in annotators:
                     annotator = rep.AnnotatorRegistry.get_annotator("HdrColor", device=spec.device, do_array_copy=False)
-                    annotators[str(RenderBufferKind.RGB_HDR)] = annotator
+                    annotators[hdr_color_type] = annotator
             elif annotator_type == "albedo":
                 # TODO: this is a temporary solution because replicator has not exposed the annotator yet
                 # once it's exposed, we can remove this
@@ -623,7 +629,7 @@ class IsaacRtxRenderer(BaseRenderer):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
             if data_type in SIMPLE_SHADING_MODES:
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
+            if data_type in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE):
                 tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
 
             # ``reshape_tiled_image`` indexes the tiled buffer as

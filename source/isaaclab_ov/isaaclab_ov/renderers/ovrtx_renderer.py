@@ -417,8 +417,11 @@ class OVRTXRenderer(BaseRenderer):
         return self._create_visual_material_writer
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Apply neutral exposure when the sensor requests scene-linear rendering."""
-        if spec.neutral_exposure:
+        """Neutralize camera exposure for unexposed ``rgb_radiance`` requests.
+
+        ``rgb_hdr`` uses the active camera exposure and aliases radiance when both are requested.
+        """
+        if RenderBufferKind.RGB_RADIANCE in spec.data_types:
             apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
@@ -1440,17 +1443,19 @@ class OVRTXRenderer(BaseRenderer):
         self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
     ) -> None:
         """Extract per-env HdrColor tiles into output_buffers."""
-        if "rgb_hdr" not in output_buffers:
+        output = output_buffers.get("rgb_radiance", output_buffers.get("rgb_hdr"))
+        if output is None:
             return
         if tiled_data.dtype not in (wp.float16, wp.float32):
             raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_data.dtype}.")
-        self._launch_extract_all_tiles(render_data, tiled_data, output_buffers["rgb_hdr"])
+        self._launch_extract_all_tiles(render_data, tiled_data, output)
 
     def _prepare_hdr_source(
         self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
     ) -> wp.array:
         """Return HdrColor on the output device, reusing transfer storage when needed."""
-        output_device = str(output_buffers[str(RenderBufferKind.RGB_HDR)].device)
+        output = output_buffers.get("rgb_radiance", output_buffers.get("rgb_hdr"))
+        output_device = str(output.device)
         if str(tiled_data.device) == output_device:
             return tiled_data
 
@@ -1509,7 +1514,7 @@ class OVRTXRenderer(BaseRenderer):
                 self._extract_rgba_tiles(render_data, tiled_albedo_data, output_buffers, "albedo", suffix="albedo")
 
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
-        if hdr_color is not None and "rgb_hdr" in output_buffers:
+        if hdr_color is not None and ("rgb_hdr" in output_buffers or "rgb_radiance" in output_buffers):
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
                 tiled_hdr_data = self._prepare_hdr_source(render_data, tiled_hdr_data, output_buffers)
                 self._extract_hdr_color_tiles(render_data, tiled_hdr_data, output_buffers)

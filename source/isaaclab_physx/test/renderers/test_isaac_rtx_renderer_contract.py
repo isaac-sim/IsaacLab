@@ -59,11 +59,12 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
 
     assert specs == renderer.cfg.supported_output_types()
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+    assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
 
 
-@pytest.mark.parametrize("neutral_exposure", [False, True])
-def test_prepare_cameras_honors_sensor_exposure_requirement(monkeypatch, neutral_exposure):
-    """Scene-linear inputs disable authored exposure without any processor configuration."""
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
+def test_prepare_cameras_resolves_radiance_exposure(monkeypatch, data_types):
+    """Radiance neutralizes exposure; standalone HDR retains authored camera settings."""
     _install_omni_stubs(monkeypatch)
     from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
 
@@ -72,10 +73,66 @@ def test_prepare_cameras_honors_sensor_exposure_requirement(monkeypatch, neutral
     stage = Usd.Stage.CreateInMemory()
     camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
     camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
-    spec = SimpleNamespace(neutral_exposure=neutral_exposure, camera_prim_paths=("/World/Camera",))
+    spec = SimpleNamespace(data_types=data_types, camera_prim_paths=("/World/Camera",))
     IsaacRtxRenderer.__new__(IsaacRtxRenderer).prepare_cameras(stage, spec)
 
-    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if neutral_exposure else 100.0)
+    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
+
+
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
+def test_hdr_outputs_share_one_annotator_and_persistent_destination(monkeypatch, data_types):
+    """HDR aliases attach and extract one native source into preallocated sensor memory."""
+    replicator, syntheticdata = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    from pxr import UsdGeom
+
+    import isaaclab.sim.utils.stage as stage_utils
+    from isaaclab.sensors.camera.camera_data import CameraData
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    stage = MagicMock()
+    stage.SelectPrims.return_value.GetCount.return_value = 1
+    stage.GetPrimAtPath.return_value.IsA.side_effect = lambda typ: typ is UsdGeom.Camera
+    product = SimpleNamespace(path="/Render/Test")
+    replicator.create = SimpleNamespace(render_product_tiled=MagicMock(return_value=product))
+    annotator = MagicMock()
+    registry = MagicMock()
+    registry.get_annotator.return_value = annotator
+    replicator.AnnotatorRegistry = registry
+    spec = SimpleNamespace(
+        data_types=data_types,
+        camera_prim_paths=("/World/Camera",),
+        device="cpu",
+        view_count=1,
+        cfg=SimpleNamespace(width=3, height=2),
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        patch.object(stage_utils, "get_current_stage", return_value=stage),
+    ):
+        render_data = renderer.create_render_data(spec)
+    registry.get_annotator.assert_called_once_with("HdrColor", device="cpu", do_array_copy=False)
+    annotator.attach.assert_called_once_with([product.path])
+    camera_data = CameraData.allocate(data_types, 2, 3, 1, "cpu", supported_specs=renderer.cfg.supported_output_types())
+    renderer.set_outputs(render_data, camera_data.output)
+    pointer = camera_data.output[data_types[0]].warp.ptr
+    with patch.object(rtx_renderer.wp, "launch", wraps=wp.launch) as launch:
+        for value in (2.0, 4.0):
+            annotator.get_data.return_value = np.full((2, 3, 4), value, dtype=np.float32)
+            renderer._read_annotator_output(render_data)
+            for name in data_types:
+                output = camera_data.output[name].warp
+                assert output.ptr == pointer
+                np.testing.assert_array_equal(output.numpy(), value)
+    assert annotator.get_data.call_count == launch.call_count == 2
 
 
 def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch):
@@ -178,6 +235,7 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
         pytest.param(["rgb", "simple_shading_full_mdl"], 3, False, id="rgb_keeps_path_tracing"),
         pytest.param(["rgba", "simple_shading_full_mdl"], 3, False, id="rgba_keeps_path_tracing"),
         pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="rgb_hdr_keeps_path_tracing"),
+        pytest.param(["rgb_radiance", "simple_shading_full_mdl"], 3, False, id="radiance_keeps_path_tracing"),
     ],
 )
 def test_simple_shading_configures_its_render_product(

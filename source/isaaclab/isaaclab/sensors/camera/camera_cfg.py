@@ -9,14 +9,14 @@ import warnings
 from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.renderers import RendererCfg
-from isaaclab.sensors.camera.camera_isp import CameraISPMode
-from isaaclab.sensors.sensor_base_cfg import SensorBaseCfg
-from isaaclab.sim import FisheyeCameraCfg, PinholeCameraCfg
-from isaaclab.utils import configclass
+from ...renderers import RendererCfg
+from ...sim import FisheyeCameraCfg, PinholeCameraCfg
+from ...utils import configclass
+from ..sensor_base_cfg import SensorBaseCfg
+from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
-    from isaaclab.sensors.camera.camera import Camera
+    from .camera import Camera
 
 # Default values for the RTX-flavored fields kept on :class:`CameraCfg` for
 # backward compatibility. These mirror the defaults on
@@ -230,7 +230,7 @@ class CameraCfg(SensorBaseCfg):
         """
         renderer_type = getattr(self.renderer_cfg, "renderer_type", None)
         if renderer_type == "default":
-            from isaaclab.utils.backend_utils import get_default_renderer_cfg
+            from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.

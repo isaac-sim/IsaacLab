@@ -127,13 +127,12 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
-def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
-    """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
-    assert get_render_var_config(["rgb_hdr"], render_scope_name="RenderCamera_0") == (
-        "/RenderCamera_0/Vars/HdrColor",
-        "HdrColor",
-        "HdrColor",
-    )
+@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
+def test_ovrtx_hdr_outputs_use_one_hdr_color_render_var(data_types):
+    """HDR and radiance share one HdrColor native source."""
+    assert get_render_var_configs(data_types, render_scope_name="RenderCamera_0") == [
+        ("/RenderCamera_0/Vars/HdrColor", "HdrColor", "HdrColor"),
+    ]
 
 
 def test_render_var_prim_names_are_read_only():
@@ -353,7 +352,7 @@ def test_render_product_omits_device_ids_when_no_device_is_given(camera_spec, re
 def test_render_product_uses_resolved_inputs_without_mutating_camera_outputs(camera_spec, render_data, data_types):
     """Processors can request HDR independently of the camera's public output names."""
     camera_spec.cfg.data_types = data_types.copy()
-    camera_spec = replace(camera_spec, render_data_types=("rgb_hdr",))
+    camera_spec = replace(camera_spec, render_data_types=("rgb_radiance",))
     render_product = build_render_product_as_string(camera_spec, render_data)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)

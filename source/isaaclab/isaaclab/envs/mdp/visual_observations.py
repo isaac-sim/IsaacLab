@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorCfg, VisualProcessorContext
+from ...managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorCfg, VisualProcessorContext
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.sensors import Camera
+    from ...sensors import Camera
+    from .. import ManagerBasedEnv
 
 
 @wp.kernel
@@ -34,10 +34,10 @@ class processed_image(ManagerTermBase):
 
     Configure with :class:`~isaaclab.managers.ObservationTermCfg`. The observation
     manager prepares this term after scene spawning and before simulation reset,
-    allowing processors to request renderer inputs and neutral exposure. Each term
+    allowing processors to request renderer signals such as unexposed radiance. Each term
     owns its chain, intermediate buffers, and state, even when sharing a camera.
     Processed pixels are returned through this term; camera outputs retain their
-    raw renderer buffers. Exposure requirements apply to the entire source camera.
+    raw renderer buffers. Required renderer settings apply to the entire source camera.
 
     Processor inputs are borrowed read-only. The returned tensor persists until the
     next rendered frame; the observation manager makes its usual snapshot copy
@@ -87,9 +87,7 @@ class processed_image(ManagerTermBase):
             self._pipeline = VisualProcessingPipeline(
                 cfg.params["processors"], context, self._camera.render_buffer_specs, [self._data_type]
             )
-            self._camera.request_render_inputs(
-                self._pipeline.render_data_types, neutral_exposure=self._pipeline.neutral_exposure
-            )
+            self._camera.request_render_inputs(self._pipeline.render_data_types)
         except Exception as exc:
             try:
                 self.close()

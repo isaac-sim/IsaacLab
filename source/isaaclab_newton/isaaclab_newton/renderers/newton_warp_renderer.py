@@ -20,9 +20,9 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
-from isaaclab_newton.renderers.segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
+from ..physics.newton_manager import NewtonManager
+from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
+from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
@@ -72,6 +72,7 @@ class RenderData:
     _OUTPUT_MAP: dict[str, tuple[str, type]] = {
         str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
         str(RenderBufferKind.RGB_HDR): ("hdr_color_image", wp.vec3f),
+        str(RenderBufferKind.RGB_RADIANCE): ("hdr_color_image", wp.vec3f),
         str(RenderBufferKind.ALBEDO): ("albedo_image", wp.uint32),
         str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
     }
@@ -230,7 +231,7 @@ class RenderData:
             return self._seg_dests[output_name][0]
         elif output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
-        elif output_name == RenderBufferKind.RGB_HDR:
+        elif output_name in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE):
             return self.outputs.hdr_color_image
         elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image

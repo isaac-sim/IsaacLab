@@ -146,6 +146,7 @@ def test_ovrtx_supported_output_types_key_set():
         RenderBufferKind.RGB,
         RenderBufferKind.RGBA,
         RenderBufferKind.RGB_HDR,
+        RenderBufferKind.RGB_RADIANCE,
         RenderBufferKind.ALBEDO,
         RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE,
         RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL,
@@ -160,6 +161,7 @@ def test_ovrtx_supported_output_types_key_set():
     }
     assert specs[RenderBufferKind.RGBA] == RenderBufferSpec(4, wp.uint8, color_space="srgb")
     assert specs[RenderBufferKind.RGB_HDR] == RenderBufferSpec(3, wp.float32, color_space="scene_linear")
+    assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
     assert specs[RenderBufferKind.DEPTH] == RenderBufferSpec(1, wp.float32)
     assert specs[RenderBufferKind.MOTION_VECTORS] == RenderBufferSpec(2, wp.float32)
 
@@ -393,41 +395,53 @@ def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
     assert "rgb" not in render_data.warp_buffers
 
 
-def test_ovrtx_set_outputs_wraps_requested_rgb_hdr_output():
-    """OVRTXRenderer.set_outputs publishes a zero-copy view for requested RGB_HDR."""
+@pytest.mark.parametrize("data_types", [["rgb_hdr"], ["rgb_radiance"], ["rgb_hdr", "rgb_radiance"]])
+def test_ovrtx_set_outputs_wraps_requested_hdr_outputs(monkeypatch, data_types):
+    """HDR aliases extract one native source into a persistent preallocated sensor buffer."""
     renderer = _make_ovrtx_renderer_without_backend()
+    renderer._device = "cpu"
 
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX zero-copy wrapping requires a CUDA device")
-    device = "cuda"
-
-    cfg = _make_camera_cfg(["rgb_hdr"])
+    cfg = _make_camera_cfg(data_types)
     data = CameraData.allocate(
         data_types=cfg.data_types,
         height=8,
         width=16,
         num_views=2,
-        device=device,
+        device="cpu",
         supported_specs=renderer.supported_output_types(),
     )
     render_data = _make_ovrtx_camera_render_data()
     renderer.set_outputs(render_data, data.output)
 
-    assert render_data.warp_buffers["rgb_hdr"].ptr == data.output["rgb_hdr"].warp.ptr
+    pointer = data.output[data_types[0]].warp.ptr
+    for name in data_types:
+        assert render_data.warp_buffers[name].ptr == data.output[name].warp.ptr == pointer
+    map_frame = MagicMock(side_effect=lambda source: contextlib.nullcontext(source))
+    launch = MagicMock(wraps=wp.launch)
+    monkeypatch.setattr(renderer, "_map_render_var_to_dlpack", map_frame)
+    monkeypatch.setattr(wp, "launch", launch)
+    for value in (2.0, 4.0):
+        source = wp.full((8, 32, 4), value, dtype=wp.float32, device="cpu")
+        frame = types.SimpleNamespace(render_vars={render_data.render_var_keys["HdrColor"]: source})
+        renderer._process_render_frame(render_data, frame, render_data.warp_buffers)
+        for name in data_types:
+            assert data.output[name].warp.ptr == pointer
+            np.testing.assert_array_equal(data.output[name].warp.numpy(), value)
+    assert map_frame.call_count == launch.call_count == 2
 
 
-@pytest.mark.parametrize("neutral_exposure", [False, True])
-def test_ovrtx_prepare_cameras_honors_sensor_exposure_requirement(neutral_exposure):
-    """HDR processors can disable renderer exposure without a PPISP configuration."""
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
+def test_ovrtx_prepare_cameras_resolves_radiance_exposure(data_types):
+    """Radiance neutralizes exposure; standalone HDR retains authored camera settings."""
     from pxr import Sdf, Usd, UsdGeom
 
     stage = Usd.Stage.CreateInMemory()
     camera = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
     camera.CreateAttribute("exposure:iso", Sdf.ValueTypeNames.Float).Set(100.0)
-    spec = types.SimpleNamespace(neutral_exposure=neutral_exposure, camera_prim_paths=("/World/Camera",))
+    spec = types.SimpleNamespace(data_types=data_types, camera_prim_paths=("/World/Camera",))
     _make_ovrtx_renderer_without_backend().prepare_cameras(stage, spec)
 
-    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if neutral_exposure else 100.0)
+    assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
 
 
 def test_ovrtx_set_outputs_binds_only_sensor_provided_buffers():
@@ -556,7 +570,8 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         render_data.cleanup()
 
 
-def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch):
+@pytest.mark.parametrize("data_type", ["rgb_hdr", "rgb_radiance"])
+def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch, data_type):
     """A device fallback copies each frame into one persistent transfer buffer."""
 
     class FakeArray:
@@ -580,13 +595,13 @@ def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch):
     source = FakeArray()
 
     for _ in range(2):
-        assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is buffer
+        assert renderer._prepare_hdr_source(render_data, source, {data_type: OutputArray()}) is buffer
     allocate.assert_called_once_with(source.shape, dtype=source.dtype, device="cuda:0")
     assert copy.call_count == 2
     copy.assert_called_with(buffer, source, stream=stream)
 
     source.device = "cuda:0"
-    assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is source
+    assert renderer._prepare_hdr_source(render_data, source, {data_type: OutputArray()}) is source
     assert copy.call_count == 2
 
 

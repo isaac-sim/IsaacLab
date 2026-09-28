@@ -138,7 +138,10 @@ type declared by each :class:`~isaaclab.renderers.RenderBufferSpec`.
      - Low-dynamic-range color
    * - ``rgb_hdr``
      - 3, ``float32``
-     - Scene-linear high-dynamic-range color
+     - High-dynamic-range RGB using the active camera settings
+   * - ``rgb_radiance``
+     - 3, ``float32``
+     - Scene-linear RGB before exposure and response, in renderer-relative intensity units
    * - ``albedo``
      - 4, ``uint8``
      - Material base color
@@ -167,6 +170,12 @@ type declared by each :class:`~isaaclab.renderers.RenderBufferSpec`.
 ``depth`` is an alias of ``distance_to_image_plane``. Colorized segmentation uses RGBA ``uint8``;
 non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path mappings are stored in
 ``camera_data.info[output_name]``.
+
+Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. Requesting
+``rgb_radiance`` makes the renderer prepare its source for processing before exposure and camera
+response. On Isaac RTX and OVRTX, this requires camera-wide exposure overrides, which also affect
+other outputs from that camera, including ``rgb_hdr``. If both raw names are requested, they alias
+the same active HDR source. Use separate cameras when separate exposure settings are required.
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center
@@ -200,7 +209,7 @@ current support matrix is:
      - Isaac RTX
      - OVRTX
      - Newton Warp
-   * - ``rgb``, ``rgba``, ``rgb_hdr``
+   * - ``rgb``, ``rgba``, ``rgb_hdr``, ``rgb_radiance``
      - Yes
      - Yes
      - Yes
@@ -305,8 +314,9 @@ PPISP
 
 :class:`~isaaclab_ppisp.PpispProcessorCfg` configures PPISP (Physically Plausible Image Signal
 Processing). It applies responsivity, exposure, vignetting, color correction, and a camera response
-function to scene-linear HDR, producing ``rgb`` and ``rgba``. The same processor works with Isaac
-RTX, OVRTX, and Newton Warp.
+function to ``rgb_radiance``, producing ``rgb`` and ``rgba``. The input is scene-linear RGB before
+exposure and response, expressed in renderer-relative intensity units. The same processor works
+with Isaac RTX, OVRTX, and Newton Warp.
 
 PPISP declares ``color_space="camera_response"`` because its configurable response curve does not
 guarantee an sRGB transfer function. Downstream operations can require that encoding or leave
@@ -342,19 +352,22 @@ observation term; an unsuccessful automatic lookup disables that processor. A st
 configuration is shared by all cloned views in one camera batch. Controller weights can predict
 per-view exposure and color parameters, while the remaining coefficients stay shared.
 
-The observation term requests PPISP's HDR input regardless of ``CameraCfg.data_types``. For example,
-requesting only ``rgb`` keeps the HDR intermediate private. A subsequent processor can consume
-PPISP's RGB result; a future visual domain randomization processor can be added in the same way.
+The observation term resolves PPISP's ``rgb_radiance`` input independently of ``CameraCfg.data_types``.
+If an earlier processor produces that signal, PPISP consumes its result. Otherwise the term requests
+it from the camera, and the renderer selects the required exposure setup. For example, requesting
+only ``rgb`` as camera output keeps the radiance intermediate private. A subsequent processor can
+consume PPISP's RGB result; a future visual domain randomization processor can be added in the same way.
 
 .. important::
 
-   PPISP requests neutral renderer exposure. With Isaac RTX and OVRTX, the renderer disables RTX
-   auto-exposure, authors neutral ``exposure:*`` values, and applies the
+   Supplying ``rgb_radiance`` from Isaac RTX or OVRTX disables RTX auto-exposure, authors neutral
+   ``exposure:*`` values, and applies the
    ``OmniRtxCameraAutoExposureAPI_1`` and ``OmniRtxCameraExposureAPI_1`` schemas on every matched
-   camera prim. Avoid combining PPISP with separately authored RTX exposure or tonemapping
-   settings. Exposure is configured per source camera, so its raw outputs and every observation
-   using that camera also reflect the neutralized renderer settings. Cameras whose processors do
-   not request neutral exposure retain authored exposure.
+   camera prim. This retains the existing PPISP camera-wide exposure behavior: raw outputs and
+   every observation using that camera reflect the resulting renderer settings. ``rgb_hdr`` and
+   ``rgb_radiance`` share that source when both are requested. Use separate cameras for separate
+   exposure settings. When an earlier processor supplies ``rgb_radiance``, PPISP adds no renderer
+   request for that signal.
 
 :attr:`~sensors.CameraCfg.isp_cfg` remains supported through a compatibility adapter, including for
 scripts that read PPISP results directly from ``camera.data``. To migrate a managed environment,
@@ -463,15 +476,18 @@ Preparation and ownership
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ``processed_image`` uses :meth:`~managers.ManagerTermBase.prepare_scene` after scene spawning and
-before the first simulation reset. This lets PPISP discover USD camera settings and request HDR
-and neutral exposure before renderer setup or stage export. The observation manager adopts this
+before the first simulation reset. This lets PPISP discover USD camera settings and resolve its
+``rgb_radiance`` input before renderer setup or stage export. The observation manager adopts this
 prepared term, retaining its processor state and allocated buffers for its lifetime.
 
 The camera provides rendered inputs and a frame generation counter. Other consumers can call
-``Camera.request_render_inputs(..., neutral_exposure=...)`` before camera initialization, then read
+``Camera.request_render_inputs(("rgb_radiance",))`` before camera initialization, then read
 ``render_outputs`` for persistent raw buffers. ``render_generation`` changes after an actual render,
 and the existing per-view ``frame`` counters identify updated views. ``render_buffer_specs`` and ``camera_prim_paths``
 are available during preparation.
+
+At simulation startup, cameras prepare their configured signals and legacy ISP requirements before
+any camera initializes render data. This ensures shared renderer exports include every camera's settings.
 
 Processing state, ordering, normalization, and observation caching belong to the term. A compatible
 additional processor can therefore be composed in the observation configuration without editing

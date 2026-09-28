@@ -13,9 +13,9 @@ from typing import Any
 
 import warp as wp
 
-from isaaclab.renderers.output_contract import RenderBufferSpec
-from isaaclab.utils import configclass
-from isaaclab.utils.warp import ProxyArray
+from ..renderers.output_contract import RenderBufferSpec
+from . import configclass
+from .warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -51,8 +51,6 @@ class VisualProcessor:
         initialize: Bind buffers and allocate scratch storage before the first frame.
         reset: Reset state for the selected environments.
         close: Release processor resources; must be safe after partial initialization.
-        neutral_exposure: Request unexposed scene-linear input before renderer setup.
-            False makes no exposure request; other consumers may still request neutral exposure.
         in_place: Allow outputs to reuse matching input storage. The operation must support aliasing.
     """
 
@@ -62,7 +60,6 @@ class VisualProcessor:
     initialize: Callable[[dict[str, ProxyArray], dict[str, ProxyArray]], None] | None = None
     reset: Callable[[wp.array], None] | None = None
     close: Callable[[], None] | None = None
-    neutral_exposure: bool = False
     in_place: bool = False
 
 
@@ -155,11 +152,6 @@ class VisualProcessingPipeline:
     def render_data_types(self) -> tuple[str, ...]:
         """Private and public inputs that must be supplied by the renderer."""
         return tuple(self._renderer_specs)
-
-    @property
-    def neutral_exposure(self) -> bool:
-        """Whether any active processor requires neutral renderer exposure."""
-        return any(processor.neutral_exposure for processor in self._processors)
 
     def allocate(self, render_outputs: dict[str, ProxyArray] | None = None) -> dict[str, ProxyArray]:
         """Bind inputs and allocate persistent intermediates and requested outputs.

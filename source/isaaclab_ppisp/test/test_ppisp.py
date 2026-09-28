@@ -23,7 +23,7 @@ from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_an
 from pxr import Gf, Sdf, Usd, Vt
 
 from isaaclab.sensors.camera import CameraISPMode
-from isaaclab.utils.visual_processing import VisualProcessorContext
+from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
 
 _PPISP_FLOAT2_ATTRS = {
     "vignettingCenterR",
@@ -74,7 +74,7 @@ def _controller_weights() -> list[float]:
     return [0.0] * PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN
 
 
-def test_ppisp_processor_discovery_resolves_before_requesting_hdr():
+def test_ppisp_processor_discovery_resolves_before_requesting_radiance():
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage)
     _author_ppisp_camera(stage, inherits=None, attrs={"exposureOffset": 1.5})
@@ -84,12 +84,15 @@ def test_ppisp_processor_discovery_resolves_before_requesting_hdr():
 
     cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)
     assert cfg.func(cfg, context) is None
+    processing = VisualProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
+    assert processing.render_data_types == ("rgb",)
+    processing.close()
 
     cfg.isp_cfg = CameraISPMode.AUTO_ANY
     processor = cfg.func(cfg, context)
     assert processor is not None
-    assert processor.inputs["rgb_hdr"].color_space == "scene_linear"
-    assert processor.neutral_exposure
+    assert set(processor.inputs) == {"rgb_radiance"}
+    assert processor.inputs["rgb_radiance"].color_space == "scene_linear"
     processor.close()
 
 

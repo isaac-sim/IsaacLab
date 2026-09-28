@@ -18,7 +18,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
-    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
+    from .isaac_rtx_renderer import IsaacRtxRenderer
 
 
 SIMPLE_SHADING_MODES = {
@@ -221,6 +221,7 @@ class IsaacRtxRendererCfg(RendererCfg):
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8, color_space="srgb"),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8, color_space="srgb"),
             RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
+            RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
             RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),

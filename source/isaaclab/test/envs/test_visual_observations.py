@@ -31,10 +31,10 @@ class CameraSource:
         self.render_buffer_specs = {
             "rgb": RenderBufferSpec(3, wp.uint8, color_space="srgb"),
             "rgba": RenderBufferSpec(4, wp.uint8, color_space="srgb"),
-            "rgb_hdr": RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
+            "rgb_radiance": RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
         }
         self.render_outputs = CameraData.allocate(
-            data_types=["rgb", "rgb_hdr"],
+            data_types=["rgb", "rgb_radiance"],
             height=2,
             width=3,
             num_views=2,
@@ -46,16 +46,16 @@ class CameraSource:
         self.frame = ProxyArray(wp.ones(2, dtype=wp.int64, device="cpu"))
         self.requests = []
 
-    def request_render_inputs(self, data_types, *, neutral_exposure=False):
-        self.requests.append((data_types, neutral_exposure))
+    def request_render_inputs(self, data_types):
+        self.requests.append(data_types)
 
 
 def make_term_cfg(events, *, source="rgb", increment=1, **params):
     """Build processors with independently observable state and bindings."""
     source_spec = RenderBufferSpec(
         3,
-        wp.float32 if source == "rgb_hdr" else wp.uint8,
-        color_space="scene_linear" if source == "rgb_hdr" else "srgb",
+        wp.float32 if source == "rgb_radiance" else wp.uint8,
+        color_space="scene_linear" if source == "rgb_radiance" else "srgb",
     )
     bindings = []
 
@@ -77,7 +77,6 @@ def make_term_cfg(events, *, source="rgb", increment=1, **params):
             process=process,
             reset=lambda mask: events.append(("reset", mask.numpy().copy())),
             close=lambda: events.append(("close", None)),
-            neutral_exposure=source == "rgb_hdr",
             in_place=True,
         )
 
@@ -141,7 +140,7 @@ def test_manager_adopts_prepared_image_and_snapshots_its_output():
     group.image = term_cfg
     cfg = {"policy": group}
     prepared = ObservationManager.prepare_scene(cfg, env)
-    assert camera.requests == [(("rgb", "rgba"), False)]
+    assert camera.requests == [("rgb", "rgba")]
     assert not bindings
     manager = ObservationManager(cfg, env, prepared_terms=prepared)
     first = manager.compute()["policy"]["image"]
@@ -171,13 +170,13 @@ def test_normalized_permuted_output_reuses_storage_and_matches_image_math():
     term.close()
 
 
-def test_term_requests_private_hdr_and_neutral_exposure_before_binding():
+def test_term_requests_private_radiance_before_binding():
     camera = CameraSource()
     env = make_env(camera)
     events = []
-    cfg, bindings = make_term_cfg(events, source="rgb_hdr")
+    cfg, bindings = make_term_cfg(events, source="rgb_radiance")
     term = processed_image.prepare_scene(cfg, env)
-    assert camera.requests == [(("rgb_hdr",), True)]
+    assert camera.requests == [("rgb_radiance",)]
     assert not bindings
     term.close()
 

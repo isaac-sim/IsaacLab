@@ -20,7 +20,7 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend, OVRTXRenderer
+    from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
 
 
 @configclass
@@ -121,6 +121,7 @@ class OVRTXRendererCfg(RendererCfg):
             RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8, color_space="srgb"),
             RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8, color_space="srgb"),
             RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
+            RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
             RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_CONSTANT_DIFFUSE: RenderBufferSpec(3, wp.uint8),
             RenderBufferKind.SIMPLE_SHADING_DIFFUSE_MDL: RenderBufferSpec(3, wp.uint8),

@@ -157,7 +157,7 @@ __all__ = [
     "time_out",
 ]
 
-from isaaclab.envs.mdp.actions import (
+from .actions import (
     AbsBinaryJointPositionAction,
     AbsBinaryJointPositionActionCfg,
     BinaryJointAction,
@@ -189,7 +189,7 @@ from isaaclab.envs.mdp.actions import (
     SurfaceGripperBinaryAction,
     SurfaceGripperBinaryActionCfg,
 )
-from isaaclab.envs.mdp.commands import (
+from .commands import (
     NormalVelocityCommand,
     NormalVelocityCommandCfg,
     NullCommand,
@@ -203,14 +203,14 @@ from isaaclab.envs.mdp.commands import (
     UniformVelocityCommand,
     UniformVelocityCommandCfg,
 )
-from isaaclab.envs.mdp.curriculums import (
+from .curriculums import (
     DifficultyScheduler,
     initial_final_interpolate_fn,
     modify_env_param,
     modify_reward_weight,
     modify_term_cfg,
 )
-from isaaclab.envs.mdp.events import (
+from .events import (
     apply_external_force_torque,
     push_by_setting_velocity,
     randomize_actuator_gains,
@@ -234,9 +234,9 @@ from isaaclab.envs.mdp.events import (
     reset_root_state_with_random_orientation,
     reset_scene_to_default,
 )
-from isaaclab.envs.mdp.visual_events import randomize_visual_material, randomize_visual_shape
-from isaaclab.envs.mdp.visual_observations import processed_image
-from isaaclab.envs.mdp.observations import (
+from .visual_events import randomize_visual_material, randomize_visual_shape
+from .visual_observations import processed_image
+from .observations import (
     base_ang_vel,
     base_lin_vel,
     base_pos_z,
@@ -266,7 +266,7 @@ from isaaclab.envs.mdp.observations import (
     root_pos_w,
     root_quat_w,
 )
-from isaaclab.envs.mdp.recorders import (
+from .recorders import (
     ActionStateRecorderManagerCfg,
     InitialStateRecorder,
     InitialStateRecorderCfg,
@@ -279,7 +279,7 @@ from isaaclab.envs.mdp.recorders import (
     PreStepFlatPolicyObservationsRecorder,
     PreStepFlatPolicyObservationsRecorderCfg,
 )
-from isaaclab.envs.mdp.rewards import (
+from .rewards import (
     action_l2,
     action_rate_l2,
     ang_vel_xy_l2,
@@ -310,7 +310,7 @@ from isaaclab.envs.mdp.rewards import (
     track_lin_vel_xy_exp,
     undesired_contacts,
 )
-from isaaclab.envs.mdp.terminations import (
+from .terminations import (
     bad_orientation,
     command_resample,
     illegal_contact,

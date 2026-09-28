@@ -3,9 +3,11 @@
 This extension provides a renderer-backend-agnostic PPISP (Physically Plausible
 Image Signal Processing) pipeline for Isaac Lab camera outputs.
 
-PPISP consumes scene-linear HDR from Isaac RTX, OVRTX, or Newton Warp and writes
-LDR `rgb` / `rgba` through an observation term's ordered processing chain. Each
-term owns its processor state, including controller weights and scratch buffers.
+PPISP consumes `rgb_radiance`: scene-linear RGB before exposure and camera response,
+in renderer-relative intensity units. Isaac RTX, OVRTX, and Newton Warp supply this
+signal. PPISP writes LDR `rgb` / `rgba` through an observation term's ordered
+processing chain. Each term owns its processor state, including controller weights
+and scratch buffers.
 
 ```python
 from isaaclab.envs import mdp
@@ -46,15 +48,20 @@ disables the processor. Explicit values and exported controller weights retain
 the behavior of `CameraCfg.isp_cfg`.
 
 The term prepares the chain after scene spawning, before the first simulation
-reset, so HDR and neutral exposure are requested before renderer setup. HDR
-and RGBA intermediate buffers are allocated even when absent from camera
+reset, and resolves PPISP's `rgb_radiance` input. An earlier processor can supply
+that signal; otherwise the term requests it from the camera and the renderer
+prepares the required exposure setup. Radiance and RGBA intermediate buffers
+are allocated even when absent from camera
 `data_types`; RGB aliases RGBA. Repeated observation reads of the same camera
 frame reuse the processed result. The observation manager forwards partial
 resets and closes processor state with the environment. The PPISP controller
 computes parameters from the current image and has no temporal state to reset.
 
-Neutral exposure applies to the source camera. Its raw outputs and all other
-observations using that camera also reflect the neutralized renderer settings.
+Plain `rgb_hdr` retains the existing camera settings. Requesting `rgb_radiance`
+from Isaac RTX or OVRTX applies exposure overrides to the entire source camera,
+as the previous PPISP integration did. Its other outputs, including `rgb_hdr`,
+also reflect those settings. When both raw names are requested they alias the
+same active HDR source. Use separate cameras for separate exposure settings.
 
 `PpispPipeline` remains available to callers that apply PPISP kernels directly.
 Calling `initialize(hdr)` preallocates its controller buffers; `apply(hdr,

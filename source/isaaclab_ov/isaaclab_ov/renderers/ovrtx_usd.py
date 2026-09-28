@@ -33,6 +33,7 @@ _RENDER_VAR_BY_DATA_TYPE: dict[str, tuple[str, str]] = {
     "simple_shading_diffuse_mdl": ("LdrColor", "LdrColor"),
     "simple_shading_full_mdl": ("LdrColor", "LdrColor"),
     "rgb_hdr": ("HdrColor", "HdrColor"),
+    "rgb_radiance": ("HdrColor", "HdrColor"),
     "albedo": ("albedo", "DiffuseAlbedoSD"),
     "depth": ("depth", "DistanceToImagePlaneSD"),
     "distance_to_image_plane": ("depth", "DistanceToImagePlaneSD"),
