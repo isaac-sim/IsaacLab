@@ -182,6 +182,7 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
     cfg = _ray_caster_cfg("/World/Sensor", "world")
     cfg.drift_range = (0.01, 0.05)  # force non-zero drift
+    cfg.ray_cast_drift_range = {"x": (0.1, 0.2), "y": (-0.2, -0.1)}
     sensor = RayCaster(cfg)
     sim.reset()
     # sim.reset() initializes the sensor with zero drift; call sensor.reset() to resample
@@ -216,6 +217,28 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     assert not torch.allclose(drift_after, drift_before), (
         "reset() must resample drift; values must change from initial sample"
     )
+    # Ray cast drift is sampled per axis; missing axes default to zero range.
+    ray_cast_drift = sensor.ray_cast_drift.torch
+    assert ((ray_cast_drift[:, 0] >= 0.1) & (ray_cast_drift[:, 0] <= 0.2)).all()
+    assert ((ray_cast_drift[:, 1] >= -0.2) & (ray_cast_drift[:, 1] <= -0.1)).all()
+    assert (ray_cast_drift[:, 2] == 0.0).all()
+
+
+@pytest.mark.isaacsim_ci
+def test_ray_caster_reset_skips_zero_drift_sampling(sim_ground):
+    """reset() with the default zero drift ranges leaves drift at zero without consuming random numbers."""
+    sim = sim_ground
+
+    sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
+    sensor = RayCaster(_ray_caster_cfg("/World/Sensor", "world"))
+    sim.reset()
+
+    get_rng_state = torch.cuda.get_rng_state if torch.device(sensor.device).type == "cuda" else torch.get_rng_state
+    rng_state = get_rng_state()
+    sensor.reset()
+    assert torch.equal(get_rng_state(), rng_state), "reset() must not sample drift when all drift ranges are zero"
+    assert (sensor.drift.torch == 0.0).all()
+    assert (sensor.ray_cast_drift.torch == 0.0).all()
 
 
 @pytest.mark.isaacsim_ci

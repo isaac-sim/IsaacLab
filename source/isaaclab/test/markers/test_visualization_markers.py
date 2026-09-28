@@ -272,6 +272,7 @@ def test_first_visualize_defaults_to_first_prototype_when_count_matches_prototyp
 
 def test_usd_marker(sim):
     """Test with marker from a USD."""
+    sim._has_offscreen_render = True
     # create a marker
     config = clone(FRAME_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_frames"
@@ -292,6 +293,7 @@ def test_usd_marker(sim):
 
 def test_visualization_skips_updates_when_invisible(sim):
     """When invisible, visualize should not update marker state."""
+    sim._has_offscreen_render = True
     # create a marker
     config = clone(POSITION_GOAL_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_protos"
@@ -320,6 +322,27 @@ def test_visualization_skips_updates_when_invisible(sim):
     )
 
     assert test_marker.count == 4
+
+
+def test_visualize_without_backend_skips_until_backend_is_active(sim):
+    """Without an active marker backend, visualize is a no-op; a backend enabled later receives updates."""
+    config = VisualizationMarkersCfg(
+        prim_path="/World/Visuals/headless_marker",
+        markers={"test": sim_utils.SphereCfg(radius=0.1)},
+    )
+    test_marker = VisualizationMarkers(config)
+    assert test_marker._backends == []
+
+    # Mismatched inputs are not validated because nothing consumes them.
+    test_marker.visualize(
+        translations=torch.zeros(3, 3, device=sim.device), orientations=torch.zeros(2, 4, device=sim.device)
+    )
+    assert test_marker.count == 1
+
+    sim._has_offscreen_render = True
+    test_marker.visualize(translations=torch.zeros(3, 3, device=sim.device))
+    assert len(test_marker._backends) == 1
+    assert test_marker.count == 3
 
 
 def test_newton_marker_backend_registers_and_updates_state_without_frame_capture(sim):
