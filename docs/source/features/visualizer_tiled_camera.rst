@@ -9,8 +9,8 @@ For general visualizer documentation, see :doc:`/source/concepts/visualization`.
 
 The visualizer streaming camera view is a live monitoring and debugging tool. It combines
 ground-truth camera frames from multiple environments (RGB, depth, segmentation, or surface
-normals) into a single panel. Cameras are declared in the scene before cloning; visualizers only
-read their output. Multiple visualizers can display the same sensor with different tile selections.
+normals) into a single image. Cameras are declared in the scene before cloning; visualizers borrow
+their output. Multiple visualizers can display the same sensor with different tile selections.
 
 .. note::
 
@@ -53,9 +53,36 @@ Overview
 the Viewport tabs; it can also be placed side by side with the default interactive viewport
 for dual monitoring.
 
-**Newton GL** shows a **Streaming View** section in the HUD sidebar with a **Hide** / **Open**
-toggle to show or hide the panel, and a source dropdown to select between different camera
-sensors.
+**Newton GL** has a **Camera View** selector in the sidebar. Selecting a scene camera displays
+its tiled output in the main viewport instead of rendering a perspective view behind it.
+Selecting a perspective camera restores normal interactive rendering and picking.
+
+Use ``camera`` to declare one view or a list of selectable views; the first starts active:
+
+.. code-block:: python
+
+   from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+
+   viewer_cfg = NewtonGLVisualizerCfg(
+       camera=[
+           SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/FrontCamera"),
+           SceneCameraCfg(prim_path="{ENV_REGEX_NS}/Robot/BackCamera"),
+           PerspectiveCameraCfg(eye=(4.0, -4.0, 3.0)),
+       ],
+       streaming_envs=list(range(16)),
+   )
+
+Both scene cameras must already be declared as ``CameraCfg`` entries in the scene. Keyboard
+and mouse navigation moves the selected sensor's copies by the same camera-local translation
+and rotation across all environments, including copies not displayed. It does not move other
+camera choices. These are real sensor pose changes, so policies and other viewers using that
+sensor observe the new viewpoint too. Pausing rendering freezes the displayed image and sensor
+navigation; pausing training alone does not.
+
+With ``InteractiveSceneCfg.lazy_sensor_update=True``, the viewer reads only the selected camera.
+Unselected cameras are still allocated and may render if another consumer reads them or the
+scene uses eager sensor updates. ``streaming_envs`` selects displayed tiles, not capture work.
 
 
 Examples
@@ -152,12 +179,12 @@ Troubleshooting
 Migration from generated streaming cameras
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Visualizers no longer create, move, or destroy camera sensors. Replace
+Visualizers no longer create or destroy camera sensors. Replace
 ``streaming_cam_target_prim_path``, ``streaming_cam_eye``, and ``streaming_cam_renderer_cfg``
 with a scene ``CameraCfg``: place its ``prim_path`` under the desired parent, set its
 ``offset``, and supply ``renderer_cfg`` there. Select that camera through
-``streaming_sensor_prim_path``. This puts the camera in the clone plan and the normal sensor
-initialization, update, and teardown lifecycle.
+``streaming_sensor_prim_path``, or ``camera=SceneCameraCfg(...)`` in Newton GL. This puts the camera
+in the clone plan and the normal sensor initialization, update, and teardown lifecycle.
 
 Closing a visualizer does not affect the camera or other visualizers reading it.
 ``streaming_envs`` selects displayed tiles, not camera allocation or capture resolution.

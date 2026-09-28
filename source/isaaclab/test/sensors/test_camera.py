@@ -262,7 +262,7 @@ def test_camera_init_intrinsic_matrix(setup_sim_camera):
 
 
 def test_camera_set_world_poses(setup_sim_camera):
-    """Test that explicitly set world poses are reflected in the data buffers.
+    """Pose writes refresh poses and pixels on the next lazy read, without advancing simulation.
 
     Uses the default ``update_latest_camera_pose=False``: pose writes must reach the buffers regardless.
     """
@@ -271,6 +271,8 @@ def test_camera_set_world_poses(setup_sim_camera):
     camera = Camera(camera_cfg)
     # play sim
     sim.reset()
+    camera.data
+    frame = camera.frame.torch.clone()
 
     position = np.asarray([POSITION], dtype=np.float32)
     orientation = np.asarray([QUAT_WORLD], dtype=np.float32)
@@ -280,6 +282,7 @@ def test_camera_set_world_poses(setup_sim_camera):
     # check if transform correctly set in output
     np.testing.assert_allclose(camera.data.pos_w.warp.numpy(), position)
     _assert_quat_close(camera.data.quat_w_world.warp.numpy(), orientation, rtol=1e-5, atol=1e-5)
+    torch.testing.assert_close(camera.frame.torch, frame + 1)
 
     # set a pose from eye/target
     eyes_np = np.asarray([POSITION], dtype=np.float32)
@@ -291,6 +294,7 @@ def test_camera_set_world_poses(setup_sim_camera):
     # check if transform correctly set in output
     torch.testing.assert_close(camera.data.pos_w.torch, eyes)
     _assert_quat_close(camera.data.quat_w_ros.torch, quat_ros_gt)
+    torch.testing.assert_close(camera.frame.torch, frame + 2)
 
 
 def test_intrinsic_matrix(setup_sim_camera):

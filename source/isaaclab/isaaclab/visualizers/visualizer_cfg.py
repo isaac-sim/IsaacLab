@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
@@ -34,6 +35,31 @@ def _get_visualizer_install_hint(visualizer_type: str) -> str:
     if extra is None:
         return "Run your command with: uv run <command>."
     return f"Run your command with: uv run --extra {extra} <command>."
+
+
+@configclass
+class PerspectiveCameraCfg:
+    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye position in world coordinates [m]."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Look-at target in world coordinates [m]."""
+
+    focal_length: float = 12.0
+    """Perspective camera focal length [mm]."""
+
+
+@configclass
+class SceneCameraCfg:
+    """Select an existing scene camera's output as the visualizer's main view.
+
+    This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
+    """
+
+    prim_path: str = MISSING
+    """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
 
 
 @configclass

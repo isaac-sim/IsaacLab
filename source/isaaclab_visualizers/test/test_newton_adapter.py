@@ -41,6 +41,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
 
 
 @pytest.mark.parametrize(
@@ -536,6 +537,7 @@ class _Viewer:
         self.logged_mesh = None
         self.events = []
         self.closed = False
+        self.camera = SimpleNamespace(get_view_matrix=lambda: np.eye(4, dtype=np.float32).ravel())
 
     def is_paused(self):
         return self.paused
@@ -549,6 +551,10 @@ class _Viewer:
     def log_state(self, state):
         self.events.append("log_state")
         self.logged_state = state
+
+    def log_image(self, name, image, *, fullscreen=False):
+        self.events.append("log_image")
+        self.logged_image = (name, image, fullscreen)
 
     def log_mesh(self, name, points, indices, **kwargs):
         self.events.append("log_mesh")
@@ -780,6 +786,94 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
 
     assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
     assert viewer.logged_state is None
+
+
+def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
+    """Image mode bypasses scene uploads, preserves pause, and can return to perspective."""
+    viewer = _Viewer()
+    cameras = [SceneCameraCfg(prim_path="/Camera"), PerspectiveCameraCfg()]
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=cameras, enable_markers=False))
+    image = np.full((4, 6, 3), 127, dtype=np.uint8)
+    visualizer._streaming_frame.data = image
+    visualizer.render_tiled_rgb_array = Mock(return_value=image)
+    provider = visualizer._scene_data_provider
+    provider.get_transforms = Mock(wraps=provider.get_transforms)
+    contacts, markers = Mock(return_value=None), Mock()
+    monkeypatch.setattr(newton_visualizer_module.NewtonManager, "get_contacts", contacts)
+    monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
+
+    visualizer.step(0.1)
+    viewer.paused = True
+    visualizer.step(0.1)
+    assert viewer.events == ["begin_frame", "log_image", "end_frame"] * 2
+    name, displayed, fullscreen = viewer.logged_image
+    assert name == "Streaming View" and displayed is image and fullscreen
+    visualizer.render_tiled_rgb_array.assert_called_once()
+    provider.get_transforms.assert_not_called()
+    contacts.assert_not_called()
+    markers.assert_not_called()
+
+    viewer.paused = False
+    visualizer._camera_index = 1
+    visualizer.step(0.1)
+    assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
+    provider.get_transforms.assert_called_once()
+    contacts.assert_called_once()
+
+
+def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypatch):
+    """Selecting cameras is lazy; one local motion moves every copy, never an inactive sensor."""
+    sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/World/env_{}"))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    positions = torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]])
+    orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 2**-0.5, 2**-0.5]])
+
+    class Camera:
+        def __init__(self, path):
+            self.cfg = SimpleNamespace(prim_path=path, data_types=["rgb"])
+            self.reads = 0
+            self.set_world_poses = Mock()
+
+        @property
+        def data(self):
+            self.reads += 1
+            return SimpleNamespace(
+                pos_w=_Proxy(positions),
+                quat_w_opengl=_Proxy(orientations),
+                output={"rgb": torch.zeros((2, 4, 6, 3), dtype=torch.uint8)},
+            )
+
+    sensors = {name: Camera(f"/World/env_[^/]+/{name}") for name in ("Front", "Back")}
+    choices = [SceneCameraCfg(prim_path=c.cfg.prim_path) for c in sensors.values()]
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=choices, streaming_envs=[0, 1]))
+    visualizer._scene_data_provider.get_camera_sensors = lambda: sensors
+    visualizer._setup_streaming_view(2)
+    visualizer._select_camera(0)
+    assert all(camera.reads == 0 for camera in sensors.values())
+
+    # Native controls translate along camera +X and rotate 90 degrees about camera +Z.
+    delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+    before, after = np.eye(4, dtype=np.float32).ravel(), np.linalg.inv(delta).T.ravel()
+    viewer.camera.get_view_matrix = Mock(side_effect=[before, after])
+    visualizer.step(0.0)
+    pos, quat = sensors["Front"].set_world_poses.call_args.args
+    torch.testing.assert_close(pos, torch.tensor([[0.25, 0.0, 0.0], [10.0, 20.25, 0.0]]))
+    expected_quat = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5], [0.0, 0.0, 1.0, 0.0]])
+    torch.testing.assert_close(quat, expected_quat)
+    assert sensors["Front"].set_world_poses.call_args.kwargs == {"convention": "opengl"}
+    assert visualizer._streaming_frame.timestamp == -1.0
+    assert sensors["Back"].reads == 0
+    sensors["Back"].set_world_poses.assert_not_called()
+
+    # Switching only binds; reading the selected view then captures that sensor alone.
+    reads = sensors["Front"].reads
+    visualizer._select_camera(1)
+    assert sensors["Back"].reads == 0
+    viewer.camera.get_view_matrix = Mock(side_effect=[before, before])
+    visualizer.step(0.0)
+    assert sensors["Back"].reads == 1 and sensors["Front"].reads == reads
+    sensors["Back"].set_world_poses.assert_not_called()
 
 
 @pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
