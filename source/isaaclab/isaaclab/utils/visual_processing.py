@@ -13,9 +13,9 @@ from typing import Any
 
 import warp as wp
 
-from ..renderers.output_contract import RenderBufferSpec
-from . import configclass
-from .warp import ProxyArray
+from isaaclab.renderers.output_contract import RenderBufferSpec
+from isaaclab.utils import configclass
+from isaaclab.utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -51,7 +51,8 @@ class VisualProcessor:
         initialize: Bind buffers and allocate scratch storage before the first frame.
         reset: Reset state for the selected environments.
         close: Release processor resources; must be safe after partial initialization.
-        neutral_exposure: Request scene-linear input without renderer exposure.
+        neutral_exposure: Request unexposed scene-linear input before renderer setup.
+            False makes no exposure request; other consumers may still request neutral exposure.
         in_place: Allow outputs to reuse matching input storage. The operation must support aliasing.
     """
 

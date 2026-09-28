@@ -18,7 +18,7 @@ from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
-    from .isaac_rtx_renderer import IsaacRtxRenderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer import IsaacRtxRenderer
 
 
 SIMPLE_SHADING_MODES = {

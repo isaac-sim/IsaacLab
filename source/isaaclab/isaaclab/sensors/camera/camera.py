@@ -17,22 +17,22 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-from ... import sim as sim_utils
-from ...app.logging_utils import force_log_level
-from ...renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
-from ...sim.views import FrameView
-from ...utils.math import (
+from isaaclab import sim as sim_utils
+from isaaclab.app.logging_utils import force_log_level
+from isaaclab.renderers import BaseRenderer, CameraRenderSpec, RenderBufferKind, RenderBufferSpec
+from isaaclab.sensors.camera.camera_data import CameraData
+from isaaclab.sensors.sensor_base import SensorBase
+from isaaclab.sim.views import FrameView
+from isaaclab.utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
-from ...utils.warp import ProxyArray
-from ..sensor_base import SensorBase
-from .camera_data import CameraData
+from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
+from isaaclab.utils.warp import ProxyArray
 
 if TYPE_CHECKING:
-    from .camera_cfg import CameraCfg
+    from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
 logger = logging.getLogger(__name__)
 
@@ -258,7 +258,7 @@ class Camera(SensorBase):
         # and several env classes read it before the renderer's __init__ runs.
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type == "isaac_rtx":
-            from ...app.settings_manager import get_settings_manager
+            from isaaclab.app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
@@ -392,7 +392,8 @@ class Camera(SensorBase):
 
         Args:
             data_types: Renderer buffer names required by a consumer.
-            neutral_exposure: Disable renderer exposure to obtain scene-linear HDR.
+            neutral_exposure: Request unexposed scene-linear HDR. False makes no exposure request
+                and does not cancel requests from other consumers of this camera.
 
         Raises:
             RuntimeError: If the camera is already initialized.
@@ -427,7 +428,7 @@ class Camera(SensorBase):
         """Configure HDR routing before renderer stage preparation."""
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type in {"isaac_rtx", "ovrtx"}:
-            from ...app.settings_manager import get_settings_manager
+            from isaaclab.app.settings_manager import get_settings_manager
 
             get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
             if renderer_type == "ovrtx":

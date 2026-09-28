@@ -7,9 +7,9 @@
 
 import importlib
 
-import lazy_loader as lazy
+from isaaclab.utils.module import lazy_export
 
-_stub_getattr, __dir__, __all__ = lazy.attach_stub(__name__, __file__)
+_stub_getattr, __dir__, __all__ = lazy_export()
 
 
 def __getattr__(name: str):

@@ -15,8 +15,8 @@ from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field, replace
 from typing import Any, ClassVar
 
-from .dict import class_to_dict, update_class_from_dict
-from .string import ResolvableString
+from isaaclab.utils.dict import class_to_dict, update_class_from_dict
+from isaaclab.utils.string import ResolvableString
 
 _CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
 _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")

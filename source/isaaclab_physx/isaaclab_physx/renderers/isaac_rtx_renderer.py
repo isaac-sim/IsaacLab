@@ -31,13 +31,13 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
-from .isaac_rtx_renderer_utils import (
+from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
     ensure_isaac_rtx_render_update,
     ensure_rtx_hydra_engine_attached,
 )
-from .visual_material import FabricVisualMaterialWriter
+from isaaclab_physx.renderers.visual_material import FabricVisualMaterialWriter
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +47,7 @@ if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
-from .isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
+from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import SIMPLE_SHADING_MODES, IsaacRtxRendererCfg
 
 # RTX simple-shading constants.
 #

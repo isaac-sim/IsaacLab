@@ -16,14 +16,14 @@ import numpy as np
 import torch
 from prettytable import PrettyTable
 
-from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import class_to_dict, modifiers, noise, string_to_callable
-from ..utils.buffers import CircularBuffer, DelayBuffer
-from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
+from isaaclab.managers.manager_base import ManagerBase, ManagerTermBase
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from isaaclab.utils import class_to_dict, modifiers, noise, string_to_callable
+from isaaclab.utils.buffers import CircularBuffer, DelayBuffer
 
 if TYPE_CHECKING:
-    from ..envs import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def _close_terms(terms: Iterable[ManagerTermBase]) -> None:

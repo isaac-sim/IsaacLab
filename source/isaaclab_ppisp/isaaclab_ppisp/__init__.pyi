@@ -24,7 +24,7 @@ __all__ = [
     "resolve_ppisp_processor",
 ]
 
-from .cfg import (
+from isaaclab_ppisp.cfg import (
     PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN,
     PPISP_DEFAULT_INPUTS,
     PpispCfg,
@@ -37,7 +37,7 @@ from .cfg import (
     ppisp_cfg_from_usd_stage,
     resolve_and_normalize,
 )
-from .kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
-from .pipeline import PpispPipeline
-from .processor import PpispProcessorCfg, resolve_ppisp_processor
-from .rtx_camera_overrides import apply_rtx_exposure_overrides
+from isaaclab_ppisp.kernels import apply_ppisp_to_rgba, apply_ppisp_to_rgba_with_controller_params, compute_ppisp_controller_params
+from isaaclab_ppisp.pipeline import PpispPipeline
+from isaaclab_ppisp.processor import PpispProcessorCfg, resolve_ppisp_processor
+from isaaclab_ppisp.rtx_camera_overrides import apply_rtx_exposure_overrides

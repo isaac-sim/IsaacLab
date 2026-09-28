@@ -15,8 +15,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils.warp import ProxyArray
 
-from .cfg import PpispCfg, resolve_and_normalize
-from .pipeline import PpispPipeline
+from isaaclab_ppisp.cfg import PpispCfg, resolve_and_normalize
+from isaaclab_ppisp.pipeline import PpispPipeline
 
 
 def resolve_ppisp_processor(cfg: PpispProcessorCfg, context: VisualProcessorContext) -> VisualProcessor | None:

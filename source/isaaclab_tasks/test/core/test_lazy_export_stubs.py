@@ -10,13 +10,18 @@ Fallback packages and wildcard re-exports are inferred from the ``.pyi``
 stub.  Passing ``packages=`` is deprecated and indicates a stub that has
 not been updated with the corresponding ``from pkg import *`` line.
 
-This test is purely static (AST-based) and requires no simulator.
+These tests require no simulator.
 """
 
 import ast
+import importlib
 import os
+import sys
 import tempfile
 from pathlib import Path
+from types import ModuleType
+
+import pytest
 
 from isaaclab.utils.module import _parse_stub
 
@@ -192,3 +197,35 @@ def test_parse_stub_filtered_stub_excludes_absolute_named():
         if filtered_path is not None:
             os.unlink(filtered_path)
         os.unlink(stub)
+
+
+@pytest.mark.parametrize("absolute", [False, True])
+def test_lazy_export_defers_local_named_imports_and_keeps_external_imports_eager(tmp_path, monkeypatch, absolute):
+    """Absolute local exports defer optional dependencies just like relative local exports."""
+    package_name = "stub_test_package"
+    external_name = f"{package_name}_external"
+    dependency_name = "stub_test_optional_dependency"
+    package = tmp_path / package_name
+    package.mkdir()
+    (package / "__init__.py").write_text("from isaaclab.utils.module import lazy_export\nlazy_export()\n")
+    local_module = f"{package_name}.optional" if absolute else ".optional"
+    (package / "__init__.pyi").write_text(
+        f"from {local_module} import lazy_value\nfrom {external_name} import eager_value\n"
+    )
+    (package / "optional.py").write_text(f"from {dependency_name} import lazy_value\n")
+    (tmp_path / f"{external_name}.py").write_text("eager_value = object()\n")
+    monkeypatch.syspath_prepend(str(tmp_path))
+    try:
+        module = importlib.import_module(package_name)
+        assert f"{package_name}.optional" not in sys.modules
+        assert module.eager_value is sys.modules[external_name].eager_value
+        assert "lazy_value" in module.__all__
+        with pytest.raises(ModuleNotFoundError, match=dependency_name):
+            _ = module.lazy_value
+        dependency = ModuleType(dependency_name)
+        dependency.lazy_value = object()
+        monkeypatch.setitem(sys.modules, dependency_name, dependency)
+        assert module.lazy_value is dependency.lazy_value
+    finally:
+        for name in (package_name, f"{package_name}.optional", external_name):
+            sys.modules.pop(name, None)

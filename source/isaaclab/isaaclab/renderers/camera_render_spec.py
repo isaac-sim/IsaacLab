@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from ..sensors.camera.camera_cfg import CameraCfg
+from isaaclab.sensors.camera.camera_cfg import CameraCfg
 
 
 @dataclass(frozen=True)
@@ -39,7 +39,10 @@ class CameraRenderSpec:
     """Resolved renderer inputs, including private processing buffers. Defaults to the camera outputs."""
 
     neutral_exposure: bool = False
-    """Whether the renderer must disable physical-camera and automatic exposure for scene-linear input."""
+    """Request unexposed scene-linear input during renderer setup. False leaves authored exposure unchanged.
+
+    This camera-wide requirement is independent of HDR color encoding and applies to all consumers.
+    """
 
     @property
     def data_types(self) -> tuple[str, ...]:

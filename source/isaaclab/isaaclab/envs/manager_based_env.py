@@ -14,22 +14,22 @@ from typing import Any
 
 import torch
 
-from ..app.loading_screen import report_activity
-from ..managers import ActionManager, EventManager, ObservationManager, RecorderManager
-from ..managers.observation_manager import _close_terms
-from ..scene import InteractiveScene
-from ..sim import SimulationContext
-from ..sim.utils.stage import use_stage
-from ..utils.seed import configure_seed
-from ..utils.timer import Timer
-from .common import VecEnvObs, _apply_deprecated_viewer_cfg
-from .manager_based_env_cfg import ManagerBasedEnvCfg
-from .utils.io_descriptors import (
+from isaaclab.app.loading_screen import report_activity
+from isaaclab.envs.common import VecEnvObs, _apply_deprecated_viewer_cfg
+from isaaclab.envs.manager_based_env_cfg import ManagerBasedEnvCfg
+from isaaclab.envs.utils.io_descriptors import (
     _warn_io_descriptors_deprecated,
     export_articulations_data,
     export_scene_data,
 )
-from .utils.video_recorder import VideoRecorder
+from isaaclab.envs.utils.video_recorder import VideoRecorder
+from isaaclab.managers import ActionManager, EventManager, ObservationManager, RecorderManager
+from isaaclab.managers.observation_manager import _close_terms
+from isaaclab.scene import InteractiveScene
+from isaaclab.sim import SimulationContext
+from isaaclab.sim.utils.stage import use_stage
+from isaaclab.utils.seed import configure_seed
+from isaaclab.utils.timer import Timer
 
 logger = logging.getLogger(__name__)
 

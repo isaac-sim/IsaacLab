@@ -16,7 +16,7 @@ from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .newton_warp_renderer import NewtonWarpRenderer
+    from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 
 
 @configclass

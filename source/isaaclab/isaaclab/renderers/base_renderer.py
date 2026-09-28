@@ -11,8 +11,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from .camera_render_spec import CameraRenderSpec
-from .output_contract import RenderBufferKind, RenderBufferSpec
+from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.renderers.output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Sequence
@@ -20,8 +20,8 @@ if TYPE_CHECKING:
     import torch
     import warp as wp
 
-    from ..sensors.camera.camera_data import CameraData
-    from ..utils.warp import ProxyArray
+    from isaaclab.sensors.camera.camera_data import CameraData
+    from isaaclab.utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)

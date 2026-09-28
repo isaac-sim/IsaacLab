@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import warp as wp
 
-from .cfg import PpispCfg, normalize_ppisp_cfg
-from .kernels import (
+from isaaclab_ppisp.cfg import PpispCfg, normalize_ppisp_cfg
+from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_FEATURE_LEN,
     PPISP_CONTROLLER_PARAM_COUNT,
     apply_ppisp_to_rgba,

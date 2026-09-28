@@ -20,9 +20,9 @@ from isaaclab.scene_data import REQUIRES_STAGE_AND_MODEL
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp, replace_background_depth_wp
 
-from ..physics.newton_manager import NewtonManager
-from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
-from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
+from isaaclab_newton.physics.newton_manager import NewtonManager
+from isaaclab_newton.renderers.newton_warp_renderer_cfg import NewtonWarpRendererCfg
+from isaaclab_newton.renderers.segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
     from isaaclab.sensors.camera.camera_data import CameraData

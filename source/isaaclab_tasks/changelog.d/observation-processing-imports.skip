@@ -1,0 +1,1 @@
+Added regression coverage for lazy exports declared with absolute imports.

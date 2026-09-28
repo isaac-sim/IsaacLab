@@ -20,7 +20,7 @@ from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
-    from .ovrtx_renderer import OVRTXBackend, OVRTXRenderer
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend, OVRTXRenderer
 
 
 @configclass
