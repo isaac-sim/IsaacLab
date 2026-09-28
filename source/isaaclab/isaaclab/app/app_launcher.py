@@ -18,15 +18,18 @@ from .sim_launcher import _KIT_LAUNCHER, add_launcher_args, launch_simulation
 logger = logging.getLogger(__name__)
 
 
+_RUNTIME = contextlib.ExitStack()
+"""Runtimes the adapter started; held for the process so they outlive the ``AppLauncher`` object."""
+
+
 class _LaunchedApp:
     """The running Kit app; ``close()`` stops the runtime the adapter started."""
 
-    def __init__(self, app: Any, runtime: contextlib.ExitStack):
+    def __init__(self, app: Any):
         self._app = app
-        self._runtime = runtime
 
     def close(self, *args, **kwargs) -> None:
-        self._runtime.close()
+        _RUNTIME.close()
 
     def is_exiting(self) -> bool:
         return not self._app.is_running()
@@ -52,14 +55,13 @@ class AppLauncher:
         if "newton_rtx" in (args.get("visualizer") or []):
             logger.warning("AppLauncher starts Kit, which cannot run the 'newton_rtx' visualizer; skipping it.")
             args["visualizer"] = [v for v in args["visualizer"] if v != "newton_rtx"]
-        runtime = contextlib.ExitStack()
-        runtime.enter_context(launch_simulation(None, args))
+        _RUNTIME.enter_context(launch_simulation(None, args))
         self.device = args.get("device")
         self.has_window = not args["headless"] or bool(args.get("livestream", 0))
 
         import omni.kit.app
 
-        self.app = _LaunchedApp(omni.kit.app.get_app(), runtime)
+        self.app = _LaunchedApp(omni.kit.app.get_app())
 
     @staticmethod
     def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
