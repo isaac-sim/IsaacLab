@@ -310,21 +310,25 @@ def _cartpole_integration_visualizer_camera_kwargs(
         return {
             "eye": _CARTPOLE_ALL_ENVS_VISUALIZER_EYE,
             "lookat": _CARTPOLE_ALL_ENVS_VISUALIZER_LOOKAT,
+            "background_color": (0.3, 0.55, 0.82),
         }
     return {
         "eye": _CARTPOLE_INTEGRATION_VISUALIZER_EYE,
         "lookat": _CARTPOLE_INTEGRATION_VISUALIZER_LOOKAT,
+        "background_color": (0.3, 0.55, 0.82),
     }
 
 
-def _declare_streaming_cameras(scene_cfg, cfgs, robot_cfg, body: str, eye: tuple[float, float, float]) -> None:
+def _declare_streaming_cameras(
+    scene_cfg, cfgs, robot_cfg, body: str, eye: tuple[float, float, float], *, body_rotation=(0.0, 0.0, 0.0, 1.0)
+) -> None:
     """Declare matching Kit/Newton camera views before the scene builds its clone plan."""
     eye = torch.tensor([eye])
     orientation = quat_from_matrix(create_rotation_matrix_from_view(eye, torch.zeros_like(eye)))
-    root_orientation = torch.tensor([robot_cfg.init_state.rot])
+    parent_orientation = quat_mul(torch.tensor([robot_cfg.init_state.rot]), torch.tensor([body_rotation]))
     offset = CameraCfg.OffsetCfg(
-        pos=tuple(quat_apply_inverse(root_orientation, eye)[0].tolist()),
-        rot=tuple(quat_mul(quat_conjugate(root_orientation), orientation)[0].tolist()),
+        pos=tuple(quat_apply_inverse(parent_orientation, eye)[0].tolist()),
+        rot=tuple(quat_mul(quat_conjugate(parent_orientation), orientation)[0].tolist()),
         convention="opengl",
     )
     for cfg in cfgs:
@@ -1264,7 +1268,7 @@ def _capture_visualizer_tiled_camera_rgb(
 
 
 def _run_visualizer_tiled_camera_motion_test(env, visualizer, *, physics_kind: str, viz_kind: str) -> None:
-    """Check generated visualizer tiled-camera RGB moves, pauses, and resumes."""
+    """Check streamed scene-camera RGB moves, pauses, and resumes."""
     _clear_visualizer_debug_frames()
     case_label = f"{_visualizer_case_label(viz_kind, physics_kind)} tiled camera"
     actions = torch.zeros((env.num_envs, env.action_space.shape[-1]), device=env.device)
@@ -1379,7 +1383,7 @@ _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = t
     eye - lookat
     for eye, lookat in zip(_SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT)
 )
-"""Target-relative eye offset for shadow hand generated tiled cameras."""
+"""Root-relative eye offset for the shadow hand scene cameras."""
 
 _SHADOW_HAND_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit render product resolution for shadow hand viewport golden tests."""
@@ -1405,7 +1409,7 @@ _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT: tuple[float, float, float] = (0.0, 0.0,
 _ANYMAL_D_INTEGRATION_TILED_CAMERA_EYE_OFFSET: tuple[float, float, float] = tuple(  # type: ignore[assignment]
     eye - lookat for eye, lookat in zip(_ANYMAL_D_INTEGRATION_VISUALIZER_EYE, _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT)
 )
-"""Target-relative eye offset for AnymalD generated tiled cameras."""
+"""Root-relative eye offset for the AnymalD scene cameras."""
 
 _ANYMAL_D_KIT_INTEGRATION_RENDER_RESOLUTION: tuple[int, int] = (400, 400)
 """Kit render product resolution for AnymalD viewport golden tests."""
@@ -1430,6 +1434,7 @@ def _make_shadow_hand_env(
     env_cfg.viewer.lookat = _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _SHADOW_HAND_INTEGRATION_VISUALIZER_EYE, "lookat": _SHADOW_HAND_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)  # Preserve the existing golden's explicit background.
     tiled_cam = (
         {
             "streaming_view": True,
@@ -1472,6 +1477,8 @@ def _make_shadow_hand_env(
             env_cfg.scene.robot,
             "Geometry/rh_forearm",
             _SHADOW_HAND_INTEGRATION_TILED_CAMERA_EYE_OFFSET,
+            # The forearm's authored frame is rotated relative to the asset root.
+            body_rotation=(2**-0.5, 0.0, 2**-0.5, 0.0),
         )
     return ReorientDirectEnv(env_cfg)
 
@@ -1494,6 +1501,7 @@ def _make_anymal_d_env(visualizer_kind: str | tuple[str, ...], backend_kind: str
     env_cfg.viewer.lookat = _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT
     env_cfg.seed = None
     cam = {"eye": _ANYMAL_D_INTEGRATION_VISUALIZER_EYE, "lookat": _ANYMAL_D_INTEGRATION_VISUALIZER_LOOKAT}
+    cam["background_color"] = (0.3, 0.55, 0.82)
     tiled_cam = (
         {
             "streaming_view": True,

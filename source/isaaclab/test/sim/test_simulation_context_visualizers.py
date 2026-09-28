@@ -514,30 +514,8 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     captured = {}
 
     class _FakeNewtonViewerRerun:
-        def __init__(
-            self,
-            *,
-            app_id: str,
-            address: str | None,
-            serve_web_viewer: bool,
-            web_port: int,
-            grpc_port: int,
-            keep_historical_data: bool,
-            keep_scalar_history: bool,
-            record_to_rrd: str | None,
-            open_browser: bool,
-        ):
-            captured["init"] = {
-                "app_id": app_id,
-                "address": address,
-                "serve_web_viewer": serve_web_viewer,
-                "web_port": web_port,
-                "grpc_port": grpc_port,
-                "keep_historical_data": keep_historical_data,
-                "keep_scalar_history": keep_scalar_history,
-                "record_to_rrd": record_to_rrd,
-                "open_browser": open_browser,
-            }
+        def __init__(self, **kwargs):
+            captured["streaming_view"] = kwargs["streaming_view"]
 
         def set_model(self, model: Any) -> None:
             captured["set_model"] = model
@@ -571,6 +549,7 @@ def test_rerun_visualizer_initialize_applies_visible_worlds_and_world_offsets(
     visualizer = rerun_visualizer.RerunVisualizer(cfg)
     visualizer.initialize(cast(Any, _DummyViserSceneDataProvider()))
 
+    assert captured["streaming_view"] is False
     assert captured["set_model"] is web_backend.get_or_create_backend.return_value.model
     assert captured["visible_worlds"] == expected_visible
     assert captured["set_world_offsets"] == (0.0, 0.0, 0.0)
@@ -620,6 +599,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
     monkeypatch.setitem(sys.modules, "omni.ui", type("OmniUi", (), {"DockPosition": object})())
 
     applied_camera_poses = []
+    monkeypatch.setattr(kit_visualizer.KitVisualizer, "_write_desktop_entry", lambda self: None)
     monkeypatch.setattr(
         kit_visualizer.KitVisualizer,
         "_set_viewport_camera",
