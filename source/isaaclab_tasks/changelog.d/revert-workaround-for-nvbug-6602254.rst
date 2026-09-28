@@ -6,4 +6,4 @@ Removed
   millimetre-scale cubes pinned each Isaac RTX scene partition to the workspace as a
   workaround for Kit RTX not refreshing animated ``UsdGeom.BasisCurves`` bounding boxes
   (OMPE-105749 / NVBug 6602254). Custom environments that copied the markers can drop
-  them; ``test_rendering_franka_cable_partition_bounds`` remains as the regression guard.
+  them; ``test_franka_cable_partition_bounds.py`` remains as the regression guard.
