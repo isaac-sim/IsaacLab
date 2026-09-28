@@ -26,7 +26,7 @@ class CameraSource:
     """Persistent raw frames with the camera's lazy-read contract."""
 
     def __init__(self):
-        self.cfg = SimpleNamespace(isp_cfg=None, height=2, width=3)
+        self.cfg = SimpleNamespace(height=2, width=3)
         self.camera_prim_paths = ("/World/envs/env_0/Camera",)
         self.render_buffer_specs = {
             "rgb": RenderBufferSpec(3, wp.uint8, color_space="srgb"),
@@ -179,15 +179,6 @@ def test_term_requests_private_radiance_before_binding():
     assert camera.requests == [("rgb_radiance",)]
     assert not bindings
     term.close()
-
-
-def test_processed_image_rejects_legacy_isp_before_requesting_inputs():
-    camera = CameraSource()
-    camera.cfg.isp_cfg = object()
-    cfg, _ = make_term_cfg([])
-    with pytest.raises(ValueError, match="Move its value into PpispProcessorCfg"):
-        processed_image.prepare_scene(cfg, make_env(camera))
-    assert camera.requests == []
 
 
 def test_term_rejects_recreated_camera_buffers_instead_of_reading_stale_storage():

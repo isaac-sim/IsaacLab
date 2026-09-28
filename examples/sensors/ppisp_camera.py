@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 """
-This script demonstrates USD-authored PPISP on a Gaussian scene through the Isaac Lab camera sensor with
+This script demonstrates USD-authored PPISP on a Gaussian scene through an image observation term with
 the Newton Warp or Isaac RTX renderer.
 
 .. code-block:: bash
@@ -21,6 +21,7 @@ the Newton Warp or Isaac RTX renderer.
 
 import argparse
 import os
+from types import SimpleNamespace
 from typing import Any
 
 from isaaclab.app import AppLauncher
@@ -119,6 +120,7 @@ simulation_app = app_launcher.app
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from isaaclab_ppisp import PpispProcessorCfg
 from isaaclab_ppisp._demo_utils import (
     find_ppisp_camera_bindings,
     format_available_ppisp_cameras,
@@ -130,6 +132,8 @@ from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.envs.mdp import processed_image
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import Camera, CameraCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
@@ -357,8 +361,8 @@ def create_duplicated_env_scene() -> InteractiveScene:
     return scene
 
 
-def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int, height: int) -> Camera:
-    """Create a baseline or PPISP camera sensor for the duplicated-env camera batch."""
+def make_camera(camera_prim_path: str, *, width: int, height: int) -> Camera:
+    """Create the shared source camera for raw RGB and PPISP observations."""
     return Camera(
         CameraCfg(
             prim_path=camera_prim_path,
@@ -367,7 +371,6 @@ def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int
             width=width,
             data_types=["rgb"],
             spawn=None,
-            isp_cfg=ppisp_cfg,
             renderer_cfg=make_renderer_cfg(),
         )
     )
@@ -434,8 +437,9 @@ def corner_center_ratio(rgb: torch.Tensor) -> float:
     return (corners / center.clamp_min(1.0)).item()
 
 
-def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppisp_camera: Camera) -> None:
+def run_simulator(env: SimpleNamespace, camera: Camera, ppisp_observation: processed_image) -> None:
     """Run the simulator and periodically save baseline-vs-PPISP images."""
+    sim = env.sim
     sim_dt = sim.get_physics_dt()
     output_dir = args_cli.output_dir
     if output_dir is None:
@@ -446,20 +450,18 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
         print(f"[INFO] Running {args_cli.warmup_steps} warmup step(s) before saving images.", flush=True)
     for _ in range(args_cli.warmup_steps):
         sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
+        camera.update(sim_dt)
 
     count = 0
     reported_shape = False
     while simulation_app.is_running():
         sim.step()
-        baseline_camera.update(sim_dt)
-        ppisp_camera.update(sim_dt)
+        camera.update(sim_dt)
         count += 1
 
         if count % args_cli.save_interval == 0:
-            baseline = baseline_camera.data.output["rgb"][..., :3]
-            ppisp = ppisp_camera.data.output["rgb"][..., :3]
+            ppisp = ppisp_observation(env, **ppisp_observation.cfg.params)
+            baseline = camera.data.output["rgb"].torch[..., :3]
             diff = (ppisp.float() - baseline.float()).abs() / 255.0
             if not reported_shape:
                 print(f"[INFO] camera batch rgb shape={tuple(ppisp.shape)}", flush=True)
@@ -536,15 +538,27 @@ def main() -> None:
     scene = create_duplicated_env_scene()
     if args_cli.renderer == "newton_renderer":
         bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
-    baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
-    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
+    camera = make_camera(camera_prim_path, width=width, height=height)
+    # Standalone scripts supply the context normally provided by ManagerBasedEnv.
+    env = SimpleNamespace(sim=sim, scene={"camera": camera}, num_envs=args_cli.num_envs, device=str(sim.device))
+    term_cfg = ObservationTermCfg(
+        func=processed_image,
+        params={
+            "sensor_cfg": SceneEntityCfg("camera"),
+            "processors": [PpispProcessorCfg(isp_cfg=ppisp_cfg)],
+        },
+    )
+    ppisp_observation = processed_image.prepare_scene(term_cfg, env)
     print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
     print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
 
-    sim.reset()
-    print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
-    run_simulator(sim, baseline_camera, ppisp_camera)
-    del scene
+    try:
+        sim.reset()
+        print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+        run_simulator(env, camera, ppisp_observation)
+    finally:
+        ppisp_observation.close()
+        del scene
 
 
 if __name__ == "__main__":

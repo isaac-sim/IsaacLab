@@ -27,7 +27,6 @@ from ...utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -213,7 +212,6 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
-        self._legacy_isp: VisualProcessingPipeline | None = None
         self._requested_render_inputs: tuple[str, ...] = ()
         self._render_generation = 0
 
@@ -263,7 +261,7 @@ class Camera(SensorBase):
             settings = get_settings_manager()
             settings.set_bool("/isaaclab/render/rtx_sensors", True)
             settings.set_bool("/physics/fabricUpdateTransformations", True)
-        if {"rgb_hdr", "rgb_radiance"}.intersection(self.cfg.data_types) or self.cfg.isp_cfg is not None:
+        if {"rgb_hdr", "rgb_radiance"}.intersection(self.cfg.data_types):
             self._enable_hdr_rendering()
 
         # UsdGeom Camera prim for the sensor
@@ -695,8 +693,6 @@ class Camera(SensorBase):
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
         super().reset(env_ids, env_mask)
-        if self._legacy_isp is not None:
-            self._legacy_isp.reset(self._resolve_indices_and_mask(env_ids, env_mask))
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -800,25 +796,7 @@ class Camera(SensorBase):
             else len(cam_paths)
         )
         device_str = str(sim_ctx.device)
-        if self.cfg.isp_cfg is not None and self._legacy_isp is None:
-            try:
-                from isaaclab_ppisp import PpispProcessorCfg
-            except ModuleNotFoundError as exc:
-                if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-                    raise
-                raise ModuleNotFoundError(
-                    "CameraCfg.isp_cfg requires the optional isaaclab-ppisp package.", name="isaaclab_ppisp"
-                ) from exc
-            self._legacy_isp = VisualProcessingPipeline(
-                [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg)],
-                VisualProcessorContext(self.stage, cam_paths, num_views, self.cfg.height, self.cfg.width, device_str),
-                self.render_buffer_specs,
-                self.cfg.data_types,
-            )
-        render_types = (
-            self._legacy_isp.render_data_types if self._legacy_isp is not None else tuple(self.cfg.data_types)
-        )
-        self._render_data_types = tuple(dict.fromkeys((*render_types, *self._requested_render_inputs)))
+        self._render_data_types = tuple(dict.fromkeys((*self.cfg.data_types, *self._requested_render_inputs)))
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
             device=device_str,
@@ -857,13 +835,11 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._render_camera_data)
-        self._finish_capture(env_mask)
+        self._finish_capture()
 
-    def _finish_capture(self, env_mask: wp.array) -> None:
-        """Publish a completed raw capture and update compatibility outputs."""
+    def _finish_capture(self) -> None:
+        """Publish a completed raw capture and its metadata."""
         self._render_generation += 1
-        if self._legacy_isp is not None:
-            self._legacy_isp.process(env_mask)
         for name in self._data.info:
             if name in self._render_camera_data.info:
                 self._data.info[name] = self._render_camera_data.info[name]
@@ -892,7 +868,7 @@ class Camera(SensorBase):
             sim_ctx.get_physics_step_count(),
         )
         for camera in ready:
-            camera._finish_capture(camera._is_outdated)
+            camera._finish_capture()
 
     """
     Private Helpers
@@ -936,13 +912,10 @@ class Camera(SensorBase):
             supported_specs=self.render_buffer_specs,
         )
         render_outputs = allocated.output
-        if self._legacy_isp is not None:
-            public_outputs = self._legacy_isp.allocate(render_outputs)
-        else:
-            public_names = set(self.cfg.data_types)
-            if not public_names.isdisjoint({"rgb", "rgba"}):
-                public_names.update({"rgb", "rgba"})
-            public_outputs = {name: output for name, output in render_outputs.items() if name in public_names}
+        public_names = set(self.cfg.data_types)
+        if not public_names.isdisjoint({"rgb", "rgba"}):
+            public_names.update({"rgb", "rgba"})
+        public_outputs = {name: output for name, output in render_outputs.items() if name in public_names}
         self._data = allocated
         self._data._output = public_outputs
         self._data.info = dict.fromkeys(public_outputs)
@@ -1185,22 +1158,16 @@ class Camera(SensorBase):
 
     def _cleanup_rendering(self) -> None:
         """Release camera-owned resources, including after partial initialization."""
-        pipeline = getattr(self, "_legacy_isp", None)
         renderer = getattr(self, "_renderer", None)
         render_data = getattr(self, "_render_data", None)
         view = getattr(self, "_view", None)
-        self._legacy_isp = None
         self._render_data = None
         self._render_camera_data = None
         self._renderer = None
         self._view = None
         try:
-            if pipeline is not None:
-                pipeline.close()
+            if renderer is not None:
+                renderer.cleanup(render_data)
         finally:
-            try:
-                if renderer is not None:
-                    renderer.cleanup(render_data)
-            finally:
-                if view is not None:
-                    view.close()
+            if view is not None:
+                view.close()

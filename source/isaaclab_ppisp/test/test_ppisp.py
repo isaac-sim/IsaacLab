@@ -10,6 +10,7 @@ from __future__ import annotations
 import pytest
 from isaaclab_ppisp import (
     PpispCfg,
+    PpispDiscoveryMode,
     PpispProcessorCfg,
     auto_any_ppisp_cfg,
     auto_camera_ppisp_cfg,
@@ -22,7 +23,6 @@ from isaaclab_ppisp.cfg import PPISP_CONTROLLER_EXPECTED_WEIGHTS_LEN, resolve_an
 
 from pxr import Gf, Sdf, Usd, Vt
 
-from isaaclab.sensors.camera import CameraISPMode
 from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext
 
 _PPISP_FLOAT2_ATTRS = {
@@ -82,13 +82,14 @@ def test_ppisp_processor_discovery_resolves_before_requesting_radiance():
         stage=stage, camera_prim_paths=("/World/Camera",), num_views=1, height=4, width=4, device="cpu"
     )
 
-    cfg = PpispProcessorCfg(isp_cfg=CameraISPMode.AUTO_CAMERA)
+    cfg = PpispProcessorCfg()
+    assert cfg.isp_cfg is PpispDiscoveryMode.AUTO_CAMERA
     assert cfg.func(cfg, context) is None
     processing = VisualProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
     assert processing.render_data_types == ("rgb",)
     processing.close()
 
-    cfg.isp_cfg = CameraISPMode.AUTO_ANY
+    cfg.isp_cfg = PpispDiscoveryMode.AUTO_ANY
     processor = cfg.func(cfg, context)
     assert processor is not None
     assert set(processor.inputs) == {"rgb_radiance"}
@@ -268,13 +269,11 @@ def test_auto_any_ppisp_cfg_reads_first_camera_with_ppisp_attrs():
 
 
 def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     stage = Usd.Stage.CreateInMemory()
     _author_camera(stage, "/World/CameraWithoutPpisp")
     _author_ppisp_camera(stage, "/World/Camera_ppisp", inherits=None, attrs={"exposureOffset": 2.0})
 
-    cfg = resolve_and_normalize(CameraISPMode.AUTO_CAMERA, stage)
+    cfg = resolve_and_normalize(PpispDiscoveryMode.AUTO_CAMERA, stage)
 
     assert cfg is not None
     assert cfg.camera_prim_path is None

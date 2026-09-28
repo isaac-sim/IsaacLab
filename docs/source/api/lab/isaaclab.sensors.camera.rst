@@ -3,17 +3,6 @@ isaaclab.sensors.camera
 
 .. automodule:: isaaclab.sensors.camera
 
-Classes
--------
-
-The following classes are part of the public :mod:`isaaclab.sensors.camera` API.
-
-.. currentmodule:: isaaclab.sensors.camera
-
-.. autosummary::
-   :nosignatures:
-
-   CameraISPMode
-
-.. autoclass:: CameraISPMode
-   :show-inheritance:
+See :class:`~isaaclab.sensors.Camera`, :class:`~isaaclab.sensors.CameraCfg`, and
+:class:`~isaaclab.sensors.CameraData` for the camera API, and :ref:`camera-post-processing`
+for configuring image processing through observation terms.

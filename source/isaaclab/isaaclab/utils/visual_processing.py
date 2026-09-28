@@ -159,7 +159,7 @@ class VisualProcessingPipeline:
         Args:
             render_outputs: Existing camera buffers. These are borrowed read-only, so
                 even in-place processors cannot alter inputs shared by other terms.
-                If omitted, allocate owned renderer inputs for the legacy ISP adapter.
+                If omitted, allocate owned renderer inputs for a standalone pipeline.
         """
         if self._outputs is not None:
             return self._outputs

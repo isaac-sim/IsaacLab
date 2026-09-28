@@ -7,13 +7,12 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Literal
 
 from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
-from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
     from .camera import Camera
@@ -198,28 +197,6 @@ class CameraCfg(SensorBaseCfg):
 
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
-
-    isp_cfg: Any | CameraISPMode | None = None
-    """Compatibility entry point for PPISP processing of camera color outputs.
-
-    Defaults to ``None`` (ISP disabled). Auto-discovery is opt-in via a
-    :class:`CameraISPMode` sentinel — see below.
-
-    Accepted values:
-
-    * ``None`` — no PPISP processing is applied to camera outputs.
-    * A :class:`CameraISPMode` sentinel — the PPISP processor walks the USD stage to
-      discover an ISP shader (e.g. via the :mod:`isaaclab_ppisp` package).
-    * A concrete ISP cfg dataclass (e.g. :class:`isaaclab_ppisp.PpispCfg`) — used directly.
-
-    The cfg applies once per Camera sensor batch. The PPISP Warp kernel takes
-    scalar coefficients, so every cloned view in a tiled batch shares the same
-    ISP configuration — there is no per-view ISP today.
-
-    New processing chains belong to observation terms. This compatibility entry point
-    preserves processed ``camera.data.output`` values for existing applications.
-    The optional :mod:`isaaclab_ppisp` implementation is loaded only when requested.
-    """
 
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.

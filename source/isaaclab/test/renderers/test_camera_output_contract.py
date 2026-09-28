@@ -224,7 +224,7 @@ def test_newton_warp_wraps_requested_hdr_output(data_type):
 
     fake_sensor = SimpleNamespace(model=SimpleNamespace(world_count=2, device="cpu"))
     spawn = SimpleNamespace(distortion=None)
-    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn, isp_cfg=None)
+    camera_cfg = SimpleNamespace(width=4, height=3, spawn=spawn)
     render_data = RenderData(fake_sensor, SimpleNamespace(cfg=camera_cfg))
     hdr_proxy = ProxyArray(wp.zeros((2, 3, 4, 3), dtype=wp.float32, device="cpu"))
 
@@ -562,37 +562,16 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
     assert closed == ["second", "first"]
 
 
-@pytest.mark.parametrize("legacy_isp", [False, True])
 @pytest.mark.parametrize("use_batch", [False, True])
-def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp, use_batch):
-    """Raw reads publish one generation per render and preserve legacy ISP reset behavior."""
+def test_camera_render_freshness_and_partial_resets(monkeypatch, use_batch):
+    """Raw reads publish one generation per render, including after partial resets."""
     from isaaclab.renderers.render_context import RenderContext
     from isaaclab.sensors.camera import Camera
     from isaaclab.sensors.sensor_base import SensorBase
     from isaaclab.sim import SimulationContext
 
-    processed = []
-    reset = []
     rendered = []
     events = []
-
-    def process(mask):
-        assert events[-1] == "read"
-        np.testing.assert_array_equal(camera._render_camera_data.output["rgb"].warp.numpy(), len(rendered))
-        processed.append(mask.numpy().copy())
-        events.append("process")
-
-    rgb = RenderBufferSpec(3, wp.uint8)
-    config = VisualProcessorCfg(
-        func=lambda cfg, context: VisualProcessor(
-            inputs={"rgb": rgb},
-            outputs={"rgb": rgb},
-            process=process,
-            reset=lambda mask: reset.append(mask.numpy().copy()),
-            in_place=True,
-        )
-    )
-    pipeline = VisualProcessingPipeline([config], _processing_context(), {"rgb": rgb}, ["rgb"])
     camera = Camera.__new__(Camera)
     camera._clear_callbacks = lambda: None
     camera._view = None
@@ -609,12 +588,18 @@ def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp, use_
     camera._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
     camera._reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
     camera._reset_mask_torch = wp.to_torch(camera._reset_mask)
-    camera._legacy_isp = pipeline if legacy_isp else None
     camera._render_generation = 0
-    camera._data = SimpleNamespace(output=pipeline.allocate(), info={"rgb": None})
+    camera._data = CameraData.allocate(
+        data_types=["rgb"],
+        height=2,
+        width=3,
+        num_views=2,
+        device="cpu",
+        supported_specs={RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8)},
+    )
     private_hdr = wp.zeros((2, 2, 3, 3), dtype=wp.float32, device="cpu")
     camera._render_camera_data = SimpleNamespace(
-        output={**pipeline.render_outputs, "rgb_hdr": private_hdr}, info={"rgb": None}
+        output={**camera._data.output, "rgb_hdr": private_hdr}, info={"rgb": None}
     )
     camera._render_data = object()
 
@@ -658,24 +643,16 @@ def test_camera_render_freshness_and_legacy_resets(monkeypatch, legacy_isp, use_
     assert camera.data is first_data
     assert camera.render_generation == len(rendered) == 2
     camera.reset(env_ids=[1])
-    if legacy_isp:
-        np.testing.assert_array_equal(reset[-1], [False, True])
     assert camera.data is first_data
-    if legacy_isp:
-        np.testing.assert_array_equal(processed[-1], [False, True])
     assert camera.render_generation == 3
     camera.reset(env_mask=wp.array([True, False], dtype=wp.bool, device="cpu"))
-    if legacy_isp:
-        np.testing.assert_array_equal(reset[-1], [True, False])
     assert camera.data is first_data
-    if legacy_isp:
-        np.testing.assert_array_equal(processed[-1], [True, False])
     assert camera.render_generation == len(rendered) == 4
     assert camera.data.info["rgb"] == 4
     assert camera.render_outputs is raw
     assert raw["rgb_hdr"] is private_hdr
-    assert events == (["read", "process"] if legacy_isp else ["read"]) * 4
-    assert len(processed) == (4 if legacy_isp else 0)
+    assert events == ["read"] * 4
+    np.testing.assert_array_equal(first_data.output["rgb"].warp.numpy(), len(rendered))
     camera.__del__()
 
 
@@ -705,14 +682,12 @@ def test_camera_private_render_requirements_reach_renderer_without_changing_publ
         data_types=["rgb"],
         height=2,
         width=3,
-        isp_cfg=None,
         renderer_cfg=SimpleNamespace(renderer_type="newton"),
     )
     camera.stage = stage
     camera._device = "cpu"
     camera._num_envs = 2
     camera._is_initialized = False
-    camera._legacy_isp = None
     camera._requested_render_inputs = ()
     camera._sensor_prims = []
     camera._initialize_intrinsics = lambda: None
@@ -793,7 +768,7 @@ def test_camera_private_render_requirements_reach_renderer_without_changing_publ
 
 
 @pytest.mark.parametrize("fail_cleanup", [False, True])
-def test_camera_initialization_failure_releases_processor_and_renderer_state(fail_cleanup):
+def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     """A partial camera failure closes every resource and preserves the original diagnostic."""
     from isaaclab.sensors.camera import Camera
 
@@ -802,14 +777,13 @@ def test_camera_initialization_failure_releases_processor_and_renderer_state(fai
     closed = []
     render_data = object()
 
-    def close_processor():
-        closed.append("processor")
+    def cleanup_renderer(data):
+        closed.append(data)
         if fail_cleanup:
             raise ValueError("cleanup failed")
 
     def initialize_camera():
-        camera._legacy_isp = SimpleNamespace(close=close_processor)
-        camera._renderer = SimpleNamespace(cleanup=lambda data: closed.append(data))
+        camera._renderer = SimpleNamespace(cleanup=cleanup_renderer)
         camera._view = SimpleNamespace(close=lambda: closed.append("view"))
         camera._render_data = render_data
         raise RuntimeError("camera initialization failed")
@@ -817,26 +791,21 @@ def test_camera_initialization_failure_releases_processor_and_renderer_state(fai
     camera._initialize_camera = initialize_camera
     with pytest.raises(RuntimeError, match="camera initialization failed"):
         camera._initialize_impl()
-    assert closed == ["processor", render_data, "view"]
-    assert camera._legacy_isp is None
+    assert closed == [render_data, "view"]
     assert camera._render_data is None
     assert camera._renderer is None
     assert camera._view is None
     camera.__del__()
-    assert closed == ["processor", render_data, "view"]
+    assert closed == [render_data, "view"]
 
 
-@pytest.mark.parametrize("source", ["public", "legacy", "disabled"])
-def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, source):
-    """Public and discovered legacy signals are prepared before any camera exports the stage."""
-    if source != "public":
-        pytest.importorskip("isaaclab_ppisp")
-
+def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
+    """Every camera's signals are prepared before any camera exports the stage."""
     from pxr import Sdf, Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
     from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
-    from isaaclab.sensors.camera import Camera, CameraISPMode
+    from isaaclab.sensors.camera import Camera
     from isaaclab.sensors.camera import camera as camera_module
     from isaaclab.sensors.sensor_base import SensorBase
     from isaaclab.sim import SimulationContext
@@ -853,7 +822,6 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, sour
     }
     exports = []
     prepared = []
-    pipelines = []
 
     def prepare_cameras(stage, spec):
         prepared.append(spec)
@@ -863,14 +831,8 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, sour
     def export_stage(stage, num_envs):
         if not exports:
             assert {spec.camera_prim_paths for spec in prepared} == {(str(prim.GetPath()),) for prim in prims}
-            expected_iso = 100.0 if source == "disabled" else 0.0
-            assert prims[1].GetAttribute("exposure:iso").Get() == expected_iso
+            assert prims[1].GetAttribute("exposure:iso").Get() == 0.0
             exports.append(stage.ExportToString())
-
-    def create_pipeline(*args):
-        pipeline = VisualProcessingPipeline(*args)
-        pipelines.append(pipeline)
-        return pipeline
 
     renderer = SimpleNamespace(
         supported_output_types=lambda: specs,
@@ -888,7 +850,6 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, sour
     monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
     monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
     monkeypatch.setattr(Camera, "_create_buffers", lambda self: None)
-    monkeypatch.setattr(camera_module, "VisualProcessingPipeline", create_pipeline)
     monkeypatch.setattr(
         camera_module,
         "FrameView",
@@ -899,17 +860,15 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, sour
         camera = Camera.__new__(Camera)
         camera.cfg = SimpleNamespace(
             prim_path=str(prim.GetPath()),
-            data_types=["rgb_radiance"] if index == 1 and source == "public" else ["rgb"],
+            data_types=["rgb_radiance"] if index == 1 else ["rgb"],
             height=2,
             width=3,
-            isp_cfg=CameraISPMode.AUTO_CAMERA if index == 1 and source != "public" else None,
             renderer_cfg=SimpleNamespace(renderer_type="newton"),
         )
         camera.stage = stage
         camera._device = "cpu"
         camera._num_envs = 2
         camera._is_initialized = False
-        camera._legacy_isp = None
         camera._requested_render_inputs = ()
         camera._sensor_prims = []
         camera._renderer = renderer
@@ -918,19 +877,11 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, sour
         camera._register_callbacks()
         cameras.append(camera)
 
-    # Prestartup events may author discovery attributes after sensor construction.
-    if source == "legacy":
-        prims[1].CreateAttribute("ppisp:exposureOffset", Sdf.ValueTypeNames.Float).Set(1.0)
     try:
         CameraPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
         assert len(exports) == 1
         assert all(camera.is_initialized for camera in cameras)
         assert all(spec.num_instances == spec.view_count == 2 for spec in prepared)
-        assert len(pipelines) == (0 if source == "public" else 1)
-        if pipelines:
-            assert cameras[1]._legacy_isp is pipelines[0]
-            expected_types = ("rgb",) if source == "disabled" else ("rgb_radiance",)
-            assert pipelines[0].render_data_types == expected_types
     finally:
         for camera in cameras:
             camera.__del__()

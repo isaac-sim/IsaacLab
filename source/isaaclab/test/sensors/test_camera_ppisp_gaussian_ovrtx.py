@@ -3,12 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the PPISP observation processor applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the ``ovrtx`` renderer.
 
 The asset is synthesised at test time by :mod:`generate_synthetic_gaussian_asset`
 and rendered via :func:`generate_synthetic_gaussian_asset.render_synthetic_gaussian_scene`.
-The aggressive wrapper PPISP cfg
+The aggressive PPISP observation processor cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) intentionally
 engages every feature past its subtle-correction defaults so each can be
 asserted independently:
@@ -38,9 +38,9 @@ Notes:
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim
     and the PhysX backend requires Kit (``carb``) to bootstrap.
   * Requests ``"rgb_hdr"`` in ``data_types`` because the test asserts the raw
-    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP render path
-    itself also allocates an internal HDR buffer when ``isp_cfg`` is set, so
-    ``"rgb_hdr"`` is not required just to enable PPISP.
+    HDR source with :func:`assert_ppisp_lifts_exposure`. The PPISP observation
+    term independently requests ``"rgb_radiance"`` before simulation reset;
+    public HDR is optional and aliases that unexposed input when requested.
 """
 
 import importlib.util
@@ -87,7 +87,7 @@ else:
 SIM_DT = 1.0 / 60.0
 MULTI_TILE_COUNT = 4
 
-# Mark the gaussian-on-OVRTX tests xfail by default: the wrapper-side
+# Mark the gaussian-on-OVRTX tests xfail by default: the camera-side
 # ``carb.settings.set_bool`` call that disables RTX-side tonemapping is a
 # no-op for the kit-less ovrtx backend, and the equivalent must be applied
 # externally before launching pytest.
@@ -112,10 +112,10 @@ def _ovrtx_sim_cfg(device: str) -> SimulationCfg:
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx(device):
-    """Wrapper PPISP via ``ovrtx`` must show every PPISP-feature signature.
+    """PPISP observation processing via ``ovrtx`` must show every PPISP-feature signature.
 
     Renders a synthetic RGBW gaussian grid through ``ovrtx`` plus the
-    aggressive wrapper PPISP cfg and asserts:
+    aggressive PPISP observation processor cfg and asserts:
 
     1. **Non-degenerate frame** — content is rendered (not pure black / pure white).
     2. **HDR source** — ``rgb_hdr`` is present and bright enough for PPISP.
@@ -203,7 +203,7 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians_ovr
 @_SKIP_MISSING_OVRTX
 @_XFAIL_OVRTX_GAUSSIAN_PPISP
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_ovrtx_multitile(device):
-    """Multi-tile wrapper PPISP via ``ovrtx`` must hold the same invariants
+    """Multi-tile PPISP observation processor via ``ovrtx`` must hold the same invariants
     independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so

@@ -42,7 +42,6 @@ from isaaclab_ppisp.kernels import (
     PPISP_CONTROLLER_PARAM_COUNT,
 )
 
-from isaaclab.sensors.camera.tiled_camera_cfg import TiledCameraCfg
 from isaaclab.utils.visual_processing import (
     VisualProcessingPipeline,
     VisualProcessor,
@@ -331,20 +330,6 @@ def test_ppisp_warp_crf_extreme_centers_stay_finite():
     assert np.isfinite(rgba_np.astype(float)).all()
 
 
-def test_tiled_camera_cfg_accepts_ppisp_cfg():
-    ppisp_cfg = PpispCfg(inputs={"exposureOffset": 1.0})
-
-    cfg = TiledCameraCfg(
-        prim_path="/World/Camera",
-        width=4,
-        height=4,
-        data_types=["rgb"],
-        isp_cfg=ppisp_cfg,
-    )
-
-    assert cfg.isp_cfg == ppisp_cfg
-
-
 @pytest.mark.parametrize("controller", [False, True])
 @pytest.mark.parametrize("borrowed_inputs", [False, True])
 def test_ppisp_processor_preserves_pipeline_output_and_bindings(controller, borrowed_inputs):
@@ -458,7 +443,7 @@ def test_ppisp_observation_matches_pipeline_with_camera_inputs():
     hdr = ProxyArray(wp.zeros((2, 4, 4, 3), dtype=wp.float32, device=device))
     requests = []
     camera = SimpleNamespace(
-        cfg=SimpleNamespace(isp_cfg=None, height=4, width=4),
+        cfg=SimpleNamespace(height=4, width=4),
         camera_prim_paths=("/World/Camera",),
         render_buffer_specs=processor_cfg.inputs,
         render_outputs={"rgb_radiance": hdr},

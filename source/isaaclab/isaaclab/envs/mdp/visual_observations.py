@@ -54,11 +54,6 @@ class processed_image(ManagerTermBase):
         super().__init__(cfg, env)
         sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
         self._camera: Camera = env.scene[sensor_cfg.name]
-        if self._camera.cfg.isp_cfg is not None:
-            raise ValueError(
-                f"processed_image for {sensor_cfg.name!r} requires CameraCfg.isp_cfg=None. "
-                "Move its value into PpispProcessorCfg(isp_cfg=...) in this observation term."
-            )
         self._data_type = cfg.params.get("data_type", "rgb")
         self._normalize = cfg.params.get("normalize", False)
         self._permute = cfg.params.get("permute", False)

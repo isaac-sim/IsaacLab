@@ -345,9 +345,9 @@ configuration. ``normalize=False`` is the default and returns the persistent ``u
 and mean buffers are reused. ``permute=True`` returns a cached ``NCHW`` view; the default is ``NHWC``.
 
 For automatic discovery, use ``PpispProcessorCfg()`` or explicitly pass
-``isp_cfg=CameraISPMode.AUTO_CAMERA``. ``AUTO_CAMERA`` looks for an ISP shader associated with the
-first matched camera prim. ``AUTO_ANY`` also falls back to the first PPISP shader anywhere on the
-stage. Import these modes from ``isaaclab.sensors.camera``. Discovery runs once while preparing the
+``isp_cfg=PpispDiscoveryMode.AUTO_CAMERA``. ``AUTO_CAMERA`` reads ``ppisp:*`` attributes from the
+first matched camera prim. ``AUTO_ANY`` also falls back to the first camera with PPISP attributes
+on the stage. Import ``PpispDiscoveryMode`` from ``isaaclab_ppisp``. Discovery runs once while preparing the
 observation term; an unsuccessful automatic lookup disables that processor. A static
 configuration is shared by all cloned views in one camera batch. Controller weights can predict
 per-view exposure and color parameters, while the remaining coefficients stay shared.
@@ -369,13 +369,22 @@ consume PPISP's RGB result; a future visual domain randomization processor can b
    exposure settings. When an earlier processor supplies ``rgb_radiance``, PPISP adds no renderer
    request for that signal.
 
-:attr:`~sensors.CameraCfg.isp_cfg` remains supported through a compatibility adapter, including for
-scripts that read PPISP results directly from ``camera.data``. To migrate a managed environment,
-move its value to ``PpispProcessorCfg(isp_cfg=value)`` in a ``processed_image`` observation term and
-set ``CameraCfg.isp_cfg=None``. Configure PPISP through one entry point for that observation. Using
-the generic pipeline without PPISP does not import the optional ``isaaclab_ppisp`` package.
+.. important::
 
-Run the ``ppisp-camera`` example for a PPISP workflow using the compatible camera entry point:
+   **Breaking change:** ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode`` were removed.
+   To migrate, remove the ``isp_cfg`` argument from the camera configuration and pass its previous
+   value as ``processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]`` in the ``params`` of an
+   ``ObservationTermCfg(func=mdp.processed_image, ...)``, as shown above. Replace discovery enum
+   imports with ``from isaaclab_ppisp import PpispDiscoveryMode``; ``AUTO_CAMERA`` and ``AUTO_ANY``
+   retain their discovery behavior.
+
+   Read the processed image from the environment's observations. ``camera.data.output`` contains
+   the renderer's raw camera outputs and no longer returns PPISP results. To access the image by
+   its term name within an observation group, set that group's ``concatenate_terms=False``.
+
+Using the generic pipeline without PPISP does not import the optional ``isaaclab_ppisp`` package.
+
+Run the ``ppisp-camera`` example for a PPISP workflow using the observation API:
 
 .. code-block:: bash
 
@@ -486,7 +495,7 @@ The camera provides rendered inputs and a frame generation counter. Other consum
 and the existing per-view ``frame`` counters identify updated views. ``render_buffer_specs`` and ``camera_prim_paths``
 are available during preparation.
 
-At simulation startup, cameras prepare their configured signals and legacy ISP requirements before
+At simulation startup, cameras prepare their configured and requested signals before
 any camera initializes render data. This ensures shared renderer exports include every camera's settings.
 
 Processing state, ordering, normalization, and observation caching belong to the term. A compatible

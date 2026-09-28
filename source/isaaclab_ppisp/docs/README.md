@@ -35,17 +35,24 @@ are required to add a stage.
 and spatial mean subtraction as `mdp.image`. `permute=True` selects an `NCHW`
 view instead of the default `NHWC` layout.
 
-`CameraCfg(isp_cfg=PpispCfg(), ...)` remains supported through a compatibility
-adapter for direct camera consumers. To migrate a managed environment, move
-the existing value into `PpispProcessorCfg(isp_cfg=existing_cfg)` on the
-observation term and leave `CameraCfg.isp_cfg=None`.
+**Breaking change:** `CameraCfg.isp_cfg` was removed. Remove the `isp_cfg`
+argument from your camera configuration and pass
+`processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]` in the `params` of an
+`ObservationTermCfg(func=mdp.processed_image, ...)`, as shown above. Read the
+processed image from the environment's observations instead of
+`camera.data.output`, which now contains only raw renderer outputs. Set an
+observation group's `concatenate_terms=False` to access the image by term name.
+
+`isaaclab.sensors.camera.CameraISPMode` was also removed. Replace its imports
+with `from isaaclab_ppisp import PpispDiscoveryMode`; `AUTO_CAMERA` and `AUTO_ANY`
+retain their discovery behavior.
 
 `PpispProcessorCfg()` discovers attributes on the camera itself. Pass
-`isp_cfg=CameraISPMode.AUTO_ANY` to allow stage-wide discovery, or
+`isp_cfg=PpispDiscoveryMode.AUTO_ANY` to allow stage-wide discovery, or
 `isp_cfg=PpispCfg(camera_prim_path="/World/ReferenceCamera")` to import a
 particular camera's attributes. Discovery that finds no matching attributes
-disables the processor. Explicit values and exported controller weights retain
-the behavior of `CameraCfg.isp_cfg`.
+disables the processor. Explicit values and exported controller weights remain
+supported through `PpispCfg`.
 
 The term prepares the chain after scene spawning, before the first simulation
 reset, and resolves PPISP's `rgb_radiance` input. An earlier processor can supply

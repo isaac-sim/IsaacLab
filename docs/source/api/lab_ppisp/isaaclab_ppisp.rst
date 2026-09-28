@@ -14,10 +14,15 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
    :nosignatures:
 
    PpispCfg
+   PpispDiscoveryMode
    PpispPipeline
    PpispProcessorCfg
 
 .. autoclass:: PpispCfg
+   :show-inheritance:
+
+.. autoclass:: PpispDiscoveryMode
+   :members:
    :show-inheritance:
 
 .. autoclass:: PpispPipeline
@@ -26,5 +31,5 @@ The following classes are part of the public :mod:`isaaclab_ppisp` API.
 .. autoclass:: PpispProcessorCfg
    :show-inheritance:
 
-See :ref:`camera-post-processing` for observation configuration, compatibility with ``CameraCfg.isp_cfg``,
+See :ref:`camera-post-processing` for observation configuration, migration from ``CameraCfg.isp_cfg``,
 and composing PPISP with additional processors.

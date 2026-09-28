@@ -7,7 +7,7 @@
 
 Avoids dependencies on heavyweight Nucleus assets by authoring a few large
 opaque gaussians of known colors, bound to ``ParticleFieldEmissive.mdl`` with
-``apply_inverse_tonemap=0`` and ``apply_srgb_linear=0`` so the wrapper PPISP is
+``apply_inverse_tonemap=0`` and ``apply_srgb_linear=0`` so the PPISP observation processor is
 the sole ISP authority. Tests assert *semantic invariants* of the PPISP
 behavior (non-degenerate LDR output from renderer HDR, vignetting darkens
 corners, the CRF keeps values bounded, etc.) instead of doing a
@@ -21,18 +21,20 @@ import contextlib
 import math
 import os
 from dataclasses import dataclass, field
+from types import SimpleNamespace
 from typing import TYPE_CHECKING
 
 import torch
-from isaaclab_ppisp import PpispCfg, normalize_ppisp_cfg
+from isaaclab_ppisp import PpispCfg, PpispDiscoveryMode, PpispProcessorCfg, normalize_ppisp_cfg
 
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.envs.mdp import processed_image
+from isaaclab.managers import ObservationTermCfg, SceneEntityCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import Camera, CameraCfg
-from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.terrains import TerrainImporterCfg
 from isaaclab.utils import configclass
 
@@ -100,7 +102,7 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
     """Author a tiny gaussian-splat USD at ``path`` and return that path.
 
     The asset references ``ParticleFieldEmissive.mdl`` with ``apply_inverse_tonemap=0``
-    and ``apply_srgb_linear=0`` so the wrapper PPISP is the sole ISP authority.
+    and ``apply_srgb_linear=0`` so the PPISP observation processor is the sole ISP authority.
     The default prim is ``World``; cameras live at ``/World/Cameras/test_cam``
     and the gaussians at ``/World/Scene/gaussians/Gaussians/gaussians``.
     """
@@ -191,7 +193,7 @@ def make_synthetic_gaussian_usd(path: str, scene: SyntheticGaussianScene | None 
         gauss_prim.CreateAttribute("extent", Sdf.ValueTypeNames.Float3Array).Set([Gf.Vec3f(*lo), Gf.Vec3f(*hi)])
 
     # Material binding: ``ParticleFieldEmissive.mdl`` with the two boolean
-    # ``apply_*`` inputs set to false so the wrapper PPISP is the sole ISP
+    # ``apply_*`` inputs set to false so the PPISP observation processor is the sole ISP
     # authority and the gaussian color comes out of the renderer as linear
     # scene-referred radiance.
     UsdGeom.Xform.Define(stage, "/World/Scene/gaussians/Looks")
@@ -262,7 +264,7 @@ def make_aggressive_ppisp_cfg(*, responsivity: float = 1.0) -> PpispCfg:
     to be assertable in a downstream test.
 
     Each input is dialed past the "subtle correction" defaults so an integration
-    test can check semantic invariants of the wrapper PPISP pipeline:
+    test can check semantic invariants of the PPISP observation processor pipeline:
 
     * **Exposure**: ``exposureOffset = -5`` (input × 2^-5 = ÷32) — tuned so that
       a near-typical RTX-style gaussian HDR magnitude (≈10–17) lands below the
@@ -275,7 +277,7 @@ def make_aggressive_ppisp_cfg(*, responsivity: float = 1.0) -> PpispCfg:
       a visible warm hue shift.
     * **CRF**: per-channel toe/shoulder/gamma/center values that meaningfully
       compress highlights (no overflow above 1.0 ⇒ max LDR uint8 stays at 255
-      only when the wrapper actually clamps; under-engaged CRF would let the
+      only when the processor actually clamps; under-engaged CRF would let the
       explicit ``clamp(.., 0, 1)`` in the kernel do all the work).
 
     Args:
@@ -693,7 +695,7 @@ def render_synthetic_gaussian_scene(
     stabilisation_steps: int = 5,
     responsivity: float = 1.0,
 ) -> dict[str, torch.Tensor]:
-    """Render the synthesised gaussian asset with the aggressive wrapper PPISP.
+    """Render the synthesised gaussian asset with an aggressive PPISP observation term.
 
     Builds an :class:`~isaaclab.scene.InteractiveScene` via
     :func:`fresh_synthetic_gaussian_interactive_scene`, instantiates a
@@ -716,30 +718,23 @@ def render_synthetic_gaussian_scene(
         stabilisation_steps: Sim steps to run before reading the final frame.
 
     Returns:
-        A dict mapping every key present in ``camera.data.output`` to a
+        A dict containing processed RGB/RGBA and raw camera outputs, each a
         ``[num_envs, height, width, channels]`` float32 CPU tensor (uint8 LDR
         buffers are cast to float for downstream arithmetic).
     """
     isp_cfg = make_aggressive_ppisp_cfg(responsivity=responsivity)
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
-        cfg = CameraCfg(
-            prim_path=SYNTHETIC_GAUSSIAN_CAMERA_REGEX,
-            update_period=0.0,
+        return _render_synthetic_gaussian_camera(
+            renderer_cfg=renderer_cfg,
+            data_types=data_types,
+            num_envs=num_envs,
             height=height,
             width=width,
-            data_types=data_types,
-            spawn=None,
+            sim_dt=sim_dt,
+            stabilisation_steps=stabilisation_steps,
             isp_cfg=isp_cfg,
-            renderer_cfg=renderer_cfg,
+            sim=sim,
         )
-        camera = Camera(cfg)
-        sim.reset()
-        for _ in range(stabilisation_steps):
-            sim.step()
-        camera.update(sim_dt)
-        outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
-        del camera
-        return outputs
 
 
 def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
@@ -757,20 +752,20 @@ def render_synthetic_gaussian_scene_with_static_ppisp_attrs(
 ) -> dict[str, torch.Tensor]:
     """Render the synthesised gaussian asset through authored static PPISP camera attributes.
 
-    The camera uses :class:`CameraISPMode.AUTO_CAMERA`; renderer backends must
-    discover the camera-authored PPISP attributes and route them through their
-    PPISP workflow.
+    The observation processor uses :class:`PpispDiscoveryMode.AUTO_CAMERA` to
+    discover camera-authored PPISP attributes before renderer initialization.
     """
     with fresh_synthetic_gaussian_interactive_scene(usd_path, sim_cfg, num_envs=num_envs) as sim:
         author_static_ppisp_camera_attrs(sim.stage, ppisp_cfg=ppisp_cfg)
         return _render_synthetic_gaussian_camera(
             renderer_cfg=renderer_cfg,
             data_types=data_types,
+            num_envs=num_envs,
             height=height,
             width=width,
             sim_dt=sim_dt,
             stabilisation_steps=stabilisation_steps,
-            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            isp_cfg=PpispDiscoveryMode.AUTO_CAMERA,
             sim=sim,
         )
 
@@ -794,11 +789,12 @@ def render_synthetic_gaussian_scene_with_controller_ppisp_attrs(
         return _render_synthetic_gaussian_camera(
             renderer_cfg=renderer_cfg,
             data_types=data_types,
+            num_envs=num_envs,
             height=height,
             width=width,
             sim_dt=sim_dt,
             stabilisation_steps=stabilisation_steps,
-            isp_cfg=CameraISPMode.AUTO_CAMERA,
+            isp_cfg=PpispDiscoveryMode.AUTO_CAMERA,
             sim=sim,
         )
 
@@ -807,11 +803,12 @@ def _render_synthetic_gaussian_camera(
     *,
     renderer_cfg: RendererCfg,
     data_types: list[str],
+    num_envs: int,
     height: int,
     width: int,
     sim_dt: float,
     stabilisation_steps: int,
-    isp_cfg: PpispCfg | CameraISPMode | None,
+    isp_cfg: PpispCfg | PpispDiscoveryMode | None,
     sim: SimulationContext,
 ) -> dict[str, torch.Tensor]:
     cfg = CameraCfg(
@@ -821,14 +818,28 @@ def _render_synthetic_gaussian_camera(
         width=width,
         data_types=data_types,
         spawn=None,
-        isp_cfg=isp_cfg,
         renderer_cfg=renderer_cfg,
     )
     camera = Camera(cfg)
-    sim.reset()
-    for _ in range(stabilisation_steps):
-        sim.step()
-    camera.update(sim_dt)
-    outputs = {name: tensor.clone().detach().cpu().to(torch.float32) for name, tensor in camera.data.output.items()}
-    del camera
-    return outputs
+    env = SimpleNamespace(scene={"camera": camera}, sim=sim, num_envs=num_envs, device=sim.device)
+    observation_cfg = ObservationTermCfg(
+        func=processed_image,
+        params={
+            "sensor_cfg": SceneEntityCfg("camera"),
+            "processors": [PpispProcessorCfg(isp_cfg=isp_cfg)],
+            "data_type": "rgba",
+        },
+    )
+    # Prepare before reset so the renderer sees the observation's radiance requirement.
+    with contextlib.closing(processed_image.prepare_scene(observation_cfg, env)) as observation:
+        sim.reset()
+        for _ in range(stabilisation_steps):
+            sim.step()
+        camera.update(sim_dt)
+        rgba = observation(env, **observation_cfg.params)
+        frames = {name: output.torch for name, output in camera.data.output.items()}
+        if "rgb" in frames:
+            frames["rgb"] = rgba[..., :3]
+        if "rgba" in frames:
+            frames["rgba"] = rgba
+        return {name: frame.detach().cpu().to(torch.float32).clone() for name, frame in frames.items()}
