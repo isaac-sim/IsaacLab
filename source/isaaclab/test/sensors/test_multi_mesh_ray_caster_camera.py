@@ -75,8 +75,6 @@ def setup_simulation():
     # Ground-plane
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh("/World/defaultGroundPlane", mesh)
-    # load stage
-    sim_utils.update_stage()
 
     camera_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="/World/Camera",
@@ -353,7 +351,6 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
         positions=env_origins,
     )
     sim.set_clone_plan(plan)
-    sim_utils.update_stage()
     return torch.as_tensor(env_origins, device=sim.device)
 
 

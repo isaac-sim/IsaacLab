@@ -115,7 +115,7 @@ def _expose_newton_usd_schemas():
     registry. Expose the installed plugin during core initialization so kitless
     processes find it without importing ``newton_usd_schemas``, which eagerly
     imports ``pxr``. Core is the only lifecycle point guaranteed to precede both
-    direct OpenUSD use and AppLauncher.
+    direct OpenUSD use and the Kit launcher.
     """
     # TODO: Replace this wheel-layout probe with the host-safe discovery from
     # https://github.com/newton-physics/newton-usd-schemas/issues/90.

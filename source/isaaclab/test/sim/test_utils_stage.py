@@ -5,14 +5,9 @@
 
 """Tests for stage utilities."""
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import tempfile
 from pathlib import Path
@@ -41,25 +36,6 @@ def test_create_new_stage():
     # Stage should have a root prim
     root_prim = stage.GetPseudoRoot()
     assert root_prim.IsValid()
-
-
-def test_is_current_stage_in_memory():
-    """Test checking if current stage is in memory."""
-    # Create a stage - in kitless mode, this creates an in-memory stage
-    sim_utils.create_new_stage()
-    is_in_memory = sim_utils.is_current_stage_in_memory()
-
-    # Should return a boolean
-    assert isinstance(is_in_memory, bool)
-    # With kitless mode support, create_new_stage() creates an in-memory stage
-    assert is_in_memory is True
-
-    # Create a stage in memory explicitly
-    stage = sim_utils.create_new_stage()
-    with sim_utils.use_stage(stage):
-        is_in_memory = sim_utils.is_current_stage_in_memory()
-        assert isinstance(is_in_memory, bool)
-        assert is_in_memory is True
 
 
 def test_save_and_open_stage():

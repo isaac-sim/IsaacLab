@@ -73,8 +73,6 @@ def setup_sim(device):
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
-    # load stage
-    sim_utils.update_stage()
     yield sim, dt
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")

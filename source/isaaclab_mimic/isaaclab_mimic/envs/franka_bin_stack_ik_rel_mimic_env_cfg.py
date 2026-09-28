@@ -15,6 +15,8 @@ class FrankaBinStackIKRelMimicEnvCfg(FrankaBinStackEnvCfg, MimicEnvCfg):
     Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.
     """
 
+    class_type: type | str = "{DIR}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()

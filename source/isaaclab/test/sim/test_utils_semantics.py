@@ -25,7 +25,6 @@ def test_setup_teardown():
     """Create a blank new stage for each test."""
     # Setup: Create a new stage
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
 
     # Yield for the test
     yield

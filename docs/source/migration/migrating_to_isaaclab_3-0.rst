@@ -839,7 +839,7 @@ replacement, prefer the Isaac Lab API** over the ``isaacsim.core.experimental.*`
    * - ``isaacsim.core.utils.stage``
      - :mod:`isaaclab.sim.utils.stage` (e.g. ``get_current_stage``,
        ``create_new_stage``, ``open_stage``, ``save_stage``, ``close_stage``,
-       ``clear_stage``, ``update_stage``, ``use_stage``)
+       ``clear_stage``, ``use_stage``)
    * - ``isaacsim.core.utils.prims``
      - :mod:`isaaclab.sim.utils.prims` (e.g. ``create_prim``, ``delete_prim``,
        ``change_prim_property``, ``bind_visual_material``,

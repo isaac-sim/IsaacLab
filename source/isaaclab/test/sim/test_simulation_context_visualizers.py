@@ -59,10 +59,6 @@ class _FakeProvider:
     def num_envs(self) -> int:
         return self._num_envs
 
-    @property
-    def usd_stage(self):
-        return None
-
     def get_camera_transforms(self):
         return None
 
@@ -332,10 +328,6 @@ class _DummyViserSceneDataProvider:
     def num_envs(self) -> int:
         return 4
 
-    @property
-    def usd_stage(self):
-        return None
-
     def get_camera_transforms(self):
         return {}
 
@@ -600,10 +592,6 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
         def GetPrimAtPath(self, path):
             raise AssertionError(f"default Kit visualizer should not look up camera prims: {path}")
 
-    class _FakeProvider:
-        def get_usd_stage(self):
-            return _FakeStage()
-
     viewport_window = _FakeViewportWindow()
     viewport_utility = type(
         "ViewportUtility",
@@ -628,7 +616,7 @@ def test_kit_visualizer_default_camera_source_does_not_require_camera_prim(monke
 
     cfg = KitVisualizerCfg()
     visualizer = kit_visualizer.KitVisualizer(cfg)
-    visualizer._scene_data_provider = _FakeProvider()
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(stage=_FakeStage()))
     visualizer._runtime_headless = False
 
     visualizer._setup_viewport()

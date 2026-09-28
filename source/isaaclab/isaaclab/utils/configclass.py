@@ -195,7 +195,8 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
         for mro_cls in cls.__mro__:
             if mro_cls is object:
                 continue
-            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            # read the class's own snapshot; an undecorated subclass must not inherit its parent's
+            own_fields = mro_cls.__dict__.get("__configclass_own_fields__")
             if own_fields is not None:
                 if key in own_fields:
                     cls = mro_cls

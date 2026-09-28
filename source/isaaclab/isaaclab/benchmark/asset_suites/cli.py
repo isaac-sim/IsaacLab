@@ -65,9 +65,9 @@ def run_asset_benchmark_cli(
     )
     parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape and dtype assertions")
     if include_app_launcher_args:
-        from ...app import AppLauncher
+        from ...app import add_launcher_args
 
-        AppLauncher.add_app_launcher_args(parser)
+        add_launcher_args(parser)
     else:
         parser.add_argument("--device", type=str, default="cuda:0", help="Tensor device")
     args = parser.parse_args(argv)

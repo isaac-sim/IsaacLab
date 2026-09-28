@@ -35,8 +35,6 @@ def sim():
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(SimulationCfg(dt=dt))
-    # Wait for spawning
-    sim_utils.update_stage()
 
     yield sim
 
