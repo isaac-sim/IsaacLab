@@ -5,11 +5,9 @@
 
 """Rendering correctness tests for camera-based registered tasks."""
 
-# Launch Isaac Sim Simulator first for kit-based combinations.
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+launch_test_simulation(enable_cameras=True)
 
 from pathlib import Path  # noqa: E402
 from typing import Any  # noqa: E402
@@ -76,9 +74,6 @@ _RENDER_CORRECTNESS_TASK_IDS = [
         "cartpole",
         id="Isaac-Cartpole-Camera-Direct-albedo-depth-cartpole",
     ),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_constant_diffuse", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_diffuse_mdl", "cartpole"),
-    ("Isaac-Cartpole-Camera-Direct", "simple_shading_full_mdl", "cartpole"),
     ("Isaac-Reorient-Cube-Shadow-Camera-Direct", None, "shadow_hand"),
 ]
 

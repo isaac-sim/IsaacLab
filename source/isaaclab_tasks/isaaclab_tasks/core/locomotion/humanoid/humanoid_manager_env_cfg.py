@@ -17,7 +17,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.humanoid import HUMANOID_CFG
 
@@ -49,7 +49,7 @@ class HumanoidSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot = HUMANOID_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(HUMANOID_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")

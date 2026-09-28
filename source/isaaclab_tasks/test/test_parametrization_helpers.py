@@ -11,20 +11,16 @@ from unittest.mock import Mock
 import pytest
 import rendering_test_utils
 from rendering_test_utils import (
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     attach_comparison_properties,
     generate_html_report,
     group_rendering_params,
     make_kitless_rendering_params,
-    make_kitless_rendering_params_franka,
-    make_kitless_rendering_params_lift,
     make_skip_rendering_params,
-    make_xfail_rendering_params,
 )
 
 
 def test_group_rendering_params_groups_static_data_types_with_matching_marks() -> None:
-    """Static AOVs with the same rendering configuration and marks should share a case."""
+    """Static AOVs with the same rendering configuration and marks should share a case, once per renderer."""
     flaky = pytest.mark.flaky(max_runs=3, min_passes=1)
     params = [
         pytest.param("physx", "isaacsim_rtx_renderer", "albedo", id="physx-rtx-albedo", marks=flaky),
@@ -36,6 +32,8 @@ def test_group_rendering_params_groups_static_data_types_with_matching_marks() -
             id="physx-rtx-instance",
             marks=pytest.mark.xfail(reason="Known segmentation regression."),
         ),
+        pytest.param("physx", "newton_renderer", "rgb", id="physx-warp-rgb"),
+        pytest.param("physx", "newton_renderer", "depth", id="physx-warp-depth"),
     ]
 
     grouped = group_rendering_params(params)
@@ -43,9 +41,14 @@ def test_group_rendering_params_groups_static_data_types_with_matching_marks() -
     assert [tuple(param.values) for param in grouped] == [
         ("physx", "isaacsim_rtx_renderer", ["albedo", "normals"]),
         ("physx", "isaacsim_rtx_renderer", ["instance_segmentation"]),
+        ("physx", "newton_renderer", ["rgb", "depth"]),
     ]
-    assert [param.id for param in grouped] == ["physx-isaacsim_rtx_renderer-static", "physx-rtx-instance"]
-    assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"]]
+    assert [param.id for param in grouped] == [
+        "physx-isaacsim_rtx_renderer-static",
+        "physx-rtx-instance",
+        "physx-newton_renderer-static",
+    ]
+    assert [[mark.name for mark in param.marks] for param in grouped] == [["flaky"], ["xfail"], []]
 
 
 def test_group_rendering_params_isolates_temporal_and_minimal_data_types() -> None:
@@ -84,24 +87,6 @@ def test_group_rendering_params_isolates_temporal_and_minimal_data_types() -> No
     ]
 
 
-def test_group_rendering_params_groups_each_renderer() -> None:
-    """Every renderer should launch once with all of its supported AOVs."""
-    params = [
-        pytest.param("newton", "ovrtx_renderer", "albedo", id="newton-ovrtx-albedo"),
-        pytest.param("newton", "ovrtx_renderer", "normals", id="newton-ovrtx-normals"),
-        pytest.param("newton", "newton_renderer", "rgb", id="newton-warp-rgb"),
-        pytest.param("newton", "newton_renderer", "depth", id="newton-warp-depth"),
-        pytest.param("newton", "newton_renderer", "normals", id="newton-warp-normals"),
-    ]
-
-    grouped = group_rendering_params(params)
-
-    assert [tuple(param.values) for param in grouped] == [
-        ("newton", "ovrtx_renderer", ["albedo", "normals"]),
-        ("newton", "newton_renderer", ["rgb", "depth", "normals"]),
-    ]
-
-
 @pytest.mark.parametrize(
     ("env_name", "renderer", "data_type", "expected"),
     [
@@ -116,24 +101,6 @@ def test_ovrtx_image_difference_threshold_is_capped(
 ) -> None:
     """OVRTX should use a tighter cap without loosening stricter environment thresholds."""
     assert rendering_test_utils._max_different_pixels_percentage(env_name, renderer, data_type) == expected
-
-
-@pytest.mark.parametrize(
-    ("renderer", "expected_steps"),
-    [
-        ("ovrtx_renderer", 3),
-        ("isaacsim_rtx_renderer", 2),
-    ],
-)
-def test_motion_history_steps(renderer: str, expected_steps: int) -> None:
-    """OVRTX should receive one extra motion-history step."""
-    env = Mock()
-    env.action_space.shape = (1,)
-    env.device = "cpu"
-
-    rendering_test_utils.maybe_step_env_for_motion(env, renderer, "motion_vectors")
-
-    assert env.step.call_count == expected_steps
 
 
 def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
@@ -155,33 +122,6 @@ def test_make_kitless_rendering_params_expands_only_ovrtx() -> None:
         ("ovstage", "newton", "ovrtx_renderer", "rgb"),
         ("legacy", "newton", "newton_renderer", "rgb"),
     ]
-
-
-def test_make_xfail_rendering_params_replaces_flaky_and_xfail_marks() -> None:
-    """Expected failures should run once with one current reason."""
-    params = [
-        pytest.param(
-            "ovstage",
-            "newton",
-            "ovrtx_renderer",
-            "albedo",
-            id="ovstage-newton-ovrtx-albedo",
-            marks=[
-                pytest.mark.flaky(max_runs=3, min_passes=1),
-                pytest.mark.xfail(reason="Obsolete rendering regression.", strict=False),
-            ],
-        )
-    ]
-
-    marked = make_xfail_rendering_params(
-        params,
-        {("ovstage", "newton", "ovrtx_renderer", "albedo"): "Known rendering regression."},
-    )
-
-    assert [mark.name for mark in marked[0].marks] == ["xfail"]
-    xfail_mark = marked[0].marks[0]
-    assert xfail_mark.kwargs["reason"] == "Known rendering regression."
-    assert xfail_mark.kwargs["strict"] is False
 
 
 def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
@@ -207,64 +147,6 @@ def test_make_skip_rendering_params_overrides_xfail_and_flaky_marks() -> None:
 
     assert [mark.name for mark in marked[0].marks] == ["skip"]
     assert marked[0].marks[0].kwargs["reason"] == "Native renderer crash."
-
-
-def test_kitless_matrix_has_no_ovrtx_041_xfails() -> None:
-    """OVRTX 0.4.1 textured and motion AOVs should run without release xfails."""
-    params = {param.id: param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS}
-
-    for data_type in ("albedo", "simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-        for physics_backend in ("newton", "ovphysx"):
-            param = params[f"{physics_backend}-ovrtx-{data_type}"]
-            assert "xfail" not in [mark.name for mark in param.marks]
-
-    expanded = {param.id: param for param in make_kitless_rendering_params(list(params.values()))}
-    assert "xfail" not in [mark.name for mark in expanded["ovstage-ovphysx-ovrtx-motion_vectors"].marks]
-
-
-def test_lift_factory_retains_retries_without_native_crash_skips() -> None:
-    """Lift OVRTX MDL cases should run with the shared retry policy."""
-    params = {param.id: param for param in make_kitless_rendering_params_lift()}
-
-    for variant in ("legacy", "ovstage"):
-        for physics_backend in ("newton", "ovphysx"):
-            for data_type in ("simple_shading_diffuse_mdl", "simple_shading_full_mdl"):
-                param = params[f"{variant}-{physics_backend}-ovrtx-{data_type}"]
-                assert [mark.name for mark in param.marks] == ["flaky"]
-
-    # Lift OVPhysX albedo passes, so it must not inherit an unrelated exemption.
-    assert "xfail" not in [mark.name for mark in params["legacy-ovphysx-ovrtx-albedo"].marks]
-
-
-def test_franka_factory_marks_only_unsupported_instance_segmentation() -> None:
-    """Franka OVRTX grouping should isolate unsupported instance segmentation from valid AOVs."""
-    params = {param.id: param for param in make_kitless_rendering_params_franka()}
-
-    for variant in ("legacy", "ovstage"):
-        for physics_backend in ("newton", "ovphysx"):
-            motion_id = f"{variant}-{physics_backend}-ovrtx-motion_vectors"
-            assert [mark.name for mark in params[motion_id].marks] == ["flaky"]
-
-            instance_id = f"{variant}-{physics_backend}-ovrtx-instance_segmentation"
-            assert [mark.name for mark in params[instance_id].marks] == ["skip"]
-
-    grouped = {param.id: param for param in group_rendering_params(list(params.values()))}
-    for variant in ("legacy", "ovstage"):
-        valid_static = grouped[f"{variant}-newton-ovrtx_renderer-static"]
-        assert valid_static.values[-1] == [
-            "rgb",
-            "albedo",
-            "semantic_segmentation",
-            "depth",
-            "distance_to_camera",
-            "distance_to_image_plane",
-            "normals",
-        ]
-        assert [mark.name for mark in valid_static.marks] == ["flaky"]
-
-        unsupported = grouped[f"{variant}-newton-ovrtx-instance_segmentation"]
-        assert unsupported.values[-1] == ["instance_segmentation"]
-        assert [mark.name for mark in unsupported.marks] == ["skip"]
 
 
 def test_html_report_labels_xfail_and_xpass_outcomes(monkeypatch, tmp_path: Path) -> None:

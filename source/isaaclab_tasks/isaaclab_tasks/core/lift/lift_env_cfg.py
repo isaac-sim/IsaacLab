@@ -25,7 +25,7 @@ from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import MeshCapsuleCfg, MeshConeCfg, MeshCuboidCfg, MeshSphereCfg, RigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 from isaaclab.visualizers import VisualizerCfg
@@ -170,11 +170,15 @@ class CommandsCfg:
         success_visualizer_cfg=VisualizationMarkersCfg(
             prim_path="/Visuals/SuccessMarkers",
             markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)), visible=True
+                "failure": replace(
+                    TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
+                    visible=True,
                 ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)), visible=True
+                "success": replace(
+                    TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.25, 0.15)),
+                    visible=True,
                 ),
             },
         ),
@@ -232,7 +236,7 @@ class ObservationsCfg:
             func=mdp.object_point_cloud_b,
             noise=Unoise(n_min=-0.0, n_max=0.0),
             clip=(-2.0, 2.0),  # [m]
-            params={"num_points": 64, "flatten": True},
+            params={"num_points": 64, "flatten": True, "visualize": False},
         )
 
         def __post_init__(self):
@@ -526,7 +530,7 @@ class PhysicsCfg(PresetCfg):
             cone="pyramidal",
             update_data_interval=2,
             iterations=100,
-            ls_iterations=15,
+            ls_iterations=50,
             use_mujoco_contacts=False,
             ccd_iterations=35,
         ),

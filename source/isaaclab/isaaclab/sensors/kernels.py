@@ -64,7 +64,6 @@ def reset_envs_kernel(
         timestamp: Current timestamp per env. Will be set to 0.0 for reset envs.
         timestamp_last_update: Last update timestamp per env. Will be set to 0.0 for reset envs.
     """
-
     env = wp.tid()
     if not reset_mask[env]:
         return

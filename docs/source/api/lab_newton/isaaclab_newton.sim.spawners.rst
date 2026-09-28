@@ -56,8 +56,9 @@ MPM Particles
 -------------
 
 Declarative particle generation for :class:`~isaaclab_newton.assets.MPMObject`.
-The spawner creates a placeholder ``Xform`` prim; the particles themselves are
-emitted into the Newton model builder during replication.
+The spawner authors explicit ``UsdGeom.Points`` simulation geometry and a bound
+Newton MPM material below an asset-root ``Xform``. Newton imports the particles
+through its normal USD path during replication.
 
 .. autoclass:: MPMParticleSpawnerCfg
     :members:

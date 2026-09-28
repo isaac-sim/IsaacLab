@@ -46,20 +46,15 @@ def cpu_mpm_solver_and_state():
     return solver, model.state()
 
 
-def test_mpm_reset_accepts_global_sentinel_mask(cpu_mpm_solver_and_state):
-    """The manager factory uses Newton's current global-sentinel mask contract."""
-    solver, state = cpu_mpm_solver_and_state
-
-    solver.reset(state, world_mask=wp.array([False, True, False], dtype=wp.bool, device="cpu"), flags=0)
-
-
 def test_mpm_manager_explicit_reset_accepts_canonical_mask(cpu_mpm_solver_and_state, monkeypatch):
-    """The explicit task reset forwards Newton's canonical mask unchanged."""
+    """The explicit task reset forwards Newton's canonical global-sentinel mask to the real solver."""
     solver, state = cpu_mpm_solver_and_state
     calls = []
+    newton_reset = SolverImplicitMPM.reset
 
     def record_reset(self, state, world_mask=None, flags=None):
         calls.append((state, world_mask, flags))
+        newton_reset(self, state, world_mask=world_mask, flags=flags)
 
     monkeypatch.setattr(SolverImplicitMPM, "reset", record_reset)
     monkeypatch.setattr(NewtonManager, "_solver", solver)

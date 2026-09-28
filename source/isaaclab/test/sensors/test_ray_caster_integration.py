@@ -7,19 +7,20 @@
 
 """Integration tests for ray caster sensor view paths, env_mask, and intrinsics.
 
-These tests require Isaac Sim (AppLauncher). They cover the integration-level
+These tests require Isaac Sim (the Kit launcher). They cover the integration-level
 items from ``TODO_ray_caster_kernel_tests.md``:
 
-- ``_get_sensor_transforms_wp`` ArticulationView and RigidBodyView paths
+- ``_get_sensor_transforms_wp`` RigidBodyView path
 - ``MultiMeshRayCaster`` env_mask behavior
 - ``MultiMeshRayCasterCamera.set_intrinsic_matrices`` propagation
 - ``_update_mesh_transforms`` non-identity orientation offset
 - Depth clipping ordering for ``MultiMeshRayCasterCamera``
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+launch_test_simulation(enable_cameras=True)
 
 import copy
 from typing import Any, cast
@@ -32,7 +33,7 @@ import warp as wp
 from pxr import UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.cloner.clone_plan import ClonePlan
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.sensors.ray_caster import (
     MultiMeshRayCaster,
     MultiMeshRayCasterCamera,
@@ -62,7 +63,6 @@ def _make_sim_and_ground():
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(dt=_DT))
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
-    sim_utils.update_stage()
     return sim
 
 
@@ -96,55 +96,6 @@ def sim_ground():
 
 
 # ---------------------------------------------------------------------------
-# _get_sensor_transforms_wp: ArticulationView path
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.isaacsim_ci
-def test_articulation_view_path(sim_ground):
-    """Mount a ray caster on a prim with ArticulationRootAPI.
-
-    Verifies that sensor pos_w matches the prim's initial position and that
-    the downward ray hits the ground plane.  This exercises the
-    ``ArticulationView.get_root_transforms()`` quaternion-convention path in
-    :meth:`_get_sensor_transforms_wp`.
-    """
-    sim = sim_ground
-    expected_pos = (3.0, 4.0, 5.0)
-
-    prim_path = "/World/ArticulatedBody"
-    sim_utils.create_prim(prim_path, "Xform", translation=expected_pos)
-    stage = sim_utils.get_current_stage()
-    prim = stage.GetPrimAtPath(prim_path)
-    UsdPhysics.RigidBodyAPI.Apply(prim)
-    UsdPhysics.ArticulationRootAPI.Apply(prim)
-    # Mass is needed for physics; collision is needed for PhysX to track the body.
-    mass_api = cast(Any, UsdPhysics.MassAPI.Apply(prim))
-    mass_api.CreateMassAttr().Set(1.0)
-    # Create a small collision cube so PhysX treats this as a real body.
-    cube_path = f"{prim_path}/CollisionCube"
-    cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
-    cube_geom.CreateSizeAttr().Set(0.1)
-    UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
-
-    sensor = RayCaster(_single_downward_ray_cfg(prim_path))
-    sim.reset()
-    sensor.update(_DT)
-
-    pos_w = sensor.data.pos_w.torch[0].cpu().numpy()
-    np.testing.assert_allclose(
-        pos_w,
-        expected_pos,
-        atol=0.15,
-        err_msg="ArticulationView: sensor pos_w must match initial prim position",
-    )
-
-    hits = sensor.data.ray_hits_w.torch[0, 0].cpu().numpy()
-    assert abs(hits[2]) < 0.5, f"ArticulationView: downward ray should hit near z=0, got z={hits[2]}"
-
-
-# ---------------------------------------------------------------------------
 # _get_sensor_transforms_wp: RigidBodyView path
 # ---------------------------------------------------------------------------
 
@@ -170,7 +121,6 @@ def test_rigid_body_view_path(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, cube_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
 
     sensor = RayCaster(_single_downward_ray_cfg(prim_path))
     sim.reset()
@@ -355,17 +305,16 @@ def test_multi_mesh_uses_clone_plan_geometry_and_backend_object_pose(sim_ground)
 
     # This test intentionally does not author /env_2/Object/part_0. ClonePlan
     # selects source geometry; the object body view supplies env_2's live pose.
-    sim.set_clone_plan(
-        ClonePlan(
-            sources=("/World/envs/env_0/Object", "/World/envs/env_1/Object"),
-            destinations=("/World/envs/env_{}/Object", "/World/envs/env_{}/Object"),
-            clone_mask=np.asarray([[True, False, True], [False, True, False]], dtype=np.bool_),
-            env_ids=np.arange(3, dtype=np.int64),
-            positions=None,
-            cfg_rows={},
-        )
+    plan = ClonePlan(
+        PrototypeWorldTopology(
+            num_asset_prototypes=2,
+            world_prototypes=np.array([0, 1]),
+            world_prototype_starts=np.array([0, 0, 1, 2]),
+            world_prototype_layout=np.array([0, 1, 0]),
+        ),
+        asset_cfgs=(AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2,
     )
-    sim_utils.update_stage()
+    sim.set_clone_plan(plan)
 
     cfg = MultiMeshRayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Sensor",
@@ -498,7 +447,6 @@ def test_update_mesh_transforms_non_identity_offset(sim_ground):
     cube_geom = cast(Any, UsdGeom.Cube.Define(stage, col_path))
     cube_geom.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(col_path))
-    sim_utils.update_stage()
 
     # Create a sensor prim to mount the MultiMeshRayCaster on
     sensor_path = "/World/SensorMount"

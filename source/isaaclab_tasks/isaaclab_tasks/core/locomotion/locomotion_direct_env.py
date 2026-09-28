@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     euler_xyz_from_quat,
     normalize,
@@ -170,7 +171,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
 
         super()._reset_idx(env_ids)
-        self.actions[env_ids] = 0.0
+        index_fill_(self.actions, env_ids, 0.0)
 
         # root state is reset to the default pose, offset into the environment
         default_root_pose = self.robot.data.default_root_pose.torch[env_ids]

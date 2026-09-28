@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 
 from ..selection_utils import SceneEntitySelectionCfg
@@ -108,7 +109,7 @@ class _LiftSuccessTerm(ManagerTermBase):
             return
         log = self._env.extras.setdefault("log", {})
         log["Metrics/lift_success_rate"] = self.succeeded[selected].float().mean().item()
-        self.succeeded[selected] = False
+        index_fill_(self.succeeded, selected, False)
 
 
 class LiftGoalTracking(_LiftSuccessTerm):
@@ -263,8 +264,8 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
         log = self._env.extras.setdefault("log", {})
         log["Metrics/cabinet_success_rate"] = self.succeeded[selected].float().mean().item()
         log["Metrics/cabinet_drawer_pos"] = self.best_drawer_pos[selected].mean().item()
-        self.succeeded[selected] = False
-        self.best_drawer_pos[selected] = 0.0
+        index_fill_(self.succeeded, selected, False)
+        index_fill_(self.best_drawer_pos, selected, 0.0)
 
     def __call__(
         self,
@@ -275,8 +276,8 @@ class CabinetOpenDrawerBonus(ManagerTermBase):
     ) -> torch.Tensor:
         """Compute drawer displacement with a grasp-alignment multiplier."""
         cabinet: Articulation = env.scene[cabinet_cfg.name]
-        drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids[0]]
-        drawer_limits = cabinet.data.soft_joint_pos_limits.torch[:, cabinet_cfg.joint_ids[0]]
+        drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids][:, 0]
+        drawer_limits = cabinet.data.soft_joint_pos_limits.torch[:, cabinet_cfg.joint_ids][:, 0]
         drawer_pos = torch.nan_to_num(drawer_pos, nan=0.0, posinf=0.0, neginf=0.0)
         drawer_pos = torch.maximum(torch.minimum(drawer_pos, drawer_limits[:, 1]), drawer_limits[:, 0])
         env_ids, graspable, _, _ = _cabinet_grasp_alignment(env, robot_cfg, cabinet_cfg)
@@ -292,7 +293,7 @@ def cabinet_multi_stage_open(
 ) -> torch.Tensor:
     """Reward easy, medium, and hard drawer-opening milestones."""
     cabinet: Articulation = env.scene[cabinet_cfg.name]
-    drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids[0]]
+    drawer_pos = cabinet.data.joint_pos.torch[:, cabinet_cfg.joint_ids][:, 0]
     _, graspable, _, _ = _cabinet_grasp_alignment(env, robot_cfg, cabinet_cfg)
     reward = (drawer_pos > 0.01) * 0.5
     reward += (drawer_pos > 0.2) * graspable
@@ -307,7 +308,7 @@ def reach_position_error(env: ManagerBasedRLEnv, robot_cfg: SceneEntitySelection
     goal_pos_w, _ = math_utils.combine_frame_transforms(
         robot.data.root_pos_w.torch, robot.data.root_quat_w.torch, command[:, :3]
     )
-    error = torch.linalg.norm(robot.data.body_pos_w.torch[:, robot_cfg.body_ids[0]] - goal_pos_w, dim=-1)
+    error = torch.linalg.norm(robot.data.body_pos_w.torch[:, robot_cfg.body_ids][:, 0] - goal_pos_w, dim=-1)
     return robot_cfg.scatter_to_envs(error)
 
 
@@ -318,7 +319,7 @@ def reach_orientation_error(
     robot: Articulation = env.scene[robot_cfg.name]
     command = env.command_manager.get_command(command_name)[robot_cfg.env_ids]
     goal_quat_w = math_utils.quat_mul(robot.data.root_quat_w.torch, command[:, 3:7])
-    error = math_utils.quat_error_magnitude(robot.data.body_quat_w.torch[:, robot_cfg.body_ids[0]], goal_quat_w)
+    error = math_utils.quat_error_magnitude(robot.data.body_quat_w.torch[:, robot_cfg.body_ids][:, 0], goal_quat_w)
     return robot_cfg.scatter_to_envs(error)
 
 

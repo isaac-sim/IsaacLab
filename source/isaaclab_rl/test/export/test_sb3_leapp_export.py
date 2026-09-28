@@ -31,12 +31,7 @@ def test_sb3_export_args_use_common_defaults(monkeypatch):
     export_module = _load_export_module()
     export_common = importlib.import_module("isaaclab_rl.entrypoints.backends.export_common")
 
-    class _AppLauncher:
-        @staticmethod
-        def add_app_launcher_args(parser):
-            return None
-
-    monkeypatch.setattr(export_common, "AppLauncher", _AppLauncher)
+    monkeypatch.setattr(export_common, "add_launcher_args", lambda parser: None)
     monkeypatch.setattr(
         export_common,
         "setup_preset_cli",

@@ -9,19 +9,36 @@ import gc
 import inspect
 import weakref
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 
 from isaaclab.physics import PhysicsCfg, PhysicsEvent, PhysicsManager
-from isaaclab.renderers import RendererCfg
+from isaaclab.renderers import RenderContext, RendererCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import BackendCfg, SimulationContext
+
+    # SimulationContext owns backends directly, with no second registry or lookup layer.
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
+    assert not hasattr(SimulationContext, "register_backend")
+    assert not hasattr(SimulationContext, "get_backend")
+    assert not hasattr(BackendCfg, "close")
+    assert issubclass(RendererCfg, BackendCfg)
+    assert not hasattr(RenderContext, "get_renderer")
+    assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
+    assert "_renderer_entries" not in RenderContext.__slots__
+    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
+    assert all(
+        "resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in (PhysicsCfg, RendererCfg, VisualizerCfg)
+    )
 
     @dataclass(kw_only=True)
     class Cfg(BackendCfg):
@@ -80,19 +97,50 @@ def test_backend_registry_identity_and_lifecycle():
     context.close_backend(second)
     assert second.close.call_count == 2
 
+    # Backend declarations require close(); plain construction cfgs only share Python-owned data.
+    data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
+    data = context.get_or_create_backend(data_cfg)
+    with pytest.raises(AttributeError, match="close"):
+        context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) is data
 
-def test_backend_ownership_has_no_service_locator_or_resource_keys():
-    """Backend ownership stays directly on SimulationContext and uses cfg identity, not custom keys."""
-    from pathlib import Path
+    @dataclass
+    class DataCfg:
+        class_type: object
+        values: list[int]
 
-    from isaaclab.sim import SimulationContext
+    data_cfg = DataCfg(class_type=data_cfg.class_type, values=data_cfg.values)
+    data = context.get_or_create_backend(data_cfg)
+    assert context.get_or_create_backend(replace(data_cfg)) is data
+    context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) == data
+    assert context.get_or_create_backend(data_cfg) is not data
 
-    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
-    assert not (sim_package / "service_locator.py").exists()
-    assert not hasattr(SimulationContext, "services")
-    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
-    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
-    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+
+def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
+    """Only the active physics manager can clear shared SimulationContext state."""
+
+    class _ActiveManager(PhysicsManager):
+        _callbacks = {}
+
+    class _InactiveManager(PhysicsManager):
+        pass
+
+    _ActiveManager.close()
+    assert PhysicsManager._sim is None
+
+    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
+    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
+
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
+    _InactiveManager.close()
+    assert PhysicsManager._callbacks == {}
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
+
+    _ActiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
@@ -209,81 +257,85 @@ def test_close_surfaces_stop_errors_stored_by_safe_callback_invoke(monkeypatch):
     assert PhysicsManager._sim is None
 
 
-def test_clear_instance_finishes_teardown_after_physics_close_failure(monkeypatch):
-    """A STOP failure is re-raised only after the remaining context teardown."""
+@pytest.mark.parametrize("renderer_first", [False, True])
+@pytest.mark.parametrize("fail_cleanup", [False, True])
+def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, renderer_first, fail_cleanup):
+    """Creation order and cleanup failures do not change ownership or teardown phases."""
     import isaaclab.sim.simulation_context as context_module
-    from isaaclab.sim import SimulationContext
+    from isaaclab.sim import BackendCfg, SimulationContext
 
     events = []
 
-    class FailingManager:
+    class Manager:
         @classmethod
         def close(cls):
             events.append("physics")
-            raise RuntimeError("STOP failed")
+            if fail_cleanup:
+                raise RuntimeError("STOP failed")
 
-    class Visualizer:
+    class Resource:
         def __init__(self, name, error=None):
             self.name = name
             self.error = error
 
         def close(self):
             events.append(self.name)
-            if self.error is not None:
+            if fail_cleanup and self.error is not None:
                 raise self.error
 
-    class Backend:
-        def __init__(self, name, error=None):
-            self.name = name
-            self.error = error
-
-        def close(self):
-            events.append(self.name)
-            if self.error is not None:
-                raise self.error
-
-    class RenderContext:
-        def close(self):
-            events.append("renderers")
-
-    context = SimpleNamespace(
-        physics_manager=FailingManager,
-        _render_context=RenderContext(),
-        _visualizers=[
-            Visualizer("visualizer_failed", ValueError("visualizer failed")),
-            Visualizer("visualizer_last"),
-        ],
-        clone_contexts={object: object()},
-        _backend_registry=[
-            (0, Backend("backend_failed", LookupError("backend failed"))),
-            (1, Backend("same_type")),
-        ],
+    context = object.__new__(SimulationContext)
+    context.physics_manager = Manager
+    context._backend_registry = []
+    context._render_context = RenderContext(context._backend_registry)
+    context._render_context._visual_material_writers = (Resource("writers"),)
+    context._visualizers = [Resource("visualizer_failed", ValueError("visualizer failed")), Resource("visualizer_last")]
+    context._pending_visualizers = [Resource("visualizer_pending")]
+    context.clone_contexts = {object: object()}
+    groups = (
+        (RendererCfg, (("renderer_failed", OSError("renderer failed")), ("renderer_last", None))),
+        (BackendCfg, (("backend_failed", LookupError("backend failed")), ("backend_last", None))),
     )
+    for cfg_type, resources in groups if renderer_first else reversed(groups):
+        for name, error in resources:
+            context.get_or_create_backend(
+                cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
+            )
+    context.get_or_create_backend(SimpleNamespace(class_type=lambda cfg: Resource("data")))
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
     monkeypatch.setattr(context_module.gc, "collect", lambda: events.append("gc"))
 
-    with pytest.raises(RuntimeError, match=r"3 error\(s\) occurred during teardown") as exc_info:
+    if fail_cleanup:
+        with pytest.raises(RuntimeError, match=r"4 error\(s\) occurred during teardown") as exc_info:
+            SimulationContext.clear_instance()
+        assert str(exc_info.value) == (
+            "SimulationContext.clear_instance(): 4 error(s) occurred during teardown: "
+            "RuntimeError: STOP failed; OSError: renderer failed; ValueError: visualizer failed; "
+            "LookupError: backend failed"
+        )
+        assert str(exc_info.value.__cause__) == "STOP failed"
+    else:
         SimulationContext.clear_instance()
 
-    assert str(exc_info.value) == (
-        "SimulationContext.clear_instance(): 3 error(s) occurred during teardown: "
-        "RuntimeError: STOP failed; ValueError: visualizer failed; LookupError: backend failed"
-    )
-    assert str(exc_info.value.__cause__) == "STOP failed"
+    SimulationContext.clear_instance()
     assert events == [
         "physics",
-        "renderers",
+        "writers",
+        "renderer_failed",
+        "renderer_last",
         "visualizer_failed",
         "visualizer_last",
+        "visualizer_pending",
+        # native backends close newest first
+        "backend_last",
         "backend_failed",
-        "same_type",
         "stage",
         "cache",
         "gc",
     ]
     assert context._visualizers == []
+    assert context._pending_visualizers == []
     assert context._backend_registry == []
     assert context.clone_contexts == {}
     assert SimulationContext.instance() is None
@@ -310,6 +362,7 @@ def test_clear_instance_drops_owned_context_references_before_garbage_collection
     context.physics_manager = Manager
     context._render_context = RenderContext()
     context._visualizers = []
+    context._pending_visualizers = []
     context._backend_registry = []
     context.clone_contexts = {}
     context_ref = weakref.ref(context)

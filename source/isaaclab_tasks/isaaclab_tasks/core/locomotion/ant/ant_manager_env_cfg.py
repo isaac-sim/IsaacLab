@@ -16,7 +16,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.ant import ANT_CFG
 
@@ -42,7 +42,7 @@ class AntSceneCfg(InteractiveSceneCfg):
     terrain = TERRAIN_CFG
 
     # robot
-    robot = ANT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")

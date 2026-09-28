@@ -34,6 +34,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
+from isaaclab.utils import replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 from isaaclab_assets import CARTPOLE_CFG  # isort:skip  # noqa: E402
@@ -105,7 +106,7 @@ def _make_cartpoles(num_envs: int) -> Articulation:
     """Spawn ``num_envs`` cartpoles as a single Articulation."""
     for i in range(num_envs):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 2.5, 0.0, 0.0))
-    return Articulation(cfg=CARTPOLE_CFG.replace(prim_path="/World/Env_[^/]+/Robot"))
+    return Articulation(cfg=replace(CARTPOLE_CFG, prim_path="/World/Env_[^/]+/Robot"))
 
 
 def _read_offsets(asset, rest_type, contact_type) -> tuple[torch.Tensor, torch.Tensor]:
