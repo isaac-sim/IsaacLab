@@ -12,8 +12,7 @@ import contextlib
 import logging
 from typing import Any
 
-from .settings_manager import get_settings_manager
-from .sim_launcher import _KIT_LAUNCHER, add_launcher_args, launch_simulation
+from .sim_launcher import add_launcher_args, launch_simulation
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +27,9 @@ class _LaunchedApp:
     def __init__(self, app: Any):
         self._app = app
 
-    def close(self, *args, **kwargs) -> None:
-        _RUNTIME.close()
+    def close(self, *args, exit_code: int = 0, **kwargs) -> None:
+        # unwind the launch as a ``sys.exit(exit_code)`` so the runtime exits with the requested status
+        _RUNTIME.__exit__(SystemExit, SystemExit(exit_code), None)
 
     def is_exiting(self) -> bool:
         return not self._app.is_running()
@@ -56,8 +56,6 @@ class AppLauncher:
             logger.warning("AppLauncher starts Kit, which cannot run the 'newton_rtx' visualizer; skipping it.")
             args["visualizer"] = [v for v in args["visualizer"] if v != "newton_rtx"]
         _RUNTIME.enter_context(launch_simulation(None, args))
-        self.device = args.get("device")
-        self.has_window = not args["headless"] or bool(args.get("livestream", 0))
 
         import omni.kit.app
 
@@ -67,15 +65,3 @@ class AppLauncher:
     def add_app_launcher_args(parser: argparse.ArgumentParser) -> None:
         """Add the launcher arguments, see :func:`~isaaclab.app.add_launcher_args`."""
         add_launcher_args(parser)
-
-    @staticmethod
-    def is_available() -> bool:
-        """Return whether the full Isaac Sim runtime is importable, i.e. Kit can be launched."""
-        from ..utils.string import string_to_callable
-
-        return string_to_callable(_KIT_LAUNCHER).is_available()
-
-    @staticmethod
-    def has_gui() -> bool:
-        """Return whether the launched app has an interactive GUI (window, livestream, or XR)."""
-        return bool(get_settings_manager().get("/isaaclab/has_gui"))

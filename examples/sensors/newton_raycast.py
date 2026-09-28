@@ -246,7 +246,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, sce
         bar = scene["bar"]
 
     step = 0
-    while sim.is_headless_or_exist_active_visualizer() and (max_steps < 0 or step < max_steps):
+    while sim.is_running() and (max_steps < 0 or step < max_steps):
         if bar is None:
             _animate_heightfield(body, step * sim_dt, zero_velocity)
         else:

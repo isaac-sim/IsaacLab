@@ -320,7 +320,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
         observation_space="observations",
         action_space=SimpleNamespace(shape=(1, 1)),
         unwrapped=SimpleNamespace(
-            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
         reset=lambda: None,
@@ -370,7 +370,7 @@ def test_simple_agent_video_step_budget(
         observation_space="observations",
         action_space=SimpleNamespace(shape=(1, 1)),
         unwrapped=SimpleNamespace(
-            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
         reset=lambda: None,

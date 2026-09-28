@@ -151,7 +151,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
     """Runs the simulation loop."""
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # perform step
         sim.step()
         step_count += 1
@@ -160,21 +160,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
         # design scene
         scene_entities, scene_origins = design_scene()
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

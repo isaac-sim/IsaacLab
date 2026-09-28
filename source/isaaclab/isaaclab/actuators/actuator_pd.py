@@ -14,8 +14,8 @@ import torch
 
 from ..utils import DelayBuffer, LinearInterpolation
 from ..utils.types import ArticulationActions
-from ._compat import _limits_equal
 from .actuator_base import ActuatorBase, resolve_joint_parameter
+from .actuator_compat import limits_equal
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
@@ -88,7 +88,7 @@ class ImplicitActuator(ActuatorBase):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if joint_effort_limit is not None and not _limits_equal(joint_effort_limit, effort_limit):
+            if joint_effort_limit is not None and not limits_equal(joint_effort_limit, effort_limit):
                 raise ValueError(
                     "Received conflicting joint_effort_limit and deprecated effort_limit constructor arguments."
                 )

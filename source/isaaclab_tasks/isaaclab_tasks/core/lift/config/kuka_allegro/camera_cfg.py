@@ -7,15 +7,15 @@
 
 from dataclasses import MISSING
 
+import isaaclab.envs.mdp as base_mdp
 import isaaclab.sim as sim_utils
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import CameraCfg, MultiMeshRayCasterCameraCfg, patterns
 from isaaclab.utils import configclass, replace
-from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from ... import lift_env_cfg as lift
@@ -199,6 +199,32 @@ class WristTiledCameraCfg(PresetCfg):
     default = rgb64
 
 
+def _image_term_presets(sensor_name: str) -> PresetCfg:
+    """Image observation terms named like the camera presets, so one preset selects both."""
+    terms = {}
+    for name, func, data_type in (
+        ("rgb", base_mdp.image_rgb, "rgb"),
+        ("albedo", base_mdp.image_rgb, "albedo"),
+        ("simple_shading_constant_diffuse", base_mdp.image_rgb, "simple_shading_constant_diffuse"),
+        ("simple_shading_diffuse_mdl", base_mdp.image_rgb, "simple_shading_diffuse_mdl"),
+        ("simple_shading_full_mdl", base_mdp.image_rgb, "simple_shading_full_mdl"),
+        ("semantic_segmentation", base_mdp.image_segmentation, "semantic_segmentation"),
+        ("depth", base_mdp.image_depth, "depth"),
+        ("raycaster_depth", base_mdp.image_depth, "distance_to_image_plane"),
+    ):
+        for resolution in (64, 128, 256):
+            terms[f"{name}{resolution}"] = ObsTerm(
+                func=func,
+                params={
+                    "sensor_cfg": SceneEntityCfg(sensor_name),
+                    "data_type": data_type,
+                    "normalize": False,
+                    "channel_first": True,
+                },
+            )
+    return preset(default=terms["rgb64"], **terms)
+
+
 ##
 # MDP settings
 ##
@@ -226,12 +252,7 @@ class SingleCameraObservationsCfg(StateObservationCfg):
     class BaseImageObsCfg(ObsGroup):
         """Camera observations for policy group."""
 
-        object_observation_b = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("base_camera")},
-        )
+        object_observation_b = _image_term_presets("base_camera")
 
     # image groups keep the group default of no history: a stack of frames per step costs more
     # memory than the state groups' history and the state groups already carry the temporal signal
@@ -246,11 +267,6 @@ class DuoCameraObservationsCfg(SingleCameraObservationsCfg):
     class WristImageObsCfg(ObsGroup):
         """Camera observations for the wrist image group."""
 
-        wrist_observation = ObsTerm(
-            func=mdp.vision_camera,
-            noise=Unoise(n_min=-0.0, n_max=0.0),
-            clip=(-1.0, 1.0),
-            params={"sensor_cfg": SceneEntityCfg("wrist_camera")},
-        )
+        wrist_observation = _image_term_presets("wrist_camera")
 
     wrist_image: WristImageObsCfg = WristImageObsCfg()

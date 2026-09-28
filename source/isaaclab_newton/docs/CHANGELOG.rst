@@ -1,6 +1,86 @@
 Changelog
 ---------
 
+9.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Exposed ``rigid_compliant_alm`` and ``rigid_body_contact_buffer_size`` on
+  ``VBDSolverCfg`` for compliant ALM selection and per-body contact capacity,
+  while preserving Newton's existing defaults.
+
+Changed
+^^^^^^^
+
+* Moved physics randomization implementations into backend ``envs.mdp.events`` modules.
+  The shared ``isaaclab.envs.mdp`` terms kept their API and selected the backend internally.
+* Moved the Newton deformable asset, data buffers, and kernels into
+  :mod:`isaaclab_newton.assets`, removing the optional dependency on ``isaaclab_contrib``.
+  Imported declared deformable prototypes once during cloning and selected their native particle
+  ranges during asset initialization, removing the geometry registry and per-world construction hook.
+  The shared :class:`isaaclab.assets.DeformableObjectCfg` and backend-independent asset API remained unchanged.
+
+* **Breaking:** Made ``NewtonManager.instantiate_builder_from_stage()`` consume the active clone plan
+  instead of discovering environment roots. Construct an ``InteractiveScene``, explicitly replicate a
+  ``ClonePlan``, or supply a native builder with ``NewtonManager.set_builder()``.
+* Reduced Newton camera kernel launches by combining pose conversion with transform packing and
+  rendering planar depth directly into camera output buffers, removing the intermediate ray-depth
+  allocation and conversion pass. Camera output conventions and clipping behavior were preserved;
+  no configuration changes are required.
+* Avoided scalar uploads and CUDA synchronization when resetting selected IK and task-space actions.
+* Moved Newton camera and ray-cast consumers to the simulation-owned native backend. Consumers
+  requested transforms and geometry directly through SDP and shared native BVH refits while owning
+  their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
+  capture independently of physics capture. Deformable triangle-mesh rendering stayed eager because
+  native mesh updates required host reads and allocations.
+  Stateless query and capture functions lived in ``NewtonQueries`` alongside ``NewtonManager``;
+  the container retained no model or scheduling state.
+* Applied ray-cast BVH requirements to the shared builder before finalization, including when
+  another consumer acquired the builder first.
+* **Breaking:** Replaced the native builder input in ``NewtonBackendCfg`` with the selected physics
+  configuration. Acquire builders through ``NewtonBuilderCfg(physics_cfg=sim.cfg.physics)``
+  and finalized models through ``NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)``
+  using ``sim.get_or_create_backend(cfg)``. Non-Newton physics selected a render-only representation;
+  model allocation followed cloning rather than occurring inside it. Kept construction and runtime
+  cfgs independent: closing a backend released its native buffers but retained the builder for hard reset.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``NewtonManager.set_builder()``. Acquire and populate the shared builder with
+  ``sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))`` before ``sim.reset()``.
+* **Breaking:** Removed ``NewtonManager.get_state()`` and ``update_visualization_state()``.
+  Acquire the native backend through ``sim.get_or_create_backend(backend_cfg)`` and request
+  ``SceneDataProvider.get_transforms()`` and ``get_geometry_points()`` directly instead.
+* **Breaking:** Removed ``NewtonManager.sync_transforms_to_fabric()`` and ``sync_transforms_to_usd()``.
+  Kit/Isaac RTX rendering already requested published poses through SDP. Custom Fabric consumers
+  should call ``FabricBackend.update_transforms(provider)`` instead of asking the physics manager to render.
+
+Fixed
+^^^^^
+
+* Applied clone-plan world compositions to Newton deformables and imported shared deformables once.
+  Preserved rotated particle positions, velocities, and tetrahedral rest frames during builder composition.
+  Built render-only deformable meshes in source builders before native replication, instead of
+  rebuilding their geometry for every destination world.
+
+* Moved MPM particle-range and visual-geometry binding into clone/import, removing asset-side registration.
+
+* Moved Fabric body-prim preparation out of Newton physics startup and into the shared Fabric rendering resource.
+  Preserved rendering-compatible CUDA graph capture independently of Fabric bindings.
+
+* Scoped deformable kinematic defaults to each asset's selected particles instead of copying the entire model.
+  Preserved imported cloth rest angles during asset initialization.
+
+* Preserved imported robot bodies selected by sensors that opted out of cloning.
+
+* Kept source labels and material references unchanged during world composition, naming only
+  appended instances. Used imported static geometry for collider visibility instead of traversing
+  USD subtrees, and preserved Newton's visual meshes and material bindings for approximated colliders.
+
+
 8.1.1 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~
 
