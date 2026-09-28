@@ -517,6 +517,11 @@ Asynchronous Rendering
 throughput. Only the OVRTX renderer implements it. This section shows how states, observations,
 actions, and rendered frames line up in both modes.
 
+The framework tells the renderer which scene writes and renders form one frame: it announces
+each frame through :meth:`~isaaclab.renderers.BaseRenderer.announce_frame` with the physics step
+count, and a frame lasts until the next announcement. The asynchronous path groups its work by
+these announcements, so the grouping is independent of sensor update order and batching.
+
 The diagram below shows one call of ``env.step()``, stage by stage, in both modes. The rows
 where the two columns split are the differences. The timelines show where the throughput gain
 comes from: the render overlaps the CPU work instead of blocking it.
@@ -533,6 +538,11 @@ Answers to the common questions:
   data. Frame ``F[k]`` renders from ``T[k]``, the transforms of its own step, written before the
   submit. Two staging slots alternate: step ``k+1`` fills one slot while ``F[k]`` still reads the
   other. Only the read-back of the finished image is deferred, never its inputs.
+- **Does my own render loop pipeline?** Only when it announces frames. Call
+  :meth:`~isaaclab.renderers.BaseRenderer.announce_frame` with a monotonic index before each frame's
+  pose updates and renders. The framework does this automatically with the physics step count, for
+  both eager and lazy sensor updates. Renders without an announced frame are delivered
+  immediately, which gives correct images with synchronous behavior.
 - **What about the camera pose and frame metadata?** They are not delayed. ``data.pos_w``,
   ``data.quat_w_world``, intrinsics, and the frame counter describe the current step, while the
   image is one step older. Consumers that pair pixels with extrinsics, for example point-cloud

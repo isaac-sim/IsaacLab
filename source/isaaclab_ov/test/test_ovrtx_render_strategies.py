@@ -77,9 +77,18 @@ class _FakeRenderer:
         return {}
 
 
-# The renderer passes the same render data object for a camera on every frame. The tests do the
-# same, since priming is tracked per camera.
-_DEFAULT_CAMERA = object()
+class _CompletedWriteOp:
+    """A binding write op that is already complete."""
+
+    def wait(self) -> None:
+        return None
+
+
+class _FakeBinding:
+    """Accepts async binding writes and completes them immediately."""
+
+    def write_async(self, data, **_kwargs) -> _CompletedWriteOp:
+        return _CompletedWriteOp()
 
 
 @pytest.fixture()
@@ -90,8 +99,13 @@ def timeline() -> _Timeline:
 @pytest.fixture()
 def strategy() -> _AsyncRenderStrategy:
     strategy = _AsyncRenderStrategy()
-    strategy.set_device("cuda:0")
+    strategy.set_device(wp.get_device("cuda:0"))
     return strategy
+
+
+# The renderer passes the same render data object for a camera on every frame. The tests do the
+# same, since priming is tracked per camera.
+_DEFAULT_CAMERA = object()
 
 
 def _render(
@@ -106,11 +120,35 @@ def _render(
     )
 
 
-def test_settle_drains_every_in_flight_render(strategy, timeline):
+def _stage_camera(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
+    with strategy.stage_camera_transforms(binding, 2) as (_quats, transforms):
+        return transforms
+
+
+def _stage_objects(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
+    with strategy.stage_object_transforms(binding, 2, None) as transforms:
+        return transforms
+
+
+def test_unannounced_renders_are_synchronous(strategy, timeline):
+    """Without announce_frame there is no boundary to deliver at, so every render delivers itself."""
     renderer = _FakeRenderer(timeline)
     consumed: list[int] = []
 
     _render(strategy, renderer, 0, consumed)
+    _render(strategy, renderer, 1, consumed)
+
+    assert consumed == [0, 1]
+    assert not strategy._has_pending_ops()
+
+
+def test_settle_drains_every_in_flight_render(strategy, timeline):
+    renderer = _FakeRenderer(timeline)
+    consumed: list[int] = []
+
+    strategy.announce_frame(0)
+    _render(strategy, renderer, 0, consumed)
+    strategy.announce_frame(1)
     _render(strategy, renderer, 1, consumed)
     strategy.settle_before_scene_write()
 
@@ -135,6 +173,7 @@ def test_render_stays_pipelined_when_settle_precedes_each_frame(strategy, timeli
 
     for ordinal in range(4):
         strategy.settle_before_scene_write()
+        strategy.announce_frame(ordinal)
         _render(strategy, renderer, ordinal, consumed)
 
     # Frame 0 is primed synchronously; frames 1..3 each drain only at the following frame's write.
@@ -156,6 +195,7 @@ def test_every_frame_is_delivered_exactly_once(strategy, timeline):
 
     for ordinal in range(5):
         strategy.settle_before_scene_write()
+        strategy.announce_frame(ordinal)
         _render(strategy, renderer, ordinal, consumed)
     strategy.cleanup()
 
@@ -167,6 +207,7 @@ def test_first_frame_is_primed_after_reinitialize(strategy, timeline):
     renderer = _FakeRenderer(timeline)
     consumed: list[int] = []
 
+    strategy.announce_frame(0)
     _render(strategy, renderer, 0, consumed)
     assert consumed == [0]
 
@@ -174,12 +215,13 @@ def test_first_frame_is_primed_after_reinitialize(strategy, timeline):
     timeline.events.clear()
     consumed.clear()
 
+    strategy.announce_frame(1)
     _render(strategy, renderer, 1, consumed)
     assert consumed == [1], "the first frame of a new scene must be primed synchronously"
 
 
 def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strategy, timeline):
-    """A drain triggered by a scene write must not deliver into another frame's buffers."""
+    """Priming delivers into the batch it was submitted for, never into another camera's buffers."""
     renderer = _FakeRenderer(timeline)
     first_target = object()
     second_target = object()
@@ -188,6 +230,7 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     def consume(render_data, products):
         delivered.append(render_data)
 
+    strategy.announce_frame(0)
     strategy.render(renderer, {"/P"}, 1.0 / 60.0, (first_target,), consume)
     delivered.clear()
 
@@ -195,6 +238,154 @@ def test_frames_are_delivered_to_the_render_data_they_were_submitted_for(strateg
     strategy.settle_before_scene_write()
 
     assert delivered == [(second_target,)]
+
+
+def test_lazy_per_camera_renders_share_the_announced_frame(strategy, timeline):
+    """Cameras rendered one call at a time still pipeline fully when each step announces its
+    frame: all of a frame's renders stay in flight and drain together at the next frame."""
+    renderer = _FakeRenderer(timeline)
+    camera_a, camera_b = object(), object()
+    binding_a, binding_b = _FakeBinding(), _FakeBinding()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.extend(render_data)
+
+    def step(index: int) -> None:
+        strategy.announce_frame(index)
+        _stage_camera(strategy, binding_a)
+        strategy.render(renderer, {"/A"}, 1.0 / 60.0, (camera_a,), consume)
+        _stage_camera(strategy, binding_b)
+        strategy.render(renderer, {"/B"}, 1.0 / 60.0, (camera_b,), consume)
+
+    step(0)
+    assert delivered == [camera_a, camera_b], "each camera's first frame is primed"
+
+    delivered.clear()
+    step(1)
+    assert delivered == [], "the whole frame stays in flight"
+
+    step(2)
+    assert delivered == [camera_a, camera_b], "the frame's renders drain together at the next frame"
+
+
+def test_one_batch_per_frame_pipelines_all_cameras(strategy, timeline):
+    """The eager render context submits all cameras of a step as one batch."""
+    renderer = _FakeRenderer(timeline)
+    camera_a, camera_b = object(), object()
+    binding_a, binding_b = _FakeBinding(), _FakeBinding()
+    delivered: list[object] = []
+
+    def consume(render_data, products):
+        delivered.extend(render_data)
+
+    def step(index: int) -> None:
+        strategy.announce_frame(index)
+        _stage_camera(strategy, binding_a)
+        _stage_camera(strategy, binding_b)
+        strategy.render(renderer, {"/A", "/B"}, 1.0 / 60.0, (camera_a, camera_b), consume)
+
+    step(0)
+    assert delivered == [camera_a, camera_b], "the first batch is primed"
+    delivered.clear()
+    step(1)
+    assert delivered == [], "the second batch stays in flight"
+    step(2)
+    assert delivered == [camera_a, camera_b], "a batch drains when the next frame's batch is enqueued"
+
+
+def test_repeat_render_within_a_frame_delivers_the_previous_entry(strategy, timeline):
+    """A camera rendered again in one frame delivers its previous entry, so a caller that renders
+    without advancing the frame cannot grow the ring."""
+    renderer = _FakeRenderer(timeline)
+    camera = object()
+    consumed: list[int] = []
+
+    strategy.announce_frame(0)
+    _render(strategy, renderer, 0, consumed, camera)  # primed and delivered
+    _render(strategy, renderer, 1, consumed, camera)  # queued
+    assert consumed == [0]
+
+    _render(strategy, renderer, 2, consumed, camera)
+    assert consumed == [0, 1], "the repeat delivers the camera's previous entry"
+    assert strategy._has_pending_ops()
+
+
+def test_frame_change_without_staging_rotates_at_most_once(strategy, timeline):
+    """Announced frames with no staging keep the slot: rotating on every index change would land
+    staging back on the slot that backs the renders in flight."""
+    renderer = _FakeRenderer(timeline)
+    camera = object()
+    binding = _FakeBinding()
+    consumed: list[int] = []
+
+    strategy.announce_frame(0)
+    frame_0 = _stage_camera(strategy, binding)
+    _render(strategy, renderer, 0, consumed, camera)
+
+    strategy.announce_frame(1)
+    strategy.announce_frame(2)
+    frame_2 = _stage_camera(strategy, binding)
+    assert frame_2 is not frame_0, "the first staging after a staged frame uses the other slot"
+
+    strategy.announce_frame(3)
+    frame_3 = _stage_camera(strategy, binding)
+    assert frame_3 is frame_0, "the slots keep alternating once per staged frame"
+
+
+def test_double_staging_one_frame_reuses_the_slot_after_waiting_writes(strategy, timeline):
+    """Re-staging a binding within one frame reuses its buffer after the slot's pending write ops
+    are waited out, so the pending ingest cannot read a half-refilled buffer."""
+
+    class _RecordingWriteOp:
+        def __init__(self) -> None:
+            self.waited = False
+
+        def wait(self) -> None:
+            self.waited = True
+
+    class _RecordingBinding:
+        def __init__(self) -> None:
+            self.ops: list[_RecordingWriteOp] = []
+
+        def write_async(self, data, **_kwargs) -> _RecordingWriteOp:
+            op = _RecordingWriteOp()
+            self.ops.append(op)
+            return op
+
+    binding = _RecordingBinding()
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+
+    strategy.announce_frame(0)
+    first = _stage_camera(strategy, binding)
+    second = _stage_camera(strategy, binding)
+
+    assert second is first, "a second staging of one frame reuses its buffer"
+    assert binding.ops[0].waited, "the pending write op is waited out before the refill"
+
+
+def test_staged_buffers_are_double_buffered_per_frame(timeline):
+    """Camera and object updates share one slot per frame, in either order: the buffers staged in
+    frame N are reused in frame N+2, never in frame N+1, whose render is still in flight."""
+    strategy = _AsyncRenderStrategy()
+    strategy.set_device(wp.get_device("cuda:0"))
+    strategy.initialize(2)
+    renderer = _FakeRenderer(timeline)
+    camera_binding, object_binding = _FakeBinding(), _FakeBinding()
+    consumed: list[int] = []
+
+    camera_buffers = []
+    object_buffers = []
+    for ordinal in range(3):
+        strategy.announce_frame(ordinal)
+        camera_buffers.append(_stage_camera(strategy, camera_binding))
+        object_buffers.append(_stage_objects(strategy, object_binding))
+        _render(strategy, renderer, ordinal, consumed)
+
+    for buffers in (camera_buffers, object_buffers):
+        assert buffers[0] is not buffers[1]
+        assert buffers[0] is buffers[2]
 
 
 def test_release_camera_delivers_pending_frames_and_reprimes(strategy, timeline):
@@ -208,7 +399,9 @@ def test_release_camera_delivers_pending_frames_and_reprimes(strategy, timeline)
     def consume(render_data, products):
         delivered.extend(render_data)
 
+    strategy.announce_frame(0)
     strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)  # primed and delivered
+    strategy.announce_frame(1)
     strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)  # queued
     delivered.clear()
 
@@ -219,223 +412,33 @@ def test_release_camera_delivers_pending_frames_and_reprimes(strategy, timeline)
     assert not strategy._has_pending_ops()
 
     delivered.clear()
+    strategy.announce_frame(2)
     strategy.render(renderer, {"/P"}, 1.0 / 60.0, (camera,), consume)
     assert delivered == [camera], "a re-registered camera primes again"
 
 
-class _CompletedWriteOp:
-    """A binding write op that is already complete."""
-
-    def wait(self) -> None:
-        return None
-
-
-class _FakeBinding:
-    """Accepts async binding writes and completes them immediately."""
-
-    def write_async(self, data, **_kwargs) -> _CompletedWriteOp:
-        return _CompletedWriteOp()
-
-
-def _stage_camera(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
-    with strategy.stage_camera_transforms(binding, 2) as (_quats, transforms):
-        return transforms
-
-
-def _stage_objects(strategy: _AsyncRenderStrategy, binding: _FakeBinding) -> Any:
-    with strategy.stage_object_transforms(binding, 2, None) as transforms:
-        return transforms
-
-
-@pytest.mark.parametrize("camera_first", [True, False], ids=["camera_first", "objects_first"])
-def test_staged_buffers_are_double_buffered_per_frame(timeline, camera_first):
-    """Camera and object updates share one slot per frame, in either order: the buffers staged in
-    frame N are reused in frame N+2, never in frame N+1, whose render is still in flight."""
-    strategy = _AsyncRenderStrategy()
-    strategy.set_device(wp.get_device("cuda:0"))
-    strategy.initialize(2)
-    renderer = _FakeRenderer(timeline)
-    camera_binding, object_binding = _FakeBinding(), _FakeBinding()
-    consumed: list[int] = []
-
-    camera_buffers = []
-    object_buffers = []
-    for ordinal in range(3):
-        if camera_first:
-            camera_buffers.append(_stage_camera(strategy, camera_binding))
-            object_buffers.append(_stage_objects(strategy, object_binding))
-        else:
-            object_buffers.append(_stage_objects(strategy, object_binding))
-            camera_buffers.append(_stage_camera(strategy, camera_binding))
-        _render(strategy, renderer, ordinal, consumed)
-
-    for buffers in (camera_buffers, object_buffers):
-        assert buffers[0] is not buffers[1]
-        assert buffers[0] is buffers[2]
-
-
-@pytest.mark.parametrize("interleaved", [False, True], ids=["staged_then_rendered", "interleaved"])
-def test_two_cameras_pipeline_together_with_one_frame_latency(timeline, interleaved):
-    """Cameras share the strategy: both prime their first frame, and a frame's renders drain
-    together when the next frame's renders are enqueued. Each camera stages into its own buffers.
-
-    The interleaved order is the one the sensor pipeline produces: each camera stages its pose
-    and renders before the next camera runs, and the object transforms stage once per step in
-    between the first camera's pose and its render.
-    """
-    strategy = _AsyncRenderStrategy()
-    strategy.set_device(wp.get_device("cuda:0"))
-    renderer = _FakeRenderer(timeline)
-    camera_a, camera_b = object(), object()
-    binding_a, binding_b, binding_objects = _FakeBinding(), _FakeBinding(), _FakeBinding()
-    delivered: list[object] = []
-
-    def consume(render_data, products):
-        delivered.extend(render_data)
-
-    def frame():
-        buffer_a = _stage_camera(strategy, binding_a)
-        if interleaved:
-            _stage_objects(strategy, binding_objects)
-            strategy.render(renderer, {"/A"}, 1.0 / 60.0, (camera_a,), consume)
-            buffer_b = _stage_camera(strategy, binding_b)
-        else:
-            buffer_b = _stage_camera(strategy, binding_b)
-            _stage_objects(strategy, binding_objects)
-            strategy.render(renderer, {"/A"}, 1.0 / 60.0, (camera_a,), consume)
-        strategy.render(renderer, {"/B"}, 1.0 / 60.0, (camera_b,), consume)
-        return buffer_a, buffer_b
-
-    frame_0 = frame()
-    assert delivered == [camera_a, camera_b], "each camera's first frame is primed"
-    assert frame_0[0] is not frame_0[1], "cameras must not share a staging buffer within a frame"
-
-    delivered.clear()
-    frame_1 = frame()
-    assert delivered == [], "the second frame stays in flight"
-    assert frame_1[0] is not frame_0[0], "consecutive frames must not share a staging buffer"
-
-    delivered.clear()
-    frame_2 = frame()
-    assert delivered == [camera_a, camera_b], "a frame drains when the next frame is enqueued"
-    assert frame_2[0] is frame_0[0], "staging buffers double-buffer across frames"
-
-
-def test_repeated_renders_without_staging_keep_one_frame_in_flight(strategy, timeline):
-    """A camera re-rendered without staging starts the next frame at the render call itself.
-
-    Nothing is staged between the rounds, so the fallback boundary in ``_note_rendered_camera``
-    must group the renders into frames and drain the previous frame, for both cameras together.
-    """
-    renderer = _FakeRenderer(timeline)
-    camera_a, camera_b = object(), object()
-    delivered: list[object] = []
-
-    def consume(render_data, products):
-        delivered.extend(render_data)
-
-    def render_both():
-        strategy.render(renderer, {"/A"}, 1.0 / 60.0, (camera_a,), consume)
-        strategy.render(renderer, {"/B"}, 1.0 / 60.0, (camera_b,), consume)
-
-    render_both()
-    assert delivered == [camera_a, camera_b], "each camera's first frame is primed"
-
-    delivered.clear()
-    render_both()
-    assert delivered == [], "the second round stays in flight"
-
-    delivered.clear()
-    strategy.render(renderer, {"/A"}, 1.0 / 60.0, (camera_a,), consume)
-    assert delivered == [camera_a, camera_b], "a repeat render drains the whole previous round"
-    strategy.render(renderer, {"/B"}, 1.0 / 60.0, (camera_b,), consume)
-    assert delivered == [camera_a, camera_b], "the second camera joins the new round without draining it"
-
-
-def test_staging_after_a_render_only_frame_still_rotates_the_slot(timeline):
-    """A render-only frame must not erase the slot's occupancy: the next staging still rotates
-    away from the slot that backs the render in flight."""
-    strategy = _AsyncRenderStrategy()
-    strategy.set_device(wp.get_device("cuda:0"))
-    renderer = _FakeRenderer(timeline)
-    camera = object()
-    object_binding = _FakeBinding()
-    consumed: list[int] = []
-
-    first = _stage_objects(strategy, object_binding)
-    _render(strategy, renderer, 0, consumed, camera)  # primed and delivered
-    _render(strategy, renderer, 1, consumed, camera)  # in flight, reads the first slot
-    _render(strategy, renderer, 2, consumed, camera)  # render-only frame: drains 1, queues 2
-
-    second = _stage_objects(strategy, object_binding)
-    assert second is not first, "staging must rotate away from the slot backing the in-flight render"
-
-
-def test_double_staging_one_frame_does_not_rotate_twice(timeline):
-    """Re-staging the same binding before any render reuses the frame's slot. Rotating again
-    would land staging back on the slot that backs the render in flight."""
-    strategy = _AsyncRenderStrategy()
-    strategy.set_device(wp.get_device("cuda:0"))
-    renderer = _FakeRenderer(timeline)
-    camera = object()
-    binding = _FakeBinding()
-    consumed: list[int] = []
-
-    frame_0 = _stage_camera(strategy, binding)
-    _render(strategy, renderer, 0, consumed, camera)  # primed and delivered
-    _render(strategy, renderer, 1, consumed, camera)  # in flight, reads frame 0's slot
-
-    frame_1_first = _stage_camera(strategy, binding)
-    frame_1_second = _stage_camera(strategy, binding)
-    assert frame_1_first is not frame_0
-    assert frame_1_second is frame_1_first, "a second staging of one frame must reuse its slot"
-
-
 def test_released_binding_drops_its_staging_buffers(timeline):
     """Releasing a camera's binding evicts its cached buffers, so a recycled ``id()`` cannot
-    reuse them or trigger a spurious frame."""
+    reuse them."""
     strategy = _AsyncRenderStrategy()
     strategy.set_device(wp.get_device("cuda:0"))
     binding = _FakeBinding()
 
+    strategy.announce_frame(0)
     first = _stage_camera(strategy, binding)
     strategy.release_camera(object(), binding)
+    strategy.announce_frame(1)
     second = _stage_camera(strategy, binding)
     assert second is not first, "released bindings must not keep staging buffers alive"
-
-
-def test_one_batch_per_frame_pipelines_all_cameras(timeline):
-    """The render context submits all cameras of a step as one batch: it primes once, keeps one
-    batch in flight, and delivers into every camera together."""
-    strategy = _AsyncRenderStrategy()
-    strategy.set_device(wp.get_device("cuda:0"))
-    renderer = _FakeRenderer(timeline)
-    camera_a, camera_b = object(), object()
-    binding_a, binding_b = _FakeBinding(), _FakeBinding()
-    delivered: list[object] = []
-
-    def consume(render_data, products):
-        delivered.extend(render_data)
-
-    def frame():
-        _stage_camera(strategy, binding_a)
-        _stage_camera(strategy, binding_b)
-        strategy.render(renderer, {"/A", "/B"}, 1.0 / 60.0, (camera_a, camera_b), consume)
-
-    frame()
-    assert delivered == [camera_a, camera_b], "the first batch is primed"
-    delivered.clear()
-    frame()
-    assert delivered == [], "the second batch stays in flight"
-    frame()
-    assert delivered == [camera_a, camera_b], "a batch drains when the next batch is enqueued"
 
 
 def test_cleanup_survives_failed_slot_writes(strategy, timeline):
     """A failed binding write at teardown must not raise. It must finish draining and report the failure."""
     renderer = _FakeRenderer(timeline)
     consumed: list[int] = []
+    strategy.announce_frame(0)
     _render(strategy, renderer, 0, consumed)
+    strategy.announce_frame(1)
     _render(strategy, renderer, 1, consumed)
 
     class _FailingWriteOp:
@@ -457,6 +460,7 @@ def test_sync_strategy_needs_no_barrier(timeline):
     consumed: list[int] = []
 
     strategy.settle_before_scene_write()
+    strategy.announce_frame(0)
     _render(strategy, renderer, 7, consumed)
     strategy.settle_before_scene_write()
 

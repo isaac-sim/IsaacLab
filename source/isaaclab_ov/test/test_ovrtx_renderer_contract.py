@@ -471,13 +471,14 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
             cameras.append((rd, data))
 
         # Each camera's first frame is primed, so the first read is already valid and independent.
+        renderer.announce_frame(0)
         for index, (rd, data) in enumerate(cameras):
             renderer.render(rd)
             assert_depth(rd, data, 5.0 - index - 0.5)
 
-        # Move only cam1 up, using the production call order: each camera stages its pose and
-        # renders before the next camera runs. The renders are pipelined, so both reads still
-        # show the previous frame.
+        # Move only cam1 up, using the lazy per-camera call order: each camera stages its pose
+        # and renders before the next camera runs. The announced frame groups them, so the
+        # renders are pipelined and both reads still show the previous frame.
         quats = convert_camera_frame_orientation_convention(
             torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
         )
@@ -487,7 +488,12 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
             ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0")),
         ]
 
+        frame_index = 0
+
         def step():
+            nonlocal frame_index
+            frame_index += 1
+            renderer.announce_frame(frame_index)
             for (rd, data), positions in zip(cameras, poses):
                 renderer.update_camera(rd, positions, orientations, data.intrinsic_matrices)
                 renderer.render(rd)

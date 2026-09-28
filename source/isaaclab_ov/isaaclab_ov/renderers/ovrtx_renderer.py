@@ -1434,6 +1434,13 @@ class OVRTXRenderer(BaseRenderer):
                         raise
                     logger.warning("Error draining material writes after a failed render: %s", e, exc_info=True)
 
+    def announce_frame(self, frame_index: int) -> None:
+        """Group the following scene writes and renders into one frame.
+
+        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.announce_frame`.
+        """
+        self._strategy.announce_frame(frame_index)
+
     def drain_pending_renders(self) -> list[Exception]:
         """Deliver every queued asynchronous render and return the collected failures.
 

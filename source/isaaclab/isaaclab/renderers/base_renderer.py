@@ -116,6 +116,19 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def announce_frame(self, frame_index: int) -> None:
+        """Announce the frame that the following scene writes and renders belong to.
+
+        The framework calls this before it stages camera poses or scene state, with the physics
+        step count as the frame index. Repeated calls with the same index are no-ops, so several
+        cameras of one step can each announce the same frame. A frame lasts until the next
+        announcement. Renderers that pipeline across frames use the index to group work; the
+        default does nothing. Callers that skip this method get synchronous rendering behavior.
+
+        Args:
+            frame_index: Monotonic identifier of the frame, normally the physics step count.
+        """
+
     @abstractmethod
     def update_transforms(self) -> None:
         """Update scene transforms before rendering.

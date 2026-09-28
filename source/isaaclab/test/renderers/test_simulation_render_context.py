@@ -191,10 +191,12 @@ def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
         sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
 
     assert renderer.mock_calls == [
+        call.announce_frame(1),
         call.update_transforms(),
         call.update_geometries(),
         call.render_batch([data]),
         call.read_output(data, camera),
+        call.announce_frame(1),
         call.update_transforms(),
         call.update_geometries(),
         call.render_batch([data]),
