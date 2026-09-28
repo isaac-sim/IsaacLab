@@ -17,24 +17,6 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom, Vt
 
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.envs.utils.camera_colorizer import (
-    SUPPORTED_GT_TYPES,
-    CameraFrameColorizer,
-    sensor_key_for_gt_type,
-    sensor_keys_for_gt_types,
-)
-from isaaclab.envs.utils.camera_view import (
-    VISUALIZER_TILED_CAMERA_MAX_TILES,
-    apply_camera_target_positions,
-    camera_gt_batch,
-    compose_streaming_grid,
-    compute_tile_resolution,
-    create_visualizer_camera,
-    find_camera_by_prim_path,
-    prim_world_positions,
-    remove_generated_prims,
-    resolve_streaming_envs,
-)
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matrix
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -76,7 +58,6 @@ class KitVisualizer(BaseVisualizer):
         self._viewport_window = None
         self._viewport_api = None
         self._is_initialized = False
-        self._sim_time = 0.0
         self._step_counter = 0
         self._env_ids = None
         self._resolved_visible_env_ids: list[int] | None = None
@@ -89,15 +70,8 @@ class KitVisualizer(BaseVisualizer):
         # Lazy Replicator render product + annotator for render_rgb_array().
         self._rgb_render_product = None
         self._rgb_annotator = None
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._streaming_camera_key: tuple | None = None
-        self._generated_camera_prim_paths: list[str] = []
-        self._last_streaming_composite: np.ndarray | None = None
-        self._generated_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
-        self._generated_camera_pose_cache: dict[str, tuple[float, ...]] = {}
+        self._viewport_camera_xform_ops: dict[str, tuple[UsdGeom.XformOp, UsdGeom.XformOp]] = {}
+        self._viewport_camera_pose_cache: dict[str, tuple[float, ...]] = {}
         self._camera_image_provider = None
         self._camera_image_window = None
         self._camera_gpu_upload_tensor = None
@@ -210,7 +184,7 @@ class KitVisualizer(BaseVisualizer):
                     self._app_pumped_this_step = True
             except (ImportError, AttributeError) as exc:
                 logger.debug("[KitVisualizer] App update skipped: %s", exc)
-        self._update_camera_image_panel(dt)
+        self._update_camera_image_panel()
         # Markers (VisualizationMarkers) are often created or resized to num_envs only after the first
         # simulation / debug-vis step; re-apply PointInstancer invisibleIds each step when partial viz is on.
         self._refresh_partial_viz_point_instancers_if_needed()
@@ -221,16 +195,9 @@ class KitVisualizer(BaseVisualizer):
             return
         self._teardown_backend_menubar_label()
         self._restore_env_visibility()
-        if self._streaming_camera_key is not None:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera
-
-            evict_visualizer_camera(self._streaming_camera_key)
-            self._streaming_camera_key = None
-        if self._camera_sensor is not None and self._camera_is_owned:
-            remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
-        self._generated_camera_xform_ops.clear()
-        self._generated_camera_pose_cache.clear()
+        self._viewport_camera_xform_ops.clear()
+        self._viewport_camera_pose_cache.clear()
         self._camera_image_provider = None
         self._camera_image_window = None
         self._simulation_app = None
@@ -413,32 +380,6 @@ class KitVisualizer(BaseVisualizer):
             logger.debug("[KitVisualizer] set_camera_view() ignored because visualizer is not initialized.")
             return
         self._set_viewport_camera(tuple(eye), tuple(target))
-
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        Returns the full multi-GT composite produced by the streaming camera panel —
-        including depth (turbo colormap), segmentation, and normals when configured via
-        :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
-
-        When :attr:`~isaaclab.visualizers.VisualizerCfg.capture_only` is ``True``, the
-        camera image panel is refreshed on demand so the returned frame reflects the
-        current simulation state even though :meth:`step` skipped the refresh.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no frame has been
-            composited yet (streaming view not active or first step not yet completed).
-
-        Raises:
-            RuntimeError: If streaming_view is not enabled on this visualizer.
-        """
-        if self._camera_sensor is None:
-            # No camera set up — either streaming_view=False, or streaming_view=True but
-            # --enable_cameras was not passed (Kit skips camera creation without it).
-            return None
-        if self._runtime_headless:
-            self._update_camera_image_panel(0.0)
-        return self._last_streaming_composite
 
     def reapply_origin(self) -> None:
         """Recompute the camera position from the current :attr:`~KitVisualizerCfg.origin_type` and push it to
@@ -659,94 +600,14 @@ class KitVisualizer(BaseVisualizer):
         return bool(self.cfg.streaming_view)
 
     def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the Camera sensor backing the streaming image panel."""
-        if not self._uses_streaming_view():
-            return
-        cameras_enabled = get_settings_manager().get("/isaaclab/cameras_enabled", False)
-        if not cameras_enabled:
-            logger.info(
-                "[KitVisualizer] Streaming view skipped: camera rendering is not enabled "
-                "(cameras_enabled=False). Launch with enable_cameras=True (--enable_cameras), "
-                "or use launch_simulation() which enables cameras automatically when "
-                "streaming_view=True is set on the KitVisualizerCfg."
-            )
-            return
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        for gt in gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                raise ValueError(
-                    f"[KitVisualizer] streaming_gt_types contains unsupported type {gt!r}. "
-                    f"Valid types: {sorted(SUPPORTED_GT_TYPES)}"
-                )
-
-        logger.debug(
-            "[KitVisualizer] Setting up streaming view: source=%s gt_types=%s num_envs=%s",
-            "prim_path" if self.cfg.streaming_sensor_prim_path is not None else "generated",
-            gt_types,
+        """Bind a scene camera and create its Kit display panel."""
+        super()._setup_streaming_view(
             num_envs,
+            visible_env_ids=self._resolved_visible_env_ids,
+            target_aspect=self.cfg.window_width / self.cfg.window_height,
         )
-        env_ids = resolve_streaming_envs(
-            num_envs,
-            self.cfg.streaming_envs,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-        if self.cfg.streaming_sensor_prim_path is not None:
-            logger.debug(
-                "[KitVisualizer] streaming_sensor_prim_path uses existing camera sensor; "
-                "streaming_cam_* fields are ignored."
-            )
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-        elif self.cfg.streaming_cam_target_prim_path is None:
-            # When no target prim is configured, adopt the first scene camera rather than
-            # creating an auto-follow camera with a hardcoded prim path.
-            cameras = self._scene_data_provider.get_camera_sensors()
-            if cameras:
-                first_name, first_cam = next(iter(cameras.items()))
-                logger.debug(
-                    "[KitVisualizer] streaming_cam_target_prim_path is None; adopting scene camera %r.",
-                    first_name,
-                )
-                self._camera_sensor = first_cam
-                self._camera_sensor_indices = env_ids
-            else:
-                logger.debug(
-                    "[KitVisualizer] streaming_cam_target_prim_path is None and no scene cameras found; "
-                    "streaming view will be empty. Add a TiledCamera sensor or set "
-                    "streaming_cam_target_prim_path to enable the streaming panel."
-                )
-        else:
-            count = max(1, len(env_ids))
-            tile_w, tile_h = compute_tile_resolution(self.cfg.window_width, self.cfg.window_height, count)
-            logger.debug(
-                "[KitVisualizer] Creating generated streaming camera: env_ids=%s tile=%sx%s",
-                env_ids,
-                tile_w,
-                tile_h,
-            )
-            (
-                self._camera_sensor,
-                self._generated_camera_prim_paths,
-                self._camera_is_owned,
-                self._streaming_camera_key,
-            ) = create_visualizer_camera(
-                num_envs=num_envs,
-                width=tile_w,
-                height=tile_h,
-                renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
-                data_types=sensor_keys_for_gt_types(gt_types),
-                streaming_envs=tuple(int(i) for i in env_ids),
-            )
-            self._camera_sensor_indices = env_ids
-            self._update_owned_camera_poses()
-        if not self._runtime_headless:
+        if self._camera_sensor is not None and not self._runtime_headless:
             self._setup_camera_image_window()
-        else:
-            logger.debug("[KitVisualizer] Camera image window skipped in headless mode.")
 
     def _setup_camera_image_window(self) -> None:
         """Create a dockable Kit UI image panel for streaming camera output."""
@@ -784,60 +645,10 @@ class KitVisualizer(BaseVisualizer):
         if image_window is not None and main_viewport is not None and image_window != main_viewport:
             image_window.dock_in(main_viewport, dock_position, 0.5)
 
-    def _update_owned_camera_poses(self) -> None:
-        """Update generated camera poses from env origins or follow prims."""
-        if self._camera_sensor is None or not self._camera_is_owned:
-            return
-        target_positions = prim_world_positions(
-            SimulationContext.instance().stage,
-            self.cfg.streaming_cam_target_prim_path,
-            self._camera_env_indices,
-            scene=self._scene_data_provider.get_interactive_scene(),
-        )
-        apply_camera_target_positions(
-            self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, self._camera_env_indices
-        )
-
-    def _update_camera_image_panel(self, dt: float) -> None:
-        """Refresh the streaming image panel with composited multi-GT output."""
-        if self._camera_sensor is None:
-            return
-
-        # When training is paused, reuse the last composited frame rather than
-        # re-driving the camera sensor.  This keeps the panel stable (no pixel
-        # jitter from floating-point re-renders) and avoids unnecessary GPU work.
-        if self.is_training_paused():
-            if self._last_streaming_composite is not None and self._camera_image_provider is not None:
-                self._upload_camera_image_to_panel(self._last_streaming_composite)
-            return
-
-        if self._camera_is_owned:
-            self._update_owned_camera_poses()
-            self._camera_sensor.update(dt=dt, force_recompute=True)
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        available = frozenset(self._camera_sensor.data.output.keys())
-        # Fetch all selected envs at once per GT type to avoid N*M GPU-to-CPU transfers.
-        gt_batches: dict = {}
-        for gt in gt_types:
-            key = sensor_key_for_gt_type(gt, available)
-            gt_batches[gt] = camera_gt_batch(self._camera_sensor, self._camera_sensor_indices, key)
-        frames = []
-        for env_pos in range(len(self._camera_sensor_indices)):
-            for gt in gt_types:
-                frames.append(
-                    CameraFrameColorizer.colorize(
-                        gt_batches[gt][env_pos],
-                        gt,
-                        depth_min=self.cfg.streaming_depth_min,
-                        depth_max=self.cfg.streaming_depth_max,
-                    )
-                )
-        n_envs = len(self._camera_sensor_indices)
-        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
-        self._last_streaming_composite = composite
-        if self._camera_image_provider is not None:
+    def _update_camera_image_panel(self) -> None:
+        """Display the scene camera's current frame without driving its capture lifecycle."""
+        composite = self._streaming_frame.data if self.is_training_paused() else self.render_tiled_rgb_array()
+        if composite is not None and self._camera_image_provider is not None:
             self._upload_camera_image_to_panel(composite)
 
     def _upload_camera_image_to_panel(self, image: np.ndarray | torch.Tensor) -> None:
@@ -1007,14 +818,14 @@ class KitVisualizer(BaseVisualizer):
             float(quat_xyzw[2]),
             float(quat_xyzw[3]),
         )
-        if self._generated_camera_pose_cache.get(camera_path) == pose_key:
+        if self._viewport_camera_pose_cache.get(camera_path) == pose_key:
             return False
 
-        if camera_path not in self._generated_camera_xform_ops:
+        if camera_path not in self._viewport_camera_xform_ops:
             camera = UsdGeom.Camera.Define(usd_stage, camera_path)
             camera_xform = UsdGeom.Xformable(camera.GetPrim())
             camera_xform.ClearXformOpOrder()
-            # Generated visualizer cameras live under env prims, but eyes/targets are world-space.
+            # Viewport eyes/targets are world-space.
             # Reset the xform stack so Kit/Fabric sees the authored pose as a world pose.
             camera_xform.SetResetXformStack(True)
             # ClearXformOpOrder removes the ordering metadata but not the prim attributes
@@ -1027,9 +838,9 @@ class KitVisualizer(BaseVisualizer):
             o_attr = prim.GetAttribute("xformOp:orient")
             orient_op = UsdGeom.XformOp(o_attr) if o_attr else camera_xform.AddOrientOp(UsdGeom.XformOp.PrecisionDouble)
             camera_xform.SetXformOpOrder([translate_op, orient_op], camera_xform.GetResetXformStack())
-            self._generated_camera_xform_ops[camera_path] = (translate_op, orient_op)
+            self._viewport_camera_xform_ops[camera_path] = (translate_op, orient_op)
         else:
-            translate_op, orient_op = self._generated_camera_xform_ops[camera_path]
+            translate_op, orient_op = self._viewport_camera_xform_ops[camera_path]
 
         quat_gf = Gf.Quatd(
             float(quat_xyzw[3]),
@@ -1038,7 +849,7 @@ class KitVisualizer(BaseVisualizer):
 
         translate_op.Set(Gf.Vec3d(float(eye[0, 0]), float(eye[0, 1]), float(eye[0, 2])))
         orient_op.Set(quat_gf)
-        self._generated_camera_pose_cache[camera_path] = pose_key
+        self._viewport_camera_pose_cache[camera_path] = pose_key
         return True
 
     def _apply_cfg_camera_pose_if_configured(self) -> None:

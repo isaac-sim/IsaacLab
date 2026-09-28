@@ -341,7 +341,6 @@ class ViserVisualizer(BaseVisualizer):
         self.cfg: ViserVisualizerCfg = cfg
         self._viewer: NewtonViewerViser | None = None
         self.backend = None
-        self._sim_time = 0.0
         self._active_record_path: str | None = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._pending_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
@@ -350,13 +349,6 @@ class ViserVisualizer(BaseVisualizer):
         self._live_plots_checkboxes: dict[str, Any] = {}  # unused; kept for subclass compatibility
         self._paused_rendering = False
         self._paused_simulation = False
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
-        self._streaming_camera_key: tuple | None = None
-        self._last_streaming_composite: np.ndarray | None = None
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize viewer resources and bind scene data provider.
@@ -397,7 +389,7 @@ class ViserVisualizer(BaseVisualizer):
                 ("record_to_viser", self.cfg.record_to_viser or "<none>"),
             ],
         )
-        self._setup_streaming_view(num_envs)
+        self._setup_streaming_view(num_envs, visible_env_ids=self._resolved_visible_env_ids)
         self._is_initialized = True
 
     def step(self, dt: float) -> None:
@@ -458,145 +450,18 @@ class ViserVisualizer(BaseVisualizer):
     # Streaming view
     # ------------------------------------------------------------------
 
-    def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the streaming camera sensor."""
-        from isaaclab.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES, sensor_keys_for_gt_types
-        from isaaclab.envs.utils.camera_view import (
-            VISUALIZER_TILED_CAMERA_MAX_TILES,
-            create_visualizer_camera,
-            find_camera_by_prim_path,
-            resolve_streaming_envs,
-        )
-
-        if not self.cfg.streaming_view:
-            return
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        for gt in gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                raise ValueError(
-                    f"[ViserVisualizer] streaming_gt_types contains unsupported type {gt!r}. "
-                    f"Valid types: {sorted(SUPPORTED_GT_TYPES)}"
-                )
-
-        env_ids = resolve_streaming_envs(
-            num_envs,
-            self.cfg.streaming_envs,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-
-        if self.cfg.streaming_sensor_prim_path is not None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-            return
-
-        if self.cfg.streaming_cam_target_prim_path is None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            if cameras:
-                self._camera_sensor = next(iter(cameras.values()))
-                self._camera_sensor_indices = env_ids
-            return
-
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=320,
-            height=240,
-            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-            target_prim_path=self.cfg.streaming_cam_target_prim_path,
-            eye=self.cfg.streaming_cam_eye,
-            streaming_envs=tuple(int(i) for i in env_ids),
-        )
-        self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
-            result
-        )
-        self._camera_sensor_indices = env_ids
-        self._apply_streaming_camera_pose(env_ids)
-
-    def _apply_streaming_camera_pose(self, env_ids: list[int]) -> None:
-        """Position the auto-created streaming camera using the cfg target prim and eye offset."""
-        if not self._camera_is_owned or self._camera_sensor is None:
-            return
-        from isaaclab.envs.utils.camera_view import apply_camera_target_positions, prim_world_positions
-        from isaaclab.sim import get_current_stage
-
-        try:
-            stage = get_current_stage()
-            scene = self._scene_data_provider.get_interactive_scene() if self._scene_data_provider else None
-            target_positions = prim_world_positions(
-                stage, self.cfg.streaming_cam_target_prim_path, env_ids, scene=scene
-            )
-            apply_camera_target_positions(self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, env_ids)
-        except Exception as exc:
-            logger.debug("[ViserVisualizer] streaming camera pose: %s", exc)
-
-    def _compose_streaming_frame(self) -> None:
-        """Colorize camera tiles and store the result in ``_last_streaming_composite``.
-
-        This is the compute-only half of streaming frame production.  It updates
-        ``_last_streaming_composite`` but does **not** push the image to Viser
-        clients.  Call :meth:`_push_streaming_frame` when clients are connected
-        to compose *and* push in a single pass.
-        """
-        from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
-        from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
-
-        if self._camera_sensor is None:
-            return
-        if self._camera_is_owned:
-            self._apply_streaming_camera_pose(self._camera_sensor_indices)
-            self._camera_sensor.update(dt=0.0, force_recompute=True)
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        available = frozenset(self._camera_sensor.data.output.keys())
-        frames = []
-        for env_idx in self._camera_sensor_indices:
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
-                frames.append(
-                    CameraFrameColorizer.colorize(
-                        raw,
-                        gt,
-                        depth_min=self.cfg.streaming_depth_min,
-                        depth_max=self.cfg.streaming_depth_max,
-                    )
-                )
-
-        n_envs = len(self._camera_sensor_indices)
-        self._last_streaming_composite = compose_streaming_grid(frames, n_envs, len(gt_types))
-
     def _push_streaming_frame(self) -> None:
         """Compose the streaming frame and push it to connected Viser clients."""
-        self._compose_streaming_frame()
-        if self._last_streaming_composite is None:
+        composite = self.render_tiled_rgb_array()
+        if composite is None:
             return
         # Letterbox to 16:9 so the composite isn't stretched when Viser fills
         # the browser canvas.  Black bars are added on whichever axis needs it.
-        composite_display = _letterbox_16_9(self._last_streaming_composite)
+        composite_display = _letterbox_16_9(composite)
         with contextlib.suppress(Exception):
             server = getattr(self._viewer, "_server", None)
             if server is not None:
                 server.scene.set_background_image(composite_display, format="jpeg")
-
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        Returns the pre-letterbox composite so the full content is available for
-        recording without black bars.  If no frame has been composited yet (e.g.
-        no browser clients are connected), compositing is triggered on demand so
-        that a :class:`VideoRecorder` can capture headless frames.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
-            is not active or camera data is unavailable.
-        """
-        if self._last_streaming_composite is None:
-            self._compose_streaming_frame()
-        return self._last_streaming_composite
 
     def _render_markers(self, num_envs: int) -> None:
         """Render marker overlays without letting them interrupt Viser body updates."""
@@ -611,6 +476,7 @@ class ViserVisualizer(BaseVisualizer):
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces the shared native model."""
+        super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
@@ -633,11 +499,6 @@ class ViserVisualizer(BaseVisualizer):
         except Exception as exc:
             logger.warning("[ViserVisualizer] Error during close: %s", exc)
 
-        if self._camera_sensor is not None and self._camera_is_owned:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera, remove_generated_prims
-
-            evict_visualizer_camera(self._streaming_camera_key)
-            remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
 
         self._viewer = None
@@ -765,7 +626,6 @@ class ViserVisualizer(BaseVisualizer):
             _open_viser_web_viewer(viewer_url)
         initial_pose = self._resolve_initial_camera_pose()
         self._set_viser_camera_view(initial_pose)
-        self._sim_time = 0.0
 
     def _setup_isaaclab_sidebar(self, server) -> None:
         """Configure the Viser sidebar as the Isaac Lab panel.

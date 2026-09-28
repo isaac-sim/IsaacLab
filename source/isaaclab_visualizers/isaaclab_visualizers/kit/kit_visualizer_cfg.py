@@ -9,9 +9,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -24,10 +21,8 @@ class KitVisualizerCfg(VisualizerCfg):
     """Configuration for Kit visualizer using Isaac Sim viewport.
 
     .. note::
-        The streaming camera panel (``streaming_view=True``) requires the
-        ``--enable_cameras`` CLI flag.  Without it, the streaming view is silently
-        skipped and no image panel is created.  Set ``dock_position="RIGHT"`` so
-        the panel appears side-by-side with the Viewport instead of as a hidden tab.
+        The streaming panel displays a scene-declared camera. Isaac RTX cameras require
+        ``--enable_cameras``. Set ``dock_position="RIGHT"`` to display the panel beside the viewport.
     """
 
     class_type: type[KitVisualizer] | str = "{DIR}.kit_visualizer:KitVisualizer"
@@ -35,9 +30,6 @@ class KitVisualizerCfg(VisualizerCfg):
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
-
-    streaming_cam_renderer_cfg: RendererCfg = IsaacRtxRendererCfg()
-    """Renderer configuration for the auto-created streaming camera."""
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.
