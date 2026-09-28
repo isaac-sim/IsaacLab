@@ -16,6 +16,8 @@ import sys
 import time
 from typing import Any
 
+from isaaclab.utils import to_dict
+
 from isaaclab_rl.entrypoints import common
 
 
@@ -38,7 +40,7 @@ def _parse_args(argv: list[str]):
     import argparse
 
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -254,7 +256,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             if agent_cfg.class_name not in runner_types:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             runner = runner_types[agent_cfg.class_name](
-                env, agent_cfg.to_dict(), log_dir=log_dir, device=agent_cfg.device
+                env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device
             )
             _disable_code_state_capture(runner)
             if resume_path is not None:

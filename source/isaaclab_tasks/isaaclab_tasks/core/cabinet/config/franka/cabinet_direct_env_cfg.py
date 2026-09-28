@@ -3,20 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Franka cabinet-opening environment."""
+
 from __future__ import annotations
 
-from isaaclab.utils import configclass
-
-from isaaclab_tasks.core.cabinet.cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG
+
+from ...cabinet_direct_env_cfg import CabinetDirectEnvCfg, CabinetDirectSceneCfg
 
 
 @configclass
 class FrankaCabinetDirectSceneCfg(CabinetDirectSceneCfg):
     """Direct-workflow cabinet scene configured for the Franka robot."""
 
-    robot = FRANKA_PANDA_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
 
 @configclass

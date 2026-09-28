@@ -13,7 +13,7 @@ from isaaclab_tasks.contrib.pick_place.exhaustpipe_gr1t2_base_env_cfg import (
     ExhaustPipeGR1T2BaseEnvCfg,
 )
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import (
-    _build_gr1t2_pickplace_pipeline,
+    build_gr1t2_pickplace_pipeline,
 )
 
 
@@ -129,7 +129,7 @@ class ExhaustPipeGR1T2PinkIKEnvCfg(ExhaustPipeGR1T2BaseEnvCfg):
 
         # IsaacTeleop-based teleoperation pipeline.
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
             xr_camera_feeds=[

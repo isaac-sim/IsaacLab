@@ -8,6 +8,7 @@ from dataclasses import MISSING
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg, NewtonShapeCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.devices.device_base import DevicesCfg
@@ -22,9 +23,9 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
-from isaaclab.sim.schemas.schemas_cfg import MassPropertiesCfg, RigidBodyPropertiesCfg
+from isaaclab.sim.schemas import MassCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -265,7 +266,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         self.events = EventCfgPlaceToy2Box()
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # add table
         self.scene.table = AssetBaseCfg(
@@ -304,22 +305,22 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         self.gripper_threshold = 0.2
 
         # Rigid body properties of toy_truck and box
-        toy_truck_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
+        toy_truck_properties = [
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            )
+        ]
 
         box_properties = toy_truck_properties.copy()
 
         # Notes: remember to add Physics/Mass properties to the toy_truck mesh to make grasping successful,
         # then you can use below MassPropertiesCfg to set the mass of the toy_truck
-        toy_mass_properties = MassPropertiesCfg(
-            mass=0.05,
-        )
+        toy_mass_properties = [MassCfg(mass=0.05)]
 
         self.scene.toy_truck = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/ToyTruck",
@@ -341,7 +342,7 @@ class RmpFlowAgibotPlaceToy2BoxEnvCfg(PlaceToy2BoxEnvCfg):
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = clone(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 

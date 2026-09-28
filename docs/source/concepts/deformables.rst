@@ -48,7 +48,7 @@ use a separate asset and solver; see :doc:`/source/concepts/using_mpm`.
 
 .. note::
     All three kinds are under active development. On Newton, deformables are implemented in
-    :mod:`isaaclab_contrib.deformable` and re-exported through :mod:`isaaclab_newton.assets`.
+    :mod:`isaaclab_newton.assets`, alongside rigid objects and articulations.
     Cable support in particular is experimental: its spawner cfg, asset class, and material
     defaults may still change.
 
@@ -387,7 +387,7 @@ where ``L_parent`` and ``L_child`` are the rest lengths of the two segments it s
     Lab authors has no attribute for it.
 
 To target a specific axial ``E * A`` or bending ``E * I``, invert these relations to pick the
-modulus; ``scripts/demos/cables.py`` does this from a target stiffness and the segment geometry.
+modulus; ``examples/cables.py`` does this from a target stiffness and the segment geometry.
 
 Cable collision
 ^^^^^^^^^^^^^^^
@@ -475,8 +475,6 @@ Cable limitations
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
-* **Culled by Isaac RTX scene partitioning** once the cable deforms beyond its initial extent
-  (OMPE-105749). See :ref:`known-issues-animated-curve-scene-partition`.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A
@@ -571,38 +569,38 @@ Cable
     winding, since leaving it unset falls back to the bend value as described above.
 
 
-Demos and tasks
----------------
+Examples and tasks
+------------------
 
-Run a demo first to confirm that the spawner, solver, and visualizer all work in your environment.
+Run an example first to confirm that the spawner, solver, and visualizer all work in your environment.
 
 .. list-table::
     :header-rows: 1
     :widths: 20 44 36
 
     * - Kind
-      - Demo
+      - Example
       - Tasks
     * - Volume
-      - ``scripts/demos/deformables.py``
+      - ``deformables``
       - ``Isaac-Lift-Soft-Franka``, ``Isaac-Lift-Soft-Franka-Camera``
     * - Surface
-      - ``scripts/demos/deformables.py``
+      - ``deformables``
       - ``Isaac-Lift-Cloth-Franka``, ``Isaac-Lift-Cloth-Franka-Camera``
     * - Cable
-      - ``scripts/demos/cables.py``
+      - ``cables``
       - ``Isaac-Lift-Cable-Franka``, ``Isaac-Lift-Cable-Franka-Camera``
 
 .. code-block:: bash
 
     # Volume and surface deformables falling onto a ground plane.
-    uv run --extra isaacsim --extra tetrahedralization python scripts/demos/deformables.py
+    uv run --extra tetrahedralization isaaclab example deformables
 
     # A pile of cables that collide and settle. Newton VBD only.
-    uv run --extra isaacsim python scripts/demos/cables.py
+    uv run isaaclab example cables
 
     # A larger cable pile, without a visualizer, stopping after a fixed number of steps.
-    uv run python scripts/demos/cables.py --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
+    uv run isaaclab example cables --visualizer none --num_cables 40 --num_segments 15 --max_steps 500
 
 ``scripts/environments/state_machine/lift_franka_soft.py`` drives ``Isaac-Lift-Soft-Franka`` with a
 scripted state machine, which is a useful starting point for a deformable manipulation task.

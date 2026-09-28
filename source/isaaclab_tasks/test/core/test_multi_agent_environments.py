@@ -3,16 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch the simulator
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 
@@ -25,10 +18,5 @@ from env_test_utils import _check_random_actions, setup_environment  # isort: sk
 @pytest.mark.parametrize("num_envs, device", [(2, "cuda"), (1, "cuda")])
 @pytest.mark.parametrize("task_name", setup_environment(multi_agent=True, tier="core"))
 def test_environments(task_name, num_envs, device):
-    """Run all environments with given parameters and check environments return valid signals."""
-    print(f">>> Running test for environment: {task_name} with num_envs={num_envs} and device={device}")
-    # check environment
+    """Run all multi-agent environments with random actions and check that they return valid signals."""
     _check_random_actions(task_name, device, num_envs, multi_agent=True)
-    # close the environment
-    print(f">>> Closing environment: {task_name}")
-    print("-" * 80)

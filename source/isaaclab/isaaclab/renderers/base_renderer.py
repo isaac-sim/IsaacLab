@@ -15,12 +15,13 @@ from .camera_render_spec import CameraRenderSpec
 from .output_contract import RenderBufferKind, RenderBufferSpec
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from collections.abc import Callable, Sequence
 
     import torch
+    import warp as wp
 
-    from isaaclab.sensors.camera.camera_data import CameraData
-    from isaaclab.utils.warp import ProxyArray
+    from ..sensors.camera.camera_data import CameraData
+    from ..utils.warp import ProxyArray
 
 
 @dataclass(frozen=True)
@@ -140,7 +141,10 @@ class BaseRenderer(ABC):
         orientations: ProxyArray,
         intrinsics: ProxyArray,
     ) -> None:
-        """Update camera poses and intrinsics for the next render.
+        """Update camera poses and supply initial calibration for the next render.
+
+        Backends may use ``intrinsics`` to initialize projection state. Runtime calibration changes
+        are submitted separately through :meth:`update_camera_intrinsics`.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -153,6 +157,23 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def update_camera_intrinsics(self, render_data: Any, intrinsics: wp.array, parameters: wp.array) -> None:
+        """Apply a proposed runtime calibration without accessing the authored USD stage.
+
+        Called only for calibration changes, independently of pose updates. The camera commits its
+        public buffers after this succeeds. Backends validate restrictions before modifying runtime
+        state, and consume the arrays before returning or order their reads on the producing Warp
+        stream; the camera reuses their storage on the next call.
+
+        Args:
+            render_data: The camera's renderer-owned state.
+            intrinsics: Complete proposed calibration, shape (N,), dtype ``wp.mat33f``.
+            parameters: Complete physical projection parameters, shape (5, N), dtype ``wp.float32``.
+                Rows are focal length, horizontal/vertical aperture, and horizontal/vertical aperture
+                offsets, in the scene's camera length units. Unselected cameras retain their values.
+        """
+        raise NotImplementedError(f"{type(self).__name__} does not support runtime camera calibration.")
+
     @abstractmethod
     def render(self, render_data: Any) -> None:
         """Perform rendering and write to output buffers.
@@ -161,6 +182,20 @@ class BaseRenderer(ABC):
             render_data: The render data object from :meth:`create_render_data`.
         """
         pass
+
+    def render_batch(self, render_data: Sequence[Any]) -> None:
+        """Render a collection of cameras into their bound output buffers.
+
+        All camera poses and shared scene state must be prepared before calling this method.
+        An empty sequence is a no-op. Each object must belong to this renderer and appear once.
+        The default implementation calls :meth:`render` for each camera; subclasses may override
+        this method to submit all cameras together.
+
+        Args:
+            render_data: Renderer-specific objects from :meth:`create_render_data`.
+        """
+        for data in render_data:
+            self.render(data)
 
     @abstractmethod
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:
@@ -186,9 +221,9 @@ class BaseRenderer(ABC):
         """Release resources owned by the renderer itself rather than by a render data.
 
         A renderer is shared by every camera whose configuration resolves to it (see
-        :meth:`~isaaclab.renderers.render_context.RenderContext.get_renderer`), so state it owns
+        :meth:`~isaaclab.sim.SimulationContext.get_or_create_backend`), so state it owns
         outlives any single camera and cannot be released from :meth:`cleanup`.
-        :meth:`~isaaclab.renderers.render_context.RenderContext.close` calls this once at
+        :meth:`~isaaclab.sim.SimulationContext.clear_instance` calls this once at
         simulation teardown, while the stage and the underlying renderer backend are still alive.
 
         The default implementation is a no-op, for backends whose state lives entirely on the

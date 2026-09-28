@@ -12,7 +12,8 @@ from typing import Literal
 
 from .dispatch import run_play_cli, run_random_agent_cli, run_train_cli, run_zero_agent_cli
 
-BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl"]
+BackendName = Literal["rl_games", "rlinf", "rsl_rl", "sb3", "skrl", "torchrl"]
+"""Backends of the unified entrypoints."""
 
 MULTI_GPU_BACKENDS: tuple[BackendName, ...] = ("rl_games", "rsl_rl", "skrl")
 """Backends the multi-GPU launcher can drive."""
@@ -89,6 +90,7 @@ class SimpleAgentRequest:
         num_envs: Number of environments to simulate.
         device: Simulation device identifier.
         max_steps: Number of environment steps to run. Runs unbounded when omitted.
+        video: Whether to record video; the run stops once every recorder finishes its first clip.
         hydra_args: Hydra overrides and typed preset selectors.
     """
 
@@ -96,6 +98,7 @@ class SimpleAgentRequest:
     num_envs: int | None = None
     device: str | None = None
     max_steps: int | None = None
+    video: bool = False
     hydra_args: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -180,6 +183,8 @@ def _simple_agent_argv(request: SimpleAgentRequest) -> list[str]:
     _append_value(argv, "--num_envs", request.num_envs)
     _append_value(argv, "--device", request.device)
     _append_value(argv, "--max_steps", request.max_steps)
+    if request.video:
+        argv.append("--video")
     return argv + list(request.hydra_args)
 
 

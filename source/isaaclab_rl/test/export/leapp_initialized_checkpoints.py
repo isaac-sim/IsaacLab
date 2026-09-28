@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import copy
 import importlib.metadata as metadata
 import math
@@ -15,24 +14,7 @@ from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
-
-def discover_backend_tasks(agent_cfg_entry_points: Sequence[str]) -> tuple[str, ...]:
-    """Discover registered Isaac Lab tasks that expose any of the requested agent entry points."""
-    import gymnasium as gym
-
-    import isaaclab_tasks  # noqa: F401
-
-    with contextlib.suppress(ImportError):
-        import isaaclab_tasks_experimental  # noqa: F401
-
-    task_names = set()
-    for task_spec in gym.registry.values():
-        if "Isaac" not in task_spec.id or "Direct" in task_spec.id:
-            continue
-        spec_kwargs = gym.spec(task_spec.id).kwargs
-        if any(spec_kwargs.get(entry_point) is not None for entry_point in agent_cfg_entry_points):
-            task_names.add(task_spec.id)
-    return tuple(sorted(task_names))
+from isaaclab.utils import to_dict
 
 
 def create_initialized_checkpoint(
@@ -96,9 +78,9 @@ def _create_rsl_rl_checkpoint(
         env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
 
         if agent_cfg.class_name == "OnPolicyRunner":
-            runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device)
         elif agent_cfg.class_name == "DistillationRunner":
-            runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=str(checkpoint_root), device=agent_cfg.device)
+            runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=str(checkpoint_root), device=agent_cfg.device)
         else:
             raise ValueError(f"Unsupported RSL-RL runner class: {agent_cfg.class_name}")
 

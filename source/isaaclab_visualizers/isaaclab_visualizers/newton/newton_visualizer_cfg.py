@@ -10,6 +10,9 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any
 
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -31,6 +34,11 @@ class NewtonVisualizerCfg(VisualizerCfg):
 
     # Deprecated alias: "newton" routes to the GL backend via simulation_context._VISUALIZER_ALIASES.
     visualizer_type: str = "newton_gl"
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
+    """Renderer configuration for the auto-created streaming camera."""
 
     def __post_init__(self) -> None:
         super().__post_init__()

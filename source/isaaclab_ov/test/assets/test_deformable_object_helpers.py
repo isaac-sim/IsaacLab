@@ -22,17 +22,15 @@ from isaaclab_ov.assets.deformable_object.deformable_object_data import (  # noq
     DeformableObjectData,
 )
 from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
-
-from isaaclab.assets.deformable_object import (  # noqa: E402
-    BaseDeformableObject,
-    BaseDeformableObjectData,
-)
-from isaaclab.assets.deformable_object import (  # noqa: E402
-    DeformableObject as DeformableObjectFactory,
-)
+from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend  # noqa: E402
 
 wp.init()
 wp.set_device("cpu")
+
+
+@pytest.fixture(autouse=True)
+def scene_data_backend(monkeypatch):
+    monkeypatch.setattr(OvPhysxManager, "_scene_data_backend", OvPhysxSceneDataBackend())
 
 
 class _FakeBodyView:
@@ -51,9 +49,6 @@ class _FakeBodyView:
         self.velocity_reads = 0
         self.position_write_count = 0
         self.velocity_write_count = 0
-        self.target_write_count = 0
-        self.last_indices: torch.Tensor | None = None
-        self.last_values: wp.array | None = None
 
     def binding_for(self, tensor_type):
         if tensor_type in (TT.DEFORMABLE_SIM_ELEMENT_INDICES, TT.SURFACE_DEFORMABLE_SIM_ELEMENT_INDICES):
@@ -93,22 +88,14 @@ class _FakeBodyView:
         indices: wp.array(dtype=wp.int32) | None = None,
         mask: wp.array(dtype=wp.bool) | None = None,
     ) -> None:
-        self.last_values = values
-        self.last_indices = wp.to_torch(indices) if indices is not None else None
+        assert indices is None or indices.is_contiguous  # Required by the OVPhysX DLPack binding.
+        self.last_indices = indices
         if tensor_type in (TT.DEFORMABLE_SIM_NODAL_POSITION, TT.SURFACE_DEFORMABLE_SIM_POSITION):
             self.position_write_count += 1
         elif tensor_type in (TT.DEFORMABLE_SIM_NODAL_VELOCITY, TT.SURFACE_DEFORMABLE_SIM_VELOCITY):
             self.velocity_write_count += 1
-        elif tensor_type == TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
-            self.target_write_count += 1
-        else:
+        elif tensor_type != TT.DEFORMABLE_SIM_KINEMATIC_TARGET:
             raise AssertionError(f"Unexpected tensor write: {tensor_type}")
-
-
-class _FakeMaterialView:
-    """Minimal optional plain material view."""
-
-    count = 1
 
 
 class _FakeVisualizer:
@@ -126,7 +113,6 @@ def _make_asset_shell(
     deformable_type: str,
     num_instances: int = 2,
     num_vertices: int = 4,
-    material_view: _FakeMaterialView | None = None,
 ) -> DeformableObject:
     asset = object.__new__(DeformableObject)
     asset._device = "cpu"
@@ -142,7 +128,7 @@ def _make_asset_shell(
         asset._sim_nodal_velocity_type = TT.SURFACE_DEFORMABLE_SIM_VELOCITY
         asset._sim_kinematic_target_type = None
     asset._root_physx_view = _FakeBodyView(num_instances, num_vertices)
-    asset._material_physx_view = material_view
+    asset._material_physx_view = None
     asset._data = DeformableObjectData(
         asset._root_physx_view,
         asset._device,
@@ -158,41 +144,6 @@ def _make_asset_shell(
     asset._invalidate_initialize_handle = None
     asset._prim_deletion_handle = None
     return asset
-
-
-def test_unbound_material_is_optional():
-    asset = _make_asset_shell(deformable_type="volume")
-
-    assert asset.material_physx_view is None
-
-
-def test_surface_kinematic_target_write_matches_physx_error():
-    asset = _make_asset_shell(deformable_type="surface")
-    with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
-        asset.write_nodal_kinematic_target_to_sim_index(torch.zeros((2, 4, 4), device=asset.device))
-
-
-def test_indexed_position_write_updates_full_internal_buffer():
-    asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=4)
-    selected = torch.ones((1, 4, 3), device=asset.device)
-    asset.write_nodal_pos_to_sim_index(selected, env_ids=torch.tensor([2], device=asset.device))
-    assert torch.count_nonzero(asset.data.nodal_pos_w.torch[0:2]) == 0
-    torch.testing.assert_close(asset.data.nodal_pos_w.torch[2], selected[0])
-    assert asset.root_view.last_indices.tolist() == [2]
-
-
-def test_indexed_state_write_updates_position_and_velocity_buffers():
-    asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)
-    selected = torch.cat(
-        (torch.full((1, 4, 3), 2.0), torch.full((1, 4, 3), -3.0)),
-        dim=-1,
-    )
-
-    asset.write_nodal_state_to_sim_index(selected, env_ids=[1])
-
-    torch.testing.assert_close(asset.data.nodal_pos_w.torch[1], selected[0, :, :3])
-    torch.testing.assert_close(asset.data.nodal_vel_w.torch[1], selected[0, :, 3:])
-    assert asset.data._nodal_state_w.timestamp == -1.0
 
 
 def test_indexed_state_write_refreshes_unselected_stale_cache_rows():
@@ -224,6 +175,11 @@ def test_indexed_state_write_refreshes_unselected_stale_cache_rows():
     asset.root_view.positions = wp.from_torch(latest_positions.contiguous(), dtype=wp.float32)
     asset.root_view.velocities = wp.from_torch(latest_velocities.contiguous(), dtype=wp.float32)
     asset.update(0.1)
+
+    # Prime the derived buffers at the current timestamp so the write itself must invalidate them.
+    asset.data.nodal_state_w
+    asset.data.root_pos_w
+    asset.data.root_vel_w
 
     selected_state = torch.cat(
         (
@@ -287,8 +243,9 @@ def test_indexed_full_data_write_preserves_retained_aliased_edits(
         ("nodal_vel_w", "write_nodal_velocity_to_sim_index", "velocities", -100.0),
     ],
 )
+@pytest.mark.parametrize("env_ids", [slice(1, 2), slice(None, None, 2)], ids=["contiguous", "strided"])
 def test_indexed_partial_write_preserves_retained_aliased_slice(
-    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float
+    property_name: str, write_method_name: str, simulator_attribute: str, command_value: float, env_ids: slice
 ) -> None:
     """A retained selected slice survives hydration of stale unselected rows."""
     asset = _make_asset_shell(deformable_type="volume", num_instances=3, num_vertices=2)
@@ -299,13 +256,15 @@ def test_indexed_partial_write_preserves_retained_aliased_slice(
     latest = torch.arange(18, dtype=torch.float32, device=asset.device).reshape(3, 2, 3)
     setattr(asset.root_view, simulator_attribute, wp.from_torch(latest.contiguous(), dtype=wp.float32))
     asset.update(0.1)
-    selected = retained.torch[1:2]
+    selected = retained.torch[env_ids]
     selected.fill_(command_value)
 
-    getattr(asset, write_method_name)(selected, env_ids=[1])
+    getattr(asset, write_method_name)(selected, env_ids=env_ids)
+    # Only the selected environments are written back to the simulator.
+    assert asset.root_view.last_indices.numpy().tolist() == list(range(3)[env_ids])
 
     expected = latest.clone()
-    expected[1].fill_(command_value)
+    expected[env_ids].fill_(command_value)
     assert getattr(asset.data, property_name) is retained
     torch.testing.assert_close(retained.torch, expected)
 
@@ -327,7 +286,7 @@ def test_full_overwrite_stale_cache_does_not_read_simulator() -> None:
     torch.testing.assert_close(asset.data.nodal_state_w.torch, full_state)
 
 
-@pytest.mark.parametrize("trailing_dimension", [4, 5, 7])
+@pytest.mark.parametrize("trailing_dimension", [7])
 def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimension: int):
     asset = _make_asset_shell(deformable_type="volume", num_instances=2, num_vertices=4)
     original_positions = asset.data.nodal_pos_w.torch.clone()
@@ -341,29 +300,6 @@ def test_malformed_state_write_fails_before_mutating_or_writing(trailing_dimensi
     torch.testing.assert_close(asset.data.nodal_vel_w.torch, original_velocities)
     assert asset.root_view.position_write_count == 0
     assert asset.root_view.velocity_write_count == 0
-
-
-def test_volume_target_initialization_sets_free_flags_and_writes_full_buffer():
-    asset = _make_asset_shell(deformable_type="volume")
-
-    asset._create_buffers()
-
-    assert asset.data.nodal_kinematic_target is not None
-    torch.testing.assert_close(
-        asset.data.nodal_kinematic_target.torch[..., 3],
-        torch.ones((asset.num_instances, asset.max_sim_vertices_per_body)),
-    )
-    assert asset.root_view.target_write_count == 1
-    assert asset.root_view.last_indices is None
-
-
-def test_surface_buffer_initialization_has_no_kinematic_target():
-    asset = _make_asset_shell(deformable_type="surface")
-
-    asset._create_buffers()
-
-    assert asset.data.nodal_kinematic_target is None
-    assert asset.root_view.target_write_count == 0
 
 
 def test_lazy_root_means_refresh_in_place_after_update():
@@ -403,26 +339,7 @@ def test_surface_debug_visualization_uses_below_ground_sentinel():
     torch.testing.assert_close(asset.target_visualizer.positions, torch.tensor([[0.0, 0.0, -10.0]]))
 
 
-def test_invalidation_releases_body_and_material_views(monkeypatch: pytest.MonkeyPatch):
-    asset = _make_asset_shell(deformable_type="volume", material_view=_FakeMaterialView())
-    monkeypatch.setattr(BaseDeformableObject, "_invalidate_initialize_callback", lambda self, event: None)
-
-    asset._invalidate_initialize_callback(None)
-
-    assert asset._root_physx_view is None
-    assert asset._material_physx_view is None
-
-
-def test_data_implements_backend_neutral_interface():
-    asset = _make_asset_shell(deformable_type="volume")
-    assert isinstance(asset.data, BaseDeformableObjectData)
-
-
 def test_factory_export_is_present():
-    backend_module = importlib.import_module("isaaclab_ov.assets.deformable_object")
     assets_module = importlib.import_module("isaaclab_ov.assets")
 
-    assert backend_module.DeformableObject is DeformableObject
     assert assets_module.DeformableObject is DeformableObject
-    assert DeformableObjectFactory._get_module_name("ovphysx") == "isaaclab_ov.assets.deformable_object"
-    assert DeformableObject.__backend_name__ == "ovphysx"

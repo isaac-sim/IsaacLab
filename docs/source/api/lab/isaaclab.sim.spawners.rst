@@ -255,6 +255,7 @@ From Files
 
     UrdfFileCfg
     UsdFileCfg
+    MeshFileCfg
     GroundPlaneCfg
 
 .. autofunction:: spawn_from_urdf
@@ -266,6 +267,12 @@ From Files
 .. autofunction:: spawn_from_usd
 
 .. autoclass:: UsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_from_mesh
+
+.. autoclass:: MeshFileCfg
     :members:
     :exclude-members: __init__, func
 
