@@ -13,12 +13,14 @@ Environments:
 
 import math
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
@@ -44,9 +46,12 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         self.scene.table = None
         # Ground flush with robot base
         self.scene.ground.init_state.pos = (0.0, 0.0, 0.0)
+        # Only validated on PhysX
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
         # ── Robot ──────────────────────────────────────────────────────────
-        self.scene.robot = REACHY2_CFG.replace(
+        self.scene.robot = replace(
+            REACHY2_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
@@ -73,8 +78,15 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         # ── Actions — right arm (inherited arm_action → repurpose for right) ──
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
-            joint_names=["r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw",
-                         "r_elbow_pitch", "r_wrist_roll", "r_wrist_pitch", "r_wrist_yaw"],
+            joint_names=[
+                "r_shoulder_pitch",
+                "r_shoulder_roll",
+                "r_elbow_yaw",
+                "r_elbow_pitch",
+                "r_wrist_roll",
+                "r_wrist_pitch",
+                "r_wrist_yaw",
+            ],
             scale=0.5,
             use_default_offset=True,
         )
@@ -82,8 +94,15 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         # ── Actions — left arm (new term) ──────────────────────────────────
         self.actions.l_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
-            joint_names=["l_shoulder_pitch", "l_shoulder_roll", "l_elbow_yaw",
-                         "l_elbow_pitch", "l_wrist_roll", "l_wrist_pitch", "l_wrist_yaw"],
+            joint_names=[
+                "l_shoulder_pitch",
+                "l_shoulder_roll",
+                "l_elbow_yaw",
+                "l_elbow_pitch",
+                "l_wrist_roll",
+                "l_wrist_pitch",
+                "l_wrist_yaw",
+            ],
             scale=0.5,
             use_default_offset=True,
         )
@@ -118,8 +137,6 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
         _r_cfg = SceneEntityCfg("robot", body_names=[_r_ee])
         self.rewards.end_effector_position_tracking.params["asset_cfg"] = _r_cfg
         self.rewards.end_effector_position_tracking.params["command_name"] = "ee_pose"
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"] = _r_cfg
-        self.rewards.end_effector_position_tracking_fine_grained.params["command_name"] = "ee_pose"
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"] = _r_cfg
         self.rewards.end_effector_orientation_tracking.params["command_name"] = "ee_pose"
 
@@ -130,16 +147,15 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
             weight=-0.2,
             params={"asset_cfg": _l_cfg, "command_name": "ee_pose_left"},
         )
-        self.rewards.l_end_effector_position_tracking_fine_grained = RewTerm(
-            func=mdp.position_command_error_tanh,
-            weight=0.1,
-            params={"asset_cfg": _l_cfg, "std": 0.1, "command_name": "ee_pose_left"},
-        )
         self.rewards.l_end_effector_orientation_tracking = RewTerm(
             func=mdp.orientation_command_error,
             weight=-0.1,
             params={"asset_cfg": _l_cfg, "command_name": "ee_pose_left"},
         )
+
+        # ── Success — the inherited term only checks the right arm ──────────
+        self.terminations.success = None
+        self.rewards.success = None
 
         # ── Observations — add left pose command ───────────────────────────
         # Inherited: joint_pos(27) + joint_vel(27) + pose_command/right(7) + actions(14)
@@ -149,12 +165,3 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
             func=mdp.generated_commands,
             params={"command_name": "ee_pose_left"},
         )
-
-
-@configclass
-class Reachy2BimanualReachEnvCfg_PLAY(Reachy2BimanualReachEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False

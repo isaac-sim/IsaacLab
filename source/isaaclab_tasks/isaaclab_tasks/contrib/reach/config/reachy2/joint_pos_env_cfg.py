@@ -12,10 +12,12 @@ Environments:
 
 import math
 
+from isaaclab_physx.physics import PhysxCfg
+
 import isaaclab.envs.mdp as mdp
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
 
@@ -40,9 +42,12 @@ class Reachy2RightReachEnvCfg(ReachEnvCfg):
         self.scene.table = None
         # Ground flush with robot base (base_link spawns at z=0)
         self.scene.ground.init_state.pos = (0.0, 0.0, 0.0)
+        # Only validated on PhysX
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
         # Switch robot to Reachy 2
-        self.scene.robot = REACHY2_CFG.replace(
+        self.scene.robot = replace(
+            REACHY2_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
@@ -87,9 +92,6 @@ class Reachy2RightReachEnvCfg(ReachEnvCfg):
         # End-effector body — right hand palm
         _ee = "r_hand_palm_link"
         self.rewards.end_effector_position_tracking.params["asset_cfg"] = SceneEntityCfg("robot", body_names=[_ee])
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"] = SceneEntityCfg(
-            "robot", body_names=[_ee]
-        )
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"] = SceneEntityCfg("robot", body_names=[_ee])
         self.commands.ee_pose.body_name = _ee
 
@@ -98,15 +100,6 @@ class Reachy2RightReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.ranges.pos_y = (-0.4, 0.0)
         self.commands.ee_pose.ranges.pos_z = (0.8, 1.2)
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
-
-
-@configclass
-class Reachy2RightReachEnvCfg_PLAY(Reachy2RightReachEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False
 
 
 ##
@@ -125,8 +118,11 @@ class Reachy2LeftReachEnvCfg(ReachEnvCfg):
         self.scene.table = None
         # Ground flush with robot base
         self.scene.ground.init_state.pos = (0.0, 0.0, 0.0)
+        # Only validated on PhysX
+        self.sim.physics = PhysxCfg(bounce_threshold_velocity=0.2)
 
-        self.scene.robot = REACHY2_CFG.replace(
+        self.scene.robot = replace(
+            REACHY2_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 joint_pos={
@@ -167,9 +163,6 @@ class Reachy2LeftReachEnvCfg(ReachEnvCfg):
 
         _ee = "l_hand_palm_link"
         self.rewards.end_effector_position_tracking.params["asset_cfg"] = SceneEntityCfg("robot", body_names=[_ee])
-        self.rewards.end_effector_position_tracking_fine_grained.params["asset_cfg"] = SceneEntityCfg(
-            "robot", body_names=[_ee]
-        )
         self.rewards.end_effector_orientation_tracking.params["asset_cfg"] = SceneEntityCfg("robot", body_names=[_ee])
         self.commands.ee_pose.body_name = _ee
 
@@ -178,12 +171,3 @@ class Reachy2LeftReachEnvCfg(ReachEnvCfg):
         self.commands.ee_pose.ranges.pos_y = (0.0, 0.4)
         self.commands.ee_pose.ranges.pos_z = (0.8, 1.2)
         self.commands.ee_pose.ranges.pitch = (math.pi / 2, math.pi / 2)
-
-
-@configclass
-class Reachy2LeftReachEnvCfg_PLAY(Reachy2LeftReachEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        self.observations.policy.enable_corruption = False

@@ -12,19 +12,20 @@ z=0.46 in the base frame, so the tabletop sits in the natural manipulation
 zone between hip and shoulder — matching Reachy 2's intended desk workspace.
 """
 
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
-from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.lift_env_cfg import LiftEnvCfg
+from isaaclab_tasks.contrib.lift import mdp
+from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg
 
 from . import mdp as reachy2_mdp
 
@@ -46,7 +47,8 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
         # ── Robot ───────────────────────────────────────────────────────────
         # Reachy 2 stands on the ground plane (z=-1.05); table top ends up at
         # ~1.05 m in the robot base frame — within the arm's natural workspace.
-        self.scene.robot = REACHY2_CFG.replace(
+        self.scene.robot = replace(
+            REACHY2_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
             init_state=ArticulationCfg.InitialStateCfg(
                 pos=(0.0, 0.0, -1.05),
@@ -93,18 +95,23 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
             init_state=AssetBaseCfg.InitialStateCfg(pos=(0.65, 0.0, -0.675)),
             spawn=sim_utils.CuboidCfg(
                 size=(0.7, 1.1, 0.75),
-                collision_props=sim_utils.CollisionPropertiesCfg(),
-                visual_material=sim_utils.PreviewSurfaceCfg(
-                    diffuse_color=(0.55, 0.42, 0.30), metallic=0.0
-                ),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+                visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.55, 0.42, 0.30), metallic=0.0),
             ),
         )
 
         # ── Actions ──────────────────────────────────────────────────────────
         self.actions.arm_action = mdp.JointPositionActionCfg(
             asset_name="robot",
-            joint_names=["r_shoulder_pitch", "r_shoulder_roll", "r_elbow_yaw",
-                         "r_elbow_pitch", "r_wrist_roll", "r_wrist_pitch", "r_wrist_yaw"],
+            joint_names=[
+                "r_shoulder_pitch",
+                "r_shoulder_roll",
+                "r_elbow_yaw",
+                "r_elbow_pitch",
+                "r_wrist_roll",
+                "r_wrist_pitch",
+                "r_wrist_yaw",
+            ],
             scale=0.5,
             use_default_offset=True,
         )
@@ -115,8 +122,13 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
         # ignores — so the physical finger joints must be driven directly.
         self.actions.gripper_action = mdp.BinaryJointPositionActionCfg(
             asset_name="robot",
-            joint_names=["r_hand_finger", "r_hand_finger_proximal", "r_hand_finger_proximal_mimic",
-                         "r_hand_finger_distal", "r_hand_finger_distal_mimic"],
+            joint_names=[
+                "r_hand_finger",
+                "r_hand_finger_proximal",
+                "r_hand_finger_proximal_mimic",
+                "r_hand_finger_distal",
+                "r_hand_finger_distal_mimic",
+            ],
             open_command_expr={
                 "r_hand_finger": 1.8,
                 "r_hand_finger_proximal.*": -0.29,
@@ -142,11 +154,11 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
             prim_path="{ENV_REGEX_NS}/Object",
             # Cube rests on the desk-height table top (z=-0.30): center settles
             # at -0.268 (half-extent 0.032 for the 0.8-scaled DexCube).
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.38, -0.15, -0.245], rot=[1, 0, 0, 0]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.38, -0.15, -0.245], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
                 scale=(0.8, 0.8, 0.8),
-                rigid_props=RigidBodyPropertiesCfg(
+                rigid_props=PhysxRigidBodyCfg(
                     solver_position_iteration_count=16,
                     solver_velocity_iteration_count=1,
                     max_angular_velocity=1000.0,
@@ -211,7 +223,7 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
         self.terminations.object_dropping.params["minimum_height"] = -0.40
 
         # ── End-effector frame — palm of the right hand ──────────────────────
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = clone(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         # Note: the URDF importer nests bodies as parent→child prim chains under
@@ -243,15 +255,3 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
                 ),
             ],
         )
-
-
-@configclass
-class Reachy2CubeLiftEnvCfg_PLAY(Reachy2CubeLiftEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

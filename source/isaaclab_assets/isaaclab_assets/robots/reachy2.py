@@ -32,7 +32,7 @@ Asset generation:
 
     .. code-block:: python
 
-        # run via: ./isaaclab.sh -p <this-script>
+        # run via: uv run python <this-script>
         from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg
 
         base = "source/isaaclab_assets/isaaclab_assets/robots/reachy2"
@@ -43,8 +43,10 @@ Asset generation:
             joint_drive=UrdfConverterCfg.JointDriveCfg(target_type="position"),
             ros_package_paths=[
                 {"name": "reachy_description", "path": "/path/to/reachy2_core/reachy_description"},
-                {"name": "dynamixel_description",
-                 "path": "/path/to/reachy2_core/reachy_controllers/dynamixel_control/dynamixel_description"},
+                {
+                    "name": "dynamixel_description",
+                    "path": "/path/to/reachy2_core/reachy_controllers/dynamixel_control/dynamixel_description",
+                },
             ],
         )
         UrdfConverter(cfg)
@@ -59,9 +61,13 @@ Asset generation:
 
 import os
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
 
 ##
 # USD path — local to this repo until the asset is hosted on Nucleus.
@@ -84,11 +90,12 @@ REACHY2_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_REACHY2_USD,
         activate_contact_sensors=False,
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -141,8 +148,8 @@ REACHY2_CFG = ArticulationCfg(
                 "r_wrist_pitch",
                 "r_wrist_yaw",
             ],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=5.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=5.0,
             stiffness=100.0,
             damping=5.0,
             armature=0.01,
@@ -158,8 +165,8 @@ REACHY2_CFG = ArticulationCfg(
                 "l_wrist_pitch",
                 "l_wrist_yaw",
             ],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=5.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=5.0,
             stiffness=100.0,
             damping=5.0,
             armature=0.01,
@@ -167,8 +174,8 @@ REACHY2_CFG = ArticulationCfg(
         # Neck — 3 DOF Orbita 3D
         "neck": ImplicitActuatorCfg(
             joint_names_expr=["neck_roll", "neck_pitch", "neck_yaw"],
-            effort_limit_sim=50.0,
-            velocity_limit_sim=5.0,
+            joint_effort_limit=50.0,
+            joint_velocity_limit=5.0,
             stiffness=80.0,
             damping=4.0,
             armature=0.01,
@@ -182,8 +189,8 @@ REACHY2_CFG = ArticulationCfg(
                 "r_hand_finger_distal",
                 "r_hand_finger_distal_mimic",
             ],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=2.0,
+            joint_effort_limit=10.0,
+            joint_velocity_limit=2.0,
             stiffness=20.0,
             damping=1.0,
             armature=0.005,
@@ -196,8 +203,8 @@ REACHY2_CFG = ArticulationCfg(
                 "l_hand_finger_distal",
                 "l_hand_finger_distal_mimic",
             ],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=2.0,
+            joint_effort_limit=10.0,
+            joint_velocity_limit=2.0,
             stiffness=20.0,
             damping=1.0,
             armature=0.005,
@@ -208,7 +215,7 @@ REACHY2_CFG = ArticulationCfg(
 """Configuration of Reachy 2 with implicit actuators."""
 
 
-REACHY2_HIGH_PD_CFG = REACHY2_CFG.copy()
+REACHY2_HIGH_PD_CFG = clone(REACHY2_CFG)
 REACHY2_HIGH_PD_CFG.actuators["r_arm"].stiffness = 400.0
 REACHY2_HIGH_PD_CFG.actuators["r_arm"].damping = 40.0
 REACHY2_HIGH_PD_CFG.actuators["l_arm"].stiffness = 400.0
