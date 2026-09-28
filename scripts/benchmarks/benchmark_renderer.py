@@ -273,6 +273,7 @@ def run_profile(profile: dict, args: argparse.Namespace):
         "NEWTON_USE_CUDA_GRAPH": "0",
         "ISAACLAB_RENDER_PROFILE": "1",
         "ISAACLAB_PHYSICS_PROFILE": "1",
+        "BENCHMARK_MODE": os.getenv("BENCHMARK_MODE", "render"),
         "BENCHMARK_SAVE_IMAGE": "1" if args.save_image else "0",
         "BENCHMARK_RENDER_RESOLUTION": f"{args.resolution}",
         "WARP_CACHE_PATH": warp_cache_path,

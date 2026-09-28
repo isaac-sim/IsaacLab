@@ -170,8 +170,13 @@ def test_parse_profile_takes_an_arbitrary_scope_mapping(benchmark_renderer, tmp_
 
 
 @pytest.mark.parametrize("write_timings", [False, True])
-def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings):
+@pytest.mark.parametrize("mode", [None, "render", "physics_render"])
+def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path, monkeypatch, write_timings, mode):
     """The run consumes its own profiling artifact; stale artifacts and timing logs cannot satisfy it."""
+    if mode is None:
+        monkeypatch.delenv("BENCHMARK_MODE", raising=False)
+    else:
+        monkeypatch.setenv("BENCHMARK_MODE", mode)
     profile = {"name": "p", "preset": "newton_renderer,rgb", "settings": {"tlas": "sah", "blas": "lbvh"}}
     profile_path = tmp_path / "p" / "profile_timings.json"
     profile_path.parent.mkdir()
@@ -184,6 +189,7 @@ def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path,
         assert "--profile_output_path" not in cmd
         assert kwargs["env"]["ISAACLAB_RENDER_PROFILE"] == "1"
         assert kwargs["env"]["ISAACLAB_PHYSICS_PROFILE"] == "1"
+        assert kwargs["env"]["BENCHMARK_MODE"] == (mode or "render")
         assert not profile_path.exists()
         if write_timings:
             _write_profile(profile_path, [(_PHYSICS_SCOPE, 1.234567), (_RENDER_SCOPE, 2.345678)] * frames)

@@ -31,6 +31,7 @@ from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
+from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg import _read_benchmark_mode
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -50,8 +51,21 @@ def test_default_scene_and_articulations():
     assert cfg.scene.robot.prim_path == "{ENV_REGEX_NS}/Robot"
     assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
-    assert cfg.benchmark_mode == "render"
+    assert cfg.benchmark_mode is None
     assert gym.spec(_TASK).disable_env_checker is True
+
+
+@pytest.mark.parametrize("mode", [None, "render", "physics_render", "invalid"])
+def test_benchmark_mode_from_environment(monkeypatch, mode):
+    if mode is None:
+        monkeypatch.delenv("BENCHMARK_MODE", raising=False)
+    else:
+        monkeypatch.setenv("BENCHMARK_MODE", mode)
+    if mode == "invalid":
+        with pytest.raises(ValueError, match="Unknown BENCHMARK_MODE"):
+            _read_benchmark_mode()
+    else:
+        assert _read_benchmark_mode() == mode
 
 
 @pytest.mark.parametrize(
@@ -94,7 +108,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
         close.assert_not_called()
 
 
-@pytest.mark.parametrize("mode", ["render", "physics_render"])
+@pytest.mark.parametrize("mode", [None, "render", "physics_render"])
 def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     """Direct poses follow physics; actuator targets precede it, and both render last."""
     events = Mock()
@@ -130,12 +144,14 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
         ]
         velocity = articulation.write_joint_velocity_to_sim_index.call_args.kwargs["velocity"]
         assert torch.equal(velocity, torch.zeros_like(velocity))
-    else:
+    elif mode == "physics_render":
         assert [entry[0] for entry in events.mock_calls] == [
             "articulation.actuators.target_command.set_position_index",
             "physics",
             "render",
         ]
+    else:
+        assert [entry[0] for entry in events.mock_calls] == ["physics", "render"]
 
 
 @pytest.mark.parametrize(
