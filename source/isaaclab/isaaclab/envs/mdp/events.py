@@ -303,13 +303,10 @@ class randomize_rigid_body_mass(ManagerTermBase):
         # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
-
         # resolve body indices
-        if self.asset_cfg.body_ids == slice(None):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)
-        else:
-            body_ids = self.asset_cfg.body_ids
+        body_ids = self.asset_cfg.body_ids
+        # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
+        env_rows = env_ids[:, None] if not isinstance(env_ids, slice) and not isinstance(body_ids, slice) else env_ids
 
         # get the current masses of the bodies (num_assets, num_bodies)
         masses = self.asset.data.body_mass.torch.clone()
@@ -441,13 +438,10 @@ class randomize_rigid_body_inertia(ManagerTermBase):
         # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
-
         # resolve body indices
-        if self.asset_cfg.body_ids == slice(None):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int32, device=self.asset.device)
-        else:
-            body_ids = self.asset_cfg.body_ids
+        body_ids = self.asset_cfg.body_ids
+        # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
+        env_rows = env_ids[:, None] if not isinstance(env_ids, slice) and not isinstance(body_ids, slice) else env_ids
 
         # get default inertias for affected envs/bodies (advanced indexing creates a copy)
         # shape: (len(env_ids), len(body_ids), 9)
@@ -522,13 +516,10 @@ class randomize_rigid_body_com(ManagerTermBase):
         # resolve environment ids
         if env_ids is None:
             env_ids = slice(None)
-        env_rows = env_ids if isinstance(env_ids, slice) else env_ids[:, None]
-
         # resolve body indices
-        if self.asset_cfg.body_ids == slice(None):
-            body_ids = torch.arange(self.asset.num_bodies, dtype=torch.int, device=self.asset.device)
-        else:
-            body_ids = self.asset_cfg.body_ids
+        body_ids = self.asset_cfg.body_ids
+        # index rows and columns jointly only when both are tensors; with a slice the result is already 2D
+        env_rows = env_ids[:, None] if not isinstance(env_ids, slice) and not isinstance(body_ids, slice) else env_ids
 
         # sample random CoM values
         range_list = [com_range.get(key, (0.0, 0.0)) for key in ["x", "y", "z"]]
