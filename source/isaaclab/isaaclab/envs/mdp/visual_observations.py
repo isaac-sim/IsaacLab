@@ -13,12 +13,12 @@ from typing import TYPE_CHECKING
 import torch
 import warp as wp
 
-from ...managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
-from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorCfg, VisualProcessorContext
+from isaaclab.managers import ManagerTermBase, ObservationTermCfg, SceneEntityCfg
+from isaaclab.utils.visual_processing import VisualProcessingPipeline, VisualProcessorCfg, VisualProcessorContext
 
 if TYPE_CHECKING:
-    from ...sensors import Camera
-    from .. import ManagerBasedEnv
+    from isaaclab.envs import ManagerBasedEnv
+    from isaaclab.sensors import Camera
 
 
 @wp.kernel
