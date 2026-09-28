@@ -18,7 +18,6 @@ import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
     NewtonGLVisualizerCfg,
@@ -847,8 +846,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
 
     default_cfg = VisualizerCfg(
         background_color=(0.1, 0.2, 0.3),
-        streaming_cam_target_prim_path="/World/envs/*/Object",
-        streaming_cam_eye=(1.0, -1.0, 0.5),
+        streaming_sensor_prim_path="/World/envs/*/Camera",
     )
     visualizer_cfgs = resolve_visualizer_cfgs([], ["newton_gl"])
     ctx = _make_context_with_settings({}, visualizer_cfgs=visualizer_cfgs, default_visualizer_cfg=default_cfg)
@@ -858,8 +856,7 @@ def test_default_visualizer_cfg_applies_to_cli_created_configs():
     assert len(cfgs) == 1
     assert isinstance(cfgs[0], NewtonVisualizerCfg)
     assert cfgs[0].background_color == (0.1, 0.2, 0.3)
-    assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
-    assert cfgs[0].streaming_cam_eye == (1.0, -1.0, 0.5)
+    assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
 
 
 def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
@@ -872,8 +869,7 @@ def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
     assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
 
 
-@pytest.mark.parametrize("renderer_cfg", [None, NewtonWarpRendererCfg(use_cuda_graph=False)])
-def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs(renderer_cfg):
+def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     """default_visualizer_cfg fills in env-level hints (eye, lookat) on explicit cfgs.
 
     When visualizer_cfgs is set directly (e.g. for video recording), fields that are
@@ -884,10 +880,8 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs(renderer_cfg
     default_cfg = KitVisualizerCfg(
         eye=(8.0, 0.0, 5.0),
         lookat=(0.0, 0.0, 0.5),
-        streaming_cam_target_prim_path="/World/envs/*/Object",
+        streaming_sensor_prim_path="/World/envs/*/Camera",
     )
-    if renderer_cfg is not None:
-        default_cfg.streaming_cam_renderer_cfg = renderer_cfg
     # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
     explicit_cfg = NewtonGLVisualizerCfg(window_width=320, window_height=240)
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
@@ -898,14 +892,12 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs(renderer_cfg
     # env-level hints applied (were at class defaults on explicit_cfg)
     assert cfgs[0].eye == (8.0, 0.0, 5.0)
     assert cfgs[0].lookat == (0.0, 0.0, 0.5)
-    assert cfgs[0].streaming_cam_target_prim_path == "/World/envs/*/Object"
+    assert cfgs[0].streaming_sensor_prim_path == "/World/envs/*/Camera"
     # user-customized fields preserved
     assert cfgs[0].window_width == 320
     assert cfgs[0].window_height == 240
     assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
     assert cfgs[0].visualizer_type == "newton_gl"
-    # Inherit explicit choices, not the source visualizer's native renderer default.
-    assert cfgs[0].streaming_cam_renderer_cfg == (renderer_cfg or NewtonWarpRendererCfg())
     assert cfgs[0].cloning_contexts == NewtonGLVisualizerCfg().cloning_contexts
 
 
@@ -1042,88 +1034,8 @@ def test_explicit_existing_cfg_plus_failing_requested_type_raises_for_the_failur
 # ---------------------------------------------------------------------------
 
 
-def test_rerun_visualizer_setup_streaming_view_sets_flag_and_blueprint_includes_spatial2d(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    """_setup_streaming_view sets _streaming_view_active and _get_blueprint returns a Spatial2DView.
-
-    Uses streaming_sensor_prim_path to avoid the create_visualizer_camera code path,
-    so no actual Isaac Sim session is required.
-    """
-    import sys
-    import types
-
-    # --- Patch the lazy imports inside _setup_streaming_view ---------------
-
-    _FAKE_GT_TYPES = {"rgb"}
-
-    camera_colorizer_mod = types.ModuleType("isaaclab.envs.utils.camera_colorizer")
-    camera_colorizer_mod.SUPPORTED_GT_TYPES = _FAKE_GT_TYPES
-    camera_colorizer_mod.sensor_keys_for_gt_types = lambda gt_types: list(gt_types)
-
-    _FAKE_CAMERA_SENSOR = object()
-    _FAKE_ENV_IDS = [0, 1]
-
-    camera_view_mod = types.ModuleType("isaaclab.envs.utils.camera_view")
-    camera_view_mod.VISUALIZER_TILED_CAMERA_MAX_TILES = 16
-    camera_view_mod.create_visualizer_camera = None  # should not be called in this path
-    camera_view_mod.find_camera_by_prim_path = lambda cameras, path, env_ids: _FAKE_CAMERA_SENSOR
-    camera_view_mod.resolve_streaming_envs = lambda num_envs, streaming_envs, max_tiles, sample_from: _FAKE_ENV_IDS
-
-    monkeypatch.setitem(sys.modules, "isaaclab.envs.utils.camera_colorizer", camera_colorizer_mod)
-    monkeypatch.setitem(sys.modules, "isaaclab.envs.utils.camera_view", camera_view_mod)
-
-    # --- Fake scene data provider with get_camera_sensors ------------------
-
-    class _FakeStreamingProvider:
-        @property
-        def num_envs(self) -> int:
-            return 2
-
-        def get_camera_sensors(self):
-            return []
-
-    # --- Build a minimal RerunVisualizer without triggering __init__ -------
-
-    cfg = RerunVisualizerCfg(
-        open_browser=False,
-        streaming_view=True,
-        streaming_sensor_prim_path="/World/envs/env_0/Camera",
-    )
-    visualizer = object.__new__(rerun_visualizer.RerunVisualizer)
-    visualizer.cfg = cfg
-    visualizer._scene_data_provider = _FakeStreamingProvider()
-    visualizer._resolved_visible_env_ids = None
-    visualizer._camera_env_indices = []
-    visualizer._camera_sensor = None
-    visualizer._camera_sensor_indices = []
-    visualizer._camera_is_owned = False
-    visualizer._streaming_view_active = False
-    visualizer._streaming_camera_key = None
-    visualizer._generated_camera_prim_paths = []
-
-    # Fake _viewer with its own _streaming_view_active flag.
-    class _FakeViewer:
-        def __init__(self):
-            self._streaming_view_active = False
-            self._live_plot_manager_names = []
-            self._camera_pose = None
-
-    fake_viewer = _FakeViewer()
-    visualizer._viewer = fake_viewer
-
-    # --- Exercise the code under test -------------------------------------
-
-    visualizer._setup_streaming_view(num_envs=2)
-
-    # Both the RerunVisualizer flag and the viewer flag must be set.
-    assert visualizer._streaming_view_active is True
-    assert fake_viewer._streaming_view_active is True
-    assert visualizer._camera_sensor is _FAKE_CAMERA_SENSOR
-    assert visualizer._camera_sensor_indices == _FAKE_ENV_IDS
-
-    # --- Verify _get_blueprint returns a blueprint containing Spatial2DView ----
-
+def test_rerun_streaming_blueprint_includes_spatial2d():
+    """The streaming panel uses a 2D blueprint rather than replacing it with a 3D camera."""
     import rerun.blueprint as rrb
 
     blueprint_viewer = object.__new__(rerun_visualizer.NewtonViewerRerun)

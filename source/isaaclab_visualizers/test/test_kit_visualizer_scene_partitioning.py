@@ -14,9 +14,8 @@ from isaaclab_visualizers.kit.kit_visualization_markers import KitVisualizationM
 from isaaclab_visualizers.kit.kit_visualizer import KitVisualizer
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
-from pxr import Sdf, Usd, UsdGeom
+from pxr import Sdf, Usd, UsdGeom, UsdLux
 
-from isaaclab.renderers import RendererCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 
@@ -45,30 +44,15 @@ def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch,
         visualizer._fabric.update_geometries.assert_called_once_with(visualizer._scene_data_provider, 12)
 
 
-@pytest.mark.parametrize("generated", [False, True])
-def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
-    sim = MagicMock()
-    renderer_cfg = RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom")
-    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
-    cfg = KitVisualizerCfg(
-        streaming_view=True,
-        streaming_cam_target_prim_path="/Robot" if generated else None,
-        streaming_cam_renderer_cfg=renderer_cfg,
-    )
-    KitVisualizer(cfg)
-
-    if generated:
-        sim.get_or_create_backend.assert_called_once_with(renderer_cfg)
-    else:
-        sim.get_or_create_backend.assert_not_called()
-
-
 @pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_background_color_applies_to_render_product_session_layer(
+def test_background_color_preserves_scene_lighting(
     color: tuple[float, float, float] | None,
 ) -> None:
     stage = Usd.Stage.CreateInMemory()
     render_product = stage.DefinePrim("/Render/Viewport", "RenderProduct")
+    dome = UsdLux.DomeLight.Define(stage, "/World/Sky")
+    dome.GetTextureFileAttr().Set(Sdf.AssetPath("sky.hdr"))
+    dome.GetIntensityAttr().Set(750.0)
     visualizer = KitVisualizer(KitVisualizerCfg(background_color=color))
 
     visualizer._apply_render_product_background(stage, render_product.GetPath())
@@ -83,6 +67,8 @@ def test_background_color_applies_to_render_product_session_layer(
         assert tuple(source_color.Get()) == pytest.approx(color)
         assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:type") is None
         assert stage.GetRootLayer().GetAttributeAtPath("/Render/Viewport.omni:rtx:background:source:color") is None
+    assert dome.GetTextureFileAttr().Get().path == "sky.hdr"
+    assert dome.GetIntensityAttr().Get() == 750.0
 
 
 @pytest.mark.parametrize(("show_global_view", "expected_partition"), [(True, None), (False, "env_2")])

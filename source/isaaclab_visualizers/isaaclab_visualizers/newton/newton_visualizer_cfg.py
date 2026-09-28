@@ -10,9 +10,6 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -36,9 +33,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton_gl"
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
-    """Renderer configuration for the auto-created streaming camera."""
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -153,8 +147,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    .. note::
-        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
+    Lighting comes from the scene's authored USD lights by default, including HDR dome textures.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -168,8 +161,12 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
-    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+    """Lighting selection: ``"default"`` uses scene lights, ``"studio"`` uses Newton's three-point rig,
+    and ``"none"`` disables lighting. Without authored lights, ``"default"`` uses Newton's default rig.
+
+    Scene lights retain their authored initial transforms and visibility. Later source-USD edits
+    and body-attached light motion are not synchronized by the native RTX viewer.
+    """
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.

@@ -8,13 +8,11 @@
 from __future__ import annotations
 
 import importlib.util
-from types import SimpleNamespace
 
 import pytest
 import torch
 
-from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins, prim_world_positions
-from isaaclab.renderers import RendererCfg
+from isaaclab.envs.utils.camera_view import apply_camera_view_from_origins
 from isaaclab.utils.string import ResolvableString
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -42,21 +40,17 @@ def test_visualizer_cfg_names_its_implementation(module_name, cfg_name, implemen
     class_type = cfg.class_type
     assert isinstance(class_type, ResolvableString)
     assert class_type.__name__ == implementation
-    renderer_cfg = cfg.streaming_cam_renderer_cfg
-    assert renderer_cfg.renderer_type == ("isaac_rtx" if cfg_name == "KitVisualizerCfg" else "newton_warp")
-    assert isinstance(renderer_cfg.class_type, ResolvableString)
-    custom = RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom")
-    assert cfg_type(streaming_cam_renderer_cfg=custom).streaming_cam_renderer_cfg == custom
-    assert not hasattr(cfg, "streaming_cam_renderer")
+    assert cfg.streaming_sensor_prim_path is None
+    assert not any(name.startswith("streaming_cam_") for name in vars(cfg))
 
 
 def test_visualizer_cfg_streaming_view_is_opt_in():
     cfg = VisualizerCfg()
     assert cfg.focal_length == 12.0
-    assert cfg.background_color == (0.3, 0.55, 0.82)
+    assert cfg.background_color is None
     assert cfg.streaming_view is False
     assert cfg.streaming_envs == 32
-    assert cfg.streaming_cam_renderer_cfg is None
+    assert cfg.streaming_sensor_prim_path is None
 
 
 def test_visualizer_cfg_validates_background_color():
@@ -141,29 +135,6 @@ def test_apply_camera_view_from_origins_forwards_env_ids():
     assert targets.tolist() == [[1.0, 2.0, 3.0]]
     assert env_ids == [2]
     assert camera.update_poses_calls == [None]
-
-
-def test_prim_world_positions_prefers_scene_articulation_state():
-    body_pos_w = torch.tensor(
-        [
-            [[1.0, 2.0, 3.0], [10.0, 20.0, 30.0]],
-            [[4.0, 5.0, 6.0], [40.0, 50.0, 60.0]],
-        ]
-    )
-    articulation = SimpleNamespace(
-        cfg=SimpleNamespace(prim_path="/World/envs/env_[^/]+/Robot"),
-        body_names=["base", "foot"],
-        data=SimpleNamespace(
-            root_pos_w=SimpleNamespace(torch=torch.zeros((2, 3))),
-            body_pos_w=SimpleNamespace(torch=body_pos_w),
-        ),
-        find_bodies=lambda name, **_: ([0], [name]),
-    )
-    scene = SimpleNamespace(articulations={"robot": articulation})
-
-    positions = prim_world_positions(None, "/World/envs/*/Robot/base", [1, 0], scene=scene)
-
-    assert torch.equal(positions, torch.tensor([[4.0, 5.0, 6.0], [1.0, 2.0, 3.0]]))
 
 
 def test_compute_visualized_env_ids_cap_only_returns_none():

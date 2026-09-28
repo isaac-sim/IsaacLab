@@ -186,8 +186,7 @@ class VideoRecorder:
                     f"streaming_view is not enabled on the '{viz_type}' visualizer. "
                     f"Enable it by setting streaming_view=True on the visualizer config:\n\n"
                     f"    {cfg_name}(streaming_view=True, ...)\n\n"
-                    f"A streaming camera is auto-created from the streaming_cam_* fields. "
-                    f"To use an existing scene camera, set streaming_sensor_prim_path instead."
+                    "Declare a CameraCfg in the scene and select it with streaming_sensor_prim_path."
                 )
             return viz.render_tiled_rgb_array()
 

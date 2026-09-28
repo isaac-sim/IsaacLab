@@ -87,7 +87,6 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     visualizer._viewer_picking_binding = NewtonVisualizer._ViewerPickingBinding()
     visualizer._viewer = viewer
     visualizer._camera_sensor = None
-    visualizer._camera_is_owned = False
     visualizer._pending_mesh_submissions = {}
     if viewer is not None:
         viewer.owner = visualizer
@@ -147,24 +146,12 @@ def test_close_is_idempotent() -> None:
     assert viewer.close_calls == 1
 
 
-def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A failing viewer must not strand the owned camera or the closed flag.
-
-    ``SimulationContext`` already logs an exception raised by ``close()``, so
-    it is allowed to propagate -- but the rest of the teardown still has to
-    run, otherwise a viewer failure silently leaks the generated camera prims.
-    """
-    evicted: list[object] = []
-    removed: list[object] = []
-    monkeypatch.setattr(newton_visualizer, "evict_visualizer_camera", evicted.append, raising=False)
-    monkeypatch.setattr(newton_visualizer, "remove_generated_prims", removed.append, raising=False)
-
+def test_close_completes_cleanup_when_viewer_teardown_fails() -> None:
+    """Release borrowed references even on failure, without closing the scene's camera."""
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
-    visualizer._camera_sensor = object()
-    visualizer._camera_is_owned = True
-    visualizer._streaming_camera_key = "camera-key"
-    visualizer._generated_camera_prim_paths = ["/World/generated"]
+    camera = SimpleNamespace(close=lambda: pytest.fail("A visualizer must not close a scene camera"))
+    visualizer._camera_sensor = camera
 
     with pytest.raises(RuntimeError, match="Failed to create window"):
         visualizer.close()
@@ -173,8 +160,6 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     assert visualizer._viewer is None
     assert visualizer._camera_sensor is None
     assert visualizer._is_closed is True
-    assert evicted == ["camera-key"]
-    assert removed == [["/World/generated"]]
 
 
 def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -> None:

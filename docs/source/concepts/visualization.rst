@@ -798,10 +798,17 @@ For migration context, see :doc:`/source/migration/migrating_to_isaaclab_3-0`.
 Scene Background
 ~~~~~~~~~~~~~~~~
 
-Kit, Newton GL, and Newton RTX use the shared solid sky-blue background from
-``VisualizerCfg.background_color`` by default. This changes only the visible background; scene
-lights continue to illuminate objects and contribute reflections. Set a different normalized RGB
-color directly, or set the field to ``None`` to preserve the backend's native background:
+Kit and Newton RTX use the scene's authored lights and HDR background by default. Configure the
+environment once on the scene, without repeating its HDR path or intensity in the visualizer:
+
+.. code-block:: python
+
+    env_cfg.scene.sky_light.spawn.texture_file = "/path/to/evening.hdr"
+    env_cfg.scene.sky_light.spawn.intensity = 1000.0
+
+``VisualizerCfg.background_color`` defaults to ``None``. An explicit normalized RGB color changes
+only the visible background; the scene lights continue to illuminate objects and contribute
+reflections. Newton GL uses its procedural sky when no color override is supplied:
 
 .. code-block:: python
 
@@ -891,10 +898,10 @@ Each backend lights the scene differently, so the same environment can look noti
 different across visualizers. Kit renders the scene's actual authored USD lights. Newton GL
 uses a fixed sky-gradient and single directional light color
 (:attr:`~isaaclab_visualizers.newton.NewtonVisualizerCfg.sky_upper_color`,
-``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX supports
-only 3 lighting-environment presets
-(:attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.rtx_environment`: ``"default"``,
-``"studio"``, ``"none"``) and does not use any scene-authored USD lights. Viser uses a single
+``sky_lower_color``, ``light_color``), independent of scene USD lights. Newton RTX uses the scene's
+initial light properties and transforms. Later source-USD edits and body-attached light motion
+are not synchronized. Its explicit ``rtx_environment="studio"`` and ``"none"`` options remain
+available; without scene lights, ``"default"`` retains Newton's built-in rig. Viser uses a single
 ambient light with no directional key light, so scenes tend to look darker and flatter than
 the other backends. Rerun uses fixed built-in viewer shading with no scene-driven lighting.
 

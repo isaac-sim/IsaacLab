@@ -17,13 +17,25 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from .. import sim as sim_utils
+from ..cloner import expand_env_regex_ns
+from ..envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
+from ..envs.utils.camera_view import (
+    camera_gt_batch,
+    compose_streaming_grid,
+    find_camera_by_prim_path,
+    resolve_streaming_envs,
+)
+from ..utils.buffers import TimestampedBuffer
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    import numpy as np
+
     from ..managers import ManagerBase
     from ..renderers.base_renderer import VisualMaterialBatch
     from ..scene_data import SceneDataProvider
+    from ..sensors import Camera
     from .visualizer_cfg import VisualizerCfg
 
 
@@ -55,10 +67,11 @@ class BaseVisualizer(ABC):
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
-        # Declare the camera renderer before cloning gathers consumer requirements.
-        owns_camera = cfg.streaming_sensor_prim_path is None and cfg.streaming_cam_target_prim_path is not None
-        if cfg.streaming_view and owns_camera:
-            sim_utils.SimulationContext.instance().get_or_create_backend(cfg.streaming_cam_renderer_cfg)
+        self._sim_time = 0.0
+        self._camera_sensor: Camera | None = None
+        self._camera_sensor_indices: list[int] = []
+        self._streaming_aspect = 1.0
+        self._streaming_frame = TimestampedBuffer()
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
@@ -84,6 +97,66 @@ class BaseVisualizer(ABC):
             raise RuntimeError(f"{self.__class__.__name__} requires a scene_data_provider.")
         self._scene_data_provider = scene_data_provider
         return scene_data_provider
+
+    def _setup_streaming_view(
+        self, num_envs: int, *, visible_env_ids: list[int] | None = None, target_aspect: float = 1.0
+    ) -> None:
+        """Select a scene-owned camera without constructing or updating sensor resources."""
+        if not self.cfg.streaming_view:
+            return
+        # Validate display channels even when the scene has no camera.
+        for gt_type in self.cfg.streaming_gt_types:
+            sensor_key_for_gt_type(gt_type)
+        self._streaming_aspect = target_aspect
+        self._camera_sensor_indices = resolve_streaming_envs(
+            num_envs, self.cfg.streaming_envs, sample_from=visible_env_ids
+        )
+        cameras = self._scene_data_provider.get_camera_sensors()
+        path = self.cfg.streaming_sensor_prim_path
+        if path is None:
+            camera = next(iter(cameras.values()), None)
+        else:
+            plan = sim_utils.SimulationContext.instance().get_clone_plan()
+            path = expand_env_regex_ns(path, plan.env_template)
+            camera = find_camera_by_prim_path(cameras, path, self._camera_sensor_indices)
+        if camera is not None:
+            self._select_streaming_camera(camera)
+
+    def _select_streaming_camera(self, camera: Camera) -> None:
+        """Bind display channels to a borrowed camera and discard the previous composite."""
+        for gt_type in self.cfg.streaming_gt_types:
+            sensor_key_for_gt_type(gt_type, frozenset(camera.cfg.data_types))
+        self._camera_sensor = camera
+        self._streaming_frame = TimestampedBuffer()
+
+    def render_tiled_rgb_array(self) -> np.ndarray | None:
+        """Read the scene camera and return its colorized, tiled display image.
+
+        Returns:
+            Cached uint8 image of shape [H, W, 3], or None when no camera is selected.
+            Reading the camera uses its normal lazy update; the visualizer never forces a capture.
+        """
+        if self._camera_sensor is None or not self._camera_sensor_indices:
+            return None
+        if self._streaming_frame.timestamp != self._sim_time:
+            cfg = self.cfg
+            gt_types = cfg.streaming_gt_types
+            available = frozenset(self._camera_sensor.cfg.data_types)
+            # Gather and transfer each channel once, not once per displayed environment.
+            batches = []
+            for gt in gt_types:
+                key = sensor_key_for_gt_type(gt, available)
+                batches.append(camera_gt_batch(self._camera_sensor, self._camera_sensor_indices, key).cpu())
+            depth_range = dict(depth_min=cfg.streaming_depth_min, depth_max=cfg.streaming_depth_max)
+            frames = []
+            for env_id in range(len(self._camera_sensor_indices)):
+                for gt, batch in zip(gt_types, batches, strict=True):
+                    frames.append(CameraFrameColorizer.colorize(batch[env_id], gt, **depth_range))
+            self._streaming_frame.data = compose_streaming_grid(
+                frames, len(self._camera_sensor_indices), len(gt_types), target_aspect=self._streaming_aspect
+            )
+            self._streaming_frame.timestamp = self._sim_time
+        return self._streaming_frame.data
 
     @abstractmethod
     def step(self, dt: float) -> None:
@@ -423,7 +496,7 @@ class BaseVisualizer(ABC):
         Args:
             soft: Whether to perform a soft reset.
         """
-        pass
+        self._streaming_frame = TimestampedBuffer()
 
     def _log_initialization_table(self, logger: logging.Logger, title: str, rows: list[tuple[str, Any]]) -> None:
         """Log a compact initialization table for a visualizer.

@@ -36,27 +36,13 @@ from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager
 from newton.viewer import ViewerGL, ViewerRTX
 from pyglet.math import Vec3 as PygletVec3
 
-from isaaclab.envs.utils.camera_colorizer import (
-    SUPPORTED_GT_TYPES,
-    CameraFrameColorizer,
-    sensor_key_for_gt_type,
-    sensor_keys_for_gt_types,
-)
-from isaaclab.envs.utils.camera_view import (
-    VISUALIZER_TILED_CAMERA_MAX_TILES,
-    apply_camera_target_positions,
-    camera_gt_batch,
-    compose_streaming_grid,
-    compute_tile_resolution,
-    create_visualizer_camera,
-    evict_visualizer_camera,
-    find_camera_by_prim_path,
-    prim_world_positions,
-    remove_generated_prims,
-    resolve_streaming_envs,
-)
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
+
+from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import path as cloner_path
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
+from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
 from isaaclab_visualizers.desktop_entry import write_desktop_entry
@@ -661,6 +647,8 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
     def __init__(
         self,
         *args,
+        scene_stage: Usd.Stage,
+        clone_plan: ClonePlan,
         metadata: dict | None = None,
         update_frequency: int = 1,
         background_color: tuple[float, float, float] | None = None,
@@ -671,6 +659,8 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
 
         Args:
             *args: Positional arguments forwarded to ``ViewerRTX``.
+            scene_stage: Authored scene supplying lighting, including HDR textures.
+            clone_plan: Scene topology and placement shared with geometry import.
             metadata: Optional metadata shown in viewer panels.
             update_frequency: Viewer refresh cadence in simulation frames.
             background_color: Optional solid background color RGB [0, 1].
@@ -678,6 +668,7 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 :attr:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg.render_settings`.
             **kwargs: Keyword arguments forwarded to ``ViewerRTX``.
         """
+        self._scene_stage, self._clone_plan = scene_stage, clone_plan
         # Assigned before super().__init__(): ViewerRTX reaches
         # _add_camera_lights_and_render_product() during initialization, and the override reads
         # these values. The render settings are copied so a caller cannot mutate them afterwards.
@@ -707,6 +698,67 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         # the GUI is available); the panel patch is applied in _init_window() below.
         self.register_ui_callback(self._render_training_controls, position="side")
 
+    def _add_default_lights(self) -> None:
+        """Use the scene's authored lighting with the same world selection as the geometry."""
+        plan, stage = self._clone_plan, self._scene_stage
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        xforms = UsdGeom.XformCache()
+        lights = {}
+        for source in dict.fromkeys(sources):
+            root = stage.GetPrimAtPath(source) if source is not None else None
+            if root:
+                prims = Usd.PrimRange(root, Usd.TraverseInstanceProxies())
+                lights[source] = [prim for prim in prims if prim.HasAPI(UsdLux.LightAPI)]
+        if not any(lights.values()):
+            super()._add_default_lights()
+            return
+
+        # Read prototypes once; only light instances are expanded, never the completed scene.
+        offsets = self.world_offsets.numpy() if self.world_offsets is not None else None
+        for group, (start, end) in enumerate(zip(starts[:-1], starts[1:], strict=True)):
+            worlds = world_ids[world_starts[group] : world_starts[group + 1]]
+            worlds = [world for world in worlds if self._should_render_world(int(world))]
+            if not worlds:
+                continue
+            for index in range(start, end):
+                source = sources[plan.topology.world_prototypes[index]]
+                for prim in lights.get(source, ()):
+                    properties = prim.GetAuthoredProperties()
+                    properties = [
+                        prop for prop in properties if not prop.GetName().startswith(("xformOp:", "xformOpOrder"))
+                    ]
+                    texture = prim.GetAttribute("inputs:texture:file")
+                    asset = texture.Get() if texture else None
+                    if asset and asset.path:
+                        asset = Sdf.AssetPath(retrieve_file_path(asset.resolvedPath or asset.path))
+                    transform = xforms.GetLocalToWorldTransform(prim)
+                    origin = Gf.Vec3d(0.0)
+                    matched = cloner_path.match(source, plan.env_template)
+                    if group and plan.positions is not None and matched is not None:
+                        env = stage.GetPrimAtPath(plan.env_template.format(matched.instance))
+                        origin = xforms.GetLocalToWorldTransform(env).ExtractTranslation()
+                    suffix = str(prim.GetPath())[len(source) :]
+                    for world in worlds:
+                        destination = "/root/scene_lights" + templates[index].format(int(world)) + suffix
+                        target = self.stage.DefinePrim(destination, prim.GetTypeName())
+                        target.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(prim.GetAppliedSchemas()))
+                        for prop in properties:
+                            prop.FlattenTo(target)
+                        if asset:
+                            target.GetAttribute("inputs:texture:file").Set(asset)
+                        UsdGeom.Imageable(target).GetVisibilityAttr().Set(UsdGeom.Imageable(prim).ComputeVisibility())
+                        position = transform.ExtractTranslation()
+                        if world >= 0:
+                            if offsets is not None:
+                                position += Gf.Vec3d(*map(float, offsets[world]))
+                            if plan.positions is not None:
+                                position += Gf.Vec3d(*map(float, plan.positions[world])) - origin
+                        pose = Gf.Matrix4d(transform).SetTranslateOnly(position)
+                        UsdGeom.Xformable(target).MakeMatrixXform().Set(pose)
+
     def log_points(self, name, points, radii=None, colors=None, hidden=False):
         """Apply the configured color to Newton's canonical particle batch."""
         if name == "/model/particles" and points is not None and self.particle_color is not None:
@@ -722,8 +774,6 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         super()._add_camera_lights_and_render_product()
         if self._background_color is None and not self._render_settings:
             return
-        from pxr import Gf, Sdf
-
         prim = self.stage.GetPrimAtPath(self._render_product_path)
         if self._background_color is not None:
             prim.CreateAttribute("omni:rtx:background:source:type", Sdf.ValueTypeNames.Token).Set("color")
@@ -738,8 +788,19 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
 
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
-        # TODO: Use Newton's public RGB capture API when one becomes available.
-        return np.ascontiguousarray(self._capture_screenshot_pixels()[..., :3])
+        # OVRTX is optional for GL viewers. Newton's screenshot helper only supports pre-0.5 keys.
+        from isaaclab_ov.renderers.ovrtx_compat import OVRTX_VERSION, uses_prim_path_render_vars
+        from ovrtx import Device
+
+        products = self._render_products
+        if products is None:
+            if self._render_result is None:
+                raise RuntimeError("Frame capture requires at least one rendered frame.")
+            products = self._render_result.wait().fetch()
+        key = "/Render/Vars/LdrColor" if uses_prim_path_render_vars(OVRTX_VERSION) else "LdrColor"
+        frame = products[self._render_product_path].frames[0]
+        with frame.render_vars[key].map(device=Device.CPU) as mapping:
+            return np.array(np.from_dlpack(mapping)[..., :3], copy=True, order="C")
 
     def _init_window(self) -> None:
         """Create the viewer window and immediately apply Isaac Lab UI patches."""
@@ -1044,27 +1105,15 @@ class NewtonVisualizer(BaseVisualizer):
         super().__init__(cfg)
         self.cfg: NewtonVisualizerCfg = cfg
         self._viewer: NewtonViewerGL | NewtonViewerRTX | None = None
-        self._sim_time = 0.0
         self._step_counter = 0
         self._runtime_headless: bool = False
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._headless_no_viewer = False
         self._resolved_visible_env_ids: list[int] | None = None
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
         self._viewer_picking_binding = self._ViewerPickingBinding()
         self._picking_enabled = False
-        self._streaming_camera_key: tuple | None = None
         self._live_plots_manager_visible: dict[str, bool] = {}
-        self._last_streaming_composite: np.ndarray | None = None
-        self._composite_step: int = -1
-        self._scene_cameras: dict = {}
-        self._scene_camera_names: list[str] = []
-        self._active_camera_idx: int = 0
         self._pending_mesh_submissions: dict[str, _MeshSubmission] = {}
 
     # ------------------------------------------------------------------
@@ -1156,7 +1205,11 @@ class NewtonVisualizer(BaseVisualizer):
 
             self._apply_viewer_post_init()
 
-        self._setup_streaming_view(num_envs)
+        self._setup_streaming_view(
+            num_envs,
+            visible_env_ids=self._resolved_visible_env_ids,
+            target_aspect=self.cfg.window_width / self.cfg.window_height,
+        )
 
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
@@ -1299,6 +1352,7 @@ class NewtonVisualizer(BaseVisualizer):
 
     def reset(self, soft: bool = False) -> None:
         """Rebind viewer resources after a hard Newton model reset."""
+        super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
 
@@ -1360,12 +1414,6 @@ class NewtonVisualizer(BaseVisualizer):
             self._release_viewer()
         finally:
             self._pending_mesh_submissions.clear()
-            # A viewer that fails to close must not strand the camera prims or
-            # leave the visualizer looking open; the failure still propagates
-            # to the caller, which logs it and drops the visualizer.
-            if self._camera_sensor is not None and self._camera_is_owned:
-                evict_visualizer_camera(self._streaming_camera_key)
-                remove_generated_prims(self._generated_camera_prim_paths)
             self._camera_sensor = None
             self.backend = self._scene_data_provider = self._transform_mapping = None
             self._is_closed = True
@@ -1586,91 +1634,6 @@ class NewtonVisualizer(BaseVisualizer):
         """Return whether the streaming camera view is active."""
         return bool(self.cfg.streaming_view)
 
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        Returns the full multi-GT composite produced by the streaming camera panel —
-        including depth (turbo colormap), segmentation, and normals when configured via
-        :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_gt_types`.
-
-        When the streaming panel is hidden (headless training or panel closed by the
-        user), this method builds the composite on demand so that :class:`VideoRecorder`
-        and similar consumers always receive a valid frame. Shared by every Newton
-        backend that owns a streaming camera sensor (GL and RTX): RTX has no display
-        sink for the live preview panel (:meth:`_log_streaming_image` stays a no-op
-        there), but headless capture via this method works the same way on both.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
-            been configured or no usable GT output is available.
-        """
-        return self._build_streaming_composite()
-
-    def _build_streaming_composite(self) -> np.ndarray | None:
-        """Build (or return the cached) streaming composite for the current step.
-
-        The composite is built at most once per visualizer step.  A step-counter
-        comparison is used so repeated calls within the same step (e.g. from both
-        :meth:`_log_streaming_image` and :meth:`render_tiled_rgb_array`) share the
-        same result without redundant camera work.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if no camera sensor has
-            been configured or no usable GT output is available on this step.
-        """
-        if self._camera_sensor is None:
-            return self._last_streaming_composite
-
-        # Return the cached composite when it was already built this step.
-        if self._composite_step == self._step_counter:
-            return self._last_streaming_composite
-
-        if self._camera_is_owned:
-            self._update_owned_camera_poses()
-            self._camera_sensor.update(dt=0.0, force_recompute=True)
-
-        available = frozenset(self._camera_sensor.data.output.keys())
-
-        # Filter configured GT types to those actually available on this camera.
-        # Scene cameras may not produce every GT type; unrecognised keys are silently
-        # dropped so switching cameras never raises.  Fallback to "rgb" when nothing
-        # from the configured list is available.
-        gt_types: list[str] = []
-        for gt in self.cfg.streaming_gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                continue
-            try:
-                sensor_key_for_gt_type(gt, available)
-                gt_types.append(gt)
-            except (ValueError, KeyError):
-                pass
-        if not gt_types:
-            try:
-                sensor_key_for_gt_type("rgb", available)
-                gt_types = ["rgb"]
-            except (ValueError, KeyError):
-                return None  # camera has no usable output at all
-
-        frames: list[np.ndarray] = []
-        for env_idx in self._camera_sensor_indices:
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
-                frame = CameraFrameColorizer.colorize(
-                    raw,
-                    gt,
-                    depth_min=self.cfg.streaming_depth_min,
-                    depth_max=self.cfg.streaming_depth_max,
-                )
-                frames.append(frame)
-
-        n_envs = len(self._camera_sensor_indices)
-        target_aspect = self.cfg.window_width / self.cfg.window_height if self.cfg.window_height > 0 else 1.0
-        composite = compose_streaming_grid(frames, n_envs, len(gt_types), target_aspect=target_aspect)
-        self._last_streaming_composite = composite
-        self._composite_step = self._step_counter
-        return composite
-
     # ------------------------------------------------------------------
     # Shared internals
     # ------------------------------------------------------------------
@@ -1678,95 +1641,6 @@ class NewtonVisualizer(BaseVisualizer):
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config or USD camera path."""
         return self._resolve_cfg_camera_pose(type(self).__name__)
-
-    def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the camera sensor for the streaming view."""
-        if not self._uses_streaming_view():
-            return
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        for gt in gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                raise ValueError(
-                    f"[{type(self).__name__}] streaming_gt_types contains unsupported type {gt!r}. "
-                    f"Valid types: {sorted(SUPPORTED_GT_TYPES)}"
-                )
-
-        env_ids = resolve_streaming_envs(
-            num_envs,
-            self.cfg.streaming_envs,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-
-        if self.cfg.streaming_sensor_prim_path is not None:
-            logger.debug(
-                "[%s] streaming_sensor_prim_path uses existing camera sensor; streaming_cam_* fields are ignored.",
-                type(self).__name__,
-            )
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-            return
-
-        # When streaming_cam_target_prim_path is None, try to adopt the first scene camera
-        # rather than creating a new one with a hardcoded prim path.
-        if self.cfg.streaming_cam_target_prim_path is None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            if cameras:
-                first_name, first_cam = next(iter(cameras.items()))
-                logger.debug(
-                    "[%s] streaming_cam_target_prim_path is None; adopting scene camera %r.",
-                    type(self).__name__,
-                    first_name,
-                )
-                self._camera_sensor = first_cam
-                self._camera_sensor_indices = env_ids
-                return
-            logger.debug(
-                "[%s] streaming_cam_target_prim_path is None and no scene cameras found; "
-                "streaming view will be empty. Add a TiledCamera sensor or set "
-                "streaming_cam_target_prim_path to enable the streaming panel.",
-                type(self).__name__,
-            )
-            return
-
-        count = max(1, len(env_ids))
-        tile_w, tile_h = compute_tile_resolution(
-            self.cfg.window_width, self.cfg.window_height, count, n_gt=len(gt_types)
-        )
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=tile_w,
-            height=tile_h,
-            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-            target_prim_path=self.cfg.streaming_cam_target_prim_path,
-            eye=self.cfg.streaming_cam_eye,
-            streaming_envs=tuple(int(i) for i in env_ids),
-        )
-        self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
-            result
-        )
-        self._camera_sensor_indices = env_ids
-        self._update_owned_camera_poses()
-
-    def _update_owned_camera_poses(self) -> None:
-        """Update generated camera poses from env origins or follow prims."""
-        if self._camera_sensor is None or not self._camera_is_owned:
-            return
-        from isaaclab.sim import SimulationContext
-
-        target_positions = prim_world_positions(
-            SimulationContext.instance().stage,
-            self.cfg.streaming_cam_target_prim_path,
-            self._camera_env_indices,
-            scene=self._scene_data_provider.get_interactive_scene(),
-        )
-        apply_camera_target_positions(
-            self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, self._camera_env_indices
-        )
 
     def _log_scene_contact_sensor_arrows(self, num_envs: int) -> None:
         """Render contact sensor data as Newton-style arrows when native contacts are unavailable."""
@@ -1903,18 +1777,6 @@ class NewtonGLVisualizer(NewtonVisualizer):
         super().__init__(cfg)
         self.cfg: NewtonGLVisualizerCfg = cfg
 
-        # Camera-selector dropdown state — populated in _build_streaming_camera_dropdown().
-        # _scene_camera_map  : sensor name → Camera, from get_camera_sensors() at init time.
-        # _streaming_camera_choices : display names for the combo (may include "Custom").
-        # _streaming_camera_selection : current combo index.
-        # _custom_camera / _custom_camera_indices : snapshot of the owned camera created by
-        #   _setup_streaming_view() so the user can return to it after switching cameras.
-        self._scene_camera_map: dict = {}
-        self._streaming_camera_choices: list[str] = []
-        self._streaming_camera_selection: int = 0
-        self._custom_camera: object | None = None
-        self._custom_camera_indices: list[int] = []
-
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize the GL visualizer and build the streaming camera dropdown.
 
@@ -1926,39 +1788,13 @@ class NewtonGLVisualizer(NewtonVisualizer):
             self._build_streaming_camera_dropdown()
 
     def _build_streaming_camera_dropdown(self) -> None:
-        """Populate the camera-selector combo from scene sensors captured at init.
-
-        Adds a ``"Custom"`` entry at the top of the list only when
-        ``_setup_streaming_view()`` created an owned camera (i.e. the user
-        configured :attr:`~isaaclab.visualizers.VisualizerCfg.streaming_cam_target_prim_path`
-        or a similar auto-follow option).  If the current camera already comes
-        from a scene sensor, it appears in the list naturally by name.
-
-        Patches :meth:`~_NewtonViewerUIMixin._draw_streaming_view_controls` on
-        the viewer instance to inject the combo into the existing sidebar section.
-        """
+        """List the scene cameras available to the streaming panel."""
         self._scene_camera_map = self._scene_data_provider.get_camera_sensors()
-        choices: list[str] = list(self._scene_camera_map.keys())
-        current_idx = 0
-
-        if self._camera_is_owned and self._camera_sensor is not None:
-            # Owned camera = user configured something explicit (custom target prim or
-            # auto-created).  Expose it as "Custom" so the user can return to it.
-            self._custom_camera = self._camera_sensor
-            self._custom_camera_indices = list(self._camera_sensor_indices or [])
-            choices = ["Custom"] + choices
-            current_idx = 0
-        else:
-            # Scene camera: find which entry matches the current sensor.
-            for i, cam in enumerate(self._scene_camera_map.values()):
-                if cam is self._camera_sensor:
-                    current_idx = i
-                    break
-
-        self._streaming_camera_choices = choices
-        self._streaming_camera_selection = current_idx
-
-        if choices and self._viewer is not None:
+        self._streaming_camera_choices = list(self._scene_camera_map)
+        self._streaming_camera_selection = next(
+            (i for i, camera in enumerate(self._scene_camera_map.values()) if camera is self._camera_sensor), 0
+        )
+        if self._streaming_camera_choices and self._viewer is not None:
             self._patch_streaming_camera_controls()
 
     def _patch_streaming_camera_controls(self) -> None:
@@ -1971,7 +1807,6 @@ class NewtonGLVisualizer(NewtonVisualizer):
         import types
 
         viewer = self._viewer
-        _orig = type(viewer)._draw_streaming_view_controls
         _vis = self  # closure reference to the visualizer
 
         def _patched(self_viewer):
@@ -2031,7 +1866,7 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """Switch the active streaming camera to the combo selection at *new_idx*.
 
         Reassigns :attr:`_camera_sensor` and :attr:`_camera_sensor_indices` and
-        clears :attr:`_last_streaming_composite` so the panel refreshes
+        clears :attr:`_streaming_frame` so the panel refreshes
         immediately on the next step.
 
         Args:
@@ -2039,30 +1874,9 @@ class NewtonGLVisualizer(NewtonVisualizer):
         """
         if new_idx == self._streaming_camera_selection:
             return
-        self._streaming_camera_selection = new_idx
         choice = self._streaming_camera_choices[new_idx]
-
-        if choice == "Custom" and self._custom_camera is not None:
-            self._camera_sensor = self._custom_camera
-            self._camera_sensor_indices = list(self._custom_camera_indices)
-            self._camera_is_owned = True
-        elif choice in self._scene_camera_map:
-            cam = self._scene_camera_map[choice]
-            self._camera_sensor = cam
-            # Resolve env indices for the new camera's env count.
-            n_envs = getattr(getattr(cam, "_view", None), "count", None) or len(self._camera_sensor_indices)
-            self._camera_sensor_indices = resolve_streaming_envs(
-                n_envs,
-                self.cfg.streaming_envs,
-                max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-                sample_from=self._resolved_visible_env_ids,
-            )
-            self._camera_is_owned = False
-
-        # Invalidate the cached composite and clear the panel's window_initialized flag
-        # so _draw_large re-sizes it to the new camera's grid aspect ratio on next open.
-        self._last_streaming_composite = None
-        self._composite_step = -1
+        self._select_streaming_camera(self._scene_camera_map[choice])
+        self._streaming_camera_selection = new_idx
         if self._viewer is not None:
             self._viewer._streaming_composite_h = 0
             self._viewer._streaming_composite_w = 0
@@ -2281,8 +2095,8 @@ class NewtonGLVisualizer(NewtonVisualizer):
         on the first call so the combo always appears in the sidebar, but no GPU/CPU
         rendering is performed until the user opens the panel.
 
-        When the panel is visible the composite is built via :meth:`_build_streaming_composite`
-        (which caches by step counter) and pushed to the image logger.
+        When the panel is visible the composite is built via :meth:`render_tiled_rgb_array`
+        (which caches at the visualizer's current time) and pushed to the image logger.
         """
         if self._viewer is None or self._camera_sensor is None:
             return
@@ -2305,12 +2119,11 @@ class NewtonGLVisualizer(NewtonVisualizer):
 
         # When the panel is hidden (selected=None), skip all camera rendering.
         # Work resumes the next step after the user selects "Open" in the combo.
-        # render_tiled_rgb_array() calls _build_streaming_composite() directly for
-        # headless VideoRecorder use-cases, bypassing this guard.
+        # Headless recording calls render_tiled_rgb_array() directly, bypassing this panel guard.
         if image_logger is not None and image_logger._selected is None:
             return
 
-        composite = self._build_streaming_composite()
+        composite = self.render_tiled_rgb_array()
         if composite is None:
             return
 
@@ -2348,8 +2161,9 @@ class NewtonRTXVisualizer(NewtonVisualizer):
     The tiled camera panel remains disabled because ``ViewerRTX.log_image`` has no
     display sink.
 
-    A solid background can be configured through :class:`NewtonRTXVisualizerCfg`. Other RTX
-    settings use ``ViewerRTX`` defaults unless supplied through ``render_settings``.
+    Scene-authored lights supply illumination and the HDR background. An explicit solid background
+    changes only the visible sky. Other RTX settings use ``ViewerRTX`` defaults unless supplied
+    through ``render_settings``.
     """
 
     def __init__(self, cfg: NewtonRTXVisualizerCfg):
@@ -2371,7 +2185,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
             write_desktop_entry(
                 "isaaclab-newton-rtx-viewer", "Newton RTX Viewer", "Newton RTX Viewer", _NEWTON_ICON_DIR / "icon_64.png"
             )
+        sim = SimulationContext.instance()
         return NewtonViewerRTX(
+            scene_stage=sim.stage,
+            clone_plan=sim.get_clone_plan(),
             width=self.cfg.window_width,
             height=self.cfg.window_height,
             headless=runtime_headless,

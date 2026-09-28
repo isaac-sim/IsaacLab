@@ -2610,20 +2610,21 @@ Renderer selection now takes a configuration directly, without a nickname compat
      - Accepts ``int`` or ``list[int]``
    * - ``tiled_cam_prim_path``
      - ``streaming_sensor_prim_path``
-     - Existing sensor path; takes priority over auto-created camera
+     - Scene-declared sensor path
    * - ``tiled_cam_eye``
-     - ``streaming_cam_eye``
-     -
+     - ``CameraCfg.offset``
+     - Scene camera pose
    * - ``tiled_cam_renderer``
-     - ``streaming_cam_renderer_cfg``
-     - Renderer configuration, not a nickname
+     - ``CameraCfg.renderer_cfg``
+     - Renderer configuration on the scene camera
 
-Replace ``streaming_cam_renderer="ovrtx"`` with ``streaming_cam_renderer_cfg=OVRTXRendererCfg()``
-(imported from ``isaaclab_ov.renderers``). Likewise, pass ``NewtonWarpRendererCfg()`` or
-``IsaacRtxRendererCfg()`` for Newton Warp or Isaac RTX. Custom configurations use their existing
-``class_type`` class or resolvable string. Kit defaults to Isaac RTX; the other visualizers default
-to Newton Warp. An unavailable explicitly selected renderer raises its construction error instead
-of silently selecting another renderer.
+Streaming cameras must now be declared in the scene before cloning. Move
+``streaming_cam_renderer_cfg`` to the scene camera's ``CameraCfg.renderer_cfg``, and replace
+``streaming_cam_eye`` / ``streaming_cam_target_prim_path`` with its ``offset`` and parent prim path.
+The corresponding ``tiled_cam_eye`` and ``tiled_cam_target_prim_path`` aliases are also removed.
+Visualizers only display the selected sensor's output; they no longer create a renderer or
+camera, force a capture, or remove camera prims on close. See :doc:`/source/features/visualizer_tiled_camera`.
+
 
 .. code-block:: python
 
