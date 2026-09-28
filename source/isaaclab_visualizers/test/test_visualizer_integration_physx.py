@@ -17,9 +17,6 @@ from isaaclab.test.utils import launch_test_simulation
 
 launch_test_simulation(enable_cameras=True, visualizer_intent={"has_kit_visualizer": True})
 
-import omni.kit.app
-
-simulation_app = omni.kit.app.get_app()
 
 import pytest  # noqa: E402
 
@@ -28,8 +25,6 @@ if str(_TEST_DIR) not in sys.path:
     sys.path.insert(0, str(_TEST_DIR))
 
 import visualizer_integration_utils as _viz_utils  # noqa: E402
-
-_viz_utils.set_visualizer_integration_simulation_app(simulation_app)
 
 pytestmark = [pytest.mark.isaacsim_ci]
 
