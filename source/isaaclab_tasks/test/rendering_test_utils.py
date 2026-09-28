@@ -18,7 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.utils import clone, replace, to_dict
+from isaaclab.utils import clone, replace
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -736,13 +736,17 @@ def maybe_save_stage(
 
 
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
-    """Apply override args to env_cfg using parse_overrides and apply_overrides."""
-    from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
+    """Return a copy of env_cfg with override args applied by the production task-config resolver."""
+    import gymnasium as gym
 
-    presets = {"env": collect_presets(env_cfg)}
-    global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": to_dict(env_cfg)}
-    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Rendering-Test-Overrides"
+    gym.register(id=task, entry_point="dummy:Env", kwargs={"env_cfg_entry_point": lambda: clone(env_cfg)})
+    try:
+        env_cfg, _ = resolve_task_config(task, None, overrides=override_args)
+    finally:
+        del gym.registry[task]
     return env_cfg
 
 
