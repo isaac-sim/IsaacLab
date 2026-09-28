@@ -570,7 +570,7 @@ def run_simulator(sim, scene) -> None:
     """Run the comparison until the viewer closes or the step limit is reached."""
     sim_dt = sim.get_physics_dt()
     count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         update_press(scene, count * sim_dt)
         sim.step(render=False)
         scene.update(sim_dt)

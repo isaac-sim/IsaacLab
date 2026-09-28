@@ -517,7 +517,7 @@ def run_simulator(sim, scene, surface_renderer: ParticleSurfaceRenderer | None) 
     count = 0
     triangle_count = surface_renderer.update() if surface_renderer is not None else 0
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         sim.step(render=False)
         scene.update(sim_dt)
         if sim.is_rendering and count % 2 == 0:

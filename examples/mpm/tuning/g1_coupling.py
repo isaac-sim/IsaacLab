@@ -545,9 +545,7 @@ def main() -> None:
 
         step = 0
         try:
-            while env.unwrapped.sim.is_headless_or_exist_active_visualizer() and (
-                args_cli.max_steps < 0 or step < args_cli.max_steps
-            ):
+            while env.unwrapped.sim.is_running() and (args_cli.max_steps < 0 or step < args_cli.max_steps):
                 with torch.inference_mode():
                     actions = policy(obs)
                     obs, _, dones, _ = env.step(actions)
