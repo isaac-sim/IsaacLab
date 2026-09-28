@@ -99,8 +99,8 @@ def _author_opencv_distortion(prim: Usd.Prim, cfg: sensors_cfg.OpenCvDistortionC
         Sdf.ValueTypeNames.Int2,
         Gf.Vec2i(int(cfg.image_size[0]), int(cfg.image_size[1])),
     )
-    for name in ("fx", "fy", "cx", "cy"):
-        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(getattr(cfg, name)))
+    for name, value in (("fx", cfg.fx), ("fy", cfg.fy), ("cx", cfg.cx), ("cy", cfg.cy)):
+        _set_attr(f"{prefix}:{name}", Sdf.ValueTypeNames.Float, float(value))
     # coefficients are muted (authored as zero) unless apply_lens_distortion is set
     for name in _OPENCV_DISTORTION_COEFFS[cfg.model]:
         value = float(getattr(cfg, name)) if cfg.apply_lens_distortion else 0.0

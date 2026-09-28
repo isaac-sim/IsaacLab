@@ -692,13 +692,16 @@ def _spawn_from_usd_file(
         else:
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
-    # modify variants
-    if hasattr(cfg, "variants") and cfg.variants is not None:
-        select_usd_variants(prim_path, cfg.variants)
+    from . import from_files_cfg  # noqa: PLC0415
 
-    # make instance proxies editable before any override tries to author properties on them
-    if getattr(cfg, "make_uninstanceable", False):
-        make_uninstanceable(prim_path, stage=stage)
+    # variant selection and instancing overrides only exist on USD file spawners
+    if isinstance(cfg, from_files_cfg.UsdFileCfg):
+        # modify variants
+        if cfg.variants is not None:
+            select_usd_variants(prim_path, cfg.variants)
+        # make instance proxies editable before any override tries to author properties on them
+        if cfg.make_uninstanceable:
+            make_uninstanceable(prim_path, stage=stage)
 
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)

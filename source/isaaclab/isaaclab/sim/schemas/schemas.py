@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import dataclasses
+import inspect
 import logging
 import math
 from collections.abc import Callable, Iterable
@@ -132,7 +133,7 @@ def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
     overridden for default values.
     """
     for cls in reversed(cfg_class.__mro__):
-        if field_name in getattr(cls, "__annotations__", {}):
+        if field_name in inspect.get_annotations(cls):
             return cls
     return None
 

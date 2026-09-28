@@ -17,6 +17,7 @@ from ... import schemas
 from ...utils import bind_physics_material, bind_visual_material, clone, create_prim, get_current_stage
 from .._utils import apply_schema_props, resolve_material_path
 from ..materials.physics_materials import spawn_physics_material
+from ..spawner_cfg import RigidObjectSpawnerCfg
 
 if TYPE_CHECKING:
     from . import shapes_cfg
@@ -323,7 +324,7 @@ def _spawn_geom_from_prim_type(
         geometry_schema_func(mesh_prim_path, stage=stage)
 
     # collision properties anchor at the geometry prim
-    if getattr(cfg, "collision_props", None) is not None:
+    if cfg.collision_props is not None:
         apply_schema_props(
             cfg.collision_props,
             mesh_prim_path,
@@ -341,13 +342,18 @@ def _spawn_geom_from_prim_type(
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
     # mass and rigid body properties anchor at the container prim and are applied last so the
-    # geometry can later be made instanceable
-    if getattr(cfg, "mass_props", None) is not None:
-        apply_schema_props(
-            cfg.mass_props, prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
-        )
-    if getattr(cfg, "rigid_props", None) is not None:
-        apply_schema_props(
-            cfg.rigid_props, prim_path, schemas.apply_rigid_body_properties, schemas.define_rigid_body_properties, stage
-        )
+    # geometry can later be made instanceable; cables carry neither
+    if isinstance(cfg, RigidObjectSpawnerCfg):
+        if cfg.mass_props is not None:
+            apply_schema_props(
+                cfg.mass_props, prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
+            )
+        if cfg.rigid_props is not None:
+            apply_schema_props(
+                cfg.rigid_props,
+                prim_path,
+                schemas.apply_rigid_body_properties,
+                schemas.define_rigid_body_properties,
+                stage,
+            )
     return prim

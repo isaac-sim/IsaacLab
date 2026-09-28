@@ -183,7 +183,7 @@ def define_actuator_properties(
 
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-    if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
+    if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return
 
     from ..utils.queries import find_first_matching_prim  # noqa: PLC0415
@@ -241,15 +241,15 @@ def _author_actuator_prims(
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     for group_name, cfg, joint_names in cfg_entries:
-        stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
-        damping_map = resolve_per_dof(getattr(cfg, "damping", None), joint_names)
+        stiffness_map = resolve_per_dof(cfg.stiffness, joint_names)
+        damping_map = resolve_per_dof(cfg.damping, joint_names)
 
         is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
 
-        configured_effort_limit = getattr(cfg, "actuator_effort_limit", None)
+        configured_effort_limit = cfg.actuator_effort_limit
         effort_map: dict[str, float] = {}
         if not is_remotized:
             if configured_effort_limit is None:
@@ -262,12 +262,10 @@ def _author_actuator_prims(
                     zip(joint_names, _resolve_matching_values_dense(configured_effort_limit, joint_names))
                 )
 
-        vel_limit_map = (
-            resolve_per_dof(getattr(cfg, "actuator_velocity_limit", None), joint_names) if is_dc_motor else {}
-        )
-        sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
+        vel_limit_map = resolve_per_dof(cfg.actuator_velocity_limit, joint_names) if is_dc_motor else {}
+        sat_effort_map = resolve_per_dof(cfg.saturation_effort, joint_names) if is_dc_motor else {}
 
-        raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0
+        raw_delay = cfg.max_delay if is_delayed else 0
         delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
 
         patched_model_path: str | None = None
