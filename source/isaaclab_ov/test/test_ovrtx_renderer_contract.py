@@ -103,13 +103,16 @@ def _simulation_registry(monkeypatch):
 def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
-    destroyed = []
+    destroyed, redirected = [], []
     dependency = tmp_path / "bin/plugins/libosdCPU.so.3.6.0"
     dependency.parent.mkdir(parents=True)
     dependency.touch()
     loaded = []
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "__file__", str(tmp_path / "__init__.py"))
     monkeypatch.setattr(ctypes, "CDLL", lambda path: loaded.append(path))
+    # Cache redirection can load the SDK too; isolate it with the other native entry points.
+    monkeypatch.setenv("OVRTX_SHADER_CACHE_PATH", str(tmp_path / "shader-cache"))
+    monkeypatch.setattr(ovrtx_renderer_module, "redirect_shader_cache", redirected.append)
 
     class RecordingRendererConfig:
         def __init__(self, **kwargs):
@@ -129,6 +132,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
 
     assert shared.backend is renderer.backend
     assert loaded == [str(dependency)]
+    assert len(redirected) == 1
     assert renderer.backend.renderer is not None
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
@@ -145,6 +149,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     SimulationContext.instance().close_backend(renderer.backend)
     SimulationContext.instance().close_backend(other.backend)
     assert len(destroyed) == 2
+    assert redirected == destroyed
     assert not SimulationContext.instance()._backend_registry
 
 
