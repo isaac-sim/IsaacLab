@@ -28,15 +28,18 @@ class CartpoleEnv(DirectRLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.cartpole = self.scene["cartpole"]
-        self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
+        pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
+        # device indices keep per-step indexing and effort writes free of host uploads
+        self._cart_dof_idx = torch.tensor(cart_dof_idx, device=self.device)
+        self._pole_dof_idx = torch.tensor(pole_dof_idx, device=self.device)
         self.action_scale = self.cfg.action_scale
 
         self.joint_pos = self.cartpole.data.joint_pos.torch
         self.joint_vel = self.cartpole.data.joint_vel.torch
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = self.action_scale * actions.clone()
+        self.actions = self.action_scale * actions
 
     def _apply_action(self) -> None:
         self.cartpole.set_joint_effort_target_index(target=self.actions, joint_ids=self._cart_dof_idx)
@@ -46,10 +49,10 @@ class CartpoleEnv(DirectRLEnv):
         joint_vel_rel = self.joint_vel - self.cartpole.data.default_joint_vel.torch
         obs = torch.cat(
             (
-                joint_pos_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_pos_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                joint_vel_rel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                joint_pos_rel[:, self._cart_dof_idx],
+                joint_pos_rel[:, self._pole_dof_idx],
+                joint_vel_rel[:, self._cart_dof_idx],
+                joint_vel_rel[:, self._pole_dof_idx],
             ),
             dim=-1,
         )
@@ -62,9 +65,9 @@ class CartpoleEnv(DirectRLEnv):
             self.cfg.rew_scale_pole_pos,
             self.cfg.rew_scale_cart_vel,
             self.cfg.rew_scale_pole_vel,
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            self.joint_vel[:, self._cart_dof_idx[0]],
+            self.joint_pos[:, self._pole_dof_idx],
+            self.joint_vel[:, self._pole_dof_idx],
+            self.joint_vel[:, self._cart_dof_idx],
             self.reset_terminated,
             self.step_dt,
         )
@@ -149,8 +152,8 @@ def compute_rewards(
     pole_pos = wrap_to_pi(pole_pos)
     rew_alive = rew_scale_alive * (1.0 - reset_terminated.float())
     rew_termination = rew_scale_terminated * reset_terminated.float()
-    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos).unsqueeze(dim=1), dim=-1)
-    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel).unsqueeze(dim=1), dim=-1)
-    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel).unsqueeze(dim=1), dim=-1)
+    rew_pole_pos = rew_scale_pole_pos * torch.sum(torch.square(pole_pos), dim=-1)
+    rew_cart_vel = rew_scale_cart_vel * torch.sum(torch.abs(cart_vel), dim=-1)
+    rew_pole_vel = rew_scale_pole_vel * torch.sum(torch.abs(pole_vel), dim=-1)
     total_reward = (rew_alive + rew_termination + rew_pole_pos + rew_cart_vel + rew_pole_vel) * step_dt
     return total_reward
