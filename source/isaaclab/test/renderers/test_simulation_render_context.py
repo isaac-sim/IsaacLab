@@ -64,14 +64,14 @@ def test_renderer_registry_sharing_and_early_clone_requirements(sim):
 
     assert sim.get_or_create_backend(replace(cfg, semantic_filter="class:robot")) is not renderer
     assert sim.get_or_create_backend(NewtonWarpRendererCfg(class_type=_renderer)) is not renderer
-    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: object()))
+    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: SimpleNamespace(close=Mock())))
     assert sim.render_context.renderer_types == ("isaac_rtx", "isaac_rtx", "newton_warp")
 
 
 def test_renderer_initializes_once_before_or_after_physics_ready(sim):
     cfg = RendererCfg(class_type=_renderer)
     first = sim.get_or_create_backend(cfg)
-    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: object()))
+    sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: SimpleNamespace(close=Mock())))
     sim.render_context.ensure_initialize()
     sim.render_context.ensure_initialize()
     first.initialize.assert_called_once_with()

@@ -40,6 +40,8 @@ MOCK_ITERATIONS_BEFORE_IDLE = 3
 def _reset_globals(monkeypatch):
     """Restore module-level state so tests are isolated."""
     monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1))
+    fabric = types.SimpleNamespace(FabricBackendCfg=types.SimpleNamespace)
+    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric)
 
 
 @pytest.fixture()
@@ -190,7 +192,9 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
-        mock_sim.get_or_create_backend.assert_called_once_with(mock_sim.fabric_cfg)
+        cfg = mock_sim.get_or_create_backend.call_args.args[0]
+        assert cfg.stage is mock_sim.stage and cfg.device is mock_sim.device
+        mock_sim.get_or_create_backend.assert_called_once()
         update_transforms.assert_called_once_with(provider)
         mock_sim.physics_manager.forward.assert_not_called()
 

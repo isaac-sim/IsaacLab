@@ -178,5 +178,5 @@ class SceneDataBackend:
 
     @property
     def transform_paths(self) -> list[str]:
-        """Return the paths for each transform."""
+        """Return unique native body paths in publication order, fixed for each initialized layout."""
         raise NotImplementedError

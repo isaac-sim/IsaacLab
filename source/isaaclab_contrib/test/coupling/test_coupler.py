@@ -505,13 +505,15 @@ def test_coupler_clear_releases_nested_manager_state(monkeypatch):
     assert events == ["vbd", "mpm"]
 
 
-def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
-    """Coupled MPM entries normalize kinematic colliders before finalize."""
+@pytest.mark.parametrize("vbd_entries", [0, 2])
+def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch, vbd_entries):
+    """Prepare the shared builder once per selected solver, without unconditional VBD coloring."""
     events: list[tuple[str, object]] = []
-    builder = object()
-    solver_cfg = CouplerProxyCfg(
-        entries=[CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())],
-    )
+    builder = ModelBuilder()
+    monkeypatch.setattr(builder, "color", lambda *, balance_colors: events.append(("color", balance_colors)))
+    entries = [CouplerEntryCfg(name="media", solver_cfg=MPMSolverCfg())]
+    entries.extend(CouplerEntryCfg(name=f"cloth_{index}", solver_cfg=VBDSolverCfg()) for index in range(vbd_entries))
+    solver_cfg = CouplerProxyCfg(entries=entries)
     monkeypatch.setattr(coupler.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=solver_cfg))
     monkeypatch.setattr(
         coupler.NewtonMPMManager,
@@ -521,7 +523,7 @@ def test_mpm_entry_reuses_builder_lifecycle_hooks(monkeypatch):
 
     NewtonCouplerManager._prepare_builder_for_finalize(builder)
 
-    assert events == [("finalize", builder)]
+    assert events == [("finalize", builder)] + ([("color", False)] if vbd_entries else [])
 
 
 def test_nested_solvers_register_their_builder_attributes(monkeypatch):

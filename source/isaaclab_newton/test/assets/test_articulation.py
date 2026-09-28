@@ -40,9 +40,8 @@ import torch
 import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
-from isaaclab_newton.assets.articulation.articulation import _configure_builder_joint_target_modes
 from isaaclab_newton.assets.articulation.articulation_data import ArticulationData
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFlags
@@ -569,10 +568,14 @@ def sim(request):
 
 
 def _make_target_mode_builder(
-    joint_names: list[str], target_modes: list[JointTargetMode], stiffness: list[float], damping: list[float]
+    monkeypatch, joint_names: list[str], modes: list[JointTargetMode], stiffness: list[float], damping: list[float]
 ) -> ModelBuilder:
     """Build a zero-gain articulated model builder for target-mode tests."""
-    builder = ModelBuilder()
+    sim = object.__new__(sim_utils.SimulationContext)
+    sim.cfg = SimpleNamespace(physics=NewtonCfg())
+    sim._backend_registry = []
+    monkeypatch.setattr(sim_utils.SimulationContext, "instance", lambda: sim)
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
     inertia = wp.mat33(1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0)
     parent = -1
     joint_ids = []
@@ -590,7 +593,7 @@ def _make_target_mode_builder(
         parent = link
     builder.add_articulation(joint_ids, label="/World/Env_0/Robot")
     builder.articulation_label = ["/World/Env_0/Robot"]
-    builder.joint_target_mode = [int(mode) for mode in target_modes]
+    builder.joint_target_mode = [int(mode) for mode in modes]
     builder.joint_target_ke = stiffness
     builder.joint_target_kd = damping
     return builder
@@ -673,7 +676,7 @@ def test_prepare_native_actuators_activates_only_explicit_groups(monkeypatch, ac
     ],
 )
 def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
-    actuator_cfg, expected_mode, expected_actuator_indices
+    monkeypatch, actuator_cfg, expected_mode, expected_actuator_indices
 ):
     """Resolve configured modes before finalization constructs MuJoCo actuators."""
     articulation_cfg = ArticulationCfg(
@@ -682,9 +685,9 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
         actuators={"joint": actuator_cfg},
     )
     builder = _make_target_mode_builder(
-        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+        monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     model = builder.finalize(device="cpu")
     solver = SolverMuJoCo(model, use_mujoco_cpu=True)
     assert model.joint_target_mode.numpy().tolist() == [int(expected_mode), int(expected_mode)]
@@ -693,16 +696,16 @@ def test_actuator_cfg_sets_newton_target_mode_before_solver_init(
     ) == expected_actuator_indices
 
 
-def test_actuator_cfg_matches_explicit_descendant_articulation_root():
+def test_actuator_cfg_matches_explicit_descendant_articulation_root(monkeypatch):
     """Match target modes against an explicitly configured descendant articulation root."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
         articulation_root_prim_path="/base",
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
     )
-    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/Env_0/Robot/base"]
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
@@ -716,39 +719,39 @@ def test_actuator_cfg_matches_clone_plan_root_expr(monkeypatch):
         "isaaclab_newton.assets.articulation.articulation.resolve_matching_prims_from_source",
         lambda *_args, **_kwargs: [(None, "/World/envs/env_[^/]+/Robot/base")],
     )
-    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.articulation_label = ["/World/envs/env_0/Robot/base"]
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
 @pytest.mark.parametrize("joint_type", [JointType.FREE, JointType.FIXED])
-def test_actuator_cfg_leaves_excluded_joint_types_imported(joint_type):
+def test_actuator_cfg_leaves_excluded_joint_types_imported(monkeypatch, joint_type):
     """Leave target modes for free and fixed joints unchanged."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
         articulation_root_prim_path="",
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=10.0, damping=0.0)},
     )
-    builder = _make_target_mode_builder(["joint"], [JointTargetMode.NONE], [0.0], [0.0])
+    builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.NONE], [0.0], [0.0])
     builder.joint_type[0] = joint_type
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.NONE)]
 
 
-def test_actuator_cfg_uses_imported_gain_for_none_stiffness():
+def test_actuator_cfg_uses_imported_gain_for_none_stiffness(monkeypatch):
     """Retain the imported stiffness when an implicit actuator config leaves it unset."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
         articulation_root_prim_path="",
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=0.0)},
     )
-    builder = _make_target_mode_builder(["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    builder = _make_target_mode_builder(monkeypatch, ["joint"], [JointTargetMode.EFFORT], [10.0], [0.0])
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)]
 
 
-def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported():
+def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported(monkeypatch):
     """Leave target modes for DOFs outside an actuator group unchanged."""
     subset_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
@@ -758,12 +761,13 @@ def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported():
         },
     )
     builder = _make_target_mode_builder(
+        monkeypatch,
         ["left_shoulder", "right_shoulder"],
         [JointTargetMode.NONE, JointTargetMode.VELOCITY],
         [0.0, 0.0],
         [0.0, 2.0],
     )
-    _configure_builder_joint_target_modes(builder, subset_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=subset_cfg), None)
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION), int(JointTargetMode.VELOCITY)]
 
 
@@ -774,7 +778,7 @@ def test_actuator_cfg_leaves_unconfigured_newton_target_modes_imported():
         ({"left_joint": 10.0}, {"right_joint": 2.0}, [JointTargetMode.POSITION, JointTargetMode.VELOCITY]),
     ],
 )
-def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(stiffness, damping, expected_modes):
+def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(monkeypatch, stiffness, damping, expected_modes):
     """Resolve sparse stiffness and damping dictionaries independently by joint name."""
     articulation_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
@@ -782,9 +786,9 @@ def test_actuator_cfg_aligns_partial_dictionary_gains_by_joint_name(stiffness, d
         actuators={"joint": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
     )
     builder = _make_target_mode_builder(
-        ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
+        monkeypatch, ["left_joint", "right_joint"], [JointTargetMode.NONE, JointTargetMode.NONE], [0.0, 0.0], [0.0, 0.0]
     )
-    _configure_builder_joint_target_modes(builder, articulation_cfg)
+    Articulation._configure_joint_target_modes(SimpleNamespace(cfg=articulation_cfg), None)
     assert builder.joint_target_mode == [int(mode) for mode in expected_modes]
 
 

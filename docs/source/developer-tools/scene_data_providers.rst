@@ -141,9 +141,11 @@ path.
 PhysX owns its native Fabric refresh and publishes the resulting matrices through SDP without
 fetching packed poses. ``isaaclab_physx.renderers.fabric.FabricBackend`` owns the shared native stage
 and hierarchy handles. Its identity is the stage and device, not the SDP source or attribute type.
-``SimulationContext`` declares ``fabric_cfg`` when Kit is available. After physics initializes, Kit,
-Isaac RTX, and explicit Fabric synchronization obtain the same resource through
-``get_or_create_backend(sim.fabric_cfg)``. Transform bindings are state on that resource, not a
+After physics initializes, Kit, Isaac RTX, and explicit Fabric synchronization obtain
+the same resource through
+``sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))``.
+The simulation registry does not need to know which backends exist.
+Transform bindings are state on that resource, not a
 separate backend. Consumers pass the simulation's SDP to ``update_transforms(provider)``; for foreign
 physics it converts directly into Fabric local matrices, then propagates the GPU hierarchy.
 Core ``RenderContext`` owns no Fabric bindings.
