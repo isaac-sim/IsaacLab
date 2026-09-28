@@ -267,7 +267,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     # Simulate physics
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if count % 500 == 0:
             # reset counter
             count = 0
@@ -315,7 +315,6 @@ def main():
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
         from isaaclab.scene import InteractiveScene
 
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(
             dt=0.005,
             device=args_cli.device,
@@ -332,14 +331,10 @@ def main():
         if args_cli.asset_type == "objects":
             randomize_shape_color(scene_cfg.asset.prim_path.format(ENV_REGEX_NS="/World/envs/env_.*"))
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
