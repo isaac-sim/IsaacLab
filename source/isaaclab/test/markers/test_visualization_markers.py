@@ -6,7 +6,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
-from isaaclab.utils import clone
+from isaaclab.utils import clone, instantiate
 
 # launch omniverse app
 simulation_app = AppLauncher(headless=True).app
@@ -391,7 +391,7 @@ def test_visualizer_step_renders_markers_and_closes_frame(monkeypatch, caplog, m
     monkeypatch.setattr(module, "render_newton_visualization_markers", render_markers)
     monkeypatch.setattr(newton_visualizer.NewtonManager, "get_contacts", lambda: None)
     cfg = cfg_type()
-    visualizer = cfg.class_type(cfg)
+    visualizer = instantiate(cfg)
     visualizer.backend = backend
     visualizer._is_initialized = True
     visualizer._viewer = viewer = Viewer()

@@ -1613,9 +1613,10 @@ For configuration and data access examples, see the :ref:`overview_sensors_joint
    import torch
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    sensor = env.scene.sensors["joint_wrench"]
@@ -1643,9 +1644,10 @@ depend on the joint-wrench sensor instead:
    from isaaclab.managers import ObservationTermCfg as ObsTerm
    from isaaclab.scene import InteractiveSceneCfg
    from isaaclab.sensors import JointWrenchSensorCfg
+   from isaaclab.utils import replace
 
    class MySceneCfg(InteractiveSceneCfg):
-       robot = ROBOT_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+       robot = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
        joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
    feet_body_forces = ObsTerm(

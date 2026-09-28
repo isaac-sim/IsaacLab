@@ -16,6 +16,7 @@ import pytest
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
 from isaaclab.sim import SpawnerCfg
+from isaaclab.utils import replace
 
 pytestmark = pytest.mark.integration
 
@@ -83,7 +84,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
     builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
     declared_builder = sim.get_or_create_backend(builder_cfg)
-    assert sim.get_or_create_backend(builder_cfg.replace()) is declared_builder
+    assert sim.get_or_create_backend(replace(builder_cfg)) is declared_builder
     finalized = []
     original = ModelBuilder.finalize
 

@@ -4,7 +4,8 @@ Changed
 * Moved Newton camera and ray-cast consumers to the simulation-owned native backend. Consumers
   requested transforms and geometry directly through SDP and shared native BVH refits while owning
   their individual query graphs. ``NewtonWarpRendererCfg.use_cuda_graph`` controlled camera query
-  capture independently of physics capture.
+  capture independently of physics capture. Deformable triangle-mesh rendering stayed eager because
+  native mesh updates required host reads and allocations.
   Stateless query and capture functions lived in ``NewtonQueries`` alongside ``NewtonManager``;
   the container retained no model or scheduling state.
 * Applied ray-cast BVH requirements to the shared builder before finalization, including when

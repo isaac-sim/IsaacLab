@@ -467,43 +467,25 @@ class SimulationContext:
         """Apply shared default visualizer settings to a backend-specific config.
 
         Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
-        (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
-        AND are still at the backend cfg's own class default (i.e. not already
-        customised by the caller).  This prevents base-class defaults such as
-        ``streaming_view=False`` from stomping backend-specific defaults like
-        ``NewtonGLVisualizerCfg.streaming_view=True``.
+        (i.e. differ from its own class defaults) and are still at the target cfg's
+        class defaults. Backend-specific defaults, such as the streaming renderer,
+        do not transfer between visualizer types.
         """
-        from ..visualizers.visualizer_cfg import VisualizerCfg
-
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
-        # Base VisualizerCfg defaults — used to detect which fields on default_cfg
-        # were explicitly set by the env vs. left at the base-class default.
         try:
-            base_defaults = VisualizerCfg()
+            source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
         except Exception:
-            base_defaults = None
-        # Backend-specific class defaults — used to detect which fields on cfg
-        # the caller has already customised beyond the class defaults.
-        try:
-            factory_defaults = type(cfg)()
-        except Exception:
-            factory_defaults = None
+            # Without factory defaults, explicit choices cannot be distinguished.
+            return
         for field in fields(default_cfg):
             if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
             default_val = getattr(default_cfg, field.name)
-            # Skip fields that were not explicitly set in default_cfg (still at base default).
-            if base_defaults is not None and hasattr(base_defaults, field.name):
-                if default_val == getattr(base_defaults, field.name):
-                    continue
-            # Preserve explicitly customised fields on cfg.  When factory_defaults is None
-            # (backend cfg constructor raised), skip the field rather than overwriting it
-            # unconditionally — we cannot tell whether the caller customised it.
-            if factory_defaults is None:
+            if default_val == getattr(source_defaults, field.name):
                 continue
-            if getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+            if getattr(cfg, field.name) != getattr(target_defaults, field.name):
                 continue
             setattr(cfg, field.name, default_val)
 

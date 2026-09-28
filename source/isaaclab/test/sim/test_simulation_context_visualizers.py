@@ -18,6 +18,7 @@ import isaaclab_visualizers.viser.viser_visualizer as viser_visualizer
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 from isaaclab_visualizers.newton.newton_visualizer_cfg import (
     NewtonGLVisualizerCfg,
@@ -893,7 +894,8 @@ def test_cli_type_newton_rtx_resolves_to_newton_rtx_visualizer_cfg():
     assert isinstance(cfgs[0], NewtonRTXVisualizerCfg)
 
 
-def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
+@pytest.mark.parametrize("renderer_cfg", [None, NewtonWarpRendererCfg(use_cuda_graph=False)])
+def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs(renderer_cfg):
     """default_visualizer_cfg fills in env-level hints (eye, lookat) on explicit cfgs.
 
     When visualizer_cfgs is set directly (e.g. for video recording), fields that are
@@ -911,6 +913,8 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
         lookat=(0.0, 0.0, 0.5),
         streaming_cam_target_prim_path="/World/envs/*/Object",
     )
+    if renderer_cfg is not None:
+        default_cfg.streaming_cam_renderer_cfg = renderer_cfg
     # Explicit Newton cfg with only window_width customized; eye/lookat at class defaults.
     explicit_cfg = NewtonGLVisualizerCfg(window_width=320, window_height=240)
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[explicit_cfg], default_visualizer_cfg=default_cfg)
@@ -927,6 +931,9 @@ def test_default_visualizer_cfg_applies_to_explicit_visualizer_cfgs():
     assert cfgs[0].window_height == 240
     assert cfgs[0].class_type.__name__ == "NewtonGLVisualizer"
     assert cfgs[0].visualizer_type == "newton_gl"
+    # Inherit explicit choices, not the source visualizer's native renderer default.
+    assert cfgs[0].streaming_cam_renderer_cfg == (renderer_cfg or NewtonWarpRendererCfg())
+    assert cfgs[0].cloning_contexts == NewtonGLVisualizerCfg().cloning_contexts
 
 
 def test_default_visualizer_cfg_does_not_override_explicitly_customized_fields():

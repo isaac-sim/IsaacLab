@@ -16,6 +16,7 @@ from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
 from isaaclab.sim import BackendCfg, SimulationContext
+from isaaclab.utils import replace
 
 
 # The soft-contact and simulation axes are independent, so each value is covered once.
@@ -64,7 +65,7 @@ def test_soft_contact_cfg_updates_finalized_model(monkeypatch, soft_contact_cfg,
     assert not {"_builder", "set_builder", "_model", "_state_0", "_state_1"}.intersection(vars(NewtonManager))
     assert not {"sync_transforms_to_fabric", "sync_transforms_to_usd"}.intersection(vars(NewtonManager))
     assert cfg.physics_cfg is physics_cfg
-    assert backend is sim.get_or_create_backend(cfg.replace())
+    assert backend is sim.get_or_create_backend(replace(cfg))
     assert builder is sim.get_or_create_backend(builder_cfg)
     assert (model.soft_contact_ke, model.soft_contact_kd, model.soft_contact_mu) == expected
     assert state_values == [expected] * (2 if simulation else 1)

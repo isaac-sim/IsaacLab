@@ -598,7 +598,8 @@ class NewtonWarpRenderer(BaseRenderer):
             provider.backend.transforms_timestamp + provider.backend.geometry_timestamp,
             partial(self._launch_render, render_data),
             render_data.graph,
-            use_cuda_graph=self.cfg.use_cuda_graph,
+            # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
+            use_cuda_graph=self.cfg.use_cuda_graph and backend.model.tri_count == 0,
         )
 
         # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination

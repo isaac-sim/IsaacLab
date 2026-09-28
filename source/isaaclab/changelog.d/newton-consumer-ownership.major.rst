@@ -4,7 +4,7 @@ Changed
 * Extended ``SimulationContext.get_or_create_backend(cfg)`` to own Python resources as well as native
   backends. Resources declared through ``BackendCfg`` implemented ``close()``; plain construction cfgs
   shared Python-owned data released with the registry reference.
-  Resource construction remained ``cfg.class_type(cfg)`` without backend-specific context fields.
+  Resource construction used ``instantiate(cfg)`` without backend-specific context fields.
 * Reused SDP transform mappings for matching source and destination layouts, allowing independent
   consumers to share converted buffers without retaining SDP bindings on a native backend. Matching
   unique native and consumer paths needed no index-map allocation. Binding rejected duplicate named
@@ -21,3 +21,5 @@ Fixed
 
 * Released rendering bindings on physics stop so a hard reset reinitialized consumers against
   the replacement native resource.
+* Preserved each visualizer's default streaming renderer when applying camera settings from
+  another visualizer configuration.

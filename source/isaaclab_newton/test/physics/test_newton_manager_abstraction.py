@@ -68,6 +68,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
+from isaaclab.test.utils import test_devices
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -266,34 +267,40 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
     assert NewtonManager._contacts.rigid_contact_max == 2
 
 
-def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
+@pytest.mark.parametrize("cloth", [False, True])
+@pytest.mark.parametrize("device", test_devices())
+def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch, cloth, device):
     """Two consumers reuse one refit and see fresh rigid and deformable publications."""
     sim = object.__new__(SimulationContext)
     sim._backend_registry = []
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
+    cfg = NewtonBackendCfg(physics_cfg=object(), device=device)
     builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     builder.add_shape_sphere(builder.add_body(label="/Object"))
-    builder.add_particle(pos=wp.vec3(), vel=wp.vec3(), mass=1.0)
+    for position in ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0), (0.0, 1.0, 0.0)):
+        builder.add_particle(pos=wp.vec3(position), vel=wp.vec3(), mass=1.0)
+    if cloth:
+        builder.add_triangle(0, 1, 2)
     backend = sim.get_or_create_backend(cfg)
     backend.geometry_offsets = {"/Cloth": 0}
     transforms, points = SceneDataFormat.Transform(), SceneDataFormat.Points()
-    transforms.transforms = wp.array([wp.transform_identity()], dtype=wp.transform, device="cpu")
-    points.points = wp.array([wp.vec3(1.0, 2.0, 3.0)], dtype=wp.vec3, device="cpu")
+    transforms.transforms = wp.array([wp.transform_identity()], dtype=wp.transform, device=device)
+    points.points = wp.array(np.tile([1.0, 2.0, 3.0], (3, 1)), dtype=wp.vec3, device=device)
     publication = SimpleNamespace(
         transforms=transforms,
         transform_paths=["/Object"],
         transforms_timestamp=0,
         geometry_timestamp=0,
         get_transforms=lambda output_format: transforms,
-        get_geometry_batches=lambda output_format: [(points, {"/Cloth": (0, 1)})],
+        get_geometry_batches=lambda output_format: [(points, {"/Cloth": (0, 3)})],
     )
     provider = SceneDataProvider(publication)
     renderer = object.__new__(NewtonWarpRenderer)
     renderer.backend = backend
     renderer._scene_data_provider = provider
     renderer._transform_mapping = provider.create_mapping(list(backend.model.body_label))
-    renderer.cfg = SimpleNamespace(use_cuda_graph=False)
+    # Triangle rendering performs host work and must stay eager even when capture is enabled.
+    renderer.cfg = SimpleNamespace(use_cuda_graph=cloth)
     refits, observed = [], []
     refit = backend.model.bvh_refit_shapes
     monkeypatch.setattr(backend.model, "bvh_refit_shapes", lambda state: (refits.append(state), refit(state)))
@@ -310,9 +317,9 @@ def test_queries_share_native_bvhs_and_read_only_through_sdp(monkeypatch):
         assert render_data.graph is None
     assert len(refits) == 1
     transforms.transforms = wp.array(
-        [wp.transform(wp.vec3(4.0, 5.0, 6.0), wp.quat_identity())], dtype=wp.transform, device="cpu"
+        [wp.transform(wp.vec3(4.0, 5.0, 6.0), wp.quat_identity())], dtype=wp.transform, device=device
     )
-    points.points.assign(np.asarray([[7.0, 8.0, 9.0]], dtype=np.float32))
+    points.points.assign(np.tile(np.asarray([7.0, 8.0, 9.0], dtype=np.float32), (3, 1)))
     publication.transforms_timestamp += 1
     publication.geometry_timestamp += 1
     renderer.render(render_data)
@@ -1138,7 +1145,9 @@ def test_articulation_target_modes_are_resolved_once_for_replicas(monkeypatch):
         return original(name_keys, names, *args, **kwargs)
 
     monkeypatch.setattr(articulation_module, "resolve_matching_names", count_actuator_resolutions)
-    articulation_module._configure_builder_joint_target_modes(builder, cfg)
+    sim = SimpleNamespace(cfg=SimpleNamespace(physics=object()), get_or_create_backend=lambda cfg: builder)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    articulation_module.Articulation._configure_joint_target_modes(SimpleNamespace(cfg=cfg), None)
 
     assert builder.joint_target_mode == [int(JointTargetMode.POSITION)] * 2
     assert actuator_resolutions == 1

@@ -36,6 +36,7 @@ from isaaclab_visualizers.viser import ViserVisualizerCfg
 from isaaclab.envs.utils import camera_view
 from isaaclab.renderers import RendererCfg
 from isaaclab.sim import SimulationContext
+from isaaclab.utils import instantiate
 
 
 @pytest.mark.parametrize(
@@ -246,7 +247,7 @@ def test_visualizer_uses_declared_streaming_renderer(monkeypatch, cfg_type):
         streaming_cam_target_prim_path="/World/envs/*/Robot",
         streaming_cam_renderer_cfg=RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom"),
     )
-    visualizer = cfg.class_type(cfg)
+    visualizer = instantiate(cfg)
     sim.get_or_create_backend.assert_called_once_with(cfg.streaming_cam_renderer_cfg)
     visualizer._viewer = SimpleNamespace()
     visualizer._scene_data_provider = SimpleNamespace(
@@ -608,7 +609,7 @@ class _SceneDataProvider:
 
 def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg=None):
     cfg = cfg or NewtonGLVisualizerCfg(enable_markers=False)
-    visualizer = cfg.class_type(cfg)
+    visualizer = instantiate(cfg)
     visualizer._is_initialized = True
     visualizer._is_closed = False
     visualizer._sim_time = 0.0
