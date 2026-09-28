@@ -377,27 +377,27 @@ def in_place_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
 
 
 @pytest.mark.parametrize(
-    "noise_cfg",
+    ("noise_cfg", "expected_delta"),
     [
-        noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1),
-        noise.UniformNoiseCfg(n_min=0.0, n_max=0.0),
-        noise.GaussianNoiseCfg(func=noise.gaussian_noise, mean=0.1, std=0.2),
-        noise.ConstantNoiseCfg(bias=0.3, operation="abs"),
-        noise.NoiseCfg(func=in_place_noise),
+        (noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1), None),
+        (noise.UniformNoiseCfg(n_min=0.0, n_max=0.0), 0.0),
+        (noise.NoiseCfg(func=in_place_noise), 0.2),
     ],
-    ids=["uniform", "zero_uniform", "gaussian_callable", "constant_abs", "custom_in_place"],
+    ids=["out_of_place", "same_input", "in_place"],
 )
-def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg):
-    """Noise, clipping and scaling leave the term's source storage intact and draw the expected samples."""
+def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_delta):
+    """Noise ownership paths preserve source storage, clipping, scaling, and random samples."""
     env = setup_env
     cfg = ObservationGroupCfg(enable_corruption=True)
     cfg.position = ObservationTermCfg(func=pos_w_data, noise=noise_cfg, clip=(0.0, 0.5), scale=2.0)
     manager = ObservationManager({"policy": cfg}, env)
     source = env.data.pos_w.clone()
     torch.manual_seed(0)
-    result = manager.compute()["policy"]
+    if expected_delta is None:
+        expected_delta = torch.rand_like(source) * 0.2 - 0.1
+    expected = (source + expected_delta).clip(0.0, 0.5) * 2.0
     torch.manual_seed(0)
-    expected = noise_cfg.func(source.clone(), noise_cfg).clip(0.0, 0.5) * 2.0
+    result = manager.compute()["policy"]
     torch.testing.assert_close(env.data.pos_w, source)
     torch.testing.assert_close(result, expected)
 

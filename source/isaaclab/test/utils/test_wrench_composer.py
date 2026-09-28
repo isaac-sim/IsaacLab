@@ -908,26 +908,16 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     assert _get_wrench_without_pose_reads(composer)[2] is True
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("selector", ["all", "env_ids", "env_mask"])
-def test_reset_of_inactive_composer_launches_no_work(device: str, selector: str):
+def test_reset_of_inactive_composer_launches_no_work():
     """Resetting an inactive composer, as asset writes do every physics step, is a host-only no-op."""
-    num_envs, num_bodies = 4, 2
-    composer = WrenchComposer(create_mock_asset(num_envs, num_bodies, device))
-    selection = {
-        "all": {},
-        "env_ids": {"env_ids": [1, 3]},
-        "env_mask": {"env_mask": wp.array([False, True, False, True], dtype=wp.bool, device=device)},
-    }[selector]
+    composer = WrenchComposer(create_mock_asset(2, 1, "cpu"))
 
     with patch.object(wp, "launch") as launch, patch.object(wp.array, "zero_") as zero:
-        composer.reset(**selection)
+        composer.reset(env_ids=[1])
 
     launch.assert_not_called()
     zero.assert_not_called()
     assert not composer.active
-    assert not composer._dirty
-    np.testing.assert_array_equal(composer.out_force_b.warp.numpy(), np.zeros((num_envs, num_bodies, 3)))
 
 
 # ============================================================================

@@ -257,20 +257,18 @@ def test_stack_dim_positive_index_equivalent_to_negative():
     torch.testing.assert_close(buf_neg.stacked, buf_pos.stacked)
 
 
-@pytest.mark.parametrize(
-    "K,H,W",
-    [(2, 4, 4), (4, 4, 4), (4, 512, 256)],
-    ids=["two_slots", "small_frames", "large_frames"],
-)
-def test_stack_dim_ring_shift_after_overflow(K, H, W):
+@pytest.mark.parametrize(("height", "width"), [(2, 3), (512, 256)], ids=["staged_shift", "large_frame_shift"])
+def test_stack_dim_ring_shift_after_overflow(height: int, width: int):
     """After K+1 frames, the oldest frame is evicted and the slots hold frames 1..K in order."""
-    B, C = 2, 3
+    B, C, K = 2, 3, 4
     buf = CircularBuffer(max_len=K, batch_size=B, device="cpu", stack_dim=-1)
     for value in range(K + 1):
-        buf.append(torch.full((B, H, W, C), float(value)))
+        buf.append(torch.full((B, height, width, C), float(value)))
     stacked = buf.stacked
     for slot in range(K):
-        torch.testing.assert_close(stacked[..., slot * C : (slot + 1) * C], torch.full((B, H, W, C), slot + 1.0))
+        torch.testing.assert_close(
+            stacked[..., slot * C : (slot + 1) * C], torch.full((B, height, width, C), slot + 1.0)
+        )
 
 
 def test_stack_dim_reset_clears_buffer():

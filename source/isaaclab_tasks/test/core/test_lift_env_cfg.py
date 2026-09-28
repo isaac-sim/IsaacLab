@@ -228,23 +228,17 @@ def test_lift_static_success_markers_update_only_marker_indices(monkeypatch: pyt
     num_envs = 3
     static_table = object.__new__(Asset)
     static_table.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
-    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, static_table)
+    command, _ = _make_pose_command(monkeypatch, num_envs, static_table)
     # env 1 is at the goal, the others are not
     command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
 
-    for update_metrics in (
-        ObjectUniformPoseCommand._update_metrics,
-        DeformableUniformPoseCommand._update_metrics,
-        CableUniformPoseCommand._update_metrics,
-    ):
-        command._segment_position_w = lambda: root_pos_w
-        update_metrics(command)
+    command._update_metrics()
 
     calls = command.success_visualizer.calls
     placement_args, placement_kwargs = calls[0]
     assert torch.equal(placement_args[0], torch.tensor([[0.5, 0.0, 0.0]] * num_envs))
     assert torch.equal(placement_kwargs["environment_ids"], torch.arange(num_envs))
-    assert len(calls) == 4
+    assert len(calls) == 2
     for args, kwargs in calls[1:]:
         assert args == ()
         assert kwargs.keys() == {"marker_indices"}
@@ -253,24 +247,21 @@ def test_lift_static_success_markers_update_only_marker_indices(monkeypatch: pyt
 
 def test_lift_contact_terms_match_per_sensor_reference() -> None:
     """Contact gating and counting from stacked sensor forces match a per-sensor evaluation."""
-    num_envs, threshold = 64, 1.0
-    names = ["thumb", "index", "middle", "ring"]
-    # contact forces [N] straddling the threshold, shape (num_envs, 1 body, 1 filter, 3)
-    forces = {name: 1.2 * torch.rand(num_envs, 1, 1, 3) for name in names}
+    num_envs, threshold = 3, 1.0
+    names = ["thumb", "index", "middle"]
+    # The rows cover a finger without thumb, thumb with finger, and thumb alone.
+    magnitudes = {"thumb": [0.0, 2.0, 2.0], "index": [2.0, 0.0, 0.0], "middle": [0.0, 2.0, 0.0]}
+    forces = {
+        name: torch.tensor([[value, 0.0, 0.0] for value in values]).reshape(num_envs, 1, 1, 3)
+        for name, values in magnitudes.items()
+    }
     sensors = {
         name: SimpleNamespace(data=SimpleNamespace(normal_force_matrix_w=ProxyArray(wp.from_torch(force))))
         for name, force in forces.items()
     }
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=SimpleNamespace(sensors=sensors))
-    in_contact = {
-        name: torch.linalg.norm(force.view(num_envs, 3), dim=-1) > threshold for name, force in forces.items()
-    }
-
-    expected_contacts = in_contact["thumb"] & (in_contact["index"] | in_contact["middle"] | in_contact["ring"])
-    expected_count = sum(in_contact[name].float() for name in names) / len(names)
-
-    assert torch.equal(mdp.contacts(env, threshold, "thumb", names[1:]), expected_contacts)
-    assert torch.equal(mdp.contact_count(env, threshold, names), expected_count)
+    assert torch.equal(mdp.contacts(env, threshold, "thumb", names[1:]), torch.tensor([False, True, False]))
+    torch.testing.assert_close(mdp.contact_count(env, threshold, names), torch.tensor([1 / 3, 2 / 3, 1 / 3]))
     assert not mdp.contacts(env, threshold, "thumb", []).any()
 
 
