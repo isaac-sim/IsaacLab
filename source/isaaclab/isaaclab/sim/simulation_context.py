@@ -151,7 +151,7 @@ class SimulationContext:
 
         # Store config
         self.cfg = SimulationCfg() if cfg is None else cfg
-        self._backend_registry: list[tuple[BackendCfg, Any]] = []
+        self._backend_registry: list[tuple[Any, Any]] = []
         self.clone_contexts: dict[type, Any] = {}
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
@@ -219,12 +219,6 @@ class SimulationContext:
 
         # Construct visualizers before cloning; initialize their runtime bindings after physics is ready.
         self._scene_data_provider = SceneDataProvider(self.physics_manager.get_scene_data_backend())
-        self.fabric_cfg: BackendCfg | None = None
-        """Native Fabric stage/device configuration, or None without Kit."""
-        if use_isaac_sim:
-            from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415
-
-            self.fabric_cfg = FabricBackendCfg(stage=self.stage, device=self.device)
         self._visualizers: list[BaseVisualizer] = []
         self._pending_visualizers: list[BaseVisualizer] = []
         self._reset_requested: bool = False
@@ -275,6 +269,9 @@ class SimulationContext:
             lambda _payload: self._render_context.ensure_initialize(),
             PhysicsEvent.PHYSICS_READY,
             order=5,
+        )
+        self.physics_manager.register_callback(
+            lambda _payload: self._render_context.close(), PhysicsEvent.STOP, order=100
         )
 
         # Publish the context before configured consumers register their clone requirements.
@@ -470,43 +467,25 @@ class SimulationContext:
         """Apply shared default visualizer settings to a backend-specific config.
 
         Only propagates fields that were **explicitly set** in ``default_visualizer_cfg``
-        (i.e. differ from the base :class:`~isaaclab.visualizers.VisualizerCfg` defaults)
-        AND are still at the backend cfg's own class default (i.e. not already
-        customised by the caller).  This prevents base-class defaults such as
-        ``streaming_view=False`` from stomping backend-specific defaults like
-        ``NewtonGLVisualizerCfg.streaming_view=True``.
+        (i.e. differ from its own class defaults) and are still at the target cfg's
+        class defaults. Backend-specific defaults, such as the streaming renderer,
+        do not transfer between visualizer types.
         """
-        from ..visualizers.visualizer_cfg import VisualizerCfg
-
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
-        # Base VisualizerCfg defaults — used to detect which fields on default_cfg
-        # were explicitly set by the env vs. left at the base-class default.
         try:
-            base_defaults = VisualizerCfg()
+            source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
         except Exception:
-            base_defaults = None
-        # Backend-specific class defaults — used to detect which fields on cfg
-        # the caller has already customised beyond the class defaults.
-        try:
-            factory_defaults = type(cfg)()
-        except Exception:
-            factory_defaults = None
+            # Without factory defaults, explicit choices cannot be distinguished.
+            return
         for field in fields(default_cfg):
             if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
             default_val = getattr(default_cfg, field.name)
-            # Skip fields that were not explicitly set in default_cfg (still at base default).
-            if base_defaults is not None and hasattr(base_defaults, field.name):
-                if default_val == getattr(base_defaults, field.name):
-                    continue
-            # Preserve explicitly customised fields on cfg.  When factory_defaults is None
-            # (backend cfg constructor raised), skip the field rather than overwriting it
-            # unconditionally — we cannot tell whether the caller customised it.
-            if factory_defaults is None:
+            if default_val == getattr(source_defaults, field.name):
                 continue
-            if getattr(cfg, field.name) != getattr(factory_defaults, field.name):
+            if getattr(cfg, field.name) != getattr(target_defaults, field.name):
                 continue
             setattr(cfg, field.name, default_val)
 
@@ -971,11 +950,12 @@ class SimulationContext:
         """Get a setting value."""
         return self._settings_helper.get(name)
 
-    def get_or_create_backend(self, cfg: BackendCfg) -> Any:
-        """Return the simulation-owned resource or renderer for a configuration.
+    def get_or_create_backend(self, cfg: Any) -> Any:
+        """Return the simulation-owned object for a construction configuration.
 
         Equal configurations of the same concrete type share a resource. Finalize configurations
         before registration and treat them as read-only afterward; use a new cfg for new settings.
+        ``BackendCfg`` declares a resource requiring ``close()``; other cfgs declare Python-owned data.
 
         Args:
             cfg: Construction inputs. A cache miss constructs ``instantiate(cfg)``.
@@ -995,8 +975,9 @@ class SimulationContext:
         return resource
 
     def close_backend(self, backend: Any) -> None:
-        """Close one registered resource by object identity after all consumers release their bindings.
+        """Release one registered object by identity.
 
+        ``BackendCfg`` resources are closed; plain construction data only loses its registry reference.
         A failed release retains the registry entry so teardown can be retried.
 
         Args:
@@ -1007,7 +988,8 @@ class SimulationContext:
         """
         for index, (cfg, resource) in enumerate(self._backend_registry):
             if resource is backend:
-                resource.close()
+                if isinstance(cfg, BackendCfg):
+                    resource.close()
                 self._backend_registry.pop(index)
                 if isinstance(cfg, RendererCfg):
                     self._render_context._prepared_renderer_ids.discard(id(resource))
@@ -1046,8 +1028,8 @@ class SimulationContext:
 
                 instance.clone_contexts.clear()
                 for cfg, resource in instance._backend_registry:
-                    if not isinstance(cfg, RendererCfg):
-                        run_cleanup(resource.close)
+                    if isinstance(cfg, BackendCfg) and not isinstance(cfg, RendererCfg):
+                        run_cleanup(lambda resource=resource: resource.close())
                 instance._backend_registry.clear()
 
                 # Tear down the stage. We skip clear_stage() (prim-by-prim deletion) since

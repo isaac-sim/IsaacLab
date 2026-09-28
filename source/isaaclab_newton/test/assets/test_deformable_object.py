@@ -21,7 +21,7 @@ import pytest
 import torch
 import warp as wp
 from flaky import flaky
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, VBDSolverCfg
 from isaaclab_newton.sim.schemas import NewtonDeformableBodyPropertiesCfg
 from isaaclab_newton.sim.spawners.materials import (
     NewtonDeformableBodyMaterialCfg,
@@ -235,7 +235,8 @@ def test_surface_initialization_and_freefall(sim):
     """Test initialization and stepping for surface deformable objects."""
     num_cloths = 2
     cloth_object = generate_cloth_scene(num_cloths=num_cloths, height=5.0)
-    rest_angles = np.asarray(NewtonManager._builder.edge_rest_angle, dtype=np.float32)
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    rest_angles = np.asarray(builder.edge_rest_angle, dtype=np.float32)
     assert np.any(np.abs(rest_angles) > 0.1)
 
     sim.reset()

@@ -7,10 +7,9 @@
 
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonManager
+from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from isaaclab_newton.renderers.visual_material import (
-    VisualMaterialWriter,
     VisualShapeColorWriter,
     import_builder_visual_material_paths,
 )
@@ -20,15 +19,20 @@ from newton.selection import ArticulationView
 from pxr import Sdf, Usd, UsdGeom, UsdShade
 
 from isaaclab.renderers.base_renderer import VisualMaterialBatch
+from isaaclab.sim import SimulationContext
 
 
 def _srgb(colors: torch.Tensor) -> torch.Tensor:
     return torch.where(colors <= 0.0031308, 12.92 * colors, 1.055 * colors.pow(1.0 / 2.4) - 0.055)
 
 
-def _material_model(material_paths: list[str]):
+def _material_backend(material_paths: list[str], monkeypatch):
     stage = Usd.Stage.CreateInMemory()
-    builder = ModelBuilder()
+    sim = object.__new__(SimulationContext)
+    sim._backend_registry = []
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    cfg = NewtonBackendCfg(physics_cfg=object(), device="cpu")
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics_cfg))
     for index, material_path in enumerate(material_paths):
         shape = UsdGeom.Cube.Define(stage, f"/World/shape_{index}")
         builder.add_shape_box(-1, label=str(shape.GetPath()))
@@ -36,7 +40,7 @@ def _material_model(material_paths: list[str]):
             material = UsdShade.Material.Define(stage, material_path)
             UsdShade.MaterialBindingAPI.Apply(shape.GetPrim()).Bind(material)
     import_builder_visual_material_paths(builder, stage)
-    return builder.finalize(device="cpu")
+    return sim.get_or_create_backend(cfg)
 
 
 def test_import_captures_effective_material_binding() -> None:
@@ -70,12 +74,15 @@ def test_import_preserves_binding_to_a_logical_clone_not_yet_on_stage() -> None:
 
 
 def test_material_writer_scatters_only_dirty_material_rows(monkeypatch) -> None:
-    model = _material_model(["/Looks/a", "/Looks/b", "/Looks/a", ""])
+    backend = _material_backend(["/Looks/a", "/Looks/b", "/Looks/a", ""], monkeypatch)
+    model = backend.model
     values = torch.tensor([[0.1, 0.2, 0.3], [0.8, 0.6, 0.4]])
     batch = VisualMaterialBatch(
         "color", ("/Looks/a", "/Looks/b"), ("/Looks/a/Shader", "/Looks/b/Shader"), ("color", "color"), values
     )
-    writer = VisualMaterialWriter(model, (batch,))
+    renderer = object.__new__(NewtonWarpRenderer)
+    renderer.backend = backend
+    writer = renderer.visual_material_writer((batch,))
     before = wp.to_torch(model.shape_color).clone()
     launch = wp.launch
     launches = 0
@@ -139,8 +146,3 @@ def test_shape_writer_samples_each_body_and_selected_environment_independently()
     torch.testing.assert_close(actual[1], original.reshape(3, 3, 3)[1])
     torch.testing.assert_close(actual[2, :2], expected[1, 0].expand(2, 3))
     torch.testing.assert_close(actual[2, 2], expected[1, 1])
-
-
-def test_newton_renderer_exposes_shared_writer_factory() -> None:
-    renderer = object.__new__(NewtonWarpRenderer)
-    assert renderer.visual_material_writer == NewtonManager.create_visual_material_writer

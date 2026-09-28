@@ -11,8 +11,9 @@ configuring the environment instances, viewer settings, and simulation parameter
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import MISSING
-from typing import Literal
+from typing import Any, Literal
 
 from ..physics import PhysicsCfg
 from ..utils import configclass
@@ -22,13 +23,13 @@ from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
 @configclass
 class BackendCfg:
-    """Construction inputs and value identity for a simulation-owned resource.
+    """Declarative settings and value identity for a simulation-owned resource.
 
     Finalize all fields before registration and treat them as read-only afterward.
     """
 
-    class_type: type = MISSING
-    """Resource class constructed as ``instantiate(cfg)``; must implement ``close()``."""
+    class_type: Callable[[BackendCfg], Any] = MISSING
+    """Constructor called through ``instantiate(cfg)``; the returned resource must implement ``close()``."""
 
 
 @configclass

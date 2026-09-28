@@ -16,6 +16,8 @@ from abc import ABC, abstractmethod
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
+from .. import sim as sim_utils
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -53,6 +55,10 @@ class BaseVisualizer(ABC):
         self._live_plot_env_idx: int = 0
         self._live_plots_step_counter: int = 0
         self._reset_requested: bool = False
+        # Declare the camera renderer before cloning gathers consumer requirements.
+        owns_camera = cfg.streaming_sensor_prim_path is None and cfg.streaming_cam_target_prim_path is not None
+        if cfg.streaming_view and owns_camera:
+            sim_utils.SimulationContext.instance().get_or_create_backend(cfg.streaming_cam_renderer_cfg)
 
     @property
     def visual_material_writer(self) -> Callable[[tuple[VisualMaterialBatch, ...]], Any] | None:
