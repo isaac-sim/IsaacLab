@@ -3,21 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-"""Launch Isaac Sim Simulator first."""
+launch_test_simulation()
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+import os
 
 import pytest
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-import omni.kit.app
 from pxr import Usd, UsdGeom, UsdPhysics, UsdShade
 
+import isaaclab
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.spawners.materials.physics_materials_cfg import UsdPhysicsRigidBodyMaterialCfg
@@ -35,8 +32,6 @@ def sim():
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(SimulationCfg(dt=dt))
-    # Wait for spawning
-    sim_utils.update_stage()
 
     yield sim
 
@@ -108,16 +103,11 @@ def test_spawn_usd_fails(sim):
 @pytest.mark.isaacsim_ci
 def test_spawn_urdf(sim):
     """Test loading prim from URDF file."""
-    # enable the URDF importer extension
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if not manager.is_extension_enabled("isaacsim.asset.importer.urdf"):
-        manager.set_extension_enabled_immediate("isaacsim.asset.importer.urdf", True)
-    # retrieve path to urdf importer extension
-    extension_id = manager.get_enabled_extension_id("isaacsim.asset.importer.urdf")
-    extension_path = manager.get_extension_path(extension_id)
-    # Spawn franka from URDF
+    # Spawn franka from the repository's URDF; the converter loads the importer itself
     cfg = sim_utils.UrdfFileCfg(
-        asset_path=f"{extension_path}/data/urdf/robots/franka_description/robots/panda_arm_hand.urdf",
+        asset_path=os.path.join(
+            os.path.dirname(isaaclab.__file__), "controllers", "config", "data", "lula_franka_gen.urdf"
+        ),
         fix_base=True,
         joint_drive=sim_utils.UrdfConverterCfg.JointDriveCfg(
             gains=sim_utils.UrdfConverterCfg.JointDriveCfg.PDGainsCfg(stiffness=None, damping=None)
@@ -203,98 +193,34 @@ def test_spawn_mesh_from_obj_file(sim, tmp_path):
 
 @pytest.mark.isaacsim_ci
 def test_spawn_usd_with_compliant_contact_material(sim):
-    """Test loading prim from USD file with physics material applied to specific prim."""
-    # Spawn gelsight finger with physics material on specific prim
+    """Test loading prim from USD file with physics material applied to a prim, several prims, or none."""
     usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
+    cases = [
+        ("/World/RobotStr", "elastomer", ["elastomer"]),
+        ("/World/RobotList", ["elastomer", "gelsight_finger"], ["elastomer", "gelsight_finger"]),
+        ("/World/RobotNone", None, []),
+    ]
+    for prim_path, material_prim_path, material_links in cases:
+        spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
+            usd_path=usd_file_path,
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            compliant_contact_stiffness=1000.0,
+            compliant_contact_damping=100.0,
+            physics_material_prim_path=material_prim_path,
+        )
+        prim = spawn_cfg.func(prim_path, spawn_cfg)
 
-    # Create spawn configuration
-    spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
-        usd_path=usd_file_path,
-        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-        compliant_contact_stiffness=1000.0,
-        compliant_contact_damping=100.0,
-        physics_material_prim_path="elastomer",
-    )
+        # Check validity
+        assert prim.IsValid()
+        assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+        assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
 
-    # Spawn the prim
-    prim = spawn_cfg.func("/World/Robot", spawn_cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Robot").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
-
-    material_prim_path = "/World/Robot/elastomer/compliant_material"
-    # Check that the physics material was applied to the specified prim
-    assert sim.stage.GetPrimAtPath(material_prim_path).IsValid()
-
-    # Check properties
-    material_prim = sim.stage.GetPrimAtPath(material_prim_path)
-    assert material_prim.IsValid()
-    assert material_prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == 1000.0
-    assert material_prim.GetAttribute("physxMaterial:compliantContactDamping").Get() == 100.0
-
-
-@pytest.mark.isaacsim_ci
-def test_spawn_usd_with_compliant_contact_material_on_multiple_prims(sim):
-    """Test loading prim from USD file with physics material applied to multiple prims."""
-    # Spawn Panda robot with physics material on specific prims
-    usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
-
-    # Create spawn configuration
-    spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
-        usd_path=usd_file_path,
-        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-        compliant_contact_stiffness=1000.0,
-        compliant_contact_damping=100.0,
-        physics_material_prim_path=["elastomer", "gelsight_finger"],
-    )
-
-    # Spawn the prim
-    prim = spawn_cfg.func("/World/Robot", spawn_cfg)
-
-    # Check validity
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Robot").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
-
-    # Check that the physics material was applied to the specified prims
-    for link_name in ["elastomer", "gelsight_finger"]:
-        material_prim_path = f"/World/Robot/{link_name}/compliant_material"
-        print("checking", material_prim_path)
-        assert sim.stage.GetPrimAtPath(material_prim_path).IsValid()
-
-        # Check properties
-        material_prim = sim.stage.GetPrimAtPath(material_prim_path)
-        assert material_prim.IsValid()
-        assert material_prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == 1000.0
-        assert material_prim.GetAttribute("physxMaterial:compliantContactDamping").Get() == 100.0
-
-
-@pytest.mark.isaacsim_ci
-def test_spawn_usd_with_compliant_contact_material_no_prim_path(sim):
-    """Test loading prim from USD file with physics material but no prim path specified."""
-    # Spawn gelsight finger without specifying prim path for physics material
-    usd_file_path = f"{ISAACLAB_NUCLEUS_DIR}/TacSL/gelsight_r15_finger/gelsight_r15_finger.usd"
-
-    # Create spawn configuration without physics material prim path
-    spawn_cfg = sim_utils.UsdFileWithCompliantContactCfg(
-        usd_path=usd_file_path,
-        rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
-        compliant_contact_stiffness=1000.0,
-        compliant_contact_damping=100.0,
-        physics_material_prim_path=None,
-    )
-
-    # Spawn the prim
-    prim = spawn_cfg.func("/World/Robot", spawn_cfg)
-
-    # Check validity - should still spawn successfully but without physics material
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/Robot").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "Xform"
-
-    material_prim_path = "/World/Robot/elastomer/compliant_material"
-    material_prim = sim.stage.GetPrimAtPath(material_prim_path)
-    assert material_prim is not None
-    assert not material_prim.IsValid()
+        # Check that the physics material was applied only to the specified prims
+        for link_name in ["elastomer", "gelsight_finger"]:
+            material_prim = sim.stage.GetPrimAtPath(f"{prim_path}/{link_name}/compliant_material")
+            if link_name not in material_links:
+                assert not material_prim.IsValid(), (prim_path, link_name)
+                continue
+            assert material_prim.IsValid(), (prim_path, link_name)
+            assert material_prim.GetAttribute("physxMaterial:compliantContactStiffness").Get() == 1000.0
+            assert material_prim.GetAttribute("physxMaterial:compliantContactDamping").Get() == 100.0

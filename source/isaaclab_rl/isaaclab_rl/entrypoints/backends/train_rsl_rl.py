@@ -106,7 +106,7 @@ def run(argv: list[str]) -> None:
         cuda_matmul_allow_tf32=True,
         cudnn_allow_tf32=True,
         cudnn_deterministic=False,
-        cudnn_benchmark=False,
+        cudnn_benchmark=True,  # Reuse autotuned convolution algorithms for fixed input shapes.
     ):
         _run(args_cli)
 

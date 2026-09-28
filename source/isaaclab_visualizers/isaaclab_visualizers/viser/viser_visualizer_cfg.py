@@ -9,6 +9,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
@@ -27,6 +30,9 @@ class ViserVisualizerCfg(VisualizerCfg):
     """Type identifier for Viser visualizer."""
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
+    """Renderer configuration for the auto-created streaming camera."""
 
     port: int = 8080
     """Port of the local viser web server."""

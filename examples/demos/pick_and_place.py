@@ -13,7 +13,7 @@ from collections.abc import Sequence
 import torch
 import warp as wp
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Keyboard control for Isaac Lab Pick and Place.")
 parser.add_argument("--num_envs", type=int, default=32, help="Number of environments to spawn.")
@@ -24,30 +24,25 @@ parser.add_argument(
     choices=["isaacsim_physx"],
     help="Physics backend.",
 )
-AppLauncher.add_app_launcher_args(parser)
-parser.set_defaults(visualizer=["kit"])
+add_launcher_args(parser)
+# surface grippers only run on CPU, and the launcher applies --device to the environment
+parser.set_defaults(visualizer=["kit"], device="cpu")
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-# Kit modules must be imported after AppLauncher starts SimulationApp.
 from isaaclab_physx.assets import SurfaceGripperCfg
-
-import carb
-import omni
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.devices import Se3KeyboardCfg
 from isaaclab.envs import DirectRLEnv, DirectRLEnvCfg
 from isaaclab.markers import SPHERE_MARKER_CFG
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, index_fill_, instantiate, replace
 from isaaclab.utils.math import sample_uniform
 
 from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
@@ -57,7 +52,7 @@ from isaaclab_assets.robots.pick_and_place import PICK_AND_PLACE_CFG
 class PickAndPlaceSceneCfg(InteractiveSceneCfg):
     """Assets for the pick-and-place example."""
 
-    robot: ArticulationCfg = PICK_AND_PLACE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(PICK_AND_PLACE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     cube: RigidObjectCfg = RigidObjectCfg(
         prim_path="{ENV_REGEX_NS}/Robot/Cube",
         spawn=sim_utils.CuboidCfg(
@@ -82,7 +77,7 @@ class PickAndPlaceSceneCfg(InteractiveSceneCfg):
     light: AssetBaseCfg = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
     )
-    goal_position = SPHERE_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_position")
+    goal_position = replace(SPHERE_MARKER_CFG, prim_path="/Visuals/Command/goal_position")
     goal_position.markers["sphere"].radius = 0.25
 
 
@@ -138,7 +133,8 @@ class PickAndPlaceEnv(DirectRLEnv):
     """Example environment for a PickAndPlace robot using suction-cups.
 
     This example follows what would be typically done in a DirectRL pipeline.
-    Here we substitute the policy by keyboard inputs.
+    Here we substitute the policy by keyboard inputs. The 4-D action holds the x and y efforts,
+    the z effort and the gripper command (-1 open, 1 close, 0 idle).
     """
 
     cfg: PickAndPlaceEnvCfg
@@ -162,113 +158,37 @@ class PickAndPlaceEnv(DirectRLEnv):
         self.go_to_cube = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.go_to_target = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         self.target_pos = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
-        self.instant_controls = torch.zeros((self.num_envs, 3), device=self.device, dtype=torch.float32)
-        self.permanent_controls = torch.zeros((self.num_envs, 1), device=self.device, dtype=torch.float32)
 
         # Visual marker for the target
         self.set_debug_vis(self.cfg.debug_vis)
 
-        # Sets up the keyboard callback and settings
-        self.set_up_keyboard()
-
-    def set_up_keyboard(self) -> None:
-        """Register keyboard controls."""
-        self._input = carb.input.acquire_input_interface()
-        self._keyboard = omni.appwindow.get_default_app_window().get_keyboard()
-        self._sub_keyboard = self._input.subscribe_to_keyboard_events(self._keyboard, self._on_keyboard_event)
-        self._instant_key_controls = {
-            "Q": torch.tensor([0, 0, -1]),
-            "E": torch.tensor([0, 0, 1]),
-            "ZEROS": torch.tensor([0, 0, 0]),
-        }
-        self._permanent_key_controls = {
-            "W": torch.tensor([-200.0], device=self.device),
-            "S": torch.tensor([100.0], device=self.device),
-        }
-        self._auto_aim_cube = "A"
-        self._auto_aim_target = "D"
-
-        # Task description:
-        print("Keyboard set up!")
-        print("The simulation is ready for you to try it out!")
-        print("Your goal is pick up the purple cube and to drop it on the red sphere!")
-        print(f"Number of environments: {self.num_envs}")
-        print("Use the following controls to interact with ALL environments simultaneously:")
-        print("Press the 'A' key to have all grippers track the cube position.")
-        print("Press the 'D' key to have all grippers track the target position")
-        print("Press the 'W' or 'S' keys to move all gantries UP or DOWN respectively")
-        print("Press 'Q' or 'E' to OPEN or CLOSE all grippers respectively")
-
-    def _on_keyboard_event(self, event: carb.input.KeyboardEvent) -> bool:
-        """Update controls from a keyboard event."""
-        if event.type == carb.input.KeyboardEventType.KEY_PRESS:
-            if event.input.name == self._auto_aim_target:
-                self.go_to_target[:] = True
-                self.go_to_cube[:] = False
-            if event.input.name == self._auto_aim_cube:
-                self.go_to_cube[:] = True
-                self.go_to_target[:] = False
-            if event.input.name in self._instant_key_controls:
-                self.go_to_cube[:] = False
-                self.go_to_target[:] = False
-                self.instant_controls[:] = self._instant_key_controls[event.input.name]
-            if event.input.name in self._permanent_key_controls:
-                self.go_to_cube[:] = False
-                self.go_to_target[:] = False
-                self.permanent_controls[:] = self._permanent_key_controls[event.input.name]
-        # On key release, all robots stop moving
-        elif event.type == carb.input.KeyboardEventType.KEY_RELEASE:
-            self.go_to_cube[:] = False
-            self.go_to_target[:] = False
-            self.instant_controls[:] = self._instant_key_controls["ZEROS"]
-        return True
+    def auto_aim(self, cube: bool) -> None:
+        """Make all grippers track the cube (``cube=True``) or the target position."""
+        self.go_to_cube[:] = cube
+        self.go_to_target[:] = not cube
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
         # Store the actions
         self.actions = actions.clone()
 
     def _apply_action(self) -> None:
-        # We use the keyboard outputs as an action.
-        # Process each environment independently
-        if self.go_to_cube.any():
-            # Effort based proportional controller to track the cube position
-            head_pos_x = self.pick_and_place.data.joint_pos.torch[self.go_to_cube, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos.torch[self.go_to_cube, self._y_dof_idx[0]]
-            cube_pos_x = (
-                self.cube.data.root_pos_w.torch[self.go_to_cube, 0] - self.scene.env_origins[self.go_to_cube, 0]
-            )
-            cube_pos_y = (
-                self.cube.data.root_pos_w.torch[self.go_to_cube, 1] - self.scene.env_origins[self.go_to_cube, 1]
-            )
-            d_cube_robot_x = cube_pos_x - head_pos_x
-            d_cube_robot_y = cube_pos_y - head_pos_y
-            self.instant_controls[self.go_to_cube] = torch.stack(
-                [d_cube_robot_x * 5.0, d_cube_robot_y * 5.0, torch.zeros_like(d_cube_robot_x)], dim=1
-            )
-        if self.go_to_target.any():
-            # Effort based proportional controller to track the target position
-            head_pos_x = self.pick_and_place.data.joint_pos.torch[self.go_to_target, self._x_dof_idx[0]]
-            head_pos_y = self.pick_and_place.data.joint_pos.torch[self.go_to_target, self._y_dof_idx[0]]
-            target_pos_x = self.target_pos[self.go_to_target, 0]
-            target_pos_y = self.target_pos[self.go_to_target, 1]
-            d_target_robot_x = target_pos_x - head_pos_x
-            d_target_robot_y = target_pos_y - head_pos_y
-            self.instant_controls[self.go_to_target] = torch.stack(
-                [d_target_robot_x * 5.0, d_target_robot_y * 5.0, torch.zeros_like(d_target_robot_x)], dim=1
-            )
+        xy_efforts = self.actions[:, :2].clone()
+        # Manual x/y input cancels auto-aim
+        manual = xy_efforts.any(dim=1)
+        self.go_to_cube &= ~manual
+        self.go_to_target &= ~manual
+        # Effort based proportional controller to track the cube or the target position
+        head_pos_xy = self.pick_and_place.data.joint_pos.torch[:, [self._x_dof_idx[0], self._y_dof_idx[0]]]
+        cube_pos_xy = self.cube.data.root_pos_w.torch[:, :2] - self.scene.env_origins[:, :2]
+        for mask, goal_xy in ((self.go_to_cube, cube_pos_xy), (self.go_to_target, self.target_pos[:, :2])):
+            xy_efforts[mask] = (goal_xy[mask] - head_pos_xy[mask]) * 5.0
 
         # Set the joint effort targets for the picker
-        self.pick_and_place.set_joint_effort_target_index(
-            target=self.instant_controls[:, 0].unsqueeze(dim=1), joint_ids=self._x_dof_idx
-        )
-        self.pick_and_place.set_joint_effort_target_index(
-            target=self.instant_controls[:, 1].unsqueeze(dim=1), joint_ids=self._y_dof_idx
-        )
-        self.pick_and_place.set_joint_effort_target_index(
-            target=self.permanent_controls[:, 0].unsqueeze(dim=1), joint_ids=self._z_dof_idx
-        )
+        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 0:1], joint_ids=self._x_dof_idx)
+        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 1:2], joint_ids=self._y_dof_idx)
+        self.pick_and_place.set_joint_effort_target_index(target=self.actions[:, 2:3], joint_ids=self._z_dof_idx)
         # Set the gripper command
-        self.gripper.set_grippers_command(self.instant_controls[:, 2])
+        self.gripper.set_grippers_command(self.actions[:, 3])
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
         # Get the observations
@@ -338,7 +258,7 @@ class PickAndPlaceEnv(DirectRLEnv):
             num_resets,
             self.device,
         )
-        self.target_pos[env_ids, 2] = self.cfg.target_z_pos
+        index_fill_(self.target_pos[:, 2], env_ids, self.cfg.target_z_pos)
 
         # Set the initial position of the cube
         cube_pos = self.cube.data.default_root_pose.torch[env_ids]
@@ -398,21 +318,37 @@ def main() -> None:
     """Run the interactive surface-gripper demo."""
     env_cfg = PickAndPlaceEnvCfg()
     env_cfg.scene.num_envs = args_cli.num_envs
-    pick_and_place = PickAndPlaceEnv(env_cfg)
-    pick_and_place.reset()
-    step_count = 0
-    try:
-        while simulation_app.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
-            with torch.inference_mode():
-                actions = torch.zeros((pick_and_place.num_envs, 4), device=pick_and_place.device)
-                pick_and_place.step(actions)
-            step_count += 1
-    finally:
-        pick_and_place.close()
+    with launch_simulation(env_cfg, args_cli):
+        pick_and_place = PickAndPlaceEnv(env_cfg)
+        pick_and_place.reset()
+        actions = torch.zeros((pick_and_place.num_envs, 4), device=pick_and_place.device)
+        teleop = None
+        if pick_and_place.sim.has_gui:
+            teleop_cfg = Se3KeyboardCfg(pos_sensitivity=10.0, sim_device=pick_and_place.device)
+            teleop = instantiate(teleop_cfg)
+            teleop.add_callback("N", lambda: pick_and_place.auto_aim(cube=True))
+            teleop.add_callback("M", lambda: pick_and_place.auto_aim(cube=False))
+            print(teleop)
+            print("Pick up the purple cube and drop it on the red sphere, in ALL environments at once.")
+            print("\tW/S and A/D move the gantries, Q/E latch them UP/DOWN, K toggles the grippers.")
+            print("\tN/M make the grippers track the cube/target position.")
+        step_count = 0
+        try:
+            while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+                if teleop is not None:
+                    cmd = teleop.advance()
+                    actions[:, :2] = cmd[:2]
+                    # Latch the gantry height effort; the z joint moves up for negative effort
+                    if cmd[2] != 0:
+                        actions[:, 2] = -200.0 if cmd[2] > 0 else 100.0
+                    # Se3Keyboard reports +1 for open, the surface gripper uses -1 for open
+                    actions[:, 3] = -cmd[6]
+                with torch.inference_mode():
+                    pick_and_place.step(actions)
+                step_count += 1
+        finally:
+            pick_and_place.close()
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        simulation_app.close()
+    main()

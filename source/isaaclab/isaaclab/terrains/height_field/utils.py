@@ -25,8 +25,8 @@ def height_field_to_mesh(func: Callable) -> Callable:
     Additionally, it adds a border around the terrain to avoid artifacts at the edges.
 
     Args:
-        func: The height field function to convert. The function should return a 2D numpy array
-            with the heights of the terrain.
+        func: The height field function to convert. It should return the height field with discretized heights
+            and the terrain origin [m] relative to the generated height field.
 
     Returns:
         The mesh function. The mesh function returns a tuple containing a list of ``trimesh``
@@ -53,7 +53,7 @@ def height_field_to_mesh(func: Callable) -> Callable:
         terrain_size = copy.deepcopy(cfg.size)
         cfg.size = tuple(sub_terrain_size)
         # generate the height field
-        z_gen = func(difficulty, cfg)
+        z_gen, origin = func(difficulty, cfg)
         # handle the border for the terrain
         heights[border_pixels:-border_pixels, border_pixels:-border_pixels] = z_gen
         # set terrain size back to config
@@ -64,13 +64,8 @@ def height_field_to_mesh(func: Callable) -> Callable:
             heights, cfg.horizontal_scale, cfg.vertical_scale, cfg.slope_threshold
         )
         mesh = trimesh.Trimesh(vertices=vertices, faces=triangles)
-        # compute origin
-        x1 = int((cfg.size[0] * 0.5 - 1) / cfg.horizontal_scale)
-        x2 = int((cfg.size[0] * 0.5 + 1) / cfg.horizontal_scale)
-        y1 = int((cfg.size[1] * 0.5 - 1) / cfg.horizontal_scale)
-        y2 = int((cfg.size[1] * 0.5 + 1) / cfg.horizontal_scale)
-        origin_z = np.max(heights[x1:x2, y1:y2]) * cfg.vertical_scale
-        origin = np.array([0.5 * cfg.size[0], 0.5 * cfg.size[1], origin_z])
+        # place the generator's origin in the padded mesh
+        origin[:2] += border_pixels * cfg.horizontal_scale
         return [mesh], origin
 
     return wrapper

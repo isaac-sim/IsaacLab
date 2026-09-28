@@ -33,6 +33,7 @@ import argparse
 from typing import TYPE_CHECKING
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, replace
 
 parser = argparse.ArgumentParser(
     description="This script demonstrates procedural terrain generation.",
@@ -90,7 +91,9 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     cfg.func("/World/Light", cfg)
 
     # Parse terrain generation
-    terrain_gen_cfg = ROUGH_TERRAINS_CFG.replace(curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme)
+    terrain_gen_cfg = replace(
+        ROUGH_TERRAINS_CFG, curriculum=args_cli.use_curriculum, color_scheme=args_cli.color_scheme
+    )
 
     # Add flat patch configuration
     # Note: To have separate colors for each sub-terrain type, we set the flat patch sampling configuration name
@@ -116,7 +119,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
     if args_cli.color_scheme in ["height", "random"]:
         terrain_importer_cfg.visual_material = None
     # Create terrain importer
-    terrain_importer = terrain_importer_cfg.class_type(terrain_importer_cfg)
+    terrain_importer = instantiate(terrain_importer_cfg)
 
     # Show the flat patches computed
     if args_cli.show_flat_patches:
@@ -128,7 +131,7 @@ def design_scene() -> tuple[dict, torch.Tensor]:
                 height=0.1,
                 visual_material=sim_utils.GlassMdlCfg(glass_color=(random.random(), random.random(), random.random())),
             )
-        flat_patches_visualizer = vis_cfg.class_type(vis_cfg)
+        flat_patches_visualizer = instantiate(vis_cfg)
 
         # Visualize the flat patches
         all_patch_locations = []
@@ -150,7 +153,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
     """Runs the simulation loop."""
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # perform step
         sim.step()
         step_count += 1
@@ -159,21 +162,16 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[15.0, 15.0, 15.0], target=[0.0, 0.0, 0.0])
         # design scene
         scene_entities, scene_origins = design_scene()
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene_entities, scene_origins)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

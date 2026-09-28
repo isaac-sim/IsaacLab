@@ -123,8 +123,6 @@ class RenderBenchmarkEnv(DirectRLEnv):
         if self.cfg.benchmark_mode == "render" and self._anim_phases is not None:
             self._pose_joints_directly()
             self.sim.forward()
-            # forward() changes transforms without advancing the renderer's physics-step key.
-            self.sim.render_context.reset_scene_state_cadence()
 
         # Sensor buffers update lazily, so reading the camera's data is what drives the render.
         # This access is the work the benchmark measures: keep it unconditional even when no

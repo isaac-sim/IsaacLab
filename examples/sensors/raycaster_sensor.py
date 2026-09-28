@@ -6,7 +6,7 @@
 """Cast a lidar-style ray pattern against rough terrain."""
 
 import argparse
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -16,7 +16,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import RayCasterCfg, patterns
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
@@ -62,7 +62,7 @@ class RaycasterSensorSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     ray_caster = RayCasterCfg(
         prim_path="{ENV_REGEX_NS}/Robot/base",
@@ -83,7 +83,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
     sim_dt = sim.get_physics_dt()
     count = 0
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         if count % 500 == 0:
             # reset the scene entities
             # root state
@@ -125,8 +125,7 @@ def main() -> None:
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
         scene_cfg = RaycasterSensorSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-        scene_class = cast(type["InteractiveScene"], scene_cfg.class_type)
-        scene = scene_class(scene_cfg)
+        scene: InteractiveScene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene)

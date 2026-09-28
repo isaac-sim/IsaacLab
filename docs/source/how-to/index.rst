@@ -54,7 +54,7 @@ How-to Guides
 
       .. container:: guide-entry
 
-         :doc:`Deep-dive into AppLauncher </source/how-to/launch_app>`
+         :doc:`Deep-dive into launching the simulation </source/how-to/launch_app>`
 
          Configure and launch simulation applications from Python and the command line.
 

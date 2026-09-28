@@ -27,7 +27,7 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer import OffsetCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -39,7 +39,7 @@ from . import mdp
 # Scene assets
 ##
 
-FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
+FRAME_MARKER_SMALL_CFG = clone(FRAME_MARKER_CFG)
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 """Frame marker for the end-effector and drawer-handle frame transformers."""
 
@@ -110,9 +110,9 @@ class CabinetSimCfg(PresetCfg):
         physics=PhysxCfg(bounce_threshold_velocity=0.01, friction_correlation_distance=0.00625),
         default_visualizer_cfg=VisualizerCfg(eye=(-2.0, 2.0, 2.0), lookat=(0.8, 0.0, 0.5)),
     )
-    ovphysx: SimulationCfg = isaacsim_physx.replace(physics=OvPhysxCfg())
-    physx: SimulationCfg = isaacsim_physx.replace(
-        physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
+    ovphysx: SimulationCfg = replace(isaacsim_physx, physics=OvPhysxCfg())
+    physx: SimulationCfg = replace(
+        isaacsim_physx, physics=PhysxAutoCfg(isaacsim_physx=isaacsim_physx.physics, ovphysx=ovphysx.physics)
     )
     newton_mjwarp: SimulationCfg = SimulationCfg(
         dt=1 / 600,
@@ -171,7 +171,7 @@ class CabinetSceneCfg(InteractiveSceneCfg):
     cabinet_frame = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet/sektion",
         debug_vis=True,
-        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
+        visualizer_cfg=replace(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/CabinetFrameTransformer"),
         target_frames=[
             FrameTransformerCfg.FrameCfg(
                 prim_path="{ENV_REGEX_NS}/Cabinet/drawer_handle_top",

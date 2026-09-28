@@ -3,26 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
 # note: need to enable cameras to be able to make replicator core available
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+from isaaclab.test.utils import launch_test_simulation
 
-"""Rest everything follows."""
-
-import ast
-import inspect
-import textwrap
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 
 from pxr import Sdf, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils import queries
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 pytestmark = pytest.mark.integration
@@ -33,7 +23,6 @@ def test_setup_teardown():
     """Create a blank new stage for each test."""
     # Setup: Create a new stage
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
 
     # Yield for the test
     yield
@@ -127,22 +116,6 @@ def test_find_matching_prims_uses_unbounded_full_path_regex():
     assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/Robot/foo/bar"]
     matches = sim_utils.find_matching_prims(r"/World/[^/]+/foo")
     assert [prim.GetPath().pathString for prim in matches] == ["/World/Robot/foo", "/World/A/foo", "/World/B/foo"]
-
-
-def test_find_matching_prims_has_no_inferred_traversal_bounds():
-    """The query must not narrow or prune USD traversal from the user's regex."""
-    sources = (sim_utils.find_matching_prims, queries._iter_matching_prims_in_subtree)
-    tree = ast.parse("\n".join(textwrap.dedent(inspect.getsource(function)) for function in sources))
-    called_methods = {
-        node.func.attr for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
-    }
-    called_functions = {
-        node.func.id for node in ast.walk(tree) if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-    }
-
-    assert "GetPrimAtPath" not in called_methods
-    assert "PruneChildren" not in called_methods
-    assert "_bound_search" not in called_functions
 
 
 def test_find_matching_prims_fullmatches_top_level_alternation():

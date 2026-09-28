@@ -40,6 +40,8 @@ MOCK_ITERATIONS_BEFORE_IDLE = 3
 def _reset_globals(monkeypatch):
     """Restore module-level state so tests are isolated."""
     monkeypatch.setattr(rtx_utils, "_last_render_update_key", (0, -1, -1))
+    fabric = types.SimpleNamespace(FabricBackendCfg=types.SimpleNamespace)
+    monkeypatch.setitem(sys.modules, "isaaclab_physx.renderers.fabric", fabric)
 
 
 @pytest.fixture()
@@ -131,6 +133,19 @@ class TestWaitForStreamingComplete:
         assert "RTX streaming did not complete within" in caplog.text
 
 
+def test_wait_for_stage_load_pumps_until_loaded_then_settles(mock_omni_usd, mock_omni_kit_app):
+    """Pumps while assets are pending, then pumps the requested settle frames."""
+    mock_app = MagicMock()
+    mock_omni_kit_app.get_app.return_value = mock_app
+    pending = [2, 1, 0, 0]
+    mock_omni_usd.get_context.return_value.get_stage_loading_status.side_effect = lambda: ("", 0, pending[0])
+    mock_app.update.side_effect = lambda: pending.pop(0) if len(pending) > 1 else None
+
+    rtx_utils.wait_for_stage_load(timeout_s=10.0, settle_frames=3)
+
+    assert mock_app.update.call_count == 2 + 3
+
+
 # ---------------------------------------------------------------------------
 # ensure_isaac_rtx_render_update
 # ---------------------------------------------------------------------------
@@ -190,7 +205,9 @@ class TestEnsureIsaacRtxRenderUpdate:
             rtx_utils.ensure_isaac_rtx_render_update()
 
         mock_app.update.assert_not_called()
-        mock_sim.get_or_create_backend.assert_called_once_with(mock_sim.fabric_cfg)
+        cfg = mock_sim.get_or_create_backend.call_args.args[0]
+        assert cfg.stage is mock_sim.stage and cfg.device is mock_sim.device
+        mock_sim.get_or_create_backend.assert_called_once()
         update_transforms.assert_called_once_with(provider)
         mock_sim.physics_manager.forward.assert_not_called()
 

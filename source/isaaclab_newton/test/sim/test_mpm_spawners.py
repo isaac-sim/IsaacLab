@@ -33,7 +33,7 @@ def stage():
     return stage
 
 
-def test_mpm_points_author_and_import_through_usd(stage):
+def test_mpm_points_author_and_import_through_usd(stage, monkeypatch):
     material = MPMParticleMaterialCfg(
         young_modulus=2500.0,
         damping=0.125,
@@ -80,9 +80,19 @@ def test_mpm_points_author_and_import_through_usd(stage):
     np.testing.assert_allclose(builder.particle_qd, ((0.0, 0.1, 0.0), (-0.2, 0.0, 0.0)), atol=3.0e-8)
     np.testing.assert_allclose(builder.particle_mass, cfg.mass)
     np.testing.assert_allclose(builder.particle_radius, cfg.radius)
+    visual_points = UsdGeom.Points(stage.GetPrimAtPath("/World/Media/Particles"))
+    assert not visual_points.GetResetXformStack()
+    np.testing.assert_allclose(visual_points.GetPointsAttr().Get(), cfg.positions)
+    np.testing.assert_allclose(visual_points.GetWidthsAttr().Get(), (0.1, 0.12))
+    transform = UsdGeom.XformCache().GetLocalToWorldTransform(visual_points.GetPrim())
+    np.testing.assert_allclose(
+        [transform.Transform(point) for point in visual_points.GetPointsAttr().Get()], builder.particle_q, atol=2.0e-7
+    )
+    assert visual_points.GetPrim().GetAttribute("isaaclab:pointsUpdateFrequency").Get() == cfg.visual_update_frequency
 
 
-def test_mpm_grid_authors_explicit_particles(stage):
+@pytest.mark.parametrize("visible", [False, True])
+def test_mpm_grid_authors_explicit_particles(stage, visible):
     cfg = MPMGridCfg(
         lower=(0.0, 0.0, 0.0),
         upper=(0.2, 0.2, 0.2),
@@ -90,12 +100,14 @@ def test_mpm_grid_authors_explicit_particles(stage):
         particles_per_cell=1.0,
         particle_placement="cell_center",
         jitter=0.0,
+        visible=visible,
     )
     cfg.func("/World/Media", cfg)
 
     points = UsdGeom.Points(stage.GetPrimAtPath("/World/Media/geometry/points"))
     assert len(points.GetPointsAttr().Get()) == 8
     assert len(points.GetPrim().GetAttribute("physics:masses").Get()) == 8
+    assert bool(stage.GetPrimAtPath("/World/Media/Particles")) is visible
 
 
 def test_mpm_config_imports_do_not_load_pxr():
@@ -137,7 +149,7 @@ def test_mpm_config_imports_do_not_load_pxr():
     ],
 )
 def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
-    """Every MPM program must delay USD imports until after ``AppLauncher`` starts."""
+    """Every MPM program must delay USD imports until after the Kit launcher starts."""
     code = textwrap.dedent(
         f"""
         import importlib

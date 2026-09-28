@@ -17,12 +17,13 @@
 
 import argparse
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Example on using the different camera sensor implementations.")
 parser.add_argument("--num_envs", type=int, default=4, help="Number of environments to spawn.")
@@ -49,18 +50,15 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 if args_cli.physics == "isaacsim_physx":
     args_cli.enable_cameras = True
-    app_launcher = AppLauncher(args_cli)
-else:
-    app_launcher = None
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.physics import PhysicsCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, RayCasterCameraCfg
 from isaaclab.sensors.ray_caster import patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate, replace
 
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG  # isort:skip
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # isort: skip
@@ -73,6 +71,9 @@ if args_cli.physics == "isaacsim_physx":
 else:
     camera_renderer_cfg = NewtonWarpRendererCfg()
 
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+
 
 @configclass
 class SensorsSceneCfg(InteractiveSceneCfg):
@@ -83,7 +84,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type="generator",
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(color_scheme="random"),
+        terrain_generator=replace(ROUGH_TERRAINS_CFG, color_scheme="random"),
         visual_material=None,
         debug_vis=False,
     )
@@ -94,7 +95,7 @@ class SensorsSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     camera = CameraCfg(
@@ -169,7 +170,7 @@ def save_images_grid(
     plt.close()
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -> None:
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -178,7 +179,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     if args_cli.save:
         args_cli.output_dir.mkdir(parents=True, exist_ok=True)
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         # Reset
         if count % 500 == 0:
             # reset the scene entities
@@ -244,23 +245,20 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 
 def main() -> None:
     """Run the camera example."""
-    # Initialize the simulation context
-    scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(
-            dt=0.005, device=args_cli.device, physics=physics_cfg, use_fabric=not args_cli.disable_fabric
-        )
+    sim_cfg = sim_utils.SimulationCfg(
+        dt=0.005, device=args_cli.device, physics=PhysicsCfg(), use_fabric=not args_cli.disable_fabric
+    )
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
         sim.set_camera_view(eye=[3.5, 3.5, 3.5], target=[0.0, 0.0, 0.0])
-        scene = InteractiveScene(scene_cfg)
+        # design scene
+        scene_cfg = SensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        if app_launcher is not None:
-            app_launcher.app.close()
+    main()

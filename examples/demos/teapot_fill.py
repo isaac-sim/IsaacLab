@@ -781,7 +781,7 @@ def keep_running(sim, count: int) -> bool:
     """Return whether the demo loop should continue this frame."""
     if args_cli.max_steps >= 0 and count >= args_cli.max_steps:
         return False
-    return sim.is_headless_or_exist_active_visualizer()
+    return sim.is_running()
 
 
 def write_container_state(container, sim_time: float) -> None:
@@ -823,7 +823,7 @@ def main() -> None:
             )
 
         # Resolve after launching so Kit runs never import USD modules before
-        # AppLauncher; Newton-only runs still use standalone omni.client.
+        # Kit starts; Newton-only runs still use standalone omni.client.
         container_usd = retrieve_file_path(args_cli.container_usd)
         if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []):
             island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")

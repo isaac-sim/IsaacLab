@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
@@ -111,7 +112,7 @@ class CommandTerm(ManagerTermBase):
         # return success
         return True
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, float]:
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, float]:
         """Reset the command generator and log metrics.
 
         This function resets the command counter and resamples the command. It should be called
@@ -133,10 +134,10 @@ class CommandTerm(ManagerTermBase):
             # compute the mean metric value
             extras[metric_name] = torch.mean(metric_value[env_ids]).item()
             # reset the metric value
-            metric_value[env_ids] = 0.0
+            index_fill_(metric_value, env_ids, 0.0)
 
         # set the command counter to zero
-        self.command_counter[env_ids] = 0
+        index_fill_(self.command_counter, env_ids, 0)
         # resample the command
         self._resample(env_ids)
 
@@ -163,16 +164,17 @@ class CommandTerm(ManagerTermBase):
     Helper functions.
     """
 
-    def _resample(self, env_ids: Sequence[int]):
+    def _resample(self, env_ids: Sequence[int] | slice):
         """Resample the command.
 
         This function resamples the command and time for which the command is applied for the
         specified environment indices.
 
         Args:
-            env_ids: The list of environment IDs to resample.
+            env_ids: Environment slice or device-resident indices to resample.
         """
-        if len(env_ids) != 0:
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs != 0:
             # resample the time left before resampling
             self.time_left[env_ids] = self.time_left[env_ids].uniform_(*self.cfg.resampling_time_range)
             # resample the command
@@ -190,7 +192,7 @@ class CommandTerm(ManagerTermBase):
         raise NotImplementedError
 
     @abstractmethod
-    def _resample_command(self, env_ids: Sequence[int]):
+    def _resample_command(self, env_ids: Sequence[int] | slice):
         """Resample the command for the specified environments."""
         raise NotImplementedError
 
@@ -325,7 +327,7 @@ class CommandManager(ManagerBase):
         for term in self._terms.values():
             term.set_debug_vis(debug_vis)
 
-    def reset(self, env_ids: Sequence[int] | None = None) -> dict[str, torch.Tensor]:
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> dict[str, torch.Tensor]:
         """Reset the command terms and log their metrics.
 
         This function resets the command counter and resamples the command for each term. It should be called
@@ -409,7 +411,7 @@ class CommandManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")

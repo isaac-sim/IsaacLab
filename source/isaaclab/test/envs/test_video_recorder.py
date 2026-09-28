@@ -11,7 +11,6 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 from __future__ import annotations
 
 import logging
-import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -21,6 +20,7 @@ import pytest
 from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.utils import validate
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
@@ -121,10 +121,10 @@ def test_init_raises_import_error_when_moviepy_missing():
 def test_cfg_validate_clip_schedule(overrides, error):
     cfg = _cfg(**overrides)
     if error is None:
-        cfg.validate()
+        validate(cfg)
     else:
         with pytest.raises(ValueError, match=error):
-            cfg.validate()
+            validate(cfg)
 
 
 @pytest.mark.parametrize(
@@ -273,22 +273,6 @@ def test_unavailable_source_logs_error_and_returns_none(caplog, source, make_env
     with caplog.at_level(logging.ERROR, logger="isaaclab.envs.utils.video_recorder"):
         assert recorder._get_frame() is None
     assert any(message in r.message for r in caplog.records)
-
-
-# ---------------------------------------------------------------------------
-# ViewerCfg deprecation shim
-# ---------------------------------------------------------------------------
-
-
-def test_viewer_cfg_warns_on_non_default_field():
-    with pytest.warns(DeprecationWarning, match="ViewerCfg is deprecated"):
-        ViewerCfg(eye=(1.0, 2.0, 3.0))
-
-
-def test_viewer_cfg_default_no_warning():
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        ViewerCfg()  # must not raise
 
 
 # ---------------------------------------------------------------------------

@@ -28,6 +28,8 @@ an unusable viewer disables itself instead of aborting training.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import isaaclab_visualizers.newton.newton_visualizer as newton_visualizer
 import pytest
 from isaaclab_visualizers.newton.newton_visualizer import NewtonVisualizer
@@ -90,50 +92,6 @@ def _make_visualizer(viewer: _SpyRTXViewer | _SpyGLViewer | None) -> NewtonVisua
     if viewer is not None:
         viewer.owner = visualizer
     return visualizer
-
-
-def test_release_viewer_closes_before_clearing_reference() -> None:
-    """The viewer must be closed while the visualizer still references it."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert viewer.referenced_by_owner_at_close == [True]
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_propagates_failure_and_still_clears_reference() -> None:
-    """A teardown failure must reach the caller, but must not retain the viewer."""
-    viewer = _SpyRTXViewer(raises=True)
-    visualizer = _make_visualizer(viewer)
-
-    with pytest.raises(RuntimeError, match="Failed to create window"):
-        visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_without_viewer_is_a_no_op() -> None:
-    """Releasing when no viewer is held must be harmless."""
-    visualizer = _make_visualizer(None)
-
-    visualizer._release_viewer()
-
-    assert visualizer._viewer is None
-
-
-def test_release_viewer_is_idempotent() -> None:
-    """Releasing twice must not close the viewer twice."""
-    viewer = _SpyRTXViewer()
-    visualizer = _make_visualizer(viewer)
-
-    visualizer._release_viewer()
-    visualizer._release_viewer()
-
-    assert viewer.close_calls == 1
 
 
 def test_release_viewer_does_not_close_gl_viewer() -> None:
@@ -211,6 +169,7 @@ def test_close_completes_cleanup_when_viewer_teardown_fails(monkeypatch: pytest.
     with pytest.raises(RuntimeError, match="Failed to create window"):
         visualizer.close()
 
+    assert viewer.close_calls == 1
     assert visualizer._viewer is None
     assert visualizer._camera_sensor is None
     assert visualizer._is_closed is True
@@ -225,7 +184,7 @@ def _arm_for_step_failure(visualizer: NewtonVisualizer, viewer: _SpyRTXViewer) -
     visualizer._disable_viewer_on_step_exception = True
     visualizer._sim_time = 0.0
     visualizer._step_counter = 0
-    visualizer._state = None
+    visualizer.backend = SimpleNamespace(model=SimpleNamespace(num_envs=1))
     visualizer._scene_data_provider = None
     visualizer._update_frequency = 1
     viewer._update_frequency = 1
@@ -249,7 +208,6 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._picking_enabled = True
     visualizer._viewer_picking_binding.bind(viewer)  # type: ignore[arg-type]
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 
@@ -263,6 +221,10 @@ def test_step_failure_releases_the_viewer(monkeypatch: pytest.MonkeyPatch) -> No
     visualizer._viewer_picking_binding.apply(None)  # type: ignore[arg-type]
     assert viewer.apply_forces_calls == 0
 
+    # The later ``close()`` must not close the already-released viewer again.
+    visualizer.close()
+    assert viewer.close_calls == 1
+
 
 def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch) -> None:
     """A viewer that fails to close must not abort training from ``step()``.
@@ -275,7 +237,6 @@ def test_step_contains_a_failing_viewer_teardown(monkeypatch: pytest.MonkeyPatch
     viewer = _SpyRTXViewer(raises=True)
     visualizer = _make_visualizer(viewer)
     _arm_for_step_failure(visualizer, viewer)
-    monkeypatch.setattr(newton_visualizer.NewtonManager, "get_num_envs", staticmethod(lambda: 1), raising=False)
 
     NewtonVisualizer.step(visualizer, dt=0.01)  # must not raise
 

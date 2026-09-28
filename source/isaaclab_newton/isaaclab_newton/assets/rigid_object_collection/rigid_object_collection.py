@@ -22,6 +22,7 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
 from isaaclab.physics import PhysicsEvent
+from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -70,9 +71,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
@@ -975,12 +976,15 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (len(env_ids), len(body_ids), 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_ids: The body indices to set the center of mass pose for. Defaults to None (all bodies).
             env_ids: The environment indices to set the center of mass pose for. Defaults to None (all environments).
         """
         # resolve all indices
         env_ids = self._resolve_env_ids(env_ids)
         body_ids = self._resolve_body_ids(body_ids)
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype(coms, (env_ids.shape[0], body_ids.shape[0]), wp.vec3f, "coms")
         # Write to consolidated buffer
         wp.launch(
@@ -1023,6 +1027,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
 
         Args:
             coms: Center of mass position of all bodies. Shape is (num_instances, num_bodies, 3).
+                Poses with a trailing dimension of 7 (dtype wp.transformf) are also accepted; their
+                orientation is ignored.
             body_mask: Body mask. If None, then all bodies are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -1031,6 +1037,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             env_mask = self._ALL_ENV_MASK
         if body_mask is None:
             body_mask = self._ALL_BODY_MASK
+        coms = shared_kernels.com_positions(coms)
         self.assert_shape_and_dtype_mask(coms, (env_mask, body_mask), wp.vec3f, "coms")
         wp.launch(
             shared_kernels.write_body_com_position_to_buffer_mask,
@@ -1291,6 +1298,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids

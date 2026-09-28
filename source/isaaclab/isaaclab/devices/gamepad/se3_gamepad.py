@@ -56,10 +56,7 @@ class Se3Gamepad(DeviceBase):
 
     """
 
-    def __init__(
-        self,
-        cfg: Se3GamepadCfg,
-    ):
+    def __init__(self, cfg: Se3GamepadCfg):
         """Initialize the gamepad layer.
 
         Args:

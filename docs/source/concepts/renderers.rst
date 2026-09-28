@@ -350,14 +350,14 @@ Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendere
    renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
 
 Scene partitioning and the all-environment spectator view are separate controls.
-:class:`~isaaclab.app.AppLauncher` enables spectator support before RTX startup only
+:class:`~isaaclab_physx.app.KitLauncher` enables spectator support before RTX startup only
 when the Kit viewport is enabled or Kit visualization, recording, livestreaming, or XR
 is requested. Regular headless training and camera-sensor runs keep it disabled so
 tiled cameras are not exposed to the spectator mode's world-space layout constraints.
 
 ``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
 setting; it is not a separate feature. Its default value of ``None`` preserves the
-launch-time choice made by :class:`~isaaclab.app.AppLauncher`. An explicit value overrides
+launch-time choice made by :class:`~isaaclab_physx.app.KitLauncher`. An explicit value overrides
 that setting when the Isaac RTX renderer is constructed. When enabled, environments must
 remain spatially separated because overlapping partition bounds can make content leak into
 another environment or disappear. When disabled, the Kit viewport displays only the
@@ -408,7 +408,7 @@ The renderer system consists of:
 
    # Create a Newton Warp renderer (no Isaac Sim required)
    sim_ctx = sim_utils.SimulationContext.instance()
-   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   # Reuse a matching renderer or construct one through instantiate(cfg).
    renderer: BaseRenderer = sim_ctx.get_or_create_backend(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
 
@@ -422,7 +422,7 @@ For the RTX renderer (requires Isaac Sim):
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
-   # Construct cfg.class_type(cfg) or reuse a renderer with a matching config.
+   # Reuse a matching renderer or construct one through instantiate(cfg).
    renderer: BaseRenderer = sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())
 
 For RTX renderer settings, see

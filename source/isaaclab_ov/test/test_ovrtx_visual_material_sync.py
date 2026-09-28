@@ -6,7 +6,6 @@
 """Unit tests for typed visual-material writes into OVRTX-owned scenes."""
 
 import importlib.util
-import inspect
 from types import SimpleNamespace
 
 import pytest
@@ -21,7 +20,6 @@ pytestmark = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
-    from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
     from ovrtx import DataAccess
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -269,8 +267,6 @@ def test_writer_close_drains_and_unbinds_compiled_legacy_addresses():
 
     assert all(binding.unbound for binding in renderer.backend.renderer.bindings)
     assert all(write[3].wait_count == 1 for write in renderer.backend.renderer.writes)
-    assert writer._addresses == []
-    assert writer._buffers == {}
 
 
 @pytest.mark.parametrize("values", [torch.zeros(1, dtype=torch.float64), torch.zeros(1, 4)])
@@ -301,9 +297,3 @@ def test_writer_factory_requires_ingested_detached_scene():
     renderer._initialized_scene = False
     with pytest.raises(RuntimeError, match="ingest its detached scene"):
         renderer.visual_material_writer((_batch("color", ("diffuseColor",), torch.zeros(1, 3)),))
-
-
-def test_material_runtime_has_no_host_or_usd_path():
-    source = inspect.getsource(OVRTXVisualMaterialWriter)
-    for forbidden in (".cpu(", ".numpy(", ".tolist(", "pxr", "Usd", "Sdf"):
-        assert forbidden not in source

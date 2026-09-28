@@ -14,7 +14,7 @@ import torch
 
 from ..utils import string as string_utils
 from ..utils.types import ArticulationActions
-from ._compat import _limits_equal, _resolve_limit_aliases
+from .actuator_compat import limits_equal, resolve_limit_aliases
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
@@ -189,7 +189,7 @@ class ActuatorBase(ABC):
             or self.cfg.velocity_limit is not None
             or self.cfg.velocity_limit_sim is not None
         ):
-            _resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
+            resolve_limit_aliases(type(self).__name__, self.cfg, self.joint_names)
 
         # normalize deprecated constructor aliases
         # TODO: Deprecated. Remove in 4.0.
@@ -200,7 +200,7 @@ class ActuatorBase(ABC):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if actuator_effort_limit is not None and not _limits_equal(actuator_effort_limit, effort_limit):
+            if actuator_effort_limit is not None and not limits_equal(actuator_effort_limit, effort_limit):
                 raise ValueError(
                     "Received conflicting actuator_effort_limit and deprecated effort_limit constructor arguments."
                 )
@@ -212,7 +212,7 @@ class ActuatorBase(ABC):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if actuator_velocity_limit is not None and not _limits_equal(actuator_velocity_limit, velocity_limit):
+            if actuator_velocity_limit is not None and not limits_equal(actuator_velocity_limit, velocity_limit):
                 raise ValueError(
                     "Received conflicting actuator_velocity_limit and deprecated velocity_limit constructor arguments."
                 )
@@ -310,11 +310,15 @@ class ActuatorBase(ABC):
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        """Clip the desired torques based on the motor limits.
+    def _clip_effort(self, effort: torch.Tensor, *args, **kwargs) -> torch.Tensor:
+        """Clip the desired effort using actuator effort limits.
+
+        Model-specific inputs are handled by subclasses.
 
         Args:
             effort: The effort to clip [N or N·m, depending on joint type].
+            *args: Model-specific positional inputs. Unused by the base implementation.
+            **kwargs: Model-specific keyword inputs. Unused by the base implementation.
 
         Returns:
             The clipped effort [N or N·m, depending on joint type].

@@ -6,10 +6,10 @@
 """Sub-module for a timer class that can be used for performance measurements.
 
 Note:
-    This module has a hard dependency on `warp` because the :class:`Timer` calls
-    ``wp.synchronize()`` on stop to flush pending GPU work before sampling the clock.
-    Since IsaacLab workloads are predominantly GPU-bound, an unsynchronized timer would
-    under-report wall time by returning before device kernels have finished executing.
+    This module depends on `warp` for GPU synchronization. By default, :class:`Timer`
+    synchronizes all devices on stop. Use ``synchronize="both"`` to exclude earlier queued
+    work from a measurement, or ``synchronize="none"`` for CPU wall timing without waiting
+    for GPU work. Set ``device`` to restrict synchronization to one device.
 """
 
 from __future__ import annotations
@@ -34,9 +34,9 @@ class Timer(ContextDecorator):
     A class to keep track of time for performance measurement.
     It allows timing via context managers and decorators as well.
 
-    It uses the `time.perf_counter` function to measure time. This function
-    returns the number of seconds since the epoch as a float. It has the
-    highest resolution available on the system.
+    It uses the monotonic `time.perf_counter` function to measure elapsed wall time.
+    Synchronizing at both boundaries excludes previously queued GPU work, but still includes
+    CPU work and any concurrent work on the synchronized device. This is not CUDA event timing.
 
     As a regular object:
 
@@ -97,6 +97,9 @@ class Timer(ContextDecorator):
         enable: bool = True,
         time_unit: Literal["s", "ms", "us", "ns"] = "s",
         activity: str | None = None,
+        *,
+        synchronize: Literal["none", "stop", "both"] = "stop",
+        device: str | None = None,
     ):
         """Initializes the timer.
 
@@ -112,17 +115,30 @@ class Timer(ContextDecorator):
                 screen while the block runs, so a user watching the console sees
                 the step in progress rather than its completion message.
                 Defaults to None, which reports nothing.
+            synchronize: When to wait for pending GPU work. ``"stop"`` preserves the existing
+                behavior of synchronizing only before the final clock sample. ``"both"`` also
+                synchronizes before the initial clock sample. ``"none"`` never synchronizes.
+                Defaults to ``"stop"``.
+            device: Warp device name, e.g. ``"cuda:0"``, to synchronize. Resolved at the first
+                enabled start and retained for subsequent measurements. ``None`` synchronizes
+                all devices. Ignored when ``synchronize="none"``. Defaults to None.
+
+        Raises:
+            ValueError: If ``time_unit`` or ``synchronize`` is unsupported.
         """
         self._msg = msg
         self._name = name
         self._activity = activity
         self._start_time = None
-        self._stop_time = None
         self._elapsed_time = None
         self._enable = enable if Timer.enable else False
+        self._synchronize_mode = synchronize
+        self._device: str | wp.Device | None = device
 
         if time_unit not in Timer._UNIT_MULTIPLIERS:
             raise ValueError(f"Invalid time_unit, {time_unit} is not in {list(Timer._UNIT_MULTIPLIERS)}")
+        if synchronize not in ("none", "stop", "both"):
+            raise ValueError(f"Invalid synchronize mode: {synchronize!r}. Expected 'none', 'stop', or 'both'.")
 
         self._format = time_unit
         self._multiplier = Timer._UNIT_MULTIPLIERS[time_unit]
@@ -141,7 +157,7 @@ class Timer(ContextDecorator):
 
     @property
     def time_elapsed(self) -> float:
-        """The number of seconds that have elapsed since this timer started timing.
+        """Elapsed wall time since this timer started [s], without synchronizing pending GPU work.
 
         Note:
             This always returns seconds regardless of the configured ``time_unit``.
@@ -153,7 +169,7 @@ class Timer(ContextDecorator):
 
     @property
     def total_run_time(self) -> float:
-        """The number of seconds that elapsed from when the timer started to when it ended.
+        """Elapsed wall time from when this timer started to when it ended [s].
 
         Note:
             This always returns seconds regardless of the configured ``time_unit``.
@@ -174,6 +190,10 @@ class Timer(ContextDecorator):
         if self._start_time is not None:
             raise TimerError("Timer is running. Use .stop() to stop it")
 
+        if self._synchronize_mode != "none" and self._device is not None:
+            self._device = wp.get_device(self._device)
+        if self._synchronize_mode == "both":
+            self._synchronize()
         self._start_time = time.perf_counter()
 
     def stop(self):
@@ -184,12 +204,10 @@ class Timer(ContextDecorator):
         if self._start_time is None:
             raise TimerError("Timer is not running. Use .start() to start it")
 
-        # Synchronize the device to make sure we time the whole operation
-        wp.synchronize()
+        if self._synchronize_mode != "none":
+            self._synchronize()
 
-        # Get the elapsed time
-        self._stop_time = time.perf_counter()
-        self._elapsed_time = self._stop_time - self._start_time
+        self._elapsed_time = time.perf_counter() - self._start_time
         self._start_time = None
 
         if self._name is not None:
@@ -233,16 +251,14 @@ class Timer(ContextDecorator):
             from ..app.loading_screen import report_activity
 
             report_activity(None)
-        # print message
-        if self._enable:
-            if (self._msg is not None) and (Timer.enable_display_output):
-                parts = [f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}"]
-                if self._name is not None:
-                    info = Timer.timing_info[self._name]
-                    parts.append(f"Mean: {(info['mean'] * self._multiplier):0.6f} {self._format}")
-                    parts.append(f"Std: {(info['std'] * self._multiplier):0.6f} {self._format}")
-                    parts.append(f"N: {info['n']}")
-                print(self._msg, ", ".join(parts))
+        if self._enable and self._msg is not None and Timer.enable_display_output:
+            parts = [f"Last: {(self._elapsed_time * self._multiplier):0.6f} {self._format}"]
+            if self._name is not None:
+                info = Timer.timing_info[self._name]
+                parts.append(f"Mean: {(info['mean'] * self._multiplier):0.6f} {self._format}")
+                parts.append(f"Std: {(info['std'] * self._multiplier):0.6f} {self._format}")
+                parts.append(f"N: {info['n']}")
+            print(self._msg, ", ".join(parts))
 
     """
     Static Methods
@@ -278,7 +294,7 @@ class Timer(ContextDecorator):
         """
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
-        return Timer.timing_info.get(name)["last"]
+        return Timer.timing_info[name]["last"]
 
     @staticmethod
     def get_timer_statistics(name: str) -> dict[str, float]:
@@ -294,10 +310,13 @@ class Timer(ContextDecorator):
         Returns:
             A dictionary containing the mean, std, and n for the named timer.
         """
-
         if name not in Timer.timing_info:
             raise TimerError(f"Timer {name} does not exist")
+        return dict(Timer.timing_info[name])
 
-        keys = ["mean", "std", "n", "last"]
-
-        return {k: Timer.timing_info[name][k] for k in keys}
+    def _synchronize(self) -> None:
+        """Wait for the configured device scope before sampling the clock."""
+        if self._device is None:
+            wp.synchronize()
+        else:
+            wp.synchronize_device(self._device)
