@@ -21,6 +21,8 @@ Changed
   :func:`~isaaclab.sim.utils.clear_stage` and :func:`~isaaclab.sim.utils.close_stage` no longer run Kit app
   updates or close Kit's USD context themselves.
 * Changed :attr:`~isaaclab.scene_data.SceneDataProvider.usd_stage` to always return the simulation stage.
+* Changed :meth:`~isaaclab.sim.SimulationContext.clear_instance` to close native backends newest first, so a
+  backend closes before the backends it was created on top of.
 
 Deprecated
 ^^^^^^^^^^
