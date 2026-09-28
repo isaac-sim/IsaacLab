@@ -191,12 +191,10 @@ def test_render_into_camera_call_order_and_profile_output(sim, capsys, profile):
         sim.render_context.render_into_camera(renderer, data, camera, physics_step_count=1)
 
     assert renderer.mock_calls == [
-        call.announce_frame(1),
         call.update_transforms(),
         call.update_geometries(),
         call.render_batch([data]),
         call.read_output(data, camera),
-        call.announce_frame(1),
         call.update_transforms(),
         call.update_geometries(),
         call.render_batch([data]),
@@ -578,9 +576,13 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     assert batches == [[("fast", 0.0), ("slow", 0.0)], [("fast", 0.0)]]
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])
+    assert renderer.prepare_capture.call_args_list == [
+        call(camera._render_data, camera._data, camera._frame) for camera in (fast, slow, fast)
+    ]
 
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
+    renderer.reset.assert_called_once_with(slow._render_data)
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0

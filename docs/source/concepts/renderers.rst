@@ -513,46 +513,41 @@ Or install the public ``ovrtx`` package directly from PyPI:
 Asynchronous Rendering
 ----------------------
 
-:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` trades one frame of camera latency for
-throughput. Only the OVRTX renderer implements it. This section shows how states, observations,
-actions, and rendered frames line up in both modes.
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
+while rendering its next image. This allows rendering to overlap simulation and Python work.
+The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
 
-The framework tells the renderer which scene writes and renders form one frame: it announces
-each frame through :meth:`~isaaclab.renderers.BaseRenderer.announce_frame` with the physics step
-count, and a frame lasts until the next announcement. The asynchronous path groups its work by
-these announcements, so the grouping is independent of sensor update order and batching.
-
-The diagram below shows one call of ``env.step()``, stage by stage, in both modes. The rows
-where the two columns split are the differences. The timelines show where the throughput gain
-comes from: the render overlaps the CPU work instead of blocking it.
+The diagram shows steady-state operation when a camera captures once per environment step.
+With other update periods, latency is one capture, not necessarily one physics or control step.
 
 .. raw:: html
    :file: renderers_async_dataflow.html
 
-Answers to the common questions:
+Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
+metadata, even when they share a native render submission. Reset discards that camera's pending
+observations. A partial environment reset re-primes the whole tiled camera product, without
+invalidating other cameras.
 
-- **Where does the image in the observation come from?** From the previous step. ``O[k]`` mixes
-  the state channels of ``S[k]`` with the image of ``S[k-1]``. Rewards, terminations, and all
-  non-camera observations always use ``S[k]``.
-- **How can the renderer have transforms for a frame it renders later?** It never needs future
-  data. Frame ``F[k]`` renders from ``T[k]``, the transforms of its own step, written before the
-  submit. Two staging slots alternate: step ``k+1`` fills one slot while ``F[k]`` still reads the
-  other. Only the read-back of the finished image is deferred, never its inputs.
-- **Does my own render loop pipeline?** Only when it announces frames. Call
-  :meth:`~isaaclab.renderers.BaseRenderer.announce_frame` with a monotonic index before each frame's
-  pose updates and renders. The framework does this automatically with the physics step count, for
-  both eager and lazy sensor updates. Renders without an announced frame are delivered
-  immediately, which gives correct images with synchronous behavior.
-- **What about the camera pose and frame metadata?** They are not delayed. ``data.pos_w``,
-  ``data.quat_w_world``, intrinsics, and the frame counter describe the current step, while the
-  image is one step older. Consumers that pair pixels with extrinsics, for example point-cloud
-  deprojection, see one step of camera motion offset.
-- **How does the physics engine influence the frames?** Through the transforms: ``S[k]`` produces
-  ``T[k]``, which produces ``F[k]``. The image of ``S[k]`` arrives in ``O[k+1]``.
+Live fields such as ``camera.data.pos_w`` and ``camera.data.intrinsic_matrices`` remain current.
+Use the capture metadata when pairing delayed pixels with a pose or calibration, for example
+when deprojecting depth:
 
-For a policy, the vision channel therefore behaves like a camera with one control step of
-latency: ``A[k+1] = policy(state of S[k], image of S[k-1])``. This matches a common property of
-real robots, whose camera pipelines also deliver slightly old images.
+.. code-block:: python
+
+   data = camera.data
+   depth = data.output["distance_to_image_plane"]
+   capture = data.info["distance_to_image_plane"]["capture"]
+   position, orientation = capture["pos_w"], capture["quat_w_world"]
+   intrinsics, frame = capture["intrinsic_matrices"], capture["frame"]
+
+These snapshots describe the returned image and do not change on subsequent captures.
+Direct renderer callers use :meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before
+``render`` or ``render_batch``, then :meth:`~isaaclab.renderers.BaseRenderer.read_output` to
+publish each camera's pixels and metadata. No physics-step announcement is needed.
+
+Input buffers remain owned until OVRTX finishes reading them. Two buffers alternate per write;
+SDP converts scene transforms directly into the available buffer rather than converting and
+then copying into another staging array.
 
 See Also
 --------

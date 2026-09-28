@@ -1,7 +1,7 @@
 Added
 ^^^^^
 
-* Added :meth:`~isaaclab.renderers.BaseRenderer.announce_frame`. The framework announces each frame
-  with the physics step count before it stages camera poses and scene state. Renderers that
-  pipeline across frames use the index to group one frame's scene writes and renders. The default
-  does nothing, so existing renderer implementations are unaffected.
+* Added :meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` and
+  :meth:`~isaaclab.renderers.BaseRenderer.reset` hooks for delayed camera observations.
+  Asynchronous renderers can publish matching image metadata through ``CameraData.info`` and
+  discard pending observations on reset without changing live camera fields.

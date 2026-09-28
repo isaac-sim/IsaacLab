@@ -10,6 +10,8 @@ import ctypes
 import importlib.util
 import sys
 import types
+from builtins import ExceptionGroup
+from collections import deque
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -22,6 +24,7 @@ from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
 from isaaclab.utils import replace
+from isaaclab.utils.warp import ProxyArray
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -85,9 +88,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
-    # ``__init__`` is bypassed, so set the strategy it would build: ``close`` drains the strategy
-    # before releasing the backend.
-    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
+    renderer._transform_writes = deque()
+    renderer._use_ovstage = False
     return renderer
 
 
@@ -372,12 +374,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         SimulationContext.instance().close_backend(renderer.backend)
 
 
-def test_cleanup_completes_when_a_queued_render_fails():
-    """A failed queued delivery must not abort the camera release and bookkeeping."""
-    from isaaclab_ov.renderers.ovrtx_renderer_strategies import _AsyncRenderStrategy
-
+@pytest.mark.parametrize("failure", ["render", "write"])
+def test_cleanup_completes_when_a_queued_operation_fails(monkeypatch, failure):
+    """Failed native operations must not abort the remaining release and camera bookkeeping."""
     renderer = _make_ovrtx_renderer_without_backend()
-    renderer._strategy = _AsyncRenderStrategy()
     renderer._render_product_paths = []
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct"
@@ -388,21 +388,110 @@ def test_cleanup_completes_when_a_queued_render_fails():
         def wait(self):
             raise RuntimeError("device lost")
 
-    renderer._strategy._enqueue_render_op(_FailingOp(), (render_data,), lambda *_args: None)
+    released = MagicMock()
+    render_data.resources.callback(released)
+    if failure == "render":
+        render_data.pending = (_FailingOp(), {})
+    else:
+        render_data.camera_writes.append((None, None, _FailingOp(), None))
+        monkeypatch.setattr(wp, "synchronize_stream", lambda _stream: None)
+    with pytest.raises(ExceptionGroup if failure == "render" else RuntimeError):
+        renderer.cleanup(render_data)
 
-    renderer.cleanup(render_data)
-
+    released.assert_called_once_with()
     assert render_data not in renderer._camera_render_data
     assert render_data.render_product_path not in renderer._render_product_paths
-    assert not renderer._strategy._has_pending_ops()
+    assert render_data.pending is render_data.ready is None
+
+
+@pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
+def test_async_cameras_publish_independently_with_capture_metadata_and_reset(monkeypatch, batch):
+    """Completed batches do not update another camera; reset retires only that camera's history."""
+    renderer = _make_ovrtx_renderer_without_backend()
+    renderer.cfg.async_rendering = True
+    renderer._initialized_scene = True
+    renderer._visual_material_writer_ref = None
+    cameras = [_make_ovrtx_camera_render_data() for _ in range(2)]
+    renderer._camera_render_data = cameras.copy()
+    camera_data = []
+    for index, camera in enumerate(cameras):
+        camera.render_product_path = f"/Render/Camera{index}"
+        data = CameraData.allocate(["rgb"], 2, 2, 2, "cpu", renderer.supported_output_types())
+        data.create_buffers(2, "cpu")
+        renderer.set_outputs(camera, data.output)
+        camera_data.append(data)
+    renderer._render_product_paths = [camera.render_product_path for camera in cameras]
+    frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
+    operations = []
+    ordinal = 0
+
+    def submit(render_products, delta_time):
+        operation = MagicMock()
+        operation.wait.return_value.fetch.return_value = {
+            path: types.SimpleNamespace(frames=[ordinal]) for path in render_products
+        }
+        operations.append(operation)
+        return operation
+
+    def consume(camera, value, buffers):
+        buffers["rgba"].fill_(value)
+
+    renderer.backend.renderer = types.SimpleNamespace(step_async=submit)
+    monkeypatch.setattr(renderer, "_process_render_frame", consume)
+
+    def capture(value, indices):
+        nonlocal ordinal
+        ordinal = value
+        frame.warp.fill_(value)
+        for index in indices:
+            data = camera_data[index]
+            data.pos_w.warp.fill_(wp.vec3f(value))
+            data.intrinsic_matrices.warp.fill_(wp.mat33f(value))
+            renderer.prepare_capture(cameras[index], data, frame)
+        if batch:
+            renderer.render_batch([cameras[index] for index in indices])
+        else:
+            for index in indices:
+                renderer.render(cameras[index])
+        for index in indices:
+            renderer.read_output(cameras[index], camera_data[index])
+
+    capture(1, (0, 1))
+    capture(2, (0, 1))
+    capture(3, (0,))
+    for index, expected in enumerate((2, 1)):
+        data = camera_data[index]
+        np.testing.assert_array_equal(data.output["rgb"].warp.numpy(), expected)
+        for name in ("frame", "pos_w", "intrinsic_matrices"):
+            np.testing.assert_array_equal(data.info["rgb"]["capture"][name].warp.numpy(), expected)
+    np.testing.assert_array_equal(camera_data[0].pos_w.warp.numpy(), 3)
+    saved_capture = camera_data[0].info["rgb"]["capture"]
+    renderer.read_output(cameras[0], camera_data[0])
+    assert camera_data[0].info["rgb"]["capture"] is saved_capture
+    assert renderer.drain_pending_renders() == []
+    np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 1)
+
+    renderer.reset(cameras[0])
+    capture(4, (0,))
+    np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
+    np.testing.assert_array_equal(saved_capture["pos_w"].warp.numpy(), 2)
+    capture(5, (1,))
+    np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)
+    renderer.cleanup(cameras[0])
+
+    monkeypatch.setattr(renderer, "_process_render_frame", MagicMock(side_effect=RuntimeError("output extraction")))
+    with pytest.raises(RuntimeError, match="output extraction"):
+        capture(6, (1,))
+    renderer.cleanup(cameras[1])
+    assert all(operation.wait.called for operation in operations)
+    assert renderer._camera_render_data == []
 
 
 @pytest.mark.integration
 @pytest.mark.rendering
-def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
-    """Two asynchronous cameras render independent views with one shared frame of latency."""
-    from isaaclab_newton.physics import NewtonManager
-
+@pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
+def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
+    """Two asynchronous cameras keep their own capture cadence, input buffers and reset boundary."""
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.assets import AssetBaseCfg
@@ -413,8 +502,6 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
 
     if not torch.cuda.is_available():
         pytest.skip("OVRTX rendering requires CUDA")
-    # This static USD scene has no physics model or scene-data provider.
-    monkeypatch.setattr(NewtonManager, "get_model", classmethod(lambda cls: None))
     monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
@@ -471,14 +558,12 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
             cameras.append((rd, data))
 
         # Each camera's first frame is primed, so the first read is already valid and independent.
-        renderer.announce_frame(0)
         for index, (rd, data) in enumerate(cameras):
             renderer.render(rd)
+            renderer.read_output(rd, data)
             assert_depth(rd, data, 5.0 - index - 0.5)
 
-        # Move only cam1 up, using the lazy per-camera call order: each camera stages its pose
-        # and renders before the next camera runs. The announced frame groups them, so the
-        # renders are pipelined and both reads still show the previous frame.
+        # Move cam1 up. Each camera returns its own previous capture, independent of call order.
         quats = convert_camera_frame_orientation_convention(
             torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
         )
@@ -488,23 +573,43 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch):
             ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0")),
         ]
 
-        frame_index = 0
-
         def step():
-            nonlocal frame_index
-            frame_index += 1
-            renderer.announce_frame(frame_index)
             for (rd, data), positions in zip(cameras, poses):
                 renderer.update_camera(rd, positions, orientations, data.intrinsic_matrices)
-                renderer.render(rd)
+                if not batch:
+                    renderer.render(rd)
+            if batch:
+                renderer.render_batch([rd for rd, _ in cameras])
+            for rd, data in cameras:
+                renderer.read_output(rd, data)
 
         step()
         assert_depth(*cameras[0], 4.5)
         assert_depth(*cameras[1], 3.5)
 
-        # The next step's renders drain the moved frame into both cameras together.
+        # The next capture exposes the moved view.
         step()
         assert_depth(*cameras[0], 4.5)
+        assert_depth(*cameras[1], 5.5)
+
+        # Reuse the two camera input slots repeatedly without a physics-step announcement.
+        # A producer-stream switch must also preserve the previous write's borrowed inputs.
+        for height in (6.0, 8.0, 9.0):
+            with wp.ScopedStream(wp.Stream("cuda:0")):
+                poses[0] = ProxyArray(wp.array([[0.0, 0, height]] * 2, dtype=wp.vec3f, device="cuda:0"))
+                renderer.update_camera(cameras[0][0], poses[0], orientations, cameras[0][1].intrinsic_matrices)
+                renderer.render(cameras[0][0])
+                renderer.read_output(*cameras[0])
+                wp.synchronize_stream()
+            assert_depth(*cameras[1], 5.5)
+        assert_depth(*cameras[0], 7.5)
+        renderer.reset(cameras[0][0])
+        renderer.render(cameras[0][0])
+        renderer.read_output(*cameras[0])
+        assert_depth(*cameras[0], 8.5)
+        renderer.cleanup(cameras[0][0])
+        renderer.render(cameras[1][0])
+        renderer.read_output(*cameras[1])
         assert_depth(*cameras[1], 5.5)
     finally:
         try:

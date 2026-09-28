@@ -1,4 +1,5 @@
 Fixed
 ^^^^^
 
-* Kept newly submitted asynchronous OVRTX renders owned by the cleanup queue when delivery of an earlier frame failed.
+* Kept asynchronous OVRTX renders owned through delivery failures and reset, and isolated each
+  camera's output publication. Transform writes converted directly into retained input buffers.

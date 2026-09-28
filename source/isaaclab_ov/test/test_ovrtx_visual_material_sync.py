@@ -19,7 +19,6 @@ pytestmark = pytest.mark.skipif(
 )
 
 if not _MISSING_MODULES:
-    import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
     from ovrtx import DataAccess
@@ -121,8 +120,7 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
     renderer.cfg = OVRTXRendererCfg()
-    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
-    renderer._strategy.set_device("cuda:0")
+    renderer._camera_render_data = []
     if use_ovstage:
         renderer.backend.stage = _OvstageRecorder(events)
         renderer.backend.paths = _PathRecorder()

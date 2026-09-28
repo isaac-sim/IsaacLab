@@ -606,6 +606,7 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
+        self._renderer.reset(self._render_data)
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -704,6 +705,7 @@ class Camera(SensorBase):
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
+        self._renderer.prepare_capture(self._render_data, self._data, self._frame)
 
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
@@ -711,9 +713,6 @@ class Camera(SensorBase):
         sim_ctx = sim_utils.SimulationContext.instance()
         renderer = self._renderer
         assert renderer is not None
-        # Announce the frame before the pose staging inside _prepare_camera.
-        if sim_ctx is not None:
-            renderer.announce_frame(sim_ctx.get_physics_step_count())
         self._prepare_camera(env_mask)
 
         if sim_ctx is not None:
@@ -738,13 +737,9 @@ class Camera(SensorBase):
             return
 
         ready = []
-        physics_step_count = sim_ctx.get_physics_step_count()
         for camera in cameras:
             if not camera._env_mask_has_any(camera._is_outdated):
                 continue
-            # Announce the frame before the pose staging inside _prepare_camera. Repeated
-            # announcements of one index are no-ops, so cameras sharing a renderer are safe.
-            camera._renderer.announce_frame(physics_step_count)
             camera._prepare_camera(camera._is_outdated)
             ready.append(camera)
         if not ready:

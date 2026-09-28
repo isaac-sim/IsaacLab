@@ -116,17 +116,17 @@ class BaseRenderer(ABC):
         """
         pass
 
-    def announce_frame(self, frame_index: int) -> None:
-        """Announce the frame that the following scene writes and renders belong to.
+    def prepare_capture(self, render_data: Any, camera_data: CameraData, frame: ProxyArray) -> None:
+        """Snapshot metadata for the next capture when its image will be delivered asynchronously.
 
-        The framework calls this before it stages camera poses or scene state, with the physics
-        step count as the frame index. Repeated calls with the same index are no-ops, so several
-        cameras of one step can each announce the same frame. A frame lasts until the next
-        announcement. Renderers that pipeline across frames use the index to group work; the
-        default does nothing. Callers that skip this method get synchronous rendering behavior.
+        Synchronous renderers need no snapshot. Delayed captures publish their pose, calibration,
+        and frame indices through ``camera_data.info[output_name]["capture"]`` without changing
+        the live camera fields.
 
         Args:
-            frame_index: Monotonic identifier of the frame, normally the physics step count.
+            render_data: Renderer-owned camera resources.
+            camera_data: Current camera pose and calibration.
+            frame: Current per-environment capture indices, shape (N,), dtype ``wp.int64``.
         """
 
     @abstractmethod
@@ -189,7 +189,7 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def render(self, render_data: Any) -> None:
-        """Perform rendering and write to output buffers.
+        """Submit a capture; :meth:`read_output` publishes its camera's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -197,7 +197,7 @@ class BaseRenderer(ABC):
         pass
 
     def render_batch(self, render_data: Sequence[Any]) -> None:
-        """Render a collection of cameras into their bound output buffers.
+        """Submit captures for a collection of cameras.
 
         All camera poses and shared scene state must be prepared before calling this method.
         An empty sequence is a no-op. Each object must belong to this renderer and appear once.
@@ -214,6 +214,9 @@ class BaseRenderer(ABC):
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:
         """Read rendered outputs from the renderer into the camera data container.
 
+        Asynchronous renderers may return the previous capture with its matching metadata in
+        ``camera_data.info``. Publishing one camera must not change another camera's observations.
+
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
@@ -229,6 +232,16 @@ class BaseRenderer(ABC):
             render_data: The render data object to clean up, or ``None``.
         """
         pass
+
+    def reset(self, render_data: Any) -> None:
+        """Invalidate queued observations before a camera reset.
+
+        Synchronous renderers have no pending observations. A tiled renderer may need to re-prime
+        the whole product after a partial environment reset to avoid returning pre-reset pixels.
+
+        Args:
+            render_data: Renderer-owned camera resources to keep, with pending captures invalidated.
+        """
 
     def close(self) -> None:
         """Release resources owned by the renderer itself rather than by a render data.

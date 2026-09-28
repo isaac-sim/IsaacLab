@@ -320,7 +320,6 @@ class RenderContext:
         Producer versions also cover geometry writes between physics steps.
         """
         for _cfg, renderer in self._renderer_entries:
-            renderer.announce_frame(physics_step_count)
             renderer.update_transforms()
             renderer.update_geometries()
 

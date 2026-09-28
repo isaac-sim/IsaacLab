@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib.util
+from collections import deque
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -39,11 +40,8 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
-    renderer._strategy = ovrtx_renderer_module._resolve_render_strategy(renderer.cfg)
-    # The strategy takes the renderer's resolved Warp device; tests fake it with just the pieces
-    # the strategy reads (allocation device and the current stream handle).
+    renderer._transform_writes = deque((SceneDataFormat.TransposedMatrix44d(), None, None) for _ in range(2))
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
-    renderer._strategy.set_device(renderer._warp_device)
     return renderer, renderer.backend.renderer
 
 
@@ -135,12 +133,14 @@ def test_geometry_bindings_borrow_mixed_sdp_points_and_follow_pointer_swaps(use_
     ]
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, use_ovstage):
-    """Both OVRTX paths bind published bodies and consume SDP's scaled, transposed matrices."""
+@pytest.mark.parametrize("mode", ["sync", "async", "ovstage"])
+def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatch, mode):
+    """Borrow synchronous publications or convert directly into retained asynchronous write buffers."""
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 
     renderer, _ = _make_renderer_without_backend()
+    renderer.cfg.async_rendering = mode == "async"
+    use_ovstage = mode == "ovstage"
     paths = ["/World/Shared", "/World/envs/env_1/Object"]
     poses = np.array([[1, 2, 3, 0, 0, 0, 1], [4, 5, 6, 0, 0, 0, 1]], dtype=np.float32)
     transforms = SceneDataFormat.Transform()
@@ -170,6 +170,9 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         renderer._setup_xform_bindings_legacy()
         assert renderer.backend.renderer.bind_attribute.call_args.kwargs["prim_paths"] == paths
         renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
+        renderer._object_xform_binding.write_async = lambda matrices, **kwargs: (
+            writes.append((None, matrices, kwargs)) or MagicMock()
+        )
 
     renderer.update_transforms()
     renderer.update_transforms()
@@ -191,19 +194,29 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     renderer.update_transforms()
     assert len(writes) == 2
     updated = writes[1][2]["tensors"] if use_ovstage else writes[1][1]
-    assert updated is matrices
+    assert (updated is matrices) == (mode != "async")
     expected[:, 3, :3] = poses[:, :3]
     np.testing.assert_array_equal(updated.numpy(), expected)
+    if mode == "async":
+        # The new capture has not overwritten the previous borrowed input.
+        np.testing.assert_array_equal(matrices.numpy()[:, 3, 0], poses[:, 0] - 10)
+        first_operation = renderer._transform_writes[0][1]
+        backend.transforms_timestamp += 1
+        renderer.update_transforms()
+        first_operation.wait.assert_called()
+        assert writes[2][1] is matrices
 
 
 def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
-    """Camera xforms are handed to ``write()`` instead of copied into a mapped OVRTX buffer."""
+    """Camera xforms are retained until their native write completes, without a mapped-buffer copy."""
     renderer, _ = _make_renderer_without_backend()
     binding = MagicMock()
-    render_data = SimpleNamespace(camera_xform_binding=binding)
+    render_data = SimpleNamespace(camera_xform_binding=binding, camera_writes=deque())
     allocated = []
 
-    monkeypatch.setattr(ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda **kwargs: None)
+    monkeypatch.setattr(
+        ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda *args, **kwargs: None
+    )
 
     def _fake_empty(*args, **kwargs):
         arr = object()
@@ -212,13 +225,12 @@ def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
 
     monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", _fake_empty)
     monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    renderer._strategy.set_device(SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7)))
+    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7))
 
     positions = SimpleNamespace(shape=(2,), warp=object())
     renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
 
-    # The strategy allocates ``(quats, transforms)`` on first use; the write hands over transforms.
-    (written,), kwargs = binding.write.call_args
+    (written,), kwargs = binding.write_async.call_args
     assert written is allocated[1]
     assert kwargs["data_access"] is DataAccess.ASYNC
     assert kwargs["cuda_stream"] == 7
