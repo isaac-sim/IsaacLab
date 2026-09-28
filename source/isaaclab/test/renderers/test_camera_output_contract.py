@@ -16,6 +16,7 @@ pytest.importorskip("isaaclab_physx")
 from isaaclab.sensors.camera import CameraCfg, TiledCameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg
+from isaaclab.utils import clone, validate
 
 pytestmark = [pytest.mark.integration, pytest.mark.rendering]
 
@@ -90,7 +91,7 @@ def test_camera_cfg_copy_does_not_reforward_deprecated_fields():
         )
     cfg.renderer_cfg.colorize_semantic_segmentation = True
 
-    assert cfg.copy().renderer_cfg.colorize_semantic_segmentation is True
+    assert clone(cfg).renderer_cfg.colorize_semantic_segmentation is True
 
 
 def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
@@ -161,9 +162,9 @@ def test_camera_cfg_rejects_outputs_unsupported_by_renderer():
             renderer_cfg=NewtonWarpRendererCfg(),
         )
 
-    make_cfg("rgb_hdr").validate()
+    validate(make_cfg("rgb_hdr"))
     with pytest.raises(ValueError, match="simple_shading_full_mdl"):
-        make_cfg("simple_shading_full_mdl").validate()
+        validate(make_cfg("simple_shading_full_mdl"))
 
 
 @pytest.mark.parametrize("colorize", [True, False])

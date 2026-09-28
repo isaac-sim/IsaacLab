@@ -29,6 +29,7 @@ from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -638,9 +639,9 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._particle_region_cache_step = -1
         self._particle_pos_e_cache = None
         self._particle_pos_e_cache_step = -1
-        self.episode_succeeded[env_ids] = False
-        self._success_dwell_count[env_ids] = 0
-        self._lost_grasp_dwell_count[env_ids] = 0
+        index_fill_(self.episode_succeeded, env_ids, False)
+        index_fill_(self._success_dwell_count, env_ids, 0)
+        index_fill_(self._lost_grasp_dwell_count, env_ids, 0)
         # Seed the dropped-grasp latch for validated grasp rows; non-grasp rows start clear.
         self._lifted_grasp_seen[env_ids] = states["category"][rows] == GRASPING_CATEGORY
 
@@ -651,5 +652,5 @@ class FrankaPourEnv(ManagerBasedRLEnv):
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)
-        world_mask[env_ids] = True
+        index_fill_(world_mask, env_ids, True)
         self._reset_from_dataset(env_ids, world_mask)

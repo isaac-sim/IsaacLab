@@ -29,7 +29,7 @@ class BackendCfg:
     """
 
     class_type: Callable[[BackendCfg], Any] = MISSING
-    """Constructor called as ``class_type(cfg)``; the returned resource must implement ``close()``."""
+    """Constructor called through ``instantiate(cfg)``; the returned resource must implement ``close()``."""
 
 
 @configclass

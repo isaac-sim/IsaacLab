@@ -24,7 +24,7 @@ from isaaclab.devices.gamepad import Se3GamepadCfg
 from isaaclab.devices.keyboard import Se3KeyboardCfg
 from isaaclab.devices.spacemouse import Se3SpaceMouseCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
@@ -57,11 +57,9 @@ class FrankaArmActionCfg(PresetCfg):
         scale=(0.05, 0.05, 0.05, 0.5, 0.5, 0.5),
         body_offset=DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=[0.0, 0.0, 0.107]),
     )
-    diffik_abs: DifferentialInverseKinematicsActionCfg = diffik.replace(
-        controller=diffik.controller.replace(
-            use_relative_mode=False,
-            ik_params={"lambda_val": 0.45},
-        ),
+    diffik_abs: DifferentialInverseKinematicsActionCfg = replace(
+        diffik,
+        controller=replace(diffik.controller, use_relative_mode=False, ik_params={"lambda_val": 0.45}),
         body_offset=None,
         scale=1.0,
     )
@@ -99,7 +97,7 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         super().__post_init__()
 
         # Use the collision-complete legacy asset in PhysX until the Menagerie asset is corrected.
-        self.scene.robot = FRANKA_PANDA_MENAGERIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.usd_path = preset(
             default=self.scene.robot.spawn.usd_path,
             isaacsim_physx=FRANKA_PANDA_CFG.spawn.usd_path,

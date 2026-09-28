@@ -33,6 +33,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.scene import add as scene_add
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.utils import resolve_task_config
 
@@ -145,7 +146,7 @@ def main() -> None:
             sim_utils.SimulationCfg(dt=args_cli.sim_dt, device=args_cli.device, physics=physics_cfg)
         )
         sim.set_camera_view(eye=[6.0, 6.0, 4.0], target=[0.0, 0.0, 0.5])
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         sim.reset()
         scene.reset()
         scene.write_data_to_sim()

@@ -77,7 +77,7 @@ from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.camera.utils import create_pointcloud_from_depth
-from isaaclab.utils import convert_dict_to_backend
+from isaaclab.utils import convert_dict_to_backend, replace
 
 
 def define_sensor() -> Camera:
@@ -202,7 +202,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
     # Create the markers for the --draw option outside of is_running() loop
     if sim.get_setting("/isaaclab/has_gui") and args_cli.draw:
-        cfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/CameraPointCloud")
+        cfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/CameraPointCloud")
         cfg.markers["hit"].radius = 0.002
         pc_markers = VisualizationMarkers(cfg)
 

@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 import torch
 from prettytable import PrettyTable
 
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CommandTermCfg
 
@@ -133,10 +134,10 @@ class CommandTerm(ManagerTermBase):
             # compute the mean metric value
             extras[metric_name] = torch.mean(metric_value[env_ids]).item()
             # reset the metric value
-            metric_value[env_ids] = 0.0
+            index_fill_(metric_value, env_ids, 0.0)
 
         # set the command counter to zero
-        self.command_counter[env_ids] = 0
+        index_fill_(self.command_counter, env_ids, 0)
         # resample the command
         self._resample(env_ids)
 
@@ -410,7 +411,7 @@ class CommandManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")

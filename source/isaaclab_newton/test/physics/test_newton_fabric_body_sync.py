@@ -42,7 +42,7 @@ from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.sim.spawners.materials import CableMaterialCfg
 from isaaclab.sim.spawners.shapes import CableCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 
 
@@ -334,7 +334,7 @@ def test_nested_bodies_keep_independent_world_poses():
         physics=NewtonCfg(solver_cfg=XPBDSolverCfg(), use_cuda_graph=False),
     )
     scene_cfg = _RenderSceneCfg(num_envs=1, env_spacing=2.0)
-    scene_cfg.child = scene_cfg.cube.replace(prim_path="{ENV_REGEX_NS}/Cube/Child")
+    scene_cfg.child = replace(scene_cfg.cube, prim_path="{ENV_REGEX_NS}/Cube/Child")
     scene_cfg.cube = AssetBaseCfg(prim_path=scene_cfg.cube.prim_path, spawn=scene_cfg.cube.spawn)
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         sim._app_control_on_stop_handle = None

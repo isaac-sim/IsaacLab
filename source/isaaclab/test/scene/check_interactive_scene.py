@@ -33,7 +33,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.ray_caster import RayCasterCfg, patterns
 from isaaclab.sim import SimulationContext
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
 
 ##
@@ -53,9 +53,9 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # articulation - robot 1
-    robot_1 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_1")
+    robot_1 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_1")
     # articulation - robot 2
-    robot_2 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_2")
+    robot_2 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_2")
     robot_2.init_state.pos = (0.0, 1.0, 0.6)
 
     # sensor - ray caster attached to the base of robot 1 that scans the ground

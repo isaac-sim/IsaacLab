@@ -20,7 +20,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR, retrieve_file_path
 from isaaclab.visualizers import VisualizerCfg
 
@@ -299,7 +299,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
     )
 
     # Humanoid robot configured for pick-place manipulation tasks
-    robot: ArticulationCfg = GR1T2_HIGH_PD_CFG.replace(
+    robot: ArticulationCfg = replace(
+        GR1T2_HIGH_PD_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),

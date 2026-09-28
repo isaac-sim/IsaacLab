@@ -60,7 +60,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 
 wp.init()
 
@@ -440,12 +440,12 @@ def test_cube_stack_contact_filtering(device):
         # Instance new scene for the current terrain and contact prim.
         # OVPhysX uses fnmatch globs (not regex), so ``Env_*`` rather than ``Env_.*``.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -513,12 +513,12 @@ def test_multi_body_per_sensor_indexing(device):
     num_envs = 3
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- Cube_low: on the ground, will report contact forces
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_low")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_low")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 0.25)
         # -- Cube_high: floating well above the ground, should remain in air
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_high")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_high")
         scene_cfg.shape_2.init_state.pos = (0.0, 1.5, 3.0)
         # Single ContactSensor that matches BOTH cubes via a regex glob.
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -649,7 +649,7 @@ def test_contact_sensor_threshold(device):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,

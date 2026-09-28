@@ -9,6 +9,7 @@
 """Launch Isaac Sim Simulator first."""
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 HEADLESS = True
 
@@ -173,7 +174,7 @@ def generate_multirotor(
     for i in range(num_multirotors):
         prim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
 
-    multirotor = Multirotor(multirotor_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    multirotor = Multirotor(replace(multirotor_cfg, prim_path="/World/Env_[^/]*/Robot"))
     return multirotor, translations
 
 
@@ -194,8 +195,8 @@ def sim(request):
 @pytest.mark.isaacsim_ci
 def test_multirotor_thruster_buffers_and_actuators(sim, num_multirotors, device):
     """Thrust targets pass through the thruster actuators and lift the real multirotor."""
-    cfg = ARL_ROBOT_1_CFG.replace(
-        actuators={"thrusters": ARL_ROBOT_1_CFG.actuators["thrusters"].replace(dt=sim.cfg.dt)}
+    cfg = replace(
+        ARL_ROBOT_1_CFG, actuators={"thrusters": replace(ARL_ROBOT_1_CFG.actuators["thrusters"], dt=sim.cfg.dt)}
     )
     multirotor, _ = generate_multirotor(cfg, num_multirotors, device=sim.device)
     sim.reset()

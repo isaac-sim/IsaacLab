@@ -21,6 +21,7 @@ import isaaclab.utils.string as string_utils
 from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_, instantiate
 
 from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.physics import NewtonManager
@@ -187,7 +188,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         controlled_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._joint_names)
 
         # The solver resolves each pose objective's body via the prototype view.
-        self._ik_solver = self.cfg.controller.class_type(
+        self._ik_solver = instantiate(
             self.cfg.controller,
             model=prototype_model,
             num_envs=self.num_envs,
@@ -318,8 +319,7 @@ class NewtonInverseKinematicsAction(ActionTerm):
         self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        env_ids = slice(None) if env_ids is None else env_ids
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""

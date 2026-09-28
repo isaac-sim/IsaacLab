@@ -27,6 +27,7 @@ from pink.tasks import Task
 from qpsolvers.exceptions import SolverNotFound
 
 from ...assets import ArticulationCfg
+from ...utils import instantiate
 from ...utils.assets import retrieve_file_path
 from ...utils.string import resolve_matching_names_values
 from .. import utils as controller_utils
@@ -120,8 +121,8 @@ class PinkIKController:
         )
         self.init_joint_positions = np.zeros(len(pink_joint_names))
         self.init_joint_positions[indices] = np.array(values)
-        self._variable_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.variable_input_tasks]
-        self._fixed_input_tasks = [task_cfg.class_type(task_cfg) for task_cfg in cfg.fixed_input_tasks]
+        self._variable_input_tasks = [instantiate(task_cfg) for task_cfg in cfg.variable_input_tasks]
+        self._fixed_input_tasks = [instantiate(task_cfg) for task_cfg in cfg.fixed_input_tasks]
         self.cfg.variable_input_tasks = cast(list[Task | PinkIKTaskCfg], self._variable_input_tasks)
         self.cfg.fixed_input_tasks = cast(list[Task | PinkIKTaskCfg], self._fixed_input_tasks)
 

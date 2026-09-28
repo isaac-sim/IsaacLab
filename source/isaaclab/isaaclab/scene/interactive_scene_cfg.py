@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 from ..cloner import CloneCfg, InclusionSet
 from ..cloner import add as clone_add
-from ..utils import configclass, find_unique_string_name
+from ..utils import configclass, find_unique_string_name, replace
 
 if TYPE_CHECKING:
     from ..assets import AssetBaseCfg
@@ -39,7 +39,7 @@ class InteractiveSceneCfg:
         from isaaclab.assets import AssetBaseCfg
         from isaaclab.scene import InteractiveSceneCfg
         from isaaclab.sensors.ray_caster import GridPatternCfg, RayCasterCfg
-        from isaaclab.utils import configclass
+        from isaaclab.utils import configclass, replace
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -53,9 +53,9 @@ class InteractiveSceneCfg:
             )
 
             # articulation - robot 1
-            robot_1 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_1")
+            robot_1 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_1")
             # articulation - robot 2
-            robot_2 = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot_2")
+            robot_2 = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot_2")
             robot_2.init_state.pos = (0.0, 1.0, 0.6)
 
             # sensor - ray caster attached to the base of robot 1 that scans the ground
@@ -213,7 +213,7 @@ def add(
         else:
             target_name = find_unique_string_name(source_name, lambda name: name not in used_names)
             if cfg.prim_path in paths:
-                cfg = cfg.replace(prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
+                cfg = replace(cfg, prim_path=find_unique_string_name(cfg.prim_path, lambda path: path not in paths))
             setattr(target, target_name, cfg)
             used_names.add(target_name)
             paths.add(cfg.prim_path)

@@ -5,7 +5,7 @@
 
 """Configuration for the ANYmal-D velocity-tracking environment on rough terrain."""
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.anymal import ANYMAL_D_CFG
 
@@ -20,6 +20,8 @@ class AnymalDRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = ANYMAL_D_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot", init_state=ANYMAL_D_CFG.init_state.replace(pos=(0.0, 0.0, 0.65))
+        self.scene.robot = replace(
+            ANYMAL_D_CFG,
+            prim_path="{ENV_REGEX_NS}/Robot",
+            init_state=replace(ANYMAL_D_CFG.init_state, pos=(0.0, 0.0, 0.65)),
         )

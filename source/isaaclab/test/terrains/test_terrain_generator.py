@@ -21,6 +21,7 @@ from isaaclab.terrains import (
 )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
 from isaaclab.terrains.height_field import HfInvertedPyramidSlopedTerrainCfg
+from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
 pytestmark = pytest.mark.integration
@@ -71,6 +72,26 @@ def test_generation_star_terrain():
     assert actual_size[1] == pytest.approx(cfg.size[1] * cfg.num_cols + 2 * cfg.border_width)
     # check the sub-terrain origin is at the center of the terrain
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
+
+
+@pytest.mark.parametrize(
+    "make_object, object_kwargs",
+    [
+        (make_box, {"length": 1.0, "width": 1.0}),
+        (make_cylinder, {"radius": 0.5}),
+        (make_cone, {"radius": 0.5}),
+    ],
+)
+def test_object_max_yx_angle_units(make_object, object_kwargs):
+    """``max_yx_angle`` limits the object tilt the same way whether it is given in degrees or radians."""
+    np.random.seed(0)
+    mesh_deg = make_object(height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=30.0, degrees=True, **object_kwargs)
+    np.random.seed(0)
+    mesh_rad = make_object(
+        height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=np.deg2rad(30.0), degrees=False, **object_kwargs
+    )
+
+    np.testing.assert_allclose(mesh_rad.vertices, mesh_deg.vertices, atol=1e-6)
 
 
 def test_repeated_objects_default_object_type():

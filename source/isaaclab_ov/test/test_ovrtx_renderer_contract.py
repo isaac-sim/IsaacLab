@@ -21,6 +21,7 @@ from isaaclab.assets import AssetBaseCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.camera.camera_data import CameraData, RenderBufferKind, RenderBufferSpec
 from isaaclab.sim import PinholeCameraCfg, SimulationContext
+from isaaclab.utils import replace
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -132,7 +133,7 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert config_kwargs["suppress_deprecation_warnings"] is True
     assert config_kwargs["texture_streaming_mode"] is ovrtx_renderer_module.TextureStreamingMode.SYNCHRONOUS
     assert len(SimulationContext.instance()._backend_registry) == 1
-    other = OVRTXRenderer(renderer.cfg.replace(enable_shadows=True))
+    other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
     assert other.backend is not renderer.backend
     renderer.close()
     renderer.close()

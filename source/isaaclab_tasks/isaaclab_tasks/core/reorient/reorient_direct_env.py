@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     quat_conjugate,
     quat_error_magnitude,
@@ -23,11 +24,7 @@ from isaaclab.utils.math import (
     unscale_transform,
 )
 
-from .utils import (
-    EpisodeErrorRecorder,
-    randomize_rotation,
-    sample_joint_positions_within_limits,
-)
+from .utils import EpisodeErrorRecorder, randomize_rotation, sample_joint_positions_within_limits
 
 if TYPE_CHECKING:
     from .config.allegro_hand.allegro_hand_direct_env_cfg import AllegroHandEnvCfg
@@ -279,7 +276,7 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_hand_joint_pos(position=dof_pos, env_ids=env_ids)
         self._write_hand_joint_vel(velocity=dof_vel, env_ids=env_ids)
 
-        self.successes[env_ids] = 0
+        index_fill_(self.successes, env_ids, 0)
         self._compute_intermediate_values()
 
     def _reset_target_pose(self, env_ids: Sequence[int] | torch.Tensor) -> None:
@@ -298,7 +295,7 @@ class ReorientDirectEnv(DirectRLEnv):
             environment_ids=self.scene._ALL_INDICES,
         )
 
-        self.reset_goal_buf[env_ids] = 0
+        index_fill_(self.reset_goal_buf, env_ids, 0)
 
     def _compute_intermediate_values(self) -> None:
         """Refresh the torch-side state snapshots consumed by the observation and reward paths."""

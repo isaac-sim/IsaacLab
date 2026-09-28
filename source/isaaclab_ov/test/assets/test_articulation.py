@@ -71,6 +71,7 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_PHYSX_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
 )
+from isaaclab.utils import clone, replace
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
@@ -424,7 +425,7 @@ def generate_articulation(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_articulations):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
+    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
 
     return articulation, translations
 
@@ -435,7 +436,8 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
     stiffness, damping, actuator_effort_limit = 20.0, 1.0, 80.0
     with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=True) as sim:
         sim._app_control_on_stop_handle = None
-        articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
+        articulation_cfg = replace(
+            generate_articulation_cfg("single_joint_explicit"),
             actuators={
                 "joint": IdealPDActuatorCfg(
                     joint_names_expr=[".*"],
@@ -443,7 +445,7 @@ def test_newton_native_explicit_actuator_submits_ovphysx_effort(device):
                     damping=damping,
                     actuator_effort_limit=actuator_effort_limit,
                 )
-            }
+            },
         )
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
@@ -505,7 +507,8 @@ def test_ovphysx_effort_binding_excludes_implicit_pd(device, use_newton_actuator
     stiffness, effort_limit = 20.0, 400.0
     with _ovphysx_sim_context(device=device, gravity_enabled=False, use_newton_actuators=use_newton_actuators) as sim:
         sim._app_control_on_stop_handle = None
-        articulation_cfg = CARTPOLE_CFG.replace(
+        articulation_cfg = replace(
+            CARTPOLE_CFG,
             actuators={
                 "cart": ImplicitActuatorCfg(
                     joint_names_expr=["slider_to_cart"],
@@ -519,7 +522,7 @@ def test_ovphysx_effort_binding_excludes_implicit_pd(device, use_newton_actuator
                     damping=0.0,
                     actuator_effort_limit=effort_limit,
                 ),
-            }
+            },
         )
         articulation, _ = generate_articulation(articulation_cfg, 1, device)
         sim.reset()
@@ -578,7 +581,8 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
 
     with _ovphysx_sim_context(device=device, use_newton_actuators=True) as sim:
         sim._app_control_on_stop_handle = None
-        articulation_cfg = generate_articulation_cfg("single_joint_explicit").replace(
+        articulation_cfg = replace(
+            generate_articulation_cfg("single_joint_explicit"),
             actuators={
                 "joint": DelayedPDActuatorCfg(
                     joint_names_expr=[".*"],
@@ -588,7 +592,7 @@ def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(d
                     min_delay=1,
                     max_delay=1,
                 )
-            }
+            },
         )
         articulation, _ = generate_articulation(articulation_cfg, 2, device)
         sim.reset()
@@ -742,7 +746,8 @@ def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device)
     stiffness, damping = 10.0, 2.0
     backend_joint_names = ANYMAL_C_PHYSX_JOINT_NAMES
     joint_ordering = (*backend_joint_names[1:], backend_joint_names[0])
-    articulation_cfg = generate_articulation_cfg("anymal").replace(
+    articulation_cfg = replace(
+        generate_articulation_cfg("anymal"),
         joint_ordering=joint_ordering,
         actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
     )
@@ -785,8 +790,8 @@ def test_live_anymal_c_manual_joint_ordering_reorders_joint_targets(sim, device)
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 def test_reversed_joint_ordering_joint_state_index_writes_backend_order(sim, device):
     """Read dynamics and write full, partial, and position-only joint state through a nonidentity joint axis."""
-    articulation_cfg = generate_articulation_cfg("anymal").replace(
-        joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES))
+    articulation_cfg = replace(
+        generate_articulation_cfg("anymal"), joint_ordering=tuple(reversed(ANYMAL_C_PHYSX_JOINT_NAMES))
     )
     articulation, _ = generate_articulation(articulation_cfg, 2, device=device)
     sim.reset()
@@ -1449,7 +1454,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
         sim: The simulation fixture
         num_articulations: Number of articulations to test
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
+    articulation_cfg = clone(generate_articulation_cfg(articulation_type="anymal"))
     # Fix root link by making it kinematic
     articulation_cfg.spawn.fix_root_link = True
     articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
@@ -1504,7 +1509,7 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 @pytest.mark.parametrize("device", ["cpu"])
 def test_fragment_fix_root_reenables_existing_joint(sim, device):
     """The fragment path must normalize OVPhysX topology even when a disabled fixed joint exists."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal").copy()
+    articulation_cfg = clone(generate_articulation_cfg(articulation_type="anymal"))
     articulation_cfg.spawn.articulation_props = []
     articulation_cfg.spawn.fix_root_link = None
     articulation, _ = generate_articulation(articulation_cfg, num_articulations=1, device=device)
@@ -1559,7 +1564,7 @@ def test_initialization_fixed_base_made_floating_base(sim, num_articulations, de
         num_articulations: Number of articulations to test
     """
     # Copy so the shared panda cfg stays fixed-base for later tests.
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
+    articulation_cfg = clone(generate_articulation_cfg(articulation_type="panda"))
     # Unfix root link by making it non-kinematic
     articulation_cfg.spawn.fix_root_link = False
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
@@ -1618,7 +1623,7 @@ def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_grou
         num_articulations: Number of articulations to test
     """
     # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda").copy()
+    articulation_cfg = clone(generate_articulation_cfg(articulation_type="panda"))
     articulation_cfg.init_state.joint_pos = {
         "panda_joint1": 10.0,
         "panda_joint[2, 4]": -20.0,
@@ -1642,7 +1647,7 @@ def test_out_of_range_default_joint_vel(sim, device):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = FRANKA_PANDA_CFG.replace(prim_path="/World/Robot")
+    articulation_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -2452,7 +2457,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     below forbids cross-device staging, so this test is CPU-only.
     """
     sim._app_control_on_stop_handle = None
-    articulation_cfg = FRANKA_PANDA_CFG.replace(body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation_cfg = replace(FRANKA_PANDA_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     sim.reset()

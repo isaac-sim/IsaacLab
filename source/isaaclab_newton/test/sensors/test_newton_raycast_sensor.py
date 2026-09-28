@@ -255,28 +255,60 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody/cam",
         width=64,
         height=48,
-        data_types=["depth"],
+        data_types=["depth", "distance_to_image_plane", "distance_to_camera"],
         renderer_cfg=NewtonWarpRendererCfg(),
         offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"),
-        spawn=sim_utils.PinholeCameraCfg(),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 2.0)),
     )
 
 
 def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
-    """Camera and raycaster borrow one model, with independently configured execution."""
+    """Independent queries preserve depth, clipping, and ray hits across pose writes and hard resets."""
     cfg = RaycastCameraSceneCfg(num_envs=1)
     cfg.raycast.use_cuda_graph = sim.cfg.physics.use_cuda_graph
     cfg.camera.renderer_cfg.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    cfg.camera.update_latest_camera_pose = True
+    cfg.camera.renderer_cfg.depth_clipping_behavior = "max" if sim.cfg.physics.use_cuda_graph else "none"
     scene = InteractiveScene(cfg)
+    y, x = torch.meshgrid(
+        torch.arange(cfg.camera.height, device=sim.device),
+        torch.arange(cfg.camera.width, device=sim.device),
+        indexing="ij",
+    )
+    far_clip = cfg.camera.spawn.clipping_range[1]
+    background = far_clip if cfg.camera.renderer_cfg.depth_clipping_behavior == "max" else 0.0
     for _ in range(2):
         sim.reset()
         sim.step()
         scene.update(sim.get_physics_dt())
 
-        depth = scene["camera"].data.output["depth"].torch
-        distances = scene["raycast"].data.ray_distances.torch
-        assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
-        torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
+        camera = scene["camera"]
+        matrix = camera.data.intrinsic_matrices.torch[0]
+        ray_length = torch.sqrt(
+            1 + ((x + 0.5 - matrix[0, 2]) / matrix[0, 0]) ** 2 + ((y + 0.5 - matrix[1, 2]) / matrix[1, 1]) ** 2
+        )
+        for height in (RAY_START_HEIGHT, RAY_START_HEIGHT + 0.1):
+            carrier = scene["sensor_body"]
+            pose = carrier.data.root_link_pose_w.torch.clone()
+            pose[:, 2] = height + RAY_OFFSET
+            carrier.write_root_pose_to_sim_index(root_pose=pose)
+            sim.step()
+            scene.update(sim.get_physics_dt())
+
+            # A downward camera sees constant planar depth; oblique rays travel farther to the ground.
+            expected_ray = height * ray_length
+            hit = expected_ray < far_clip
+            assert hit.any() and (~hit).any()
+            expected_plane = torch.where(hit, height, background)
+            expected_ray = torch.where(hit, expected_ray, background)
+            outputs = camera.data.output
+            for name in ("depth", "distance_to_image_plane"):
+                torch.testing.assert_close(outputs[name].torch[0, ..., 0], expected_plane, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(
+                outputs["distance_to_camera"].torch[0, ..., 0], expected_ray, atol=1e-5, rtol=1e-5
+            )
+            distances = scene["raycast"].data.ray_distances.torch
+            torch.testing.assert_close(distances, torch.full_like(distances, height), atol=1e-3, rtol=0)
 
         camera, raycast = scene["camera"], scene["raycast"]
         assert camera._renderer.backend is raycast.backend is NewtonManager.backend

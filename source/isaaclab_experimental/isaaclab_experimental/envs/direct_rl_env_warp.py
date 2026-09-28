@@ -30,6 +30,7 @@ from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
+from isaaclab.utils import instantiate, validate
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
@@ -114,7 +115,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 since it configures the simulation context and controls the simulation.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -158,7 +159,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = self.cfg.scene.class_type(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -234,11 +235,11 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
-            self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
+            self._action_noise_model: NoiseModel = instantiate(
                 self.cfg.action_noise_model, num_envs=self.num_envs, device=self.device
             )
         if self.cfg.observation_noise_model:
-            self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
+            self._observation_noise_model: NoiseModel = instantiate(
                 self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
 

@@ -189,6 +189,11 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
             raise KeyError(f"[Config]: Key not found under namespace: {key_ns}.")
 
 
+# Keep callable identity unchanged for existing serialized configuration references.
+to_dict = class_to_dict
+update_from_dict = update_class_from_dict
+
+
 """
 Dictionary <-> Hashable operations.
 """

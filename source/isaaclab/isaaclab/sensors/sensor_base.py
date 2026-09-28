@@ -21,11 +21,14 @@ from typing import TYPE_CHECKING, Any
 
 import warp as wp
 
+from isaaclab.utils import clone, validate
+
 from .. import sim as sim_utils
 from ..cloner.cloner_cfg import expand_env_regex_ns
 from ..physics import PhysicsEvent, PhysicsManager
 from ..sim.utils.queries import get_first_matching_ancestor_prim
 from ..sim.utils.transforms import resolve_prim_pose
+from ..utils import index_fill_
 from .kernels import reset_envs_kernel, update_outdated_envs_kernel, update_timestamp_kernel
 
 if TYPE_CHECKING:
@@ -51,9 +54,9 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
-        cfg.validate()
+        validate(cfg)
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         self._is_initialized = False
         self._is_visualizing = False
         self.stage = sim_utils.get_current_stage()
@@ -260,10 +263,7 @@ class SensorBase(ABC):
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._num_envs = len(sim_utils.find_matching_prims(env_prim_path_expr))
         # Create warp env mask arrays for "all envs" cases and resets.
-        # Note: We use wp.to_torch() to create zero-copy torch tensor views of warp arrays.
-        # This allows warp arrays to be passed to warp kernels while the corresponding torch
-        # views support fancy indexing (e.g. tensor[env_ids] = True) without any memory copies.
-        # Both the warp array and torch view share the same underlying device memory.
+        # Torch views share these Warp arrays' storage; scalar indexed writes use index_fill_ to avoid a sync.
         self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
         self._reset_mask_torch = wp.to_torch(self._reset_mask)
@@ -465,7 +465,7 @@ class SensorBase(ABC):
             return env_mask
         else:
             self._reset_mask.zero_()
-            self._reset_mask_torch[env_ids] = True
+            index_fill_(self._reset_mask_torch, env_ids, True)
             return self._reset_mask
 
     def _resolve_rigid_body_ancestor_expr(

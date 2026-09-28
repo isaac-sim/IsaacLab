@@ -18,6 +18,7 @@ This script demonstrates how to simulate a mobile manipulator.
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -64,7 +65,7 @@ def add_robots() -> Articulation:
     robot_cfg.spawn.func("/World/Robot_1", robot_cfg.spawn, translation=(0.0, -1.0, 0.0))
     robot_cfg.spawn.func("/World/Robot_2", robot_cfg.spawn, translation=(0.0, 1.0, 0.0))
     # -- Create interface
-    robot = Articulation(cfg=robot_cfg.replace(prim_path="/World/Robot[^/]*"))
+    robot = Articulation(cfg=replace(robot_cfg, prim_path="/World/Robot[^/]*"))
 
     return robot
 

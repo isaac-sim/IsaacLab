@@ -24,6 +24,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
+from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
@@ -65,7 +66,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
     monkeypatch, mode, lazy_sensor_update, renderer_type, pumps_app_update, error
 ):
     """Direct posing requires camera rendering to follow the joint writes."""
-    cfg = _load_cfg().replace(benchmark_mode=mode)
+    cfg = replace(_load_cfg(), benchmark_mode=mode)
     cfg.scene.lazy_sensor_update = lazy_sensor_update
 
     def initialize(self, *args, **kwargs):
@@ -100,7 +101,7 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     camera_data = Mock()
     type(camera_data).output = PropertyMock(side_effect=lambda: events.render())
     env = SimpleNamespace(
-        cfg=_load_cfg().replace(benchmark_mode=mode, write_image_to_file=False),
+        cfg=replace(_load_cfg(), benchmark_mode=mode, write_image_to_file=False),
         sim=events.sim,
         num_envs=1,
         device="cpu",

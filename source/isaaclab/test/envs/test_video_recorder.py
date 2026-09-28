@@ -20,6 +20,7 @@ import pytest
 from isaaclab.envs.common import ViewerCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder, _parse_source
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.utils import validate
 
 _FRAME = np.ones((8, 12, 3), dtype=np.uint8) * 128
 
@@ -120,10 +121,10 @@ def test_init_raises_import_error_when_moviepy_missing():
 def test_cfg_validate_clip_schedule(overrides, error):
     cfg = _cfg(**overrides)
     if error is None:
-        cfg.validate()
+        validate(cfg)
     else:
         with pytest.raises(ValueError, match=error):
-            cfg.validate()
+            validate(cfg)
 
 
 @pytest.mark.parametrize(

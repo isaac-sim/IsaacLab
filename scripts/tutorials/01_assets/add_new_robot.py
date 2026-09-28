@@ -6,6 +6,7 @@
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -99,8 +100,8 @@ class NewRobotsSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    Jetbot = JETBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Jetbot")
-    Dofbot = DOFBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Dofbot")
+    Jetbot = replace(JETBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Jetbot")
+    Dofbot = replace(DOFBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Dofbot")
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

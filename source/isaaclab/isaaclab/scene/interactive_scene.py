@@ -46,6 +46,7 @@ from ..markers import VisualizationMarkers, VisualizationMarkersCfg
 from ..sensors import CameraCfg, ContactSensorCfg, FrameTransformerCfg, RayCasterCfg, SensorBase, SensorBaseCfg
 from ..sim import SimulationContext
 from ..sim.utils.stage import get_current_stage, get_current_stage_id
+from ..utils import instantiate, validate
 from .interactive_scene_cfg import InteractiveSceneCfg
 
 if TYPE_CHECKING:
@@ -83,7 +84,7 @@ class InteractiveScene:
     .. code-block:: python
 
         from isaaclab.scene import InteractiveSceneCfg
-        from isaaclab.utils import configclass
+        from isaaclab.utils import configclass, replace
 
         from isaaclab_assets.robots.anymal import ANYMAL_C_CFG
 
@@ -91,7 +92,7 @@ class InteractiveScene:
         @configclass
         class MySceneCfg(InteractiveSceneCfg):
             # ANYmal-C robot spawned in each environment
-            robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+            robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     Then the robot can be accessed from the scene as follows:
 
@@ -122,7 +123,7 @@ class InteractiveScene:
         Args:
             cfg: The configuration class for the scene.
         """
-        cfg.validate()
+        validate(cfg)
         self.cfg = cfg
         self._terrain = None
         self._articulations = {}
@@ -778,23 +779,23 @@ class InteractiveScene:
                 # terrains are special entities since they define environment origins
                 asset_cfg.num_envs = self.cfg.num_envs
                 asset_cfg.env_spacing = self.cfg.env_spacing
-                self._terrain = asset_cfg.class_type(asset_cfg)
+                self._terrain = instantiate(asset_cfg)
             elif isinstance(asset_cfg, ArticulationCfg):
-                self._articulations[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._articulations[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, CableObjectCfg):
-                self._cable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._cable_objects[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, DeformableObjectCfg):
-                self._deformable_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._deformable_objects[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCfg):
-                self._rigid_objects[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._rigid_objects[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, RigidObjectCollectionCfg):
-                self._rigid_object_collections[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._rigid_object_collections[asset_name] = instantiate(asset_cfg)
                 for rigid_object_cfg in asset_cfg.rigid_objects.values():
                     if hasattr(rigid_object_cfg, "collision_group") and rigid_object_cfg.collision_group == -1:
                         asset_paths = sim_utils.find_matching_prim_paths(rigid_object_cfg.prim_path)
                         self._global_prim_paths += asset_paths
             elif isinstance(asset_cfg, SurfaceGripperCfg):
-                self._surface_grippers[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._surface_grippers[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, SensorBaseCfg):
                 # Update target frame path(s)' regex name space for FrameTransformer
                 if isinstance(asset_cfg, FrameTransformerCfg):
@@ -825,11 +826,11 @@ class InteractiveScene:
                             asset_cfg.contact_object_prim_path_expr, self._env_fmt
                         )
 
-                self._sensors[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._sensors[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, VisualMaterialCfg):
-                self._visual_materials[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._visual_materials[asset_name] = instantiate(asset_cfg)
             elif isinstance(asset_cfg, (VisualizationMarkersCfg, AssetBaseCfg)):
-                self._extras[asset_name] = asset_cfg.class_type(asset_cfg)
+                self._extras[asset_name] = instantiate(asset_cfg)
             else:
                 raise ValueError(f"Unknown asset config type for {asset_name}: {asset_cfg}")
 

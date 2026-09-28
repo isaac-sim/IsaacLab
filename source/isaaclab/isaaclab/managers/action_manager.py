@@ -17,6 +17,7 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
@@ -365,12 +366,9 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
         # reset the action history
-        self._prev_action[env_ids] = 0.0
-        self._action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._action, env_ids, 0.0)
         # reset all action terms
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
@@ -454,7 +452,7 @@ class ActionManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")

@@ -20,6 +20,7 @@ import numpy as np
 import torch
 
 from .. import sim as sim_utils
+from ..utils import to_dict
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
@@ -121,7 +122,7 @@ class VisualizationMarkers:
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
         msg += "\n\tMarkers Prototypes:"
         for index, (name, marker) in enumerate(self.cfg.markers.items()):
-            msg += f"\n\t\t[Index: {index}]: {name}: {marker.to_dict()}"
+            msg += f"\n\t\t[Index: {index}]: {name}: {to_dict(marker)}"
         return msg
 
     @property
