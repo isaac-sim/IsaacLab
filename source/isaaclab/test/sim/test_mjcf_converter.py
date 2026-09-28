@@ -22,6 +22,8 @@ if _USE_RUNTIME:
             allow_module_level=True,
         )
 
+import logging
+import math
 import os
 import sys
 from types import SimpleNamespace
@@ -41,6 +43,36 @@ _MJCF_IMPORTER_MODULE = "isaacsim.asset.importer.mjcf"
 
 # Portable NVIDIA Ant MJCF; ``newton`` is a base dependency of every environment.
 _PORTABLE_MJCF = os.path.join(os.path.dirname(newton.__file__), "examples", "assets", "nv_ant.xml")
+
+# Joints with MuJoCo passive dynamics. The three gimbal hinges share a body pair, so the importer folds them
+# into one D6 joint in the PhysX description.
+_JOINT_DYNAMICS_MJCF = """
+<mujoco model="joint_dynamics">
+  <worldbody>
+    <body name="base">
+      <geom type="box" size="0.1 0.1 0.1" mass="1"/>
+      <body name="hinge_link" pos="0.2 0 0">
+        <joint name="hinge" type="hinge" axis="0 1 0" damping="0.3" frictionloss="0.2" armature="0.02"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+      <body name="slide_link" pos="-0.2 0 0">
+        <joint name="slide" type="slide" axis="1 0 0" damping="2.0" frictionloss="1.5"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+      <body name="gimbal_link" pos="0 0.2 0">
+        <joint name="gimbal_x" type="hinge" axis="1 0 0" damping="0.4" frictionloss="0.1" armature="0.01"/>
+        <joint name="gimbal_y" type="hinge" axis="0 1 0" damping="0.5"/>
+        <joint name="gimbal_z" type="hinge" axis="0 0 1" damping="0.6" frictionloss="0.12" armature="0.03"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+      <body name="spring_link" pos="0 -0.2 0">
+        <joint name="spring" type="hinge" axis="0 0 1" stiffness="5.0"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+"""
 
 
 @pytest.fixture(autouse=True)
@@ -290,6 +322,55 @@ def test_run_asset_transformer_disabled(test_setup_teardown, tmp_path):
     prim_path = "/World/Robot"
     sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
     assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("run_asset_transformer", [True, False])
+def test_joint_dynamics_physx_conversion(test_setup_teardown, tmp_path, caplog, run_asset_transformer):
+    """Verify that the PhysX description carries the MJCF joint friction loss and damping per joint axis.
+
+    The importer maps ``frictionloss`` to the legacy, load-proportional ``physxJoint:jointFriction``
+    coefficient and drops ``damping``. The converted asset must instead carry equal static and dynamic
+    friction efforts and a viscous friction coefficient, which USD stores per degree for angular axes.
+    The PhysX articulation tests check the values that the simulation applies.
+    """
+    sim, config = test_setup_teardown
+    mjcf_path = tmp_path / "joint_dynamics.xml"
+    mjcf_path.write_text(_JOINT_DYNAMICS_MJCF)
+
+    config.asset_path = str(mjcf_path)
+    config.run_asset_transformer = run_asset_transformer
+    config.physics_variant = "physx"
+    config.force_usd_conversion = True
+    config.usd_dir = str(tmp_path / "usd")
+    caplog.set_level(logging.WARNING, logger="isaaclab.sim.converters.mjcf_converter")
+    mjcf_converter = MjcfConverter(config)
+
+    from pxr import Usd, UsdPhysics
+
+    stage = Usd.Stage.Open(mjcf_converter.usd_path)
+    joints = {prim.GetName(): prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Joint)}
+
+    def value(joint: str, attribute: str):
+        return joints[joint].GetAttribute(attribute).Get()
+
+    per_degree = math.pi / 180.0
+    assert value("hinge", "physxJointAxis:angular:staticFrictionEffort") == pytest.approx(0.2)
+    assert value("hinge", "physxJointAxis:angular:dynamicFrictionEffort") == pytest.approx(0.2)
+    assert value("hinge", "physxJointAxis:angular:viscousFrictionCoefficient") == pytest.approx(0.3 * per_degree)
+    assert value("slide", "physxJointAxis:linear:staticFrictionEffort") == pytest.approx(1.5)
+    assert value("slide", "physxJointAxis:linear:dynamicFrictionEffort") == pytest.approx(1.5)
+    assert value("slide", "physxJointAxis:linear:viscousFrictionCoefficient") == pytest.approx(2.0)
+    for name in joints:
+        assert not value(name, "physxJoint:jointFriction"), f"Legacy joint friction remains on '{name}'"
+    if run_asset_transformer:
+        # each folded hinge sets the armature of its own D6 axis, including an armature of zero, instead of
+        # the single physxJoint:armature that the D6 joint copies from its first joint
+        assert value("gimbal_x", "physxJointAxis:rotX:armature") == pytest.approx(0.01)
+        assert value("gimbal_x", "physxJointAxis:rotY:armature") == pytest.approx(0.0)
+        assert value("gimbal_x", "physxJointAxis:rotZ:armature") == pytest.approx(0.03)
+    # only the spring joint is reported, since PhysX joints have no passive spring
+    assert any(record.getMessage().endswith("joints: spring.") for record in caplog.records)
 
 
 @pytest.mark.isaacsim_ci

@@ -5,11 +5,15 @@
 
 from __future__ import annotations
 
+import logging
 import os
+from collections import defaultdict
 
 from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
+
+logger = logging.getLogger(__name__)
 
 
 class MjcfConverter(AssetConverterBase):
@@ -21,8 +25,10 @@ class MjcfConverter(AssetConverterBase):
     from the standalone ``isaacsim-asset-isolated`` package. All conversion logic (USD schema
     application, fix-base, density, actuator gains, self-collision, mesh merging, asset
     transformer profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` —
-    this class only translates :class:`MjcfConverterCfg` into a flat
-    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
+    this class translates :class:`MjcfConverterCfg` into a flat
+    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`. After the import, it only selects the
+    configured physics variant and corrects the PhysX description of the joint friction loss, damping,
+    and armature (see :attr:`MjcfConverterCfg.run_multi_physics_conversion`).
 
     .. caution::
         The current lazy conversion implementation does not automatically trigger USD generation if
@@ -94,3 +100,43 @@ class MjcfConverter(AssetConverterBase):
         if generated_usd_path:
             generated_usd_path = os.path.normpath(generated_usd_path)
             self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)
+            if cfg.run_multi_physics_conversion:
+                self._convert_joint_dynamics_to_physx(layered=cfg.run_asset_transformer)
+                # PhysX reads the PhysX description of a layered asset only in its "physx" variant
+                if not cfg.run_asset_transformer or cfg.physics_variant == cfg.PhysicsVariant.PHYSX:
+                    self._warn_joint_springs(layered=cfg.run_asset_transformer)
+
+    def _warn_joint_springs(self, layered: bool):
+        """Warn about the MJCF joint springs, which the PhysX description of the asset omits.
+
+        PhysX joints have no passive spring, so neither the joint ``stiffness`` nor a ``springdamper``, which
+        also replaces the joint damping, reaches PhysX.
+
+        Args:
+            layered: Whether the asset transformer of the importer split the asset into layers.
+        """
+        from pxr import Usd, UsdPhysics  # noqa: PLC0415
+
+        if layered:
+            usd_path = os.path.join(os.path.dirname(self.usd_path), "payloads", "Physics", "mujoco.usda")
+            if not os.path.isfile(usd_path):
+                return
+        else:
+            usd_path = self.usd_path
+        # the prims do not keep the stage alive, so it is held for the whole traversal
+        stage = Usd.Stage.Open(usd_path)
+        springs = defaultdict(list)
+        # the physics layers only add opinions under the asset's prims, so they have to be traversed with the
+        # all-prims predicate to reach the joints
+        for joint in stage.TraverseAll():
+            if not joint.IsA(UsdPhysics.Joint):
+                continue
+            if joint.GetAttribute("mjc:stiffness").Get():
+                springs["stiffness"].append(joint.GetName())
+            if any(joint.GetAttribute("mjc:springdamper").Get() or ()):
+                springs["springdamper stiffness and damping"].append(joint.GetName())
+        for quantity, joint_names in springs.items():
+            logger.warning(
+                "MjcfConverter: PhysX joints have no passive spring, so the PhysX description of the asset omits"
+                f" the MJCF joint {quantity} of the joints: {', '.join(joint_names)}."
+            )

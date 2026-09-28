@@ -39,9 +39,10 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
             """
 
             damping: dict[str, float] | float | None = None
-            """The damping of the joint drive in Nm/(rad/s) or N/(rad/s). Defaults to None.
+            """The damping of the joint drive [N·m·s/rad or N·s/m, depending on joint type]. Defaults to None.
 
-            If None, the damping is set to the value parsed from the URDF file or 0.0 if no value is found in the URDF.
+            If None, the damping values produced by the URDF importer are preserved. The URDF joint ``damping`` is not
+            a drive gain, see :attr:`~UrdfConverterCfg.run_multi_physics_conversion`.
             If :attr:`~UrdfConverterCfg.JointDriveCfg.target_type` is set to ``"velocity"``, this attribute is set to
             0.0 and :attr:`stiffness` serves as the drive's strength in joint velocity space.
             """
@@ -204,6 +205,20 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
     run_multi_physics_conversion: bool = True
     """Enable to generate compatible MuJoCo attributes from the URDF joint attributes alongside PhysX.
     Defaults to True.
+
+    The joint ``friction`` and ``damping`` of the URDF ``dynamics`` element of revolute, continuous, and prismatic
+    joints are written per joint axis with the PhysX ``PhysxJointAxisAPI``. The friction becomes equal static and
+    dynamic friction efforts [N or N·m, depending on joint type], and the damping [N·s/m or N·m·s/rad, depending
+    on joint type] becomes the viscous friction coefficient, which USD stores per degree for angular axes. Both
+    act passively, in addition to the joint drive gains. PhysX applies the viscous friction through its joint
+    friction constraint, which matches a viscous damper only while the damping times the time step is small
+    compared with the effective inertia of the joint.
+
+    A layered asset carries these attributes in its ``physx`` :attr:`physics_variant`, which the importer only
+    creates for URDFs with revolute, continuous, or prismatic joints. The default ``physics`` variant expresses
+    the joint dynamics only through the Newton joint schema, whose friction and damping PhysX does not read, so
+    select the ``physx`` variant to simulate the asset with PhysX. If disabled, the ``physx`` variant carries no
+    joint friction or damping.
     """
 
     debug_mode: bool = False

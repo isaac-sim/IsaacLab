@@ -51,6 +51,9 @@ _MERGE_JOINTS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "u
 # offers no "physx" variant, so requesting it must fail.
 _FIXED_ONLY_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_fixed_only.urdf")
 
+# Revolute and prismatic joints with passive dynamics for the PhysX joint dynamics test.
+_JOINT_DYNAMICS_URDF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "urdfs", "test_joint_dynamics.urdf")
+
 
 # Create a fixture for setup and teardown
 @pytest.fixture
@@ -191,6 +194,45 @@ def test_config_drive_type(sim_config, tmp_path):
     # Franka Panda has 7 revolute arm joints and 2 prismatic finger joints.
     assert revolute_count == 7, f"Expected 7 revolute joints, got {revolute_count}"
     assert prismatic_count == 2, f"Expected 2 prismatic joints, got {prismatic_count}"
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("run_asset_transformer", [True, False])
+def test_joint_dynamics_physx_conversion(sim_config, tmp_path, run_asset_transformer):
+    """Verify that the PhysX description carries the URDF joint friction and damping per joint axis.
+
+    The importer describes them only with the Newton joint schema, whose friction and damping PhysX does not
+    read. The converted asset must also carry equal static and dynamic friction efforts and a viscous friction
+    coefficient, which USD stores per degree for angular axes, without applying them a second time through the
+    joint drive or the legacy load-proportional friction. The PhysX articulation tests check the values that the
+    simulation applies.
+    """
+    sim, config = sim_config
+    config.asset_path = _JOINT_DYNAMICS_URDF
+    config.run_asset_transformer = run_asset_transformer
+    config.physics_variant = "physx"
+    config.force_usd_conversion = True
+    config.usd_dir = str(tmp_path / "usd")
+    urdf_converter = UrdfConverter(config)
+
+    from pxr import Usd, UsdPhysics
+
+    stage = Usd.Stage.Open(urdf_converter.usd_path)
+    joints = {prim.GetName(): prim for prim in stage.Traverse() if prim.IsA(UsdPhysics.Joint)}
+
+    def value(joint: str, attribute: str):
+        return joints[joint].GetAttribute(attribute).Get()
+
+    per_degree = math.pi / 180.0
+    assert value("hinge", "physxJointAxis:angular:staticFrictionEffort") == pytest.approx(0.2)
+    assert value("hinge", "physxJointAxis:angular:dynamicFrictionEffort") == pytest.approx(0.2)
+    assert value("hinge", "physxJointAxis:angular:viscousFrictionCoefficient") == pytest.approx(0.3 * per_degree)
+    assert value("slide", "physxJointAxis:linear:staticFrictionEffort") == pytest.approx(1.5)
+    assert value("slide", "physxJointAxis:linear:dynamicFrictionEffort") == pytest.approx(1.5)
+    assert value("slide", "physxJointAxis:linear:viscousFrictionCoefficient") == pytest.approx(2.0)
+    for name, instance in (("hinge", "angular"), ("slide", "linear")):
+        assert not value(name, f"drive:{instance}:physics:damping"), f"Drive damping on '{name}'"
+        assert not value(name, "physxJoint:jointFriction"), f"Legacy joint friction on '{name}'"
 
 
 @pytest.mark.isaacsim_ci

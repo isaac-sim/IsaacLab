@@ -2016,6 +2016,138 @@ def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground
     assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
 
 
+# Joints with MuJoCo passive dynamics. The three gimbal hinges share a body pair, so the importer folds them
+# into one D6 joint in the PhysX description. MuJoCo ignores the axis of a ball joint, but the importer uses
+# it as the USD joint axis, and PhysX supports spherical joints only about X.
+_JOINT_DYNAMICS_MJCF = """
+<mujoco model="joint_dynamics">
+  <worldbody>
+    <body name="base" pos="0 0 1">
+      <geom type="box" size="0.1 0.1 0.1" mass="1"/>
+      <body name="hinge_link" pos="0.2 0 0">
+        <joint name="hinge" type="hinge" axis="0 1 0" damping="0.3" frictionloss="0.2" armature="0.02"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+        <body name="slide_link" pos="0.2 0 0">
+          <joint name="slide" type="slide" axis="1 0 0" damping="2.0" frictionloss="1.5" armature="0.05"/>
+          <geom type="sphere" size="0.05" mass="1"/>
+        </body>
+      </body>
+      <body name="gimbal_link" pos="0 0.2 0">
+        <joint name="gimbal_x" type="hinge" axis="1 0 0" damping="0.4" frictionloss="0.1" armature="0.01"/>
+        <joint name="gimbal_y" type="hinge" axis="0 1 0" damping="0.5"/>
+        <joint name="gimbal_z" type="hinge" axis="0 0 1" damping="0.6" frictionloss="0.12" armature="0.03"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+      <body name="ball_link" pos="0 -0.2 0">
+        <joint name="ball" type="ball" axis="1 0 0" damping="0.7" frictionloss="0.14" armature="0.015"/>
+        <geom type="sphere" size="0.05" mass="1"/>
+      </body>
+    </body>
+  </worldbody>
+</mujoco>
+"""
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.isaacsim_ci
+def test_mjcf_joint_dynamics(sim, num_articulations, device, tmp_path):
+    """Test that PhysX applies the MJCF joint friction loss, damping, and armature in SI units.
+
+    ``frictionloss`` becomes equal static and dynamic friction efforts [N·m or N], ``damping`` becomes the
+    viscous friction coefficient [N·m·s/rad or N·s/m], and every axis keeps its own armature, including the
+    hinges folded into one D6 joint and the ball joint. The legacy load-proportional friction stays zero.
+    """
+    mjcf_path = tmp_path / "joint_dynamics.xml"
+    mjcf_path.write_text(_JOINT_DYNAMICS_MJCF)
+    spawn = sim_utils.MjcfFileCfg(
+        asset_path=str(mjcf_path), usd_dir=str(tmp_path / "usd"), fix_base=True, physics_variant="physx"
+    )
+    articulation, _ = generate_articulation(ArticulationCfg(spawn=spawn, actuators={}), num_articulations, device)
+
+    sim.reset()
+
+    # joint: (friction effort, viscous friction coefficient, armature) as authored in the MJCF
+    expected = {
+        "hinge": (0.2, 0.3, 0.02),
+        "slide": (1.5, 2.0, 0.05),
+        "gimbal_x:0": (0.1, 0.4, 0.01),
+        "gimbal_x:1": (0.0, 0.5, 0.0),
+        "gimbal_x:2": (0.12, 0.6, 0.03),
+        "ball:0": (0.14, 0.7, 0.015),
+        "ball:1": (0.14, 0.7, 0.015),
+        "ball:2": (0.14, 0.7, 0.015),
+    }
+    assert sorted(articulation.joint_names) == sorted(expected)
+    values = torch.tensor([expected[name] for name in articulation.joint_names], device=device)
+    values = values.expand(num_articulations, -1, -1)
+    torch.testing.assert_close(articulation.data.joint_friction_coeff.torch, values[..., 0])
+    torch.testing.assert_close(articulation.data.joint_dynamic_friction_coeff.torch, values[..., 0])
+    torch.testing.assert_close(articulation.data.joint_viscous_friction_coeff.torch, values[..., 1])
+    torch.testing.assert_close(articulation.data.joint_armature.torch, values[..., 2])
+    assert not wp.to_torch(articulation.root_view.get_dof_friction_coefficients()).any()
+
+
+# Revolute and prismatic joints with URDF passive dynamics.
+_JOINT_DYNAMICS_URDF = """
+<robot name="joint_dynamics">
+  <link name="base_link">
+    <inertial><mass value="5.0"/><inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/></inertial>
+    <collision><geometry><box size="0.2 0.2 0.2"/></geometry></collision>
+  </link>
+  <link name="arm_link">
+    <inertial>
+      <origin xyz="0.15 0 0"/><mass value="1.0"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+    <collision><origin xyz="0.15 0 0"/><geometry><box size="0.3 0.04 0.04"/></geometry></collision>
+  </link>
+  <link name="slider_link">
+    <inertial><mass value="0.5"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.001" iyz="0" izz="0.001"/></inertial>
+    <collision><geometry><box size="0.06 0.06 0.06"/></geometry></collision>
+  </link>
+  <joint name="hinge" type="revolute">
+    <parent link="base_link"/><child link="arm_link"/><origin xyz="0.1 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="5.0"/><dynamics damping="0.3" friction="0.2"/>
+  </joint>
+  <joint name="slide" type="prismatic">
+    <parent link="arm_link"/><child link="slider_link"/><origin xyz="0.3 0 0"/><axis xyz="1 0 0"/>
+    <limit lower="-0.1" upper="0.1" effort="20.0" velocity="1.0"/><dynamics damping="2.0" friction="1.5"/>
+  </joint>
+</robot>
+"""
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.isaacsim_ci
+def test_urdf_joint_dynamics(sim, num_articulations, device, tmp_path):
+    """Test that PhysX applies the URDF joint friction and damping once, as passive joint friction in SI units.
+
+    ``friction`` becomes equal static and dynamic friction efforts [N·m or N], and ``damping`` becomes the
+    viscous friction coefficient [N·m·s/rad or N·s/m]. Neither the joint drive damping nor the legacy
+    load-proportional friction applies them a second time.
+    """
+    urdf_path = tmp_path / "joint_dynamics.urdf"
+    urdf_path.write_text(_JOINT_DYNAMICS_URDF)
+    spawn = sim_utils.UrdfFileCfg(
+        asset_path=str(urdf_path), usd_dir=str(tmp_path / "usd"), fix_base=True, physics_variant="physx"
+    )
+    articulation, _ = generate_articulation(ArticulationCfg(spawn=spawn, actuators={}), num_articulations, device)
+
+    sim.reset()
+
+    # joint: (friction effort, viscous friction coefficient) as authored in the URDF
+    expected = {"hinge": (0.2, 0.3), "slide": (1.5, 2.0)}
+    assert sorted(articulation.joint_names) == sorted(expected)
+    values = torch.tensor([expected[name] for name in articulation.joint_names], device=device)
+    values = values.expand(num_articulations, -1, -1)
+    torch.testing.assert_close(articulation.data.joint_friction_coeff.torch, values[..., 0])
+    torch.testing.assert_close(articulation.data.joint_dynamic_friction_coeff.torch, values[..., 0])
+    torch.testing.assert_close(articulation.data.joint_viscous_friction_coeff.torch, values[..., 1])
+    assert not articulation.data.joint_damping.torch.any()
+    assert not wp.to_torch(articulation.root_view.get_dof_friction_coefficients()).any()
+
+
 ##
 # Shape-contract regression tests for the new BaseArticulation accessors.
 # Mirror the Newton-side tests so both backends can be diffed against the

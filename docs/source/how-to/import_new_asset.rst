@@ -85,14 +85,22 @@ Inspect the interface USD's ``Physics`` variant set before requesting a backend-
 
 :attr:`~sim.converters.AssetConverterBaseCfg.physics_variant` defaults to ``physics``.
 The tested Isaac Sim 6.1 output exposes ``physics`` and ``none``; ``none`` omits the physics
-payload. Isaac Lab selects the requested variant explicitly and raises an error if the
-asset has a ``Physics`` variant set without that variant. Do not assume that ``physx``
-or ``mujoco`` is selectable on every converted asset.
+payload. It also exposes ``physx`` and ``mujoco`` when the importer wrote attributes for that backend,
+as for assets with revolute or prismatic joints. Isaac Lab selects the requested variant explicitly and
+raises an error if the asset has a ``Physics`` variant set without that variant. Do not assume that
+``physx`` or ``mujoco`` is selectable on every converted asset.
 
 ``run_multi_physics_conversion``, enabled by default, asks the importer to convert supported
 backend-specific physics attributes. This does not guarantee equivalent solver behavior or
 support for every source feature. Validate masses, inertias, collisions and joint control on
 the intended physics backend.
+
+The importers do not convert the passive joint friction and damping correctly for PhysX. With
+``run_multi_physics_conversion``, Isaac Lab therefore writes them in the PhysX description of the asset:
+the dry friction becomes equal static and dynamic PhysX friction efforts, and the damping becomes the
+PhysX viscous friction coefficient. The default ``physics`` variant does not include the PhysX
+description, so select the ``physx`` variant to simulate these joint dynamics with PhysX. Flat output
+carries both descriptions in the same file.
 
 With ``run_asset_transformer=False``, the tested converters produce flat output without a
 ``Physics`` variant set. Isaac Lab leaves that output unchanged rather than selecting a variant.
@@ -165,7 +173,8 @@ Asset resolution and output
 * :attr:`~sim.converters.UrdfConverterCfg.run_asset_transformer` - Run the asset transformer to convert
   the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
 * :attr:`~sim.converters.UrdfConverterCfg.run_multi_physics_conversion` - Also emit MuJoCo-compatible joint
-  attributes alongside the PhysX ones, so the asset carries both backends. Defaults to ``True``.
+  attributes alongside the PhysX ones, so the asset carries both backends. Defaults to ``True``. In layered
+  output, the joint ``friction`` and ``damping`` reach PhysX only through the ``physx`` physics variant.
   See :ref:`import-new-asset-multi-backend`.
 * :attr:`~sim.converters.UrdfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to the
   output USD for inspection. Defaults to ``False``.
@@ -195,10 +204,10 @@ pre-processed URDF and the original URDF are:
 * We removed the ``<gazebo>`` tag from the URDF. This tag is not supported by the URDF importer.
 * We removed the ``<transmission>`` tag from the URDF. This tag is not supported by the URDF importer.
 * We removed various collision bodies from the URDF to reduce the complexity of the asset.
-* We changed all the joint's damping and friction parameters to ``0.0``. On PhysX this ensures that we
-  can perform effort-control on the joints without the imported drive adding damping of its own. On
-  Newton the actuator configuration decides the target mode instead --- see
-  :ref:`import-new-asset-ensure-drives-exist`.
+* We changed all the joint's damping and friction parameters to ``0.0``. They are passive joint
+  properties, which Newton and the ``physx`` physics variant apply in addition to the drive gains, so
+  zeroing them keeps effort control on the joints free of passive damping and friction. On Newton the
+  actuator configuration decides the target mode --- see :ref:`import-new-asset-ensure-drives-exist`.
 * The ``<dont_collapse>`` URDF tag is **no longer supported** in URDF importer 3.0. Fixed joint
   merging is now a Python pre-processing step that merges all fixed joints when
   ``merge_fixed_joints`` is enabled. If you need to preserve a specific fixed joint, disable
@@ -358,7 +367,8 @@ Asset resolution and output
   the flattened USD into a layered USD (interface USD + payloads). Defaults to ``True``.
 * :attr:`~sim.converters.MjcfConverterCfg.run_multi_physics_conversion` - Convert compatible MuJoCo
   attributes to PhysX attributes (e.g. actuator gains), so the asset carries both backends. Note this
-  is the opposite direction to the URDF importer. Defaults to ``True``.
+  is the opposite direction to the URDF importer. Defaults to ``True``. In layered output, the joint
+  ``frictionloss`` and ``damping`` reach PhysX only through the ``physx`` physics variant.
   See :ref:`import-new-asset-multi-backend`.
 * :attr:`~sim.converters.MjcfConverterCfg.debug_mode` - Write intermediate conversion artifacts next to
   the output USD for inspection. Defaults to ``False``.

@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import abc
 import hashlib
 import json
@@ -11,14 +13,36 @@ import os
 import pathlib
 import random
 import tempfile
+from collections import defaultdict
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from ...utils import to_dict, validate
 from ...utils.assets import check_file_path
 from ...utils.io import dump_yaml
 from .asset_converter_base_cfg import AssetConverterBaseCfg
 
+if TYPE_CHECKING:
+    from pxr import Sdf, Usd
+
 logger = logging.getLogger(__name__)
+
+_JOINT_AXIS_INSTANCES = {
+    "PhysicsRevoluteJoint": ("angular",),
+    "PhysicsPrismaticJoint": ("linear",),
+    "PhysicsSphericalJoint": ("rotX", "rotY", "rotZ"),
+}
+"""PhysX joint-axis instances of the revolute, prismatic, and spherical joint types."""
+
+_D6_AXIS_INSTANCES = {
+    "PhysicsRevoluteJoint": {"X": "rotX", "Y": "rotY", "Z": "rotZ"},
+    "PhysicsPrismaticJoint": {"X": "transX", "Y": "transY", "Z": "transZ"},
+}
+"""PhysX joint-axis instance that a single-axis joint maps to when the MJCF importer folds it into a D6 joint.
+
+This mirrors the ``physics:axis`` lookup with which the importer assigns the D6 axes. It has to follow the
+importer if that assignment changes, as proposed in isaac-sim/IsaacSim#751.
+"""
 
 
 class AssetConverterBase(abc.ABC):
@@ -199,6 +223,88 @@ class AssetConverterBase(abc.ABC):
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
 
+    def _convert_joint_dynamics_to_physx(self, layered: bool):
+        """Author the joint friction, damping, and armature in the PhysX description of the converted asset.
+
+        The importers write these passive joint dynamics with ``NewtonJointAPI``, whose friction, damping, and
+        armature PhysX does not read, and do not convert them to ``PhysxJointAxisAPI``: the URDF importer converts
+        neither the friction nor the damping (isaac-sim/IsaacSim#841), and the MJCF importer converts the friction to
+        the legacy, load-proportional ``physxJoint:jointFriction`` coefficient and drops the damping. The friction
+        becomes equal static and dynamic friction efforts [N or N·m, depending on joint type], and the damping
+        becomes the viscous friction coefficient. Both schemas use the USD units, which are per degree for angular
+        axes, so the values are copied unchanged. ``physxJoint:armature`` holds a single value per joint, so
+        spherical joints and the joints that the MJCF importer folds into one D6 joint get their armature per axis
+        as well.
+
+        Remove this correction when the pinned importers author these PhysX attributes themselves, or when PhysX
+        reads them from ``NewtonJointAPI``. An importer that maps the damping to the joint drive instead would apply
+        it twice; the URDF converter tests detect that.
+
+        Args:
+            layered: Whether the asset transformer of the importer split the asset into layers.
+        """
+        from pxr import Usd
+
+        # a layered asset keeps the Newton and the PhysX attributes in separate physics layers, while a flat
+        # asset keeps both in the generated USD file
+        if layered:
+            # layout written by the asset transformer profile of the importers
+            physics_dir = os.path.join(os.path.dirname(self.usd_path), "payloads", "Physics")
+            physx_layer_path = os.path.join(physics_dir, "physx.usda")
+            if not os.path.isfile(physx_layer_path):
+                # an asset without PhysX data, e.g. with only fixed or ball joints, gets no PhysX layer and no
+                # "physx" variant
+                return
+            # the physics layer still holds the joints that the PhysX layer folds into D6 joints
+            source_stage = Usd.Stage.Open(os.path.join(physics_dir, "physics.usda"))
+            target_stage = Usd.Stage.Open(physx_layer_path)
+        else:
+            source_stage = target_stage = Usd.Stage.Open(self.usd_path)
+
+        # the physics layers only add opinions under the asset's prims, so they have to be traversed with the
+        # all-prims predicate to reach the joints
+        d6_joints = {
+            _body_pair(prim): prim
+            for prim in target_stage.TraverseAll()
+            if prim.IsActive() and prim.GetTypeName() == "PhysicsJoint"
+        }
+        d6_used_axes = defaultdict(set)
+        modified = False
+        for joint in source_stage.TraverseAll():
+            joint_type = joint.GetTypeName()
+            if joint_type not in _JOINT_AXIS_INSTANCES:
+                continue
+            # unauthored Newton attributes hold their zero default
+            friction = joint.GetAttribute("newton:friction").Get() or 0.0
+            viscous = joint.GetAttribute("newton:damping").Get() or 0.0
+            armature = joint.GetAttribute("newton:armature").Get() or 0.0
+            target = target_stage.GetPrimAtPath(joint.GetPath())
+            if target and target.IsActive() and target.GetTypeName() == joint_type:
+                instances = _JOINT_AXIS_INSTANCES[joint_type]
+                if joint_type != "PhysicsSphericalJoint":
+                    # physxJoint:armature already holds it
+                    armature = None
+                if not (friction or viscous or armature):
+                    continue
+            else:
+                target = d6_joints.get(_body_pair(joint))
+                axis = str(joint.GetAttribute("physics:axis").Get()).upper()
+                instance = _D6_AXIS_INSTANCES.get(joint_type, {}).get(axis)
+                if target is None or instance is None or instance in d6_used_axes[target.GetPath()]:
+                    # the importer gave this joint no D6 axis of its own and warned; that axis stays locked or
+                    # free without the joint's dynamics (see isaac-sim/IsaacLab#6854)
+                    continue
+                # author the axis even when its values are zero, since it would otherwise fall back to the
+                # single armature that the D6 joint copied from its first joint
+                d6_used_axes[target.GetPath()].add(instance)
+                instances = (instance,)
+            for instance in instances:
+                _author_physx_joint_axis(target, instance, friction, viscous, armature)
+            modified = True
+
+        if modified:
+            target_stage.GetRootLayer().Save()
+
     @staticmethod
     def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:
         """Converts the configuration object and asset file to an MD5 hash of a string.
@@ -234,3 +340,40 @@ class AssetConverterBase(abc.ABC):
                 md5.update(data)
         # return the hash
         return md5.hexdigest()
+
+
+def _body_pair(prim: Usd.Prim) -> tuple[tuple[Sdf.Path, ...], tuple[Sdf.Path, ...]]:
+    """Return the body targets of a joint prim."""
+    from pxr import UsdPhysics
+
+    joint = UsdPhysics.Joint(prim)
+    return tuple(joint.GetBody0Rel().GetTargets()), tuple(joint.GetBody1Rel().GetTargets())
+
+
+def _author_physx_joint_axis(joint: Usd.Prim, instance: str, friction: float, viscous: float, armature: float | None):
+    """Author the friction and armature of one axis of a PhysX joint and clear the legacy friction.
+
+    Args:
+        joint: The joint prim to author on.
+        instance: The ``PhysxJointAxisAPI`` instance, e.g. ``"angular"`` or ``"rotX"``.
+        friction: The static and dynamic friction effort [N or N·m, depending on joint type].
+        viscous: The viscous friction coefficient in USD units [N·s/m or N·m·s/deg, depending on joint type].
+        armature: The armature of the axis [kg or kg·m², depending on joint type]. If None, it is not authored.
+    """
+    from pxr import Sdf
+
+    joint.AddAppliedSchema(f"PhysxJointAxisAPI:{instance}")
+    values = {
+        "staticFrictionEffort": friction,
+        "dynamicFrictionEffort": friction,
+        "viscousFrictionCoefficient": viscous,
+    }
+    if armature is not None:
+        values["armature"] = armature
+    for name, value in values.items():
+        attr_name = f"physxJointAxis:{instance}:{name}"
+        joint.CreateAttribute(attr_name, Sdf.ValueTypeNames.Float, custom=False).Set(float(value))
+    # the friction efforts replace the load-proportional legacy coefficient
+    legacy_friction = joint.GetAttribute("physxJoint:jointFriction")
+    if legacy_friction and legacy_friction.HasAuthoredValue():
+        legacy_friction.Set(0.0)

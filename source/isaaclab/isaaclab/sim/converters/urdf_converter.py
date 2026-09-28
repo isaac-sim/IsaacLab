@@ -28,8 +28,10 @@ class UrdfConverter(AssetConverterBase):
     The heavy lifting (URDF parsing, fixed-joint merging, fix-base insertion, joint-drive
     configuration, density override, asset transformer profile) is delegated to Isaac Sim's
     :class:`~isaacsim.asset.importer.urdf.URDFImporter` together with
-    :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`. IsaacLab only translates its
-    user-friendly :class:`UrdfConverterCfg` into the flat importer config.
+    :class:`~isaacsim.asset.importer.urdf.URDFImporterConfig`. IsaacLab translates its
+    user-friendly :class:`UrdfConverterCfg` into the flat importer config. After the import, it only
+    selects the configured physics variant and corrects the PhysX description of the joint friction and
+    damping (see :attr:`UrdfConverterCfg.run_multi_physics_conversion`).
 
     .. caution::
         The current lazy conversion implementation does not automatically trigger USD generation if
@@ -117,6 +119,8 @@ class UrdfConverter(AssetConverterBase):
         if generated_usd_path:
             generated_usd_path = os.path.normpath(generated_usd_path)
             self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)
+            if cfg.run_multi_physics_conversion:
+                self._convert_joint_dynamics_to_physx(layered=cfg.run_asset_transformer)
 
     @staticmethod
     def _warn_unsupported_features(cfg: UrdfConverterCfg):

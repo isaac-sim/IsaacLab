@@ -18,7 +18,9 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     Maps to :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig` from the Isaac Sim
     MJCF importer. All post-import USD edits (fix-base, density override, actuator gain
     overrides, self-collision, mesh merging, asset transformer profile) are performed by
-    the Isaac Sim importer — this config just forwards the user's choices.
+    the Isaac Sim importer — this config just forwards the user's choices. The converter only
+    corrects the PhysX joint friction, damping, and armature afterwards, see
+    :attr:`run_multi_physics_conversion`.
 
     .. note::
         From Isaac Sim 5.0 onwards, the MJCF importer was rewritten to use the
@@ -119,7 +121,23 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     """
 
     run_multi_physics_conversion: bool = True
-    """Enable to convert compatible MuJoCo attributes to PhysX attributes, such as actuator gains. Defaults to True."""
+    """Enable to convert compatible MuJoCo attributes to PhysX attributes, such as actuator gains. Defaults to True.
+
+    The joint ``frictionloss`` and ``damping`` are written per joint axis with the PhysX
+    ``PhysxJointAxisAPI``. The friction loss becomes equal static and dynamic friction efforts
+    [N or N·m, depending on joint type], and the damping [N·s/m or N·m·s/rad, depending on joint type]
+    becomes the viscous friction coefficient, which USD stores per degree for angular axes. Ball joints
+    and the joints that the importer folds into one D6 joint also get their ``armature`` per axis. PhysX
+    joints have no passive spring, so the joint ``stiffness`` is not converted, and a warning lists the
+    affected joints when the PhysX description is selected. PhysX applies the viscous friction through its
+    joint friction constraint, which matches MuJoCo's implicit damping only while the damping times the time
+    step is small compared with the effective inertia of the joint.
+
+    A layered asset carries these attributes in its ``physx`` :attr:`physics_variant`, which the importer
+    only creates for models with PhysX data, such as hinge or slide joints. The default ``physics``
+    variant expresses the joint dynamics only through the Newton joint schema, whose friction, damping, and
+    armature PhysX does not read, so select the ``physx`` variant to simulate the asset with PhysX.
+    """
 
     debug_mode: bool = False
     """Enable debug mode in the underlying MJCF importer. Defaults to False.
