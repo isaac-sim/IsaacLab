@@ -88,6 +88,21 @@ class DummySensorCfg(SensorBaseCfg):
     prim_path = "{ENV_REGEX_NS}/Cube/dummy_sensor"
 
 
+class DummyVisSensor(DummySensor):
+    """Dummy sensor whose debug visualization records the counts it displays."""
+
+    def __init__(self, cfg):
+        self.visualized_counts = []
+        super().__init__(cfg)
+
+    def _set_debug_vis_impl(self, debug_vis: bool):
+        pass
+
+    def _debug_vis_callback(self, event):
+        if self._is_initialized:
+            self.visualized_counts.append(self.data.count.clone())
+
+
 def _populate_scene():
     """"""
 
@@ -305,6 +320,28 @@ def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
 
     assert sensor.backend_update_count == backend_update_count + 1
     wp.capture_launch(capture.graph)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_debug_vis_refreshes_lazily_from_callback(create_dummy_sensor, device):
+    """Debug visualization does not force per-step refreshes; its callback sees current data."""
+    sensor_cfg, sim, dt = create_dummy_sensor
+    sensor_cfg.debug_vis = True
+    sensor = DummyVisSensor(cfg=sensor_cfg)
+    sim.step()
+    sim.reset()
+    assert sensor._debug_vis_handle is not None
+
+    backend_update_count = sensor.backend_update_count
+    for _ in range(3):
+        sensor.update(dt=dt)
+    assert sensor.backend_update_count == backend_update_count
+
+    sim.vis_marker_registry.dispatch_callbacks()
+    assert sensor.backend_update_count == backend_update_count + 1
+    torch.testing.assert_close(
+        sensor.visualized_counts[-1], torch.ones(sensor.num_instances, dtype=torch.int32, device=device)
+    )
 
 
 @pytest.mark.parametrize("device", ("cpu",))
