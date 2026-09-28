@@ -207,7 +207,7 @@ def grasp_held_asset(
     min_angle = held_asset_diameter / 2 * 1.15
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
     if flexible_angle:
-        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids[0], 1]
+        max_angle = robot.data.joint_pos_limits.torch[0, robot_cfg.joint_ids, 1][0]
         joint_pos[:] = (torch.rand((num_envs,), device=env.device) * (max_angle - min_angle) + min_angle).unsqueeze(1)
     else:
         joint_pos[:] = min_angle

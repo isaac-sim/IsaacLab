@@ -38,6 +38,27 @@ Scene Entity
     :members:
     :exclude-members: __init__
 
+Resolved selections
+~~~~~~~~~~~~~~~~~~~
+
+Scene-entity selections follow a build-then-finalize lifecycle, similar to Newton's model builder.
+Managers call :meth:`SceneEntityCfg.resolve` while preparing terms, which fills ``joint_ids``,
+``body_ids``, ``fixed_tendon_ids``, and ``object_collection_ids`` with host lists. Class-based terms
+can read these lists in ``__init__``. Once every term is constructed, managers call
+:meth:`SceneEntityCfg.finalize`, which replaces each list with a ``torch.long`` tensor on the simulation
+device. Terms share this tensor, so do not modify it in place. Slices stay slices. Finalization is one-way.
+
+.. code-block:: python
+
+    def feet_height(env, asset_cfg: SceneEntityCfg):
+        asset = env.scene[asset_cfg.name]
+        # a slice or the cached device tensor; no upload or synchronization
+        return asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2]
+
+Term calls should not read selections on the host. For a single selected body, gather and select
+on the device, for example ``data[:, cfg.body_ids][:, 0]``. Outside stepping, ``ids.tolist()``
+returns a host copy.
+
 Manager Base
 ------------
 
