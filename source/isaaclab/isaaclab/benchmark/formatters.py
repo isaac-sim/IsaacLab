@@ -13,10 +13,10 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from isaaclab.benchmark.measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
+from .measurements import SingleMeasurement, StatisticalMeasurement, TestPhase, TestPhaseEncoder
 
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
+    from .schema import PlayBundle, RuntimeBundle, StartupBundle, TrainingBundle
 
 logger = logging.getLogger(__name__)
 
@@ -137,7 +137,6 @@ class JSONFileMetrics(MetricsFormatterInterface):
         # Append test name to measurement name as OVAT needs to uniquely identify
         for test_phase in self.data:
             test_name = test_phase.get_metadata_field("workflow_name")
-            # Store the test name
             if test_name != self.test_name:
                 if self.test_name:
                     logger.warning(
@@ -538,7 +537,6 @@ class OsmoKPIFile(MetricsFormatterInterface):
         """
         multi_phase = len(self._test_phases) > 1
         for test_phase in self._test_phases:
-            # Retrieve useful metadata from test_phase
             phase_name = test_phase.get_metadata_field("phase")
 
             osmo_kpis: dict[str, object] = {}
@@ -678,7 +676,7 @@ class SchemaBundleFile(MetricsFormatterInterface):
             raise RuntimeError("The schema formatter requires a benchmark bundle.")
 
         # Lazy import keeps formatters.py free of the schema layer at module import time.
-        from isaaclab.benchmark.serialize import write_bundle_file
+        from .serialize import write_bundle_file
 
         path = os.path.join(output_path, f"{output_filename}.json")
         write_bundle_file(bundle, path)

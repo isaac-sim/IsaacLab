@@ -7,13 +7,12 @@
 Script to record teleoperated demos and run mimic dataset generation in real-time.
 """
 
-# Launching Isaac Sim Simulator first.
+# Parse CLI first so we can decide whether to launch Isaac Sim Kit.
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(
     description="Record demonstrations and run mimic dataset generation for Isaac Lab environments."
 )
@@ -60,16 +59,11 @@ parser.add_argument(
     default=None,
     help="File path to export generated episodes by mimic.",
 )
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
-
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+# the teleop input devices are Kit input devices, so the Kit runtime is required
+args_cli.require_kit = True
 
 import asyncio
 import contextlib
@@ -81,16 +75,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
-from isaaclab.envs import ManagerBasedRLMimicEnv
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.datagen.data_generator import DataGenerator
-from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -198,6 +188,9 @@ async def run_teleop_robot(
     should_reset_teleop_instance = False
     # create controller if needed
     if teleop_interface is None:
+        # the teleop devices need the Kit runtime, which is running by the time this coroutine executes
+        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+
         if args_cli.teleop_device.lower() == "keyboard":
             teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.2, rot_sensitivity=0.5))
         elif args_cli.teleop_device.lower() == "spacemouse":
@@ -264,6 +257,8 @@ async def run_data_generator(
 ):
     """Run data generator."""
     global num_success, num_failures, num_attempts
+    from isaaclab_mimic.datagen.data_generator import DataGenerator
+
     data_generator = DataGenerator(env=env.unwrapped, src_demo_datagen_info_pool=shared_datagen_info_pool)
     idle_action = torch.zeros(env.unwrapped.action_space.shape)[0]
     while True:
@@ -400,6 +395,19 @@ def main():
         env_cfg.recorders.dataset_filename = generated_output_file_name
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
+    with launch_simulation(env_cfg, args_cli):
+        run_consolidated_demo(env_cfg, success_term)
+
+
+def run_consolidated_demo(env_cfg, success_term):
+    """Create the environment and run teleoperated recording alongside real-time mimic data generation."""
+    # the environment and data generation classes load USD, so they are imported once the simulation is launched
+    from isaaclab.envs import ManagerBasedRLMimicEnv
+
+    from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
+
+    num_envs = args_cli.num_envs
+
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
 
@@ -470,5 +478,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nProgram interrupted by user. Exiting...")
-    # close sim app
-    simulation_app.close()

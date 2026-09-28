@@ -5,8 +5,7 @@
 
 """Configuration for custom terrains."""
 
-import isaaclab.terrains as terrain_gen
-
+from ... import terrains as terrain_gen
 from ..terrain_generator_cfg import TerrainGeneratorCfg
 
 ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(

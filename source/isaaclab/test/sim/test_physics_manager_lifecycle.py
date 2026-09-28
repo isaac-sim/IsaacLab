@@ -9,6 +9,7 @@ import gc
 import inspect
 import weakref
 from dataclasses import dataclass, replace
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -22,6 +23,22 @@ from isaaclab.visualizers import VisualizerCfg
 def test_backend_registry_identity_and_lifecycle():
     """Share by type/cfg, construct once, and release only the selected resource after successful cleanup."""
     from isaaclab.sim import BackendCfg, SimulationContext
+
+    # SimulationContext owns backends directly, with no second registry or lookup layer.
+    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
+    assert not (sim_package / "service_locator.py").exists()
+    assert not hasattr(SimulationContext, "services")
+    assert not hasattr(SimulationContext, "register_backend")
+    assert not hasattr(SimulationContext, "get_backend")
+    assert not hasattr(BackendCfg, "close")
+    assert issubclass(RendererCfg, BackendCfg)
+    assert not hasattr(RenderContext, "get_renderer")
+    assert "BACKEND_CFG_READY" not in PhysicsEvent.__members__
+    assert "_renderer_entries" not in RenderContext.__slots__
+    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
+    assert all(
+        "resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in (PhysicsCfg, RendererCfg, VisualizerCfg)
+    )
 
     @dataclass(kw_only=True)
     class Cfg(BackendCfg):
@@ -80,22 +97,50 @@ def test_backend_registry_identity_and_lifecycle():
     context.close_backend(second)
     assert second.close.call_count == 2
 
+    # Backend declarations require close(); plain construction cfgs only share Python-owned data.
+    data_cfg = Cfg(class_type=lambda cfg: list(cfg.values), values=[3])
+    data = context.get_or_create_backend(data_cfg)
+    with pytest.raises(AttributeError, match="close"):
+        context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) is data
 
-def test_backend_ownership_has_no_service_locator_or_resource_keys():
-    """Backend ownership stays directly on SimulationContext and uses cfg identity, not custom keys."""
-    from pathlib import Path
+    @dataclass
+    class DataCfg:
+        class_type: object
+        values: list[int]
 
-    from isaaclab.sim import BackendCfg, SimulationContext
+    data_cfg = DataCfg(class_type=data_cfg.class_type, values=data_cfg.values)
+    data = context.get_or_create_backend(data_cfg)
+    assert context.get_or_create_backend(replace(data_cfg)) is data
+    context.close_backend(data)
+    assert context.get_or_create_backend(data_cfg) == data
+    assert context.get_or_create_backend(data_cfg) is not data
 
-    sim_package = Path(__file__).parents[2] / "isaaclab" / "sim"
-    assert not (sim_package / "service_locator.py").exists()
-    assert not hasattr(SimulationContext, "services")
-    assert issubclass(RendererCfg, BackendCfg)
-    assert not hasattr(RenderContext, "get_renderer")
-    assert "_renderer_entries" not in RenderContext.__slots__
-    assert tuple(inspect.signature(SimulationContext.get_or_create_backend).parameters) == ("self", "cfg")
-    cfg_types = (PhysicsCfg, RendererCfg, VisualizerCfg)
-    assert all("resource_key" not in cfg_type.__dataclass_fields__ for cfg_type in cfg_types)
+
+def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
+    """Only the active physics manager can clear shared SimulationContext state."""
+
+    class _ActiveManager(PhysicsManager):
+        _callbacks = {}
+
+    class _InactiveManager(PhysicsManager):
+        pass
+
+    _ActiveManager.close()
+    assert PhysicsManager._sim is None
+
+    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
+    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
+    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
+    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
+
+    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
+    _InactiveManager.close()
+    assert PhysicsManager._callbacks == {}
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
+
+    _ActiveManager.close()
+    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
 
 
 def test_close_runs_all_live_stop_listeners_and_aggregates_failures(monkeypatch):
@@ -255,6 +300,7 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
             context.get_or_create_backend(
                 cfg_type(class_type=lambda cfg, name=name, error=error: Resource(name, error))
             )
+    context.get_or_create_backend(SimpleNamespace(class_type=lambda cfg: Resource("data")))
     monkeypatch.setattr(SimulationContext, "_instance", context)
     monkeypatch.setattr(context_module.stage_utils, "close_stage", lambda: events.append("stage"))
     monkeypatch.setattr(context_module, "clear_resolve_matching_names_cache", lambda: events.append("cache"))
@@ -281,8 +327,9 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_failed",
         "visualizer_last",
         "visualizer_pending",
-        "backend_failed",
+        # native backends close newest first
         "backend_last",
+        "backend_failed",
         "stage",
         "cache",
         "gc",

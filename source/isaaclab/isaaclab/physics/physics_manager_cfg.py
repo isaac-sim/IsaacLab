@@ -10,7 +10,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_ov.physics import OvPhysxCfg

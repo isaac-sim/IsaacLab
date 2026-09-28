@@ -53,18 +53,9 @@ FORWARDED_NAMES = [
     "PhysxSpatialTendonPropertiesCfg",
 ]
 
+# Deprecated forwarded names that ``test_schemas_deprecation.py`` does not already cover.
 DEPRECATED_FORWARDED_NAMES = [
-    "RigidBodyPropertiesCfg",
-    "JointDrivePropertiesCfg",
-    "CollisionPropertiesCfg",
     "DeformableBodyPropertiesCfg",
-    "ArticulationRootPropertiesCfg",
-    "MeshCollisionPropertiesCfg",
-    "ConvexHullPropertiesCfg",
-    "ConvexDecompositionPropertiesCfg",
-    "TriangleMeshPropertiesCfg",
-    "TriangleMeshSimplificationPropertiesCfg",
-    "SDFMeshPropertiesCfg",
     "FixedTendonPropertiesCfg",
     "SpatialTendonPropertiesCfg",
 ]
@@ -155,14 +146,6 @@ def test_sim_namespace_material_shim_resolves_to_physx_class(name):
     assert getattr(sim_utils, name) is getattr(physx_mat_cfg, name)
 
 
-def test_deprecated_alias_emits_deprecation_warning():
-    """Instantiating ``RigidBodyPropertiesCfg`` via the shim still emits ``DeprecationWarning``."""
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        schemas.RigidBodyPropertiesCfg()
-    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
-
-
 @pytest.mark.parametrize("name", DEPRECATED_FORWARDED_NAMES)
 def test_deprecated_aliases_emit_deprecation_warning(name):
     """Instantiating each deprecated forwarded alias via the shim emits exactly one
@@ -173,6 +156,7 @@ def test_deprecated_aliases_emit_deprecation_warning(name):
         cls()
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
+    assert "3.2" in str(deprecations[0].message)
 
 
 @pytest.mark.parametrize("name", DEPRECATED_FORWARDED_MATERIAL_NAMES)
@@ -184,19 +168,6 @@ def test_deprecated_material_aliases_emit_deprecation_warning(name):
     deprecations = [w for w in caught if issubclass(w.category, DeprecationWarning)]
     assert len(deprecations) == 1, f"{name}: expected one DeprecationWarning, got {len(deprecations)}"
     assert "3.2" in str(deprecations[0].message)
-
-
-def test_new_class_does_not_emit_deprecation_warning():
-    """Instantiating the ``PhysxRigidBodyCfg`` fragment does NOT emit ``DeprecationWarning``.
-
-    Both ``RigidBodyPropertiesCfg`` and the ``PhysxRigidBodyPropertiesCfg`` it forwards to are
-    now deprecated in favor of the single-namespace fragments, so the fragment is the class
-    that must stay silent. See ``test_schemas_deprecation.py`` for the full coverage.
-    """
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        physx_cfg.PhysxRigidBodyCfg()
-    assert not any(issubclass(w.category, DeprecationWarning) for w in caught)
 
 
 def test_new_material_class_does_not_emit_deprecation_warning():

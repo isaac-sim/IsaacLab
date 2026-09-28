@@ -5,12 +5,12 @@
 
 """Shared core-only scene configurations for Isaac Lab integration tests."""
 
-import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
-from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
+from .. import sim as sim_utils
+from ..actuators import ImplicitActuatorCfg
+from ..assets import ArticulationCfg, RigidObjectCfg
+from ..scene import InteractiveSceneCfg
+from ..utils import clone, configclass
+from ..utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
     prim_path="{ENV_REGEX_NS}/Robot",
@@ -46,7 +46,7 @@ class CartpoleTestSceneCfg(InteractiveSceneCfg):
     not assert ground or lighting behavior.
     """
 
-    robot: ArticulationCfg = _CARTPOLE_TEST_CFG.copy()
+    robot: ArticulationCfg = clone(_CARTPOLE_TEST_CFG)
 
 
 @configclass

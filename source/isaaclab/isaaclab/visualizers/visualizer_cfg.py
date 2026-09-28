@@ -9,9 +9,10 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
+    from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -95,13 +96,12 @@ class VisualizerCfg:
     streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
 
-    streaming_cam_renderer: str | None = None
+    streaming_cam_renderer_cfg: RendererCfg | None = None
     """Renderer for the auto-created streaming camera.
 
-    One of ``"newton_warp"``, ``"ovrtx"``, or ``None`` (let each backend
-    choose its own default).  Defaults to ``None`` so each backend selects
-    an appropriate renderer automatically.  Ignored when
-    :attr:`streaming_sensor_prim_path` is set.
+    Concrete visualizer configs declare their default renderer configuration.
+    Its ``class_type`` selects the implementation, including custom renderers.
+    Ignored when :attr:`streaming_sensor_prim_path` is set.
     """
 
     # Shared settings
@@ -184,9 +184,6 @@ class VisualizerCfg:
     tiled_cam_target_prim_path: str | None = None
     """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
 
-    tiled_cam_renderer: str | None = None
-    """Deprecated. Use :attr:`streaming_cam_renderer` instead."""
-
     def __post_init__(self) -> None:
         import warnings
 
@@ -200,7 +197,6 @@ class VisualizerCfg:
             ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
             ("tiled_cam_eye", "streaming_cam_eye"),
             ("tiled_cam_target_prim_path", "streaming_cam_target_prim_path"),
-            ("tiled_cam_renderer", "streaming_cam_renderer"),
         ]
         for old, new in _simple:
             val = getattr(self, old)

@@ -27,13 +27,13 @@ TELEOP_WORKFLOWS = {
 
 
 @pytest.mark.parametrize(("command", "script_parts"), TELEOP_WORKFLOWS.items())
-def test_teleop_workflow_help_exposes_task_preset_selectors(command, script_parts):
+def test_teleop_workflow_help_exposes_task_preset_selectors(source_checkout_root: Path, command, script_parts):
     """Every teleop workflow accepts the task preset selectors documented for teleoperation."""
-    script = cli.ISAACLAB_ROOT.joinpath(*script_parts)
+    script = source_checkout_root.joinpath(*script_parts)
 
     result = subprocess.run(
         [sys.executable, str(script), "--help"],
-        cwd=cli.ISAACLAB_ROOT,
+        cwd=source_checkout_root,
         capture_output=True,
         text=True,
         check=False,

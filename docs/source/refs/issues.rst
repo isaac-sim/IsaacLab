@@ -265,6 +265,6 @@ GLIBCXX errors in conda environments
 
 Some workflows exit with an ``OSError`` indicating ``version 'GLIBCXX_3.4.30' not found``
 when running from a conda environment. The issue appears to stem from importing torch or
-torch-related packages, such as tensorboard, prior to launching ``AppLauncher``. As a
-workaround, ensure that all torch imports happen after the ``AppLauncher`` instance has been
-created, which should resolve the error.
+torch-related packages, such as tensorboard, before Isaac Sim starts. As a workaround, ensure
+that all torch imports happen inside :func:`~isaaclab.app.launch_simulation`, after the runtime has
+started, which should resolve the error.

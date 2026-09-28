@@ -319,7 +319,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
             env_cfg.export_io_descriptors = True
         else:
             logger.warning("IO descriptors are only supported for manager-based RL environments; none are exported.")
-    # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own. Record the
+    # --deterministic is a Kit launcher flag, so it only reaches carb settings on its own. Record the
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
 
@@ -493,7 +493,7 @@ def _renderer_name(env_cfg: Any) -> str | None:
     Only configs whose class declares ``renderer_cfg`` are read. Probing every attribute with
     :func:`getattr` instead would resolve lazily evaluated config values, notably the
     ``ResolvableString`` class handles, which imports Kit modules before
-    :class:`~isaaclab.app.AppLauncher` starts and breaks the Isaac Sim runtime.
+    :class:`~isaaclab_physx.app.KitLauncher` starts and breaks the Isaac Sim runtime.
     """
     for container in (env_cfg, getattr(env_cfg, "scene", None)):
         for value in vars(container).values() if container is not None else ():

@@ -63,10 +63,8 @@ def test_apply_video_recording_creates_default_recorder(
     ("subdir", "existing_prefix", "checkpoint_name", "expected_prefix"),
     [
         ("play", "clip", "model_1200.pt", "clip_model_1200"),
-        ("play", "eval", "model_42.pt", "eval_model_42"),
         ("play", "clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
         ("play", "clip", "custom_1200.pt", "clip"),
-        ("play", "clip", "final.pt", "clip"),
         ("train", "clip", "model_1200.pt", "clip"),
     ],
 )

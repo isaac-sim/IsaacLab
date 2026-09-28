@@ -17,10 +17,10 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 
-from isaaclab.managers import CurriculumTermCfg, ManagerTermBase
+from ...managers import CurriculumTermCfg, ManagerTermBase
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from .. import ManagerBasedRLEnv
 
 
 class modify_reward_weight(ManagerTermBase):
@@ -41,11 +41,9 @@ class modify_reward_weight(ManagerTermBase):
         weight: float,
         num_steps: int,
     ) -> float:
-        # update term settings
         if env.common_step_counter > num_steps:
             self._term_cfg.weight = weight
             env.reward_manager.set_term_cfg(term_name, self._term_cfg)
-
         return self._term_cfg.weight
 
 
@@ -130,11 +128,8 @@ class modify_env_param(ManagerTermBase):
 
     def __init__(self, cfg: CurriculumTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        # resolve term configuration
         if "address" not in cfg.params:
             raise ValueError("The 'address' parameter must be specified in the curriculum term configuration.")
-
-        # store current address
         self._address: str = cfg.params["address"]
         # store accessor functions
         self._get_fn: callable = None
@@ -214,7 +209,7 @@ class modify_env_param(ManagerTermBase):
                 # we are accessing a list element
                 name, idx = container_path
                 # find underlying attribute
-                if isinstance(container_path, dict):
+                if isinstance(container, dict):
                     seq = container[name]  # type: ignore[assignment]
                 else:
                     seq = getattr(container, name)
@@ -227,11 +222,9 @@ class modify_env_param(ManagerTermBase):
                 else:
                     container = getattr(container, container_path)
 
-        # save the container and the last part of the path
         self._container = container
         self._last_path = path_parts[-1]  # for "a.b[2].c", this is "c", while for "a.b[2]" it is 2
 
-        # build the getter and setter
         if isinstance(self._container, tuple):
             get_value = lambda: self._container[self._last_path]  # noqa: E731
 

@@ -40,6 +40,7 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers.base_visualizer import BaseVisualizer
 
+from isaaclab_visualizers.desktop_entry import write_desktop_entry
 from isaaclab_visualizers.newton_adapter import resolve_visible_env_indices
 
 from .kit_visualizer_cfg import KitVisualizerCfg
@@ -57,30 +58,6 @@ _BACKEND_DISPLAY_NAMES = {
     "ovphysx": "OVPhysX",
     "newton": "Newton MJWarp",
 }
-
-
-def _preload_ovrtx_native_deps() -> None:
-    """Pre-load ``libosdCPU.so`` from ``ovstage`` so ``ovrtx.Renderer`` can resolve it.
-
-    ``libovrtx.dylib.so`` depends on ``libosdCPU.so.3.6.0`` which ships in the
-    ``ovstage`` wheel but is not on the system ``LD_LIBRARY_PATH``.  Loading it
-    explicitly via :func:`ctypes.CDLL` places it in the process-wide ``dlopen`` cache
-    so the subsequent ``Renderer()`` instantiation in ``OVRTXRenderer.__init__`` can
-    find it.
-    """
-    import ctypes
-    import importlib.util
-    import pathlib
-
-    spec = importlib.util.find_spec("ovstage")
-    if spec is None:
-        return
-    lib = pathlib.Path(spec.origin).parent / "bin" / "plugins" / "libosdCPU.so.3.6.0"
-    if lib.exists():
-        import contextlib
-
-        with contextlib.suppress(OSError):
-            ctypes.CDLL(str(lib))
 
 
 class KitVisualizer(BaseVisualizer):
@@ -133,13 +110,6 @@ class KitVisualizer(BaseVisualizer):
         # Camera tracking state (replaces ViewportCameraController)
         self._interactive_scene = None  # set from SimulationContext._interactive_scene in initialize()
         self._viewer_origin: torch.Tensor | None = None  # world-space origin offset for eye/lookat
-        if (
-            cfg.streaming_view
-            and get_settings_manager().get("/isaaclab/cameras_enabled", False)
-            and cfg.streaming_sensor_prim_path is None
-            and cfg.streaming_cam_target_prim_path is not None
-        ):
-            SimulationContext.instance().get_or_create_backend(self._resolve_streaming_renderer_cfg())
 
     # ---- Lifecycle ------------------------------------------------------------------------
 
@@ -161,9 +131,7 @@ class KitVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
-        usd_stage = scene_data_provider.usd_stage
-        if usd_stage is None:
-            raise RuntimeError("[KitVisualizer] USD stage not available from scene_data_provider.")
+        usd_stage = SimulationContext.instance().stage
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -199,6 +167,11 @@ class KitVisualizer(BaseVisualizer):
         )
         self._setup_streaming_view(num_envs)
 
+        sim = SimulationContext.instance()
+        from isaaclab_physx.renderers.fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        self._fabric.bind_transforms(scene_data_provider)
         self._is_initialized = True
         self._setup_initial_camera_view()
 
@@ -213,13 +186,14 @@ class KitVisualizer(BaseVisualizer):
         self._app_pumped_this_step = False
         self._sim_time += dt
         self._step_counter += 1
-        # Update dynamic asset tracking before the frame renders.
-        if self.cfg.origin_type == "asset":
-            self._update_asset_tracking_camera()
         # Headless mode: skip the app update and camera panel refresh; rendering is
         # triggered on demand by render_rgb_array() / render_tiled_rgb_array().
         if self._runtime_headless:
             return
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         _externally_paused = self.is_training_paused()
         if not _externally_paused:
             try:
@@ -289,6 +263,10 @@ class KitVisualizer(BaseVisualizer):
         import omni.kit.app
         import omni.replicator.core as rep
 
+        self._fabric.update_transforms(self._scene_data_provider)
+        self._fabric.update_geometries(self._scene_data_provider, SimulationContext.instance().render_generation)
+        if self._runtime_headless and self.cfg.origin_type == "asset":
+            self._update_asset_tracking_camera()
         camera_path = self._controlled_camera_path or "/OmniverseKit_Persp"
         w, h = self.cfg.window_width, self.cfg.window_height
 
@@ -296,7 +274,7 @@ class KitVisualizer(BaseVisualizer):
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
-            self._apply_render_product_background(self._scene_data_provider.usd_stage, self._rgb_render_product.path)
+            self._apply_render_product_background(SimulationContext.instance().stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
         elif self._runtime_headless and self._rgb_render_product is not None:
@@ -417,10 +395,6 @@ class KitVisualizer(BaseVisualizer):
         for source in self._live_plot_sources:
             if isinstance(source, DirectScalarLivePlots):
                 self.kit_manager_visualizers[source.manager_name] = DirectScalarLiveVisualizer(source)
-
-    def requires_forward_before_step(self) -> bool:
-        """OV viewport relies on refreshed kinematic state before render."""
-        return True
 
     def pumps_app_update(self) -> bool:
         """KitVisualizer calls app.update() in step(), so render() should not do it again."""
@@ -602,6 +576,19 @@ class KitVisualizer(BaseVisualizer):
                 Gf.Vec3f(*self.cfg.background_color)
             )
 
+    def _write_desktop_entry(self) -> None:
+        """Write the Linux desktop entry that lets docks show the Kit window's icon."""
+        import carb.tokens
+
+        settings = get_settings_manager()
+        title = settings.get("/app/window/title")
+        version = settings.get("/app/version")
+        icon_path = settings.get("/app/window/iconPath")
+        if title and version and icon_path:
+            # Kit composes the window's WM_CLASS from the app title and version, e.g. "Isaac Lab 3.0.0".
+            icon = carb.tokens.get_tokens_interface().resolve(icon_path)
+            write_desktop_entry("isaaclab", title, f"{title} {version}", icon)
+
     def _setup_viewport(self) -> None:
         """Create/resolve viewport and configure initial camera."""
         if self._runtime_headless:
@@ -617,6 +604,7 @@ class KitVisualizer(BaseVisualizer):
             self._refresh_controlled_camera_path()
             return
 
+        self._write_desktop_entry()
         import omni.kit.viewport.utility as vp_utils
         from omni.ui import DockPosition
 
@@ -670,27 +658,6 @@ class KitVisualizer(BaseVisualizer):
         """Return whether Kit should display a streaming camera image panel."""
         return bool(self.cfg.streaming_view)
 
-    def _resolve_streaming_renderer_cfg(self):
-        """Return a renderer cfg for the auto-created streaming camera.
-
-        Respects :attr:`~VisualizerCfg.streaming_cam_renderer`.  When ``None``,
-        defaults to ``IsaacRtxRendererCfg`` (the Kit-native renderer).
-        """
-        renderer_name = self.cfg.streaming_cam_renderer
-        if renderer_name == "ovrtx":
-            _preload_ovrtx_native_deps()
-            from isaaclab_ov.renderers import OVRTXRendererCfg
-
-            return OVRTXRendererCfg()
-        if renderer_name == "newton_warp":
-            from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-            return NewtonWarpRendererCfg()
-        # Default (None or "isaac_rtx"): use the Kit-native IsaacRtx renderer
-        from isaaclab_physx.renderers import IsaacRtxRendererCfg
-
-        return IsaacRtxRendererCfg()
-
     def _setup_streaming_view(self, num_envs: int) -> None:
         """Resolve or create the Camera sensor backing the streaming image panel."""
         if not self._uses_streaming_view():
@@ -699,7 +666,7 @@ class KitVisualizer(BaseVisualizer):
         if not cameras_enabled:
             logger.info(
                 "[KitVisualizer] Streaming view skipped: camera rendering is not enabled "
-                "(cameras_enabled=False). Construct AppLauncher with enable_cameras=True, "
+                "(cameras_enabled=False). Launch with enable_cameras=True (--enable_cameras), "
                 "or use launch_simulation() which enables cameras automatically when "
                 "streaming_view=True is set on the KitVisualizerCfg."
             )
@@ -761,7 +728,6 @@ class KitVisualizer(BaseVisualizer):
                 tile_w,
                 tile_h,
             )
-            renderer_cfg = self._resolve_streaming_renderer_cfg()
             (
                 self._camera_sensor,
                 self._generated_camera_prim_paths,
@@ -771,7 +737,7 @@ class KitVisualizer(BaseVisualizer):
                 num_envs=num_envs,
                 width=tile_w,
                 height=tile_h,
-                renderer_cfg=renderer_cfg,
+                renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
                 data_types=sensor_keys_for_gt_types(gt_types),
                 streaming_envs=tuple(int(i) for i in env_ids),
             )
@@ -823,7 +789,7 @@ class KitVisualizer(BaseVisualizer):
         if self._camera_sensor is None or not self._camera_is_owned:
             return
         target_positions = prim_world_positions(
-            self._scene_data_provider.get_usd_stage(),
+            SimulationContext.instance().stage,
             self.cfg.streaming_cam_target_prim_path,
             self._camera_env_indices,
             scene=self._scene_data_provider.get_interactive_scene(),
@@ -1023,9 +989,7 @@ class KitVisualizer(BaseVisualizer):
             ``True`` when authored values changed, otherwise ``False``.
         """
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
+        usd_stage = SimulationContext.instance().stage
 
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
@@ -1089,9 +1053,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if self._viewport_api is None:
             return False
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
+        usd_stage = SimulationContext.instance().stage
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             return False
@@ -1125,9 +1087,7 @@ class KitVisualizer(BaseVisualizer):
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
         if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
-        usd_stage = self._scene_data_provider.usd_stage
-        if usd_stage is None:
-            return
+        usd_stage = SimulationContext.instance().stage
         num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
@@ -1176,9 +1136,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return
+        usd_stage = SimulationContext.instance().stage
         for env_path, prev in self._hidden_env_visibilities.items():
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():
@@ -1238,7 +1196,7 @@ class KitVisualizer(BaseVisualizer):
     def _update_asset_tracking_camera(self) -> None:
         """Update the viewport camera to track an asset root or body.
 
-        Called every :meth:`step` when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
+        Called before viewport frames when :attr:`KitVisualizerCfg.origin_type` is ``"asset"``.
         Parses :attr:`~KitVisualizerCfg.origin_track_path`: ``"asset_name"`` tracks the root,
         ``"asset_name/body_name"`` tracks a specific body.
         """

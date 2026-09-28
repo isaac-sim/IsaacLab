@@ -100,30 +100,10 @@ def run_warp_obs(func, env, shape, device=DEVICE, **kwargs):
     return wp.to_torch(out).clone()
 
 
-def run_warp_obs_captured(func, env, shape, device=DEVICE, **kwargs):
-    """Run a warp observation function under CUDA graph capture and return the result."""
-    out = wp.zeros(shape, dtype=wp.float32, device=device)
-    func(env, out, **kwargs)  # warm-up
-    with wp.ScopedCapture() as capture:
-        func(env, out, **kwargs)
-    wp.capture_launch(capture.graph)
-    return wp.to_torch(out).clone()
-
-
 def run_warp_rew(func, env, device=DEVICE, **kwargs):
     """Run a warp reward function and return the result as a torch tensor."""
     out = wp.zeros((NUM_ENVS,), dtype=wp.float32, device=device)
     func(env, out, **kwargs)
-    return wp.to_torch(out).clone()
-
-
-def run_warp_rew_captured(func, env, device=DEVICE, **kwargs):
-    """Run a warp reward function under CUDA graph capture."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.float32, device=device)
-    func(env, out, **kwargs)  # warm-up
-    with wp.ScopedCapture() as capture:
-        func(env, out, **kwargs)
-    wp.capture_launch(capture.graph)
     return wp.to_torch(out).clone()
 
 
@@ -134,12 +114,17 @@ def run_warp_term(func, env, device=DEVICE, **kwargs):
     return wp.to_torch(out).clone()
 
 
-def run_warp_term_captured(func, env, device=DEVICE, **kwargs):
-    """Run a warp termination function under CUDA graph capture."""
-    out = wp.zeros((NUM_ENVS,), dtype=wp.bool, device=device)
-    func(env, out, **kwargs)  # warm-up
+def run_warp_captured_mutated(func, env, mutate, shape=(NUM_ENVS,), dtype=wp.float32, device=DEVICE, **kwargs):
+    """Capture a warp term, overwrite its inputs in place with ``mutate()``, replay, and return the result.
+
+    Replaying against unchanged memory cannot reveal a baked stale pointer or scalar, so callers
+    compare the result against the stable term evaluated on the *mutated* data.
+    """
+    out = wp.zeros(shape, dtype=dtype, device=device)
+    func(env, out, **kwargs)  # warm-up outside the capture
     with wp.ScopedCapture() as capture:
         func(env, out, **kwargs)
+    mutate()
     wp.capture_launch(capture.graph)
     return wp.to_torch(out).clone()
 
@@ -294,10 +279,15 @@ class MockArticulationData:
 
 
 class MockWrenchComposer:
-    """Mock wrench composer with no-op methods."""
+    """Mock wrench composer that records the last forces and torques it was handed."""
 
-    def set_forces_and_torques_mask(self, *a, **kw):
-        pass
+    def __init__(self):
+        self.last_forces = None
+        self.last_torques = None
+
+    def set_forces_and_torques_mask(self, forces=None, torques=None, **kw):
+        self.last_forces = forces
+        self.last_torques = torques
 
 
 class MockArticulation:
@@ -324,14 +314,15 @@ class MockArticulation:
         self.last_vel_target = None
         self.last_effort_target = None
         self.last_joint_mask = None
+        self.last_root_velocity = None
 
     # -- Simulation write stubs (no-op, for event tests) --------------------
 
     def write_root_velocity_to_sim(self, *a, **kw):
         pass
 
-    def write_root_velocity_to_sim_mask(self, *a, **kw):
-        pass
+    def write_root_velocity_to_sim_mask(self, root_velocity=None, **kw):
+        self.last_root_velocity = root_velocity
 
     def write_root_pose_to_sim(self, *a, **kw):
         pass

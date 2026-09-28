@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for viewer env selection (Newton viewers and Kit partial USD visibility)."""
+"""Shared Newton viewer configuration, geometry, and environment selection."""
 
 from __future__ import annotations
 

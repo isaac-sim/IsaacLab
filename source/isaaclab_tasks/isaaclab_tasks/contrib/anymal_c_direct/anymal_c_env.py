@@ -10,6 +10,7 @@ import torch
 import warp as wp
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 
 from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 
@@ -175,8 +176,8 @@ class AnymalCEnv(DirectRLEnv):
         if len(env_ids) == self.num_envs:
             # Spread out the resets to avoid spikes in training when many environments reset at a similar time
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
-        self._actions[env_ids] = 0.0
-        self._previous_actions[env_ids] = 0.0
+        index_fill_(self._actions, env_ids, 0.0)
+        index_fill_(self._previous_actions, env_ids, 0.0)
         # Sample new commands
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         # Reset robot state
@@ -194,7 +195,7 @@ class AnymalCEnv(DirectRLEnv):
         for key in self._episode_sums.keys():
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
             extras["Episode_Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
-            self._episode_sums[key][env_ids] = 0.0
+            index_fill_(self._episode_sums[key], env_ids, 0.0)
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
         extras = dict()
@@ -216,7 +217,7 @@ class AnymalCEnv(DirectRLEnv):
             .mean()
             .item()
         )
-        self._error_xy_sum[env_ids] = 0.0
-        self._error_yaw_sum[env_ids] = 0.0
-        self._step_count[env_ids] = 0.0
+        index_fill_(self._error_xy_sum, env_ids, 0.0)
+        index_fill_(self._error_yaw_sum, env_ids, 0.0)
+        index_fill_(self._step_count, env_ids, 0.0)
         self.extras["log"].update(extras)

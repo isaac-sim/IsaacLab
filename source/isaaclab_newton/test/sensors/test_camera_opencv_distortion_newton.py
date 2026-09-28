@@ -60,9 +60,9 @@ class _DistortionSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Anchor",
         spawn=sim_utils.CuboidCfg(
             size=(0.01, 0.01, 0.01),
-            rigid_props=sim_utils.RigidBodyBaseCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.001),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.001),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             physics_material=RigidBodyMaterialBaseCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -100.0)),
@@ -98,7 +98,32 @@ def _fisheye_distortion(apply_lens_distortion: bool) -> OpenCvFisheyeDistortionC
     )
 
 
-def _expected_pinhole_ground_distance(px: int, py: int) -> float:
+def _invert_monotonic(forward, target: float) -> float:
+    """Bisect ``forward(x) == target`` on ``[0, target]`` for a monotonic map with ``forward(x) >= x``."""
+    lower, upper = 0.0, target
+    for _ in range(64):
+        middle = 0.5 * (lower + upper)
+        if forward(middle) < target:
+            lower = middle
+        else:
+            upper = middle
+    return 0.5 * (lower + upper)
+
+
+def _pinhole_undistorted_radius(radius_d: float) -> float:
+    """Invert the pinhole radial model ``r_d = r_u * (1 + k1 * r_u**2)``."""
+    return _invert_monotonic(lambda r: r * (1.0 + _PINHOLE_K1 * r**2), radius_d)
+
+
+def _fisheye_undistorted_radius(radius_d: float) -> float:
+    """Invert the equidistant model ``theta_d = theta * (1 + k1 theta^2 + k2 theta^4)``; return ``tan(theta)``."""
+    k1, k2 = _FISHEYE_COEFFS["k1"], _FISHEYE_COEFFS["k2"]
+    # k3 = k4 = 0; the map is monotonic over the image's field of view.
+    theta = _invert_monotonic(lambda t: t * (1.0 + k1 * t**2 + k2 * t**4), radius_d)
+    return float(np.tan(theta))
+
+
+def _expected_ground_distance(px: int, py: int, undistorted_radius) -> float:
     """Compute the expected distorted-ray distance to the ground plane [m]."""
     u = px + 0.5
     v = py + 0.5
@@ -107,14 +132,7 @@ def _expected_pinhole_ground_distance(px: int, py: int) -> float:
     radius_d = float(np.hypot(x_d, y_d))
 
     if radius_d > 0.0:
-        lower, upper = 0.0, radius_d
-        for _ in range(64):
-            radius_u = 0.5 * (lower + upper)
-            if radius_u * (1.0 + _PINHOLE_K1 * radius_u**2) < radius_d:
-                lower = radius_u
-            else:
-                upper = radius_u
-        scale = (0.5 * (lower + upper)) / radius_d
+        scale = undistorted_radius(radius_d) / radius_d
         x_u, y_u = x_d * scale, y_d * scale
     else:
         x_u, y_u = 0.0, 0.0
@@ -129,6 +147,7 @@ def _expected_pinhole_ground_distance(px: int, py: int) -> float:
     x_axis /= np.linalg.norm(x_axis)
     y_axis = np.cross(z_axis, x_axis)
     ray_world = np.column_stack((x_axis, y_axis, z_axis)) @ ray_camera
+    assert ray_world[2] < 0.0, "the sampled pixel must look at the ground"
     return float(-eye[2] / ray_world[2])
 
 
@@ -165,31 +184,26 @@ def _mean_abs_distance_diff(a: np.ndarray, b: np.ndarray) -> float:
 
 
 def test_opencv_distortion_changes_newton_render():
-    """The Newton renderer must render the distorted and zero-coefficient cameras meaningfully differently."""
+    """The Newton renderer applies the OpenCV pinhole and fisheye models and honors ``apply_lens_distortion``.
+
+    Both distorted renders are checked against the analytic ground distance of the distorted ray at sample
+    pixels, and differ well beyond render noise from the undistorted pinhole reference.
+    """
     distorted = _render_distance(_pinhole_distortion(True))
     reference = _render_distance(_pinhole_distortion(False))
+    fisheye = _render_distance(_fisheye_distortion(True))
 
-    assert distorted.shape == (HEIGHT, WIDTH, 1)
-    assert np.isfinite(distorted).mean() > 0.9
-    assert np.isfinite(reference).mean() > 0.9
+    for image in (distorted, reference, fisheye):
+        assert image.shape == (HEIGHT, WIDTH, 1)
+        assert np.isfinite(image).mean() > 0.9
     mean_abs_diff = _mean_abs_distance_diff(distorted, reference)
     assert mean_abs_diff > 0.01, f"distorted vs reference distance maps differ by only {mean_abs_diff:.4f} m"
     for px, py in ((0, 0), (WIDTH // 2, HEIGHT // 2), (WIDTH - 1, HEIGHT - 1)):
-        assert distorted[py, px, 0] == pytest.approx(_expected_pinhole_ground_distance(px, py), abs=2e-3)
+        expected = _expected_ground_distance(px, py, _pinhole_undistorted_radius)
+        assert distorted[py, px, 0] == pytest.approx(expected, abs=2e-3)
 
-
-def test_opencv_fisheye_distortion_renders_through_newton():
-    """The Newton renderer honors the OpenCV fisheye model: its render differs meaningfully from the pinhole.
-
-    The same calibrated camera is rendered under the OpenCV fisheye model and under an undistorted
-    pinhole. The fisheye equidistant projection bends the rays, so the two distance maps must differ
-    well beyond render noise.
-    """
-    fisheye = _render_distance(_fisheye_distortion(True))
-    pinhole = _render_distance(_pinhole_distortion(False))
-
-    assert fisheye.shape == (HEIGHT, WIDTH, 1)
-    assert np.isfinite(fisheye).mean() > 0.9
-    assert np.isfinite(pinhole).mean() > 0.9
-    mean_abs_diff = _mean_abs_distance_diff(fisheye, pinhole)
+    mean_abs_diff = _mean_abs_distance_diff(fisheye, reference)
     assert mean_abs_diff > 0.05, f"fisheye vs pinhole distance maps differ by only {mean_abs_diff:.4f} m"
+    for px, py in ((WIDTH // 4, 3 * HEIGHT // 4), (WIDTH // 2, HEIGHT // 2), (WIDTH - 1, HEIGHT - 1)):
+        expected = _expected_ground_distance(px, py, _fisheye_undistorted_radius)
+        assert fisheye[py, px, 0] == pytest.approx(expected, abs=2e-3)

@@ -19,17 +19,6 @@ from isaaclab_contrib.custom_coupling.coupled_mjwarp_vbd_manager import NewtonCo
 from isaaclab_contrib.custom_coupling.newton_manager_cfg import CoupledMJWarpVBDSolverCfg
 
 
-def test_register_builder_attributes_includes_nested_solvers(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The custom coupled manager delegates builder setup to both configured children."""
-    cfg = CoupledMJWarpVBDSolverCfg()
-    monkeypatch.setattr(manager_module.PhysicsManager, "_cfg", SimpleNamespace(solver_cfg=cfg))
-    builder = ModelBuilder()
-
-    NewtonCoupledMJWarpVBDManager._register_builder_attributes(builder)
-
-    assert builder.has_custom_attribute("mujoco:condim")
-
-
 def test_registered_mujoco_solver_imports_mujoco_joint_properties(monkeypatch: pytest.MonkeyPatch) -> None:
     """The coupled manager imports joint properties consumed by its MuJoCo solver."""
     cfg = CoupledMJWarpVBDSolverCfg()
@@ -139,6 +128,9 @@ def test_build_solver_sets_capabilities(monkeypatch: pytest.MonkeyPatch) -> None
 
     NewtonCoupledMJWarpVBDManager._build_solver(MagicMock(), solver_cfg)
 
+    assert manager_module.NewtonManager._solver is manager_module.SolverBase.return_value
+    assert manager_module.NewtonManager._use_single_state is False
+    assert manager_module.NewtonManager._needs_collision_pipeline is True
     assert manager_module.NewtonManager._supports_contact_sensors is False
     assert manager_module.NewtonManager._supports_rigid_body_force_input is True
 
