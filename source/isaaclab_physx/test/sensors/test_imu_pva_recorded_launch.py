@@ -5,9 +5,9 @@
 
 """Tests for cached PhysX views and recorded IMU/PVA updates."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from types import SimpleNamespace
 

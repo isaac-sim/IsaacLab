@@ -7,10 +7,9 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from pathlib import Path
 

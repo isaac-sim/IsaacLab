@@ -8,7 +8,7 @@
 Tests for kernels in ``sensors/ray_caster/kernels.py`` and
 ``utils/warp/kernels.py``.  Exercised directly with hand-crafted warp arrays
 and analytically computed expected outputs.  No simulation, no stage, no
-AppLauncher -- just warp and numpy on CPU (or CUDA when available).
+the Kit launcher -- just warp and numpy on CPU (or CUDA when available).
 
 See ``test_update_ray_caster_kernel.py`` for tests of
 :func:`update_ray_caster_kernel`.

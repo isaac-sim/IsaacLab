@@ -8,14 +8,12 @@
 
 from __future__ import annotations
 
-from isaaclab.app import AppLauncher
-
 # Can set this to False to see the GUI for debugging.
 HEADLESS = True
 
-# Launch omniverse app.
-app_launcher = AppLauncher(headless=HEADLESS)
-simulation_app = app_launcher.app
+from isaaclab.test.utils import launch_test_simulation
+
+launch_test_simulation(headless=HEADLESS)
 
 import importlib
 

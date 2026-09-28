@@ -6,17 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils import instantiate
 
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 # Define a fixture to replace setUpClass
 import pytest

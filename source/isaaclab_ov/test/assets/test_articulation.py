@@ -13,7 +13,7 @@ Mirrors :mod:`isaaclab_physx.test.assets.test_articulation` 1-to-1: same set
 of test functions, names, parametrizations, and assertions.
 
 OVPhysX runs kitless under ``./scripts/run_ovphysx.sh`` so there is no
-``AppLauncher`` boot — :class:`~isaaclab.sim.SimulationContext` is driven
+the Kit launcher boot — :class:`~isaaclab.sim.SimulationContext` is driven
 directly via ``build_simulation_context(sim_cfg=SimulationCfg(physics=OvPhysxCfg(), ...))``
 which works because :func:`isaaclab.app.has_kit` returns False in this
 environment.

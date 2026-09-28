@@ -5,16 +5,10 @@
 
 """Tests for PhysX-dependent cloner utilities."""
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import numpy as np
 import pytest

@@ -6,7 +6,7 @@
 """Unit tests for :func:`update_ray_caster_kernel`.
 
 These tests exercise the kernel directly with hand-crafted warp arrays and
-analytically computed expected outputs.  No simulation, no stage, no AppLauncher
+analytically computed expected outputs.  No simulation, no stage, no the Kit launcher
 — just warp on CPU (or CUDA when available).
 """
 
