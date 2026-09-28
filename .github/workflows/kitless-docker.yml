@@ -50,6 +50,7 @@ jobs:
           ^docker/test/test_container_profiles\.py$ :: Kit-less profile tests
           ^docker/test/test_dockerfile_nonroot\.py$ :: Dockerfile contract tests
           ^docker/test/test_security_dependencies\.py$ :: Container dependency tests
+          ^docker/test/requirements\.txt$ :: Locked container test dependencies
           ^docker/scripts/install_git_lfs\.sh$ :: Verified Git LFS installer
           ^docker/utils/container_interface\.py$ :: Container profile implementation
           ^docker/utils/volume_mounts\.py$ :: Container volume helper
@@ -80,8 +81,12 @@ jobs:
       shell: bash
       run: |
         set -euo pipefail
-        uv run --no-project --no-build --with pytest==9.1.1 --with pyyaml==6.0.3 \
-          python -m pytest -q \
+        contract_env="$(mktemp -d "${RUNNER_TEMP}/isaaclab-contract.XXXXXX")"
+        uv venv --python 3.12 "${contract_env}"
+        uv pip sync --require-hashes --only-binary :all: \
+          --python "${contract_env}/bin/python" docker/test/requirements.txt
+        uv pip check --python "${contract_env}/bin/python"
+        "${contract_env}/bin/python" -m pytest -q \
           docker/test/test_container_profiles.py \
           docker/test/test_dockerfile_nonroot.py \
           docker/test/test_security_dependencies.py

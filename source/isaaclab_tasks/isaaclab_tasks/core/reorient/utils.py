@@ -8,13 +8,20 @@
 The hand-over task also uses these, as it already builds on this package's MDP terms.
 """
 
+from __future__ import annotations
+
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 import torch
 
 import isaaclab.utils.math as math_utils
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_from_angle_axis, quat_mul
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
 
 
 class EpisodeErrorRecorder:
@@ -75,8 +82,8 @@ class EpisodeErrorRecorder:
                 "median": values.median(),
                 "p90": torch.quantile(values, 0.9),
             }
-        self.minimum_error[env_ids] = torch.inf
-        self._has_sample[env_ids] = False
+        index_fill_(self.minimum_error, env_ids, torch.inf)
+        index_fill_(self._has_sample, env_ids, False)
         return statistics
 
 
@@ -185,7 +192,7 @@ class SuccessTracker:
                 the step leaves the task to evaluate the new goal a full step later,
                 where a reach is earned.
         """
-        self._goals_reached[env_ids] = 0.0
+        index_fill_(self._goals_reached, env_ids, 0.0)
         self._skip_update[env_ids] = skip_next_update
 
 
@@ -243,7 +250,7 @@ def randomize_rotation(
 
 
 def resolve_actuated_tendons(
-    hand,
+    hand: Articulation,
     tendon_names: Sequence[str],
     num_envs: int,
     device: str,

@@ -6,6 +6,7 @@
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
@@ -23,6 +24,8 @@ simulation_app = app_launcher.app
 
 import numpy as np
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
@@ -39,13 +42,16 @@ JETBOT_CONFIG = ArticulationCfg(
 DOFBOT_CONFIG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Yahboom/Dofbot/dofbot.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -94,8 +100,8 @@ class NewRobotsSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    Jetbot = JETBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Jetbot")
-    Dofbot = DOFBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Dofbot")
+    Jetbot = replace(JETBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Jetbot")
+    Dofbot = replace(DOFBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Dofbot")
 
 
 def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):

@@ -10,12 +10,23 @@ from __future__ import annotations
 from dataclasses import field
 from typing import TYPE_CHECKING, Any, Literal
 
+import warp as wp
+
+from isaaclab.renderers import RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.renderers import isaac_rtx_per_env_scene_partition_enabled
 
 if TYPE_CHECKING:
     from .isaac_rtx_renderer import IsaacRtxRenderer
+
+
+SIMPLE_SHADING_MODES = {
+    "simple_shading_constant_diffuse": 1,
+    "simple_shading_diffuse_mdl": 2,
+    "simple_shading_full_mdl": 3,
+}
+"""RTX Minimal shading levels keyed by their public camera output names."""
 
 
 @configclass
@@ -199,3 +210,28 @@ class IsaacRtxRendererCfg(RendererCfg):
     - ``"zero"``: Values are clipped to zero.
     - ``"none"``: No clipping is applied. Values will be returned as ``inf``.
     """
+
+    def supported_output_types(self) -> dict[RenderBufferKind, RenderBufferSpec]:
+        """Return the per-output layouts supported by current Isaac RTX releases."""
+
+        def segmentation_spec(colorize: bool) -> RenderBufferSpec:
+            return RenderBufferSpec(4, wp.uint8) if colorize else RenderBufferSpec(1, wp.int32)
+
+        specs = {
+            RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
+            RenderBufferKind.RGB_HDR: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.ALBEDO: RenderBufferSpec(4, wp.uint8),
+            RenderBufferKind.DEPTH: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_IMAGE_PLANE: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.DISTANCE_TO_CAMERA: RenderBufferSpec(1, wp.float32),
+            RenderBufferKind.NORMALS: RenderBufferSpec(3, wp.float32),
+            RenderBufferKind.MOTION_VECTORS: RenderBufferSpec(2, wp.float32),
+            RenderBufferKind.SEMANTIC_SEGMENTATION: segmentation_spec(self.colorize_semantic_segmentation),
+            RenderBufferKind.INSTANCE_SEGMENTATION: segmentation_spec(self.colorize_instance_segmentation),
+            RenderBufferKind.INSTANCE_ID_SEGMENTATION_FAST: segmentation_spec(self.colorize_instance_id_segmentation),
+        }
+        specs.update(
+            {RenderBufferKind(shading_type): RenderBufferSpec(3, wp.uint8) for shading_type in SIMPLE_SHADING_MODES}
+        )
+        return specs

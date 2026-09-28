@@ -30,11 +30,11 @@ from isaaclab.envs.utils.spaces import sample_space, spec_to_gym_space
 from isaaclab.managers import EventManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
+from isaaclab.utils import instantiate, validate
 from isaaclab.utils.noise import NoiseModel
 from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp
 from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # from isaacsim.core.simulation_manager import SimulationManager
@@ -115,7 +115,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 since it configures the simulation context and controls the simulation.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -159,7 +159,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = InteractiveSceneWarp(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
         print("[INFO]: Scene manager: ", self.scene)
@@ -235,11 +235,11 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
-            self._action_noise_model: NoiseModel = self.cfg.action_noise_model.class_type(
+            self._action_noise_model: NoiseModel = instantiate(
                 self.cfg.action_noise_model, num_envs=self.num_envs, device=self.device
             )
         if self.cfg.observation_noise_model:
-            self._observation_noise_model: NoiseModel = self.cfg.observation_noise_model.class_type(
+            self._observation_noise_model: NoiseModel = instantiate(
                 self.cfg.observation_noise_model, num_envs=self.num_envs, device=self.device
             )
 
@@ -726,18 +726,6 @@ class DirectRLEnvWarp(DirectRLEnv):
     """
     Implementation-specific functions.
     """
-
-    def _setup_scene(self):
-        """Setup the scene for the environment.
-
-        This function is responsible for creating the scene objects and setting up the scene for the environment.
-        The scene creation can happen through :class:`isaaclab.scene.InteractiveSceneCfg` or through
-        directly creating the scene objects and registering them with the scene manager.
-
-        We leave the implementation of this function to the derived classes. If the environment does not require
-        any explicit scene setup, the function can be left empty.
-        """
-        pass
 
     @abstractmethod
     def _pre_physics_step(self, actions: wp.array) -> None:

@@ -30,8 +30,10 @@ Example usage:
 
 import argparse
 
-# isaaclab
 from isaaclab.app import AppLauncher
+
+# isaaclab
+from isaaclab.utils import replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="This script shows how to use the terrain importer.")
@@ -100,7 +102,7 @@ def main():
         prim_path="/World/ground",
         max_init_terrain_level=None,
         terrain_type=args_cli.terrain_type,
-        terrain_generator=ROUGH_TERRAINS_CFG.replace(curriculum=True, color_scheme=args_cli.color_scheme),
+        terrain_generator=replace(ROUGH_TERRAINS_CFG, curriculum=True, color_scheme=args_cli.color_scheme),
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Environments/Terrains/rough_plane.usd",
     )
     terrain_importer = TerrainImporter(terrain_importer_cfg)
@@ -127,9 +129,9 @@ def main():
         # Spawn a geom sphere with rigid body properties
         sphere_cfg = sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )
@@ -138,9 +140,9 @@ def main():
         # Spawn a mesh sphere with rigid body properties
         mesh_sphere_cfg = sim_utils.MeshSphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             visual_material=visual_material_cfg,
             physics_material=physics_material_cfg,
         )

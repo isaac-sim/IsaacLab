@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
     group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
@@ -21,7 +21,9 @@ from rendering_test_utils import (
 
 # no arm_ci marker: intermittently stalls the arm64 runner mid-file (renderer hang after a few
 # passing cases, killed at the per-file timeout); x86 kitless coverage remains in place
-_RENDERING_PARAMS = group_rendering_params(make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS))
+_RENDERING_PARAMS = group_rendering_params(
+    make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+)
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()

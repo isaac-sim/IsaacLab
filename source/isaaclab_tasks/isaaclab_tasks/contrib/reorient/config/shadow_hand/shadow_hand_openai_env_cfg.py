@@ -5,6 +5,7 @@
 
 """Direct configuration for the OpenAI Shadow Hand variant, moved unchanged from the core task."""
 
+from isaaclab.sensors import JointWrenchSensorCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
 from isaaclab.utils import configclass
@@ -14,7 +15,10 @@ from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_common import (
     PhysicsCfg,
     ShadowHandRandomizationEventCfg,
 )
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
+from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import (
+    ShadowHandEnvCfg,
+    ShadowHandSceneCfg,
+)
 
 
 @configclass
@@ -27,6 +31,7 @@ class ShadowHandOpenAIEnvCfg(ShadowHandEnvCfg):
     state_space = 187
     asymmetric_obs = True
     obs_type = "openai"
+    scene: ShadowHandSceneCfg = ShadowHandSceneCfg(joint_wrench=JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot"))
 
     # simulation
     sim: SimulationCfg = SimulationCfg(

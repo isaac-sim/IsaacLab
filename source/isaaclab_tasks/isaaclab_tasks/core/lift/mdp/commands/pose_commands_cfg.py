@@ -3,13 +3,17 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the object pose commands of the lift environments."""
+
+from __future__ import annotations
+
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import isaaclab.sim as sim_utils
 from isaaclab.managers import CommandTermCfg
 from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -37,7 +41,7 @@ ALIGN_MARKER_CFG = VisualizationMarkersCfg(
 class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Configuration for uniform pose command generator."""
 
-    class_type: type["ObjectUniformPoseCommand"] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
+    class_type: type[ObjectUniformPoseCommand] | str = "{DIR}.pose_commands:ObjectUniformPoseCommand"
 
     asset_name: str = MISSING
     """Name of the coordinate referencing asset in the environment for which the commands are generated respect to."""
@@ -80,10 +84,14 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     """Command goal position only. Command includes goal quat if False"""
 
     # Pose Markers
-    goal_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/goal_pose")
+    goal_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/goal_pose"
+    )
     """The configuration for the goal pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    curr_pose_visualizer_cfg: VisualizationMarkersCfg = ALIGN_MARKER_CFG.replace(prim_path="/Visuals/Command/body_pose")
+    curr_pose_visualizer_cfg: VisualizationMarkersCfg = replace(
+        ALIGN_MARKER_CFG, prim_path="/Visuals/Command/body_pose"
+    )
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
     success_vis_asset_name: str = MISSING
@@ -100,14 +108,14 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
 class DeformableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for the deformable uniform pose command generator."""
 
-    class_type: type["DeformableUniformPoseCommand"] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
+    class_type: type[DeformableUniformPoseCommand] | str = "{DIR}.pose_commands:DeformableUniformPoseCommand"
 
 
 @configclass
 class CableUniformPoseCommandCfg(ObjectUniformPoseCommandCfg):
     """Configuration for a cable segment uniform pose command generator."""
 
-    class_type: type["CableUniformPoseCommand"] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
+    class_type: type[CableUniformPoseCommand] | str = "{DIR}.pose_commands:CableUniformPoseCommand"
 
     segment_index: int = MISSING
     """Zero-based cable segment index tracked by the command."""

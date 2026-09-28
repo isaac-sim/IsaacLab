@@ -43,6 +43,7 @@ optional arguments:
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import to_dict
 
 # Define collision approximation choices (must be defined before parser)
 _valid_collision_approx = [
@@ -98,14 +99,16 @@ from isaaclab.sim.schemas import schemas_cfg
 from isaaclab.utils.assets import check_file_path
 from isaaclab.utils.dict import print_dict
 
+# Mesh-collision approximation token authored for each collision approximation choice.
+# A triangle-mesh collider uses the "none" token (the mesh itself is the collider).
 collision_approximation_map = {
-    "convexDecomposition": schemas_cfg.ConvexDecompositionPropertiesCfg,
-    "convexHull": schemas_cfg.ConvexHullPropertiesCfg,
-    "triangleMesh": schemas_cfg.TriangleMeshPropertiesCfg,
-    "meshSimplification": schemas_cfg.TriangleMeshSimplificationPropertiesCfg,
-    "sdf": schemas_cfg.SDFMeshPropertiesCfg,
-    "boundingCube": schemas_cfg.BoundingCubePropertiesCfg,
-    "boundingSphere": schemas_cfg.BoundingSpherePropertiesCfg,
+    "convexDecomposition": "convexDecomposition",
+    "convexHull": "convexHull",
+    "triangleMesh": "none",
+    "meshSimplification": "meshSimplification",
+    "sdf": "sdf",
+    "boundingCube": "boundingCube",
+    "boundingSphere": "boundingSphere",
     "none": None,
 }
 
@@ -125,24 +128,28 @@ def main():
 
     # Mass properties
     if args_cli.mass is not None:
-        mass_props = schemas_cfg.MassPropertiesCfg(mass=args_cli.mass)
-        rigid_props = schemas_cfg.RigidBodyPropertiesCfg()
+        mass_props = schemas_cfg.MassCfg(mass=args_cli.mass)
+        rigid_props = schemas_cfg.UsdPhysicsRigidBodyCfg()
     else:
         mass_props = None
         rigid_props = None
 
     # Collision properties
-    collision_props = schemas_cfg.CollisionPropertiesCfg(collision_enabled=args_cli.collision_approximation != "none")
+    collision_props = schemas_cfg.UsdPhysicsCollisionCfg(collision_enabled=args_cli.collision_approximation != "none")
 
     # Create Mesh converter config
-    cfg_class = collision_approximation_map.get(args_cli.collision_approximation)
-    if cfg_class is None and args_cli.collision_approximation != "none":
+    approximation_name = collision_approximation_map.get(args_cli.collision_approximation)
+    if approximation_name is None and args_cli.collision_approximation != "none":
         valid_keys = ", ".join(sorted(collision_approximation_map.keys()))
         raise ValueError(
             f"Invalid collision approximation type '{args_cli.collision_approximation}'. "
             f"Valid options are: {valid_keys}."
         )
-    collision_cfg = cfg_class() if cfg_class is not None else None
+    collision_cfg = (
+        schemas_cfg.UsdPhysicsMeshCollisionCfg(mesh_approximation_name=approximation_name)
+        if approximation_name is not None
+        else None
+    )
 
     mesh_converter_cfg = MeshConverterCfg(
         mass_props=mass_props,
@@ -161,7 +168,7 @@ def main():
     print("-" * 80)
     print(f"Input Mesh file: {mesh_path}")
     print("Mesh importer config:")
-    print_dict(mesh_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(mesh_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

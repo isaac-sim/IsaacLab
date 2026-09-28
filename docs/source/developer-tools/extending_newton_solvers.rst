@@ -91,14 +91,12 @@ class invokes them.
      - Stores the simulation context, reads gravity from the simulation
        configuration, and creates the scene data backend.
      - none
-   * - :meth:`~isaaclab_newton.physics.NewtonManager.create_builder`,
-       :meth:`~isaaclab_newton.physics.NewtonManager.set_builder`, or
-       :meth:`~isaaclab_newton.physics.NewtonManager.instantiate_builder_from_stage`
-     - Creates or imports the ``ModelBuilder``.
+   * - :meth:`~isaaclab_newton.physics.NewtonManager.create_builder` and
+       :meth:`~isaaclab_newton.physics.NewtonManager.set_builder`
+     - The cloner imports declared prototypes, composes worlds, and supplies the completed builder.
      - ``_register_builder_attributes()`` (not called by ``set_builder()``)
    * - :meth:`~isaaclab_newton.physics.NewtonManager.start_simulation`
-     - Finalizes the model, then allocates states, reset masks, and Fabric
-       prims.
+     - Finalizes the model, then allocates states and reset masks.
      - ``_register_builder_attributes()``,
        ``_prepare_builder_for_finalize()``
    * - :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver`

@@ -44,79 +44,25 @@ def sim():
     sim.clear_instance()
 
 
-def test_spawn_disk_light(sim):
-    """Test spawning a disk light source."""
-    cfg = sim_utils.DiskLightCfg(
-        color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100, radius=20.0
-    )
-    prim = cfg.func("/World/disk_light", cfg)
+def test_spawn_lights(sim):
+    """Test spawning each light type through the shared light spawner."""
+    common = dict(color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100)
+    cases = [
+        ("/World/disk_light", sim_utils.DiskLightCfg(**common, radius=20.0), "DiskLight"),
+        ("/World/distant_light", sim_utils.DistantLightCfg(**common, angle=20), "DistantLight"),
+        ("/World/dome_light", sim_utils.DomeLightCfg(**common), "DomeLight"),
+        ("/World/cylinder_light", sim_utils.CylinderLightCfg(**common, radius=20.0), "CylinderLight"),
+        ("/World/sphere_light", sim_utils.SphereLightCfg(**common, radius=20.0), "SphereLight"),
+    ]
+    for prim_path, cfg, type_name in cases:
+        prim = cfg.func(prim_path, cfg)
 
-    # check if the light is spawned
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/disk_light").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "DiskLight"
-    # validate properties on the prim
-    _validate_properties_on_prim(prim, cfg)
-
-
-def test_spawn_distant_light(sim):
-    """Test spawning a distant light."""
-    cfg = sim_utils.DistantLightCfg(
-        color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100, angle=20
-    )
-    prim = cfg.func("/World/distant_light", cfg)
-
-    # check if the light is spawned
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/distant_light").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "DistantLight"
-    # validate properties on the prim
-    _validate_properties_on_prim(prim, cfg)
-
-
-def test_spawn_dome_light(sim):
-    """Test spawning a dome light source."""
-    cfg = sim_utils.DomeLightCfg(
-        color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100
-    )
-    prim = cfg.func("/World/dome_light", cfg)
-
-    # check if the light is spawned
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/dome_light").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "DomeLight"
-    # validate properties on the prim
-    _validate_properties_on_prim(prim, cfg)
-
-
-def test_spawn_cylinder_light(sim):
-    """Test spawning a cylinder light source."""
-    cfg = sim_utils.CylinderLightCfg(
-        color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100, radius=20.0
-    )
-    prim = cfg.func("/World/cylinder_light", cfg)
-
-    # check if the light is spawned
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/cylinder_light").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "CylinderLight"
-    # validate properties on the prim
-    _validate_properties_on_prim(prim, cfg)
-
-
-def test_spawn_sphere_light(sim):
-    """Test spawning a sphere light source."""
-    cfg = sim_utils.SphereLightCfg(
-        color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=100, radius=20.0
-    )
-    prim = cfg.func("/World/sphere_light", cfg)
-
-    # check if the light is spawned
-    assert prim.IsValid()
-    assert sim.stage.GetPrimAtPath("/World/sphere_light").IsValid()
-    assert prim.GetPrimTypeInfo().GetTypeName() == "SphereLight"
-    # validate properties on the prim
-    _validate_properties_on_prim(prim, cfg)
+        # check if the light is spawned
+        assert prim.IsValid()
+        assert sim.stage.GetPrimAtPath(prim_path).IsValid()
+        assert prim.GetPrimTypeInfo().GetTypeName() == type_name
+        # validate properties on the prim
+        _validate_properties_on_prim(prim, cfg)
 
 
 """

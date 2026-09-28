@@ -13,6 +13,7 @@ SEED: int = 42
 random.seed(SEED)
 
 from isaaclab.app import AppLauncher
+from isaaclab.utils import replace
 
 headless = True
 app_launcher = AppLauncher(headless=headless)
@@ -21,13 +22,14 @@ simulation_app: Any = app_launcher.app
 import gymnasium as gym
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.utils.assets as _al_assets
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import Articulation, RigidObjectCfg
 from isaaclab.envs.manager_based_env import ManagerBasedEnv
 from isaaclab.markers import FRAME_MARKER_CFG, VisualizationMarkers
-from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
+from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
 
 ISAAC_NUCLEUS_DIR: str = getattr(_al_assets, "ISAAC_NUCLEUS_DIR", "/Isaac")
@@ -58,7 +60,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
     env_cfg = parse_env_cfg("IsaacContrib-Stack-Cube-Franka", num_envs=1)
 
     # Add a static wall for the robot to avoid
-    wall_props = RigidBodyPropertiesCfg(kinematic_enabled=True, disable_gravity=True)
+    wall_props = [UsdPhysicsRigidBodyCfg(kinematic_enabled=True), PhysxRigidBodyCfg(disable_gravity=True)]
     wall_cfg = RigidObjectCfg(
         prim_path="/World/envs/env_0/moving_wall",
         spawn=UsdFileCfg(
@@ -78,7 +80,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
 
     goal_pose_visualizer = None
     if not headless:
-        goal_marker_cfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/goal_poses")
+        goal_marker_cfg = replace(FRAME_MARKER_CFG, prim_path="/World/Visuals/goal_poses")
         goal_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         goal_pose_visualizer = VisualizationMarkers(goal_marker_cfg)
 

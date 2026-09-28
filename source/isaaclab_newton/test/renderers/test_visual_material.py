@@ -7,6 +7,7 @@
 
 import torch
 import warp as wp
+from isaaclab_newton.physics import NewtonManager
 from isaaclab_newton.renderers.newton_warp_renderer import NewtonWarpRenderer
 from isaaclab_newton.renderers.visual_material import (
     VisualMaterialWriter,
@@ -142,4 +143,4 @@ def test_shape_writer_samples_each_body_and_selected_environment_independently()
 
 def test_newton_renderer_exposes_shared_writer_factory() -> None:
     renderer = object.__new__(NewtonWarpRenderer)
-    assert renderer.visual_material_writer.__func__.__name__ == "create_visual_material_writer"
+    assert renderer.visual_material_writer == NewtonManager.create_visual_material_writer

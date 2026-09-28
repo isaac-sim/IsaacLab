@@ -10,7 +10,7 @@ import torch
 import warp as wp
 
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import AssetBaseCfg
+from isaaclab.assets import Asset, AssetBase
 from isaaclab.sim.views import UsdFrameView
 
 from .occupancy_map_utils import OccupancyMap, intersect_occupancy_maps
@@ -107,8 +107,7 @@ class SceneAsset(HasPose):
     def _get_xform_view(self) -> UsdFrameView:
         """Return the USD transform view for this asset, building it on demand.
 
-        Static scene assets carry no runtime view (``scene[name]`` returns the spawned
-        configuration), so the pose view is created lazily here and cached on this
+        Static scene assets carry no runtime view, so the pose view is created lazily here and cached on this
         wrapper. A cached view created before environment cloning is rebuilt once the
         cloned prims exist.
         """
@@ -118,8 +117,8 @@ class SceneAsset(HasPose):
             self._cached_pose = None
             entity = self.scene[self.entity_name]
             prim_path = (
-                entity.prim_path
-                if isinstance(entity, AssetBaseCfg)
+                entity.cfg.prim_path
+                if isinstance(entity, Asset) and not isinstance(entity, AssetBase)
                 else getattr(entity, "_usd_view", entity)._prim_path
             )
             self._xform_view = UsdFrameView(prim_path, device=self.scene.device)
@@ -146,14 +145,14 @@ class SceneAsset(HasPose):
             writer.set_poses(wp.from_torch(position.contiguous()), wp.from_torch(orientation.contiguous()), None)
         self._cached_pose = pose.detach().clone()
         entity = self.scene[self.entity_name]
-        if isinstance(entity, AssetBaseCfg):
+        if isinstance(entity, Asset) and not isinstance(entity, AssetBase):
             # Static assets have no runtime data object, so keep their config pose aligned.
             pose_cfg = pose[0] if pose.ndim > 1 else pose
             env_origin = self.scene.env_origins[0].to(pose_cfg.device)
             pos = (pose_cfg[:3] - env_origin).detach().cpu().tolist()
             rot = pose_cfg[3:].detach().cpu().tolist()
-            entity.init_state.pos = tuple(float(value) for value in pos)
-            entity.init_state.rot = tuple(float(value) for value in rot)
+            entity.cfg.init_state.pos = tuple(float(value) for value in pos)
+            entity.cfg.init_state.rot = tuple(float(value) for value in rot)
 
 
 class RelativePose(HasPose):

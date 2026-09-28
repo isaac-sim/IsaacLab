@@ -19,6 +19,8 @@ This script shows how to use the multi-mesh ray caster from the Isaac Lab framew
 import argparse
 
 from isaaclab.app import AppLauncher
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.sim import SpawnerCfg
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Ray Caster Test Script")
@@ -76,9 +78,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # -- Balls
     cfg = sim_utils.SphereCfg(
         radius=0.25,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+        mass_props=sim_utils.MassCfg(mass=0.5),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
     )
     cfg.func("/World/envs/env_0/ball", cfg, translation=(0.0, 0.0, 5.0))
@@ -86,9 +88,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     for i in range(args_cli.num_objects):
         object = sim_utils.CuboidCfg(
             size=(0.5 + random.random() * 0.5, 0.5 + random.random() * 0.5, 0.1 + random.random() * 0.05),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(
                 diffuse_color=(0.0 + i / args_cli.num_objects, 0.0, 1.0 - i / args_cli.num_objects)
             ),
@@ -103,16 +105,10 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048):
     # Clone the scene
     envs_prim_paths = [f"/World/envs/env_{i}" for i in range(num_envs)]
     lab_cloner.usd_replicate(sim.stage, [env_fmt.format(0)], [env_fmt], env_ids, positions=env_origins)
-    # Publish a trivial homogeneous ClonePlan so consumers (e.g. multi-mesh ray-caster's
-    # target tracker) can drive per-env work via clone_mask. Mirrors InteractiveScene's
-    # synthesis path for hand-authored scenes that bypass it.
-    sim.set_clone_plan(
-        lab_cloner.ClonePlan(
-            sources=(env_fmt.format(0),),
-            destinations=(env_fmt,),
-            clone_mask=np.ones((1, num_envs), dtype=np.bool_),
-        )
-    )
+    # Publish the manually authored environment declaration for sensor queries.
+    asset = AssetBaseCfg(prim_path=env_fmt.format("[^/]+"), spawn=SpawnerCfg(spawn_path=env_fmt.format(0)))
+    plan = lab_cloner.make_clone_plan((asset,), ((0,),), num_envs, positions=env_origins)
+    sim.set_clone_plan(plan)
     # PhysX-only optimization: filter collisions across env clones. Skip on Newton —
     # PhysxSceneAPI isn't applied there and the cloner helper is PhysX-specific.
     physics_scene_path = next(
@@ -215,7 +211,9 @@ def main():
         # Step simulation
         sim.step()
         # Update the ray-caster
-        with Timer(f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays"):
+        with Timer(
+            f"Ray-caster update with {num_envs} x {ray_caster.num_rays} rays", synchronize="both", device=sim.device
+        ):
             ray_caster.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1

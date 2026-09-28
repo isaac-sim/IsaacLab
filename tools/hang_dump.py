@@ -107,8 +107,10 @@ def register():
     path = dump_path()
     if not path or not is_supported():
         return False
+    # pytest-xdist workers share the controller's dump file, which the controller already truncated.
+    mode = "a" if os.environ.get("PYTEST_XDIST_WORKER") else "w"
     try:
-        _dump_file = open(path, "w")  # noqa: SIM115  (held open for the process lifetime, see above)
+        _dump_file = open(path, mode)  # noqa: SIM115  (held open for the process lifetime, see above)
     except OSError:
         return False
     faulthandler.register(DUMP_SIGNAL, file=_dump_file, all_threads=True, chain=False)

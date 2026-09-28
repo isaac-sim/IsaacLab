@@ -11,10 +11,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from isaaclab.benchmark import formatters
-from isaaclab.benchmark.formatters import get_default_output_filename
-from isaaclab.benchmark.interfaces import MeasurementDataRecorder
-from isaaclab.benchmark.measurements import (
+from ..utils import has_kit
+from . import formatters
+from .formatters import get_default_output_filename
+from .interfaces import MeasurementDataRecorder
+from .measurements import (
     DictMetadata,
     FloatMetadata,
     IntMetadata,
@@ -25,11 +26,11 @@ from isaaclab.benchmark.measurements import (
     StringMetadata,
     TestPhase,
 )
-from isaaclab.benchmark.recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
-from isaaclab.utils import has_kit
+from .recorders import CPUInfoRecorder, GPUInfoRecorder, MemoryInfoRecorder, VersionInfoRecorder
+from .stepping import PHYSICS_PROFILE_SCOPE, RENDER_PROFILE_SCOPE
 
 if TYPE_CHECKING:
-    from isaaclab.benchmark.schema import (
+    from .schema import (
         LearningCurve,
         MeanStd,
         PlayBundle,
@@ -164,8 +165,11 @@ def _curve_measurements(label: str, curve: "LearningCurve", ema_alpha: float) ->
 def _measurements_from_bundle(
     bundle: "RuntimeBundle | TrainingBundle | StartupBundle | PlayBundle",
 ) -> dict[str, list[Measurement]]:
-    """Project a typed bundle into flat phases for non-schema formatters."""
-    from isaaclab.benchmark.schema import PlayBundle, StartupBundle, TrainingBundle
+    """Project a typed bundle into flat phases for non-schema formatters.
+
+    Profiling summaries in ``extra`` describe individual physics or render calls.
+    """
+    from .schema import PlayBundle, StartupBundle, TrainingBundle
 
     if isinstance(bundle, StartupBundle):
         projected: dict[str, list[Measurement]] = {}
@@ -185,6 +189,15 @@ def _measurements_from_bundle(
         return projected
 
     projected = _runtime_measurements(bundle.runtime)
+    extra = bundle.extra or {}
+    for prefix, scope in (("physics", PHYSICS_PROFILE_SCOPE), ("render", RENDER_PROFILE_SCOPE)):
+        for statistic in ("mean", "std", "max"):
+            if (key := f"{prefix}_{statistic}_ms") in extra:
+                projected["runtime"].append(
+                    SingleMeasurement(name=f"{statistic.title()} {scope} Time per Call", value=extra[key], unit="ms")
+                )
+        if (key := f"{prefix}_calls") in extra:
+            projected["runtime"].append(SingleMeasurement(name=f"{scope} Calls", value=extra[key], unit="count"))
     if isinstance(bundle, TrainingBundle):
         train = _curve_measurements("Reward", bundle.learning.reward, bundle.learning.ema_alpha)
         train.extend(_curve_measurements("Episode Length", bundle.learning.ep_length, bundle.learning.ema_alpha))
@@ -274,7 +287,6 @@ class BaseIsaacLabBenchmark:
                     "workflow_metadata provided, but missing expected 'metadata' entry. Metadata will not be read."
                 )
 
-        # Whether to use recorders to collect metrics.
         self._use_recorders = use_recorders
         self._use_frametime_recorders = frametime_recorders
 
@@ -300,7 +312,7 @@ class BaseIsaacLabBenchmark:
             elif self._use_frametime_recorders:
                 try:
                     # Enable the benchmark services extension first
-                    from isaaclab.sim.utils import enable_extension
+                    from ..sim.utils import enable_extension
 
                     enable_extension("isaacsim.benchmark.services")
 
@@ -472,11 +484,9 @@ class BaseIsaacLabBenchmark:
         if self._bundle is None and any(key == "schema" for key, _ in self._metrics):
             raise RuntimeError("The schema formatter requires an attached benchmark bundle.")
 
-        # Stop collecting frametime recorders.
         for recorder in self._frametime_recorders.values():
             recorder.stop_collecting()
 
-        # Add measurements and metadata from recorders to the phases.
         if self._use_recorders:
             for recorder_name, measurement_data in self._manual_recorders.items():
                 data = measurement_data.get_data()

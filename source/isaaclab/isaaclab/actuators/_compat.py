@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.utils.string import _resolve_matching_values_dense
+from ..utils.string import _resolve_matching_values_dense
 
 from .actuator_base_cfg import _is_implicit_actuator_cfg
 
@@ -72,7 +72,7 @@ def _resolve_limit_aliases(
         if warn_deprecated:
             warnings.warn(
                 f"Actuator group '{actuator_name}' uses deprecated '{old_name}'. Use "
-                f"'{new_name}' instead; '{old_name}' will be removed in 4.0.",
+                f"'{new_name}' instead; '{old_name}' will be removed in 3.1.",
                 DeprecationWarning,
                 stacklevel=3,
             )

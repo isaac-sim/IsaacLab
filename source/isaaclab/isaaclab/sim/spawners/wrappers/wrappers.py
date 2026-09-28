@@ -11,7 +11,9 @@ from typing import TYPE_CHECKING
 from pxr import Usd
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.spawners.from_files import UsdFileCfg
+from isaaclab.utils import replace
+
+from ..from_files import UsdFileCfg
 
 if TYPE_CHECKING:
     from . import wrappers_cfg
@@ -75,7 +77,6 @@ def spawn_multi_asset(
     for asset_prim_path, asset_cfg in zip(asset_prim_paths, cfg.assets_cfg):
         if asset_prim_path is None:
             continue
-        # append semantic tags if specified
         if cfg.semantic_tags is not None:
             if asset_cfg.semantic_tags is None:
                 asset_cfg.semantic_tags = cfg.semantic_tags
@@ -147,7 +148,7 @@ def spawn_multi_usd_file(
     # create multi asset configuration of USD files
     multi_asset_cfg = MultiAssetSpawnerCfg(assets_cfg=[], spawn_paths=cfg.spawn_paths)
     for usd_path in usd_paths:
-        usd_cfg = usd_template_cfg.replace(usd_path=usd_path)
+        usd_cfg = replace(usd_template_cfg, usd_path=usd_path)
         multi_asset_cfg.assets_cfg.append(usd_cfg)
 
     # propagate the contact sensor settings

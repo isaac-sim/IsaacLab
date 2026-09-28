@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.locomanip_pick_place import mdp as locomanip_mdp
@@ -279,7 +279,7 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.0, 0.55, -0.3], rot=[0.0, 0.0, 0.0, 1.0]),
         spawn=UsdFileCfg(
             usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/PackingTable/packing_table.usd",
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(kinematic_enabled=True),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
         ),
     )
 
@@ -289,19 +289,20 @@ class LocomanipulationG1SceneCfg(InteractiveSceneCfg):
         spawn=UsdFileCfg(
             usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Mimic/pick_place_task/pick_place_assets/steering_wheel.usd",
             scale=(0.75, 0.75, 0.75),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
         ),
     )
 
     # Humanoid robot w/ arms higher
-    robot: ArticulationCfg = G1_29DOF_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(G1_29DOF_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # Use the calibrated G1 head-camera view shared with IsaacLab-Arena.
-    robot_pov_cam = robot_pov_camera_cfg(
-        parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
-        offset_pos=(0.04485, 0.0, 0.35325),
-        offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
-    ).replace(
+    robot_pov_cam = replace(
+        robot_pov_camera_cfg(
+            parent_prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link",
+            offset_pos=(0.04485, 0.0, 0.35325),
+            offset_rot=(-0.62721, 0.62721, -0.32651, 0.32651),
+        ),
         prim_path="{ENV_REGEX_NS}/Robot/torso_link/head_link/RobotHeadCam",
         height=480,
         width=640,
@@ -388,12 +389,10 @@ class ObservationsCfg:
         )
 
         robot_pov_cam = ObsTerm(
-            func=base_mdp.image,
+            func=base_mdp.image_rgb,
             params={
                 "sensor_cfg": SceneEntityCfg("robot_pov_cam"),
-                "data_type": "rgb",
                 "normalize": False,
-                "clone": False,
             },
         )
 

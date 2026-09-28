@@ -5,7 +5,9 @@
 
 """Tests for selector representations at LEAPP export boundaries."""
 
+from collections.abc import Callable
 from types import SimpleNamespace
+from typing import Any
 
 import pytest
 import torch
@@ -18,7 +20,6 @@ from isaaclab.utils.leapp.leapp_semantics import select_element_names
 
 
 def _make_warp_selector():
-    """Create a CPU Warp selector for a fresh parameterized test case."""
     return wp.array([0, 2], dtype=wp.int32, device="cpu")
 
 
@@ -33,8 +34,10 @@ def _make_warp_selector():
         pytest.param(lambda: None, [0, 1, 2], id="none"),
     ],
 )
-def test_static_action_gains_accept_selector_representations(selector_factory, expected_indices):
-    """Test gain tensors and element names use the same normalized selector."""
+def test_static_action_gains_accept_selector_representations(
+    selector_factory: Callable[[], Any], expected_indices: list[int]
+) -> None:
+    """Gain tensors and element names use the same normalized selector."""
     selector = selector_factory()
     kp_gains = torch.tensor([[10.0, 20.0, 30.0]])
     kd_gains = torch.tensor([[1.0, 2.0, 3.0]])
@@ -56,13 +59,6 @@ def test_static_action_gains_accept_selector_representations(selector_factory, e
     assert torch.equal(outputs_by_name["binary_gripper_kp_gains"].ref, kp_gains[:, expected_indices])
     assert torch.equal(outputs_by_name["binary_gripper_kd_gains"].ref, kd_gains[:, expected_indices])
     expected_names = [[asset.joint_names[index] for index in expected_indices]]
+    assert select_element_names(asset.joint_names, selector) == expected_names[0]
     assert outputs_by_name["binary_gripper_kp_gains"].element_names == expected_names
     assert outputs_by_name["binary_gripper_kd_gains"].element_names == expected_names
-
-
-def test_element_names_accept_warp_selector():
-    """Test LEAPP write semantics resolve names from a Warp selector."""
-    assert select_element_names(["joint_0", "joint_1", "joint_2"], _make_warp_selector()) == [
-        "joint_0",
-        "joint_2",
-    ]

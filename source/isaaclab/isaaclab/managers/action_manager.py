@@ -16,14 +16,14 @@ from typing import TYPE_CHECKING, Any
 import torch
 from prettytable import PrettyTable
 
-from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+from ..envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
+from ..utils import index_fill_, instantiate
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ActionTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.assets import AssetBase
-    from isaaclab.envs import ManagerBasedEnv
+    from ..assets import AssetBase
+    from ..envs import ManagerBasedEnv
 
 
 class ActionTerm(ManagerTermBase):
@@ -97,7 +97,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def IO_descriptor(self) -> GenericActionIODescriptor:
-        """The IO descriptor for the action term."""
+        """The IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         self._IO_descriptor.name = re.sub(r"([a-z])([A-Z])", r"\1_\2", self.__class__.__name__).lower()
         self._IO_descriptor.full_path = f"{self.__class__.__module__}.{self.__class__.__name__}"
         self._IO_descriptor.description = " ".join(self.__class__.__doc__.split())
@@ -106,7 +110,11 @@ class ActionTerm(ManagerTermBase):
 
     @property
     def export_IO_descriptor(self) -> bool:
-        """Whether to export the IO descriptor for the action term."""
+        """Whether to export the IO descriptor for the action term.
+
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+        """
         return self._export_IO_descriptor
 
     """
@@ -276,10 +284,17 @@ class ActionManager(ManagerBase):
     def get_IO_descriptors(self) -> list[dict[str, Any]]:
         """Get the IO descriptors for the action manager.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+
         Returns:
             A dictionary with keys as the term names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors()
 
+    def _collect_io_descriptors(self) -> list[dict[str, Any]]:
+        """Collect IO descriptors without emitting a deprecation warning."""
         data = []
 
         for term_name, term in self._terms.items():
@@ -351,12 +366,9 @@ class ActionManager(ManagerBase):
         Returns:
             An empty dictionary.
         """
-        # resolve environment ids
-        if env_ids is None:
-            env_ids = slice(None)
         # reset the action history
-        self._prev_action[env_ids] = 0.0
-        self._action[env_ids] = 0.0
+        index_fill_(self._prev_action, env_ids, 0.0)
+        index_fill_(self._action, env_ids, 0.0)
         # reset all action terms
         for term in self._terms.values():
             term.reset(env_ids=env_ids)
@@ -420,8 +432,8 @@ class ActionManager(ManagerBase):
 
     def _prepare_terms(self):
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._terms: dict[str, ActionTerm] = dict()
+        self._term_names: list[str] = []
+        self._terms: dict[str, ActionTerm] = {}
 
         # check if config is dict already
         if isinstance(self.cfg, dict):
@@ -440,7 +452,7 @@ class ActionManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")

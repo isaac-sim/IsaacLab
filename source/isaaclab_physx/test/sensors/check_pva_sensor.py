@@ -89,9 +89,9 @@ def design_scene(sim: SimulationContext, num_envs: int = 2048) -> RigidObject:
     cfg = RigidObjectCfg(
         spawn=sim_utils.SphereCfg(
             radius=0.25,
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=0.5),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=0.5),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.0, 0.0, 1.0)),
         ),
         prim_path="{ENV_REGEX_NS}/ball",
@@ -173,7 +173,7 @@ def main():
         # Step simulation
         sim.step()
         # Update the pva sensor
-        with Timer(f"Pva sensor update with {num_envs}"):
+        with Timer(f"Pva sensor update with {num_envs}", synchronize="both", device=sim.device):
             pva.update(dt=sim.get_physics_dt(), force_recompute=True)
         # Update counter
         step_count += 1

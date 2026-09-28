@@ -8,17 +8,46 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import MISSING, field
 from typing import TYPE_CHECKING, Literal
 
 from isaaclab.physics import PhysicsCfg
+from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
 
 from isaaclab_newton.physics.newton_collision_cfg import NewtonCollisionPipelineCfg
 
 if TYPE_CHECKING:
+    from newton import ModelBuilder
+
     from isaaclab_newton.physics import NewtonManager
 
+    from .newton_manager import NewtonBackend
+
 logger = logging.getLogger(__name__)
+
+
+@configclass
+class NewtonBackendCfg(BackendCfg):
+    """Native allocation inputs; the populated builder is borrowed without copying."""
+
+    class_type: type[NewtonBackend] | str = "{DIR}.newton_manager:NewtonBackend"
+    builder: ModelBuilder = field(kw_only=True, metadata={"copy": False})
+    """Populated clone builder. Reusing this builder and matching settings shares one resource."""
+    particle_ranges: dict[str, tuple[int, int]] = field(default_factory=dict)
+    """Imported point paths to native particle offsets and counts, retained until Newton exposes composed ranges."""
+    device: str = MISSING
+    """Allocation device, such as ``cpu`` or ``cuda:0``."""
+    num_envs: int | None = None
+    """Environment count; None uses the finalized model's world count."""
+    gravity: tuple[float, float, float] | None = None
+    """Gravity [m/s^2]; None preserves the builder's authored gravity."""
+    soft_contact_cfg: NewtonSoftContactCfg | None = None
+    """Optional soft-contact settings applied before state allocation."""
+    contact_attributes: tuple[str, ...] = ()
+    """Additional contact attributes requested before state allocation."""
+    simulation: bool = True
+    """Allocate two states and control for physics, or one state for rendering only."""
 
 
 @configclass
@@ -152,6 +181,10 @@ class NewtonCfg(PhysicsCfg):
 
     use_cuda_graph: bool = True
     """Whether to use CUDA graphing when simulating.
+
+    Graphs are captured immediately before the first physics step, after reset and decimation
+    setup. Capture does not advance physics. Kit/RTX uses a nonblocking stream with relaxed
+    capture mode; kitless simulation uses Warp's standard capture mode.
 
     If set to False, the simulation performance will be severely degraded.
     """

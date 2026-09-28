@@ -65,7 +65,7 @@ def run_asset_benchmark_cli(
     )
     parser.add_argument("--no_shape_checks", action="store_true", help="Disable shape and dtype assertions")
     if include_app_launcher_args:
-        from isaaclab.app import AppLauncher
+        from ...app import AppLauncher
 
         AppLauncher.add_app_launcher_args(parser)
     else:

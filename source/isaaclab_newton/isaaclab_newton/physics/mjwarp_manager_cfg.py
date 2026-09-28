@@ -97,6 +97,21 @@ class MJWarpSolverCfg(NewtonSolverCfg):
     which typically occurs with complex collision geometries (e.g. multi-finger hands).
     """
 
+    enable_multiccd: bool = False
+    """Whether to enable multiple-contact convex collision detection. Defaults to False.
+
+    With :attr:`use_mujoco_contacts` enabled, supported convex geometry pairs can generate
+    a contact manifold (several points across a touching surface) instead of a single point.
+    This can improve stability for flat mesh contacts in stacking and grasping. It does not
+    enable continuous collision detection or prevent tunneling between simulation steps.
+
+    MuJoCo Warp's supported pairs and contact-margin restrictions differ from MuJoCo CPU.
+    Primitive colliders can already produce multiple contacts with this option disabled.
+    Additional contacts can increase solver work and the required :attr:`nconmax` and
+    :attr:`njmax` capacities. See MuJoCo's `multiple-contact documentation
+    <https://mujoco.readthedocs.io/en/stable/computation/index.html#multiple-contacts>`__.
+    """
+
     ls_parallel: bool = False
     """Deprecated parallel line search option.
 

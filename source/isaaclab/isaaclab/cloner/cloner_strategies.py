@@ -6,37 +6,28 @@
 import numpy as np
 
 
-def random(combinations: np.ndarray, num_clones: int) -> np.ndarray:
-    """Randomly assign prototypes to environments.
-
-    Each environment is assigned a random prototype combination sampled uniformly from
-    :attr:`combinations`.
+def random(weights: np.ndarray, num_clones: int) -> np.ndarray:
+    """Randomly assign world prototypes according to their weights.
 
     Args:
-        combinations: Array of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations.
+        weights: Relative sampling weights, one per world prototype.
         num_clones: Number of environments to assign combinations to.
 
     Returns:
-        Array of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment.
+        Integer array of shape [num_clones] selecting a world prototype per environment.
     """
-    return combinations[np.random.randint(len(combinations), size=num_clones)]
+    return np.random.choice(len(weights), size=num_clones, p=weights / weights.sum())
 
 
-def sequential(combinations: np.ndarray, num_clones: int) -> np.ndarray:
-    """Deterministically assign prototypes to environments in round-robin fashion.
-
-    Each environment is assigned a prototype combination based on its index modulo the
-    number of available combinations.
+def sequential(weights: np.ndarray, num_clones: int) -> np.ndarray:
+    """Assign contiguous world groups using evenly spaced samples of the weighted distribution.
 
     Args:
-        combinations: Array of shape (num_combos, num_prototypes) containing all possible
-            prototype combinations.
+        weights: Relative sampling weights, one per world prototype.
         num_clones: Number of environments to assign combinations to.
 
     Returns:
-        Array of shape (num_clones, num_prototypes) containing the chosen prototype
-        combination for each environment.
+        Integer array of shape [num_clones] selecting a world prototype per environment.
     """
-    return combinations[np.arange(num_clones) % len(combinations)]
+    samples = (np.arange(num_clones) + 0.5) / max(num_clones, 1)
+    return np.searchsorted(np.cumsum(weights) / weights.sum(), samples, side="right")

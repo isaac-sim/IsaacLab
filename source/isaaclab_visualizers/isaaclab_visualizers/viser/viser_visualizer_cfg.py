@@ -26,6 +26,8 @@ class ViserVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "viser"
     """Type identifier for Viser visualizer."""
 
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
     port: int = 8080
     """Port of the local viser web server."""
 

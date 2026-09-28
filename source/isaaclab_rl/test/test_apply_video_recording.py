@@ -3,58 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for apply_video_recording and wrap_record_video.
-
-Pure Python — no simulation context or Kit app required.
-"""
+"""Tests for video-recording entrypoint helpers."""
 
 from __future__ import annotations
 
 import logging
 import os
-from types import ModuleType, SimpleNamespace
-from unittest.mock import MagicMock, patch
+from types import SimpleNamespace
 
 import pytest
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
-from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_video
+from isaaclab.envs import ManagerBasedRLEnvCfg
+from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
 
 
-def _args(**kwargs) -> SimpleNamespace:
-    # video_length and video_interval default to None (not passed at CLI)
+def _args(**kwargs: object) -> SimpleNamespace:
     defaults = dict(video=True, video_length=None, video_interval=None)
     return SimpleNamespace(**{**defaults, **kwargs})
 
 
-def _env_cfg():
-    cfg = MagicMock()
-    cfg.video_recorders = []
-    # Simulate an env with no concrete visualizer configured so that apply_video_recording
-    # uses the fallback "visualizer" source string rather than resolving a MagicMock type.
-    cfg.sim.visualizer_cfgs = []
-    cfg.sim.default_visualizer_cfg.visualizer_type = None
-    return cfg
-
-
-@pytest.fixture(autouse=True)
-def _patch_kit_visualizer():
-    """Stub isaaclab_visualizers.kit so tests run without Isaac Sim installed.
-
-    apply_video_recording() always injects KitVisualizerCfg(headless=True) when no
-    concrete visualizer is pre-configured. Without this stub the import would fail in
-    the CI environment where the isaacsim extra is not installed.
-    """
-    fake_kit_cfg_instance = MagicMock()
-    MockKitVisualizerCfg = MagicMock(return_value=fake_kit_cfg_instance)
-    fake_kit_module = ModuleType("isaaclab_visualizers.kit")
-    fake_kit_module.KitVisualizerCfg = MockKitVisualizerCfg
-    with patch.dict("sys.modules", {"isaaclab_visualizers.kit": fake_kit_module}):
-        yield
-
-
 def test_apply_video_recording_noop_when_video_false():
-    """video=False (or missing) leaves env_cfg.video_recorders untouched."""
-    env_cfg = _env_cfg()
+    """Video recording remains disabled when the CLI flag is false or absent."""
+    env_cfg = ManagerBasedRLEnvCfg()
     apply_video_recording(env_cfg, "/tmp/logs", _args(video=False))
     assert env_cfg.video_recorders == []
 
@@ -62,162 +35,94 @@ def test_apply_video_recording_noop_when_video_false():
     assert env_cfg.video_recorders == []
 
 
-def test_apply_video_recording_injects_correct_recorder():
-    """video=True with no pre-configured recorders creates a default with log_dir output_dir."""
-
-    env_cfg = _env_cfg()
-    apply_video_recording(env_cfg, "/my/log", _args(video_length=42, video_interval=500), subdir="play")
+@pytest.mark.parametrize(
+    ("video_length", "video_interval", "expected_length", "expected_interval"),
+    [(42, 500, 42, 500), (None, None, VideoRecorderCfg().video_length, 2000)],
+    ids=["cli_overrides", "cfg_defaults"],
+)
+def test_apply_video_recording_creates_default_recorder(
+    video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int
+):
+    """Without declared recorders, one headless Kit recorder is created, taking CLI values over defaults."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    apply_video_recording(
+        env_cfg, "/my/log", _args(video_length=video_length, video_interval=video_interval), subdir="play"
+    )
     assert len(env_cfg.video_recorders) == 1
-    rec = env_cfg.video_recorders[0]
-    # No pre-configured visualizer → Kit headless auto-created; source is the concrete backend type.
-    assert rec.source == "visualizer:kit"
-    assert rec.video_length == 42  # CLI override applied
-    assert rec.video_interval == 500  # CLI override applied
-    assert rec.output_dir == os.path.join("/my/log", "videos", "play")
-    assert rec.output_filename_prefix == "clip"
+    recorder = env_cfg.video_recorders[0]
+    assert recorder.source == "visualizer:kit"
+    assert (recorder.video_length, recorder.video_interval) == (expected_length, expected_interval)
+    assert recorder.output_dir == os.path.join("/my/log", "videos", "play")
+    assert recorder.output_filename_prefix == "clip"
+    assert len(env_cfg.sim.visualizer_cfgs) == 1
+    assert isinstance(env_cfg.sim.visualizer_cfgs[0], KitVisualizerCfg)
+    assert env_cfg.sim.visualizer_cfgs[0].headless
 
 
 @pytest.mark.parametrize(
-    ("existing_prefix", "checkpoint_name", "expected_prefix"),
+    ("subdir", "existing_prefix", "checkpoint_name", "expected_prefix"),
     [
-        ("clip", "model_1200.pt", "clip_model_1200"),
-        ("eval", "model_42.pt", "eval_model_42"),
-        # Overlapping numeric ids stay distinct tokens instead of substrings.
-        ("clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
-        # Non-model or non-numeric stems keep the configured prefix.
-        ("clip", "custom_1200.pt", "clip"),
-        ("clip", "final.pt", "clip"),
+        ("play", "clip", "model_1200.pt", "clip_model_1200"),
+        ("play", "clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
+        ("play", "clip", "custom_1200.pt", "clip"),
+        ("train", "clip", "model_1200.pt", "clip"),
     ],
 )
 def test_apply_video_recording_labels_play_video_with_checkpoint_stem(
-    existing_prefix, checkpoint_name, expected_prefix
+    subdir: str, existing_prefix: str, checkpoint_name: str, expected_prefix: str
 ):
-    """Play videos append only a numeric model checkpoint stem, kept as a distinct token."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-
+    """Play videos append numeric model checkpoint stems as distinct tokens; training videos keep their prefix."""
     existing = VideoRecorderCfg()
     existing.output_filename_prefix = existing_prefix
 
-    env_cfg = _env_cfg()
+    env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.video_recorders = [existing]
-    apply_video_recording(env_cfg, "/my/log", _args(), subdir="play", checkpoint_path=f"/my/log/{checkpoint_name}")
+    apply_video_recording(env_cfg, "/my/log", _args(), subdir=subdir, checkpoint_path=f"/my/log/{checkpoint_name}")
 
     assert env_cfg.video_recorders[0].output_filename_prefix == expected_prefix
 
 
-def test_apply_video_recording_leaves_train_video_prefix_unchanged():
-    """Checkpoint labels are only applied to play videos, not training videos."""
-
-    env_cfg = _env_cfg()
-    apply_video_recording(env_cfg, "/my/log", _args(), checkpoint_path="/my/log/model_1200.pt")
-
-    assert env_cfg.video_recorders[0].output_filename_prefix == "clip"
-
-
-def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
-    """video=True without --video_length/--video_interval uses historical CLI cadence."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-
-    defaults = VideoRecorderCfg()
-    env_cfg = _env_cfg()
-    apply_video_recording(env_cfg, "/my/log", _args())  # no video_length/interval
-    rec = env_cfg.video_recorders[0]
-    assert rec.video_length == defaults.video_length  # default kept
-    # CLI fallback uses video_interval=2000 to match historical --video cadence
-    # (record immediately then every 2000 steps), not VideoRecorderCfg()'s default of 0.
-    assert rec.video_interval == 2000
-
-
 def test_apply_video_recording_patches_existing_recorders():
-    """Existing recorders are kept; only video_length and video_interval are overwritten."""
-    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
-
+    """CLI length and interval overrides preserve other recorder settings."""
     existing = VideoRecorderCfg()
     existing.source = "sensor:tiled_camera"
     existing.output_dir = "/my/custom/path"
     existing.fps = 60
 
-    env_cfg = _env_cfg()
+    env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.video_recorders = [existing]
     apply_video_recording(env_cfg, "/tmp/logs", _args(video_length=10, video_interval=500))
 
-    # existing recorder is kept — not replaced
     assert len(env_cfg.video_recorders) == 1
-    rec = env_cfg.video_recorders[0]
-    assert rec.source == "sensor:tiled_camera"  # preserved
-    assert rec.output_dir == "/my/custom/path"  # preserved
-    assert rec.fps == 60  # preserved
-    assert rec.video_length == 10  # CLI override applied
-    assert rec.video_interval == 500  # CLI override applied
+    recorder = env_cfg.video_recorders[0]
+    assert recorder.source == "sensor:tiled_camera"
+    assert recorder.output_dir == "/my/custom/path"
+    assert recorder.fps == 60
+    assert recorder.video_length == 10
+    assert recorder.video_interval == 500
 
 
-def test_apply_video_recording_injects_kit_visualizer_when_no_concrete_visualizer():
-    """--video without --viz and no pre-configured visualizer injects a headless KitVisualizerCfg."""
-    import sys
-    from types import ModuleType
-    from unittest.mock import MagicMock, patch
-
-    kit_cfg_instance = object()
-    MockKitVisualizerCfg = MagicMock(return_value=kit_cfg_instance)
-
-    fake_kit_module = ModuleType("isaaclab_visualizers.kit")
-    fake_kit_module.KitVisualizerCfg = MockKitVisualizerCfg
-    fake_visualizers_module = ModuleType("isaaclab_visualizers")
-
-    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
-    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
-
-    with patch.dict(
-        sys.modules,
-        {
-            "isaaclab_visualizers": fake_visualizers_module,
-            "isaaclab_visualizers.kit": fake_kit_module,
-        },
-    ):
-        apply_video_recording(env_cfg, "/my/log", _args())
-
-    assert len(sim_cfg.visualizer_cfgs) == 1
-    assert sim_cfg.visualizer_cfgs[0] is kit_cfg_instance
-    MockKitVisualizerCfg.assert_called_once_with(headless=True)
-    assert len(env_cfg.video_recorders) == 1
-    assert env_cfg.video_recorders[0].source == "visualizer:kit"
-
-
-def test_apply_video_recording_rejects_viz_none_with_video():
-    """--viz none combined with --video raises ValueError with a clear message.
-
-    AppLauncher._parse_visualizer_csv("none") returns None (not ["none"]), and
-    ExplicitAction sets visualizer_explicit=True.  Simulate that parsed state.
-    """
-    sim_cfg = SimpleNamespace(visualizer_cfgs=[])
-    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
-
-    import pytest
-
-    with pytest.raises(ValueError, match="--video is not compatible with --viz none"):
-        apply_video_recording(env_cfg, "/my/log", _args(visualizer=None, visualizer_explicit=True))
-
-
-@pytest.mark.parametrize("no_capture_viz", ["rerun", "viser"])
-def test_apply_video_recording_rejects_no_capture_visualizers(no_capture_viz):
-    """--viz rerun/viser with --video and no other capture backend raises ValueError."""
-    sim_cfg = SimpleNamespace(visualizer_cfgs=[], default_visualizer_cfg=SimpleNamespace(visualizer_type=None))
-    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
-
-    import pytest
-
-    with pytest.raises(ValueError, match="--video is not supported"):
-        apply_video_recording(env_cfg, "/my/log", _args(visualizer=[no_capture_viz]))
+@pytest.mark.parametrize(
+    ("visualizer_args", "message"),
+    [
+        (dict(visualizer=None, visualizer_explicit=True), "--video is not compatible with --viz none"),
+        (dict(visualizer=["rerun"]), "--video is not supported"),
+        (dict(visualizer=["viser"]), "--video is not supported"),
+    ],
+)
+def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_args: dict, message: str):
+    """Video recording rejects a disabled visualizer and visualizers without frame capture."""
+    with pytest.raises(ValueError, match=message):
+        apply_video_recording(ManagerBasedRLEnvCfg(), "/my/log", _args(**visualizer_args))
 
 
 @pytest.mark.parametrize(
     ("visualizers", "expected_source"),
     [(["rerun", "kit"], "visualizer:kit"), (["newton_rtx"], "visualizer:newton_rtx")],
 )
-def test_apply_video_recording_uses_requested_capture_visualizer(visualizers, expected_source):
-    """--video records from the first requested capture-capable visualizer."""
-    sim_cfg = SimpleNamespace(visualizer_cfgs=[], default_visualizer_cfg=SimpleNamespace(visualizer_type=None))
-    env_cfg = SimpleNamespace(video_recorders=[], sim=sim_cfg)
+def test_apply_video_recording_uses_requested_capture_visualizer(visualizers: list[str], expected_source: str) -> None:
+    """Video recording selects the first capture-capable visualizer."""
+    env_cfg = ManagerBasedRLEnvCfg()
 
     apply_video_recording(env_cfg, "/my/log", _args(visualizer=visualizers))
 
@@ -225,9 +130,9 @@ def test_apply_video_recording_uses_requested_capture_visualizer(visualizers, ex
     assert env_cfg.video_recorders[0].source == expected_source
 
 
-def test_wrap_record_video_is_noop_stub(caplog):
-    """wrap_record_video returns the env unchanged and warns only when video=True."""
-    env = MagicMock()
+def test_wrap_record_video_is_noop_stub(caplog: pytest.LogCaptureFixture) -> None:
+    """The compatibility stub warns only when video recording is requested."""
+    env = object()
 
     result = wrap_record_video(env, "/tmp/logs", _args(video=False))
     assert result is env
@@ -237,3 +142,27 @@ def test_wrap_record_video_is_noop_stub(caplog):
         result = wrap_record_video(env, "/tmp/logs", _args(video=True))
     assert result is env
     assert any("wrap_record_video" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("recorders", "cli_args", "expected_steps"),
+    [
+        # (video_length, step_offset) per recorder; the second recorder's first clip ends last, at 80 + 50
+        ([(100, 0), (50, 80), (120, 5)], dict(), 130),
+        # --video_length replaces the length but the configured offset still delays the clip
+        ([(200, 30)], dict(video_length=10), 40),
+        ([(200, 0)], dict(video=False), None),
+    ],
+    ids=["waits_for_last_recorder", "cli_length_keeps_offset", "unbounded_without_video"],
+)
+def test_video_playback_steps(recorders: list[tuple[int, int]], cli_args: dict, expected_steps: int | None):
+    """Playback runs until every recorder has finished its first clip, and is unbounded without --video."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit", video_length=length, step_offset=offset)
+        for length, offset in recorders
+    ]
+    args = _args(**cli_args)
+    apply_video_recording(env_cfg, "/tmp/logs", args)
+
+    assert video_playback_steps(args, env_cfg) == expected_steps

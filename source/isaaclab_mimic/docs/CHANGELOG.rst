@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+2.0.10 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision obstacle poses for robots away from the world origin.
+
+
+2.0.9 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the locomanipulation SDG scene configurations to author rigid-body properties with
+  :class:`~isaaclab.sim.schemas.UsdPhysicsRigidBodyCfg` instead of the deprecated
+  :class:`~isaaclab_physx.sim.schemas.RigidBodyPropertiesCfg`. The authored USD attributes are
+  unchanged.
+
+
 2.0.8 (2026-09-12)
 ~~~~~~~~~~~~~~~~~~
 

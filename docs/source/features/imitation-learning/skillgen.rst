@@ -44,51 +44,78 @@ Follow :ref:`installation-method-python-env` in the official Isaac Sim and Isaac
 Step 2: Install cuRobo
 ^^^^^^^^^^^^^^^^^^^^^^
 
-cuRobo provides the motion planning capabilities for SkillGen. It is compiled from source against Isaac Lab's PyTorch, which requires a CUDA 12.8 toolkit (``nvcc``) at build time only — Isaac Sim, Isaac Lab, and the compiled cuRobo need just the NVIDIA driver at runtime.
+cuRobo provides the motion planning capabilities for SkillGen. Compile it with the CUDA 13.0 toolkit
+(``nvcc``) to match Isaac Lab's PyTorch build. The toolkit is needed at build time; PyTorch and Isaac Sim
+supply their runtime libraries. Select the compiler through ``CUDA_HOME`` and ``PATH`` without adding
+toolkit libraries to ``LD_LIBRARY_PATH``.
+
+Install the host compiler and Git on Ubuntu x86_64:
+
+.. code:: bash
+
+   sudo apt-get update
+   sudo apt-get install -y build-essential git
+
+PyTorch 2.12 builds extensions as C++20. The commands below remove cuRobo's conflicting scalar ``lerp``
+overload while preserving its vector overloads, matching the cuRobo Docker image.
 
 .. tab-set::
 
    .. tab-item:: uv
 
-      The uv-based Isaac Lab installation does not include a CUDA toolkit. Install CUDA 12.8 from the NVIDIA repository (installs the compiler only, does not modify the driver; replace ``ubuntu2404`` with ``ubuntu2204`` on Ubuntu 22.04):
+      Install CUDA 13.0 from the NVIDIA repository (the toolkit package leaves the driver unchanged;
+      replace ``ubuntu2404`` with ``ubuntu2204`` on Ubuntu 22.04):
 
       .. code:: bash
 
          wget https://developer.download.nvidia.com/compute/cuda/repos/ubuntu2404/x86_64/cuda-keyring_1.1-1_all.deb
          sudo dpkg -i cuda-keyring_1.1-1_all.deb
          sudo apt-get update
-         sudo apt-get -y install cuda-toolkit-12-8
+         sudo apt-get -y install cuda-toolkit-13-0
 
       Then build and install cuRobo into the Isaac Lab environment. Run this from the root of your Isaac Lab repository. The ``uv sync`` step creates the project's virtual environment (``.venv``) if it does not already exist and makes PyTorch available for the build; the cuRobo repository is cloned first because ``uv pip`` does not support editable installs from Git URLs:
 
       .. code:: bash
 
          uv sync && \
-         export CUDA_HOME=/usr/local/cuda-12.8 && \
+         uv pip install setuptools wheel && \
+         export CUDA_HOME=/usr/local/cuda-13.0 && \
          export PATH="$CUDA_HOME/bin:$PATH" && \
-         export LD_LIBRARY_PATH="$CUDA_HOME/lib64:$LD_LIBRARY_PATH" && \
          export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
          git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
          git -C src/nvidia-curobo checkout ebb71702f3f70e767f40fd8e050674af0288abe8 && \
+         test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
+            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
+         sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
+            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h && \
          uv pip install -e ./src/nvidia-curobo --no-build-isolation
 
    .. tab-item:: conda
 
       .. code:: bash
 
-         # One line installation of cuRobo (formatted for readability)
-         conda install -c nvidia cuda-toolkit=12.8 -y && \
+         conda install -c nvidia cuda-toolkit=13.0 -y && \
+         python -m pip install setuptools wheel && \
          export CUDA_HOME="$CONDA_PREFIX" && \
          export PATH="$CUDA_HOME/bin:$PATH" && \
-         export LD_LIBRARY_PATH="$CUDA_HOME/lib:$LD_LIBRARY_PATH" && \
          export TORCH_CUDA_ARCH_LIST="8.0+PTX" && \
          export CC=/usr/bin/gcc CXX=/usr/bin/g++ CUDAHOSTCXX=/usr/bin/g++ && \
-         pip install -e "git+https://github.com/NVlabs/curobo.git@ebb71702f3f70e767f40fd8e050674af0288abe8#egg=nvidia-curobo" --no-build-isolation
+         git clone https://github.com/NVlabs/curobo.git src/nvidia-curobo && \
+         git -C src/nvidia-curobo checkout ebb71702f3f70e767f40fd8e050674af0288abe8 && \
+         test "$(grep -c '^inline __device__ __host__ float lerp(float a, float b, float t)$' \
+            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h)" -eq 1 && \
+         sed -i '/^inline __device__ __host__ float lerp(float a, float b, float t)$/,+3d' \
+            src/nvidia-curobo/src/curobo/curobolib/cpp/helper_math.h && \
+         python -m pip install -e ./src/nvidia-curobo --no-build-isolation
 
 .. note::
    * The commit hash ``ebb71702f3f70e767f40fd8e050674af0288abe8`` is tested with Isaac Lab - using other versions may cause compatibility issues. This commit has the support for quad face mesh triangulation, required for cuRobo to parse usds as collision objects.
 
-   * CUDA 12.8's ``nvcc`` requires a host compiler older than GCC 14. The default system GCC on supported Ubuntu versions (GCC 11 on 22.04, GCC 13 on 24.04) is compatible. In the conda flow, the ``CC``/``CXX``/``CUDAHOSTCXX`` exports are required because installing ``cuda-toolkit`` through Conda also pulls a Conda GCC toolchain (currently GCC 14) into the environment, which would otherwise be used and fail the build.
+   * Use GCC 10–15 for CUDA 13.0 C++20 compilation, as specified by NVIDIA's `host compiler support policy
+     <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#host-compiler-support-policy>`__
+     and `C++ dialect requirements
+     <https://docs.nvidia.com/cuda/archive/13.0.0/cuda-installation-guide-linux/index.html#supported-c-dialects>`__.
+     The system GCC on Ubuntu 22.04 and 24.04 is compatible. The conda commands explicitly select the system compiler.
 
    * cuRobo is installed from source and is editable installed. This means that the cuRobo source code will be cloned in the current directory under ``src/nvidia-curobo``. Users can choose their working directory to install cuRobo.
 

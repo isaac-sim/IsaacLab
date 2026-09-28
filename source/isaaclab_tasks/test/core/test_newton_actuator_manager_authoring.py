@@ -15,8 +15,6 @@ from isaaclab.app import AppLauncher
 
 simulation_app = AppLauncher(headless=True).app
 
-import unittest  # noqa: E402
-
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # noqa: E402
 from isaaclab_newton.physics import NewtonManager as SimulationManager  # noqa: E402
 
@@ -40,47 +38,32 @@ _NEWTON_CFG = NewtonCfg(
 )
 
 
-class TestManagerBasedSceneNewtonActuatorAuthoring(unittest.TestCase):
-    """Regression test for Newton actuator authoring in manager-based clone paths."""
-
-    def test_newton_actuators_present_for_g1_manager_env(self):
-        env_cfg = G1FlatEnvCfg()
-        env_cfg.scene.num_envs = 1
-        env_cfg.decimation = 1
-        env_cfg.scene.contact_forces = None
-        env_cfg.rewards.feet_air_time = None
-        env_cfg.rewards.feet_slide = None
-        env_cfg.terminations.base_contact = None
-        env_cfg.sim = SimulationCfg(physics=_NEWTON_CFG, use_newton_actuators=True)
-        # A single explicit group covering all joints is enough to exercise the
-        # NewtonActuator authoring clone path; the group count is not the point.
-        env_cfg.scene.robot.actuators = {
-            "all": DCMotorCfg(
-                joint_names_expr=[".*"],
-                saturation_effort=300.0,
-                actuator_effort_limit=300.0,
-                actuator_velocity_limit=20.0,
-                stiffness=150.0,
-                damping=5.0,
-            ),
-        }
-        env = ManagerBasedRLEnv(cfg=env_cfg)
-        try:
-            stage = env.unwrapped.sim.stage
-            actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
-            self.assertGreater(
-                actuator_prim_count,
-                0,
-                "Expected authored NewtonActuator prims in manager-based scene workflow.",
-            )
-            self.assertGreater(
-                len(SimulationManager.get_model().actuators),
-                0,
-                "Expected Newton model actuators to be non-empty with use_newton_actuators=True.",
-            )
-        finally:
-            env.close()
-
-
-if __name__ == "__main__":
-    unittest.main()
+def test_newton_actuators_present_for_g1_manager_env():
+    """Explicit actuator groups must author NewtonActuator prims and populate the Newton model."""
+    env_cfg = G1FlatEnvCfg()
+    env_cfg.scene.num_envs = 1
+    env_cfg.decimation = 1
+    env_cfg.scene.contact_forces = None
+    env_cfg.rewards.feet_air_time = None
+    env_cfg.rewards.feet_slide = None
+    env_cfg.terminations.base_contact = None
+    env_cfg.sim = SimulationCfg(physics=_NEWTON_CFG, use_newton_actuators=True)
+    # a single explicit group covering all joints is enough to exercise the authoring clone path
+    env_cfg.scene.robot.actuators = {
+        "all": DCMotorCfg(
+            joint_names_expr=[".*"],
+            saturation_effort=300.0,
+            actuator_effort_limit=300.0,
+            actuator_velocity_limit=20.0,
+            stiffness=150.0,
+            damping=5.0,
+        ),
+    }
+    env = ManagerBasedRLEnv(cfg=env_cfg)
+    try:
+        stage = env.unwrapped.sim.stage
+        actuator_prim_count = sum(1 for prim in stage.Traverse() if prim.GetTypeName() == "NewtonActuator")
+        assert actuator_prim_count > 0, "Expected authored NewtonActuator prims in the manager-based scene."
+        assert len(SimulationManager.get_model().actuators) > 0, "Expected Newton model actuators to be non-empty."
+    finally:
+        env.close()

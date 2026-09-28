@@ -63,13 +63,13 @@ To set the environment variables, one can use the following command in the termi
 
          export LIVESTREAM=2
          # run the python script
-         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
       Alternatively, set the environment variable inline for a single invocation:
 
       .. code-block:: bash
 
-         LIVESTREAM=2 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         LIVESTREAM=2 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
    .. tab-item:: :icon:`fa-brands fa-linux` Linux aarch64 (DGX Spark)
       :sync: linux-aarch64
@@ -78,13 +78,13 @@ To set the environment variables, one can use the following command in the termi
 
          export LIVESTREAM=2
          # run the python script
-         LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
       Alternatively, set the environment variable inline for a single invocation:
 
       .. code-block:: bash
 
-         LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         LIVESTREAM=2 LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1 uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
       .. note::
 
@@ -106,14 +106,14 @@ To set the environment variables, one can use the following command in the termi
       .. code-block:: batch
 
          set LIVESTREAM=2
-         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
       In PowerShell:
 
       .. code-block:: powershell
 
          $env:LIVESTREAM = "2"
-         uv run --extra isaacsim python scripts/demos/quadrupeds.py
+         uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit
 
       .. note::
 
