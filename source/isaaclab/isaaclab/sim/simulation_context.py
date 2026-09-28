@@ -6,8 +6,10 @@
 from __future__ import annotations
 
 import gc
+import importlib
 import logging
 import traceback
+import warnings
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import fields
@@ -254,7 +256,7 @@ class SimulationContext:
         self._is_playing = False
         self._is_stopped = True
 
-        # Monotonic physics-step counter used by camera sensors for
+        # Monotonic physics-step counter used by camera sensors for data freshness checks.
         self._physics_step_count: int = 0
         # Monotonic render-generation counter. This increments whenever render()
         # is executed and lets downstream camera freshness logic distinguish
@@ -409,8 +411,6 @@ class SimulationContext:
         Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
         so dependencies for other backends are not imported.
         """
-        import importlib
-
         default_configs = []
         cfg_class_names = {
             "kit": "KitVisualizerCfg",
@@ -426,8 +426,6 @@ class SimulationContext:
                 # Resolve deprecated aliases before lookup.
                 if viz_type in _VISUALIZER_ALIASES:
                     canonical = _VISUALIZER_ALIASES[viz_type]
-                    import warnings
-
                     warnings.warn(
                         f"Visualizer type '{viz_type}' is deprecated. Use '{canonical}' instead.",
                         DeprecationWarning,
@@ -523,19 +521,24 @@ class SimulationContext:
         """Return ``True`` when CLI requested ``--viz none`` semantics."""
         return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
 
+    def _configured_visualizer_cfgs(self) -> list[Any]:
+        """Return ``cfg.visualizer_cfgs`` normalized to a list."""
+        visualizer_cfgs = self.cfg.visualizer_cfgs
+        if visualizer_cfgs is None:
+            return []
+        if not isinstance(visualizer_cfgs, list):
+            return [visualizer_cfgs]
+        return visualizer_cfgs
+
     def resolve_visualizer_types(self) -> list[str]:
         """Resolve visualizer types from config or CLI settings."""
         if self._is_cli_visualizer_disable_all():
             return []
         if self._is_cli_visualizer_explicit():
             return self._get_cli_visualizer_types()
-
-        visualizer_cfgs = self.cfg.visualizer_cfgs
-        if visualizer_cfgs is None:
-            return []
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
-        return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+        return [
+            cfg.visualizer_type for cfg in self._configured_visualizer_cfgs() if getattr(cfg, "visualizer_type", None)
+        ]
 
     def _has_continuous_visualizers(self) -> bool:
         """Return whether the resolved visualizers require per-step updates."""
@@ -543,12 +546,7 @@ class SimulationContext:
         if not visualizer_types:
             return False
 
-        visualizer_cfgs = self.cfg.visualizer_cfgs
-        if visualizer_cfgs is None:
-            visualizer_cfgs = []
-        elif not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
-
+        visualizer_cfgs = self._configured_visualizer_cfgs()
         if self._is_cli_visualizer_explicit():
             for visualizer_type in visualizer_types:
                 matching_cfgs = [
@@ -569,12 +567,7 @@ class SimulationContext:
         a :class:`RuntimeError` is raised if any requested type cannot be
         resolved (unknown type or missing package).
         """
-        visualizer_cfgs: list[Any] = []
-        if self.cfg.visualizer_cfgs is not None:
-            visualizer_cfgs = (
-                self.cfg.visualizer_cfgs if isinstance(self.cfg.visualizer_cfgs, list) else [self.cfg.visualizer_cfgs]
-            )
-
+        visualizer_cfgs = self._configured_visualizer_cfgs()
         cli_requested = self._get_cli_visualizer_types()
         cli_explicit = self._is_cli_visualizer_explicit()
         cli_disable_all = self._is_cli_visualizer_disable_all()
@@ -634,11 +627,8 @@ class SimulationContext:
             has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
             if not has_kit:
                 try:
-                    import importlib
-
                     mod = importlib.import_module("isaaclab_visualizers.kit")
-                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
-                    resolved.append(kit_cfg_cls())
+                    resolved.append(mod.KitVisualizerCfg())
                     logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
                 except (ImportError, ModuleNotFoundError, AttributeError) as exc:
                     logger.warning(
@@ -677,6 +667,7 @@ class SimulationContext:
             self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
+        """Return the scene data provider shared by visualizers and renderers."""
         return self._scene_data_provider
 
     def register_interactive_scene(self, scene) -> None:
@@ -856,10 +847,8 @@ class SimulationContext:
                 if skip_app_pumping and viz.pumps_app_update():
                     continue
                 if viz.is_closed or not viz.is_running():
-                    if viz.is_closed:
-                        logger.info("Visualizer closed: %s", type(viz).__name__)
-                    else:
-                        logger.info("Visualizer not running: %s", type(viz).__name__)
+                    state = "closed" if viz.is_closed else "not running"
+                    logger.info("Visualizer %s: %s", state, type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
@@ -1067,12 +1056,7 @@ class SimulationContext:
             return
 
         def _predicate(prim: Usd.Prim) -> bool:
-            path = prim.GetPath().pathString
-            if path == "/World":
-                return False
-            if prim.GetTypeName() == "PhysicsScene":
-                return False
-            return True
+            return prim.GetPath().pathString != "/World" and prim.GetTypeName() != "PhysicsScene"
 
         sim_utils.clear_stage(predicate=_predicate)
 

@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 import numpy as np
 import torch
@@ -294,9 +295,9 @@ class UsdFrameView(BaseFrameView):
                 else:
                     parent_scale = Gf.Vec3d(1.0, 1.0, 1.0)
                 local_scale = Gf.Vec3d(
-                    float(scales_np[idx][0] / parent_scale[0]),
-                    float(scales_np[idx][1] / parent_scale[1]),
-                    float(scales_np[idx][2] / parent_scale[2]),
+                    float(scales_np[idx, 0] / parent_scale[0]),
+                    float(scales_np[idx, 1] / parent_scale[1]),
+                    float(scales_np[idx, 2] / parent_scale[2]),
                 )
                 prim.GetAttribute("xformOp:scale").Set(local_scale)
 
@@ -305,50 +306,21 @@ class UsdFrameView(BaseFrameView):
     # ------------------------------------------------------------------
 
     def _get_world_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        indices_list = self._resolve_indices(indices)
-
-        positions = Vt.Vec3dArray(len(indices_list))
-        orientations = Vt.QuatdArray(len(indices_list))
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
-        for idx, prim_idx in enumerate(indices_list):
-            prim = self._prims[prim_idx]
-            prim_tf = xform_cache.GetLocalToWorldTransform(prim)
-            prim_tf.Orthonormalize()
-            positions[idx] = prim_tf.ExtractTranslation()
-            orientations[idx] = prim_tf.ExtractRotationQuat()
-
-        pos_wp = wp.array(np.array(positions, dtype=np.float32), dtype=wp.float32, device=self._device)
-        quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return ProxyArray(pos_wp), ProxyArray(quat_wp)
+        return self._poses_from_transforms(indices, xform_cache.GetLocalToWorldTransform)
 
     def _get_local_poses_impl(self, indices: wp.array | None = None) -> tuple[ProxyArray, ProxyArray]:
-        indices_list = self._resolve_indices(indices)
-
-        translations = Vt.Vec3dArray(len(indices_list))
-        orientations = Vt.QuatdArray(len(indices_list))
         xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
-        for idx, prim_idx in enumerate(indices_list):
-            prim = self._prims[prim_idx]
-            prim_tf = xform_cache.GetLocalTransformation(prim)[0]
-            prim_tf.Orthonormalize()
-            translations[idx] = prim_tf.ExtractTranslation()
-            orientations[idx] = prim_tf.ExtractRotationQuat()
-
-        pos_wp = wp.array(np.array(translations, dtype=np.float32), dtype=wp.float32, device=self._device)
-        quat_wp = wp.array(np.array(orientations, dtype=np.float32), dtype=wp.float32, device=self._device)
-        return ProxyArray(pos_wp), ProxyArray(quat_wp)
+        return self._poses_from_transforms(indices, lambda prim: xform_cache.GetLocalTransformation(prim)[0])
 
     def _get_local_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         indices_list = self._resolve_indices(indices)
 
         scales = Vt.Vec3dArray(len(indices_list))
         for idx, prim_idx in enumerate(indices_list):
-            prim = self._prims[prim_idx]
-            scales[idx] = Gf.Vec3d(prim.GetAttribute("xformOp:scale").Get())
+            scales[idx] = Gf.Vec3d(self._prims[prim_idx].GetAttribute("xformOp:scale").Get())
 
-        return ProxyArray(wp.array(np.array(scales, dtype=np.float32), dtype=wp.float32, device=self._device))
+        return self._to_proxy(scales)
 
     def _get_world_scales_impl(self, indices: wp.array | None = None) -> ProxyArray:
         indices_list = self._resolve_indices(indices)
@@ -393,6 +365,26 @@ class UsdFrameView(BaseFrameView):
         if isinstance(data, wp.array):
             return data.numpy()
         return data.cpu().numpy()
+
+    def _to_proxy(self, values: Vt.Vec3dArray | Vt.QuatdArray) -> ProxyArray:
+        """Copy a USD value array to a float32 warp array on the view's device."""
+        return ProxyArray(wp.array(np.array(values, dtype=np.float32), dtype=wp.float32, device=self._device))
+
+    def _poses_from_transforms(
+        self, indices: wp.array | None, transform_of: Callable[[Usd.Prim], Gf.Matrix4d]
+    ) -> tuple[ProxyArray, ProxyArray]:
+        """Extract ``(positions, orientations)`` from the matrix ``transform_of(prim)`` returns for each prim."""
+        indices_list = self._resolve_indices(indices)
+
+        positions = Vt.Vec3dArray(len(indices_list))
+        orientations = Vt.QuatdArray(len(indices_list))
+        for idx, prim_idx in enumerate(indices_list):
+            prim_tf = transform_of(self._prims[prim_idx])
+            prim_tf.Orthonormalize()
+            positions[idx] = prim_tf.ExtractTranslation()
+            orientations[idx] = prim_tf.ExtractRotationQuat()
+
+        return self._to_proxy(positions), self._to_proxy(orientations)
 
 
 # ----------------------------------------------------------------------
