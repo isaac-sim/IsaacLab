@@ -72,8 +72,9 @@ def test_reset_contact_sensor_kernel_clears_selected_force_matrix_history():
 @pytest.mark.parametrize("device", ["cpu", "cuda:0"])
 @pytest.mark.parametrize("track_points,track_friction", [(False, False), (True, False), (False, True), (True, True)])
 @pytest.mark.parametrize("use_mask", [False, True])
+@pytest.mark.parametrize("capacity", [None, 5])
 def test_unpack_contact_buffer_data_pattern_major(
-    device: str, track_points: bool, track_friction: bool, use_mask: bool
+    device: str, track_points: bool, track_friction: bool, use_mask: bool, capacity: int | None
 ):
     """Aggregate independent contact and friction layouts, preserving unselected environments."""
     if device.startswith("cuda") and not wp.is_cuda_available():
@@ -90,8 +91,10 @@ def test_unpack_contact_buffer_data_pattern_major(
         counts = (np.arange(num_envs * num_sensors * num_filters, dtype=np.uint32) + int(avg)) % 3
         starts = np.cumsum(counts, dtype=np.uint32) - counts
         flat = np.arange(int(counts.sum()) * 3, dtype=np.float32).reshape(-1, 3) * (1.0 if avg else -1.0)
+        flat = flat[:capacity]
         counts, starts = counts.reshape(pair_shape), starts.reshape(pair_shape)
         default = float("nan") if avg else 0.0
+        aggregate = np.mean if avg else np.sum
         expected = np.full((num_envs, num_sensors, num_filters, 3), -1.0, dtype=np.float32)
         for env in (0, 2) if use_mask else range(num_envs):
             for sensor in range(num_sensors):
@@ -99,7 +102,7 @@ def test_unpack_contact_buffer_data_pattern_major(
                     row = sensor * num_envs + env
                     start, count = int(starts[row, partner]), int(counts[row, partner])
                     values = flat[start : start + count]
-                    expected[env, sensor, partner] = (values.mean(0) if avg else values.sum(0)) if count else default
+                    expected[env, sensor, partner] = aggregate(values, axis=0) if len(values) else default
         inputs.extend(
             [
                 wp.array(flat, dtype=wp.vec3f, device=device),

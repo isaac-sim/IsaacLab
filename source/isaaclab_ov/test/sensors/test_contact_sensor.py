@@ -932,8 +932,8 @@ def test_invalid_max_contact_points_config(device, feature, max_count):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize("feature", ["points", "friction"])
-def test_contact_data_capacity_overflow(device, feature):
-    """An undersized SDK buffer raises without publishing partial sensor measurements."""
+def test_contact_data_capacity(device, feature):
+    """An undersized buffer publishes only the contacts retained by the SDK."""
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
@@ -950,25 +950,28 @@ def test_contact_data_capacity_overflow(device, feature):
         sim.reset()
         scene.reset()
         sensor: ContactSensor = scene["contact_sensor"]
-        data = sensor.data
+        _ = sensor.data
         shape: RigidObject = scene["shape"]
         pose = shape.data.root_pose_w.torch.clone()
         pose[:, 2] = CUBE_CFG.spawn.size[2] / 2.0
         shape.write_root_pose_to_sim_index(root_pose=pose)
         for _ in range(2):
             _perform_sim_step(sim, scene, _SIM_DT)
-        with pytest.raises(RuntimeError, match="(?i)buffer|capacity"):
-            _ = sensor.data
-        assert data.net_normal_forces_w is not None
-        assert torch.count_nonzero(data.net_normal_forces_w.torch) == 0
+        binding = sensor.contact_view
+        widths = (1, 3, 3, 1) if feature == "points" else (3, 3)
+        buffers = [wp.empty((1, width), dtype=wp.float32, device=device) for width in widths]
+        counts, starts = [wp.empty((1, 1), dtype=wp.uint32, device=device) for _ in range(2)]
         if feature == "points":
-            assert data.contact_pos_w is not None
-            assert torch.isnan(data.contact_pos_w.torch).all()
+            binding.read_contact_data(*buffers, counts, starts)
+            actual, expected = sensor.data.contact_pos_w, buffers[1]
         else:
-            assert data.friction_force_matrix_w is not None
-            assert data.friction_force_matrix_w_history is not None
-            assert torch.count_nonzero(data.friction_force_matrix_w.torch) == 0
-            assert torch.count_nonzero(data.friction_force_matrix_w_history.torch) == 0
+            binding.read_friction_data(*buffers, counts, starts)
+            actual, expected = sensor.data.friction_force_matrix_w, buffers[0]
+        assert counts.numpy().item() >= 1
+        assert starts.numpy().item() == 0
+        torch.testing.assert_close(actual.torch.reshape(1, 3), wp.to_torch(expected))
+
+
 ##
 # Internal helpers.
 ##

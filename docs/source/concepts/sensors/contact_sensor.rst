@@ -80,8 +80,8 @@ Enable optional buffers only when they are needed. Their backend support differs
 
 Filtered contact points and friction-force matrices require filters. Isaac Sim PhysX and OvPhysX
 require a positive ``max_contact_data_count_per_prim`` for these features. Contact-rich scenes may
-require a larger value. OvPhysX raises ``RuntimeError`` if the detailed-contact capacity is exceeded;
-increase the configured capacity before recreating the sensor. The overflowing sample is not published.
+require a larger value. OvPhysX warns and truncates detailed contacts when capacity is exceeded;
+increase the configured capacity before recreating the sensor to retain all contacts.
 
 Contact positions are averaged over each sensor/filter pair and are ``NaN`` when the pair has no
 contacts. OvPhysX also resets contact positions to ``NaN``. Filtered friction forces sum the pair's

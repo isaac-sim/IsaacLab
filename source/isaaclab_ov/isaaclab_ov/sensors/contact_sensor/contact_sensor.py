@@ -61,8 +61,8 @@ class ContactSensor(BaseContactSensor):
 
     Contact-point and friction-force tracking require non-empty filters and a positive
     ``max_contact_data_count_per_prim``. Aggregate friction forces are not supported.
-    Detailed reads raise :class:`RuntimeError` if the configured contact capacity is exceeded;
-    increase the capacity before recreating the sensor. No incomplete measurements are published.
+    The SDK warns and truncates detailed contacts when capacity is exceeded; increase
+    ``max_contact_data_count_per_prim`` before recreating the sensor to retain all contacts.
     """
 
     cfg: ContactSensorCfg

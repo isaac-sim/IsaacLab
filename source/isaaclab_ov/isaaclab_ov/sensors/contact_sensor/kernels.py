@@ -77,9 +77,11 @@ def unpack_contact_buffer_data(
             return
 
     flat_idx = sensor * num_envs + env
+    # OVPhysX can report full counts even when the flat buffers were truncated.
     if contact_pos_w:
         count = wp.int32(contact_counts[flat_idx, contact])
         start = wp.int32(contact_starts[flat_idx, contact])
+        count = wp.min(count, wp.max(0, contact_positions.shape[0] - start))
         position = wp.vec3f(wp.nan)
         if count > 0:
             position = wp.vec3f(0.0)
@@ -91,6 +93,7 @@ def unpack_contact_buffer_data(
     if friction_force_matrix_w:
         count = wp.int32(friction_counts[flat_idx, contact])
         start = wp.int32(friction_starts[flat_idx, contact])
+        count = wp.min(count, wp.max(0, friction_forces.shape[0] - start))
         force = wp.vec3f(0.0)
         for c in range(count):
             force = force + friction_forces[start + c]
