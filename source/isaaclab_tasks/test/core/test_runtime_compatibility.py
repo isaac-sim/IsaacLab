@@ -21,6 +21,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
+from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from isaaclab.app import SimulationLauncher, scan
 from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
@@ -73,26 +74,19 @@ def test_isaacsim_physx_plus_ovrtx_raises():
     assert "IsaacRtxRendererCfg" in msg
 
 
-def test_kit_visualizer_plus_ovrtx_raises():
-    """``--visualizer kit`` combined with OVRTX renderer must raise.
+@pytest.mark.parametrize("visualizer", ["kit", "kit,newton_gl"])
+def test_kit_visualizer_plus_ovrtx_raises(visualizer):
+    """Selecting Kit alone or with another viewer must reject the OVRTX renderer.
 
     Use Newton physics so the only Kit-side runtime is the visualizer; this
     isolates the visualizer-vs-renderer check from the physics-vs-renderer one.
     """
-    env_cfg = _resolve_with_presets("newton,ovrtx")
-    launcher_args = argparse.Namespace(visualizer="kit")
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=ovrtx", f"visualizer={visualizer}")
     with pytest.raises(ValueError) as excinfo:
-        validate_runtime_compatibility(env_cfg, launcher_args)
+        validate_runtime_compatibility(env_cfg)
     msg = str(excinfo.value)
     assert "Kit visualizer" in msg
     assert "IsaacRtxRendererCfg" in msg
-
-
-def test_kit_visualizer_dict_args_plus_ovrtx_raises():
-    """The dict form of launcher args (used by Hydra) must also be inspected."""
-    env_cfg = _resolve_with_presets("newton,ovrtx")
-    with pytest.raises(ValueError, match=r"Kit visualizer"):
-        validate_runtime_compatibility(env_cfg, {"visualizer": "kit,newton"})
 
 
 def test_kit_renderer_plus_ovrtx_raises():
@@ -139,10 +133,9 @@ def test_default_kit_runtime_plus_ovrtx_raises(monkeypatch: pytest.MonkeyPatch):
 
 def test_ovphysx_plus_kit_visualizer_raises():
     """OvPhysX cannot share a process with the Kit visualizer."""
-    env_cfg = _resolve_with_presets("ovphysx,isaacsim_rtx")
-    launcher_args = argparse.Namespace(visualizer="kit")
+    env_cfg = _resolve_with_args("physics=ovphysx", "renderer=isaacsim_rtx", "visualizer=kit")
     with pytest.raises(ValueError) as excinfo:
-        validate_runtime_compatibility(env_cfg, launcher_args)
+        validate_runtime_compatibility(env_cfg)
     msg = str(excinfo.value)
     assert "OvPhysX" in msg
     assert "Kit visualizer" in msg
@@ -287,8 +280,8 @@ def test_renderer_selector_physx_rtx_is_valid_and_resolves_to_ovphysx_and_ovrtx(
 
 def test_renderer_selector_physx_rtx_with_kit_visualizer_resolves_to_isaac_sim_backends():
     """The automatic PhysX and RTX selectors choose Isaac Sim backends when the Kit viewer is requested."""
-    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx")
-    config_scan = validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=physx", "renderer=rtx", "visualizer=kit")
+    config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.sim.physics, PhysxCfg)
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
@@ -331,8 +324,8 @@ def test_scanning_twice_reaches_the_same_launch_decision(presets, expected_rende
 
 def test_rtx_with_kit_visualizer_is_valid_and_resolves_to_isaac_rtx():
     """The RTX preset chooses Isaac RTX when the Kit visualizer is requested."""
-    env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
-    config_scan = validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=rtx", "visualizer=kit")
+    config_scan = validate_runtime_compatibility(env_cfg)
 
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
     assert config_scan.needs_kit is True
@@ -347,12 +340,12 @@ def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pyte
     with launch_simulation(env_cfg, launcher_args) as physics_cfg:
         assert type(physics_cfg).__name__ == "NewtonCfg"
 
-    assert launcher_args.visualizer == ["kit"]
+    assert isinstance(env_cfg.sim.visualizer_cfgs[0], KitVisualizerCfg)
     assert launcher_args.enable_cameras is True
     assert isinstance(env_cfg.scene.tiled_camera.renderer_cfg, IsaacRtxRendererCfg)
 
 
 def test_kit_visualizer_with_isaacsim_rtx_is_valid():
     """``--visualizer kit`` is fine as long as no OVRTX renderer is configured."""
-    env_cfg = _resolve_with_presets("newton,isaacsim_rtx")
-    validate_runtime_compatibility(env_cfg, argparse.Namespace(visualizer="kit"))
+    env_cfg = _resolve_with_args("physics=newton_mjwarp", "renderer=isaacsim_rtx", "visualizer=kit")
+    validate_runtime_compatibility(env_cfg)

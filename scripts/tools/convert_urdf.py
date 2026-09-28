@@ -88,36 +88,35 @@ args_cli = parser.parse_args()
 # Prefer kit-less: it skips Kit startup and the kitless visualizers can host the preview.
 args_cli.require_kit = not standalone_importers_available()
 
-# ``launch_simulation`` receives a bare ``PhysicsCfg()`` placeholder, so name the backend the
-# runtime provides; without it the preview builds a simulation with no physics manager.
+# Select the concrete physics backend before composing the preview scene.
 args_cli.physics = "isaacsim_physx" if args_cli.require_kit else "newton_mjwarp"
 
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import AssetBaseCfg  # noqa: E402
-from isaaclab.physics import PhysicsCfg  # noqa: E402
 from isaaclab.scene import InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim.converters import UrdfConverter, UrdfConverterCfg  # noqa: E402
 from isaaclab.utils.assets import check_file_path  # noqa: E402
 from isaaclab.utils.dict import print_dict  # noqa: E402
 
 
-def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
+def preview(usd_path: str, sim_cfg: sim_utils.SimulationCfg) -> None:
     """Open the converted asset in the visualizer selected on the command line.
 
     Args:
         usd_path: Path of the generated USD file to display.
-        physics_cfg: Physics config resolved by :func:`~isaaclab.app.launch_simulation`.
+        sim_cfg: Simulation config resolved by :func:`~isaaclab.app.launch_simulation`.
     """
-    visualizers = args_cli.visualizer or []
+    visualizers = sim_cfg.visualizer_cfgs
+    visualizers = visualizers if isinstance(visualizers, list) else [visualizers] if visualizers else []
     if not visualizers:
         return
 
     # The physics backend ingests the USD stage and every visualizer renders the shared scene data,
     # so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
-    sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
+    sim = sim_utils.SimulationContext(sim_cfg)
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
     scene_cfg.light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
@@ -173,7 +172,8 @@ def main():
     print("-" * 80)
     print("-" * 80)
 
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg()
+    with launch_simulation(cfg=sim_cfg, launcher_args=args_cli):
         # Create Urdf converter and import the file
         urdf_converter = UrdfConverter(urdf_converter_cfg)
         # print output
@@ -182,7 +182,7 @@ def main():
         print("-" * 80)
         print("-" * 80)
 
-        preview(urdf_converter.usd_path, physics_cfg)
+        preview(urdf_converter.usd_path, sim_cfg)
 
 
 if __name__ == "__main__":

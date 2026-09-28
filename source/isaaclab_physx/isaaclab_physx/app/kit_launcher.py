@@ -34,7 +34,7 @@ SimulationApp = getattr(isaacsim, "SimulationApp", None)
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv, fuse_kit_args
+from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -365,9 +365,10 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=_parse_visualizer_csv,
+            type=lambda value: None if value.lower() == "none" else value.split(","),
+            action=_StoreAndMarkExplicit,
             default=None,
-            help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
+            help="Alias for visualizer=NAME (comma-separated names enable multiple viewers).",
         )
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
@@ -534,7 +535,7 @@ class KitLauncher(SimulationLauncher):
         # CLI, we auto-inject one so that app.update() and forward() are pumped
         # each frame -- the XR runtime needs both to receive updated hand/joint
         # transforms.
-        self._xr_auto_start = self._xr and "kit" not in (launcher_args.get("visualizer") or ())
+        self._xr_auto_start = self._xr and not self._kit_visualizer
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""

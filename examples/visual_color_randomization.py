@@ -53,7 +53,6 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, replace
 from isaaclab.utils.timer import Timer
@@ -244,14 +243,15 @@ class VisualMaterialEnvCfg(ManagerBasedEnvCfg):
 
 def main() -> None:
     """Launch the selected backends and run the randomization scene."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    env_cfg = VisualMaterialEnvCfg()
+    env_cfg.scene.num_envs = args_cli.num_envs
+    env_cfg.sim.device = args_cli.device
+    with launch_simulation(env_cfg, args_cli):
         from isaaclab.envs import ManagerBasedEnv  # noqa: PLC0415
 
-        env_cfg = VisualMaterialEnvCfg()
-        env_cfg.scene.num_envs = args_cli.num_envs
-        env_cfg.sim.device = args_cli.device
-        env_cfg.sim.physics = physics_cfg
-        visualizers = set(args_cli.visualizer or ())
+        viewers = env_cfg.sim.visualizer_cfgs
+        viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
+        visualizers = {cfg.visualizer_type for cfg in viewers}
         newton_only = bool(visualizers) and visualizers <= {"newton_gl", "newton_rtx"}
         if newton_only:
             for name in (

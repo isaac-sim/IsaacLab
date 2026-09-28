@@ -5,19 +5,21 @@
 
 """Typed-preset selection via Hydra-style CLI tokens.
 
-Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
+Recognizes these ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 
 * ``physics=NAME``            -- typed selector for ``PhysicsCfg`` variants.
 * ``renderer=NAME``           -- typed selector for ``RendererCfg`` variants.
+* ``visualizer=NAME[,...]``    -- selects one or more ``VisualizerCfg`` variants.
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
 :func:`setup_preset_cli` registers preset-selection help, then runs
-``parse_known_args`` and returns the verbatim remainder. The preset tokens
+``parse_known_args`` and returns the remainder, translating ``--viz`` and ``--visualizer``
+into ``visualizer=``. The other preset tokens
 above are passed through unchanged; hydra's
 :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
 the names as presets and enforcing that ``physics=``/``renderer=`` resolve
 against a config of that type). Callers simply assign the remainder to
-``sys.argv``; no rewriting step is needed.
+``sys.argv``.
 
 No argparse arguments are registered for the typed selectors -- their
 discoverability lives in the ``argument_group`` description, so the parsed
@@ -120,7 +122,14 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+    visualizer = vars(args).pop("visualizer", None)
+    explicit = vars(args).pop("visualizer_explicit", False)
+    if visualizer is not None or explicit:
+        names = ",".join(visualizer) if isinstance(visualizer, list) else visualizer or "none"
+        if explicit or not any(arg.startswith("visualizer=") for arg in remaining):
+            remaining.append(f"visualizer={names}")
+    return args, remaining
 
 
 # ============================================================================
@@ -240,7 +249,7 @@ class _DescriptionBuilder:
     @staticmethod
     def _syntax(target: PresetTarget) -> str:
         """User-facing selector form: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
-        if target.base_classes:  # typed: single name
+        if target.base_classes and target is not PresetTarget.VISUALIZER:
             return f"{target.value}=NAME"
         return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
 
@@ -319,6 +328,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in walked.values():
+        families = {target for target in typed_targets if any(target.matches(cfg) for cfg in path_dict.values())}
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
@@ -326,5 +336,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
                 (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
+            if (cfg is None or (isinstance(cfg, list) and not cfg)) and len(families) == 1:
+                matched = next(iter(families))
             result[matched].add(name)
     return result

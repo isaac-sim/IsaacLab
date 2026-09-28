@@ -50,7 +50,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, DeformableObjectCfg
 from isaaclab.cloner import CloneCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, index_fill_, instantiate
 
@@ -180,11 +179,11 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         if args_cli.backend == "newton_vbd":
             physics_cfg.solver_cfg.iterations = 10
             physics_cfg.num_substeps = 4
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view(eye=[2.0, 2.0, 2.0], target=[0.0, 0.0, 0.75])

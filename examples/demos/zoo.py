@@ -36,7 +36,6 @@ import torch
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import configclass, instantiate, replace
 
@@ -204,7 +203,8 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 def main() -> None:
     """Launch the robot zoo showcase."""
     torch.manual_seed(42)
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         if isinstance(physics_cfg, NewtonCfg) and isinstance(physics_cfg.solver_cfg, MJWarpSolverCfg):
             physics_cfg.solver_cfg.integrator = "implicitfast"
             physics_cfg.solver_cfg.njmax = 300
@@ -218,9 +218,7 @@ def main() -> None:
             physics_cfg.num_substeps = 2
             physics_cfg.debug_mode = False
 
-        sim = sim_utils.SimulationContext(
-            sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
-        )
+        sim = sim_utils.SimulationContext(sim_cfg)
         camera_scale = math.ceil(math.sqrt(args_cli.num_envs))
         sim.set_camera_view(eye=(6.0 * camera_scale, -7.5 * camera_scale, 4.5 * camera_scale), target=(0.0, 0.0, 0.7))
         scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0, replicate_physics=True)

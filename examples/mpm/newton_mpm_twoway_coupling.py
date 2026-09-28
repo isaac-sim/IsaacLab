@@ -25,9 +25,11 @@ from functools import partial
 from typing import TYPE_CHECKING
 
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -91,21 +93,12 @@ def _spawn_colored_shape(
     return prim
 
 
-def create_visualizer_cfgs():
-    """Create the example-specific Newton visualizer configuration."""
-    requested = args_cli.visualizer or []
-    if not {"newton", "newton_gl", "newton_rtx"}.intersection(requested):
-        return []
+@configclass
+class VisualizersCfg(MultiBackendVisualizerCfg):
+    """Show the coupled particles in either Newton viewer."""
 
-    cfg_type = NewtonRTXVisualizerCfg if requested == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            streaming_view=False,
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-            update_frequency=1,
-        )
-    ]
+    newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
+    newton_rtx = NewtonRTXVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
 
 
 def create_sim_cfg():
@@ -153,7 +146,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizersCfg(),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 

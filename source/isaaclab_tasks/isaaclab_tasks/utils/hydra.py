@@ -28,8 +28,6 @@ Example usage::
 
 import ast
 import sys
-import warnings
-from collections import deque
 from collections.abc import Callable, Mapping, Sequence
 
 import hydra
@@ -38,238 +36,27 @@ from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
 from isaaclab.utils import (
-    configclass,
     replace_slices_with_strings,
     replace_strings_with_slices,
     to_dict,
     update_from_dict,
 )
+from isaaclab.utils.presets import PresetCfg as PresetCfg
+from isaaclab.utils.presets import (
+    _known_preset_names,
+    _normalize_preset_name,
+    _resolve_active_presets,
+    collect_presets,
+)
+from isaaclab.utils.presets import preset as preset
+from isaaclab.utils.presets import resolve_presets as resolve_presets
+from isaaclab.utils.presets import user_stacklevel as user_stacklevel
 
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
-def user_stacklevel() -> int:
-    """Compute a ``warnings.warn`` stacklevel that lands on the first frame
-    outside the ``isaaclab_tasks.utils`` package, so deprecation messages
-    cite user code rather than internal utility frames.
-
-    Walks at most a small bounded number of frames; if no out-of-package
-    frame is found within the bound (frozen modules, exec'd contexts, or
-    oddly named ``__name__`` globals), falls back to ``stacklevel=2`` so
-    the warning at least jumps out of the helper that called it.
-
-    Package-scoped (not file-scoped) so callers in any module under
-    ``isaaclab_tasks.utils.*`` (``hydra``, ``parse_cfg``, ...) get the same
-    "skip our own internals" behavior without duplicating the walk.
-    """
-    max_walk = 16
-    level = 1
-    frame = sys._getframe(1)
-    while frame is not None and frame.f_globals.get("__name__", "").startswith(__package__):
-        level += 1
-        frame = frame.f_back
-        if level > max_walk:
-            return 2
-    return level
-
-
-def _normalize_preset_name(name: str, known_names: set[str]) -> str:
-    """Map a deprecated preset name to its replacement and emit a warning.
-
-    Returns ``name`` unchanged when:
-        * ``name`` is not a deprecated alias, or
-        * the replacement is not declared in ``known_names`` (so the user-supplied
-          value can flow into the standard "unknown preset" error path, where
-          :func:`_format_unknown_presets_error` will surface the rename), or
-        * ``name`` is itself a real field in ``known_names`` (a user-defined preset
-          legitimately reusing the deprecated spelling shadows the alias).
-    """
-    replacement = PresetTarget.all_legacy_aliases().get(name)
-    if replacement is None or replacement not in known_names or name in known_names:
-        return name
-    warnings.warn(
-        f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-        FutureWarning,
-        stacklevel=user_stacklevel(),
-    )
-    return replacement
-
-
-@configclass
-class PresetCfg:
-    """Base class for declarative preset definitions.
-
-    Subclass this and define fields as preset options.
-    The field named ``default`` holds the config instance used
-    when no CLI override is given. All other fields are named
-    alternative presets.
-
-    Example::
-
-        @configclass
-        class PhysicsCfg(PresetCfg):
-            default: PhysxCfg = PhysxCfg()
-            newton_mjwarp: NewtonCfg = NewtonCfg()
-
-    The preset *name* (``newton_mjwarp``) is decoupled from the config class
-    (``NewtonCfg``): the class describes the Newton backend, while the field
-    name labels which solver variant this entry selects.
-
-    **Class-local helpers (underscore convention).** Names prefixed with
-    ``_`` and callables (nested classes, methods) are skipped by the
-    resolver and are NOT registered as variants. Use this to keep shared
-    helpers adjacent to the variants that need them, without polluting the
-    module namespace::
-
-        @configclass
-        class MultiBackendCameraCfg(PresetCfg):
-            # Class-local helper -- not a variant.
-            _ROTATED_OFFSET = CameraCfg.OffsetCfg(rot=(1, 0, 0, 0), ...)
-
-            rgb = CameraCfg(data_types=["rgb"])
-            albedo = CameraCfg(data_types=["albedo"], offset=_ROTATED_OFFSET)
-            default = rgb
-    """
-
-    def __getattr__(self, name: str):
-        """Alias a deprecated preset name to its replacement field.
-
-        Raises ``AttributeError`` for any other missing attribute so that
-        ``hasattr`` and standard introspection keep working unchanged. The
-        replacement is only returned when the deprecated name is *not* itself a
-        real field on the subclass, so a user redefining the deprecated name
-        shadows the alias.
-        """
-        replacement = PresetTarget.all_legacy_aliases().get(name)
-        fields = getattr(type(self), "__dataclass_fields__", {})
-        if replacement is not None and replacement in fields and name not in fields:
-            warnings.warn(
-                f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
-                FutureWarning,
-                stacklevel=user_stacklevel(),
-            )
-            return getattr(self, replacement)
-        raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
-
-
-def preset(**options) -> PresetCfg:
-    """Create a :class:`PresetCfg` instance from keyword arguments.
-
-    A convenience factory that dynamically builds a ``PresetCfg`` subclass
-    with one field per keyword argument, then returns an instance of it.
-    The caller **must** supply a ``default`` key.
-
-    Example::
-
-        armature = preset(default=0.0, newton_mjwarp=0.01)
-        # Equivalent to:
-        # @configclass
-        # class _Preset(PresetCfg):
-        #     default: float = 0.0
-        #     newton_mjwarp: float = 0.01
-        # armature = _Preset()
-
-    Args:
-        **options: Preset alternatives keyed by name.  Must include ``default``.
-
-    Returns:
-        A ``PresetCfg`` instance whose fields are the supplied options.
-
-    Raises:
-        ValueError: If ``default`` is not provided.
-    """
-    if "default" not in options:
-        raise ValueError("preset() requires a 'default' keyword argument.")
-    annotations = {k: type(v) if v is not None else object for k, v in options.items()}
-    ns = {"__annotations__": annotations, **options}
-    cls = configclass(type("_Preset", (PresetCfg,), ns))
-    return cls()
-
-
-def _preset_fields(preset_obj) -> dict:
-    """Extract all alternatives from a :class:`PresetCfg`, class attrs over instance.
-
-    Class-level values take priority because robot-specific modules
-    (e.g. ``joint_pos_env_cfg.py``) reassign fields on the class after
-    instances are already created.
-    """
-    cls = type(preset_obj)
-    d = {}
-    for fn in preset_obj.__dataclass_fields__:
-        cls_val = getattr(cls, fn, None)
-        d[fn] = cls_val if cls_val is not None else getattr(preset_obj, fn)
-    for attr in vars(cls):
-        if attr.startswith("_") or attr in d or callable(getattr(cls, attr)):
-            continue
-        d[attr] = getattr(cls, attr)
-    return d
-
-
-def _iter_cfg_items(cfg):
-    if isinstance(cfg, Mapping):
-        return cfg.items()
-    if isinstance(cfg, list):
-        return enumerate(cfg)
-    return ((n, v) for n in dir(cfg) if not n.startswith("_") for v in [getattr(cfg, n, None)] if v is not None)
-
-
-def _is_walkable_cfg(cfg) -> bool:
-    return hasattr(cfg, "__dataclass_fields__") or isinstance(cfg, (Mapping, list))
-
-
-def _walk_cfg(cfg, path: str, on_preset: Callable) -> None:
-    """Depth-first walk of a config tree, calling *on_preset(parent, key, obj, path)*
-    for every :class:`PresetCfg` node.  Recurses through dataclass attrs, dicts,
-    nested dicts, and lists transparently."""
-    for key, val in _iter_cfg_items(cfg):
-        child_path = f"{path}.{key}" if path else str(key)
-        if isinstance(val, PresetCfg):
-            on_preset(cfg, key, val, child_path)
-        elif _is_walkable_cfg(val):
-            _walk_cfg(val, child_path, on_preset)
-
-
-def collect_presets(cfg, path: str = "") -> dict:
-    """Recursively discover :class:`PresetCfg` nodes in the config tree.
-
-    Walks dataclass fields and dict values at any nesting depth.
-
-    Args:
-        cfg: A configclass instance to walk.
-        path: Current path prefix (used during recursion).
-
-    Returns:
-        Dict mapping dotted paths to preset dicts, e.g.:
-        ``{"backend": {"default": PhysxCfg(), "newton_mjwarp": NewtonCfg()}}``
-    """
-    result = {}
-
-    def _record(preset_obj, preset_path):
-        fields = _preset_fields(preset_obj)
-        result[preset_path] = fields
-        for alt in fields.values():
-            if hasattr(alt, "__dataclass_fields__"):
-                result.update(collect_presets(alt, preset_path))
-            elif isinstance(alt, dict):
-                for v in alt.values():
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-            elif isinstance(alt, list):
-                for v in alt:
-                    if _is_walkable_cfg(v):
-                        result.update(collect_presets(v, preset_path))
-
-    if isinstance(cfg, PresetCfg):
-        _record(cfg, path)
-        return result
-
-    _walk_cfg(cfg, path, lambda _p, _k, obj, cp: _record(obj, cp))
-    return result
-
-
-# ============================================================================
 # Preset resolution
 # ============================================================================
 
@@ -432,6 +219,7 @@ def resolve_presets(cfg, selected=()):
     return _resolve_active_presets(cfg, selected)
 
 
+=======
 # ============================================================================
 # CLI / Hydra integration
 # ============================================================================
@@ -590,6 +378,8 @@ def register_task(
     typed_labels = {target.value: target for target in PresetTarget if target.base_classes}
     global_presets: list[str] = []
     requested_targets: dict[PresetTarget, set[str]] = {}
+    selectors = {}
+    consumed_selectors = set()
     override_items: list[tuple[str, str, str]] = []
     hydra_args: list[str] = []
     for arg in sys.argv[1:] if overrides is None else overrides:
@@ -600,6 +390,11 @@ def register_task(
         token = key.lstrip("-")
         if token == PresetTarget.DOMAIN.value:
             global_presets.extend(v.strip() for v in val.split(",") if v.strip())
+        elif token == PresetTarget.VISUALIZER.value:
+            names = [name.strip() for name in val.split(",") if name.strip()]
+            if not names:
+                raise ValueError("visualizer= requires a preset name; use visualizer=none to disable viewers.")
+            selectors[PresetTarget.VISUALIZER.matches] = names if len(names) > 1 else names[0]
         elif token in typed_labels:
             for name in (v.strip() for v in val.split(",") if v.strip()):
                 global_presets.append(name)
@@ -610,6 +405,11 @@ def register_task(
     explicit = {key: val for key, val, _arg in override_items}
     consumed_presets: set[str] = set()
     typed_hits: dict[str, set[PresetTarget]] = {}
+
+    def record_selection(name, value):
+        targets = {target for target in PresetTarget if target.base_classes and target.matches(value)}
+        typed_hits.setdefault(name, set()).update(targets)
+
     consumed_explicit: set[str] = set()
     env_explicit = {path: name for path, name in explicit.items() if path == "env" or path.startswith("env.")}
     agent_explicit = {path: name for path, name in explicit.items() if path == "agent" or path.startswith("agent.")}
@@ -620,8 +420,10 @@ def register_task(
         root_path="env",
         strict_explicit=False,
         consumed_selected=consumed_presets,
-        typed_hits=typed_hits,
+        on_selected=record_selection,
         consumed_explicit=consumed_explicit,
+        selectors=selectors,
+        consumed_selectors=consumed_selectors,
     )
     if agent_cfg is not None:
         agent_cfg = _resolve_active_presets(
@@ -631,7 +433,7 @@ def register_task(
             root_path="agent",
             strict_explicit=False,
             consumed_selected=consumed_presets,
-            typed_hits=typed_hits,
+            on_selected=record_selection,
             consumed_explicit=consumed_explicit,
         )
 
@@ -658,6 +460,8 @@ def register_task(
 
     # Typed selectors (physics=/renderer=) must have landed on a cfg of their type
     _validate_typed_presets(requested_targets, typed_hits)
+    if selectors.keys() - consumed_selectors:
+        raise ValueError("visualizer= requires a visualizer preset in the active task configuration.")
 
     # apply play-mode overrides after preset resolution so they act on the resolved
     # config, and before scalar overrides so explicit user values still win

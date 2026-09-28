@@ -16,6 +16,7 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.utils import resolve_presets
 
 from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
 
@@ -103,17 +104,18 @@ def test_apply_video_recording_patches_existing_recorders():
 
 
 @pytest.mark.parametrize(
-    ("visualizer_args", "message"),
+    ("visualizer", "message"),
     [
-        (dict(visualizer=[]), "--video is not compatible with --viz none"),
-        (dict(visualizer=["rerun"]), "--video is not supported"),
-        (dict(visualizer=["viser"]), "--video is not supported"),
+        ("none", "--video requires a visualizer"),
+        ("rerun", "--video is not supported"),
+        ("viser", "--video is not supported"),
     ],
 )
-def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_args: dict, message: str):
+def test_apply_video_recording_rejects_visualizers_without_capture(visualizer: str, message: str):
     """Video recording rejects a disabled visualizer and visualizers without frame capture."""
+    env_cfg = resolve_presets(ManagerBasedRLEnvCfg(), overrides={"sim.visualizer_cfgs": visualizer})
     with pytest.raises(ValueError, match=message):
-        apply_video_recording(ManagerBasedRLEnvCfg(), "/my/log", _args(**visualizer_args))
+        apply_video_recording(env_cfg, "/my/log", _args())
 
 
 @pytest.mark.parametrize(
@@ -122,9 +124,8 @@ def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_ar
 )
 def test_apply_video_recording_uses_requested_capture_visualizer(visualizers: list[str], expected_source: str) -> None:
     """Video recording selects the first capture-capable visualizer."""
-    env_cfg = ManagerBasedRLEnvCfg()
-
-    apply_video_recording(env_cfg, "/my/log", _args(visualizer=visualizers))
+    env_cfg = resolve_presets(ManagerBasedRLEnvCfg(), overrides={"sim.visualizer_cfgs": visualizers})
+    apply_video_recording(env_cfg, "/my/log", _args())
 
     assert len(env_cfg.video_recorders) == 1
     assert env_cfg.video_recorders[0].source == expected_source

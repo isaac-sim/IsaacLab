@@ -21,6 +21,8 @@ from isaaclab.utils import to_dict
 
 from isaaclab_rl.entrypoints.backends import cli_args_rsl_rl as cli_args
 
+from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
+
 parser = argparse.ArgumentParser(
     description="This script demonstrates an interactive demo with the H1 rough terrain environment."
 )
@@ -32,7 +34,7 @@ parser.add_argument(
 )
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
-args_cli = parser.parse_args()
+args_cli, preset_args = setup_preset_cli(parser)
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
 if args_cli.max_steps == 0 or args_cli.max_steps < -1:
@@ -50,8 +52,6 @@ from isaaclab_rl.utils.pretrained_checkpoint import (
     get_pretrained_checkpoint_backend_names,
     get_published_pretrained_checkpoint,
 )
-
-from isaaclab_tasks.utils import resolve_task_config
 
 TASK = "Isaac-Velocity-Rough-H1"
 RL_LIBRARY = "rsl_rl"
@@ -188,7 +188,7 @@ class H1RoughDemo:
 
 def main() -> None:
     """Run interactive H1 policy inference."""
-    env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=(f"physics={args_cli.physics}",))
+    env_cfg, _ = resolve_task_config(TASK, "", play_mode=True, overrides=[f"physics={args_cli.physics}", *preset_args])
     env_cfg.scene.num_envs = args_cli.num_envs
     # Place the robots in a compact grid so they share one view instead of scattering across terrain tiles.
     env_cfg.scene.terrain.use_terrain_origins = False

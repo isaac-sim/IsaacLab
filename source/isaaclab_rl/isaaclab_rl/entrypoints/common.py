@@ -26,12 +26,14 @@ from typing import Any
 import gymnasium as gym
 import torch
 import warp as wp
+from isaaclab_visualizers.kit import KitVisualizerCfg
 from PIL import Image
 
 from isaaclab.app import LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
+from isaaclab.utils import resolve_presets
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -507,16 +509,9 @@ def _renderer_name(env_cfg: Any) -> str | None:
 
 
 def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
-    """Return the visualizers selected on the command line or by *env_cfg*."""
-    selected = getattr(args_cli, "visualizer", None)
-    if isinstance(selected, str):
-        selected = selected.split(",")
-    if not selected:
-        visualizer_cfgs = env_cfg.sim.visualizer_cfgs
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
-        selected = [cfg.visualizer_type for cfg in visualizer_cfgs if cfg is not None]
-    return ", ".join(str(name).strip() for name in selected) if selected else "none (headless)"
+    """Return the visualizers selected during configuration composition."""
+    names = [cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim)]
+    return ", ".join(names) if names else "none (headless)"
 
 
 """
@@ -921,16 +916,9 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     """
     if not getattr(args_cli, "video", False) or getattr(env_cfg, "video_recorders", None):
         return
-    if _cli_visualizers(args_cli):
-        return
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None or _configured_visualizer_cfgs(sim_cfg):
-        return
-    if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
-            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
-        )
+    sim_cfg = resolve_presets(env_cfg.sim)
+    if sim_cfg.visualizer_cfgs is None:
+        sim_cfg.visualizer_cfgs = [KitVisualizerCfg(headless=True)]
 
 
 def apply_video_recording(
@@ -979,6 +967,7 @@ def apply_video_recording(
         )
 
     if not getattr(env_cfg, "video_recorders", None):
+        pre_launch_video_config(env_cfg, args_cli)
         source = _resolve_video_source(env_cfg, args_cli)
         env_cfg.video_recorders = [VideoRecorderCfg(source=source, video_interval=2000)]
 
@@ -1009,78 +998,23 @@ def apply_video_recording(
 
 
 def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
-    """Return the recorder source for a run that declares no video recorders.
-
-    A visualizer requested with ``--viz`` wins, then a concrete visualizer configured on the
-    environment; otherwise a headless Kit visualizer is injected so there is something to record.
-
-    Raises:
-        ValueError: If ``--viz none`` or only streaming visualizers were requested.
-    """
-    # ``--viz none`` parses to an empty list
-    if getattr(args_cli, "visualizer", None) == []:
+    """Return the first configured capture-capable viewer, or explain how to record a scene sensor."""
+    names = [cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim)]
+    if not names:
         raise ValueError(
-            "--video is not compatible with --viz none: there is no active visualizer to record from. "
-            "Remove --viz none so that video recording can auto-create a visualizer, "
-            "pass --viz kit (or another capture-capable type), "
-            "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
+            "--video requires a visualizer. Select visualizer=kit (or another capture-capable viewer),"
+            " or declare VideoRecorderCfg(source='sensor:<name>')."
         )
-    cli_visualizers = _cli_visualizers(args_cli)
-    if cli_visualizers:
-        capture_capable = [name for name in cli_visualizers if name not in _NO_CAPTURE_VISUALIZERS]
-        if not capture_capable:
-            raise ValueError(_no_capture_visualizer_message(cli_visualizers))
-        return f"visualizer:{capture_capable[0]}"
-
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None:
-        return "visualizer"
-    configured = _configured_visualizer_cfgs(sim_cfg)
-    if configured:
-        # prefer capture-capable visualizers over streaming-only ones
-        configured.sort(key=lambda cfg: cfg.visualizer_type in _NO_CAPTURE_VISUALIZERS)
-        return f"visualizer:{configured[0].visualizer_type}"
-    if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
-            "for video recording. Pass --viz <type> to choose a different visualizer, or "
-            "set video_recorders in your env config to record from a scene sensor instead."
-        )
-        return "visualizer:kit"
-    return "visualizer"
-
-
-def _cli_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return the visualizers requested with ``--viz``, ignoring ``"none"`` entries."""
-    selected = getattr(args_cli, "visualizer", None) or []
-    if isinstance(selected, str):
-        selected = [selected]
-    return [name for name in selected if name != "none"]
+    for name in names:
+        if name not in _NO_CAPTURE_VISUALIZERS:
+            return f"visualizer:{name}"
+    raise ValueError(_no_capture_visualizer_message(names))
 
 
 def _configured_visualizer_cfgs(sim_cfg: Any) -> list[Any]:
-    """Return the concrete visualizer configs of a simulation config.
-
-    A base ``VisualizerCfg`` with ``visualizer_type=None`` is a hint-only placeholder that cannot
-    create a visualizer, so it does not count.
-    """
-    cfgs = list(getattr(sim_cfg, "visualizer_cfgs", None) or [])
-    default_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
-    if default_cfg is not None:
-        cfgs.append(default_cfg)
-    return [cfg for cfg in cfgs if getattr(cfg, "visualizer_type", None) is not None]
-
-
-def _inject_headless_kit_visualizer(sim_cfg: Any) -> bool:
-    """Append a headless Kit visualizer to *sim_cfg*; returns False when the visualizers package is missing."""
-    try:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-    except ImportError:
-        return False
-    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
-        sim_cfg.visualizer_cfgs = []
-    sim_cfg.visualizer_cfgs.append(KitVisualizerCfg(headless=True))
-    return True
+    """Return the concrete configurations selected before runtime launch."""
+    cfgs = sim_cfg.visualizer_cfgs
+    return cfgs if isinstance(cfgs, list) else [cfgs] if cfgs is not None else []
 
 
 def _no_capture_visualizer_message(names: list[str]) -> str:

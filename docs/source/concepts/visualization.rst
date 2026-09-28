@@ -154,6 +154,39 @@ alias.
 
 For combining visualizers, running headless, and other common use cases, see `Usage`_ below.
 
+Visualizer presets
+~~~~~~~~~~~~~~~~~~
+
+Task commands accept ``visualizer=newton_gl``, ``visualizer=kit``, or
+``visualizer=rerun,newton_gl``. ``--viz`` and ``--visualizer`` are aliases for the same
+selection. ``visualizer=none`` disables viewers. Selection happens during configuration
+composition, before choosing process runtimes or creating the scene.
+
+``SimulationCfg.visualizer_cfgs`` uses ``MultiBackendVisualizerCfg`` by default. Customize
+its alternatives just like physics and renderer presets:
+
+.. code-block:: python
+
+   from isaaclab.sim import SimulationCfg
+   from isaaclab.utils import configclass
+   from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
+   from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
+
+   @configclass
+   class Viewers(MultiBackendVisualizerCfg):
+       newton_gl = NewtonGLVisualizerCfg(max_visible_envs=16)
+       default = newton_gl
+
+   sim_cfg = SimulationCfg(visualizer_cfgs=Viewers())
+
+After composition, ``visualizer_cfgs`` contains the selected concrete config or list of configs.
+Supplying concrete configs directly also works; use a ``PresetCfg`` when CLI-selectable
+alternatives are needed. Viewer implementations are imported only when constructed.
+
+For ``--video`` without a selected viewer or scene-camera recorder, the recording entrypoint
+selects a headless Kit viewer before launch. An explicit ``visualizer=none`` (an empty config
+list) prevents that default; declare a sensor recorder to record without a viewer.
+
 
 Visualizer Overview
 -------------------

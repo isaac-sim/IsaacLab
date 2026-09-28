@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
@@ -30,6 +30,8 @@ class KitVisualizerCfg(VisualizerCfg):
 
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
+
+    launcher_type: ClassVar[str] = "isaaclab_physx.app:KitLauncher"
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.

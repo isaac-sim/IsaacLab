@@ -30,6 +30,7 @@ import functools
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 class PresetTarget(enum.Enum):
@@ -83,6 +84,9 @@ class PresetTarget(enum.Enum):
     and emits a :class:`FutureWarning`; the aliases will be removed in a
     future release.
     """
+
+    VISUALIZER = ("visualizer", (VisualizerCfg,))
+    """Scene viewers -- ``visualizer=NAME`` selector."""
 
     DOMAIN = ("presets",)
     """Free-form env-specific presets -- ``presets=NAME[,...]`` selector (catch-all).

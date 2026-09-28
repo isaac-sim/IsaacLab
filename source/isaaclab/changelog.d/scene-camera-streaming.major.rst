@@ -13,6 +13,11 @@ Changed
   Kit and Newton RTX or the procedural sky in Newton GL. Set ``background_color=(0.3, 0.55, 0.82)``
   to retain the previous solid sky-blue background.
 * Added ``PerspectiveCameraCfg`` and ``SceneCameraCfg`` for selecting visualizer display sources.
+* Selected visualizers through ``SimulationCfg.visualizer_cfgs`` presets before launch, removing
+  runtime viewer-name factories and settings-based selection. Used ``visualizer=NAME`` or its
+  ``--viz`` / ``--visualizer`` aliases; declared custom alternatives with ``PresetCfg``.
+* Moved config-only ``PresetCfg``, ``preset``, and ``resolve_presets`` into ``isaaclab.utils``;
+  retained the existing ``isaaclab_tasks.utils`` imports.
 
 Fixed
 ^^^^^

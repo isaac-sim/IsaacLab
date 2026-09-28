@@ -311,8 +311,8 @@ def main() -> None:
         default_shape_cfg=NewtonShapeCfg(gap=CABLE_GAP, ke=1.0e5, kd=20.0, mu=0.5),
         solver_cfg=_BlockAndTackleVBDSolverCfg(),
     )
-    with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as resolved_physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, device=args_cli.device, physics=resolved_physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, device=args_cli.device, physics=physics_cfg)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(1.35, -2.1, 1.25), target=(0.50, 0.0, 0.72))
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))

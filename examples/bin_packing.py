@@ -62,7 +62,6 @@ import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
 from isaaclab.cloner import CloneCfg, InclusionSet, sequential
-from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import schemas
 from isaaclab.utils import Timer, configclass, index_fill_, instantiate
@@ -394,8 +393,8 @@ def main():
     Returns:
         None: The function drives the simulation for its side-effects.
     """
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view((4.0, 0.0, 4.0), (0.0, 0.0, 0.0))

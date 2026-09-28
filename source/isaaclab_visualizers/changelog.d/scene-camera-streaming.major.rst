@@ -12,6 +12,8 @@ Changed
   list. Scene-camera selection replaced the perspective viewport instead of drawing a floating panel
   over it. Navigation applied the same camera-local motion to every copy of the selected sensor;
   unselected sensors were neither read nor moved by the viewer.
+* Added ``MultiBackendVisualizerCfg`` with built-in viewer choices, custom preset overrides, and
+  ``visualizer=none`` to disable viewers. Kept runtime-launch requirements on each concrete config.
 
 Fixed
 ^^^^^

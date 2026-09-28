@@ -415,10 +415,7 @@ def main() -> None:
         # The tactile RGB path internally uses an RTX camera that may request only non-color render products.
         # Isaac RTX can disable color rendering for that case, which makes the Kit viewport black even though
         # the sensor images are produced correctly. Keep color rendering enabled when a Kit viewport is active.
-        visualizers = args_cli.visualizer
-        if isinstance(visualizers, str):
-            visualizers = [token.strip() for token in visualizers.split(",")]
-        if args_cli.use_tactile_rgb and "kit" in visualizers:
+        if args_cli.use_tactile_rgb and "kit" in sim.resolve_visualizer_types():
             print("[INFO]: Keeping RTX color rendering enabled for Kit viewport visualization.")
             sim.set_setting("/rtx/sdg/force/disableColorRender", False)
 

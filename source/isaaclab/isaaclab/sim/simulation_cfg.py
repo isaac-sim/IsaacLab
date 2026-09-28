@@ -15,8 +15,10 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Any, Literal
 
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
+
 from ..physics import PhysicsCfg
-from ..utils import configclass
+from ..utils import PresetCfg, configclass
 from ..visualizers import VisualizerCfg
 from .spawners.materials.physics_materials_cfg import RigidBodyMaterialBaseCfg
 
@@ -137,8 +139,12 @@ class SimulationCfg:
     If None, the logs will be saved to the temp directory.
     """
 
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg = []
-    """The visualizer configuration(s). Default is an empty list."""
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | PresetCfg | None = MultiBackendVisualizerCfg()
+    """Visualizer choices, resolved before startup. Defaults to no active visualizer.
+
+    Select a built-in with ``visualizer=NAME`` or supply concrete configurations directly.
+    A custom PresetCfg may declare task-specific viewers and settings.
+    """
 
     default_visualizer_cfg: VisualizerCfg | None = None
     """Default visualizer settings applied to any visualizer that is selected at runtime.

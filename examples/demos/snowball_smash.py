@@ -22,8 +22,11 @@ import argparse
 from typing import NamedTuple
 
 import numpy as np
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
 
 
 class SnowballSpec(NamedTuple):
@@ -102,20 +105,12 @@ CAMERA_EYE = (-4.2, -3.2, 2.2)
 CAMERA_TARGET = (0.0, 0.0, 0.9)
 
 
-def create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for the requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
-        return []
+@configclass
+class VisualizersCfg(MultiBackendVisualizerCfg):
+    """Show snow particles in either Newton viewer."""
 
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            show_particles=True,
-            particle_color=SNOW_COLOR,
-        )
-    ]
+    newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=SNOW_COLOR)
+    newton_rtx = NewtonRTXVisualizerCfg(show_particles=True, particle_color=SNOW_COLOR)
 
 
 def create_snowball_points(radius: float, seed: int) -> np.ndarray:
@@ -203,7 +198,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizersCfg(),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,
             num_substeps=1,

@@ -231,7 +231,8 @@ def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch
     args = simple_agents._parse_args([], "zero")
 
     assert args.device is None
-    assert args.visualizer == ["newton_gl"]
+    assert "visualizer=newton_gl" in sys.argv
+    assert "visualizer" not in vars(args)
 
     args = simple_agents._parse_args(["--device", "cuda:1"], "random")
 

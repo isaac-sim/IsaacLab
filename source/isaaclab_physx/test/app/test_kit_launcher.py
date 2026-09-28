@@ -15,11 +15,14 @@ import isaaclab_physx.app as app_module
 import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
+from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
+from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources
+from isaaclab.sim import SimulationCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 
@@ -219,9 +222,11 @@ def test_visualizer_alias_parsing():
     parser = argparse.ArgumentParser()
     add_launcher_args(parser)
 
-    with pytest.warns(DeprecationWarning, match="--viz 'newton' is deprecated"):
-        args = parser.parse_args(["--viz", "kit,newton"])
-    assert args.visualizer == ["kit", "newton_gl"]
+    args = parser.parse_args(["--viz", "kit,newton"])
+    assert args.visualizer_explicit is True
+    with pytest.warns(FutureWarning, match="newton_gl"):
+        cfg = sim_launcher.scan(SimulationCfg(), args).effective_cfg
+    assert [viewer.visualizer_type for viewer in cfg.visualizer_cfgs] == ["kit", "newton_gl"]
 
 
 @pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
@@ -291,7 +296,7 @@ def test_livestream_request_resolves_headless_livestream_launch(
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    _normalize_launcher_args(launcher_args)
+    sim_launcher.scan(SimulationCfg(), launcher_args)
     launcher._config_resolution(launcher_args)
 
     assert launcher._livestream == 1
@@ -384,23 +389,23 @@ def test_make_physics_cfg_builds_core_vbd():
 def test_livestream_injects_kit_visualizer_when_missing():
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    _normalize_launcher_args(vars(args))
-
-    assert args.visualizer == ["kit"]
+    cfg = SimulationCfg()
+    sim_launcher.scan(cfg, args)
+    assert isinstance(cfg.visualizer_cfgs[0], KitVisualizerCfg)
 
 
 def test_livestream_rejects_disabled_visualizers():
     args = argparse.Namespace(livestream=2, visualizer=[])
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        _normalize_launcher_args(vars(args))
+        sim_launcher.scan(SimulationCfg(), args)
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        _normalize_launcher_args({})
+        sim_launcher.scan(SimulationCfg(), {})
 
 
 def test_explicit_experience_requires_isaac_sim_runtime():
@@ -408,7 +413,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     scan = Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
+        visualizer_cfgs=[],
         has_ovrtx=False,
         has_kit_camera=False,
         has_kit_physics=False,
@@ -430,10 +435,12 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    _normalize_launcher_args(launcher_args)
-    visualizer_cfgs = [VisualizerCfg(visualizer_type="kit")] if cfg_has_kit else []
-    intent = sim_launcher._get_visualizer_intent(visualizer_cfgs, launcher_args)
-    launcher_args["kit_visualizer"] = intent["has_kit_visualizer"]
+    viewers = MultiBackendVisualizerCfg()
+    if cfg_has_kit:
+        viewers.default = KitVisualizerCfg()
+    config_scan = sim_launcher.scan(SimulationCfg(visualizer_cfgs=viewers), launcher_args)
+    kit = [cfg for cfg in config_scan.visualizer_cfgs if isinstance(cfg, KitVisualizerCfg)]
+    launcher_args["kit_visualizer"] = any(not cfg.headless for cfg in kit)
     launcher = KitLauncher.__new__(KitLauncher)
     launcher._kit_visualizer = launcher_args["kit_visualizer"]
     launcher._livestream = launcher_args["livestream"]
@@ -448,8 +455,8 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
 @pytest.mark.parametrize(
     "launcher_args, headless_env, livestream, expected_headless",
     [
-        # XR with no CLI visualizer: headless even though the task config asks for a window.
-        ({"xr": True}, 0, 0, True),
+        # A configured viewport is equivalent to selecting its preset on the CLI.
+        ({"xr": True}, 0, 0, False),
         # An explicit '--viz kit' is the only way to get a viewport alongside XR.
         (_XR_KIT, 0, 0, False),
         ({"xr": True, "visualizer": ["none"]}, 0, 0, True),
@@ -494,7 +501,7 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
+        visualizer_cfgs=[],
         has_ovrtx=False,
         has_kit_camera=False,
         has_kit_physics=True,
@@ -522,7 +529,7 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
+        visualizer_cfgs=[],
         has_ovrtx=False,
         has_kit_camera=True,
         has_kit_physics=False,
@@ -709,40 +716,11 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
-    settings = _DummySettings()
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", lambda: settings)
-
-    sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
-
-    assert settings.values == {
-        "/isaaclab/visualizer/types": "viser rerun",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": 0,
-    }
-
-
-def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def _unexpected_settings_manager():
-        raise AssertionError("settings manager should not be queried for invalid values")
-
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", _unexpected_settings_manager)
-
-    with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
-
-
-def test_parse_visualizer_csv_rejects_spaces_between_entries():
-    with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        sim_launcher._parse_visualizer_csv("kit, newton_gl")
-
-
-def test_normalize_visualizers_rejects_none_with_others():
-    with pytest.raises(ValueError, match="'none' cannot be combined"):
-        _normalize_launcher_args({"visualizer": ["none", "kit"]})
+def test_visualizer_selection_rejects_invalid_combinations():
+    with pytest.raises(ValueError, match="non-negative"):
+        sim_launcher.scan(SimulationCfg(), {"visualizer": "viser", "max_visible_envs": -5})
+    with pytest.raises(ValueError, match="cannot be combined"):
+        sim_launcher.scan(SimulationCfg(), {"visualizer": "none,kit"})
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
@@ -760,13 +738,13 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
 def test_matrix_cli_kit_newton_gl_with_custom_kit_cfg_intent_non_headless(monkeypatch: pytest.MonkeyPatch):
     headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit", "newton_gl"]}, cfg_has_kit=True)
     assert headless is False
-    assert args["visualizer"] == ["kit", "newton_gl"]
+    assert "visualizer" not in args
 
 
 def test_matrix_cli_rerun_with_custom_kit_cfg_intent_headless(monkeypatch: pytest.MonkeyPatch):
     headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["rerun"]}, cfg_has_kit=True)
     assert headless is True
-    assert args["visualizer"] == ["rerun"]
+    assert "visualizer" not in args
 
 
 def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):
@@ -779,14 +757,14 @@ def test_matrix_viz_kit_dict_resolves_windowed(monkeypatch: pytest.MonkeyPatch):
     # a Kit viewport only exists when the launcher is told to create it
     headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit"]})
     assert headless is False
-    assert args["visualizer"] == ["kit"]
+    assert "visualizer" not in args
 
 
 @pytest.mark.parametrize("visualizer", [[], ["none"]])
 def test_matrix_viz_none_disables_all_and_headless(monkeypatch: pytest.MonkeyPatch, visualizer):
     headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": visualizer}, cfg_has_kit=True)
     assert headless is True
-    assert args["visualizer"] == []
+    assert not args["kit_visualizer"]
 
 
 def test_matrix_headless_flag_deprecated_takes_precedence(monkeypatch: pytest.MonkeyPatch):
@@ -794,7 +772,7 @@ def test_matrix_headless_flag_deprecated_takes_precedence(monkeypatch: pytest.Mo
         monkeypatch, {"headless": True, "headless_explicit": True}, cfg_has_kit=True
     )
     assert headless is True
-    assert args["visualizer"] is None
+    assert args["kit_visualizer"]
 
 
 def test_no_cli_and_non_kit_cfg_visualizers_defaults_headless(monkeypatch: pytest.MonkeyPatch):
