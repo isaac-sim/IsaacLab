@@ -365,10 +365,10 @@ class RmpFlowController:
 
         for i, rmpflow in enumerate(self._rmpflow_policies):
             rmpflow.set_end_effector_target(target_position=command[i, 0:3], target_orientation=command[i, 3:7])
-            active_pos = all_pos[i][self._active_indices[i]]
-            active_vel = all_vel[i][self._active_indices[i]]
-            watched_pos = all_pos[i][self._watched_indices[i]]
-            watched_vel = all_vel[i][self._watched_indices[i]]
+            active_pos = all_pos[i, self._active_indices[i]]
+            active_vel = all_vel[i, self._active_indices[i]]
+            watched_pos = all_pos[i, self._watched_indices[i]]
+            watched_vel = all_vel[i, self._watched_indices[i]]
 
             pos_targets, vel_targets = rmpflow.compute_joint_targets(
                 active_pos, active_vel, watched_pos, watched_vel, self._physics_dt
