@@ -566,6 +566,23 @@ def test_config_update_dict():
     assert cfg2.to_dict() == basic_demo_cfg_change_correct
 
 
+def test_config_update_dict_replaces_scalar_types():
+    """Scalar overrides do not infer a schema from stored values or annotations."""
+
+    @configclass
+    class ScalarCfg:
+        seed: int | None = None
+        mode: int | str = 1
+        count: int = 1
+
+    cfg = ScalarCfg()
+    update_from_dict(cfg, {"seed": 42, "mode": "auto", "count": "unchecked"})
+
+    assert cfg.seed == 42
+    assert cfg.mode == "auto"
+    assert cfg.count == "unchecked"
+
+
 def test_config_update_dict_with_none():
     """Test updating configclass using a dictionary that contains None."""
     cfg = BasicDemoCfg()
