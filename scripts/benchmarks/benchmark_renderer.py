@@ -5,7 +5,7 @@
 
 #
 # Command to run:
-# BENCHMARK_MODE=render uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
+# uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
 #
 
 import argparse
