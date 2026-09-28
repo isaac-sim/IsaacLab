@@ -34,13 +34,9 @@ Tested Libraries:
 
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch the simulator
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import gymnasium as gym
 import pytest

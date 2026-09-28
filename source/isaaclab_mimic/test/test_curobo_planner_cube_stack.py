@@ -17,12 +17,11 @@ import pytest
 SEED: int = 42
 random.seed(SEED)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils import replace
 
 headless = True
-app_launcher = AppLauncher(headless=headless)
-simulation_app: Any = app_launcher.app
+launch_test_simulation(headless=headless)
 
 from collections.abc import Generator
 

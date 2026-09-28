@@ -12,7 +12,7 @@ straight. The two renders must therefore differ meaningfully. The reconstructed 
 are also checked end-to-end against the authored, non-square, off-center calibration.
 
 Notes:
-  * Runs **kit-less**: this test does not call :class:`~isaaclab.app.AppLauncher`. ``ovrtx`` and Isaac
+  * Runs **kit-less**: this test does not call :class:`~isaaclab_physx.app.KitLauncher`. ``ovrtx`` and Isaac
     Sim Kit ship conflicting RTX hydra libraries that cannot co-load; see
     :func:`isaaclab.app.sim_launcher.launch_simulation`.
   * Uses Newton physics because ``ovrtx`` is incompatible with Kit/Isaac Sim.

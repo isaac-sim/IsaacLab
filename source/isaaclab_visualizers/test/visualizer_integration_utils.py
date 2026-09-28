@@ -230,14 +230,6 @@ _VISUALIZER_DISPLAY_NAMES = {
     "viser": "Viser Visualizer",
 }
 
-_SIMULATION_APP = None
-
-
-def set_visualizer_integration_simulation_app(simulation_app) -> None:
-    """Register the Kit app launched by a backend-specific test module."""
-    global _SIMULATION_APP
-    _SIMULATION_APP = simulation_app
-
 
 def _visualizer_case_label(viz_kind: str, physics_kind: str) -> str:
     visualizer = _VISUALIZER_DISPLAY_NAMES.get(viz_kind, f"{viz_kind.title()} Visualizer")
@@ -932,20 +924,10 @@ def _annotator_rgb_to_numpy(rgb_data) -> np.ndarray:
 
 
 def _update_active_simulation_app() -> None:
-    """Pump the active Kit app launched by the backend test module."""
-    if _SIMULATION_APP is not None:
-        _SIMULATION_APP.update()
-        return
+    """Run one update of the running Kit app, for the Kit visualizer paths."""
+    import omni.kit.app
 
-    from isaacsim import SimulationApp
-
-    sim_app = None
-    if hasattr(SimulationApp, "_instance") and SimulationApp._instance is not None:
-        sim_app = SimulationApp._instance
-    elif hasattr(SimulationApp, "instance") and callable(SimulationApp.instance):
-        sim_app = SimulationApp.instance()
-    assert sim_app is not None, "Isaac Sim app is not running."
-    sim_app.update()
+    omni.kit.app.get_app().update()
 
 
 def _drain_kit_app_updates(num_updates: int) -> None:

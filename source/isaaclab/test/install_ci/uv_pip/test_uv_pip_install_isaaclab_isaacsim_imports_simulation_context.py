@@ -15,7 +15,7 @@ Setup:
         (per docs/source/setup/installation/index.rst; reinstall after the wheel install to select the CUDA build.)
     - (aarch64 only) export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
 Tests:
-    - python -c "from isaaclab.app import AppLauncher" -> verify AppLauncher importable
+    - python -c "from isaaclab_physx.app import KitLauncher" -> verify the Kit launcher is importable
     - python -c "from isaaclab.sim import SimulationContext" -> verify pxr-dependent imports resolve
 """
 
@@ -102,12 +102,12 @@ class Test_Uv_Pip_Install_Isaaclab_Isaacsim_Imports_Simulation_Context(UV_Mixin)
     @pytest.mark.slow
     @pytest.mark.timeout(1800)
     def test_install_isaacsim_makes_isaaclab_app_importable(self):
-        """``from isaaclab.app import AppLauncher`` succeeds after ``uv pip install <wheel>[isaacsim]``."""
+        """``from isaaclab_physx.app import KitLauncher`` succeeds after ``uv pip install <wheel>[isaacsim]``."""
         result = self.run_in_uv_env(
-            ["python", "-c", "from isaaclab.app import AppLauncher"],
+            ["python", "-c", "from isaaclab_physx.app import KitLauncher"],
             env=aarch64_isaacsim_env(),
         )
-        assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
+        assert result.returncode == 0, f"import isaaclab_physx.app failed:\n{result.stdout}\n{result.stderr}"
 
     @pytest.mark.docker
     @pytest.mark.uv

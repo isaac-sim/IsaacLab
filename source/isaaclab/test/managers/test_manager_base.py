@@ -9,7 +9,7 @@
 """Tests for recursive manager term configuration resolution.
 
 These tests exercise ManagerBase's parameter resolution logic and do NOT
-require an Isaac Sim launch, so they can run without AppLauncher.
+require an Isaac Sim launch, so they can run without Kit.
 """
 
 from collections import namedtuple

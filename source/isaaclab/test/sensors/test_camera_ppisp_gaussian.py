@@ -29,13 +29,9 @@ Renderer parametrization:
     ``SimulationCfg`` to give Newton the model it needs.
 """
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import tempfile
 

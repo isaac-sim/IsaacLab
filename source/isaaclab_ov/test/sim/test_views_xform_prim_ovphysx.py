@@ -5,7 +5,7 @@
 
 """Real-backend tests for the OVPhysX FrameView.
 
-Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
+Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no the Kit launcher).
 """
 
 from __future__ import annotations
