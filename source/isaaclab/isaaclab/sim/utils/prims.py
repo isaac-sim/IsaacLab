@@ -164,10 +164,10 @@ def create_prim(
         )
         return prim
 
-    position = _to_tuple(position) if position is not None else None
-    translation = _to_tuple(translation) if translation is not None else None
-    orientation = _to_tuple(orientation) if orientation is not None else None
-    scale = _to_tuple(scale) if scale is not None else None
+    position = to_tuple(position) if position is not None else None
+    translation = to_tuple(translation) if translation is not None else None
+    orientation = to_tuple(orientation) if orientation is not None else None
+    scale = to_tuple(scale) if scale is not None else None
     # a world-frame pose is expressed relative to the parent before authoring
     if position is not None:
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
@@ -1026,7 +1026,7 @@ Internal Helpers.
 """
 
 
-def _to_tuple(value: Any) -> tuple[float, ...]:
+def to_tuple(value: Any) -> tuple[float, ...]:
     """Convert various sequence types to a Python tuple of floats.
 
     This function provides robust conversion from different array-like types (list, tuple, numpy array,
@@ -1050,13 +1050,13 @@ def _to_tuple(value: Any) -> tuple[float, ...]:
         >>> import torch
         >>> import numpy as np
         >>>
-        >>> _to_tuple([1.0, 2.0, 3.0])
+        >>> to_tuple([1.0, 2.0, 3.0])
         (1.0, 2.0, 3.0)
-        >>> _to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
+        >>> to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
         (1.0, 2.0)
-        >>> _to_tuple(np.array([1.0, 2.0, 3.0]))
+        >>> to_tuple(np.array([1.0, 2.0, 3.0]))
         (1.0, 2.0, 3.0)
-        >>> _to_tuple((1.0, 2.0, 3.0))
+        >>> to_tuple((1.0, 2.0, 3.0))
         (1.0, 2.0, 3.0)
 
     """

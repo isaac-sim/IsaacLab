@@ -760,7 +760,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     physics_cfg = SimpleNamespace(class_type=Mock(), dt=0.01)
-    monkeypatch.setattr(context_module, "_resolve_physics_cfg", lambda cfg, use_isaac_sim: physics_cfg)
+    monkeypatch.setattr(context_module, "resolve_physics_cfg", lambda cfg, use_isaac_sim: physics_cfg)
     monkeypatch.setattr(context_module, "has_kit", lambda: False)
     monkeypatch.setattr(context_module, "SceneDataProvider", lambda backend: _FakeProvider())
     monkeypatch.setattr(
