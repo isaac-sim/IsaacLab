@@ -1,6 +1,29 @@
 Changelog
 ---------
 
+3.0.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Avoided scalar uploads and CUDA synchronization when resetting selected thrust-action commands.
+* Changed the RLinf Isaac Lab environment factory to start the simulation runtime through
+  :func:`~isaaclab.app.launch_simulation`, so kitless tasks no longer start Isaac Sim / Kit.
+
+Removed
+^^^^^^^
+
+* **Breaking:** Removed ``isaaclab_contrib.deformable`` after moving the implementation to Newton.
+  Import ``DeformableObject`` and ``DeformableObjectData`` from :mod:`isaaclab_newton.assets` instead,
+  or use the backend-independent :class:`isaaclab.assets.DeformableObject`.
+
+Fixed
+^^^^^
+
+* Prepared coupled Newton builders once per selected solver manager, avoiding unnecessary or repeated VBD coloring.
+
+
 2.0.3 (2026-09-27)
 ~~~~~~~~~~~~~~~~~~
 
