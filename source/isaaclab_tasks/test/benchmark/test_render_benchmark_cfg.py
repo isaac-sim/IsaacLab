@@ -18,9 +18,12 @@ import pytest
 import torch
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
+from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+from isaaclab.app import scan
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
@@ -141,12 +144,24 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
         ((), NewtonCfg),
         (("physx",), PhysxAutoCfg),
         (("isaacsim_physx",), PhysxCfg),
+        (("ovphysx",), OvPhysxCfg),
     ],
 )
 def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
     cfg = resolve_presets(_load_cfg(), selected=presets)
 
     assert isinstance(cfg.sim.physics, expected_type)
+
+
+@pytest.mark.parametrize("physics_preset", ["ovphysx", "physx"])
+def test_ovphysx_presets_resolve_with_ovrtx(physics_preset):
+    """Explicit and automatic PhysX presets support rendering without Kit."""
+    cfg = resolve_presets(_load_cfg(), selected=(physics_preset, "ovrtx"))
+    config_scan = scan(cfg)
+
+    assert isinstance(cfg.sim.physics, OvPhysxCfg)
+    assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
+    assert config_scan.needs_kit is False
 
 
 @pytest.fixture(scope="module")

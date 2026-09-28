@@ -10,6 +10,7 @@ from typing import Literal, cast
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
@@ -66,7 +67,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
     """Physics backend presets.
 
     Pick via ``presets=newton_mjwarp`` (default) or ``presets=physx``, which resolves to the
-    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX.
+    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX
+    or ``presets=ovphysx`` to pin OvPhysX.
     The BVH constructors are read from the environment so ``benchmark_renderer.py`` can sweep
     them without a separate preset per combination.
     """
@@ -80,7 +82,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
         use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
     )
     isaacsim_physx: PhysxCfg = PhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
