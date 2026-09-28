@@ -130,13 +130,20 @@ def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyP
     assert calls == []
 
 
-def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("consumers", ["renderer", "viewer", "both"])
+def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatch, consumers: str):
+    """Renderer and viewer configs require the same runtime, started exactly once."""
     calls = []
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
     monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
-    cfg = SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=NewtonRTXVisualizerCfg())
+    sim_cfg = SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=[])
+    if consumers != "renderer":
+        sim_cfg.visualizer_cfgs = NewtonRTXVisualizerCfg()
+    cfg = argparse.Namespace(sim=sim_cfg)
+    if consumers != "viewer":
+        cfg.renderer = sim_launcher.OVRTXRendererCfg()
 
     with launch_simulation(cfg):
         calls.append("user")

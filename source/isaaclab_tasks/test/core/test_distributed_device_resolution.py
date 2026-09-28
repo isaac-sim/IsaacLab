@@ -3,329 +3,102 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for distributed multi-GPU device resolution logic.
-
-These tests verify that ``_resolve_distributed_device`` (in sim_launcher)
-correctly handles:
-
-- Normal multi-GPU: each rank sees all GPUs (local_rank maps directly)
-- CUDA_VISIBLE_DEVICES restricted: each rank sees 1 GPU (fallback to cuda:0)
-- Multi-node: WORLD_SIZE > local GPU count (local_rank still maps correctly)
-- JAX_LOCAL_RANK: added to local_rank for JAX distributed training
-- Non-distributed: no device override applied
-- launch_simulation device propagation from the Kit launcher
-
-No actual GPUs required — ``torch.cuda.device_count`` and the shared CUDA
-device-selection helper are mocked throughout.
-"""
-
-from __future__ import annotations
+"""Device selection through the public launcher, without starting a runtime or touching a GPU."""
 
 import argparse
-import os
 import sys
-import types
-from unittest.mock import patch
+from types import SimpleNamespace
+
+import isaaclab_physx.app as physx_app
+import pytest
+import torch
+from isaaclab_newton.physics import NewtonCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-
-class _DummySimCfg:
-    """Minimal sim config stub with a mutable ``device`` attribute."""
-
-    def __init__(self, device: str = "cuda:0"):
-        self.device = device
-
-
-class _DummyEnvCfg:
-    """Minimal env config stub wrapping a sim config."""
-
-    def __init__(self, device: str = "cuda:0"):
-        self.sim = _DummySimCfg(device)
-
-
-def _make_distributed_args(**overrides) -> argparse.Namespace:
-    """Create an argparse.Namespace with ``distributed=True`` plus any overrides."""
-    defaults = {"distributed": True}
-    defaults.update(overrides)
-    return argparse.Namespace(**defaults)
-
-
-def _force_kitless(monkeypatch):
-    """Wrap ``scan`` so the resulting scan reports ``needs_kit=False``."""
-    real_scan = sim_launcher.scan
-
-    def fake_scan(*args, **kwargs):
-        result = real_scan(*args, **kwargs)
-        result.needs_kit = False
-        return result
-
-    monkeypatch.setattr(sim_launcher, "scan", fake_scan)
-
-
-def _make_env_vars(
-    local_rank: int = 0,
-    world_size: int = 2,
-    rank: int = 0,
-    jax_local_rank: int | None = None,
-    jax_rank: int | None = None,
-) -> dict[str, str]:
-    """Build a dict of environment variables for distributed training."""
-    env = {
-        "LOCAL_RANK": str(local_rank),
-        "WORLD_SIZE": str(world_size),
-        "RANK": str(rank),
-    }
-    if jax_local_rank is not None:
-        env["JAX_LOCAL_RANK"] = str(jax_local_rank)
-    if jax_rank is not None:
-        env["JAX_RANK"] = str(jax_rank)
-    return env
-
-
-# ---------------------------------------------------------------------------
-# _resolve_distributed_device — Namespace launcher_args
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDistributedDeviceNamespace:
-    """Tests for _resolve_distributed_device with argparse.Namespace args."""
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
-    def test_normal_multi_gpu_rank3(self, mock_count, mock_set_device):
-        """4 visible GPUs, world_size=4, rank 3 → cuda:3."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=3, world_size=4)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        assert env_cfg.sim.device == "cuda:3"
-        # the Kit launcher reads the resolved device from the launcher args
-        assert args.device == "cuda:3"
-        mock_set_device.assert_called_once_with("cuda:3")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=1)
-    def test_cuda_visible_devices_restricted_rank1(self, mock_count, mock_set_device):
-        """1 visible GPU, world_size=2, rank 1 → falls back to cuda:0 (not cuda:1)."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=1, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=2)
-    def test_jax_local_rank_added(self, mock_count, mock_set_device):
-        """JAX_LOCAL_RANK is added to LOCAL_RANK for correct device mapping."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        # LOCAL_RANK=0, JAX_LOCAL_RANK=1 → effective local_rank=1
-        env = _make_env_vars(local_rank=0, world_size=2, jax_local_rank=1)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        assert env_cfg.sim.device == "cuda:1"
-        mock_set_device.assert_called_once_with("cuda:1")
-
-
-# ---------------------------------------------------------------------------
-# _resolve_distributed_device — dict launcher_args
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDistributedDeviceDict:
-    """Tests for _resolve_distributed_device with dict-style args."""
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
-    def test_dict_args_distributed(self, mock_count, mock_set_device):
-        """Dict launcher_args with distributed=True should work identically."""
-        env_cfg = _DummyEnvCfg()
-        args = {"distributed": True}
-        env = _make_env_vars(local_rank=2, world_size=4)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:2"
-        mock_set_device.assert_called_once_with("cuda:2")
-
-
-# ---------------------------------------------------------------------------
-# _resolve_distributed_device — non-distributed (no-op)
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDistributedDeviceNoop:
-    """Tests that non-distributed runs skip device resolution."""
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    def test_not_distributed(self, mock_set_device):
-        """distributed=False → device unchanged, set_device not called."""
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-
-        sim_launcher._resolve_distributed_device(env_cfg, {"distributed": False})
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_not_called()
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    def test_no_distributed_key(self, mock_set_device):
-        """Dict without 'distributed' key → no-op."""
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = {}
-
-        sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_not_called()
-
-
-# ---------------------------------------------------------------------------
-# _resolve_distributed_device — edge cases
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDistributedDeviceEdgeCases:
-    """Edge cases for device resolution."""
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=2)
-    def test_env_cfg_without_sim(self, mock_count, mock_set_device):
-        """env_cfg with no 'sim' attribute → set_device still called, no crash."""
-
-        class _BareEnvCfg:
-            pass
-
-        env_cfg = _BareEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=1, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        # Should still call set_device even without sim_cfg
-        mock_set_device.assert_called_once_with("cuda:1")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
-    def test_missing_env_vars_default_to_zero(self, mock_count, mock_set_device):
-        """Missing LOCAL_RANK/WORLD_SIZE → defaults to 0/1."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-
-        # Remove distributed env vars if they exist
-        clean_env = {
-            k: v
-            for k, v in os.environ.items()
-            if k not in ("LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_LOCAL_RANK", "JAX_RANK")
-        }
-
-        with patch.dict(os.environ, clean_env, clear=True):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        # local_rank=0, 0 < 4 → cuda:0
-        assert env_cfg.sim.device == "cuda:0"
-
-
-# ---------------------------------------------------------------------------
-# _resolve_distributed_device — multi-node scenarios
-# ---------------------------------------------------------------------------
-
-
-class TestResolveDistributedDeviceMultiNode:
-    """Tests for multi-node setups where WORLD_SIZE > local GPU count."""
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
-    def test_multi_node_rank3_sees_4_gpus(self, mock_count, mock_set_device):
-        """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=3, 4 visible → cuda:3.
-
-        Previously this would fail because 4 >= 8 is False, falling back to cuda:0.
-        With the fix (local_rank < num_visible_gpus), 3 < 4 → cuda:3 ✅
-        """
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=3, world_size=8, rank=7)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
-
-        assert env_cfg.sim.device == "cuda:3"
-        mock_set_device.assert_called_once_with("cuda:3")
-
-
-# ---------------------------------------------------------------------------
-# launch_simulation integration — verify device propagation from the Kit launcher
-# ---------------------------------------------------------------------------
-
-
-class TestLaunchSimulationDevicePropagation:
-    """Verify that launch_simulation propagates the Kit launcher's device to env_cfg."""
-
-    def test_kit_path_propagates_launcher_device(self, monkeypatch):
-        """When Kit is needed, the Kit launcher's device should be written to env_cfg.sim.device."""
-
-        class _FakeKitLauncher:
-            device = "cuda:3"  # Simulate resolved device
-
-            def __init__(self, launcher_args):
-                pass
-
-            def close(self, exit_code=0):
-                pass
-
-        monkeypatch.setitem(
-            sys.modules,
-            "isaaclab.utils.assets",
-            types.SimpleNamespace(configure_storage_profile=lambda: None),
-        )
-
-        monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
-        # Mock _resolve_distributed_device to avoid torch.cuda calls
-        monkeypatch.setattr(
-            sim_launcher,
-            "_resolve_distributed_device",
-            lambda env_cfg, launcher_args: None,
-        )
-
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = argparse.Namespace()
-
-        with sim_launcher.launch_simulation(env_cfg, args):
-            pass
-
-        assert env_cfg.sim.device == "cuda:3"
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=2)
-    def test_kitless_path_uses_resolve_distributed_device(self, mock_count, mock_set_device, monkeypatch):
-        """When Kit is NOT needed, _resolve_distributed_device sets the device."""
-        # Force the kitless path (needs_kit=False) without constructing a real backend cfg.
-        _force_kitless(monkeypatch)
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = _make_distributed_args()
-
-        with patch.object(
-            sim_launcher, "_resolve_distributed_device", wraps=sim_launcher._resolve_distributed_device
-        ) as spy:
-            with patch.dict(os.environ, _make_env_vars(local_rank=1, world_size=2), clear=False):
-                with sim_launcher.launch_simulation(env_cfg, args):
-                    pass
-
-        spy.assert_called_once()
-        assert env_cfg.sim.device == "cuda:1"
-        mock_set_device.assert_called_once_with("cuda:1")
+from isaaclab.app import SimulationLauncher, launch_simulation
+from isaaclab.sim import SimulationCfg
+
+
+@pytest.fixture
+def selected_devices(monkeypatch):
+    """Isolate rank variables, storage configuration, and CUDA device selection."""
+    for name in ("LOCAL_RANK", "WORLD_SIZE", "RANK", "JAX_LOCAL_RANK", "JAX_RANK", "LIVESTREAM"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setitem(sys.modules, "isaaclab.utils.assets", SimpleNamespace(configure_storage_profile=lambda: None))
+    devices = []
+    monkeypatch.setattr(sim_launcher, "set_cuda_device", devices.append)
+    return devices
+
+
+@pytest.mark.parametrize("args_type", [dict, argparse.Namespace])
+@pytest.mark.parametrize("cfg_type", ["simulation", "environment", "physics"])
+@pytest.mark.parametrize(
+    ("visible_gpus", "local_rank", "world_size", "jax_local_rank", "expected"),
+    [
+        (4, 3, 4, 0, "cuda:3"),
+        (1, 1, 2, 0, "cuda:0"),
+        (2, 0, 2, 1, "cuda:1"),
+        (4, 3, 8, 0, "cuda:3"),
+        (4, None, None, None, "cuda:0"),
+    ],
+    ids=["multi_gpu", "restricted_visibility", "jax_rank", "multi_node", "default_rank"],
+)
+def test_distributed_device(
+    monkeypatch, selected_devices, args_type, cfg_type, visible_gpus, local_rank, world_size, jax_local_rank, expected
+):
+    """Rank selection updates caller-owned arguments and both supported simulation-config locations."""
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: visible_gpus)
+    for name, value in (("LOCAL_RANK", local_rank), ("WORLD_SIZE", world_size), ("JAX_LOCAL_RANK", jax_local_rank)):
+        if value is not None:
+            monkeypatch.setenv(name, str(value))
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[], device="cuda:7")
+    cfg = SimpleNamespace(sim=sim_cfg) if cfg_type == "environment" else sim_cfg
+    if cfg_type == "physics":
+        cfg = sim_cfg.physics
+    args = args_type(distributed=True)
+
+    with launch_simulation(cfg, args) as physics_cfg:
+        assert physics_cfg is sim_cfg.physics
+        if cfg_type != "physics":
+            assert sim_cfg.device == expected
+    assert (args if isinstance(args, dict) else vars(args))["device"] == expected
+    assert selected_devices == [expected]
+
+
+@pytest.mark.parametrize("args", [None, {}, {"distributed": False}, argparse.Namespace(distributed=False)])
+def test_non_distributed_device_is_unchanged(selected_devices, args):
+    """Optional launcher arguments preserve the configured device and remain caller-owned."""
+    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[], device="cuda:7")
+    with launch_simulation(cfg, args):
+        assert cfg.device == "cuda:7"
+    assert selected_devices == []
+    if args is not None:
+        values = args if isinstance(args, dict) else vars(args)
+        assert values["kit_visualizer"] is False
+
+
+@pytest.mark.parametrize("args_type", [dict, argparse.Namespace])
+@pytest.mark.parametrize("nested", [False, True], ids=["simulation", "environment"])
+def test_runtime_device_overrides_distributed_selection(monkeypatch, selected_devices, args_type, nested):
+    """A runtime may refine the device, after rank selection but before simulation construction."""
+    monkeypatch.setenv("LOCAL_RANK", "1")
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
+    received, closed = [], []
+
+    class KitRuntime(SimulationLauncher):
+        device = "cuda:3"
+
+        def __init__(self, launcher_args):
+            values = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
+            received.append(values["device"])
+
+        def close(self, exit_code=0):
+            closed.append(exit_code)
+
+    monkeypatch.setattr(physx_app, "KitLauncher", KitRuntime)
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[], device="cuda:7")
+    cfg = SimpleNamespace(sim=sim_cfg) if nested else sim_cfg
+    with launch_simulation(cfg, args_type(distributed=True, require_kit=True)):
+        assert sim_cfg.device == "cuda:3"
+    assert selected_devices == received == ["cuda:1"]
+    assert closed == [0]

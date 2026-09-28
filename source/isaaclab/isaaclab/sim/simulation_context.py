@@ -350,7 +350,7 @@ class SimulationContext:
         return (
             self._has_gui
             or self.get_setting("/isaaclab/render/rtx_sensors")
-            or self._has_continuous_visualizers()
+            or any(not getattr(cfg, "headless", False) for cfg in self.cfg.visualizer_cfgs)
             or self._xr_enabled
         )
 
@@ -398,9 +398,6 @@ class SimulationContext:
         """Return the visualizer types selected during configuration composition."""
         return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs]
 
-    def _has_continuous_visualizers(self) -> bool:
-        """Return whether any configured viewer requires per-step updates."""
-        return any(not getattr(cfg, "headless", False) for cfg in self.cfg.visualizer_cfgs)
 
     def _create_visualizers(self) -> None:
         """Construct cfg-owned consumers and publish their requirements before scene cloning."""

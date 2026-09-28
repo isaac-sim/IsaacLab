@@ -1014,36 +1014,6 @@ def _maybe_launch_cloudxr(cloudxr_env_path: str | None, auto_launch: bool):
     return launcher
 
 
-def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
-    """Return whether the CLI selects a renderer that actually drives RTX rendering.
-
-    The RTX/DLSS global settings are only meaningful when something renders through RTX.
-    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
-    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
-    A pure-headless replay with none of these renders nothing.
-
-    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
-    check keeps working as these scripts grow support for other renderers and kitless runs.
-    """
-    visualizers = getattr(args, "visualizer", None) or []
-    external_cameras = not getattr(args, "disable_external_cameras", False)
-    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
-
-
-def _apply_rtx_settings() -> None:
-    """Apply the RTX/DLSS global settings used for replay rendering.
-
-    Only call this when an RTX render pipeline actually runs this session (Kit visualizer,
-    external cameras, or XR), see :func:`_rtx_rendering_requested`; a headless replay that renders
-    nothing neither needs them nor has the extensions loaded to apply them.
-    """
-    from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
-
-    apply_isaac_rtx_global_settings(
-        IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
-    )
-
-
 def _prepare_env_cfg(
     task: str,
     num_envs: int,
@@ -1580,8 +1550,10 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
             _resolve_cloudxr_env(args_cli.cloudxr_env), args_cli.auto_launch_cloudxr
         )
 
-        if _rtx_rendering_requested(args_cli):
-            _apply_rtx_settings()
+        if not args_cli.disable_external_cameras or args_cli.kit_visualizer or args_cli.xr:
+            from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+
+            apply_isaac_rtx_global_settings(IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"))
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
 

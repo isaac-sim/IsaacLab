@@ -104,9 +104,7 @@ def preview(usd_path: str, sim_cfg: sim_utils.SimulationCfg) -> None:
         usd_path: Path of the generated USD file to display.
         sim_cfg: Simulation config resolved by :func:`~isaaclab.app.launch_simulation`.
     """
-    visualizers = sim_cfg.visualizer_cfgs
-    visualizers = visualizers if isinstance(visualizers, list) else [visualizers] if visualizers else []
-    if not visualizers:
+    if not sim_cfg.visualizer_cfgs:
         return
 
     # The physics backend ingests the USD stage and every visualizer renders the shared scene data,

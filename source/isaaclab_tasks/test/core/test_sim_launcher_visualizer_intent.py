@@ -80,7 +80,8 @@ def test_launch_simulation_uses_configured_viewers_and_releases_runtime(monkeypa
     cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg(), NewtonGLVisualizerCfg()])
     args = argparse.Namespace(max_visible_envs=3)
     with sim_launcher.launch_simulation(cfg, args):
-        assert launches[0].kit_visualizer
+        assert launches == [vars(args)]
+        assert args.kit_visualizer
         assert all(viewer.max_visible_envs == 3 for viewer in cfg.visualizer_cfgs)
     assert closed == [0]
 

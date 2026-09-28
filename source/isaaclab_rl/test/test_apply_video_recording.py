@@ -18,7 +18,12 @@ from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.utils import resolve_presets
 
-from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
+from isaaclab_rl.entrypoints.common import (
+    apply_video_recording,
+    pre_launch_video_config,
+    video_playback_steps,
+    wrap_record_video,
+)
 
 
 def _args(**kwargs: object) -> SimpleNamespace:
@@ -41,14 +46,22 @@ def test_apply_video_recording_noop_when_video_false():
     [(42, 500, 42, 500), (None, None, VideoRecorderCfg().video_length, 2000)],
     ids=["cli_overrides", "cfg_defaults"],
 )
+@pytest.mark.parametrize("prepared", [False, True], ids=["before_launch", "after_launch"])
 def test_apply_video_recording_creates_default_recorder(
-    video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int
+    video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int, prepared: bool
 ):
-    """Without declared recorders, one headless Kit recorder is created, taking CLI values over defaults."""
+    """Declare capture before launch, then configure outputs without replacing the viewer or recorder."""
     env_cfg = ManagerBasedRLEnvCfg()
-    apply_video_recording(
-        env_cfg, "/my/log", _args(video_length=video_length, video_interval=video_interval), subdir="play"
-    )
+    args = _args(video_length=video_length, video_interval=video_interval)
+    if prepared:
+        pre_launch_video_config(env_cfg, args)
+        viewer, recorder = env_cfg.sim.visualizer_cfgs[0], env_cfg.video_recorders[0]
+        assert recorder.source == "visualizer:kit"
+        assert recorder.output_dir is None
+    apply_video_recording(env_cfg, "/my/log", args, subdir="play")
+    if prepared:
+        assert env_cfg.sim.visualizer_cfgs[0] is viewer
+        assert env_cfg.video_recorders[0] is recorder
     assert len(env_cfg.video_recorders) == 1
     recorder = env_cfg.video_recorders[0]
     assert recorder.source == "visualizer:kit"
@@ -111,11 +124,11 @@ def test_apply_video_recording_patches_existing_recorders():
         ("viser", "--video is not supported"),
     ],
 )
-def test_apply_video_recording_rejects_visualizers_without_capture(visualizer: str, message: str):
-    """Video recording rejects a disabled visualizer and visualizers without frame capture."""
+def test_video_config_rejects_visualizers_without_capture(visualizer: str, message: str):
+    """Reject disabled and streaming-only viewers before starting a runtime."""
     env_cfg = resolve_presets(ManagerBasedRLEnvCfg(), overrides={"sim.visualizer_cfgs": visualizer})
     with pytest.raises(ValueError, match=message):
-        apply_video_recording(env_cfg, "/my/log", _args())
+        pre_launch_video_config(env_cfg, _args())
 
 
 @pytest.mark.parametrize(

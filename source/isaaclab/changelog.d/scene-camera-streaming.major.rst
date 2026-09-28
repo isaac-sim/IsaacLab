@@ -24,3 +24,5 @@ Fixed
 
 * Invalidated camera images after explicit pose writes so lazy reads refreshed pixels even without
   advancing simulation time.
+* Applied distributed and runtime-selected devices to standalone ``SimulationCfg`` inputs as well
+  as environment configs in ``launch_simulation``.

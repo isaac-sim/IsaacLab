@@ -446,6 +446,7 @@ def show_run_summary(
     scan(env_cfg, args_cli)
     physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
+    visualizers = ", ".join(cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim))
 
     screen.summary(
         f"Isaac Lab · {action}",
@@ -459,7 +460,7 @@ def show_run_summary(
                 if renderer is None
                 else _backend_label(requested_renderer or renderer, renderer)
             ),
-            "Visualizer": _visualizer_name(args_cli, env_cfg),
+            "Visualizer": visualizers or "none (headless)",
             "Device": str(device),
             "Environments": str(num_envs),
         },
@@ -506,12 +507,6 @@ def _renderer_name(env_cfg: Any) -> str | None:
             if isinstance(renderer_cfg, RendererCfg):
                 return _RENDERER_BACKEND_NAMES.get(renderer_cfg.renderer_type, renderer_cfg.renderer_type)
     return None
-
-
-def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
-    """Return the visualizers selected during configuration composition."""
-    names = [cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim)]
-    return ", ".join(names) if names else "none (headless)"
 
 
 """
@@ -904,21 +899,44 @@ Video recording.
 
 
 def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
-    """Pre-inject a headless Kit visualizer into *env_cfg* so the launcher includes the Kit runtime.
+    """Declare video capture and its required visualizer before starting the simulation runtime.
 
-    Must be called before :func:`~isaaclab.app.launch_simulation`. Only acts when ``--video`` is set
-    and neither the environment config nor the command line names a visualizer or a video recorder
-    to record from; :func:`apply_video_recording` wires the recorder itself after the launch.
+    Must be called before :func:`~isaaclab.app.launch_simulation`. With ``--video``, keep declared
+    recorders or select the first capture-capable viewer. An unspecified viewer defaults to headless
+    Kit. :func:`apply_video_recording` fills output paths and recording options afterward.
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
         args_cli: Parsed command-line arguments.
     """
-    if not getattr(args_cli, "video", False) or getattr(env_cfg, "video_recorders", None):
+    if not getattr(args_cli, "video", False):
+        return
+    frontend = getattr(args_cli, "frontend", "torch") or "torch"
+    if frontend != "torch":
+        raise ValueError(
+            f"--video is not supported with --frontend {frontend!r}. "
+            "Video recording requires the standard torch frontend. "
+            "Remove --video or switch to --frontend torch."
+        )
+    if env_cfg.video_recorders:
         return
     sim_cfg = resolve_presets(env_cfg.sim)
     if sim_cfg.visualizer_cfgs is None:
         sim_cfg.visualizer_cfgs = [KitVisualizerCfg(headless=True)]
+    names = [cfg.visualizer_type for cfg in _configured_visualizer_cfgs(sim_cfg)]
+    if not names:
+        raise ValueError(
+            "--video requires a visualizer. Select visualizer=kit (or another capture-capable viewer),"
+            " or declare VideoRecorderCfg(source='sensor:<name>')."
+        )
+    capture = next((name for name in names if name not in _NO_CAPTURE_VISUALIZERS), None)
+    if capture is None:
+        raise ValueError(
+            f"--video is not supported with streaming-only visualizers {', '.join(names)}. "
+            "Select visualizer=kit, newton_gl, or newton_rtx; add a headless capture viewer alongside "
+            "the streaming viewer; or declare VideoRecorderCfg(source='sensor:<name>')."
+        )
+    env_cfg.video_recorders = [VideoRecorderCfg(source=f"visualizer:{capture}", video_interval=2000)]
 
 
 def apply_video_recording(
@@ -933,8 +951,9 @@ def apply_video_recording(
 
     Recorders already declared by the environment config are kept, preserving user-set fields such
     as ``output_dir``, ``source`` and ``fps``; only the fields controlled by CLI flags are
-    overwritten. Without declared recorders, a default one records from a visualizer (see
-    :func:`_resolve_video_source`) into ``<log_dir>/videos/<subdir>`` every 2000 steps.
+    overwritten. Without declared recorders, :func:`pre_launch_video_config` selects a visualizer
+    to record into ``<log_dir>/videos/<subdir>`` every 2000 steps. Call it before launching the runtime
+    when applying recording options afterward.
 
     Maps CLI flags:
 
@@ -958,18 +977,7 @@ def apply_video_recording(
     """
     if not getattr(args_cli, "video", False):
         return
-    frontend = getattr(args_cli, "frontend", "torch") or "torch"
-    if frontend != "torch":
-        raise ValueError(
-            f"--video is not supported with --frontend {frontend!r}. "
-            "Video recording requires the standard torch frontend. "
-            "Remove --video or switch to --frontend torch."
-        )
-
-    if not getattr(env_cfg, "video_recorders", None):
-        pre_launch_video_config(env_cfg, args_cli)
-        source = _resolve_video_source(env_cfg, args_cli)
-        env_cfg.video_recorders = [VideoRecorderCfg(source=source, video_interval=2000)]
+    pre_launch_video_config(env_cfg, args_cli)
 
     video_length = getattr(args_cli, "video_length", None)
     video_interval = getattr(args_cli, "video_interval", None)
@@ -997,50 +1005,10 @@ def apply_video_recording(
         )
 
 
-def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
-    """Return the first configured capture-capable viewer, or explain how to record a scene sensor."""
-    names = [cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim)]
-    if not names:
-        raise ValueError(
-            "--video requires a visualizer. Select visualizer=kit (or another capture-capable viewer),"
-            " or declare VideoRecorderCfg(source='sensor:<name>')."
-        )
-    for name in names:
-        if name not in _NO_CAPTURE_VISUALIZERS:
-            return f"visualizer:{name}"
-    raise ValueError(_no_capture_visualizer_message(names))
-
-
 def _configured_visualizer_cfgs(sim_cfg: Any) -> list[Any]:
     """Return the concrete configurations selected before runtime launch."""
     cfgs = sim_cfg.visualizer_cfgs
     return cfgs if isinstance(cfgs, list) else [cfgs] if cfgs is not None else []
-
-
-def _no_capture_visualizer_message(names: list[str]) -> str:
-    """Explain why streaming-only visualizers cannot back ``--video`` and how to record anyway."""
-    quoted = " and ".join(repr(name) for name in names)
-    verb = "is a streaming visualizer" if len(names) == 1 else "are streaming visualizers"
-    example_cfg = {"rerun": "RerunVisualizerCfg", "viser": "ViserVisualizerCfg"}.get(
-        names[0], f"{names[0].title()}VisualizerCfg"
-    )
-    return (
-        f"--video is not supported with --viz {quoted}: {quoted} {verb} "
-        "and do not expose a local frame-capture API.\n\n"
-        "Supported recording backends (all support headless mode for zero UI overhead):\n"
-        "  --viz kit        Kit/Omniverse viewport\n"
-        "  --viz newton_gl  Newton OpenGL viewport\n"
-        "  --viz newton_rtx Newton OVRTX path-traced viewport\n\n"
-        f"To run {quoted} alongside video recording, add a headless capture backend\n"
-        "to sim.visualizer_cfgs in your environment config, for example:\n\n"
-        "  sim_cfg.visualizer_cfgs = [\n"
-        f"      {example_cfg}(...),\n"
-        "      KitVisualizerCfg(headless=True),   # provides frames for --video\n"
-        "  ]\n\n"
-        "Frames can also be captured from a scene camera sensor without any visualizer:\n"
-        "  VideoRecorderCfg(source='sensor:<name>')   # add to env_cfg.video_recorders\n\n"
-        "See: https://isaac-sim.github.io/IsaacLab/main/source/features/record_video.html"
-    )
 
 
 def _checkpoint_video_label(checkpoint_path: str | None) -> str | None:

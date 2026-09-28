@@ -420,8 +420,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
         has_ovphysx_physics=False,
         needs_kit=False,
     )
-    args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    _normalize_launcher_args(args)
+    args = {"experience": "isaaclab.python.kit"}
 
     assert _get_kit_runtime_sources(scan, args)
 
