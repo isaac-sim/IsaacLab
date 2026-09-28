@@ -56,9 +56,9 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
                     # Neck neutral
                     "neck_.*": 0.0,
                     # Right arm — ready pose hovering over the table edge.
-                    # FK: grip point lands ~(0.55, -0.27, 0.80) in the base
-                    # frame, ~5 cm above the tabletop and ~0.22 m from the
-                    # cube spawn — inside the reaching reward's gradient.
+                    # The grip point lands at ~(0.57, -0.21, 0.81) in the base
+                    # frame, ~6 cm above the tabletop, with the open fingers
+                    # pointing forward (+x) just behind the cube spawn.
                     "r_shoulder_pitch": -0.85,
                     "r_shoulder_roll": -0.1,
                     "r_elbow_yaw": 0.0,
@@ -147,17 +147,19 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
         # ── Goal command — object target pose in robot base frame ───────────
         self.commands.object_pose.body_name = "r_hand_palm_link"
         # Table top is at 0.75 m in the robot base frame, so base-frame z of
-        # 0.85–1.05 corresponds to 0.10–0.30 m above the table.
-        self.commands.object_pose.ranges.pos_x = (0.30, 0.48)
+        # 0.85–1.05 corresponds to 0.10–0.30 m above the table. The goal region
+        # sits above the cube spawn, so a grasped cube is lifted rather than
+        # pulled back toward the torso.
+        self.commands.object_pose.ranges.pos_x = (0.45, 0.65)
         self.commands.object_pose.ranges.pos_y = (-0.35, 0.0)
         self.commands.object_pose.ranges.pos_z = (0.85, 1.05)
 
-        # ── Object — DexCube on the table, biased toward the right arm ──────
+        # ── Object — DexCube on the table, in front of the open gripper ─────
         self.scene.object = RigidObjectCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             # Cube rests on the desk-height table top (z=-0.30): center settles
             # at -0.268 (half-extent 0.032 for the 0.8-scaled DexCube).
-            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.38, -0.15, -0.245], rot=[0, 0, 0, 1]),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=[0.60, -0.20, -0.245], rot=[0, 0, 0, 1]),
             spawn=UsdFileCfg(
                 usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Blocks/DexCube/dex_cube_instanceable.usd",
                 scale=(0.8, 0.8, 0.8),
@@ -171,18 +173,17 @@ class Reachy2CubeLiftEnvCfg(LiftEnvCfg):
                 ),
             ),
         )
-        # Keep the randomized spawn on the table and within right-arm reach
-        # (~0.33–0.43 m forward of the base, biased toward the right side).
+        # Keep the randomized spawn on the table and in front of the right
+        # gripper (0.55–0.65 m forward of the base, 0.10–0.30 m to the right).
         self.events.reset_object_position.params["pose_range"] = {
             "x": (-0.05, 0.05),
-            "y": (-0.1, 0.15),
+            "y": (-0.10, 0.10),
             "z": (0.0, 0.0),
         }
 
         # ── Reward shaping ───────────────────────────────────────────────────
-        # Wider reaching kernel than the Franka default (0.1): Reachy's ready
-        # pose starts ~0.22 m from the cube, and std=0.2 keeps a usable
-        # gradient over the robot's larger approach distances.
+        # Wider reaching kernel than the Franka default (0.1): std=0.2 keeps a
+        # usable gradient over the robot's larger approach distances.
         self.rewards.reaching_object.params["std"] = 0.2
         # Penalize knocking/dropping the cube off the table. Without this the
         # optimal policy is a toss-reset loop: swat the cube up (brief lifting
