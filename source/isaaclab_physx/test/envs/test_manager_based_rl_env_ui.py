@@ -5,13 +5,9 @@
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 from typing import ClassVar
 
@@ -28,7 +24,7 @@ from isaaclab.test.env_cfgs import make_empty_manager_based_rl_env_cfg
 pytestmark = pytest.mark.integration
 
 # The minimal app does not include ``isaacsim.core.experimental``, so enable the
-# GUI dependency directly through Kit after AppLauncher has started.
+# GUI dependency directly through Kit after the Kit launcher has started.
 extension_manager = omni.kit.app.get_app().get_extension_manager()
 if not extension_manager.is_extension_enabled("isaacsim.gui.components"):
     extension_manager.set_extension_enabled_immediate("isaacsim.gui.components", True)

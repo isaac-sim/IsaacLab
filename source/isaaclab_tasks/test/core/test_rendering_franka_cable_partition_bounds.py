@@ -12,11 +12,9 @@ with two marker cubes. The golden AOV tests in ``test_rendering_franka_cable.py`
 cable, so they never leave the spawn bounding box and cannot catch this.
 """
 
-# Launch Isaac Sim Simulator first for kit-based combinations.
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-app_launcher = AppLauncher(headless=True, enable_cameras=True)
-simulation_app = app_launcher.app
+launch_test_simulation(enable_cameras=True)
 
 import numpy as np  # noqa: E402
 import pytest  # noqa: E402

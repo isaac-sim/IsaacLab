@@ -8,11 +8,9 @@
 import sys
 from pathlib import Path
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 from isaaclab_physx.renderers import IsaacRtxRendererCfg

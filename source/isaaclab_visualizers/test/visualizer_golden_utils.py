@@ -355,7 +355,7 @@ def run_visualizer_golden_cartpole(
     """Run a golden-image test for one ``(physics_backend, visualizer_type, mode)`` combination.
 
     Imports :mod:`visualizer_integration_utils` lazily so this module remains importable before
-    :class:`~isaaclab.app.AppLauncher` starts Isaac Sim.
+    :class:`~isaaclab_physx.app.KitLauncher` starts Isaac Sim.
 
     Args:
         physics_backend: ``"physx"`` or ``"newton"``.
