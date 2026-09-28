@@ -83,6 +83,9 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
     Sequences containing mappings are merged element by element, preserving existing nested
     objects and the destination list or tuple type. Other elements are replaced. Such sequences
     must match the existing length; sequences without mappings may replace a different-length value.
+    Scalar replacements are not checked against the stored value's type or field annotations.
+    For configclasses, enforce domain constraints in ``validate_config`` hooks and call ``validate``
+    after updating; annotations are not validated automatically.
 
     Args:
         obj: An instance of a class to update.
@@ -92,7 +95,8 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
 
     Raises:
         TypeError: When input is not a dictionary.
-        ValueError: When dictionary has a value that does not match default config type.
+        ValueError: When a sequence cannot be merged, a callable replacement is invalid,
+            or an enum value is invalid.
         KeyError: When dictionary has a key that does not exist in the default config type.
     """
     for key, value in data.items():
@@ -167,18 +171,7 @@ def update_class_from_dict(obj, data: dict[str, Any], _ns: str = "") -> None:
                 # class_to_dict serializes members as their value, so restore the member here
                 value = type(obj_mem)(value)
 
-            # -- 4) simple scalar / explicit None ---------------------
-            elif value is None or isinstance(value, type(obj_mem)):
-                pass
-
-            # -- 5) type mismatch → abort -----------------------------
-            else:
-                raise ValueError(
-                    f"[Config]: Incorrect type under namespace: {key_ns}."
-                    f" Expected: {type(obj_mem)}, Received: {type(value)}."
-                )
-
-            # -- 6) final assignment ---------------------------------
+            # -- 4) final assignment ---------------------------------
             if isinstance(obj, dict):
                 obj[key] = value
             else:
