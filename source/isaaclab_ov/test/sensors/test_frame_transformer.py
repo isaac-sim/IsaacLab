@@ -50,6 +50,7 @@ from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
+from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_CFG  # noqa: E402
 
 wp.init()
 
@@ -668,3 +669,44 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
                 assert any(torch.allclose(rf_pos, expected, atol=1e-5) for expected in expected_rf_positions), (
                     f"RF_SHANK position {rf_pos} doesn't match either configured body offset"
                 )
+
+
+@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+def test_frame_transformer_nested_rigid_bodies(device):
+    """Test that a matched rigid body does not include nested rigid-body descendants."""
+    with _ovphysx_sim_context(device=device) as sim:
+        sim._app_control_on_stop_handle = None
+        scene_cfg = _SceneCfg(num_envs=2, env_spacing=5.0, lazy_sensor_update=False)
+        scene_cfg.robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        scene_cfg.frame_transformer = FrameTransformerCfg(
+            prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
+            target_frames=[
+                FrameTransformerCfg.FrameCfg(
+                    name="hand",
+                    prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand",
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    name="left_finger",
+                    prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_leftfinger",
+                ),
+                FrameTransformerCfg.FrameCfg(
+                    name="right_finger",
+                    prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_rightfinger",
+                ),
+            ],
+        )
+        scene = InteractiveScene(scene_cfg)
+
+        sim.reset()
+        scene.update(sim.get_physics_dt())
+
+        robot = scene.articulations["robot"]
+        source_id = robot.find_bodies("panda_link0")[0][0]
+        target_ids = robot.find_bodies(["panda_hand", "panda_leftfinger", "panda_rightfinger"])[0]
+        frame_data = scene.sensors["frame_transformer"].data
+
+        assert frame_data.target_frame_names == ["hand", "left_finger", "right_finger"]
+        torch.testing.assert_close(frame_data.source_pos_w.torch, robot.data.body_pos_w.torch[:, source_id])
+        torch.testing.assert_close(frame_data.source_quat_w.torch, robot.data.body_quat_w.torch[:, source_id])
+        torch.testing.assert_close(frame_data.target_pos_w.torch, robot.data.body_pos_w.torch[:, target_ids])
+        torch.testing.assert_close(frame_data.target_quat_w.torch, robot.data.body_quat_w.torch[:, target_ids])

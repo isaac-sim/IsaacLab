@@ -57,7 +57,7 @@ if TYPE_CHECKING:
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_FLAT_HIGH_PD_CFG  # isort:skip
 
 
 @configclass
@@ -97,11 +97,9 @@ class SceneCfg(InteractiveSceneCfg):
         debug_vis=False,
     )
 
-    robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.actuators["panda_shoulder"].stiffness = 0.0
-    robot.actuators["panda_shoulder"].damping = 0.0
-    robot.actuators["panda_forearm"].stiffness = 0.0
-    robot.actuators["panda_forearm"].damping = 0.0
+    robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot.actuators["panda_arm"].stiffness = 0.0
+    robot.actuators["panda_arm"].damping = 0.0
     robot.spawn.rigid_props.disable_gravity = True
 
 

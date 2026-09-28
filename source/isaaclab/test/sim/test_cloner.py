@@ -285,3 +285,11 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         "/World/envs/env_[^/]+/Robot/foo/bar",
         "/World/envs/env_[^/]+/Robot/other/bar",
     ]
+
+    matches = queries.resolve_matching_prims_from_source(
+        r"/World/envs/env_[^/]+/Robot/foo",
+        predicate=lambda prim: prim.GetName() in {"foo", "bar"},
+        expected_num_matches=1,
+        prefer_direct_matches=True,
+    )
+    assert [prim.GetPath().pathString for prim, _ in matches] == ["/World/envs/env_0/Robot/foo"]

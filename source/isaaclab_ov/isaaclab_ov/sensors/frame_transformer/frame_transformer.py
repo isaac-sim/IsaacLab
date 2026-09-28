@@ -176,7 +176,11 @@ class FrameTransformer(BaseFrameTransformer):
                 return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
             matches = resolve_matching_prims_from_source(
-                prim_path, predicate=has_rigid_body_api, raise_if_no_matches=False
+                prim_path,
+                predicate=has_rigid_body_api,
+                expected_num_matches=1 if frame_type == "source" else None,
+                raise_if_no_matches=False,
+                prefer_direct_matches=True,
             )
             if not matches:
                 raise ValueError(
@@ -296,8 +300,8 @@ class FrameTransformer(BaseFrameTransformer):
         # -- target frames: use relative prim path for unique identification
         self._target_frame_body_names = [self._get_relative_body_path(prim_path) for prim_path in sorted_prim_paths]
 
-        # -- source frame: use relative prim path for unique identification
-        self._source_frame_body_name = self._get_relative_body_path(self.cfg.prim_path)
+        # -- source frame: retain the concrete body resolved from the configured expression
+        self._source_frame_body_name = tracked_body_names[0]
         source_frame_index = self._target_frame_body_names.index(self._source_frame_body_name)
 
         # Only remove source frame from tracked bodies if it is not also a target frame

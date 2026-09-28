@@ -387,6 +387,7 @@ def resolve_matching_prims_from_source(
     env_regex_ns: str = "/World/envs/env_[^/]+",
     raise_if_no_matches: bool = True,
     traverse_instance_prims: bool = True,
+    prefer_direct_matches: bool = False,
 ) -> list[tuple[Usd.Prim, str]]:
     """Resolve matching prims from a single(source) instance when multiple instances are present.
 
@@ -402,6 +403,8 @@ def resolve_matching_prims_from_source(
         env_regex_ns: Namespace pattern that marks one instance root when no clone plan applies.
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
+        prefer_direct_matches: Prefer matching prims named by ``path_expr`` over their matching descendants.
+            Descendants remain a fallback when no direct prim satisfies ``predicate``.
 
     Returns:
         A list of ``(source_prim, destination_expr)`` pairs. Empty only when
@@ -480,6 +483,11 @@ def resolve_matching_prims_from_source(
                 child_path = child.GetPath().pathString
                 unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
         results = list(unique_matches.values())
+
+    if prefer_direct_matches:
+        direct_matches = [pair for pair in results if re.fullmatch(path_expr, pair[0].GetPath().pathString)]
+        if direct_matches:
+            results = direct_matches
 
     if expected_num_matches is not None and len(results) != expected_num_matches:
         raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")

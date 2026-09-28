@@ -408,8 +408,6 @@ class CuroboPlannerCfg:
             debug_planner=False,
             sphere_update_freq=5,
             motion_noise_scale=0.02,
-            # World extraction tuning for Franka envs
-            world_ignore_substrings=["/World/defaultGroundPlane", "/curobo"],
         )
 
     @classmethod

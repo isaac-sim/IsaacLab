@@ -66,8 +66,13 @@ from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_FLAT_CFG, FRANKA_PANDA_FLAT_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG
+
+_FRANKA_PANDA_NEWTON_CFG = FRANKA_PANDA_FLAT_CFG.copy()
+_FRANKA_PANDA_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
+_FRANKA_PANDA_HIGH_PD_NEWTON_CFG = FRANKA_PANDA_FLAT_HIGH_PD_CFG.copy()
+_FRANKA_PANDA_HIGH_PD_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
 
 SIM_CFGs = {
     "humanoid": SimulationCfg(
@@ -227,7 +232,7 @@ def generate_articulation_cfg(
             actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     elif articulation_type == "panda":
-        articulation_cfg = FRANKA_PANDA_CFG
+        articulation_cfg = _FRANKA_PANDA_NEWTON_CFG
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
@@ -438,7 +443,7 @@ def generate_articulation(
 def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_gravity: bool = True):
     """Build a Franka articulation at its configured home pose.
 
-    Constructs :data:`FRANKA_PANDA_HIGH_PD_CFG`, optionally zeroes the
+    Constructs :data:`_FRANKA_PANDA_HIGH_PD_NEWTON_CFG`, optionally zeroes the
     arm-actuator PD gains, resets the simulator, and teleports the
     arm joints to :attr:`default_joint_pos` (the env reset path that
     normally does this is not invoked for standalone tests, so the
@@ -447,23 +452,21 @@ def _setup_franka_at_home_pose(sim, *, zero_actuator_pd: bool = False, disable_g
 
     Args:
         sim: The simulation context to use.
-        zero_actuator_pd: If True, sets the panda_shoulder/panda_forearm
-            actuator stiffness and damping to zero. Used by the OSC test
+        zero_actuator_pd: If True, sets the ``panda_arm`` actuator stiffness
+            and damping to zero. Used by the OSC test
             so OSC's joint-effort output is not opposed by the
             implicit-PD's residual ``kp·(target − q)``.
         disable_gravity: Per-body gravity flag written to the spawn config.
-            :data:`FRANKA_PANDA_HIGH_PD_CFG` ships with gravity disabled;
+            :data:`_FRANKA_PANDA_HIGH_PD_NEWTON_CFG` ships with gravity disabled;
             pass False for tests where the arm must feel scene gravity.
 
     Returns:
         Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
     """
-    cfg = replace(clone(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
+    cfg = replace(_FRANKA_PANDA_HIGH_PD_NEWTON_CFG, prim_path="/World/Env_[^/]*/Robot")
     if zero_actuator_pd:
-        cfg.actuators["panda_shoulder"].stiffness = 0.0
-        cfg.actuators["panda_shoulder"].damping = 0.0
-        cfg.actuators["panda_forearm"].stiffness = 0.0
-        cfg.actuators["panda_forearm"].damping = 0.0
+        cfg.actuators["panda_arm"].stiffness = 0.0
+        cfg.actuators["panda_arm"].damping = 0.0
     cfg.spawn.rigid_props.disable_gravity = disable_gravity
     sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
     clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (cfg,), 1, 0.0)
@@ -1738,7 +1741,6 @@ def test_out_of_range_default_joint_state(sim, device, articulation_type, state_
     quantity = "positions" if state_field == "joint_pos" else "velocities"
     replicate(sim.get_clone_plan())
     with pytest.raises(ValueError, match=f"default {quantity} out of the limits"):
-        replicate(sim.get_clone_plan())
         sim.reset()
 
 
@@ -2511,29 +2513,31 @@ def test_write_joint_viscous_friction_to_sim(sim, num_articulations, device, art
 
     Static joint friction writes also propagate directly to the Newton model.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type)
-    articulation_cfg.actuators["panda_shoulder"].viscous_friction = 0.25
+    articulation_cfg = clone(generate_articulation_cfg(articulation_type))
+    articulation_cfg.actuators["panda_arm"].viscous_friction = 0.25
+    articulation_cfg.actuators["panda_arm"].damping = 2.0
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
     replicate(sim.get_clone_plan())
     sim.reset()
 
-    shoulder_joint_ids = articulation.actuators["panda_shoulder"].joint_indices
-    expected_viscous_friction = torch.full((articulation.num_instances, 4), 0.25, device=device)
+    arm_joint_ids = articulation.actuators["panda_arm"].joint_indices
+    expected_viscous_friction = torch.full((articulation.num_instances, len(arm_joint_ids)), 0.25, device=device)
     torch.testing.assert_close(
-        articulation.data.joint_viscous_friction_coeff.torch[:, shoulder_joint_ids], expected_viscous_friction
+        articulation.data.joint_viscous_friction_coeff.torch[:, arm_joint_ids], expected_viscous_friction
     )
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute("joint_damping", SimulationManager.get_model()))[
-            :, 0, shoulder_joint_ids
+            :, 0, arm_joint_ids
         ],
         expected_viscous_friction,
     )
 
-    expected_pd_damping = torch.full_like(expected_viscous_friction, 4.0)
-    torch.testing.assert_close(articulation.data.joint_damping.torch[:, shoulder_joint_ids], expected_pd_damping)
+    expected_pd_damping = torch.full_like(expected_viscous_friction, 2.0)
+    assert not torch.allclose(expected_pd_damping, expected_viscous_friction)
+    torch.testing.assert_close(articulation.data.joint_damping.torch[:, arm_joint_ids], expected_pd_damping)
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute("joint_target_kd", SimulationManager.get_model()))[
-            :, 0, shoulder_joint_ids
+            :, 0, arm_joint_ids
         ],
         expected_pd_damping,
     )
@@ -2840,7 +2844,7 @@ def test_heterogeneous_scene_per_view_shapes(sim, device, add_ground_plane, arti
     # per-articulation shape gate without that pre-existing quirk.
     num_per_type = 1
 
-    franka_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Env_[^/]*/Franka")
+    franka_cfg = replace(_FRANKA_PANDA_NEWTON_CFG, prim_path="/World/Env_[^/]*/Franka")
     anymal_cfg = replace(ANYMAL_C_CFG, prim_path="/World/Env_[^/]*/Anymal")
     anymal_cfg.init_state.pos = (0.0, 5.0, anymal_cfg.init_state.pos[2])
 
@@ -3142,7 +3146,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
     cfg = replace(base_cfg, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)})
-    # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
+    # FRANKA_PANDA_FLAT_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))
 
@@ -3160,7 +3164,7 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     articulation.write_joint_velocity_to_sim_index(velocity=default_qd)
     articulation.update(sim.cfg.dt)
 
-    # Default joint pose from FRANKA_PANDA_CFG bends the elbow
+    # Default joint pose from FRANKA_PANDA_FLAT_CFG bends the elbow
     # (joint2=-0.569, joint4=-2.81, joint6=3.04) so several links carry a
     # gravity load — τ_gc is non-trivial in this configuration. A natural-
     # hang pose (all zeros) would produce near-zero τ_gc and make this

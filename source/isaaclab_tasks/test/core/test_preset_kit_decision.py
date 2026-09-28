@@ -23,7 +23,7 @@ from isaaclab.utils.string import string_to_callable
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
-from isaaclab_tasks.utils.hydra import collect_presets
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
@@ -122,9 +122,36 @@ def test_registered_task_physx_presets_keep_auto_selection_explicit():
                 if isinstance(default_cfg, PhysxCfg):
                     assert default_cfg == isaacsim_cfg, location
                 assert auto_cfg.isaacsim_physx == isaacsim_cfg, location
-                assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
+                if task_id == "Isaac-Lift-Franka" and path == "sim.physics":
+                    # Its automatic eight-shape task requires Isaac Sim; explicit OvPhysX uses a cube.
+                    assert auto_cfg.ovphysx is None, location
+                else:
+                    assert auto_cfg.ovphysx == physics_fields.get("ovphysx"), location
             elif has_auto_physx and "physx" in fields:
+                if task_id == "Isaac-Lift-Franka" and path == "scene.object.spawn":
+                    assert fields["physx"] == fields["default"], location
+                    continue
+                # Kuka Lift/Reorient retains its homogeneous automatic-OvPhysX path.
+                if (
+                    task_id.startswith(("Isaac-Lift-KukaAllegro", "Isaac-Reorient-KukaAllegro"))
+                    and path == "scene.object.spawn"
+                ):
+                    continue
                 assert fields.get("isaacsim_physx") == fields["physx"], location
+
+
+@pytest.mark.parametrize(
+    "task_id", ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "IsaacContrib-Open-Drawer-Franka-IK-Rel"]
+)
+@pytest.mark.parametrize(
+    ("physics_preset", "expected_asset_physics"),
+    [("newton_mjwarp", "mujoco"), ("isaacsim_physx", "physx"), ("ovphysx", "physx")],
+)
+def test_franka_cabinet_ik_asset_variant_matches_backend(task_id, physics_preset, expected_asset_physics):
+    """The IK robot override must retain the cabinet task's backend-aware asset selection."""
+    cfg = resolve_presets(load_cfg_from_registry(task_id, "env_cfg_entry_point"), selected=(physics_preset,))
+
+    assert cfg.scene.robot.spawn.variants["Physics"] == expected_asset_physics
 
 
 def test_registered_manager_based_configs_name_their_env_class():

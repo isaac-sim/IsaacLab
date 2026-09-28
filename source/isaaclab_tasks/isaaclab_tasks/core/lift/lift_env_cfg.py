@@ -97,6 +97,8 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
+    # Automatic PhysX may use the homogeneous OvPhysX replication path.
+    physx = cube
     ovphysx = cube
 
 
