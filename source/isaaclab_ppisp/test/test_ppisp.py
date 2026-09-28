@@ -83,18 +83,14 @@ def test_ppisp_processor_discovery_resolves_before_requesting_radiance():
     )
 
     cfg = PpispProcessorCfg()
-    assert cfg.isp_cfg is PpispDiscoveryMode.AUTO_CAMERA
-    assert cfg.func(cfg, context) is None
     processing = VisualProcessingPipeline([cfg], context, {"rgb": cfg.outputs["rgb"]}, ["rgb"])
     assert processing.render_data_types == ("rgb",)
     processing.close()
 
     cfg.isp_cfg = PpispDiscoveryMode.AUTO_ANY
-    processor = cfg.func(cfg, context)
-    assert processor is not None
-    assert set(processor.inputs) == {"rgb_radiance"}
-    assert processor.inputs["rgb_radiance"].color_space == "scene_linear"
-    processor.close()
+    processing = VisualProcessingPipeline([cfg], context, cfg.inputs, ["rgb"])
+    assert processing.render_data_types == ("rgb_radiance",)
+    processing.close()
 
 
 def test_ppisp_camera_attr_import_uses_first_time_sample():

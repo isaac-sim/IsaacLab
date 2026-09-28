@@ -421,6 +421,7 @@ def test_camera_eager_updates_render_shared_batch_with_current_poses(camera_batc
     assert cameras[1].data.info["pose"] == 2.0
     assert batches == [[("wide", 1.0), ("tele", 2.0)]]
     for camera in cameras:
+        assert camera.render_generation == 1
         np.testing.assert_array_equal(camera.frame.warp.numpy(), [1, 1])
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     np.testing.assert_array_equal(uninitialized.frame.warp.numpy(), [0, 0])
@@ -445,6 +446,7 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
     assert cameras[1].data.info["pose"] == 2.0
     for camera in cameras:
         assert camera.data.info["pose"] == camera.pose
+        assert camera.render_generation == 1
         np.testing.assert_array_equal(camera.frame.warp.numpy(), [1, 1])
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     assert batches == [[("wide", 1.0)], [("tele", 2.0)]]
@@ -579,6 +581,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     InteractiveScene.update(scene, 0.2)
     assert batches == [[("fast", 0.0), ("slow", 0.0)], [("fast", 0.0)]]
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
+    assert (fast.render_generation, slow.render_generation) == (2, 1)
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])
 
     slow.pose = 3.0
@@ -586,6 +589,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0
+    assert slow.render_generation == 2
     np.testing.assert_array_equal(slow.frame.warp.numpy(), [1, 1])
     np.testing.assert_allclose(slow._timestamp.numpy(), [0.4, 0.1])
     np.testing.assert_allclose(slow._timestamp_last_update.numpy(), [0.1, 0.1])

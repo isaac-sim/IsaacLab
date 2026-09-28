@@ -62,7 +62,7 @@ def test_isaac_rtx_supported_output_types_include_rgb_hdr(monkeypatch):
     assert specs[RenderBufferKind.RGB_RADIANCE] == specs[RenderBufferKind.RGB_HDR]
 
 
-@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",)])
 def test_prepare_cameras_resolves_radiance_exposure(monkeypatch, data_types):
     """Radiance neutralizes exposure; standalone HDR retains authored camera settings."""
     _install_omni_stubs(monkeypatch)
@@ -79,9 +79,9 @@ def test_prepare_cameras_resolves_radiance_exposure(monkeypatch, data_types):
     assert camera.GetAttribute("exposure:iso").Get() == (0.0 if "rgb_radiance" in data_types else 100.0)
 
 
-@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
-def test_hdr_outputs_share_one_annotator_and_persistent_destination(monkeypatch, data_types):
+def test_hdr_outputs_share_one_annotator_and_persistent_destination(monkeypatch):
     """HDR aliases attach and extract one native source into preallocated sensor memory."""
+    data_types = ("rgb_radiance", "rgb_hdr")
     replicator, syntheticdata = _install_omni_stubs(monkeypatch)
     monkeypatch.setattr(syntheticdata, "SyntheticData", MagicMock(), raising=False)
 

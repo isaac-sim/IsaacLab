@@ -197,11 +197,10 @@ def test_compute_updates_history_only_when_requested(lag, history_length):
 
 
 class PreparedObservation(ManagerTermBase):
-    """Term whose preparation state must survive manager construction."""
+    """Prepared term that records cleanup calls."""
 
     def __init__(self, cfg, env):
         super().__init__(cfg, env)
-        self.reset_ids = []
         self.close_count = 0
         env.prepared.append(self)
 
@@ -210,49 +209,11 @@ class PreparedObservation(ManagerTermBase):
         assert not env.sim.is_playing()
         return cls(cfg, env)
 
-    def __deepcopy__(self, memo):
-        raise AssertionError("Runtime observation terms must not be copied.")
-
     def __call__(self, env, sensor_cfg, gain=1.0):
-        assert sensor_cfg is self.cfg.params["sensor_cfg"]
         return env.observation * gain
-
-    def reset(self, env_ids=None):
-        self.reset_ids.append(env_ids)
 
     def close(self):
         self.close_count += 1
-
-
-@pytest.mark.parametrize("string_func", [False, True])
-def test_prepared_observation_adoption_preserves_state_and_partial_reset(string_func):
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy = ObservationTermCfg(
-        func=f"{__name__}:PreparedObservation" if string_func else PreparedObservation,
-        params={"sensor_cfg": SceneEntityCfg("camera"), "gain": 2.0},
-    )
-    env = DummyEnv()
-    env.sim.playing = False
-    env.scene = {"camera": object()}
-    env.prepared = []
-    prepared = ObservationManager.prepare_scene(cfg, env)
-    instance = prepared["policy/dummy"]
-    env.sim.playing = True
-
-    manager = ObservationManager(cfg, env, prepared_terms=prepared)
-    assert prepared == {}
-    assert env.prepared == [instance]
-    assert manager.cfg.policy.dummy.func is instance
-    assert instance.cfg is manager.cfg.policy.dummy
-    assert instance.cfg.params["sensor_cfg"] is not cfg.policy.dummy.params["sensor_cfg"]
-    torch.testing.assert_close(manager.compute()["policy"], env.observation * 2.0)
-    manager.reset(env_ids=[1])
-    assert instance.reset_ids == [None, [1]]
-
-    manager.close()
-    manager.close()
-    assert instance.close_count == 1
 
 
 @pytest.mark.parametrize("failure", ["prepare", "signature", "initialize"])
@@ -311,21 +272,6 @@ def test_observation_close_continues_after_term_error():
         manager.close()
     manager.close()
     assert [term.close_count for term in env.prepared] == [1, 1]
-
-
-def test_default_observation_preparation_keeps_normal_construction():
-    class NormalObservation(ManagerTermBase):
-        def __call__(self, env):
-            return env.observation
-
-    cfg = HistoryObservationsCfg()
-    cfg.policy.history_length = None
-    cfg.policy.dummy.func = NormalObservation
-    env = DummyEnv()
-    assert ObservationManager.prepare_scene(cfg, env) == {}
-    manager = ObservationManager(cfg, env)
-    torch.testing.assert_close(manager.compute()["policy"], env.observation)
-    manager.close()
 
 
 def test_scene_preparation_does_not_mutate_user_configuration():

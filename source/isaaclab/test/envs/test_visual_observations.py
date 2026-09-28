@@ -136,13 +136,17 @@ def test_manager_adopts_prepared_image_and_snapshots_its_output():
     env = make_env(camera)
     events = []
     term_cfg, bindings = make_term_cfg(events)
+    term_cfg.func = "isaaclab.envs.mdp:processed_image"
     group = ObservationGroupCfg(concatenate_terms=False, enable_corruption=False)
     group.image = term_cfg
     cfg = {"policy": group}
     prepared = ObservationManager.prepare_scene(cfg, env)
+    instance = prepared["policy/image"]
     assert camera.requests == [("rgb", "rgba")]
     assert not bindings
     manager = ObservationManager(cfg, env, prepared_terms=prepared)
+    assert not prepared
+    assert manager.cfg["policy"].image.func is instance
     first = manager.compute()["policy"]["image"]
     second = manager.compute()["policy"]["image"]
     assert first.data_ptr() != second.data_ptr()
@@ -151,6 +155,7 @@ def test_manager_adopts_prepared_image_and_snapshots_its_output():
     assert torch.count_nonzero(second).item() == second.numel()
     manager.reset([1])
     np.testing.assert_array_equal(events[-1][1], [False, True])
+    manager.close()
     manager.close()
     assert sum(kind == "close" for kind, _ in events) == 1
 

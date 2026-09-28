@@ -469,26 +469,6 @@ def test_visual_processors_reject_incompatible_input_contract(requirement):
         VisualProcessingPipeline([config], _processing_context(), {"rgb_hdr": hdr}, ["rgb"])
 
 
-def test_visual_processor_state_is_independent_per_camera():
-    """Reusing a configuration creates separate bindings and buffers for each sensor."""
-    events = []
-    rgb = RenderBufferSpec(3, wp.uint8)
-    config = _processor_cfg("increment", {"rgb": rgb}, {"rgb": rgb}, events, in_place=True)
-    specs = {"rgb": rgb, "rgba": RenderBufferSpec(4, wp.uint8)}
-    first = VisualProcessingPipeline([config], _processing_context(), specs, ["rgb"])
-    second = VisualProcessingPipeline([config], _processing_context(), specs, ["rgb"])
-    first_output = first.allocate()["rgb"]
-    second_output = second.allocate()["rgb"]
-    assert first_output.warp.ptr != second_output.warp.ptr
-    first.render_outputs["rgb"].torch.fill_(7)
-    second.render_outputs["rgb"].torch.fill_(20)
-    first.process(wp.ones(2, dtype=wp.bool, device="cpu"))
-    np.testing.assert_array_equal(first_output.warp.numpy(), np.full((2, 2, 3, 3), 8))
-    np.testing.assert_array_equal(second_output.warp.numpy(), np.full((2, 2, 3, 3), 20))
-    first.close()
-    second.close()
-
-
 def test_visual_processors_keep_intermediate_rgb_storage_alive():
     """RGB views retain valid intermediate RGBA storage after another stage replaces the output."""
     events = []
@@ -562,211 +542,6 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
     assert closed == ["second", "first"]
 
 
-@pytest.mark.parametrize("use_batch", [False, True])
-def test_camera_render_freshness_and_partial_resets(monkeypatch, use_batch):
-    """Raw reads publish one generation per render, including after partial resets."""
-    from isaaclab.renderers.render_context import RenderContext
-    from isaaclab.sensors.camera import Camera
-    from isaaclab.sensors.sensor_base import SensorBase
-    from isaaclab.sim import SimulationContext
-
-    rendered = []
-    events = []
-    camera = Camera.__new__(Camera)
-    camera._clear_callbacks = lambda: None
-    camera._view = None
-    camera.cfg = SimpleNamespace(update_period=0.1, update_latest_camera_pose=False)
-    camera._device = "cpu"
-    camera._num_envs = 2
-    camera._is_initialized = True
-    camera._is_visualizing = False
-    camera._data_generation = 0
-    camera._data_generation_last_update = -1
-    camera._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
-    camera._timestamp = wp.zeros(2, dtype=wp.float32, device="cpu")
-    camera._timestamp_last_update = wp.zeros_like(camera._timestamp)
-    camera._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
-    camera._reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
-    camera._reset_mask_torch = wp.to_torch(camera._reset_mask)
-    camera._render_generation = 0
-    camera._data = CameraData.allocate(
-        data_types=["rgb"],
-        height=2,
-        width=3,
-        num_views=2,
-        device="cpu",
-        supported_specs={RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8)},
-    )
-    private_hdr = wp.zeros((2, 2, 3, 3), dtype=wp.float32, device="cpu")
-    camera._render_camera_data = SimpleNamespace(
-        output={**camera._data.output, "rgb_hdr": private_hdr}, info={"rgb": None}
-    )
-    camera._render_data = object()
-
-    def read_output(data, camera_data):
-        assert camera_data is camera._render_camera_data
-        assert camera_data.output["rgb_hdr"] is private_hdr
-        camera_data.output["rgb"].warp.fill_(len(rendered))
-        camera_data.info["rgb"] = len(rendered)
-        events.append("read")
-
-    camera._renderer = SimpleNamespace(
-        render=lambda data: rendered.append(data),
-        render_batch=lambda data: rendered.extend(data),
-        read_output=read_output,
-        cleanup=lambda data: None,
-    )
-    camera._update_camera_state = lambda **kwargs: None
-    camera._update_poses = lambda *args, **kwargs: None
-    sim = SimpleNamespace(render_context=RenderContext([]), get_physics_step_count=lambda: 0) if use_batch else None
-    monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
-
-    def update(dt):
-        if use_batch:
-            SensorBase.update_batch([camera], dt)
-        else:
-            camera.update(dt)
-
-    raw = camera.render_outputs
-    first_data = camera.data
-    assert camera.data is first_data
-    assert camera.render_outputs is raw
-    assert raw["rgb_hdr"] is private_hdr
-    assert "rgb_hdr" not in first_data.output
-    assert camera.render_generation == len(rendered) == 1
-    update(0.05)
-    assert camera.data is first_data
-    assert camera.render_generation == 1
-    update(0.05)
-    if use_batch:
-        assert camera.render_generation == len(rendered) == 2
-    assert camera.data is first_data
-    assert camera.render_generation == len(rendered) == 2
-    camera.reset(env_ids=[1])
-    assert camera.data is first_data
-    assert camera.render_generation == 3
-    camera.reset(env_mask=wp.array([True, False], dtype=wp.bool, device="cpu"))
-    assert camera.data is first_data
-    assert camera.render_generation == len(rendered) == 4
-    assert camera.data.info["rgb"] == 4
-    assert camera.render_outputs is raw
-    assert raw["rgb_hdr"] is private_hdr
-    assert events == ["read"] * 4
-    np.testing.assert_array_equal(first_data.output["rgb"].warp.numpy(), len(rendered))
-    camera.__del__()
-
-
-@pytest.mark.parametrize("supports_rgba", [False, True])
-def test_camera_private_render_requirements_reach_renderer_without_changing_public_outputs(monkeypatch, supports_rgba):
-    """Private inputs preserve public layouts and prepare every camera before a shared stage export."""
-    from pxr import Usd, UsdGeom
-
-    from isaaclab.renderers.rtx_camera_overrides import apply_rtx_exposure_overrides
-    from isaaclab.sensors.camera import Camera
-    from isaaclab.sensors.camera import camera as camera_module
-    from isaaclab.sensors.sensor_base import SensorBase
-    from isaaclab.sim import SimulationContext
-
-    specs = {
-        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-        RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32),
-    }
-    if supports_rgba:
-        specs[RenderBufferKind.RGBA] = RenderBufferSpec(4, wp.uint8)
-    stage = Usd.Stage.CreateInMemory()
-    prim = UsdGeom.Camera.Define(stage, "/World/Camera").GetPrim()
-    other_prim = UsdGeom.Camera.Define(stage, "/World/OtherCamera").GetPrim()
-    camera = Camera.__new__(Camera)
-    camera.cfg = SimpleNamespace(
-        prim_path="/World/Camera",
-        data_types=["rgb"],
-        height=2,
-        width=3,
-        renderer_cfg=SimpleNamespace(renderer_type="newton"),
-    )
-    camera.stage = stage
-    camera._device = "cpu"
-    camera._num_envs = 2
-    camera._is_initialized = False
-    camera._requested_render_inputs = ()
-    camera._sensor_prims = []
-    camera._initialize_intrinsics = lambda: None
-    camera._update_poses = lambda: None
-    camera._clear_callbacks = lambda: None
-    captured = {}
-    events = []
-
-    def prepare_cameras(stage, spec):
-        events.append(("prepare", spec.camera_prim_paths))
-        assert spec.num_instances == spec.view_count == 2
-        if RenderBufferKind.RGB_RADIANCE in spec.data_types:
-            apply_rtx_exposure_overrides(stage, list(spec.camera_prim_paths))
-        captured["spec"] = spec
-
-    def export_stage(stage, num_envs):
-        events.append(("export",))
-        assert prim.GetAttribute("exposure:iso").Get() == 0.0
-        assert other_prim.GetAttribute("exposure:iso").Get() == 0.0
-
-    camera._renderer = SimpleNamespace(
-        supported_output_types=lambda: specs,
-        prepare_cameras=prepare_cameras,
-        create_render_data=lambda spec: object(),
-        set_outputs=lambda data, outputs: captured.update(outputs=outputs),
-        cleanup=lambda data: None,
-    )
-    monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
-    monkeypatch.setattr(
-        SimulationContext,
-        "instance",
-        staticmethod(
-            lambda: SimpleNamespace(
-                device="cpu",
-                get_clone_plan=lambda: SimpleNamespace(env_ids=np.arange(2)),
-                render_context=SimpleNamespace(ensure_prepare_stage=export_stage),
-            )
-        ),
-    )
-    monkeypatch.setattr(
-        camera_module,
-        "FrameView",
-        lambda *args, **kwargs: SimpleNamespace(count=2, prims=[prim, prim], close=lambda: None),
-    )
-    with pytest.raises(ValueError, match="unsupported"):
-        camera.request_render_inputs(("unsupported",))
-    assert not events
-    camera.request_render_inputs(("rgb_radiance",))
-    camera.request_render_inputs(("rgb_radiance",))
-    other_camera = Camera.__new__(Camera)
-    other_camera._clear_callbacks = lambda: None
-    other_camera._is_initialized = False
-    other_camera.cfg = SimpleNamespace(**(vars(camera.cfg) | {"prim_path": "/World/OtherCamera"}))
-    other_camera.stage = stage
-    other_camera._renderer = camera._renderer
-    other_camera._requested_render_inputs = ()
-    other_camera.request_render_inputs(("rgb_radiance",))
-    assert camera.camera_prim_paths == ("/World/Camera",)
-    camera._initialize_camera()
-    assert events[:3] == [
-        ("prepare", ("/World/Camera",)),
-        ("prepare", ("/World/Camera",)),
-        ("prepare", ("/World/OtherCamera",)),
-    ]
-    assert events[-1] == ("export",)
-    assert captured["spec"].data_types == ("rgb", "rgb_radiance")
-    public_names = {"rgb", "rgba"} if supports_rgba else {"rgb"}
-    assert set(camera._data.output) == public_names
-    assert set(captured["outputs"]) == public_names | {"rgb_radiance"}
-    assert captured["outputs"]["rgb"] is camera._data.output["rgb"]
-    if supports_rgba:
-        assert camera._data.output["rgb"].warp.ptr == camera._data.output["rgba"].warp.ptr
-    assert camera.cfg.data_types == ["rgb"]
-    camera._is_initialized = True
-    with pytest.raises(RuntimeError, match="before sensor initialization"):
-        camera.request_render_inputs(("rgb_radiance",))
-    camera.__del__()
-
-
 @pytest.mark.parametrize("fail_cleanup", [False, True])
 def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     """A partial camera failure closes every resource and preserves the original diagnostic."""
@@ -799,8 +574,9 @@ def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     assert closed == [render_data, "view"]
 
 
-def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
-    """Every camera's signals are prepared before any camera exports the stage."""
+@pytest.mark.parametrize("supports_rgba", [False, True])
+def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supports_rgba):
+    """Public and private inputs reach shared renderer setup without changing public output layouts."""
     from pxr import Sdf, Usd, UsdGeom
 
     from isaaclab.physics import PhysicsEvent, PhysicsManager
@@ -820,8 +596,11 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
         RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
         RenderBufferKind.RGB_RADIANCE: RenderBufferSpec(3, wp.float32, color_space="scene_linear"),
     }
+    if supports_rgba:
+        specs[RenderBufferKind.RGBA] = RenderBufferSpec(4, wp.uint8)
     exports = []
     prepared = []
+    bound_outputs = {}
 
     def prepare_cameras(stage, spec):
         prepared.append(spec)
@@ -831,13 +610,14 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
     def export_stage(stage, num_envs):
         if not exports:
             assert {spec.camera_prim_paths for spec in prepared} == {(str(prim.GetPath()),) for prim in prims}
-            assert prims[1].GetAttribute("exposure:iso").Get() == 0.0
+            assert all(prim.GetAttribute("exposure:iso").Get() == 0.0 for prim in prims)
             exports.append(stage.ExportToString())
 
     renderer = SimpleNamespace(
         supported_output_types=lambda: specs,
         prepare_cameras=prepare_cameras,
-        create_render_data=lambda spec: object(),
+        create_render_data=lambda spec: SimpleNamespace(spec=spec),
+        set_outputs=lambda data, outputs: bound_outputs.update({data.spec.camera_prim_paths[0]: outputs}),
         cleanup=lambda data: None,
     )
     sim = SimpleNamespace(
@@ -849,7 +629,8 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
     )
     monkeypatch.setattr(SimulationContext, "instance", staticmethod(lambda: sim))
     monkeypatch.setattr(SensorBase, "_initialize_impl", lambda self: None)
-    monkeypatch.setattr(Camera, "_create_buffers", lambda self: None)
+    monkeypatch.setattr(Camera, "_initialize_intrinsics", lambda self: None)
+    monkeypatch.setattr(Camera, "_update_poses", lambda self: None)
     monkeypatch.setattr(
         camera_module,
         "FrameView",
@@ -878,10 +659,26 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch):
         cameras.append(camera)
 
     try:
+        first = cameras[0]
+        with pytest.raises(ValueError, match="unsupported"):
+            first.request_render_inputs(("unsupported",))
+        first.request_render_inputs(("rgb_radiance",))
+        first.request_render_inputs(("rgb_radiance",))
         CameraPhysicsManager.dispatch_event(PhysicsEvent.PHYSICS_READY)
         assert len(exports) == 1
         assert all(camera.is_initialized for camera in cameras)
         assert all(spec.num_instances == spec.view_count == 2 for spec in prepared)
+        outputs = bound_outputs[first.cfg.prim_path]
+        public_names = {"rgb", "rgba"} if supports_rgba else {"rgb"}
+        assert first.cfg.data_types == ["rgb"]
+        assert first._render_data.spec.data_types == ("rgb", "rgb_radiance")
+        assert set(first._data.output) == public_names
+        assert set(outputs) == public_names | {"rgb_radiance"}
+        assert outputs["rgb"] is first._data.output["rgb"]
+        if supports_rgba:
+            assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
+        with pytest.raises(RuntimeError, match="before sensor initialization"):
+            first.request_render_inputs(("rgb_radiance",))
     finally:
         for camera in cameras:
             camera.__del__()

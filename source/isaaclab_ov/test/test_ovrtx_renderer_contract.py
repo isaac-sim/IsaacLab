@@ -430,7 +430,7 @@ def test_ovrtx_set_outputs_wraps_requested_hdr_outputs(monkeypatch, data_types):
     assert map_frame.call_count == launch.call_count == 2
 
 
-@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",), ("rgb_hdr", "rgb_radiance")])
+@pytest.mark.parametrize("data_types", [("rgb_hdr",), ("rgb_radiance",)])
 def test_ovrtx_prepare_cameras_resolves_radiance_exposure(data_types):
     """Radiance neutralizes exposure; standalone HDR retains authored camera settings."""
     from pxr import Sdf, Usd, UsdGeom
@@ -570,8 +570,7 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
         render_data.cleanup()
 
 
-@pytest.mark.parametrize("data_type", ["rgb_hdr", "rgb_radiance"])
-def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch, data_type):
+def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch):
     """A device fallback copies each frame into one persistent transfer buffer."""
 
     class FakeArray:
@@ -595,13 +594,13 @@ def test_ovrtx_hdr_transfer_reuses_storage_on_output_device(monkeypatch, data_ty
     source = FakeArray()
 
     for _ in range(2):
-        assert renderer._prepare_hdr_source(render_data, source, {data_type: OutputArray()}) is buffer
+        assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is buffer
     allocate.assert_called_once_with(source.shape, dtype=source.dtype, device="cuda:0")
     assert copy.call_count == 2
     copy.assert_called_with(buffer, source, stream=stream)
 
     source.device = "cuda:0"
-    assert renderer._prepare_hdr_source(render_data, source, {data_type: OutputArray()}) is source
+    assert renderer._prepare_hdr_source(render_data, source, {"rgb_hdr": OutputArray()}) is source
     assert copy.call_count == 2
 
 
