@@ -242,12 +242,8 @@ def test_cli_reports_grouped_timings_as_json(benchmark_renderer, monkeypatch, ca
     with pytest.raises(SystemExit) as error:
         benchmark_renderer.main()
 
-    assert error.value.code == (1 if mode is None else 0)
+    assert error.value.code == 0
     captured = capsys.readouterr()
-    if mode is None:
-        assert "Set BENCHMARK_MODE=render or BENCHMARK_MODE=physics_render" in captured.err
-        assert captured.out == ""
-        return
     record = json.loads(captured.out)["profiles"][0]
     assert record["physics_median_ms"] == results["physics"]["median"]
     assert record["total_median_ms"] == results["total"]["median"]

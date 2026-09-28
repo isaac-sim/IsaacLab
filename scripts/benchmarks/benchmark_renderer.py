@@ -388,10 +388,6 @@ def main() -> None:
             sys.exit(1)
         matched_names.update(matches)
 
-    if "BENCHMARK_MODE" not in os.environ:
-        print("Set BENCHMARK_MODE=render or BENCHMARK_MODE=physics_render to collect sweep timings.", file=sys.stderr)
-        sys.exit(1)
-
     # Run in declaration order so a given selection always reports in the same order.
     selected_profiles = [profile for profile in PROFILES if profile["name"] in matched_names]
 
