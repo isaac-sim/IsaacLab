@@ -11,6 +11,7 @@ import importlib
 from types import SimpleNamespace
 
 import pytest
+import warp as wp
 from isaaclab_newton.physics import NewtonBackendCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonSoftContactCfg
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
@@ -119,6 +120,61 @@ def test_vbd_rigid_solver_controls(overrides):
     kwargs = NewtonManager._filter_solver_kwargs(SolverVBD, physics.VBDSolverCfg(**overrides))
     assert kwargs["rigid_compliant_alm"] is overrides.get("rigid_compliant_alm")
     assert kwargs["rigid_body_contact_buffer_size"] == 64
+
+
+def test_vbd_contact_history_matches_and_resets(monkeypatch):
+    """VBD warm-starts matched rigid contacts and clears matches on an environment reset."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    builder = ModelBuilder(gravity=(0.0, 0.0, 0.0))
+    builder.add_ground_plane()
+    body = builder.add_body(xform=wp.transform(wp.vec3(0.0, 0.0, 0.1)))
+    builder.add_shape_sphere(body=body, radius=0.1)
+    builder.color()
+    model = builder.finalize(device="cpu")
+    state_0, state_1 = model.state(), model.state()
+
+    monkeypatch.setattr(NewtonManager, "backend", SimpleNamespace(model=model, state_0=state_0))
+    monkeypatch.setattr(NewtonManager, "_solver", None)
+    monkeypatch.setattr(NewtonManager, "_collision_pipeline", None)
+    monkeypatch.setattr(NewtonManager, "_contacts", None)
+    monkeypatch.setattr(NewtonManager, "_needs_collision_pipeline", False)
+    monkeypatch.setattr(NewtonManager, "_deterministic_mode", wp.DeterministicMode.NOT_GUARANTEED)
+    solver_cfg = physics.VBDSolverCfg(
+        rigid_compliant_alm=True, rigid_contact_history=True, rigid_avbd_contact_alpha=0.25
+    )
+
+    monkeypatch.setattr(NewtonManager, "_collision_cfg", physics.NewtonCollisionPipelineCfg(broad_phase="nxn"))
+    with pytest.raises(ValueError, match="contact_matching"):
+        physics.NewtonVBDManager._build_solver(model, solver_cfg)
+
+    monkeypatch.setattr(
+        NewtonManager,
+        "_collision_cfg",
+        physics.NewtonCollisionPipelineCfg(broad_phase="nxn", contact_matching="latest"),
+    )
+    physics.NewtonVBDManager._build_solver(model, solver_cfg)
+    physics.NewtonVBDManager._initialize_contacts()
+    solver = NewtonManager._solver
+    pipeline = NewtonManager._collision_pipeline
+    contacts = NewtonManager._contacts
+    assert solver.rigid_contact_history is True
+    assert solver.rigid_contact_alpha == pytest.approx(0.25)
+    assert solver._prev_contact_lambda is not None
+    assert solver._prev_contact_lambda.shape[0] >= contacts.rigid_contact_max
+
+    for _ in range(2):
+        contacts.clear()
+        pipeline.collide(state_0, contacts)
+    count = int(contacts.rigid_contact_count.numpy()[0])
+    assert count > 0
+    assert (contacts.rigid_contact_match_index.numpy()[:count] >= 0).all()
+    solver.step(state_0, state_1, model.control(), contacts, 1.0 / 240.0)
+
+    physics.NewtonVBDManager._reset_solver_internals(wp.ones(model.world_count + 1, dtype=wp.bool, device="cpu"))
+    contacts.clear()
+    pipeline.collide(state_0, contacts)
+    assert int(contacts.rigid_contact_count.numpy()[0]) == count
+    assert (contacts.rigid_contact_match_index.numpy()[:count] < 0).all()
 
 
 def test_vbd_compliant_alm_cable_stiffness():

@@ -1538,6 +1538,8 @@ class NewtonManager(PhysicsManager):
         if world_mask is None:
             return
         cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
+        if cls._collision_pipeline is not None and cls._collision_pipeline.contact_matching != "disabled":
+            cls._collision_pipeline.reset_contact_matching(world_mask)
 
     # ----- Lifecycle orchestration ----------------------------------------
 
