@@ -327,8 +327,9 @@ def test_clear_instance_closes_renderers_before_native_backends(monkeypatch, ren
         "visualizer_failed",
         "visualizer_last",
         "visualizer_pending",
-        "backend_failed",
+        # native backends close newest first
         "backend_last",
+        "backend_failed",
         "stage",
         "cache",
         "gc",

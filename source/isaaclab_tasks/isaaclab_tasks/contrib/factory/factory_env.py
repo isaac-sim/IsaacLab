@@ -6,9 +6,6 @@
 import numpy as np
 import torch
 
-import carb
-
-import isaaclab.sim as sim_utils
 from isaaclab.envs import DirectRLEnv
 from isaaclab.utils import index_fill_
 from isaaclab.utils import math as torch_utils
@@ -596,8 +593,7 @@ class FactoryEnv(DirectRLEnv):
     def randomize_initial_state(self, env_ids):
         """Randomize initial state and perform any episode-level randomization."""
         # Disable gravity.
-        physics_sim_view = sim_utils.SimulationContext.instance().physics_sim_view
-        physics_sim_view.set_gravity(carb.Float3(0.0, 0.0, 0.0))
+        self.sim.physics_manager.set_gravity((0.0, 0.0, 0.0))
 
         # (1.) Randomize fixed asset pose.
         fixed_pose = self._fixed_asset.data.default_root_pose.torch.clone()[env_ids]
@@ -803,4 +799,4 @@ class FactoryEnv(DirectRLEnv):
         self.task_prop_gains = self.default_gains
         self.task_deriv_gains = factory_utils.get_deriv_gains(self.default_gains)
 
-        physics_sim_view.set_gravity(carb.Float3(*self.cfg.sim.gravity))
+        self.sim.physics_manager.set_gravity(tuple(self.cfg.sim.gravity))

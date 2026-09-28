@@ -63,8 +63,6 @@ def setup_camera(device) -> tuple[sim_utils.SimulationContext, CameraCfg, float]
     sim: sim_utils.SimulationContext = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
-    # load stage
-    sim_utils.update_stage()
     yield sim, camera_cfg, dt
     # Teardown
     rep.vp_manager.destroy_hydra_textures("Replicator")

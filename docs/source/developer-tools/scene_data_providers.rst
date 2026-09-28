@@ -100,7 +100,6 @@ The system has three layers:
      consumer's buffers, and expire with the destination.
    - :meth:`SceneDataProvider.get_camera_transforms`: discovers per-camera, per-env world
      transforms from the USD stage.
-   - :attr:`SceneDataProvider.usd_stage`: USD stage handle for stage-walking consumers.
    - :attr:`SceneDataProvider.num_envs`: environment count inferred from
      ``/World/envs/env_<id>`` prims.
 

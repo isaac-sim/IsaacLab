@@ -21,7 +21,7 @@ def has_kit() -> bool:
     Returns True when running inside an Omniverse Kit application (e.g. Isaac Sim).
     Returns False in kitless mode (e.g. Newton physics backend without Kit).
 
-    Not cached with ``lru_cache`` because this may be called before ``AppLauncher``
+    Not cached with ``lru_cache`` because this may be called before the Kit launcher
     finishes starting Kit, which would permanently lock in a ``False`` result.
     The underlying ``get_app()`` call is cheap once the module is loaded.
 

@@ -380,8 +380,7 @@ class conditional_reset(ManagerTermBase):
                 )
         played = self._playing_row[env_ids]
         # an environment that has not been restored yet has no episode to credit
-        started = played >= 0
-        monitor.success_update(played[started], self._success_term.succeeded[env_ids][started])
+        monitor.success_update(played, self._success_term.succeeded[env_ids], valid=played >= 0)
 
 
 class grasp_travel_distance(ManagerTermBase):

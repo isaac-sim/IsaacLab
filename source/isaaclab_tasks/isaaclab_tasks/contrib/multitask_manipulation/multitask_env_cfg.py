@@ -466,6 +466,8 @@ class CurriculumCfg:
 class MultitaskManipulationEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based heterogeneous manipulation training environment."""
 
+    class_type: type | str = "{DIR}.multitask_env:MultitaskManipulationEnv"
+
     scene: InteractiveSceneCfg = _make_scene_cfg()
     observations: ObservationsCfg = ObservationsCfg()
     actions: ActionsCfg = ActionsCfg()

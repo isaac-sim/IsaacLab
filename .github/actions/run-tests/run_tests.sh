@@ -282,7 +282,7 @@ run_tests() {
 
   if [ -n "$ovrtx_shader_cache_host_dir" ]; then
     # Canonical OVRTX shader cache mount layout; other boundaries refer here.
-    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit / AppLauncher rendering)
+    #   host kit/     -> /isaac-sim/kit/cache/nv_shadercache  (Kit rendering)
     #   host kitless/ -> OVRTX_SHADER_CACHE_PATH              (standalone OVRTXRenderer)
     #
     # kit/ is a nested bind mount overlaying the nv_shadercache directory that the

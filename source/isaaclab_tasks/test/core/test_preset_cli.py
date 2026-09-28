@@ -78,9 +78,9 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
     """Preset tokens are never registered with argparse, so the parsed
     Namespace gains no ``physics`` / ``renderer`` / ``presets`` attribute.
 
-    This is the bug-class-level guarantee against AppLauncher's name-based
-    forwarding (``set(_SIM_APP_CFG_TYPES) & set(vars(args))``,
-    ``app_launcher.py:681``): an attribute that doesn't exist can't collide.
+    This is the bug-class-level guarantee against the Kit launcher's name-based
+    forwarding (``_SIM_APP_CONFIG_KEYS & launcher_args.keys()``,
+    ``kit_launcher.py``): an attribute that doesn't exist can't collide.
     """
     monkeypatch.setattr(
         "sys.argv",
@@ -91,7 +91,7 @@ def test_setup_preset_cli_namespace_carries_no_preset_attributes(monkeypatch):
     args, _ = setup_preset_cli(_make_parser())
     for attr in ("physics", "renderer", "presets"):
         assert not hasattr(args, attr), (
-            f"setup_preset_cli wrote ``args.{attr}`` to the namespace -- AppLauncher's name-based"
+            f"setup_preset_cli wrote ``args.{attr}`` to the namespace -- the Kit launcher's name-based"
             " forwarding can then push it into SimulationApp config. Drop the argparse registration"
             " for preset selectors and use Hydra-style tokens instead."
         )

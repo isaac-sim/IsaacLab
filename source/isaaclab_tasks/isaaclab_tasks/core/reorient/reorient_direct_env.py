@@ -101,7 +101,7 @@ class ReorientDirectEnv(DirectRLEnv):
         self._write_hand_joint_vel = self.hand.write_joint_velocity_to_sim_index
 
     def _pre_physics_step(self, actions: torch.Tensor) -> None:
-        self.actions = actions.clone()
+        self.actions = actions
 
     def _apply_action(self) -> None:
         # Joint actions come first, matching the manager task's action-term order. A hand whose

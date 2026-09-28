@@ -45,6 +45,7 @@ class FabricBackend:
 
     def __init__(self, cfg: FabricBackendCfg):
         self.device = cfg.device
+        self.usd_stage = cfg.stage
         self.stage = usdrt.Usd.Stage.Attach(UsdUtils.StageCache.Get().GetId(cfg.stage).ToLongInt())
         self.hierarchy = usdrt.hierarchy.IFabricHierarchy().get_fabric_hierarchy(
             self.stage.GetFabricId(), self.stage.GetStageIdAsStageId()
@@ -156,7 +157,7 @@ class FabricBackend:
         # Foreign physics publishes world points. Author the sink once so Kit's USD refresh agrees.
         groups = {}
         for path in paths:
-            geometry = UsdGeom.Xformable(provider.usd_stage.GetPrimAtPath(path))
+            geometry = UsdGeom.Xformable(self.usd_stage.GetPrimAtPath(path))
             geometry.ClearXformOpOrder()
             geometry.SetResetXformStack(True)
             prim_type = geometry.GetPrim().GetTypeName()

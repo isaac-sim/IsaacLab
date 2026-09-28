@@ -136,7 +136,7 @@ class MySceneCfg(InteractiveSceneCfg):
     # A non-physics imu_link Xform is recreated in the test fixture (see setup_sim).
     pva_pendulum_imu_link: PvaCfg = PvaCfg(
         prim_path="{ENV_REGEX_NS}/pendulum/Geometry/world/link_1/imu_link",
-        debug_vis=not app_launcher._headless,
+        debug_vis=False,
         visualizer_cfg=replace(RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/imu_link"),
     )
     pva_pendulum_base: PvaCfg = PvaCfg(
@@ -145,7 +145,7 @@ class MySceneCfg(InteractiveSceneCfg):
             pos=PEND_POS_OFFSET,
             rot=PEND_ROT_OFFSET,
         ),
-        debug_vis=not app_launcher._headless,
+        debug_vis=False,
         visualizer_cfg=replace(GREEN_ARROW_X_MARKER_CFG, prim_path="/Visuals/Acceleration/base"),
     )
 

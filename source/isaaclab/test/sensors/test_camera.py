@@ -81,8 +81,6 @@ def setup() -> tuple[sim_utils.SimulationContext, CameraCfg, float]:
     sim = sim_utils.SimulationContext(sim_cfg)
     # populate scene
     _populate_scene()
-    # load stage
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
@@ -515,7 +513,6 @@ def setup_with_device(device) -> tuple[sim_utils.SimulationContext, CameraCfg, f
     sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
     sim = sim_utils.SimulationContext(sim_cfg)
     _populate_scene()
-    sim_utils.update_stage()
     return sim, camera_cfg, dt
 
 
