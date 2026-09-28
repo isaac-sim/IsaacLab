@@ -16,7 +16,7 @@ from ..micro import LatencyBenchmarkRunner, LatencySample, measure_latency
 from .timing import SensorLatencySamples, add_sensor_latency_measurements
 
 if TYPE_CHECKING:
-    from isaaclab.scene import InteractiveSceneCfg
+    from ...scene import InteractiveSceneCfg
 
 
 def create_contact_sensor_scene_cfg(
@@ -32,12 +32,14 @@ def create_contact_sensor_scene_cfg(
     Returns:
         Scene configuration with one contact-sensed cube per environment.
     """
-    import isaaclab.sim as sim_utils
-    from isaaclab.assets import RigidObjectCfg
-    from isaaclab.scene import InteractiveSceneCfg
-    from isaaclab.sensors import ContactSensorCfg
-    from isaaclab.terrains import TerrainImporterCfg
-    from isaaclab.utils import configclass
+    from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
+
+    from ... import sim as sim_utils
+    from ...assets import RigidObjectCfg
+    from ...scene import InteractiveSceneCfg
+    from ...sensors import ContactSensorCfg
+    from ...terrains import TerrainImporterCfg
+    from ...utils import configclass
 
     @configclass
     class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
@@ -48,8 +50,8 @@ def create_contact_sensor_scene_cfg(
             prim_path="{ENV_REGEX_NS}/Cube",
             spawn=sim_utils.CuboidCfg(
                 size=(0.5, 0.5, 0.5),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-                collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+                rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+                collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
                 activate_contact_sensors=True,
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),

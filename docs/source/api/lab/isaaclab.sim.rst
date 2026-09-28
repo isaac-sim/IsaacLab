@@ -18,6 +18,7 @@ isaaclab.sim
 
     SimulationContext
     SimulationCfg
+    BackendCfg
 
   .. rubric:: Functions
 
@@ -38,6 +39,10 @@ Simulation Configuration
 .. autoclass:: SimulationCfg
   :members:
   :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: BackendCfg
+  :members:
   :exclude-members: __init__
 
 Simulation Context Builder

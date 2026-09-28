@@ -208,7 +208,7 @@ Visualizer Overview
              <video autoplay loop muted playsinline controls preload="auto" style="width:100%;">
                <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/showcase_newton_gl_dominoes.mp4" type="video/mp4">
              </video>
-             <p class="viz-cap">newton_viewer_dominoes demo<br>Right-click dragging the first domino
+             <p class="viz-cap">newton-dominoes example<br>Right-click dragging the first domino
              triggers the cascade across an NVIDIA-logo domino layout</p>
            </div>
          </div>
@@ -983,6 +983,6 @@ See Also
 - :doc:`/source/features/draw_markers`: creating and configuring custom visualization markers
 - :doc:`/source/how-to/capture_sensor_frames`: saving per-frame sensor outputs during training
 - :doc:`/source/concepts/renderers`: renderer backends (RTX, Newton Warp, OVRTX)
-- :doc:`/source/concepts/scene_data_providers`: how scene data flows to visualizers
+- :doc:`/source/developer-tools/scene_data_providers`: how scene data flows to visualizers
 - :ref:`physics-backends-newton`: Newton backend guide
 - :doc:`/source/migration/migrating_to_isaaclab_3-0`: visualizer migration reference

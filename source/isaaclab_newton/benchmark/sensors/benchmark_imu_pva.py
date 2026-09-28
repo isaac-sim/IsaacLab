@@ -32,6 +32,7 @@ args_cli = parser.parse_args()
 import torch
 import warp as wp
 from isaaclab_newton.benchmark._physics import create_microbenchmark_physics_cfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -50,9 +51,9 @@ class ImuPvaBenchmarkSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Body",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=False),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=True),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=False),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.5)),
     )

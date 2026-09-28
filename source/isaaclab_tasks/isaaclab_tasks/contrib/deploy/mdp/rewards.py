@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import TYPE_CHECKING
 
 import torch
@@ -20,6 +21,8 @@ if TYPE_CHECKING:
     from isaaclab.sensors.frame_transformer.frame_transformer import FrameTransformer
 
     from .events import randomize_gear_type
+
+logger = logging.getLogger(__name__)
 
 
 class keypoint_command_error(ManagerTermBase):
@@ -465,9 +468,7 @@ class keypoint_ee_grasp_error(keypoint_entity_error):
         env.extras["log"]["ee_grasp_kp_error/weight_scale"] = weight_scale
 
         self._step_count += 1
-        import carb
-
-        carb.log_info(
+        logger.info(
             f"[ee_grasp_kp_error] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
             f" | pct_active={pct_active:.3f}"
@@ -555,9 +556,7 @@ class keypoint_ee_grasp_error_exp(keypoint_ee_grasp_error):
         env.extras["log"]["ee_grasp_kp_error_exp/weight_scale"] = weight_scale
 
         self._step_count += 1
-        import carb
-
-        carb.log_info(
+        logger.info(
             f"[ee_grasp_kp_error_exp] step={self._step_count}"
             f" | mean_kp_error={mean_error_scalar:.5f}"
             f" | pct_active={pct_active:.3f}"

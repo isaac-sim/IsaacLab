@@ -1,6 +1,6 @@
 # Newton/MJWarp Asset Migration Reference
 
-This reference follows the sections in the [asset migration guide](../../../docs/source/concepts/prepare_asset_for_newton.rst).
+This reference follows the sections in the [asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst).
 
 ## Contents
 
@@ -116,4 +116,4 @@ convergence work only after the model, reset, controller, contact path, and capa
 
 - Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
 - They are Newton + VBD only.
-- For the authoring contract, material fields, and collision behavior, see the [Deformables guide](../../../docs/source/overview/core-concepts/deformables.rst).
+- For the authoring contract, material fields, and collision behavior, see the [Deformables guide](../../../docs/source/concepts/deformables.rst).

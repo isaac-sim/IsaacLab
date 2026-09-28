@@ -23,13 +23,8 @@ from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
-# Map of task IDs to the reason for marking the corresponding parametrized
-# test cases as expected failures.  Tests that consume :func:`setup_environment`
-# automatically pick up these marks via :class:`pytest.param`.
-XFAIL_TASKS: dict[str, str] = {}
-
-# Native crashes cannot be contained by xfail because the process exits before
-# pytest records an outcome. Temporarily skip these tasks in every environment smoke suite.
+# Native crashes cannot be contained by xfail because the process exits before pytest records an
+# outcome, so these tasks are skipped in every environment smoke suite.
 SKIP_TASKS: dict[str, str] = {
     "Isaac-Lift-Soft-Franka": "Temporarily skipped because the soft-lift environment can crash the test process.",
     "Isaac-Lift-Soft-Franka-Camera": (
@@ -132,18 +127,10 @@ def setup_environment(
 
     print(">>> All registered environments:", registered_tasks)
 
-    # Apply skip before xfail so native-crash exclusions never execute.
-    marked_tasks = []
-    for task_id in registered_tasks:
-        if task_id in SKIP_TASKS:
-            marked_tasks.append(pytest.param(task_id, marks=pytest.mark.skip(reason=SKIP_TASKS[task_id])))
-        elif task_id in XFAIL_TASKS:
-            marked_tasks.append(
-                pytest.param(task_id, marks=pytest.mark.xfail(reason=XFAIL_TASKS[task_id], strict=False))
-            )
-        else:
-            marked_tasks.append(task_id)
-    return marked_tasks
+    return [
+        pytest.param(task_id, marks=pytest.mark.skip(reason=SKIP_TASKS[task_id])) if task_id in SKIP_TASKS else task_id
+        for task_id in registered_tasks
+    ]
 
 
 def _fire_all_interval_events_once(env) -> None:
@@ -283,7 +270,6 @@ def _run_environments(
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
-    print(f""">>> Running test for environment: {task_name}""")
     _check_random_actions(
         task_name,
         device,
@@ -294,8 +280,6 @@ def _run_environments(
         disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
     )
-    print(f""">>> Closing environment: {task_name}""")
-    print("-" * 80)
 
 
 def _check_random_actions(

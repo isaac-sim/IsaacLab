@@ -132,6 +132,6 @@ See also
 --------
 
 * :class:`~isaaclab_physx.physics.PhysxCfg`
-* :doc:`/source/overview/core-concepts/schema_cfgs`
+* :doc:`/source/concepts/schema_cfgs`
 * :ref:`physics-backends-physx`
 * :doc:`/source/concepts/solver_differences`

@@ -15,7 +15,6 @@ The following example shows how to wrap an environment for Stable-Baselines3:
 
 """
 
-# needed to import for allowing type-hinting: torch.Tensor | dict[str, torch.Tensor]
 from __future__ import annotations
 
 import contextlib
@@ -25,10 +24,12 @@ from typing import TYPE_CHECKING, Any
 import gymnasium as gym
 import numpy as np
 import torch
-import torch.nn as nn  # noqa: F401
 from stable_baselines3.common.preprocessing import is_image_space, is_image_space_channels_first
 from stable_baselines3.common.utils import constant_fn
 from stable_baselines3.common.vec_env.base_vec_env import VecEnv, VecEnvObs, VecEnvStepReturn
+from torch import nn
+
+from .utils.env_types import check_env_type
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
@@ -120,6 +121,9 @@ class Sb3VecEnvWrapper(VecEnv):
        to the one after reset. The "real" final observation is passed using the info dicts
        under the key ``terminal_observation``.
 
+    Stable-Baselines3 requires finite bounds for continuous action spaces. When the underlying environment
+    is unbounded, the wrapper exposes a finite action space without changing the environment's action processing.
+
     .. warning::
 
         By the nature of physics stepping in Isaac Sim, it is not possible to forward the
@@ -140,41 +144,32 @@ class Sb3VecEnvWrapper(VecEnv):
 
     """
 
-    def __init__(self, env: ManagerBasedRLEnv | DirectRLEnv, fast_variant: bool = True):
+    def __init__(
+        self,
+        env: ManagerBasedRLEnv | DirectRLEnv,
+        fast_variant: bool = True,
+        action_bounds: tuple[float, float] = (-1.0, 1.0),
+    ):
         """Initialize the wrapper.
 
         Args:
             env: The environment to wrap around.
             fast_variant: Use fast variant for processing info
                 (Only episodic reward, lengths and truncation info are included)
+            action_bounds: Finite bounds exposed to Stable-Baselines3 when the underlying
+                continuous action space is unbounded. Defaults to ``(-1.0, 1.0)``.
+
         Raises:
             ValueError: When the environment is not an instance of :class:`ManagerBasedRLEnv` or :class:`DirectRLEnv`.
+            ValueError: When ``action_bounds`` are invalid.
         """
-        # check that input is valid
-        # NOTE: import here (not at module level) to avoid loading heavy env classes before Isaac Sim is initialized.
-        from isaaclab.envs import DirectRLEnv, ManagerBasedRLEnv
-
-        try:
-            from isaaclab_experimental.envs import DirectRLEnvWarp, ManagerBasedRLEnvWarp
-        except ImportError:
-            DirectRLEnvWarp = None
-            ManagerBasedRLEnvWarp = None
-
-        allowed_types = (ManagerBasedRLEnv, DirectRLEnv)
-        if DirectRLEnvWarp is not None:
-            allowed_types += (DirectRLEnvWarp,)
-        if ManagerBasedRLEnvWarp is not None:
-            allowed_types += (ManagerBasedRLEnvWarp,)
-
-        if not isinstance(env.unwrapped, allowed_types):
-            raise ValueError(
-                "The environment must be inherited from ManagerBasedRLEnv / DirectRLEnv / DirectRLEnvWarp /"
-                " ManagerBasedRLEnvWarp. Environment type:"
-                f" {type(env.unwrapped)}"
-            )
-        # initialize the wrapper
+        check_env_type(env)
         self.env = env
         self.fast_variant = fast_variant
+        low, high = action_bounds
+        if not np.isfinite(low) or not np.isfinite(high) or low >= high:
+            raise ValueError(f"Invalid action bounds: {action_bounds}. Expected finite numeric bounds with low < high.")
+        self._action_bounds = action_bounds
         # collect common information
         self.num_envs = self.unwrapped.num_envs
         self.sim_device = self.unwrapped.device
@@ -361,11 +356,14 @@ class Sb3VecEnvWrapper(VecEnv):
                         self.observation_processors[obs_key] = chained_processor
 
         # obtain gym spaces
-        # note: stable-baselines3 does not like when we have unbounded action space so
-        #   we set it to some high value here. Maybe this is not general but something to think about.
         action_space = self.unwrapped.single_action_space
         if isinstance(action_space, gym.spaces.Box) and not action_space.is_bounded("both"):
-            action_space = gym.spaces.Box(low=-100, high=100, shape=action_space.shape)
+            action_space = gym.spaces.Box(
+                low=self._action_bounds[0],
+                high=self._action_bounds[1],
+                shape=action_space.shape,
+                dtype=action_space.dtype,
+            )
 
         # initialize vec-env
         VecEnv.__init__(self, self.num_envs, observation_space, action_space)

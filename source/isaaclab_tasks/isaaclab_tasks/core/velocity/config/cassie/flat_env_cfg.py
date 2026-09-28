@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the Cassie velocity-tracking environment on flat terrain."""
+
 from isaaclab.utils import configclass
 
 from .rough_env_cfg import CassieRoughEnvCfg
@@ -10,6 +12,8 @@ from .rough_env_cfg import CassieRoughEnvCfg
 
 @configclass
 class CassieFlatEnvCfg(CassieRoughEnvCfg):
+    """Configuration for the Cassie velocity-tracking environment on flat terrain."""
+
     def __post_init__(self):
         super().__post_init__()
 

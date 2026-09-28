@@ -11,11 +11,6 @@ import warp as wp
 from isaaclab_experimental.envs import DirectRLEnvWarp
 from isaaclab_experimental.utils.warp.utils import wrap_to_pi
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
-from isaaclab.sim.spawners.from_files import GroundPlaneCfg, spawn_ground_plane
-
 if TYPE_CHECKING:
     from isaaclab_tasks.core.cartpole.cartpole_direct_env_cfg import CartpoleEnvCfg
 
@@ -194,6 +189,7 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
 
     def __init__(self, cfg: CartpoleEnvCfg, render_mode: str | None = None, **kwargs) -> None:
         super().__init__(cfg, render_mode, **kwargs)
+        self.cartpole = self.scene["cartpole"]
 
         # Get the indices (develop API: find_joints returns (indices, names))
         self._cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
@@ -230,25 +226,6 @@ class CartpoleWarpEnv(DirectRLEnvWarp):
         self.torch_reset_terminated = wp.to_torch(self.reset_terminated)
         self.torch_reset_time_outs = wp.to_torch(self.reset_time_outs)
         self.torch_episode_length_buf = self.episode_length_buf  # already a torch tensor via wp.to_torch
-
-    def _setup_scene(self) -> None:
-        self.cartpole = Articulation(self.cfg.robot_cfg)
-        # add ground plane
-        spawn_ground_plane(prim_path="/World/ground", cfg=GroundPlaneCfg())
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing)[0]
-        global_paths = ("/World/ground",)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, pos, global_paths=global_paths)
-        cloner.replicate(plan)
-        # we need to explicitly filter collisions for CPU simulation
-        if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[])
-        # add articulation to scene
-        self.scene.articulations["cartpole"] = self.cartpole
-        # add lights
-        light_cfg = sim_utils.DistantLightCfg(intensity=2000.0, color=(1.0, 1.0, 1.0))
-        light_orientation = (-0.14644663035869598, -0.3535534143447876, -0.3535534143447876, 0.8535533547401428)
-        light_cfg.func("/World/Light", light_cfg, orientation=light_orientation)
 
     def _pre_physics_step(self, actions: wp.array) -> None:
         wp.launch(

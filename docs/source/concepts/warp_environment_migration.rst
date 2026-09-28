@@ -105,6 +105,13 @@ array. This is resolved via a fallback chain (see
 ``ObservationManager._infer_term_dim_scalar`` in
 ``isaaclab_experimental/managers/observation_manager.py``):
 
+.. warning::
+
+   The IO descriptor decorators are deprecated in Isaac Lab 3.0 and will be
+   removed in Isaac Lab 3.2. Their output-dimension metadata remains available
+   temporarily for Warp-first environments while a replacement runtime
+   configuration is developed.
+
 1. **Explicit ``out_dim`` in decorator** (preferred):
 
    .. code-block:: python

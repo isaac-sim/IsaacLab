@@ -17,8 +17,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.utils import configclass
-
+from ..utils import configclass
 from .sub_terrain_cfg import SubTerrainBaseCfg
 
 if TYPE_CHECKING:

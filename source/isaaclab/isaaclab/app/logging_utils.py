@@ -7,7 +7,7 @@
 
 The logging intent expressed by the ``--verbose`` / ``--info`` CLI arguments must be
 honored by every simulation backend, not just the Kit-based one. Keeping the resolution
-here (rather than inside :class:`~isaaclab.app.AppLauncher`) lets the kitless launch path
+here (rather than inside :class:`~isaaclab_physx.app.KitLauncher`) lets the kitless launch path
 apply the same level without constructing Kit.
 """
 

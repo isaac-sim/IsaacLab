@@ -3,25 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
 from collections import namedtuple
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.managers import RewardManager, RewardTermCfg
-from isaaclab.sim import SimulationContext
 from isaaclab.utils import configclass
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 def grilled_chicken(env):
@@ -42,26 +33,10 @@ def grilled_chicken_with_yoghurt(env, hot: bool, bland: float):
 
 @pytest.fixture
 def env():
-    sim = SimulationContext()
+    # simulation double that has not started playing
+    sim = MagicMock()
+    sim.is_playing.return_value = False
     return namedtuple("ManagerBasedRLEnv", ["num_envs", "dt", "device", "sim"])(20, 0.1, "cpu", sim)
-
-
-def test_str(env):
-    """Test the string representation of the reward manager."""
-    cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_bbq, weight=5, params={"bbq": True}),
-        "term_3": RewardTermCfg(
-            func=grilled_chicken_with_yoghurt,
-            weight=1.0,
-            params={"hot": False, "bland": 2.0},
-        ),
-    }
-    rew_man = RewardManager(cfg, env)
-    assert len(rew_man.active_terms) == 3
-    # print the expected string
-    print()
-    print(rew_man)
 
 
 def test_config_equivalence(env):
@@ -136,10 +111,6 @@ def test_config_empty(env):
     rew_man = RewardManager(None, env)
     assert len(rew_man.active_terms) == 0
 
-    # print the expected string
-    print()
-    print(rew_man)
-
     # compute reward
     rewards = rew_man.compute(dt=env.dt)
 
@@ -157,6 +128,8 @@ def test_active_terms(env):
     rew_man = RewardManager(cfg, env)
 
     assert len(rew_man.active_terms) == 3
+    # the string representation lists every active term
+    assert "term_3" in str(rew_man)
 
 
 def test_missing_weight(env):
