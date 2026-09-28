@@ -5,7 +5,7 @@
 
 #
 # Command to run:
-# uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
+# BENCHMARK_MODE=render uv run --no-sync python scripts/benchmarks/benchmark_renderer.py [PROFILE]
 #
 
 import argparse
@@ -273,7 +273,6 @@ def run_profile(profile: dict, args: argparse.Namespace):
         "NEWTON_USE_CUDA_GRAPH": "0",
         "ISAACLAB_RENDER_PROFILE": "1",
         "ISAACLAB_PHYSICS_PROFILE": "1",
-        "BENCHMARK_MODE": os.getenv("BENCHMARK_MODE", "render"),
         "BENCHMARK_SAVE_IMAGE": "1" if args.save_image else "0",
         "BENCHMARK_RENDER_RESOLUTION": f"{args.resolution}",
         "WARP_CACHE_PATH": warp_cache_path,
@@ -388,6 +387,10 @@ def main() -> None:
             print(f"No profile found matching: {profile_name}", file=sys.stderr)
             sys.exit(1)
         matched_names.update(matches)
+
+    if "BENCHMARK_MODE" not in os.environ:
+        print("Set BENCHMARK_MODE=render or BENCHMARK_MODE=physics_render to collect sweep timings.", file=sys.stderr)
+        sys.exit(1)
 
     # Run in declaration order so a given selection always reports in the same order.
     selected_profiles = [profile for profile in PROFILES if profile["name"] in matched_names]

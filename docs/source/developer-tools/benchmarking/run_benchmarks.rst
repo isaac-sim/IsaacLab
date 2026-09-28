@@ -98,7 +98,8 @@ renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing
 ``render()`` and excluding scene updates and output readback. Both context managers install
 wrappers after warmup and restore the original methods when measurement ends, including on
 failure, so subsequent benchmark runs are unaffected. The render sweep
-enables both flags and defaults to ``BENCHMARK_MODE=render`` explicitly. Ordered
+enables both flags but requires an explicit ``BENCHMARK_MODE=render`` or
+``BENCHMARK_MODE=physics_render`` to collect timings. Ordered
 ``[scope, elapsed_ms]`` samples are written under
 ``timings_ms`` in the local ``<output_path>/profile_timings.json`` file. The benchmark bundle's
 ``extra`` dictionary holds scalar ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``,

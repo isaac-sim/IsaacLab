@@ -189,7 +189,7 @@ def test_run_profile_reads_fresh_structured_output(benchmark_renderer, tmp_path,
         assert "--profile_output_path" not in cmd
         assert kwargs["env"]["ISAACLAB_RENDER_PROFILE"] == "1"
         assert kwargs["env"]["ISAACLAB_PHYSICS_PROFILE"] == "1"
-        assert kwargs["env"]["BENCHMARK_MODE"] == (mode or "render")
+        assert kwargs["env"].get("BENCHMARK_MODE") == mode
         assert not profile_path.exists()
         if write_timings:
             _write_profile(profile_path, [(_PHYSICS_SCOPE, 1.234567), (_RENDER_SCOPE, 2.345678)] * frames)
@@ -225,8 +225,13 @@ def test_cli_lists_available_profiles_as_json(benchmark_renderer):
     assert payload["available_profiles"] == [profile["name"] for profile in benchmark_renderer.PROFILES]
 
 
-def test_cli_reports_grouped_timings_as_json(benchmark_renderer, monkeypatch, capsys):
+@pytest.mark.parametrize("mode", [None, "render", "physics_render"])
+def test_cli_reports_grouped_timings_as_json(benchmark_renderer, monkeypatch, capsys, mode):
     """Grouped physics and total statistics are reported without contaminating JSON stdout."""
+    if mode is None:
+        monkeypatch.delenv("BENCHMARK_MODE", raising=False)
+    else:
+        monkeypatch.setenv("BENCHMARK_MODE", mode)
     profile = benchmark_renderer.PROFILES[0]
     stats = {key: 2.0 for key in benchmark_renderer.STAT_KEYS}
     results = {"size": 1, **stats, "physics": stats, "total": stats}
@@ -237,8 +242,12 @@ def test_cli_reports_grouped_timings_as_json(benchmark_renderer, monkeypatch, ca
     with pytest.raises(SystemExit) as error:
         benchmark_renderer.main()
 
-    assert error.value.code == 0
+    assert error.value.code == (1 if mode is None else 0)
     captured = capsys.readouterr()
+    if mode is None:
+        assert "Set BENCHMARK_MODE=render or BENCHMARK_MODE=physics_render" in captured.err
+        assert captured.out == ""
+        return
     record = json.loads(captured.out)["profiles"][0]
     assert record["physics_median_ms"] == results["physics"]["median"]
     assert record["total_median_ms"] == results["total"]["median"]
