@@ -67,7 +67,7 @@ def main():
         # run inference with the policy
         obs, _ = env.reset()
         with torch.inference_mode():
-            while env.sim.is_headless_or_exist_active_visualizer():
+            while env.sim.is_running():
                 action = policy(obs["policy"])
                 obs, _, _, _, _ = env.step(action)
         env.close()

@@ -198,7 +198,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
         pc_markers = VisualizationMarkers(cfg)
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # Step simulation
         sim.step()
         # Update camera data
@@ -222,11 +222,13 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
 
         # Extract camera data
         if args_cli.save:
-            # Save the 8-bit color images (rgb and colorized segmentations) from camera at camera_index
+            # Save the camera outputs at camera_index: 8-bit color images as PNG, other data (depth, normals) as NumPy
             for key, data in camera.data.output.items():
+                file_stem = os.path.join(output_dir, f"{key}_{camera.frame[camera_index]}")
                 if data.torch.dtype == torch.uint8:
-                    file_path = os.path.join(output_dir, f"{key}_{camera.frame[camera_index]}.png")
-                    save_images_to_file(data.torch[camera_index : camera_index + 1].float() / 255.0, file_path)
+                    save_images_to_file(data.torch[camera_index : camera_index + 1].float() / 255.0, f"{file_stem}.png")
+                else:
+                    np.save(f"{file_stem}.npy", data.torch[camera_index].cpu().numpy())
 
         # Draw pointcloud if there is a GUI and --draw has been passed
         if (

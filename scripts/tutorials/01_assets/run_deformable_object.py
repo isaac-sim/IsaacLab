@@ -126,7 +126,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     nodal_kinematic_target = cube_object.data.nodal_kinematic_target.torch.clone()
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # reset at start and after 3 seconds
         if count % int(3.0 / sim_dt) == 0:
             # reset counters

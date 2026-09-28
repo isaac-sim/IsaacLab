@@ -27,8 +27,9 @@ class _LaunchedApp:
     def __init__(self, app: Any):
         self._app = app
 
-    def close(self, *args, **kwargs) -> None:
-        _RUNTIME.close()
+    def close(self, *args, exit_code: int = 0, **kwargs) -> None:
+        # unwind the launch as a ``sys.exit(exit_code)`` so the runtime exits with the requested status
+        _RUNTIME.__exit__(SystemExit, SystemExit(exit_code), None)
 
     def is_exiting(self) -> bool:
         return not self._app.is_running()

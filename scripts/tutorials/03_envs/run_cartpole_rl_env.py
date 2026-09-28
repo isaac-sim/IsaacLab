@@ -53,7 +53,7 @@ def main():
 
         # simulate physics
         count = 0
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_running():
             with torch.inference_mode():
                 # reset
                 if count % 300 == 0:

@@ -151,7 +151,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, AssetBas
     """Runs the simulation loop."""
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # perform step
         sim.step()
         step_count += 1

@@ -265,7 +265,7 @@ def main():
             env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device, position_threshold=0.01
         )
 
-        while env.unwrapped.sim.is_headless_or_exist_active_visualizer():
+        while env.unwrapped.sim.is_running():
             # run everything in inference mode
             with torch.inference_mode():
                 # step environment

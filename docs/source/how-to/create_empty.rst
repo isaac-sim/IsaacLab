@@ -118,7 +118,7 @@ properly.
    only plays the timeline and does not initializes the physics handles.
 
 After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly.
-The loop condition :meth:`sim.SimulationContext.is_headless_or_exist_active_visualizer` keeps it running
+The loop condition :meth:`sim.SimulationContext.is_running` keeps it running
 forever when no visualizer is open, and until the last visualizer window is closed otherwise.
 The method :meth:`sim.SimulationContext.step` takes in as argument :attr:`render`, which dictates whether
 the step includes updating the rendering-related events or not. By default, this flag is set to True.

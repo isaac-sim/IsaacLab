@@ -45,7 +45,7 @@ def _load_replay_episodes_loop():
 
 
 class _SimStub:
-    def is_headless_or_exist_active_visualizer(self):
+    def is_running(self):
         return True
 
     def reset(self):

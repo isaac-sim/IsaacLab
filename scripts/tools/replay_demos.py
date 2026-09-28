@@ -147,7 +147,7 @@ def replay_episodes_loop(  # noqa: C901
     failed_demo_ids: list[int] = []
 
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_running():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True

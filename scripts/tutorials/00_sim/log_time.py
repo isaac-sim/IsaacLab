@@ -70,7 +70,7 @@ def main():
         # Open logging file
         with open(os.path.join(log_dir_path, "log.txt"), "w") as log_file:
             # Simulate physics
-            while sim.is_headless_or_exist_active_visualizer():
+            while sim.is_running():
                 log_file.write(f"{sim_time}" + "\n")
                 # perform step
                 sim.step()

@@ -129,7 +129,7 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     _scene = instantiate(scene_cfg)
     sim.reset()
 
-    # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
+    # Checked per visualizer rather than through ``SimulationContext.is_running``:
     # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
     # drops visualizers once they close, so the preview would never exit.
     while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):

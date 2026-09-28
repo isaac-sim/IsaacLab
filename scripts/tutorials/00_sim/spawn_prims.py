@@ -105,7 +105,7 @@ def main():
         print("[INFO]: Setup complete...")
 
         # Simulate physics
-        while sim.is_headless_or_exist_active_visualizer():
+        while sim.is_running():
             # perform step
             sim.step()
 

@@ -64,7 +64,7 @@ def main():
         sim.reset()
 
         # Simulate
-        while sim.is_headless_or_exist_active_visualizer():
+        while sim.is_running():
             # If simulation is stopped, then exit.
             if sim.is_stopped():
                 break

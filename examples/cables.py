@@ -121,7 +121,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene, max
     reset_steps = max(1, int(2.0 / sim_dt))
     count = 0
 
-    while (max_steps < 0 or count < max_steps) and sim.is_headless_or_exist_active_visualizer():
+    while (max_steps < 0 or count < max_steps) and sim.is_running():
         if count > 0 and count % reset_steps == 0:
             reset_cables(scene.cable_objects)
             print("[INFO]: Resetting cable state...")

@@ -32,14 +32,14 @@ the output folder once, before the simulation loop:
    :start-at: # Create the output directory
    :end-at: os.makedirs(output_dir, exist_ok=True)
 
-While stepping the simulator, the 8-bit color outputs (the RGB image and the colorized segmentations) of the
-camera at ``camera_index`` are saved as one PNG file per data type and frame. Floating-point outputs, such as
-depth and normals, are not saved.
+While stepping the simulator, the outputs of the camera at ``camera_index`` are saved once per data type and
+frame: 8-bit color outputs (the RGB image and the colorized segmentations) as PNG files, and floating-point
+outputs, such as depth and normals, as NumPy ``.npy`` files.
 
 .. literalinclude:: ../../../scripts/tutorials/04_sensors/run_usd_camera.py
    :language: python
-   :start-at: # Save the 8-bit color images
-   :end-at: save_images_to_file(data.torch[camera_index
+   :start-at: # Save the camera outputs at camera_index
+   :end-at: np.save(
 
 
 Projection into 3D Space

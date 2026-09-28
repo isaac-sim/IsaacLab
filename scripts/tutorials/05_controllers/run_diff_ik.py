@@ -139,7 +139,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     sim_dt = sim.get_physics_dt()
     count = 0
     # Simulation loop
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # reset
         if count % 150 == 0:
             # reset time

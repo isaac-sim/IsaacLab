@@ -298,7 +298,7 @@ def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.tra
 def run_simulator(sim: sim_utils.SimulationContext) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         sim.step()
         step_count += 1
 

@@ -113,7 +113,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # camera.set_world_poses(position, orientation, indices=[0], convention="ros")
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # Step simulation
         sim.step()
         # Update camera data

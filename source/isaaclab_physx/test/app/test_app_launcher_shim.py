@@ -54,10 +54,18 @@ _DROPPED_LAUNCHER_SCRIPT = textwrap.dedent(f"""
 
 
 @pytest.mark.integration
-@pytest.mark.parametrize("script", [_OLD_STYLE_SCRIPT, _DROPPED_LAUNCHER_SCRIPT], ids=["kept-app", "dropped-launcher"])
-def test_old_style_script_starts_kit_steps_and_closes(script):
-    """The shim starts Kit, the script steps a simulation, and ``close()`` ends the process with 0."""
+@pytest.mark.parametrize(
+    ("script", "exit_code"),
+    [
+        (_OLD_STYLE_SCRIPT, 0),
+        (_OLD_STYLE_SCRIPT.replace("simulation_app.close()", "simulation_app.close(exit_code=3)"), 3),
+        (_DROPPED_LAUNCHER_SCRIPT, 0),
+    ],
+    ids=["kept-app", "close-with-status", "dropped-launcher"],
+)
+def test_old_style_script_starts_kit_steps_and_closes(script, exit_code):
+    """The shim starts Kit, the script steps a simulation, and the process ends with the status the script chose."""
     result = subprocess.run([sys.executable, "-c", script], capture_output=True, text=True, timeout=900)
     output = f"--- stdout ---\n{result.stdout}\n--- stderr ---\n{result.stderr}"
     assert _READY_MARKER in result.stdout, output
-    assert result.returncode == 0, output
+    assert result.returncode == exit_code, output

@@ -169,7 +169,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
     if args_cli.save:
         args_cli.output_dir.mkdir(parents=True, exist_ok=True)
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
         # Reset
         if count % 500 == 0:
             # reset the scene entities

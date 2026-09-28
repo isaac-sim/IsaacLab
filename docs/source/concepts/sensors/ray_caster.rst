@@ -44,7 +44,7 @@ Querying the sensor for data can be done at simulation run time like any other s
     .
     .
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
       .
       .
       .

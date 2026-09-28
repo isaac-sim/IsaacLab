@@ -341,7 +341,7 @@ def eval_policy(
     action_idx = 0
     inference_interval = 16
 
-    while env.sim.is_headless_or_exist_active_visualizer():
+    while env.sim.is_running():
         if step % inference_interval == 0:
             model_input, dummy_action = build_model_input(env, base_goal, policy_quat_format)
             action_dict = policy.policy.get_action(model_input)

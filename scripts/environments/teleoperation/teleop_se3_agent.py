@@ -477,7 +477,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool) -> 
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
 
         # simulate environment
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_running():
             try:
                 # run everything in inference mode
                 with torch.inference_mode():

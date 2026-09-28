@@ -83,7 +83,7 @@ def run_simulator(sim: sim_utils.SimulationContext, entities: dict[str, RigidObj
     sim_time = 0.0
     count = 0
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # reset
         if count % 250 == 0:
             # reset counters

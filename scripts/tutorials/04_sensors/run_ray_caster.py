@@ -107,7 +107,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene_entities: dict):
     # Create a counter for resetting the scene
     step_count = 0
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # Reset the scene
         if step_count % 250 == 0:
             # reset the balls

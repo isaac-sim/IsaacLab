@@ -104,7 +104,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     count = 0
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # Reset
         if count % 500 == 0:
             # reset counter

@@ -77,35 +77,30 @@ The camera's pose and image resolution can be configured through the
         :pyobject: ViewerCfg
 
 
-After adjusting the parameters, you can record videos by wrapping the environment with the
-:class:`gymnasium.wrappers.RecordVideo` wrapper and enabling the off-screen rendering
-flag. Additionally, you need to specify the render mode of the environment as ``"rgb_array"``.
+To record videos, add a :class:`~envs.utils.video_recorder_cfg.VideoRecorderCfg` to the environment
+configuration. It records from a visualizer (or a camera sensor) into ``mp4`` clips while the environment steps,
+so no wrapper or ``render_mode`` is needed, and the runtime the visualizer needs starts automatically.
 
-As an example, the following code records a video of the ``Isaac-Reach-Franka`` environment
-for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 steps.
+As an example, the following code records 200-step clips of the ``Isaac-Reach-Franka`` environment from a Kit
+visualizer every 1500 steps into the ``videos/train`` folder. See :ref:`how_to_record_video` for the other
+sources and clip options.
 
 .. code:: python
 
     import gymnasium as gym
 
-    from isaaclab.app import launch_simulation
+    from isaaclab_visualizers.kit import KitVisualizerCfg
 
-    # adjust camera resolution and pose
-    env_cfg.viewer.resolution = (640, 480)
-    env_cfg.viewer.eye = (1.0, 1.0, 1.0)
-    env_cfg.viewer.lookat = (0.0, 0.0, 0.0)
-    # start the runtime with off-screen rendering enabled for the video frames
-    with launch_simulation(env_cfg, {"enable_cameras": True}):
-        # create isaac-env instance
-        # set render mode to rgb_array to obtain images on render calls
-        env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
-        # wrap for video recording
-        video_kwargs = {
-            "video_folder": "videos/train",
-            "step_trigger": lambda step: step % 1500 == 0,
-            "video_length": 200,
-        }
-        env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    from isaaclab.app import launch_simulation
+    from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+
+    # record from a Kit visualizer with this camera pose
+    env_cfg.sim.visualizer_cfgs = KitVisualizerCfg(eye=(1.0, 1.0, 1.0), lookat=(0.0, 0.0, 0.0))
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit", output_dir="videos/train", video_length=200, video_interval=1500)
+    ]
+    with launch_simulation(env_cfg):
+        env = gym.make(task_name, cfg=env_cfg)
 
 
 Wrapper for learning frameworks

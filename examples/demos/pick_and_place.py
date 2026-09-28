@@ -334,9 +334,7 @@ def main() -> None:
             print("\tN/M make the grippers track the cube/target position.")
         step_count = 0
         try:
-            while pick_and_place.sim.is_headless_or_exist_active_visualizer() and (
-                args_cli.max_steps < 0 or step_count < args_cli.max_steps
-            ):
+            while pick_and_place.sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
                 if teleop is not None:
                     cmd = teleop.advance()
                     actions[:, :2] = cmd[:2]

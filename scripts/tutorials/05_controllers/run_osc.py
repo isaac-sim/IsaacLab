@@ -209,7 +209,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 
     count = 0
     # Simulation loop
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # reset every 500 steps
         if count % 500 == 0:
             # reset joint state to default

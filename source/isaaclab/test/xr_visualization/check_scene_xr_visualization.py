@@ -241,7 +241,7 @@ def run_simulator(
     apply_sample_visualization()
 
     # Simulate
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         if int(time.time()) % 10 < 1:
             XRVisualization.push_event("ik_error")
 

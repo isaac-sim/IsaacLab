@@ -1296,10 +1296,7 @@ def _run_single_replay(
                     " before consuming MCAP frames."
                 )
                 buffer_start_s = time.monotonic()
-                while (
-                    env.sim.is_headless_or_exist_active_visualizer()
-                    and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s
-                ):
+                while env.sim.is_running() and time.monotonic() - buffer_start_s < args_cli.replay_start_delay_s:
                     env.sim.render()
 
         print(
@@ -1321,7 +1318,7 @@ def _run_single_replay(
         # subsequent renders are excluded.
         last_active_end_s: float | None = None
 
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_running():
             try:
                 with torch.inference_mode():
                     # Wall-clock safety cap. Only hit when the recording
@@ -1598,7 +1595,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
             )
             all_runs.append(run_stats)
             print(f"Replay {run_idx + 1}/{args_cli.num_replays} outcome: {run_stats.outcome}")
-            if not env.sim.is_headless_or_exist_active_visualizer():
+            if not env.sim.is_running():
                 # The simulator was closed externally mid-batch; stop the
                 # outer loop rather than spawning a fresh device against
                 # a dead app.

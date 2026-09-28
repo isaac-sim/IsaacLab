@@ -104,7 +104,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
 
     frame_index = 0
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # perform this loop at policy control freq (50 Hz)
         robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()

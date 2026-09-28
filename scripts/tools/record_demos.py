@@ -705,7 +705,7 @@ def run_simulation_loop(  # noqa: C901
         from isaaclab_mimic.ui.instruction_display import show_subtask_instructions
 
         with contextlib.suppress(KeyboardInterrupt), torch.inference_mode(), camera_feed_session.bind(env):
-            while env.sim.is_headless_or_exist_active_visualizer():
+            while env.sim.is_running():
                 # Get teleop command (may be None while waiting for session start)
                 action = teleop_interface.advance()
 

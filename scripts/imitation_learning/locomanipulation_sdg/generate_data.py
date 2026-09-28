@@ -928,7 +928,7 @@ def replay(
     recording_step = 0
 
     # Main simulation loop with state machine
-    while env.sim.is_headless_or_exist_active_visualizer():
+    while env.sim.is_running():
         if current_state != previous_state:
             print(f"State changed: {current_state.name}, Recording step: {recording_step}", flush=True)
             previous_state = current_state

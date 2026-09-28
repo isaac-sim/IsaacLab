@@ -134,9 +134,7 @@ def main():
         yaw = torch.zeros_like(marker_locations[:, 0])
         step_count = 0
         # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-        while sim.is_headless_or_exist_active_visualizer() and (
-            args_cli.max_steps < 0 or step_count < args_cli.max_steps
-        ):
+        while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
             # rotate the markers around the z-axis for visualization
             marker_orientations = quat_from_angle_axis(yaw, torch.tensor([0.0, 0.0, 1.0]))
             # visualize

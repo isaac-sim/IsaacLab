@@ -114,7 +114,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     straight_action = torch.tensor([[10.0, 10.0]], device=sim.device).repeat(scene.num_envs, 1)
     turn_action = torch.tensor([[5.0, -5.0]], device=sim.device).repeat(scene.num_envs, 1)
 
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         # reset
         if count % 500 == 0:
             # reset counters

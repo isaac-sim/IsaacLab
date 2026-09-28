@@ -298,7 +298,7 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
     processed_episode_count = 0
     successful_task_count = 0  # Counter for successful task completions
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while env.sim.is_headless_or_exist_active_visualizer():
+        while env.sim.is_running():
             # Iterate over the episodes in the loaded dataset file
             for episode_index, episode_name in enumerate(dataset_file_handler.get_episode_names()):
                 processed_episode_count += 1

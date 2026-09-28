@@ -339,7 +339,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -
         entity_list.append("contact_object")
 
     total_steps = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or total_steps < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or total_steps < args_cli.max_steps):
         if count == 122:
             # Reset robot and contact object positions
             count = 0

@@ -458,7 +458,7 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
 
     count = 0
     reported_shape = False
-    while sim.is_headless_or_exist_active_visualizer():
+    while sim.is_running():
         sim.step()
         baseline_camera.update(sim_dt)
         ppisp_camera.update(sim_dt)
