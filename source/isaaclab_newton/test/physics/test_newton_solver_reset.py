@@ -138,3 +138,12 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         torch.testing.assert_close(wp.to_torch(state.joint_qd), joint_qd_before)
         assert torch.count_nonzero(warm_start[0]).item() == 0
         torch.testing.assert_close(warm_start[1], torch.full_like(warm_start[1], 29.0))
+
+        # A clean step has no flagged worlds, so it launches no solver reset.
+        with (
+            patch.object(SimulationManager, "_simulate_full", classmethod(lambda cls: None)),
+            patch.object(SimulationManager, "_simulate_physics_only", classmethod(lambda cls: None)),
+            patch.object(SimulationManager, "_reset_solver_internals_delegate") as reset_delegate,
+        ):
+            sim.step(render=False)
+        reset_delegate.assert_not_called()
