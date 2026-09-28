@@ -1,0 +1,29 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Shared by every package: ``cli.py`` passes ``--dir source/<pkg>``, so the paths below
+# resolve per package (``template`` too, hence the ``../../``).
+[tool.towncrier]
+directory = "changelog.d"
+filename = "docs/CHANGELOG.rst"
+title_format = "{version} ({project_date})"
+underlines = ["~", "^"]
+template = "../../tools/changelog/towncrier_template.rst"
+# Fragments carry their own ``* `` bullets, possibly several, and are copied verbatim.
+all_bullets = false
+wrap = false
+ignore = [".gitkeep"]
+type = [
+  { directory = "added", name = "Added", showcontent = true },
+  { directory = "changed", name = "Changed", showcontent = true },
+  { directory = "deprecated", name = "Deprecated", showcontent = true },
+  { directory = "removed", name = "Removed", showcontent = true },
+  { directory = "fixed", name = "Fixed", showcontent = true },
+  # Hidden by the template: ``<slug>.skip`` opts a change out, ``<slug>.minor``/``.major``
+  # raise the version bump above patch.
+  { directory = "skip", name = "Skip", showcontent = false },
+  { directory = "minor", name = "Minor", showcontent = false, check = false },
+  { directory = "major", name = "Major", showcontent = false, check = false },
+]

@@ -83,6 +83,23 @@ repos:
         language: python
         always_run: true
         pass_filenames: false
+      - id: check-changelog-marker
+        name: check CHANGELOG.rst keeps the towncrier marker
+        language: pygrep
+        entry: '^\.\. towncrier release notes start$'
+        args: [--negate]
+        files: ^source/[^/]+/docs/CHANGELOG\.rst$
+      - id: check-changelog-fragment-bullets
+        name: check changelog fragments are bullet lists
+        language: pygrep
+        entry: '^(?!\*|\s|$)'
+        files: &changelog-entry-fragment ^source/[^/]+/changelog\.d/[^/]+\.(added|changed|deprecated|removed|fixed)\.rst$
+      - id: check-changelog-fragment-has-bullet
+        name: check changelog fragments contain a bullet
+        language: pygrep
+        entry: '^\*'
+        args: [--negate]
+        files: *changelog-entry-fragment
       - id: check-git-lfs-pointers
         name: check Git LFS pointers
         entry: tools/pre_commit/check_git_lfs_pointers.sh

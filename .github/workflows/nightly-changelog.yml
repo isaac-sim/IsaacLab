@@ -4,9 +4,10 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 # Nightly auto-compile: rolls accumulated fragments under
-# ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries,
-# bumps each ``extension.toml``, deletes consumed fragments, and pushes the
-# result back to each branch in the configured list. Keeps every tracked
+# ``source/<pkg>/changelog.d/`` into per-package ``CHANGELOG.rst`` entries
+# (towncrier), bumps each package's ``pyproject.toml`` version, re-locks their
+# ``uv.lock`` pins, deletes consumed fragments, and pushes the result back to
+# each branch in the configured list. Keeps every tracked
 # branch's changelog current without requiring a maintainer to run
 # ``compile`` by hand.
 #
@@ -165,8 +166,8 @@ jobs:
           # ``isaaclab-bot`` — the bypass identity — and downstream CI
           # workflows DO trigger on the resulting commit.
           token: ${{ steps.app-token.outputs.token }}
-          # Full history so the compiler can resolve each fragment's merge
-          # time via ``git log --diff-filter=A --first-parent``.
+          # Full history for the rebase before push, and for branches whose older
+          # compiler orders fragments by merge time (``git log --first-parent``).
           fetch-depth: 0
 
       - name: Verify changelog tooling exists on target branch
@@ -183,9 +184,11 @@ jobs:
             exit 1
           fi
 
-      - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405  # v6.2.0
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
-          python-version: "3.12"
+          # Pinned so ``uv lock`` only rewrites package version lines; another uv
+          # release can re-serialize the whole lockfile.
+          version: "0.12.9"
 
       - name: Compile fragments
         # Capture the compile exit code so the next step can commit/push
@@ -195,19 +198,16 @@ jobs:
         # which is exactly the wedge mode that motivated this design.
         id: compile
         continue-on-error: true
+        # A dry run compiles in this throwaway checkout; the commit step below is skipped.
         run: |
-          ARGS="--all"
-          if [ "${{ inputs.dry_run }}" = "true" ]; then
-            ARGS="$ARGS --dry-run"
-          fi
-          echo "Running: python3 tools/changelog/cli.py compile $ARGS"
-          python3 tools/changelog/cli.py compile $ARGS
+          python3 tools/changelog/cli.py compile --all
+          git diff --stat
 
       - name: Commit and push if fragments were compiled
         # ``always()`` lets this step run even when the compile step above
         # reported partial failure (one package's malformed file fails, the
         # rest still wrote their CHANGELOG.rst / deleted fragments / bumped
-        # extension.toml). The staged-diff check below short-circuits cleanly
+        # pyproject.toml). The staged-diff check below short-circuits cleanly
         # if the failed package was the only one with pending work.
         if: ${{ always() && !inputs.dry_run }}
         env:
@@ -223,9 +223,8 @@ jobs:
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
-          git add source/*/changelog.d/ \
-                  source/*/docs/CHANGELOG.rst \
-                  source/*/pyproject.toml
+          # The checkout is fresh, so every change is compile output (incl. uv.lock).
+          git add -A
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else

@@ -157,15 +157,16 @@ package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
-   files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled nightly by CI from
+   per-PR `towncrier <https://towncrier.readthedocs.io/>`__ **fragment files** — contributors do not
+   edit them directly. For every package your PR touches in ``source/<pkg>/`` (outside
+   ``changelog.d/``), add fragments under ``source/<pkg>/changelog.d/``:
 
-   * ``<slug>.rst`` — patch bump
-   * ``<slug>.minor.rst`` — minor bump (new public API)
-   * ``<slug>.major.rst`` — major bump (breaking change)
-   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+   * ``<slug>.<type>.rst`` — one file per entry type, where ``<type>`` is ``added``, ``changed``,
+     ``deprecated``, ``removed`` or ``fixed``; the file holds that section's bullets.
+   * ``<slug>.minor`` or ``<slug>.major`` — an empty file that raises the version bump from patch
+     to minor (new public API) or major (breaking change).
+   * ``<slug>.skip`` — an empty file for no entry and no bump (CI / docs / test-only PRs).
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
@@ -178,15 +179,15 @@ been made between each release of a package. This is a *MUST* for every release-
 
 For each fragment, please follow the following guidelines:
 
-* Each fragment is divided into subsections based on the type of changes made.
+* Each fragment's ``<type>`` names the changelog section its bullets appear under.
 
-  * ``Added``: For new features.
-  * ``Changed``: For changes in existing functionality.
-  * ``Deprecated``: For soon-to-be removed features.
-  * ``Removed``: For now removed features.
-  * ``Fixed``: For any bug fixes.
+  * ``added``: For new features.
+  * ``changed``: For changes in existing functionality.
+  * ``deprecated``: For soon-to-be removed features.
+  * ``removed``: For now removed features.
+  * ``fixed``: For any bug fixes.
 
-* Each change is described in its corresponding sub-section with a bullet point.
+* Each change is described with a ``*`` bullet point; continuation lines are indented.
 * The bullet points are written in the **past tense**.
 
   * This means that the change is described as if it has already happened.
@@ -198,37 +199,20 @@ For each fragment, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, ``source/isaaclab/changelog.d/<slug>.minor.rst``:
+For example, a minor release with a new feature and a change adds an empty
+``source/isaaclab/changelog.d/<slug>.minor`` plus ``<slug>.added.rst``:
 
 .. code:: rst
 
-    Added
-    ^^^^^
-
     * Added a new feature that helps in a 10x speedup.
 
-    Changed
-    ^^^^^^^
+and ``<slug>.changed.rst``:
+
+.. code:: rst
 
     * Changed an existing feature. Earlier, we were using :meth:`torch.bmm` to perform the matrix multiplication.
       However, this was slow for large matrices. We have now switched to using :meth:`torch.einsum` which is
       significantly faster.
-
-    Deprecated
-    ^^^^^^^^^^
-
-    * Deprecated an existing feature in favor of a new feature.
-
-    Removed
-    ^^^^^^^
-
-    * Removed an existing feature. This was done to simplify the codebase and reduce the complexity.
-
-    Fixed
-    ^^^^^
-
-    * Fixed crashing of the :meth:`my_function` when the input was too large.
-      We now use :meth:`torch.einsum` that is able to handle larger inputs.
 
 
 Coding Style
