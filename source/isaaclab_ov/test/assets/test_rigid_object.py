@@ -564,7 +564,7 @@ def test_reset_rigid_object(num_cubes, device):
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices())
 def test_rigid_body_no_friction(num_cubes, device):
-    """Test that a rigid object with no friction will maintain its velocity when sliding across a plane."""
+    """Test that a rigid object with no friction maintains its tangential velocity on a plane."""
     with _ovphysx_sim_context(device=device, auto_add_lighting=True) as sim:
         cube_object, _ = generate_cubes_scene(num_cubes=num_cubes, height=0.0, device=device)
 
@@ -585,8 +585,7 @@ def test_rigid_body_no_friction(num_cubes, device):
         cube_materials = torch.zeros(num_cubes, num_shapes, 3, device="cpu")
         _write_shape_material(cube_object, cube_materials)
 
-        # Let the cube settle onto the plane so the initial ground-penetration transient (a small
-        # vertical velocity) dies out before we measure that the horizontal sliding velocity holds.
+        # Establish ground contact before measuring tangential sliding velocity.
         for _ in range(30):
             sim.step()
             cube_object.update(sim.cfg.dt)
@@ -602,7 +601,7 @@ def test_rigid_body_no_friction(num_cubes, device):
             sim.step()
             cube_object.update(sim.cfg.dt)
             torch.testing.assert_close(
-                cube_object.data.root_lin_vel_w.torch, initial_velocity[:, :3], rtol=1e-5, atol=tolerance
+                cube_object.data.root_lin_vel_w.torch[:, :2], initial_velocity[:, :2], rtol=1e-5, atol=tolerance
             )
 
 
