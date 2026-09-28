@@ -54,6 +54,13 @@ class SensorBase(ABC):
         Args:
             cfg: The configuration parameters for the sensor.
         """
+        # start with unset callback handles so cleanup is safe if construction fails part way
+        self._initialize_handle = None
+        self._invalidate_initialize_handle = None
+        self._prim_deletion_handle = None
+        # handle for debug visualization (this is set to a valid handle inside set_debug_vis)
+        self._debug_vis_handle = None
+
         validate(cfg)
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
         self.cfg = clone(cfg)
@@ -62,9 +69,6 @@ class SensorBase(ABC):
         self.stage = sim_utils.get_current_stage()
 
         self._register_callbacks()
-
-        # add handle for debug visualization (this is set to a valid handle inside set_debug_vis)
-        self._debug_vis_handle = None
         self.set_debug_vis(self.cfg.debug_vis)
 
     def __del__(self, _sys=sys):
@@ -387,12 +391,17 @@ class SensorBase(ABC):
             self._clear_callbacks()
 
     def _clear_callbacks(self) -> None:
-        """Clears the callbacks. Handles may be missing if ``__init__`` failed before registering them."""
-        for name in ("_initialize_handle", "_invalidate_initialize_handle", "_prim_deletion_handle"):
-            handle = getattr(self, name, None)
-            if handle is not None:
-                handle.deregister()
-                setattr(self, name, None)
+        """Clears the callbacks."""
+        if self._initialize_handle is not None:
+            self._initialize_handle.deregister()
+            self._initialize_handle = None
+        if self._invalidate_initialize_handle is not None:
+            self._invalidate_initialize_handle.deregister()
+            self._invalidate_initialize_handle = None
+        if self._prim_deletion_handle is not None:
+            self._prim_deletion_handle.deregister()
+            self._prim_deletion_handle = None
+        # Clear debug visualization
         self._clear_debug_vis_handle()
 
     def _clear_debug_vis_handle(self) -> None:

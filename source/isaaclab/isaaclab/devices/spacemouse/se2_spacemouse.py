@@ -52,6 +52,8 @@ class Se2SpaceMouse(DeviceBase):
         Args:
             cfg: Configuration for the spacemouse device.
         """
+        # listener thread, started once the device is found
+        self._thread = None
         # store inputs
         self.v_x_sensitivity = cfg.v_x_sensitivity
         self.v_y_sensitivity = cfg.v_y_sensitivity
@@ -71,9 +73,8 @@ class Se2SpaceMouse(DeviceBase):
 
     def __del__(self):
         """Destructor for the class."""
-        thread = getattr(self, "_thread", None)
-        if thread is not None and thread.is_alive():
-            thread.join()
+        if self._thread is not None:
+            self._thread.join()
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""
