@@ -13,7 +13,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 import isaaclab_tasks.contrib.deploy.mdp.events as gear_assembly_events
@@ -315,9 +315,11 @@ class UR10e2F140GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         super().__post_init__()
 
         # switch robot to ur10e with 2F-140 gripper
-        self.scene.robot = UR10e_ROBOTIQ_GRIPPER_CFG.replace(
+        self.scene.robot = replace(
+            UR10e_ROBOTIQ_GRIPPER_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_GRIPPER_CFG.spawn.replace(
+            spawn=replace(
+                UR10e_ROBOTIQ_GRIPPER_CFG.spawn,
                 rigid_props=PhysxRigidBodyCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,
@@ -409,9 +411,11 @@ class UR10e2F85GearAssemblyEnvCfg(UR10eGearAssemblyEnvCfg):
         super().__post_init__()
 
         # switch robot to ur10e with 2F-85 gripper
-        self.scene.robot = UR10e_ROBOTIQ_2F_85_CFG.replace(
+        self.scene.robot = replace(
+            UR10e_ROBOTIQ_2F_85_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=UR10e_ROBOTIQ_2F_85_CFG.spawn.replace(
+            spawn=replace(
+                UR10e_ROBOTIQ_2F_85_CFG.spawn,
                 rigid_props=PhysxRigidBodyCfg(
                     disable_gravity=True,
                     max_depenetration_velocity=5.0,

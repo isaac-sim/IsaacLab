@@ -350,14 +350,14 @@ Configure the behavior through :class:`~isaaclab_physx.renderers.IsaacRtxRendere
    renderer_cfg = IsaacRtxRendererCfg(enable_scene_partitioning=False)
 
 Scene partitioning and the all-environment spectator view are separate controls.
-:class:`~isaaclab.app.AppLauncher` enables spectator support before RTX startup only
+:class:`~isaaclab_physx.app.KitLauncher` enables spectator support before RTX startup only
 when the Kit viewport is enabled or Kit visualization, recording, livestreaming, or XR
 is requested. Regular headless training and camera-sensor runs keep it disabled so
 tiled cameras are not exposed to the spectator mode's world-space layout constraints.
 
 ``global_settings.show_all_partitions_by_default`` maps to that same process-global RTX
 setting; it is not a separate feature. Its default value of ``None`` preserves the
-launch-time choice made by :class:`~isaaclab.app.AppLauncher`. An explicit value overrides
+launch-time choice made by :class:`~isaaclab_physx.app.KitLauncher`. An explicit value overrides
 that setting when the Isaac RTX renderer is constructed. When enabled, environments must
 remain spatially separated because overlapping partition bounds can make content leak into
 another environment or disappear. When disabled, the Kit viewport displays only the
@@ -368,13 +368,6 @@ This setting does not affect OVRTX, which always partitions multi-environment sc
 Prims outside the environment hierarchies remain in the shared background partition.
 Environment-owned ``PointInstancer`` markers can carry one matching scene-partition
 token per instance; markers without that ownership information remain shared.
-
-.. warning::
-
-   Kit RTX sizes each partition from the bounding boxes of the prims it contains and never
-   refreshes the bounding box of an animated ``UsdGeom.BasisCurves`` prim, so cables can be
-   culled once they deform beyond their initial extent. See
-   :ref:`known-issues-animated-curve-scene-partition` for the workaround.
 
 .. warning::
 
@@ -392,11 +385,13 @@ Architecture Overview
 The renderer system consists of:
 
 1. **BaseRenderer** — Abstract base class defining the rendering lifecycle and interface
-2. **RendererCfg** — Base configuration; each backend extends it with backend-specific options and declares
+2. **RendererCfg** — A ``BackendCfg`` subclass; each backend extends it with backend-specific options and declares
    its implementation in ``class_type``
 3. **Concrete implementations** — Backend-specific renderers in extension packages
-4. **RenderContext** — A management class for instantiating and accessing renderer instances using a **RendererCfg**.
-   After instantiation, a config can then be used to acquire the instance of the renderer as needed.
+4. **SimulationContext** — Owns renderer instances in its backend registry and shares them across equal configurations
+   of the same concrete type through ``get_or_create_backend(renderer_cfg)``.
+5. **RenderContext** — Coordinates initialization, stage preparation, scene updates, and material writers using
+   a filtered view of the simulation registry. It does not construct, cache, or close renderer instances.
 
 .. code-block:: python
 
@@ -406,9 +401,8 @@ The renderer system consists of:
 
    # Create a Newton Warp renderer (no Isaac Sim required)
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer constructs cfg.class_type(cfg)
-   # or return an existing renderer with a matching config
-   renderer: BaseRenderer = sim_ctx.render_context.get_renderer(NewtonWarpRendererCfg())
+   # Reuse a matching renderer or construct one through instantiate(cfg).
+   renderer: BaseRenderer = sim_ctx.get_or_create_backend(NewtonWarpRendererCfg())
    assert isinstance(renderer, BaseRenderer)
 
 For the RTX renderer (requires Isaac Sim):
@@ -421,18 +415,47 @@ For the RTX renderer (requires Isaac Sim):
 
    # Create an RTX renderer
    sim_ctx = sim_utils.SimulationContext.instance()
-   # RenderContext.get_renderer constructs cfg.class_type(cfg)
-   # or return an existing renderer with a matching config
-   renderer: BaseRenderer = sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())
+   # Reuse a matching renderer or construct one through instantiate(cfg).
+   renderer: BaseRenderer = sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())
 
 For RTX renderer settings, see
 :doc:`/source/how-to/configure_rendering`.
 
+.. _renderer-camera-batching:
+
+Batching camera renders
+-----------------------
+
+:meth:`~isaaclab.renderers.BaseRenderer.render_batch` accepts a sequence of render-data objects
+owned by the same renderer. Prepare the camera poses, intrinsics, and shared scene state before
+rendering, then read each camera's output. An empty sequence performs no rendering.
+
+.. code-block:: python
+
+   renderer.render_batch([first_render_data, second_render_data])
+   renderer.read_output(first_render_data, first_camera_data)
+   renderer.read_output(second_render_data, second_camera_data)
+
+:meth:`~isaaclab.renderers.BaseRenderer.render` continues to accept a single render-data object.
+The default ``render_batch()`` implementation calls ``render()`` for each entry, so existing
+custom renderers and single-camera callers need no changes. OVRTX overrides ``render_batch()``
+to submit the requested camera products in one native renderer step.
+
+With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update()`` advances
+sensor clocks in scene order and collects batch-capable sensors. After the loop, the camera
+batch implementation prepares the remaining due captures for submission.
+:meth:`~isaaclab.renderers.RenderContext.render_into_cameras` groups these requests by renderer
+instance, renders each group, and reads its outputs. The context does not retain a pending-camera
+queue. Each camera retains its own update period and reset state.
+
+With lazy sensor updates, reading a camera's ``data`` refreshes only that camera's sensor buffers
+and capture timestamps. It does not refresh peer camera sensors sharing the renderer.
+
 Core concepts
 -------------
 
-- **Use the RenderContext**: Always acquire renderers via the RenderContext with a renderer-specific config class
-  (e.g. ``sim_ctx.render_context.get_renderer(IsaacRtxRendererCfg())``). Do not import or instantiate concrete backend classes
+- **Use the simulation registry**: Always acquire renderers with a renderer-specific config class through
+  ``sim_ctx.get_or_create_backend(IsaacRtxRendererCfg())``. Do not import or instantiate concrete backend classes
   (e.g. ``IsaacRtxRenderer``, ``OVRTXRenderer``) directly—their names and package locations are
   implementation details and may change without notice.
 
@@ -449,7 +472,7 @@ Core concepts
 
      # Lazily loads ovrtx when instantiated; may fail if isaaclab_ov / ovrtx is not installed
      sim_ctx = sim_utils.SimulationContext.instance()
-     renderer: BaseRenderer = sim_ctx.render_context.get_renderer(OVRTXRendererCfg())
+     renderer: BaseRenderer = sim_ctx.get_or_create_backend(OVRTXRendererCfg())
 
 Installing the OVRTX renderer
 ------------------------------

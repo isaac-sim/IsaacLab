@@ -132,8 +132,13 @@ def add_frontend_args(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
-    """Add the video recording arguments shared by training and playback."""
+def add_video_args(parser: argparse.ArgumentParser, *, action: str) -> None:
+    """Add the video recording arguments shared by training and playback.
+
+    Args:
+        parser: The parser to add the arguments to.
+        action: Workflow name used in the ``--video`` help text.
+    """
     parser.add_argument("--video", action="store_true", default=False, help=f"Record videos during {action}.")
     parser.add_argument(
         "--video_length",
@@ -168,7 +173,7 @@ def add_common_train_args(
         include_distributed: Whether to include the ``--distributed`` argument.
         max_iterations_type: Converter and validator for ``--max_iterations``.
     """
-    _add_video_args(parser, action="training")
+    add_video_args(parser, action="training")
     parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
     parser.add_argument("--task", type=str, default=None, help="Name of the task.")
     add_frontend_args(parser)
@@ -231,7 +236,7 @@ def add_common_play_args(parser: argparse.ArgumentParser, *, agent_default: str 
         agent_default: Default agent config entry point.
         agent_help: Help text for the ``--agent`` argument.
     """
-    _add_video_args(parser, action="play")
+    add_video_args(parser, action="play")
     parser.add_argument(
         "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
     )
@@ -314,7 +319,7 @@ def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_dev
             env_cfg.export_io_descriptors = True
         else:
             logger.warning("IO descriptors are only supported for manager-based RL environments; none are exported.")
-    # --deterministic is an AppLauncher flag, so it only reaches carb settings on its own. Record the
+    # --deterministic is a Kit launcher flag, so it only reaches carb settings on its own. Record the
     # request on the resolved physics config; each backend translates and validates it at startup.
     request_determinism(args_cli, env_cfg)
 
@@ -488,7 +493,7 @@ def _renderer_name(env_cfg: Any) -> str | None:
     Only configs whose class declares ``renderer_cfg`` are read. Probing every attribute with
     :func:`getattr` instead would resolve lazily evaluated config values, notably the
     ``ResolvableString`` class handles, which imports Kit modules before
-    :class:`~isaaclab.app.AppLauncher` starts and breaks the Isaac Sim runtime.
+    :class:`~isaaclab_physx.app.KitLauncher` starts and breaks the Isaac Sim runtime.
     """
     for container in (env_cfg, getattr(env_cfg, "scene", None)):
         for value in vars(container).values() if container is not None else ():
@@ -1137,7 +1142,7 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         args_cli: Parsed command-line arguments providing ``video``, ``video_length`` and ``real_time``.
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
     """
-    max_steps = _video_playback_steps(args_cli, env_cfg)
+    max_steps = video_playback_steps(args_cli, env_cfg)
     print("[INFO] Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
@@ -1151,11 +1156,19 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
                 time.sleep(sleep_time)
 
 
-def _video_playback_steps(args_cli: argparse.Namespace, env_cfg: Any) -> int | None:
-    """Return the number of steps needed to record the requested clip, or None to play unbounded."""
+def video_playback_steps(args_cli: argparse.Namespace, env_cfg: Any) -> int | None:
+    """Return the env steps a ``--video`` playback needs for every recorder to finish its first clip.
+
+    Call this after :func:`apply_video_recording`, which applies ``--video_length`` to every recorder.
+
+    Args:
+        args_cli: Parsed command-line arguments providing ``video``.
+        env_cfg: Environment config whose video recorders define the clip schedules.
+
+    Returns:
+        The step budget, or None to play unbounded when ``--video`` is not set or no recorder is configured.
+    """
     if not getattr(args_cli, "video", False):
         return None
-    if args_cli.video_length is not None:
-        return args_cli.video_length
     recorders = getattr(env_cfg, "video_recorders", None) or []
-    return recorders[0].video_length + recorders[0].step_offset if recorders else None
+    return max((cfg.step_offset + cfg.video_length for cfg in recorders), default=None)

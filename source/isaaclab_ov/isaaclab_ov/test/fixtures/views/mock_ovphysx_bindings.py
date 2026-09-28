@@ -11,8 +11,6 @@ from typing import Literal
 
 import numpy as np
 
-from isaaclab_ov import tensor_types as TT
-
 
 class MockTensorBinding:
     """Mock of ovphysx.TensorBinding that stores data in numpy arrays.
@@ -330,6 +328,8 @@ class MockOvPhysxBindingSet:
         *,
         asset_kind: Literal["articulation", "rigid_object"] = "articulation",
     ):
+        from isaaclab_ov import tensor_types as TT
+
         if asset_kind == "rigid_object":
             if num_joints != 0 or num_bodies != 1 or num_fixed_tendons != 0 or num_spatial_tendons != 0:
                 raise ValueError(
@@ -407,7 +407,7 @@ class MockOvPhysxBindingSet:
             TT.LINK_POSE: MockTensorBinding(TT.LINK_POSE, (N, L, 7), **common),
             TT.LINK_VELOCITY: MockTensorBinding(TT.LINK_VELOCITY, (N, L, 6), **common),
             TT.LINK_ACCELERATION: MockTensorBinding(TT.LINK_ACCELERATION, (N, L, 6), **common),
-            TT.JACOBIAN: MockTensorBinding(TT.JACOBIAN, (N, num_jacobian_bodies, 6, num_generalized_dofs), **common),
+            TT.JACOBIAN: MockTensorBinding(TT.JACOBIAN, (N, num_jacobian_bodies * 6, num_generalized_dofs), **common),
             TT.MASS_MATRIX: MockTensorBinding(
                 TT.MASS_MATRIX, (N, num_generalized_dofs, num_generalized_dofs), **common
             ),
@@ -478,6 +478,8 @@ class MockOvPhysxBindingSet:
 
     def set_random_data(self) -> None:
         """Fill all bindings with random data."""
+        from isaaclab_ov import tensor_types as TT
+
         for b in self.bindings.values():
             if not b._write_only:
                 b.set_random_data()

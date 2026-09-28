@@ -19,8 +19,8 @@ import logging
 import numpy as np
 import torch
 
-import isaaclab.sim as sim_utils
-
+from .. import sim as sim_utils
+from ..utils import to_dict
 from .visualization_markers_cfg import VisualizationMarkersCfg
 
 logger = logging.getLogger(__name__)
@@ -122,7 +122,7 @@ class VisualizationMarkers:
         msg += f"\n\tNumber of prototypes: {self.num_prototypes}"
         msg += "\n\tMarkers Prototypes:"
         for index, (name, marker) in enumerate(self.cfg.markers.items()):
-            msg += f"\n\t\t[Index: {index}]: {name}: {marker.to_dict()}"
+            msg += f"\n\t\t[Index: {index}]: {name}: {to_dict(marker)}"
         return msg
 
     @property
@@ -219,18 +219,10 @@ class VisualizationMarkers:
         target_device = self._resolve_target_device(
             norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids
         )
-        if norm_translations is not None:
-            norm_translations = norm_translations.to(device=target_device)
-        if norm_orientations is not None:
-            norm_orientations = norm_orientations.to(device=target_device)
-        if norm_scales is not None:
-            norm_scales = norm_scales.to(device=target_device)
-        if norm_marker_indices is not None:
-            norm_marker_indices = norm_marker_indices.to(device=target_device)
-        if norm_environment_ids is not None:
-            norm_environment_ids = norm_environment_ids.to(device=target_device)
-            if torch.any(norm_environment_ids < 0):
-                raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+        norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids = (
+            None if value is None else value.to(device=target_device)
+            for value in (norm_translations, norm_orientations, norm_scales, norm_marker_indices, norm_environment_ids)
+        )
 
         marker_values = (norm_translations, norm_orientations, norm_scales, norm_marker_indices)
         marker_counts = {value.shape[0] for value in marker_values if value is not None}

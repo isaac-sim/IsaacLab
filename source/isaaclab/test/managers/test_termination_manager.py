@@ -3,28 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
-from isaaclab.sim import SimulationContext
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 
 class DummyEnv:
     """Minimal mutable env stub for the termination manager tests."""
 
-    def __init__(self, num_envs: int, device: str, sim: SimulationContext):
+    def __init__(self, num_envs: int, device: str, sim: MagicMock):
         self.num_envs = num_envs
         self.device = device
         self.sim = sim
@@ -51,28 +43,10 @@ def fail_every_3_steps(env) -> torch.Tensor:
 
 @pytest.fixture
 def env():
-    sim = SimulationContext()
-    yield DummyEnv(num_envs=20, device="cpu", sim=sim)
-    SimulationContext.clear_instance()
-
-
-def test_initial_state_and_shapes(env):
-    cfg = {
-        "term_5": TerminationTermCfg(func=fail_every_5_steps),
-        "term_10": TerminationTermCfg(func=fail_every_10_steps),
-    }
-    tm = TerminationManager(cfg, env)
-
-    # Active term names
-    assert tm.active_terms == ["term_5", "term_10"]
-
-    # Internal buffers have expected shapes and start as all False
-    assert tm._term_dones.shape == (env.num_envs, 2)
-    assert tm._last_episode_dones.shape == (env.num_envs, 2)
-    assert tm.dones.shape == (env.num_envs,)
-    assert tm.time_outs.shape == (env.num_envs,)
-    assert tm.terminated.shape == (env.num_envs,)
-    assert torch.all(~tm._term_dones) and torch.all(~tm._last_episode_dones)
+    # simulation double that has not started playing
+    sim = MagicMock()
+    sim.is_playing.return_value = False
+    return DummyEnv(num_envs=20, device="cpu", sim=sim)
 
 
 def test_term_transitions_and_persistence(env):
@@ -128,6 +102,12 @@ def test_time_out_vs_terminated_split(env):
         "term_10": TerminationTermCfg(func=fail_every_10_steps, time_out=True),  # timeout
     }
     tm = TerminationManager(cfg, env)
+
+    # Before the first compute, every public done buffer has one entry per env and is False
+    assert tm.active_terms == ["term_5", "term_10"]
+    for dones in (tm.dones, tm.time_outs, tm.terminated):
+        assert dones.shape == (env.num_envs,)
+        assert torch.all(~dones)
 
     # Step 5: terminated fires, not timeout
     env.counter = 5

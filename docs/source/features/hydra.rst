@@ -566,6 +566,10 @@ Using Presets
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Lift-KukaAllegro-Camera presets=duo_camera,rgb128
 
+The KukaAllegro ``-Camera`` tasks default to a single camera and the matching
+RSL-RL CNN actor. ``presets=duo_camera`` switches both the camera rig and actor
+inputs; the critic continues to use state observations.
+
 **Combined** -- typed selectors, a domain preset, and a scalar override:
 
 .. code-block:: bash

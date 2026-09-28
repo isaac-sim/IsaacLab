@@ -84,30 +84,6 @@ def _write_stub(content: str) -> str:
     return path
 
 
-def test_parse_stub_single_absolute_named_import():
-    """Test single absolute named import extraction."""
-    stub = _write_stub("from some.package import alpha, beta\n")
-    try:
-        _, _, _, absolute_named = _parse_stub(stub)
-    finally:
-        os.unlink(stub)
-
-    assert "some.package" in absolute_named
-    assert absolute_named["some.package"] == ["alpha", "beta"]
-
-
-def test_parse_stub_multiple_absolute_named_imports():
-    """Test multiple absolute named imports from different packages."""
-    stub = _write_stub("from pkg_a import foo\nfrom pkg_b import bar, baz\n")
-    try:
-        _, _, _, absolute_named = _parse_stub(stub)
-    finally:
-        os.unlink(stub)
-
-    assert absolute_named["pkg_a"] == ["foo"]
-    assert absolute_named["pkg_b"] == ["bar", "baz"]
-
-
 def test_parse_stub_same_package_multiple_lines_accumulates():
     """Test that imports from the same package on multiple lines accumulate."""
     stub = _write_stub("from pkg import a\nfrom pkg import b, c\n")
@@ -119,33 +95,11 @@ def test_parse_stub_same_package_multiple_lines_accumulates():
     assert absolute_named["pkg"] == ["a", "b", "c"]
 
 
-def test_parse_stub_absolute_wildcard_not_in_absolute_named():
-    """Test that absolute wildcard imports go to fallbacks, not absolute_named."""
-    stub = _write_stub("from some.package import *\n")
-    try:
-        _, fallbacks, _, absolute_named = _parse_stub(stub)
-    finally:
-        os.unlink(stub)
-
-    assert "some.package" in fallbacks
-    assert absolute_named == {}
-
-
-def test_parse_stub_relative_import_not_in_absolute_named():
-    """Test that relative imports are not included in absolute_named."""
-    stub = _write_stub("from .sub import foo, bar\n")
-    try:
-        _, _, _, absolute_named = _parse_stub(stub)
-    finally:
-        os.unlink(stub)
-
-    assert absolute_named == {}
-
-
 def test_parse_stub_mixed_import_kinds():
     """All four import kinds in one stub are routed correctly."""
     stub = _write_stub(
         "from .local import thing\nfrom .wildmod import *\nfrom abs.pkg import *\nfrom abs.other import x, y\n"
+        "from abs.more import z\n"
     )
     try:
         filtered_path, fallbacks, rel_wildcards, absolute_named = _parse_stub(stub)
@@ -156,7 +110,7 @@ def test_parse_stub_mixed_import_kinds():
 
     assert fallbacks == ["abs.pkg"]
     assert rel_wildcards == ["wildmod"]
-    assert absolute_named == {"abs.other": ["x", "y"]}
+    assert absolute_named == {"abs.other": ["x", "y"], "abs.more": ["z"]}
     assert filtered_path is not None
 
 

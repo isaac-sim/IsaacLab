@@ -20,7 +20,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils import math as math_utils
 from isaaclab.visualizers import VisualizerCfg
 
@@ -68,10 +68,7 @@ def _hand_cfg(
             torch.tensor(base.init_state.rot, dtype=torch.float64),
         ).tolist()
     )
-    return base.replace(
-        prim_path=prim_path,
-        init_state=base.init_state.replace(pos=init_pos, rot=hand_rot),
-    )
+    return replace(base, prim_path=prim_path, init_state=replace(base.init_state, pos=init_pos, rot=hand_rot))
 
 
 # per-hand poses, composed with the asset's own rotation

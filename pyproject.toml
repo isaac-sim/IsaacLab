@@ -58,7 +58,7 @@ dependencies = [
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
-    "omniverseclient==2.72.3",
+    "omniverseclient==2.74.0",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
@@ -126,6 +126,8 @@ importers = [
 test = [
     "pytest",
     "pytest-mock",
+    # Splits a test file across worker processes; see TEST_PYTEST_WORKERS in tools/conftest.py.
+    "pytest-xdist",
     "junitparser",
     "flaky",
     # numba subclasses coverage.types.Tracer at import; >=7.6.1 restores that shim
@@ -154,7 +156,7 @@ sb3 = ["stable-baselines3>=2.6", "tqdm", "rich"]
 skrl = ["skrl>=2.1.0"]
 
 rl-games = [
-    "aiohttp==3.14.1",  # match isaacsim-kernel 6.1
+    "aiohttp>=3.14.1",  # security floor; allow Isaac Sim kernels to select their exact version
     "rl-games @ git+https://github.com/isaac-sim/rl_games.git@5cf4f9ff07e9a01bbefd167cf19b6804b294b51c",
     "gym",
     "standard-distutils",
@@ -175,9 +177,9 @@ rerun = [
 
 isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
 
-ov = ["ovphysx==0.5.11", "ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
-ovphysx = ["ovphysx==0.5.11", "ovstage==0.1.1.355824"]
-ovrtx = ["ovrtx==0.4.1.364340", "ovstage==0.1.1.355824"]
+ov = ["ovphysx==0.6.3", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
+ovphysx = ["ovphysx==0.6.3", "ovstage==0.2.0.377349"]
+ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
 
 mimic = [
     "isaaclab-mimic",
@@ -224,9 +226,9 @@ usd_exchange = "2.3.0"
 torch = "2.12.0"
 torchvision = "0.27.0"
 torchaudio = "2.11.0"
-ovphysx = "0.5.11"
-ovrtx = "0.4.1.364340"
-ovstage = "0.1.1.355824"
+ovphysx = "0.6.3"
+ovrtx = "0.5.0.377615"
+ovstage = "0.2.0.377349"
 warp = "1.17.0"
 
 [tool.ruff]

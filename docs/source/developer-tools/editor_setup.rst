@@ -184,6 +184,13 @@ The editor selection takes precedence over this default. If you change
 environments, rerun setup and select the new interpreter from the status bar or
 with **Python: Select Interpreter** in the command palette.
 
+The generated launch configurations always run this recorded interpreter. VS Code
+resolves wrapper scripts such as ``_isaac_sim/python.sh`` to the underlying Python
+executable, which skips the environment setup that Isaac Sim requires. If
+``.vscode/launch.json`` already exists, setup preserves it; add
+``"python": "${config:python.defaultInterpreterPath}"`` to each configuration, or
+delete the file and rerun setup to regenerate it.
+
 For more information about selecting a Python interpreter, see the
 `VS Code documentation <https://code.visualstudio.com/docs/python/environments#_working-with-python-interpreters>`_.
 

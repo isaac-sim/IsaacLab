@@ -10,9 +10,10 @@ from typing import TYPE_CHECKING
 
 import torch
 
-import isaaclab.sim as sim_utils
-from isaaclab.cloner.cloner_cfg import expand_env_regex_ns
-from isaaclab.sim.utils.stage import get_current_stage
+from .. import sim as sim_utils
+from ..cloner.cloner_cfg import expand_env_regex_ns
+from ..sim.utils.stage import get_current_stage
+from ..utils import clone, validate
 
 if TYPE_CHECKING:
     from pxr import Usd
@@ -35,9 +36,9 @@ class Asset:
         Raises:
             RuntimeError: If the configured spawner does not return a valid prim.
         """
-        cfg.validate()
+        validate(cfg)
         cfg.prim_path = expand_env_regex_ns(cfg.prim_path)
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         self.stage: Usd.Stage = get_current_stage()
         self._prim: Usd.Prim | None = None
 

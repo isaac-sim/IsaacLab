@@ -29,6 +29,11 @@ class NewtonWarpRendererCfg(RendererCfg):
     renderer_type: str = "newton_warp"
     """Type identifier for Newton Warp renderer."""
 
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    use_cuda_graph: bool = True
+    """Capture camera queries independently of the physics solver's graph setting."""
+
     enable_textures: bool = True
     """Enable texture-mapped rendering for meshes."""
 

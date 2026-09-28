@@ -17,7 +17,7 @@ from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import CurriculumTermCfg
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedRLEnv
+    from ..envs import ManagerBasedRLEnv
 
 
 class CurriculumManager(ManagerBase):
@@ -46,9 +46,9 @@ class CurriculumManager(ManagerBase):
             ValueError: If curriculum term configuration does not satisfy its function signature.
         """
         # create buffers to parse and store terms
-        self._term_names: list[str] = list()
-        self._term_cfgs: list[CurriculumTermCfg] = list()
-        self._class_term_cfgs: list[CurriculumTermCfg] = list()
+        self._term_names: list[str] = []
+        self._term_cfgs: list[CurriculumTermCfg] = []
+        self._class_term_cfgs: list[CurriculumTermCfg] = []
 
         # call the base class constructor (this will parse the terms config)
         super().__init__(cfg, env)
@@ -119,7 +119,6 @@ class CurriculumManager(ManagerBase):
         # reset all the curriculum terms
         for term_cfg in self._class_term_cfgs:
             term_cfg.func.reset(env_ids=env_ids)
-        # return logged information
         return extras
 
     def compute(self, env_ids: Sequence[int] | None = None):

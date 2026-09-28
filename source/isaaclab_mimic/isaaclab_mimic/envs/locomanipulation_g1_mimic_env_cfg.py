@@ -15,6 +15,8 @@ from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg imp
 class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
     """Configuration for G1 Locomanipulation Mimic environment."""
 
+    class_type: type | str = "{DIR}.locomanipulation_g1_mimic_env:LocomanipulationG1MimicEnv"
+
     def __post_init__(self):
         # Call parent post-init
         super().__post_init__()

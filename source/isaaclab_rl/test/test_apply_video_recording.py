@@ -17,7 +17,7 @@ from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_rl.entrypoints.common import apply_video_recording, wrap_record_video
+from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
 
 
 def _args(**kwargs: object) -> SimpleNamespace:
@@ -35,15 +35,23 @@ def test_apply_video_recording_noop_when_video_false():
     assert env_cfg.video_recorders == []
 
 
-def test_apply_video_recording_injects_correct_recorder():
-    """Video recording creates a default recorder and headless Kit visualizer."""
+@pytest.mark.parametrize(
+    ("video_length", "video_interval", "expected_length", "expected_interval"),
+    [(42, 500, 42, 500), (None, None, VideoRecorderCfg().video_length, 2000)],
+    ids=["cli_overrides", "cfg_defaults"],
+)
+def test_apply_video_recording_creates_default_recorder(
+    video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int
+):
+    """Without declared recorders, one headless Kit recorder is created, taking CLI values over defaults."""
     env_cfg = ManagerBasedRLEnvCfg()
-    apply_video_recording(env_cfg, "/my/log", _args(video_length=42, video_interval=500), subdir="play")
+    apply_video_recording(
+        env_cfg, "/my/log", _args(video_length=video_length, video_interval=video_interval), subdir="play"
+    )
     assert len(env_cfg.video_recorders) == 1
     recorder = env_cfg.video_recorders[0]
     assert recorder.source == "visualizer:kit"
-    assert recorder.video_length == 42
-    assert recorder.video_interval == 500
+    assert (recorder.video_length, recorder.video_interval) == (expected_length, expected_interval)
     assert recorder.output_dir == os.path.join("/my/log", "videos", "play")
     assert recorder.output_filename_prefix == "clip"
     assert len(env_cfg.sim.visualizer_cfgs) == 1
@@ -52,45 +60,26 @@ def test_apply_video_recording_injects_correct_recorder():
 
 
 @pytest.mark.parametrize(
-    ("existing_prefix", "checkpoint_name", "expected_prefix"),
+    ("subdir", "existing_prefix", "checkpoint_name", "expected_prefix"),
     [
-        ("clip", "model_1200.pt", "clip_model_1200"),
-        ("eval", "model_42.pt", "eval_model_42"),
-        ("clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
-        ("clip", "custom_1200.pt", "clip"),
-        ("clip", "final.pt", "clip"),
+        ("play", "clip", "model_1200.pt", "clip_model_1200"),
+        ("play", "clip_model_1200", "model_120.pt", "clip_model_1200_model_120"),
+        ("play", "clip", "custom_1200.pt", "clip"),
+        ("train", "clip", "model_1200.pt", "clip"),
     ],
 )
 def test_apply_video_recording_labels_play_video_with_checkpoint_stem(
-    existing_prefix: str, checkpoint_name: str, expected_prefix: str
+    subdir: str, existing_prefix: str, checkpoint_name: str, expected_prefix: str
 ):
-    """Play videos append numeric model checkpoint stems as distinct tokens."""
+    """Play videos append numeric model checkpoint stems as distinct tokens; training videos keep their prefix."""
     existing = VideoRecorderCfg()
     existing.output_filename_prefix = existing_prefix
 
     env_cfg = ManagerBasedRLEnvCfg()
     env_cfg.video_recorders = [existing]
-    apply_video_recording(env_cfg, "/my/log", _args(), subdir="play", checkpoint_path=f"/my/log/{checkpoint_name}")
+    apply_video_recording(env_cfg, "/my/log", _args(), subdir=subdir, checkpoint_path=f"/my/log/{checkpoint_name}")
 
     assert env_cfg.video_recorders[0].output_filename_prefix == expected_prefix
-
-
-def test_apply_video_recording_leaves_train_video_prefix_unchanged():
-    """Checkpoint labels are only applied to play videos, not training videos."""
-    env_cfg = ManagerBasedRLEnvCfg()
-    apply_video_recording(env_cfg, "/my/log", _args(), checkpoint_path="/my/log/model_1200.pt")
-
-    assert env_cfg.video_recorders[0].output_filename_prefix == "clip"
-
-
-def test_apply_video_recording_uses_cfg_defaults_when_cli_not_passed():
-    """Unset CLI options preserve the recorder length and historical interval."""
-    defaults = VideoRecorderCfg()
-    env_cfg = ManagerBasedRLEnvCfg()
-    apply_video_recording(env_cfg, "/my/log", _args())
-    recorder = env_cfg.video_recorders[0]
-    assert recorder.video_length == defaults.video_length
-    assert recorder.video_interval == 2000
 
 
 def test_apply_video_recording_patches_existing_recorders():
@@ -113,21 +102,18 @@ def test_apply_video_recording_patches_existing_recorders():
     assert recorder.video_interval == 500
 
 
-def test_apply_video_recording_rejects_viz_none_with_video():
-    """An explicitly disabled visualizer is incompatible with video recording."""
-    env_cfg = ManagerBasedRLEnvCfg()
-
-    with pytest.raises(ValueError, match="--video is not compatible with --viz none"):
-        apply_video_recording(env_cfg, "/my/log", _args(visualizer=None, visualizer_explicit=True))
-
-
-@pytest.mark.parametrize("no_capture_viz", ["rerun", "viser"])
-def test_apply_video_recording_rejects_no_capture_visualizers(no_capture_viz: str):
-    """Video recording rejects visualizers without frame capture."""
-    env_cfg = ManagerBasedRLEnvCfg()
-
-    with pytest.raises(ValueError, match="--video is not supported"):
-        apply_video_recording(env_cfg, "/my/log", _args(visualizer=[no_capture_viz]))
+@pytest.mark.parametrize(
+    ("visualizer_args", "message"),
+    [
+        (dict(visualizer=None, visualizer_explicit=True), "--video is not compatible with --viz none"),
+        (dict(visualizer=["rerun"]), "--video is not supported"),
+        (dict(visualizer=["viser"]), "--video is not supported"),
+    ],
+)
+def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_args: dict, message: str):
+    """Video recording rejects a disabled visualizer and visualizers without frame capture."""
+    with pytest.raises(ValueError, match=message):
+        apply_video_recording(ManagerBasedRLEnvCfg(), "/my/log", _args(**visualizer_args))
 
 
 @pytest.mark.parametrize(
@@ -156,3 +142,27 @@ def test_wrap_record_video_is_noop_stub(caplog: pytest.LogCaptureFixture) -> Non
         result = wrap_record_video(env, "/tmp/logs", _args(video=True))
     assert result is env
     assert any("wrap_record_video" in r.message for r in caplog.records)
+
+
+@pytest.mark.parametrize(
+    ("recorders", "cli_args", "expected_steps"),
+    [
+        # (video_length, step_offset) per recorder; the second recorder's first clip ends last, at 80 + 50
+        ([(100, 0), (50, 80), (120, 5)], dict(), 130),
+        # --video_length replaces the length but the configured offset still delays the clip
+        ([(200, 30)], dict(video_length=10), 40),
+        ([(200, 0)], dict(video=False), None),
+    ],
+    ids=["waits_for_last_recorder", "cli_length_keeps_offset", "unbounded_without_video"],
+)
+def test_video_playback_steps(recorders: list[tuple[int, int]], cli_args: dict, expected_steps: int | None):
+    """Playback runs until every recorder has finished its first clip, and is unbounded without --video."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [
+        VideoRecorderCfg(source="visualizer:kit", video_length=length, step_offset=offset)
+        for length, offset in recorders
+    ]
+    args = _args(**cli_args)
+    apply_video_recording(env_cfg, "/tmp/logs", args)
+
+    assert video_playback_steps(args, env_cfg) == expected_steps
