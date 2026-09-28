@@ -823,7 +823,7 @@ def main() -> None:
             )
 
         # Resolve after launching so Kit runs never import USD modules before
-        # AppLauncher; Newton-only runs still use standalone omni.client.
+        # Kit starts; Newton-only runs still use standalone omni.client.
         container_usd = retrieve_file_path(args_cli.container_usd)
         if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []):
             island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")

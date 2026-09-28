@@ -96,7 +96,6 @@ def define_markers() -> "VisualizationMarkers":
 def main():
     """Main function."""
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
-        # Load kit helper
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -128,9 +127,7 @@ def main():
         marker_locations = torch.stack([x_grid, y_grid, z_grid], dim=1)
         marker_indices = torch.arange(my_visualizer.num_prototypes).repeat(num_markers_per_type)
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
 
         # Yaw angle
@@ -155,5 +152,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

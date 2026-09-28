@@ -247,7 +247,6 @@ def main():
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,
             )
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
@@ -255,14 +254,11 @@ def main():
 
         scene_cfg = DeformablesSceneCfg(num_envs=1, env_spacing=0.0)
         scene = instantiate(scene_cfg)
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene.deformable_objects)
         print("[INFO]: Simulation complete...")
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

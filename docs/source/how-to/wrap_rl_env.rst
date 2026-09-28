@@ -21,27 +21,20 @@ For example, here is how you would wrap an environment to enforce that reset is 
 
 .. code-block:: python
 
-    """Launch Isaac Sim Simulator first."""
-
-
-    from isaaclab.app import AppLauncher
-
-    # launch omniverse app in headless mode
-    app_launcher = AppLauncher(headless=True)
-    simulation_app = app_launcher.app
-
-    """Rest everything follows."""
-
     import gymnasium as gym
+
+    from isaaclab.app import launch_simulation
 
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import load_cfg_from_registry
 
-    # create base environment
     cfg = load_cfg_from_registry("Isaac-Reach-Franka", "env_cfg_entry_point")
-    env = gym.make("Isaac-Reach-Franka", cfg=cfg)
-    # wrap environment to enforce that reset is called before step
-    env = gym.wrappers.OrderEnforcing(env)
+    # start the simulation runtime this configuration needs, and stop it on exit
+    with launch_simulation(cfg):
+        # create base environment
+        env = gym.make("Isaac-Reach-Franka", cfg=cfg)
+        # wrap environment to enforce that reset is called before step
+        env = gym.wrappers.OrderEnforcing(env)
 
 
 Wrapper for recording videos
@@ -93,33 +86,26 @@ for 200 steps, and saves it in the ``videos`` folder at a step interval of 1500 
 
 .. code:: python
 
-    """Launch Isaac Sim Simulator first."""
-
-
-    from isaaclab.app import AppLauncher
-
-    # launch omniverse app in headless mode with off-screen rendering
-    app_launcher = AppLauncher(headless=True, enable_cameras=True)
-    simulation_app = app_launcher.app
-
-    """Rest everything follows."""
-
     import gymnasium as gym
+
+    from isaaclab.app import launch_simulation
 
     # adjust camera resolution and pose
     env_cfg.viewer.resolution = (640, 480)
     env_cfg.viewer.eye = (1.0, 1.0, 1.0)
     env_cfg.viewer.lookat = (0.0, 0.0, 0.0)
-    # create isaac-env instance
-    # set render mode to rgb_array to obtain images on render calls
-    env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
-    # wrap for video recording
-    video_kwargs = {
-        "video_folder": "videos/train",
-        "step_trigger": lambda step: step % 1500 == 0,
-        "video_length": 200,
-    }
-    env = gym.wrappers.RecordVideo(env, **video_kwargs)
+    # start the runtime with off-screen rendering enabled for the video frames
+    with launch_simulation(env_cfg, {"enable_cameras": True}):
+        # create isaac-env instance
+        # set render mode to rgb_array to obtain images on render calls
+        env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array")
+        # wrap for video recording
+        video_kwargs = {
+            "video_folder": "videos/train",
+            "step_trigger": lambda step: step % 1500 == 0,
+            "video_length": 200,
+        }
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
 
 
 Wrapper for learning frameworks

@@ -26,7 +26,7 @@ The tutorial corresponds to the ``run_rigid_object.py`` script in the ``scripts/
 
    .. literalinclude:: ../../../scripts/tutorials/01_assets/run_rigid_object.py
       :language: python
-      :emphasize-lines: 55-74, 76-78, 98-108, 111-112, 118-119, 132-134, 139-140
+      :emphasize-lines: 49-68, 70-72, 92-104, 107-108, 114-115, 131-133, 138-139
       :linenos:
 
 

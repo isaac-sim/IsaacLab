@@ -10,20 +10,18 @@ The teleoperation device is a keyboard device that allows the user to control th
 It is possible to add additional callbacks to it for user-defined operations.
 """
 
-"""Launch Isaac Sim Simulator first."""
+import argparse
 
+from isaaclab.app import add_launcher_args, launch_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-app_launcher = AppLauncher()
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
+parser = argparse.ArgumentParser(description="Check the keyboard teleoperation device.")
+add_launcher_args(parser)
+# keyboard input needs the Kit window, so open the Kit visualizer by default
+parser.set_defaults(visualizer=["kit"])
+args_cli = parser.parse_args()
 
 import sys
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.sim import SimulationCfg, SimulationContext
 
 
@@ -35,55 +33,56 @@ def print_cb():
 def quit_cb():
     """Dummy callback function executed when the key 'ESC' is pressed."""
     print("Quit callback")
-    simulation_app.close()
+    SimulationContext.instance().stop()
 
 
 def main():
-    # Load kit helper
-    sim = SimulationContext(SimulationCfg(dt=0.01))
+    sim_cfg = SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
+        # the keyboard device uses Kit's input interface, so import it once Kit is running
+        from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 
-    # Create teleoperation interface
-    teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
-    # Add teleoperation callbacks
-    # available key buttons: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput
-    teleop_interface.add_callback("L", print_cb)
-    teleop_interface.add_callback("ESCAPE", quit_cb)
+        sim = SimulationContext(sim_cfg)
 
-    print("Press 'L' to print a message. Press 'ESC' to quit.")
+        # Create teleoperation interface
+        teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
+        # Add teleoperation callbacks
+        # available key buttons: https://docs.omniverse.nvidia.com/kit/docs/carbonite/latest/docs/python/carb.html?highlight=keyboardeventtype#carb.input.KeyboardInput
+        teleop_interface.add_callback("L", print_cb)
+        teleop_interface.add_callback("ESCAPE", quit_cb)
 
-    # Check that the framework doesn't hold excessive strong references.
-    if sys.getrefcount(teleop_interface) >= 10:
-        raise RuntimeError("Possible reference leak for teleoperation interface.")
+        print("Press 'L' to print a message. Press 'ESC' to quit.")
 
-    # Reset interface internals
-    teleop_interface.reset()
+        # Check that the framework doesn't hold excessive strong references.
+        if sys.getrefcount(teleop_interface) >= 10:
+            raise RuntimeError("Possible reference leak for teleoperation interface.")
 
-    # Play simulation
-    sim.reset()
+        # Reset interface internals
+        teleop_interface.reset()
 
-    # Simulate
-    while simulation_app.is_running():
-        # If simulation is stopped, then exit.
-        if sim.is_stopped():
-            break
-        # If simulation is paused, then skip.
-        if not sim.is_playing():
+        # Play simulation
+        sim.reset()
+
+        # Simulate
+        while sim.is_headless_or_exist_active_visualizer():
+            # If simulation is stopped, then exit.
+            if sim.is_stopped():
+                break
+            # If simulation is paused, then skip.
+            if not sim.is_playing():
+                sim.step()
+                continue
+            # get keyboard command
+            delta_pose, gripper_command = teleop_interface.advance()
+            # print command
+            if gripper_command:
+                print(f"Gripper command: {gripper_command}")
+            # step simulation
             sim.step()
-            continue
-        # get keyboard command
-        delta_pose, gripper_command = teleop_interface.advance()
-        # print command
-        if gripper_command:
-            print(f"Gripper command: {gripper_command}")
-        # step simulation
-        sim.step()
-        # check if simulator is stopped
-        if sim.is_stopped():
-            break
+            # check if simulator is stopped
+            if sim.is_stopped():
+                break
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

@@ -242,14 +242,10 @@ def main():
         with Timer("[INFO] Time to create scene: "):
             scene = instantiate(scene_cfg)
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main execution
     main()

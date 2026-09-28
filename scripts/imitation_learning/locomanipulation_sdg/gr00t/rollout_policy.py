@@ -5,10 +5,12 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
+from __future__ import annotations
+
 import argparse
 import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation, scan
 
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
@@ -30,12 +32,13 @@ parser.add_argument(
     help="Quaternion order the policy uses: 'xyzw' (current Isaac Lab) or 'wxyz' (legacy). "
     "Converts env observations/actions to match. Default is 'xyzw'.",
 )
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # forward unrecognized args as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
+# the task config imports USD, so the Kit runtime is always launched before the config is parsed
+args_cli.require_kit = True
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import torch
@@ -46,18 +49,18 @@ from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
-from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
-from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
-    OccupancyMap,
-    merge_occupancy_maps,
-)
-from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 from isaaclab_mimic.locomanipulation_sdg.transform_utils import (
     transform_inv,
     transform_mul,
 )
 
 from isaaclab_tasks.utils import parse_env_cfg
+
+if TYPE_CHECKING:
+    # these modules load USD, so they are only imported at runtime once the simulation is launched
+    from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose
 
 
 def _clone_state(state: dict) -> dict:
@@ -220,6 +223,9 @@ def setup_navigation_scene(
         Tuple of (occupancy_map, base_goal). First element is None; base_goal is the goal
         pose for the policy relative to the end fixture.
     """
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap, merge_occupancy_maps
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
+
     # Create base occupancy map
     occupancy_map = merge_occupancy_maps(
         [
@@ -335,7 +341,7 @@ def eval_policy(
     action_idx = 0
     inference_interval = 16
 
-    while simulation_app.is_running() and not simulation_app.is_exiting():
+    while env.sim.is_headless_or_exist_active_visualizer():
         if step % inference_interval == 0:
             model_input, dummy_action = build_model_input(env, base_goal, policy_quat_format)
             action_dict = policy.policy.get_action(model_input)
@@ -368,7 +374,7 @@ def eval_policy(
 
 
 if __name__ == "__main__":
-    with torch.no_grad():
+    with torch.no_grad(), launch_simulation(None, args_cli):
         env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
@@ -376,6 +382,8 @@ if __name__ == "__main__":
         policy = Policy(model_path=args_cli.model_path, embodiment_tag=args_cli.embodiment_tag)
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
+        # resolve the config's automatic physics and renderer selections for the launched runtime
+        scan(env_cfg, args_cli)
         env_cfg.sim.device = args_cli.device
         # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
         # which is only populated by the data-generation state machine, not during policy rollout.
@@ -399,5 +407,3 @@ if __name__ == "__main__":
 
         env.reset()
         env.close()
-
-        simulation_app.close()

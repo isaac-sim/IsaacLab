@@ -16,23 +16,20 @@ mass matricescomputed by PhysX.
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on using the operational space controller.")
 parser.add_argument("--num_envs", type=int, default=128, help="Number of environments to spawn.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -43,9 +40,9 @@ from isaaclab.assets import Articulation, AssetBaseCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
-from isaaclab.utils import clone, configclass, replace
+from isaaclab.utils import clone, configclass, instantiate, replace
 from isaaclab.utils.math import (
     combine_frame_transforms,
     matrix_from_quat,
@@ -53,6 +50,9 @@ from isaaclab.utils.math import (
     quat_inv,
     subtract_frame_transforms,
 )
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 ##
 # Pre-defined configs
@@ -105,7 +105,7 @@ class SceneCfg(InteractiveSceneCfg):
     robot.spawn.rigid_props.disable_gravity = True
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     """Runs the simulation loop.
 
     Args:
@@ -209,7 +209,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
     count = 0
     # Simulation loop
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         # reset every 500 steps
         if count % 500 == 0:
             # reset joint state to default
@@ -281,7 +281,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 # Update robot states
 def update_states(
     sim: sim_utils.SimulationContext,
-    scene: InteractiveScene,
+    scene: "InteractiveScene",
     robot: Articulation,
     ee_frame_idx: int,
     arm_joint_ids: list[int],
@@ -377,7 +377,7 @@ def update_states(
 # Update the target commands
 def update_target(
     sim: sim_utils.SimulationContext,
-    scene: InteractiveScene,
+    scene: "InteractiveScene",
     osc: OperationalSpaceController,
     root_pose_w: torch.tensor,
     ee_target_set: torch.tensor,
@@ -466,24 +466,25 @@ def convert_to_task_frame(osc: OperationalSpaceController, command: torch.tensor
 
 def main():
     """Main function."""
-    # Load kit helper
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
-    # Design scene
-    scene_cfg = SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
+        # Design scene
+        scene_cfg = SceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene = instantiate(scene_cfg)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

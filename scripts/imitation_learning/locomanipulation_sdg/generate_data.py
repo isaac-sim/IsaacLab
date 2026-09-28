@@ -5,10 +5,12 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
+from __future__ import annotations
+
 import argparse
 import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation, scan
 
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
@@ -122,25 +124,23 @@ parser.add_argument(
     help="Set the Sim GUI viewport to the robot_pov_cam sensor view at the start of each episode.",
 )
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # forward unrecognized args as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
 
-app_launcher = AppLauncher(args_cli, enable_cameras=True)
-simulation_app = app_launcher.app
+args_cli.enable_cameras = True
+# the task config imports USD and the script uses Kit APIs directly, so the Kit runtime is always launched
+args_cli.require_kit = True
 
 import enum
 import random
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
-
-import omni.kit
-import omni.kit.viewport.utility
-import omni.usd
 
 from isaaclab.managers import DatasetExportMode
 from isaaclab.utils import configclass
@@ -156,18 +156,16 @@ from isaaclab_mimic.locomanipulation_sdg.data_classes import (
 if args_cli.seed is not None:
     configure_seed(args_cli.seed)
 
-from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
-from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
-    OccupancyMap,
-    OccupancyMapDataValue,
-    merge_occupancy_maps,
-    occupancy_map_add_to_stage,
-)
-from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
-from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 from isaaclab_mimic.locomanipulation_sdg.transform_utils import transform_inv, transform_mul, transform_relative_pose
 
 from isaaclab_tasks.utils import parse_env_cfg
+
+if TYPE_CHECKING:
+    # these modules load USD, so they are only imported at runtime once the simulation is launched
+    from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
+    from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose
 
 
 class LocomanipulationSDGDataGenerationState(enum.IntEnum):
@@ -310,6 +308,8 @@ def sync_simulation_state(env: LocomanipulationSDGEnv):
 
 def _set_sensor_camera_view():
     """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
+    import omni.kit.viewport.utility
+
     viewport = omni.kit.viewport.utility.get_active_viewport()
     if viewport is not None:
         cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
@@ -437,6 +437,14 @@ def setup_navigation_scene(
     Returns:
         NavigationScene or None if the navigation scene setup failed.
     """
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
+        OccupancyMap,
+        OccupancyMapDataValue,
+        merge_occupancy_maps,
+        occupancy_map_add_to_stage,
+    )
+    from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 
     background_fixture = env.get_background_fixture()
     if background_fixture is not None:
@@ -517,7 +525,7 @@ def setup_navigation_scene(
     if draw_visualization:
         occupancy_map_add_to_stage(
             occupancy_map,
-            stage=omni.usd.get_context().get_stage(),
+            stage=env.sim.stage,
             path="/OccupancyMap",
             z_offset=0.01,
             draw_path=base_path_helper.points,
@@ -920,7 +928,7 @@ def replay(
     recording_step = 0
 
     # Main simulation loop with state machine
-    while simulation_app.is_running() and not simulation_app.is_exiting():
+    while env.sim.is_headless_or_exist_active_visualizer():
         if current_state != previous_state:
             print(f"State changed: {current_state.name}, Recording step: {recording_step}", flush=True)
             previous_state = current_state
@@ -998,7 +1006,8 @@ def replay(
 
 
 if __name__ == "__main__":
-    with torch.no_grad():
+    # the task config module imports USD, so the Kit runtime is launched before the config is parsed
+    with torch.no_grad(), launch_simulation(None, args_cli):
         # Create environment
         if args_cli.task is not None:
             env_name = args_cli.task.split(":")[-1]
@@ -1006,6 +1015,8 @@ if __name__ == "__main__":
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
+        # resolve the config's automatic physics and renderer selections for the launched runtime
+        scan(env_cfg, args_cli)
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
@@ -1085,5 +1096,3 @@ if __name__ == "__main__":
         if getattr(env, "viewport_camera_controller", None) is not None:
             env.viewport_camera_controller.update_view_to_world()
         env.close()
-
-        simulation_app.close()

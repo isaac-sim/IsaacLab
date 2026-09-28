@@ -13,37 +13,34 @@ This script checks if the XR visualization widgets are visible from the camera.
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+from __future__ import annotations
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Check XR visualization widgets in Isaac Lab.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli = parser.parse_args()
 
 # launch omniverse app with XR support
 args_cli.xr = True
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything follows."""
 
 import time
-from typing import Any
-
-from pxr import Gf
+from typing import TYPE_CHECKING, Any
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.ui.xr_widgets import DataCollector, TriggerType, VisualizationManager, XRVisualization, update_instruction
-from isaaclab.utils import configclass
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.utils import configclass, instantiate
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.ui.xr_widgets import DataCollector, VisualizationManager
+
+# Note: pxr and the XR widgets (Kit UI modules) are imported inside the functions below,
+# since they must not be loaded before Kit starts in main().
 
 ##
 # Pre-defined configs
@@ -93,6 +90,10 @@ def get_camera_position():
 
 
 def _sample_handle_ik_error(mgr: VisualizationManager, data_collector: DataCollector, params: Any = None) -> None:
+    from pxr import Gf
+
+    from isaaclab.ui.xr_widgets import VisualizationManager
+
     error_text_color = getattr(mgr, "_error_text_color", 0xFF0000FF)
     mgr.display_widget(
         "IK Error Detected",
@@ -115,6 +116,10 @@ def _sample_update_error_text_color(mgr: VisualizationManager, data_collector: D
 
 
 def _sample_update_left_panel(mgr: VisualizationManager, data_collector: DataCollector) -> None:
+    from pxr import Gf
+
+    from isaaclab.ui.xr_widgets import VisualizationManager, update_instruction
+
     left_panel_id = getattr(mgr, "left_panel_id", None)
 
     if left_panel_id is None:
@@ -143,6 +148,10 @@ def _sample_update_left_panel(mgr: VisualizationManager, data_collector: DataCol
 
 
 def _sample_update_right_panel(mgr: VisualizationManager, data_collector: DataCollector) -> None:
+    from pxr import Gf
+
+    from isaaclab.ui.xr_widgets import VisualizationManager, update_instruction
+
     right_panel_id = getattr(mgr, "right_panel_id", None)
 
     if right_panel_id is None:
@@ -179,6 +188,10 @@ def _sample_update_right_panel(mgr: VisualizationManager, data_collector: DataCo
 
 
 def apply_sample_visualization():
+    from pxr import Gf
+
+    from isaaclab.ui.xr_widgets import TriggerType, XRVisualization
+
     # Error Message
     XRVisualization.register_callback(TriggerType.TRIGGER_ON_EVENT, {"event_name": "ik_error"}, _sample_handle_ik_error)
 
@@ -220,6 +233,7 @@ def run_simulator(
     scene: InteractiveScene,
 ):
     """Run the simulator."""
+    from isaaclab.ui.xr_widgets import XRVisualization
 
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -227,7 +241,7 @@ def run_simulator(
     apply_sample_visualization()
 
     # Simulate
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         if int(time.time()) % 10 < 1:
             XRVisualization.push_event("ik_error")
 
@@ -240,23 +254,18 @@ def run_simulator(
 def main():
     """Main function."""
 
-    # Initialize the simulation context
-    sim_cfg = sim_utils.SimulationCfg(dt=0.005)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=(8, 0, 4), target=(0.0, 0.0, 0.0))
-    # design scene
-    scene = InteractiveScene(SimpleSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0))
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli):
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=(8, 0, 4), target=(0.0, 0.0, 0.0))
+        # design scene
+        scene_cfg = SimpleSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene = instantiate(scene_cfg)
+        sim.reset()
+        print("[INFO]: Setup complete...")
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()

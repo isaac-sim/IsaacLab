@@ -13,44 +13,38 @@ This script demonstrates the FrameTransformer sensor by visualizing the frames t
 
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
     description="This script checks the FrameTransformer sensor by visualizing the frames that it creates."
 )
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
 import math
+from typing import TYPE_CHECKING
 
 import torch
 
-from isaaclab.sim.utils import enable_extension
-
-enable_extension("isaacsim.util.debug_draw")
-
-from isaacsim.util.debug_draw import _debug_draw as omni_debug_draw
-
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
-from isaaclab.assets import Articulation, AssetBaseCfg
-from isaaclab.markers import VisualizationMarkers
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
-from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass, replace
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
+from isaaclab.utils import configclass, instantiate, replace
+
+if TYPE_CHECKING:
+    from isaaclab.assets import Articulation
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sensors import FrameTransformer
 
 ##
 # Pre-defined configs
@@ -87,7 +81,7 @@ class FrameTransformerSceneCfg(InteractiveSceneCfg):
     )
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     """Run the simulator."""
     # Define simulation stepping
     sim_dt = sim.get_physics_dt()
@@ -101,19 +95,16 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # We only want one visualization at a time. This visualizer will be used
     # to step through each frame so the user can verify that the correct frame
     # is being visualized as the frame names are printing to console
-    if not args_cli.headless:
+    if sim.has_gui:
         cfg = replace(FRAME_MARKER_CFG, prim_path="/Visuals/FrameVisualizerFromScript")
         cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
-        transform_visualizer = VisualizationMarkers(cfg)
-        # debug drawing for lines connecting the frame
-        draw_interface = omni_debug_draw.acquire_debug_draw_interface()
+        transform_visualizer = instantiate(cfg)
     else:
         transform_visualizer = None
-        draw_interface = None
 
     frame_index = 0
     # Simulate physics
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         # perform this loop at policy control freq (50 Hz)
         robot.set_joint_position_target_index(target=robot.data.default_joint_pos.torch.clone())
         robot.write_data_to_sim()
@@ -128,7 +119,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
         # Change the frame that we are visualizing to ensure that frame names
         # are correctly associated with the frames
-        if not args_cli.headless:
+        if sim.has_gui:
             if count % 50 == 0:
                 # get frame names
                 frame_names = frame_transformer.data.target_frame_names
@@ -146,33 +137,29 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
             transform_visualizer.visualize(
                 torch.cat([source_pos, target_pos], dim=0), torch.cat([source_quat, target_quat], dim=0)
             )
-            # draw the line connecting the frames
-            draw_interface.clear_lines()
-            # plain color for lines
-            lines_colors = [[1.0, 1.0, 0.0, 1.0]] * source_pos.shape[0]
-            line_thicknesses = [5.0] * source_pos.shape[0]
-            draw_interface.draw_lines(source_pos.tolist(), target_pos.tolist(), lines_colors, line_thicknesses)
 
 
 def main():
     """Main function."""
-    # Load kit helper
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device)
-    sim = SimulationContext(sim_cfg)
-    # Set main camera
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
-    # Design scene
-    scene = InteractiveScene(FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False))
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        # Set main camera
+        sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+        # Design scene
+        scene_cfg = FrameTransformerSceneCfg(num_envs=1, env_spacing=0.0, replicate_physics=False)
+        scene = instantiate(scene_cfg)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     # Run the main function
     main()
-    # Close the simulator
-    simulation_app.close()

@@ -26,10 +26,10 @@ tactile sensing with the GelSight finger setup.
 import argparse
 import math
 import os
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# Add argparse arguments
 parser = argparse.ArgumentParser(description="TacSL tactile sensor example.")
 parser.add_argument("--num_envs", type=int, default=2, help="Number of environments to spawn.")
 parser.add_argument(
@@ -69,9 +69,7 @@ parser.add_argument(
     help="Type of contact object to use.",
 )
 
-# Append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# Parse the arguments
+add_launcher_args(parser)
 args_cli = parser.parse_args()
 if args_cli.num_envs < 1:
     parser.error("--num_envs must be at least 1.")
@@ -79,11 +77,9 @@ if args_cli.max_steps == 0 or args_cli.max_steps < -1:
     parser.error("--max_steps must be positive or -1.")
 if not args_cli.use_tactile_rgb and not args_cli.use_tactile_ff:
     args_cli.use_tactile_ff = True
-
-# Launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
+# the tactile RGB sensor renders through an RTX camera, which needs camera rendering in headless runs
+if args_cli.use_tactile_rgb:
+    args_cli.enable_cameras = True
 
 import cv2
 import numpy as np
@@ -95,9 +91,9 @@ from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_contrib.sensors.tacsl_sensor import VisuoTactileSensorCfg
@@ -105,6 +101,9 @@ from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_render import compute_ta
 from isaaclab_contrib.sensors.tacsl_sensor.visuotactile_sensor_data import VisuoTactileSensorData
 
 from isaaclab_assets.sensors import GELSIGHT_R15_CFG
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 
 @configclass
@@ -314,7 +313,7 @@ def save_viz_helper(
         cv2.imwrite(os.path.join(tactile_rgb_image_dir, f"{count:04d}.png"), tactile_rgb_tiled)
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> None:
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene") -> None:
     """Run the simulator."""
     sim_dt = sim.get_physics_dt()
     count = 0
@@ -340,7 +339,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
         entity_list.append("contact_object")
 
     total_steps = 0
-    while simulation_app.is_running() and (args_cli.max_steps < 0 or total_steps < args_cli.max_steps):
+    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or total_steps < args_cli.max_steps):
         if count == 122:
             # Reset robot and contact object positions
             count = 0
@@ -382,61 +381,54 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
 
 def main() -> None:
     """Run the tactile-sensor example."""
-    # Initialize simulation
-    # Note: We set the gpu_collision_stack_size to prevent buffer overflow in contact-rich environments.
-    sim_cfg = sim_utils.SimulationCfg(
-        dt=0.005,
-        device=args_cli.device,
-        physics=PhysxCfg(gpu_collision_stack_size=2**30),
-    )
-    sim = sim_utils.SimulationContext(sim_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=0.005, device=args_cli.device, physics=PhysxCfg())
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
+        # Note: We set the gpu_collision_stack_size to prevent buffer overflow in contact-rich environments.
+        physics_cfg.gpu_collision_stack_size = 2**30
+        sim = sim_utils.SimulationContext(sim_cfg)
 
-    # Set main camera
-    sim.set_camera_view(eye=(0.5, 0.6, 1.0), target=(-0.1, 0.1, 0.5))
+        # Set main camera
+        sim.set_camera_view(eye=(0.5, 0.6, 1.0), target=(-0.1, 0.1, 0.5))
 
-    # Create scene based on contact object type
-    if args_cli.contact_object_type == "cube":
-        scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        # disabled force field for cube contact object because a SDF collision mesh cannot
-        # be created for the Shape Prims
-        scene_cfg.tactile_sensor.enable_force_field = False
-    elif args_cli.contact_object_type == "nut":
-        scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-    elif args_cli.contact_object_type == "none":
-        scene_cfg = TactileSensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
-        scene_cfg.tactile_sensor.contact_object_prim_path_expr = None
-        # this flag is to visualize the tactile sensor points
-        scene_cfg.tactile_sensor.debug_vis = True
-    else:
-        raise ValueError(
-            f"Invalid contact object type: '{args_cli.contact_object_type}'. Must be 'none', 'cube', or 'nut'."
-        )
+        # Create scene based on contact object type
+        if args_cli.contact_object_type == "cube":
+            scene_cfg = CubeTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
+            # disabled force field for cube contact object because a SDF collision mesh cannot
+            # be created for the Shape Prims
+            scene_cfg.tactile_sensor.enable_force_field = False
+        elif args_cli.contact_object_type == "nut":
+            scene_cfg = NutTactileSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
+        elif args_cli.contact_object_type == "none":
+            scene_cfg = TactileSensorsSceneCfg(num_envs=args_cli.num_envs, env_spacing=0.2)
+            scene_cfg.tactile_sensor.contact_object_prim_path_expr = None
+            # this flag is to visualize the tactile sensor points
+            scene_cfg.tactile_sensor.debug_vis = True
+        else:
+            raise ValueError(
+                f"Invalid contact object type: '{args_cli.contact_object_type}'. Must be 'none', 'cube', or 'nut'."
+            )
 
-    scene = InteractiveScene(scene_cfg)
+        scene = instantiate(scene_cfg)
 
-    # Initialize simulation
-    sim.reset()
+        sim.reset()
 
-    # The tactile RGB path internally uses an RTX camera that may request only non-color render products.
-    # Isaac RTX can disable color rendering for that case, which makes the Kit viewport black even though
-    # the sensor images are produced correctly. Keep color rendering enabled when a Kit viewport is active.
-    visualizers = args_cli.visualizer
-    if isinstance(visualizers, str):
-        visualizers = [token.strip() for token in visualizers.split(",")]
-    if args_cli.use_tactile_rgb and "kit" in visualizers:
-        print("[INFO]: Keeping RTX color rendering enabled for Kit viewport visualization.")
-        sim.set_setting("/rtx/sdg/force/disableColorRender", False)
+        # The tactile RGB path internally uses an RTX camera that may request only non-color render products.
+        # Isaac RTX can disable color rendering for that case, which makes the Kit viewport black even though
+        # the sensor images are produced correctly. Keep color rendering enabled when a Kit viewport is active.
+        visualizers = args_cli.visualizer
+        if isinstance(visualizers, str):
+            visualizers = [token.strip() for token in visualizers.split(",")]
+        if args_cli.use_tactile_rgb and "kit" in visualizers:
+            print("[INFO]: Keeping RTX color rendering enabled for Kit viewport visualization.")
+            sim.set_setting("/rtx/sdg/force/disableColorRender", False)
 
-    print("[INFO]: Setup complete...")
+        print("[INFO]: Setup complete...")
 
-    # Get initial render
-    scene["tactile_sensor"].get_initial_render()
-    # Run simulation
-    run_simulator(sim, scene)
+        # Get initial render
+        scene["tactile_sensor"].get_initial_render()
+        # Run simulation
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    try:
-        main()
-    finally:
-        simulation_app.close()
+    main()

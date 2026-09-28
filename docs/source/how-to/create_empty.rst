@@ -6,8 +6,8 @@ Creating an empty scene
 .. currentmodule:: isaaclab
 
 This tutorial shows how to launch and control Isaac Sim simulator from a standalone Python script. It sets up an
-empty scene in Isaac Lab and introduces the two main classes used in the framework, :class:`app.AppLauncher` and
-:class:`sim.SimulationContext`.
+empty scene in Isaac Lab and introduces the two main entry points used in the framework, the
+:func:`app.launch_simulation` context manager and the :class:`sim.SimulationContext` class.
 
 Please review `Isaac Sim Workflows`_ prior to beginning this tutorial to get
 an initial understanding of working with the simulator.
@@ -23,40 +23,37 @@ The tutorial corresponds to the ``create_empty.py`` script in the ``scripts/tuto
 
    .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
       :language: python
-      :emphasize-lines: 18-30,34,40-44,46-47,51-54,60-61
+      :emphasize-lines: 18-27,31,37-44,46-47,51-54
       :linenos:
 
 
 The Code Explained
 ~~~~~~~~~~~~~~~~~~
 
-Launching the simulator
------------------------
+Parsing the command-line arguments
+----------------------------------
 
-The first step when working with standalone Python scripts is to launch the simulation application.
-This is necessary to do at the start since various dependency modules of Isaac Sim are only available
-after the simulation app is running.
+A standalone script starts by parsing its command-line arguments. The simulator itself is not started yet:
+it is launched later, once we know which runtime the simulation configuration needs.
 
-This can be done by importing the :class:`app.AppLauncher` class. This utility class wraps around
-:class:`isaacsim.SimulationApp` class to launch the simulator. It provides mechanisms to
-configure the simulator using command-line arguments and environment variables.
-
-For this tutorial, we mainly look at adding the command-line options to a user-defined
-:class:`argparse.ArgumentParser`. This is done by passing the parser instance to the
-:meth:`app.AppLauncher.add_app_launcher_args` method, which appends different parameters
-to it. These include launching the app headless, configuring different Livestream options,
-and enabling off-screen rendering.
+The launch-related command-line options are added to a user-defined :class:`argparse.ArgumentParser`
+by passing the parser instance to the :func:`app.add_launcher_args` function. It appends options such as
+``--device`` to choose the simulation device, ``--visualizer`` (or ``--viz``) to open a visualizer window,
+and ``--livestream`` to stream the simulator. These options are later handed to
+:func:`app.launch_simulation`.
 
 .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
    :start-at: import argparse
-   :end-at: simulation_app = app_launcher.app
+   :end-at: args_cli = parser.parse_args()
 
 Importing python modules
 ------------------------
 
-Once the simulation app is running, it is possible to import different Python modules from
-Isaac Sim and other libraries. Here we import the following module:
+Isaac Lab configuration classes and utilities can be imported before the simulator is launched. Modules that
+need the running simulator, such as Isaac Sim's ``omni.*`` and ``isaacsim.*`` modules or Isaac Lab classes that
+work on the USD stage, are imported later, after the simulator has been launched, as shown in the following
+tutorials. Here we import the following module:
 
 * :mod:`isaaclab.sim`: A sub-package in Isaac Lab for all the core simulator-related operations.
 
@@ -82,9 +79,17 @@ For this tutorial, we set the physics and rendering time step to 0.01 seconds. T
 by passing these quantities to the :class:`sim.SimulationCfg`, which is then used to create an
 instance of the simulation context.
 
+Before the simulation context can be created, the simulator runtime must be launched. This is done with the
+:func:`app.launch_simulation` context manager. It inspects the given configuration together with the parsed
+command-line arguments and starts only the runtime that they need: the default PhysX physics backend runs
+inside Isaac Sim (Kit), so Isaac Sim is started here, while a kitless backend such as Newton needs no Isaac Sim
+at all. The simulation runs headless unless a visualizer is requested, for example with ``--viz kit``.
+Everything that uses the simulator runs inside the ``with`` block, and the runtime is closed automatically
+when the block exits.
+
 .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
-   :start-at: # Initialize the simulation context
+   :start-at: # Configure the simulation
    :end-at: sim.set_camera_view([2.5, 2.5, 2.5], [0.0, 0.0, 0.0])
 
 
@@ -112,10 +117,11 @@ properly.
    :meth:`sim.SimulationContext.reset` is different from :meth:`sim.SimulationContext.play` method as the latter
    only plays the timeline and does not initializes the physics handles.
 
-After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly
-while the simulation app is running. The method :meth:`sim.SimulationContext.step` takes in as argument :attr:`render`,
-which dictates whether the step includes updating the rendering-related events or not. By default, this flag is
-set to True.
+After playing the simulation timeline, we set up a simple simulation loop where the simulator is stepped repeatedly.
+The loop condition :meth:`sim.SimulationContext.is_headless_or_exist_active_visualizer` keeps it running
+forever when no visualizer is open, and until the last visualizer window is closed otherwise.
+The method :meth:`sim.SimulationContext.step` takes in as argument :attr:`render`, which dictates whether
+the step includes updating the rendering-related events or not. By default, this flag is set to True.
 
 .. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
    :language: python
@@ -125,13 +131,8 @@ set to True.
 Exiting the simulation
 ----------------------
 
-Lastly, the simulation application is stopped and its window is closed by calling
-:meth:`isaacsim.SimulationApp.close` method.
-
-.. literalinclude:: ../../../scripts/tutorials/00_sim/create_empty.py
-   :language: python
-   :start-at: # close sim app
-   :end-at: simulation_app.close()
+There is no explicit shutdown call. When the simulation loop ends and the ``with launch_simulation(...)``
+block exits, the simulator runtime is stopped and its window is closed.
 
 
 The Code Execution
@@ -153,7 +154,7 @@ you can either close the window, or press ``Ctrl+C`` in the terminal.
     :alt: result of create_empty.py
 
 Passing ``--help`` to the above script will show the different command-line arguments added
-earlier by the :class:`app.AppLauncher` class. To run the script headless, omit the visualizer
+earlier by the :func:`app.add_launcher_args` function. To run the script headless, omit the visualizer
 selection:
 
 .. code-block:: bash

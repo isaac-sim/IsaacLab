@@ -29,7 +29,7 @@ The tutorial corresponds to the ``run_diff_ik.py`` script in the
 
    .. literalinclude:: ../../../scripts/tutorials/05_controllers/run_diff_ik.py
       :language: python
-      :emphasize-lines: 98-100, 121-136, 155-157, 161-171
+      :emphasize-lines: 98-100, 121-136, 156-158, 162-175
       :linenos:
 
 

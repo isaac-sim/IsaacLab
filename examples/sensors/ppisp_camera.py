@@ -19,11 +19,13 @@ the Newton Warp or Isaac RTX renderer.
 
 """
 
+from __future__ import annotations
+
 import argparse
 import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 DEFAULT_INPUT_SCENE = f"{ISAAC_NUCLEUS_DIR}/Samples/Scene_ParticleField/valiant_auto.usdz"
@@ -89,10 +91,13 @@ parser.add_argument(
     default=None,
     help="Directory to write comparison images. Defaults to ./output/ppisp_camera.",
 )
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # Camera output is required, but the example does not need an interactive visualizer.
 parser.set_defaults(enable_cameras=True)
 args_cli = parser.parse_args()
+# the Gaussian particle-field scene (and remote scene URLs) need Kit's USD plugins and asset resolver,
+# even with the Newton renderer, so always start Kit
+args_cli.require_kit = True
 if "://" not in args_cli.input_scene:
     args_cli.input_scene = os.path.abspath(os.path.expanduser(args_cli.input_scene))
     if not os.path.exists(args_cli.input_scene):
@@ -112,28 +117,23 @@ if args_cli.max_steps < 1:
 if args_cli.save_interval < 1:
     parser.error("--save_interval must be at least 1.")
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
-from isaaclab_ppisp._demo_utils import (
-    find_ppisp_camera_bindings,
-    format_available_ppisp_cameras,
-    order_ppisp_bindings_by_camera,
-)
 from isaaclab_ppisp.cfg import PpispCfg, ppisp_cfg_from_usd_camera
-
-from pxr import Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
-from isaaclab.sensors import Camera, CameraCfg
+from isaaclab.scene import InteractiveSceneCfg
+from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.scene import InteractiveScene
+    from isaaclab.sensors import Camera
 
 
 @configclass
@@ -192,6 +192,12 @@ def make_sim_cfg() -> sim_utils.SimulationCfg:
 
 def resolve_source_camera_binding(source_stage: Usd.Stage) -> tuple[str, Usd.Prim | None, Usd.Prim]:
     """Resolve the source camera and PPISP camera binding from CLI or source stage metadata."""
+    from isaaclab_ppisp._demo_utils import (
+        find_ppisp_camera_bindings,
+        format_available_ppisp_cameras,
+        order_ppisp_bindings_by_camera,
+    )
+
     ppisp_bindings = order_ppisp_bindings_by_camera(source_stage, find_ppisp_camera_bindings(source_stage))
     if not ppisp_bindings:
         raise RuntimeError("No cameras with PPISP camera attributes found in input scene.")
@@ -255,6 +261,8 @@ def source_camera_path_to_env_regex(source_stage: Usd.Stage, source_camera_prim_
 
 def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
     """Bake the selected USD camera pose at ``camera_time_code`` into duplicated env camera prims."""
+    from pxr import Usd, UsdGeom
+
     default_prim = source_stage.GetDefaultPrim()
     if not default_prim:
         raise RuntimeError("Input scene must have a defaultPrim so it can be referenced under each env.")
@@ -352,25 +360,24 @@ def create_duplicated_env_scene() -> InteractiveScene:
     """Create a production-style duplicated-env scene for tiled camera rendering."""
     scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=args_cli.env_spacing)
     scene_cfg.input_scene.spawn = sim_utils.UsdFileCfg(usd_path=args_cli.input_scene)
-    scene = InteractiveScene(scene_cfg)
+    scene = instantiate(scene_cfg)
     print(f"[INFO] Referenced input scene into {args_cli.num_envs} env(s).", flush=True)
     return scene
 
 
 def make_camera(camera_prim_path: str, *, ppisp_cfg: PpispCfg | None, width: int, height: int) -> Camera:
     """Create a baseline or PPISP camera sensor for the duplicated-env camera batch."""
-    return Camera(
-        CameraCfg(
-            prim_path=camera_prim_path,
-            update_period=0.0,
-            height=height,
-            width=width,
-            data_types=["rgb"],
-            spawn=None,
-            isp_cfg=ppisp_cfg,
-            renderer_cfg=make_renderer_cfg(),
-        )
+    camera_cfg = CameraCfg(
+        prim_path=camera_prim_path,
+        update_period=0.0,
+        height=height,
+        width=width,
+        data_types=["rgb"],
+        spawn=None,
+        isp_cfg=ppisp_cfg,
+        renderer_cfg=make_renderer_cfg(),
     )
+    return instantiate(camera_cfg)
 
 
 def save_images_grid(
@@ -451,7 +458,7 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
 
     count = 0
     reported_shape = False
-    while simulation_app.is_running():
+    while sim.is_headless_or_exist_active_visualizer():
         sim.step()
         baseline_camera.update(sim_dt)
         ppisp_camera.update(sim_dt)
@@ -520,33 +527,38 @@ def run_simulator(sim: sim_utils.SimulationContext, baseline_camera: Camera, ppi
 
 def main() -> None:
     """Main function."""
-    source_stage = Usd.Stage.Open(args_cli.input_scene)
-    if source_stage is None:
-        raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")
-    source_camera_prim_path, render_product_prim, ppisp_camera_prim = resolve_source_camera_binding(source_stage)
-    ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, len(find_ppisp_camera_bindings(source_stage)))
-    camera_prim_path = source_camera_path_to_env_regex(source_stage, source_camera_prim_path)
-    width, height = resolve_image_shape(render_product_prim)
-
-    sim_utils.create_new_stage()
     sim_cfg = make_sim_cfg()
-    sim = sim_utils.SimulationContext(sim_cfg)
-    sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+    with launch_simulation(sim_cfg, args_cli):
+        # USD must load after Kit starts
+        from isaaclab_ppisp._demo_utils import find_ppisp_camera_bindings
 
-    scene = create_duplicated_env_scene()
-    if args_cli.renderer == "newton_renderer":
-        bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
-    baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
-    ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
-    print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
-    print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
+        from pxr import Usd
 
-    sim.reset()
-    print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
-    run_simulator(sim, baseline_camera, ppisp_camera)
-    del scene
+        source_stage = Usd.Stage.Open(args_cli.input_scene)
+        if source_stage is None:
+            raise RuntimeError(f"Failed to open input scene: {args_cli.input_scene}")
+        source_camera_prim_path, render_product_prim, ppisp_camera_prim = resolve_source_camera_binding(source_stage)
+        ppisp_cfg = make_ppisp_cfg(ppisp_camera_prim, len(find_ppisp_camera_bindings(source_stage)))
+        camera_prim_path = source_camera_path_to_env_regex(source_stage, source_camera_prim_path)
+        width, height = resolve_image_shape(render_product_prim)
+
+        sim_utils.create_new_stage()
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
+
+        scene = create_duplicated_env_scene()
+        if args_cli.renderer == "newton_renderer":
+            bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path)
+        baseline_camera = make_camera(camera_prim_path, ppisp_cfg=None, width=width, height=height)
+        ppisp_camera = make_camera(camera_prim_path, ppisp_cfg=ppisp_cfg, width=width, height=height)
+        print(f"[INFO] Duplicated-env camera regex: {camera_prim_path}", flush=True)
+        print(f"[INFO] Rendering {width}x{height} from source camera {source_camera_prim_path}.", flush=True)
+
+        sim.reset()
+        print("[INFO]: Setup complete. Saving comparison images during simulation.", flush=True)
+        run_simulator(sim, baseline_camera, ppisp_camera)
+        del scene
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()
