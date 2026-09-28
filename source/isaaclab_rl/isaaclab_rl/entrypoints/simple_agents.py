@@ -100,7 +100,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                 # keep running while any visualizer is open and the step budget is not exhausted
                 sim = env.unwrapped.sim
                 step = 0
-                while sim.is_headless_or_exist_active_visualizer():
+                while sim.is_running():
                     if max_steps is not None and step >= max_steps:
                         break
                     step += 1

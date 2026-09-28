@@ -277,9 +277,7 @@ def main() -> None:
         count = 0
         env.reset()
         print("[INFO]: Setup complete.")
-        while env.sim.is_headless_or_exist_active_visualizer() and (
-            args_cli.max_steps < 0 or count < args_cli.max_steps
-        ):
+        while env.sim.is_running() and (args_cli.max_steps < 0 or count < args_cli.max_steps):
             if count > 0 and count % 50 == 0:
                 num_reset = int(torch.randint(1, env.num_envs + 1, ()).item())
                 env_ids = torch.randperm(env.num_envs, dtype=torch.int32, device=env.device)[:num_reset]

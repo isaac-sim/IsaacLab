@@ -37,7 +37,7 @@ def run_simulator(
     count = 0
 
     # Simulate physics
-    while sim.is_headless_or_exist_active_visualizer() and count < 100:
+    while sim.is_running() and count < 100:
         # perform step
         sim.step()
         count += 1

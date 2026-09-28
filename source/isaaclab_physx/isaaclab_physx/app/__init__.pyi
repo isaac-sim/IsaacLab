@@ -7,8 +7,7 @@ __all__ = [
     "KitLauncher",
     "KitStageBackend",
     "KitStageBackendCfg",
-    "show_stage_in_viewport",
 ]
 
 from .kit_launcher import KitLauncher
-from .kit_stage import KitStageBackend, KitStageBackendCfg, show_stage_in_viewport
+from .kit_stage import KitStageBackend, KitStageBackendCfg

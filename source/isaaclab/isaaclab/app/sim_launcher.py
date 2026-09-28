@@ -679,6 +679,10 @@ def launch_simulation(
 
         configure_storage_profile()
         yield physics_cfg
+    except SystemExit as exc:
+        # keep the status of ``sys.exit(n)`` in the block; Kit would otherwise exit with 0
+        exit_code = exc.code if isinstance(exc.code, int) else int(exc.code is not None)
+        raise
     except Exception:
         exit_code = 1
         import traceback
