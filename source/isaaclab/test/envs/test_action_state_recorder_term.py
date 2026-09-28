@@ -2,15 +2,10 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-"""Launch Isaac Sim Simulator first."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch the simulator
-simulation_app = AppLauncher(headless=True).app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import shutil
 import tempfile

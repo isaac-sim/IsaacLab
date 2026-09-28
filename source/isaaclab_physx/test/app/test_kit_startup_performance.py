@@ -13,7 +13,7 @@ import time
 
 import pytest
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
 pytestmark = pytest.mark.integration
 
@@ -24,7 +24,7 @@ _CI_STARTUP_TIME_LIMIT = 20.0
 def test_kit_start_up_time():
     """Test kit start-up time."""
     start_time = time.time()
-    app_launcher = AppLauncher(headless=True).app  # noqa: F841
+    launch_test_simulation()
     end_time = time.time()
     elapsed_time = end_time - start_time
     # GitHub Actions Docker jobs run with isolated writable runtime/cache mounts

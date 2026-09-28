@@ -7,7 +7,7 @@
 
 """Integration tests for ray caster sensor view paths, env_mask, and intrinsics.
 
-These tests require Isaac Sim (AppLauncher). They cover the integration-level
+These tests require Isaac Sim (the Kit launcher). They cover the integration-level
 items from ``TODO_ray_caster_kernel_tests.md``:
 
 - ``_get_sensor_transforms_wp`` RigidBodyView path
@@ -17,10 +17,10 @@ items from ``TODO_ray_caster_kernel_tests.md``:
 - Depth clipping ordering for ``MultiMeshRayCasterCamera``
 """
 
-from isaaclab.app import AppLauncher
 from isaaclab.assets import AssetBaseCfg
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+launch_test_simulation(enable_cameras=True)
 
 import copy
 from typing import Any, cast

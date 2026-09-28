@@ -149,7 +149,7 @@ def test_mpm_config_imports_do_not_load_pxr():
     ],
 )
 def test_mpm_program_configs_do_not_load_pxr_before_simulation_launch(module):
-    """Every MPM program must delay USD imports until after ``AppLauncher`` starts."""
+    """Every MPM program must delay USD imports until after the Kit launcher starts."""
     code = textwrap.dedent(
         f"""
         import importlib

@@ -6,18 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-
-"""Launch Isaac Sim Simulator first."""
-
 import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils import replace
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import pytest
 import torch

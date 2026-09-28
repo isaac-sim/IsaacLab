@@ -11,14 +11,9 @@ the other uses the raw PhysX API directly (apply_forces_and_torques_at_position 
 is_global flag). After N steps, both objects should have identical velocities.
 """
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 

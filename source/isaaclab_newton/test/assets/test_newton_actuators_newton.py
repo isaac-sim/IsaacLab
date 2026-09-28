@@ -18,10 +18,10 @@ Each test class overrides ANYmal's default actuators with a specific Lab
 config (IdealPD, DCMotor, or mixed) and verifies Lab vs Newton equivalence.
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils import replace
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import functools
 import os

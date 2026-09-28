@@ -3,20 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 import torch
 from isaaclab_physx.physics import PhysxCfg
-
-import omni.replicator.core as rep
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -75,7 +68,6 @@ def setup_sim(device):
     _populate_scene()
     yield sim, dt
     # Teardown
-    rep.vp_manager.destroy_hydra_textures("Replicator")
     sim.stop()
     sim.clear_instance()
 
