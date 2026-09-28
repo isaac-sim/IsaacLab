@@ -76,13 +76,15 @@ def _sanitize_sys_argv_for_kit(argv: list[str]) -> list[str]:
     return [argument for index, argument in enumerate(argv) if index not in indexes_to_remove]
 
 
-class _ExplicitAction(argparse.Action):
-    """Custom action to track if an argument was explicitly passed by the user."""
+class _StoreAndMarkExplicit(argparse.Action):
+    """Store the value and set ``<dest>_explicit``, for options whose default must stay a real value.
+
+    ``--device`` defaults to ``"cuda:0"`` because scripts read ``args_cli.device`` before launch, yet XR
+    needs to know whether it was passed (see :meth:`KitLauncher._resolve_device_settings`).
+    """
 
     def __call__(self, parser, namespace, values, option_string=None):
-        # Set the parameter value
         setattr(namespace, self.dest, values)
-        # Set a flag indicating the parameter was explicitly passed
         setattr(namespace, f"{self.dest}_explicit", True)
 
 
@@ -352,7 +354,7 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--device",
             type=str,
-            action=_ExplicitAction,
+            action=_StoreAndMarkExplicit,
             default="cuda:0",
             help='The device to run the simulation on. Can be "cpu", "cuda", "cuda:N", where N is the device ID',
         )
@@ -360,7 +362,6 @@ class KitLauncher(SimulationLauncher):
             "--visualizer",
             "--viz",
             type=_parse_visualizer_csv,
-            action=_ExplicitAction,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
@@ -529,9 +530,7 @@ class KitLauncher(SimulationLauncher):
         # CLI, we auto-inject one so that app.update() and forward() are pumped
         # each frame -- the XR runtime needs both to receive updated hand/joint
         # transforms.
-        self._xr_auto_start = self._xr and not (
-            launcher_args.get("visualizer_explicit", False) and "kit" in (launcher_args.get("visualizer") or ())
-        )
+        self._xr_auto_start = self._xr and "kit" not in (launcher_args.get("visualizer") or ())
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""

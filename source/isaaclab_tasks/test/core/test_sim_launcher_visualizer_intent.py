@@ -19,6 +19,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, get_settings_manager
+from isaaclab.visualizers import VisualizerCfg
 
 
 def _force_kitless(monkeypatch):
@@ -31,11 +32,6 @@ def _force_kitless(monkeypatch):
         return result
 
     monkeypatch.setattr(sim_launcher, "scan", fake_scan)
-
-
-class _DummyVizCfg:
-    def __init__(self, visualizer_type: str):
-        self.visualizer_type = visualizer_type
 
 
 class _DummySimCfg:
@@ -70,7 +66,9 @@ def test_launch_simulation_passes_kit_visualizer_to_kit_launcher(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
 
-    env_cfg = _DummyEnvCfg(_DummySimCfg([_DummyVizCfg("kit"), _DummyVizCfg("newton")]))
+    env_cfg = _DummyEnvCfg(
+        _DummySimCfg([VisualizerCfg(visualizer_type="kit"), VisualizerCfg(visualizer_type="newton_gl")])
+    )
     launcher_args = argparse.Namespace()
 
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
@@ -106,8 +104,8 @@ def test_caller_visualizer_intent_requests_kit_visualizer(kit_launcher_args):
 @pytest.mark.parametrize("physics_cfg", [NewtonCfg(), OvPhysxCfg()], ids=["newton", "ovphysx"])
 def test_cli_visualizer_selection_overrides_config_kit_visualizer(kit_launcher_args, physics_cfg):
     """``--viz rerun`` drops a configured Kit visualizer, so the run stays kitless."""
-    cfg = argparse.Namespace(physics=physics_cfg, visualizer_cfgs=[_DummyVizCfg("kit")])
-    launcher_args = argparse.Namespace(visualizer=["rerun"], visualizer_explicit=True)
+    cfg = argparse.Namespace(physics=physics_cfg, visualizer_cfgs=[VisualizerCfg(visualizer_type="kit")])
+    launcher_args = argparse.Namespace(visualizer=["rerun"])
 
     with sim_launcher.launch_simulation(cfg, launcher_args):
         pass
@@ -136,14 +134,14 @@ def test_launch_simulation_kitless_viz_none_sets_disable_all(monkeypatch):
 
     def fake_sync(launcher_args: dict) -> None:
         captured["types"] = " ".join(launcher_args["visualizer"]) if launcher_args.get("visualizer") else ""
-        captured["explicit"] = launcher_args["visualizer_explicit"]
-        captured["disable_all"] = launcher_args["visualizer_disable_all"]
+        captured["explicit"] = launcher_args["visualizer"] is not None
+        captured["disable_all"] = launcher_args["visualizer"] == []
 
     _force_kitless(monkeypatch)
     monkeypatch.setattr(sim_launcher, "_sync_visualizer_cli_settings", fake_sync)
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))
-    launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True)
+    launcher_args = argparse.Namespace(visualizer=["none"])
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
         pass
 
@@ -161,7 +159,7 @@ def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
     monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
 
     env_cfg = _DummyEnvCfg(_DummySimCfg(None))
-    launcher_args = argparse.Namespace(visualizer=None, visualizer_explicit=True, verbose=True)
+    launcher_args = argparse.Namespace(visualizer=["none"], verbose=True)
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
         pass
 

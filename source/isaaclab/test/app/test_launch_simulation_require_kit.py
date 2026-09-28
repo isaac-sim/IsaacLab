@@ -26,6 +26,7 @@ import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @pytest.fixture
@@ -135,7 +136,7 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
     cfg = argparse.Namespace(
         physics=sim_launcher.NewtonCfg(),
-        visualizer_cfgs=argparse.Namespace(visualizer_type="newton_rtx"),
+        visualizer_cfgs=VisualizerCfg(visualizer_type="newton_rtx"),
     )
 
     with launch_simulation(cfg):
@@ -169,7 +170,7 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
 
 def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
     # '--viz kit' requires Kit on its own; require_kit=False must not override that
-    launcher_args = {"visualizer": ["kit"], "visualizer_explicit": True, "require_kit": False}
+    launcher_args = {"visualizer": ["kit"], "require_kit": False}
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
         pass
