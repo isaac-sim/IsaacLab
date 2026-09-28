@@ -21,6 +21,7 @@ from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
+from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.reach.reach_env_cfg import ReachEnvCfg
@@ -132,6 +133,7 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
             resampling_time_range=(4.0, 4.0),
             debug_vis=True,
             position_success_threshold=0.05,
+            orientation_success_threshold=0.2,
             ranges=mdp.UniformPoseCommandCfg.Ranges(
                 pos_x=(0.3, 0.55),
                 pos_y=(0.0, 0.4),
@@ -162,9 +164,10 @@ class Reachy2BimanualReachEnvCfg(ReachEnvCfg):
             params={"asset_cfg": _l_cfg, "command_name": "ee_pose_left"},
         )
 
-        # ── Success — the inherited term only checks the right arm ──────────
-        self.terminations.success = None
-        self.rewards.success = None
+        # ── Success — both arms must reach their targets ─────────────────────
+        self.terminations.success = DoneTerm(
+            func=reachy2_mdp.pose_commands_success, params={"command_names": ["ee_pose", "ee_pose_left"]}
+        )
 
         # ── Observations — add left pose command ───────────────────────────
         # Inherited: joint_pos(27) + joint_vel(27) + pose_command/right(7) + actions(14)

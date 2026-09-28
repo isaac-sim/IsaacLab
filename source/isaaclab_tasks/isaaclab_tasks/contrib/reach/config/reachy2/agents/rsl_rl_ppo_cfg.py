@@ -46,6 +46,20 @@ class Reachy2ReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
 
 
 @configclass
+class Reachy2RightReachPPORunnerCfg(Reachy2ReachPPORunnerCfg):
+    """PPO config for right-arm reach, logged separately so play loads a right-arm checkpoint."""
+
+    experiment_name = "reachy2_right_reach"
+
+
+@configclass
+class Reachy2LeftReachPPORunnerCfg(Reachy2ReachPPORunnerCfg):
+    """PPO config for left-arm reach, logged separately so play loads a left-arm checkpoint."""
+
+    experiment_name = "reachy2_left_reach"
+
+
+@configclass
 class Reachy2BimanualReachPPORunnerCfg(RslRlOnPolicyRunnerCfg):
     """PPO config for bimanual reach — wider network for 14-DOF action space and 82-dim obs."""
 
