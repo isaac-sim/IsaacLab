@@ -8,8 +8,8 @@
 These types live in :mod:`isaaclab.scene_data` rather than
 :mod:`isaaclab.scene` so that physics backends (``isaaclab_physx``,
 ``isaaclab_newton``) can subclass :class:`SceneDataBackend` without pulling
-:mod:`isaaclab.scene` into the ``AppLauncher`` pre-launch import chain.
-``AppLauncher._create_app`` pops ``*lab*`` modules from ``sys.modules``
+:mod:`isaaclab.scene` into the Kit launcher pre-launch import chain.
+``KitLauncher._create_app`` pops ``*lab*`` modules from ``sys.modules``
 during Kit init and any submodule imported during that window ends up
 orphaned from its parent's ``__dict__`` after restoration.
 """
@@ -150,8 +150,8 @@ class SceneDataBackend:
         """
         return []
 
-    transforms_version: int
-    """Monotonic producer version, incremented after native writes or buffer swaps; never reset by readers."""
+    transforms_timestamp: int
+    """Logical timestamp, incremented after native writes or buffer swaps; never reset by readers."""
 
     @property
     def native_transform_formats(self) -> tuple[Any, ...]:
@@ -168,7 +168,7 @@ class SceneDataBackend:
     ) -> (
         SceneDataFormat.Vec3_Quat | SceneDataFormat.Transform | SceneDataFormat.Matrix44 | SceneDataFormat.Vec3_Matrix33
     ):
-        """Return native transforms without copying; pointer changes must increment ``transforms_version``."""
+        """Return native transforms without copying; pointer changes must increment ``transforms_timestamp``."""
         raise NotImplementedError
 
     @property
@@ -178,5 +178,5 @@ class SceneDataBackend:
 
     @property
     def transform_paths(self) -> list[str]:
-        """Return the paths for each transform."""
+        """Return unique native body paths in publication order, fixed for each initialized layout."""
         raise NotImplementedError

@@ -24,7 +24,7 @@ args_cli = parser.parse_args()
 import newton
 import newton.utils
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager, NewtonShapeCfg, VBDSolverCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
@@ -298,7 +298,7 @@ def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.tra
 def run_simulator(sim: sim_utils.SimulationContext) -> None:
     """Run until the viewer closes or the optional step limit is reached."""
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         sim.step()
         step_count += 1
 
@@ -315,11 +315,10 @@ def main() -> None:
         sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, device=args_cli.device, physics=resolved_physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(1.35, -2.1, 1.25), target=(0.50, 0.0, 0.72))
-        builder = NewtonManager.create_builder()
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
         builder.rigid_gap = CABLE_GAP
         cable_body_start, wrapped_xforms = _build_system(builder)
         builder.color(balance_colors=False)
-        NewtonManager.set_builder(builder)
         sim.reset()
         _initialize_wrapped_cable(cable_body_start, wrapped_xforms)
         print("[INFO]: Setup complete. Right-drag the yellow cable handle downward to lift the red load.", flush=True)

@@ -531,6 +531,9 @@ class DeformableObject(BaseDeformableObject):
         """Resolve environment indices to a device-resident int32 Warp array."""
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            # OVPhysX consumes these IDs directly and requires contiguous DLPack tensors.
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids].contiguous())
         if isinstance(env_ids, torch.Tensor):
             values = env_ids.to(device=self.device, dtype=torch.int32).contiguous()
             return wp.from_torch(values, dtype=wp.int32)

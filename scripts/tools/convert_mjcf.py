@@ -33,11 +33,10 @@ asset: ``--viz kit`` opens it in the Isaac Sim viewport, while ``--viz newton`` 
 
 """
 
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
-
 import argparse
 
-from isaaclab.app import AppLauncher, add_launcher_args, launch_simulation
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, to_dict
 from isaaclab.utils.version import standalone_importers_available
 
 parser = argparse.ArgumentParser(description="Utility to convert a MJCF into USD format.")
@@ -89,14 +88,6 @@ args_cli.require_kit = not standalone_importers_available()
 # runtime provides; without it the preview builds a simulation with no physics manager.
 args_cli.physics = "isaacsim_physx" if args_cli.require_kit else "newton_mjwarp"
 
-# Report the missing importer before converting anything. Without this the launcher reports only
-# that Isaac Sim is absent, which does not mention the wheel that would make this run kitlessly.
-if args_cli.require_kit and not AppLauncher.is_available():
-    raise ImportError(
-        "MJCF conversion requires either the full Isaac Sim runtime or the standalone"
-        " 'isaacsim-asset-isolated' importer wheel, but neither is installed."
-    )
-
 import os  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
@@ -119,14 +110,8 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
     if not visualizers:
         return
 
-    if "kit" in visualizers:
-        # a Kit app that resolved without a GUI has no viewport to display the asset in
-        if AppLauncher.has_gui():
-            sim_utils.show_stage_in_viewport(usd_path)
-        return
-
-    # Kitless preview: the physics backend ingests the USD stage and every visualizer renders the
-    # shared scene data, so no backend-specific code is needed here. Physics is not stepped -- the
+    # The physics backend ingests the USD stage and every visualizer renders the shared scene data,
+    # so no backend-specific code is needed here. Physics is not stepped -- the
     # asset is shown in its imported pose until the visualizer window is closed.
     sim = sim_utils.SimulationContext(sim_utils.SimulationCfg(device=args_cli.device, physics=physics_cfg))
     scene_cfg = InteractiveSceneCfg(num_envs=1, env_spacing=0.0)
@@ -134,10 +119,10 @@ def preview(usd_path: str, physics_cfg: PhysicsCfg) -> None:
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
     scene_cfg.asset = AssetBaseCfg(prim_path="/World/ConvertedAsset", spawn=sim_utils.UsdFileCfg(usd_path=usd_path))
-    _scene = scene_cfg.class_type(scene_cfg)
+    _scene = instantiate(scene_cfg)
     sim.reset()
 
-    # Checked per visualizer rather than through ``SimulationContext.is_headless_or_exist_active_visualizer``:
+    # Checked per visualizer rather than through ``SimulationContext.is_running``:
     # that predicate also reports True for an empty visualizer list (headless stepping), and ``render``
     # drops visualizers once they close, so the preview would never exit.
     while any(viz.is_running() and not viz.is_closed for viz in sim.visualizers):
@@ -173,7 +158,7 @@ def main():
     print("-" * 80)
     print(f"Input MJCF file: {mjcf_path}")
     print("MJCF importer config:")
-    print_dict(mjcf_converter_cfg.to_dict(), nesting=0)
+    print_dict(to_dict(mjcf_converter_cfg), nesting=0)
     print("-" * 80)
     print("-" * 80)
 

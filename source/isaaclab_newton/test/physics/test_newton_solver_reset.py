@@ -5,10 +5,9 @@
 
 """Tests for the solver-internal reset performed when env-reset masks are consumed."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from unittest.mock import patch
 
@@ -27,6 +26,7 @@ from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 
@@ -59,7 +59,7 @@ def _generate_single_joint_articulations(num_articulations: int, device: str) ->
     return articulation
 
 
-@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_env_reset_clears_selected_mjwarp_solver_internals(device):
     """An env reset clears the flagged world's MuJoCo warm-start history and keeps the others.
 

@@ -11,14 +11,14 @@ import numpy as np
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-from isaaclab.cloner import ClonePlan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
 from isaaclab.scene_data.deformable_discovery import (
-    _matrix4d_to_numpy,
-    _transform_points,
     deformable_entry,
     deformable_prototypes,
     expand_deformable_entries,
 )
+from isaaclab.sim import SpawnerCfg
 
 
 def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
@@ -27,30 +27,8 @@ def _add_api_schemas(prim: Usd.Prim, schemas: list[str]) -> None:
     prim.SetMetadata("apiSchemas", api_schemas)
 
 
-def test_transform_points_matches_usd_matrix4d_transform():
-    """Numpy baking must use USD row-vector convention (``p @ M``)."""
-    matrix = Gf.Matrix4d(1.0)
-    matrix.SetRotate(Gf.Rotation(Gf.Vec3d(0.0, 1.0, 0.0), 30.0))
-    matrix.SetTranslateOnly(Gf.Vec3d(0.5, -0.1, 0.25))
-    points = np.array(
-        [
-            [0.15, -0.025, 0.025],
-            [-0.15, 0.025, -0.025],
-            [0.0, 0.0, 0.1],
-        ],
-        dtype=np.float32,
-    )
-
-    baked = _transform_points(_matrix4d_to_numpy(matrix), points)
-    expected = np.array(
-        [list(matrix.Transform(Gf.Vec3d(float(p[0]), float(p[1]), float(p[2])))) for p in points],
-        dtype=np.float32,
-    )
-    assert np.allclose(baked, expected, atol=1e-6)
-
-
 def test_deformable_entry_volume_tet_mesh():
-    """Classify tetrahedra and prefer the named visual over unrelated child meshes."""
+    """Classify tetrahedra, bake sim vertices, and prefer the named visual over unrelated child meshes."""
     stage = Usd.Stage.CreateInMemory()
     root = UsdGeom.Xform.Define(stage, "/World/envs/env_0/SoftBody").GetPrim()
     _add_api_schemas(root, ["OmniPhysicsDeformableBodyAPI"])
@@ -59,6 +37,9 @@ def test_deformable_entry_volume_tet_mesh():
     points = [Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0), Gf.Vec3f(0.0, 0.0, 1.0)]
     tet.CreatePointsAttr(points)
     tet.CreateTetVertexIndicesAttr([Gf.Vec4i(0, 1, 2, 3)])
+    # A rotated and translated sim mesh: vertices are baked into the root's parent frame.
+    tet.AddTranslateOp().Set(Gf.Vec3d(0.5, -0.1, 0.25))
+    tet.AddRotateYOp().Set(30.0)
     for name in ("decoration", "visual", "props/unrelated"):
         mesh = UsdGeom.Mesh.Define(stage, f"/World/envs/env_0/SoftBody/{name}")
         mesh.CreatePointsAttr(points)
@@ -72,6 +53,10 @@ def test_deformable_entry_volume_tet_mesh():
     assert entry.root_path.endswith("/SoftBody")
     assert entry.sim_mesh_path.endswith("/simulation")
     assert entry.vis_mesh_path.endswith("/visual")
+    # USD's own row-vector transform is the reference for the baked vertices.
+    matrix = tet.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
+    expected = np.array([list(matrix.Transform(Gf.Vec3d(p))) for p in points], dtype=np.float32)
+    np.testing.assert_allclose(entry.vertices, expected, atol=1e-6)
 
 
 def test_deformable_entry_surface_mesh():
@@ -155,26 +140,26 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     mpm_points = UsdGeom.Points.Define(stage, "/Lab/Cell3/SimulationPoints")
     mpm_points.CreatePointsAttr([(1.0, 2.0, 3.0), (0.0, 0.0, 0.0)])
     _add_api_schemas(mpm_points.GetPrim(), ["PhysicsDeformableBodyAPI"])
-    plan = ClonePlan(
-        sources=("/Lab/Cell3", "/Lab/Cell3/Nested", "/Missing", "/Lab/Cell3/Dormant"),
-        destinations=("/Lab/Cell{}", "/Lab/Cell{}/Nested", "/Other/{}", "/Lab/Cell{}/Dormant"),
-        clone_mask=np.asarray([[1, 1, 0], [1, 0, 1], [0, 0, 0], [0, 0, 0]], dtype=np.bool_),
-        env_ids=np.asarray([3, 7, 11]),
-        positions=np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]]),
-        global_paths=("/Shared", "/Shared/Cloth", "/Lab"),
+    sources = ("/Lab/Cell3", "/Lab/Cell3/Nested")
+    destinations = ("/Lab/Cell{}", "/Lab/Cell{}/Nested")
+    env_ids = np.asarray([3, 7, 11])
+    positions = np.asarray([[10.0, 0.0, 0.0], [20.0, 0.0, 0.0], [35.0, 0.0, 0.0]])
+    shared = ("/Shared", "/Shared/Cloth", "/Lab")
+    assets = tuple(
+        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+        for source, template in zip((*sources, *shared), (*destinations, *shared), strict=True)
     )
-
-    prototypes = deformable_prototypes(stage, plan)
+    plan = make_clone_plan(assets, ((0, 1), (0,), (1,)), 3, shared_assets=(2, 3, 4), env_template="/Lab/Cell{}")
+    excluded = ("/Missing", "/Lab/Cell3/Dormant")
+    prototypes = deformable_prototypes(stage, plan, exclude_paths=excluded)
+    nested = deformable_prototypes(stage, plan, exclude_paths=(*sources[:1], *excluded))
     assert len(prototypes) == 3
     assert {entry.root_path for entry in prototypes} == {"/Lab/Cell3/Cloth", "/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
-    assert {entry.root_path for entry in deformable_prototypes(stage, plan, (1,))} == {
-        "/Lab/Cell3/Nested/Cloth",
-        "/Shared/Cloth",
-    }
+    assert {entry.root_path for entry in nested} == {"/Lab/Cell3/Nested/Cloth", "/Shared/Cloth"}
     prototype = next(entry for entry in prototypes if entry.root_path == "/Lab/Cell3/Cloth")
     stage.RemovePrim("/Lab")
 
-    expanded = {entry.root_path: entry for entry in expand_deformable_entries(plan, prototypes)}
+    expanded = {entry.root_path: entry for entry in expand_deformable_entries(prototypes, plan, env_ids, positions)}
     assert set(expanded) == {
         "/Lab/Cell3/Cloth",
         "/Lab/Cell7/Cloth",
@@ -182,7 +167,7 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
     }
-    assert {entry.root_path for entry in expand_deformable_entries(plan, prototypes, (1,))} == {
+    assert {entry.root_path for entry in expand_deformable_entries(nested, plan, env_ids, positions)} == {
         "/Lab/Cell3/Nested/Cloth",
         "/Lab/Cell11/Nested/Cloth",
         "/Shared/Cloth",
@@ -194,13 +179,12 @@ def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
     np.testing.assert_allclose(clone.init_rot, (0.0, 0.0, np.sin(np.pi / 12), np.cos(np.pi / 12)))
 
     # Distinct source roots can target the same subtree; its nearest destination owner wins.
-    override_plan = ClonePlan(
-        sources=("/Lab/Cell3", "/Shared"),
-        destinations=("/Lab/Cell{}", "/Lab/Cell{}/Nested"),
-        clone_mask=np.ones((2, 1), dtype=np.bool_),
-        env_ids=np.asarray([3]),
-    )
     shared = next(entry for entry in prototypes if entry.root_path == "/Shared/Cloth")
+    assets = tuple(
+        AssetBaseCfg(prim_path=template.format("[^/]+"), spawn=SpawnerCfg(spawn_path=source))
+        for source, template in zip(("/Lab/Cell3", "/Shared"), destinations, strict=True)
+    )
+    plan = make_clone_plan(assets, ((0, 1),), 1, env_template="/Lab/Cell{}")
     for ordered in (prototypes, prototypes[::-1]):
-        expanded = {entry.root_path: entry for entry in expand_deformable_entries(override_plan, ordered)}
+        expanded = {entry.root_path: entry for entry in expand_deformable_entries(ordered, plan, np.asarray([3]))}
         assert expanded["/Lab/Cell3/Nested/Cloth"].vertices is shared.vertices

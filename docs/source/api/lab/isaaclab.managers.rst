@@ -38,6 +38,27 @@ Scene Entity
     :members:
     :exclude-members: __init__
 
+Resolved selections
+~~~~~~~~~~~~~~~~~~~
+
+Scene-entity selections follow a build-then-finalize lifecycle, similar to Newton's model builder.
+Managers call :meth:`SceneEntityCfg.resolve` while preparing terms, which fills ``joint_ids``,
+``body_ids``, ``fixed_tendon_ids``, and ``object_collection_ids`` with host lists. Class-based terms
+can read these lists in ``__init__``. Once every term is constructed, managers call
+:meth:`SceneEntityCfg.finalize`, which replaces each list with a ``torch.long`` tensor on the simulation
+device. Terms share this tensor, so do not modify it in place. Slices stay slices. Finalization is one-way.
+
+.. code-block:: python
+
+    def feet_height(env, asset_cfg: SceneEntityCfg):
+        asset = env.scene[asset_cfg.name]
+        # a slice or the cached device tensor; no upload or synchronization
+        return asset.data.body_pos_w.torch[:, asset_cfg.body_ids, 2]
+
+Term calls should not read selections on the host. For a single selected body, gather and select
+on the device, for example ``data[:, cfg.body_ids][:, 0]``. Outside stepping, ``ids.tolist()``
+returns a host copy.
+
 Manager Base
 ------------
 
@@ -93,6 +114,26 @@ reset-based delay policy.
 For a delay buffer with no recorded sample after initialization or reset, the current input is returned
 without recording it. Once recording starts, delays exceeding the available history return the oldest
 sample. Partial resets invalidate only the selected environments' histories.
+
+Observation outputs are independent snapshots: later simulation steps, modifier updates, and resets
+do not overwrite previously returned tensors. The manager automatically copies borrowed storage before
+mutation or retention. Term and custom callback outputs are treated conservatively, without decorators
+or task-level copy settings. Clipping and scaling create independent storage when needed, which later
+processing can reuse. A term that already returns an independent tensor may still be copied when the
+pipeline cannot establish ownership itself.
+
+Observation callables may declare an optional keyword-only ``out`` parameter to write directly
+into a manager-provided destination, for example ``def observation(env, ..., *, out=None)``.
+When ``out`` is None, the callable returns an observation normally. When supplied, it must fill and
+return that exact tensor without retaining it, resizing it, or replacing its storage.
+
+The manager checks the signature once during initialization. Only an explicitly declared keyword-only
+``out=None`` enables destination writes; accepting arbitrary ``**kwargs`` does not. The manager probes
+the ordinary call to infer shape, dtype and device, which must remain constant, then allocates a fresh
+contiguous destination for each computation. ``out`` is reserved and must not appear in term ``params``.
+Custom modifiers, noise and history retain their usual snapshot protections. Built-in
+:class:`~isaaclab.envs.mdp.observations.image_rgb` terms use this interface automatically to avoid a
+second full-image copy for normalized uint8 images. Existing observation configurations require no changes.
 
 .. autoclass:: ObservationManager
     :members:

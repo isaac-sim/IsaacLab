@@ -45,7 +45,7 @@ from flaky import flaky
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.cloner import ovphysx_replicate  # noqa: E402
+from isaaclab_ov.cloner import OvPhysxReplicateContext  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 from isaaclab_ov.sensors import ContactSensor, ContactSensorCfg  # noqa: E402
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg  # noqa: E402
@@ -55,12 +55,12 @@ from pxr import Gf, UsdGeom, UsdPhysics  # noqa: E402
 import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.sim.schemas as schemas  # noqa: E402
 from isaaclab import cloner  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.sim.utils.stage import get_current_stage  # noqa: E402
 from isaaclab.terrains import HfRandomUniformTerrainCfg, TerrainGeneratorCfg, TerrainImporterCfg  # noqa: E402
-from isaaclab.utils import configclass  # noqa: E402
+from isaaclab.utils import configclass, replace  # noqa: E402
 
 wp.init()
 
@@ -440,12 +440,12 @@ def test_cube_stack_contact_filtering(device):
         # Instance new scene for the current terrain and contact prim.
         # OVPhysX uses fnmatch globs (not regex), so ``Env_*`` rather than ``Env_.*``.
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_1")
         scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
         # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_2")
         scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -513,12 +513,12 @@ def test_multi_body_per_sensor_indexing(device):
     num_envs = 3
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         # -- Cube_low: on the ground, will report contact forces
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_low")
+        scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_low")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, 0.25)
         # -- Cube_high: floating well above the ground, should remain in air
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_high")
+        scene_cfg.shape_2 = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube_high")
         scene_cfg.shape_2.init_state.pos = (0.0, 1.5, 3.0)
         # Single ContactSensor that matches BOTH cubes via a regex glob.
         scene_cfg.contact_sensor = ContactSensorCfg(
@@ -588,8 +588,16 @@ def _author_nested_chain(prim_path: str) -> None:
     schemas.activate_contact_sensors(prim_path)
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_nested_rigid_body_hierarchy(device):
+@pytest.mark.parametrize(
+    "device, body_pattern, num_envs, body_names",
+    [
+        ("cpu", "[^/]*", 3, ["pelvis", "left_hip", "left_knee"]),
+        ("cuda:0", "[^/]*", 3, ["pelvis", "left_hip", "left_knee"]),
+        ("cpu", ".*/left_knee", 1, ["left_knee"]),
+        ("cuda:0", ".*/left_knee", 3, ["left_knee"]),
+    ],
+)
+def test_nested_rigid_body_hierarchy(device, body_pattern, num_envs, body_names):
     """Checks contact binding creation and body resolution on nested rigid-body hierarchies.
 
     Regression test for the sensor-pattern construction: patterns were built from the
@@ -599,45 +607,37 @@ def test_nested_rigid_body_hierarchy(device):
 
     The source chain is authored under ``env_0`` and replicated through the OVPhysX
     clone path so the test covers both nested body resolution and multi-environment
-    contact binding behavior.
+    contact binding behavior. Mid-path wildcards must bind each leaf only once, even
+    when several of its ancestors match.
     """
-    num_envs = 3
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         stage = get_current_stage()
         contact_sensor_cfg = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/[^/]*",
+            prim_path="{ENV_REGEX_NS}/Robot/" + body_pattern,
             track_pose=False,
             debug_vis=False,
             update_period=0.0,
         )
-        clone_plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (contact_sensor_cfg,), num_envs, 3.0)
-        assert clone_plan.env_ids is not None and clone_plan.positions is not None
-        env_positions = clone_plan.positions
+        asset_cfg = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Robot")
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), (asset_cfg, contact_sensor_cfg), num_envs, 3.0)
+        env_positions = plan.positions
         env_0 = UsdGeom.Xform.Define(stage, "/World/envs/env_0")
         env_0.AddTranslateOp().Set(Gf.Vec3d(*env_positions[0].tolist()))
         _author_nested_chain("/World/envs/env_0/Robot")
 
-        ovphysx_replicate(
-            stage,
-            clone_plan.sources,
-            clone_plan.destinations,
-            clone_plan.env_ids,
-            clone_plan.clone_mask,
-            positions=clone_plan.positions,
-        )
+        OvPhysxReplicateContext(sim).replicate(plan, (0,))
         contact_sensor = ContactSensor(contact_sensor_cfg)
         sim.reset()
 
-        # all three nested bodies must be resolved into the binding (pre-fix: init raised)
-        assert contact_sensor.num_sensors == 3
-        assert contact_sensor.body_names == ["pelvis", "left_hip", "left_knee"]
+        assert contact_sensor.num_sensors == len(body_names)
+        assert contact_sensor.body_names == body_names
 
         # step to fill the sensor buffers; kinematic bodies generate no contact forces
         for _ in range(2):
             sim.step()
             contact_sensor.update(_SIM_DT, force_recompute=True)
         net_forces = contact_sensor.data.net_normal_forces_w.torch
-        assert net_forces.shape == (num_envs, 3, 3)
+        assert net_forces.shape == (num_envs, len(body_names), 3)
 
 
 # Only USD authoring and the device-independent __str__ are checked, so one device covers them.
@@ -649,7 +649,7 @@ def test_contact_sensor_threshold(device):
     """
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        scene_cfg.terrain = replace(FLAT_TERRAIN_CFG, prim_path="/World/ground")
         scene_cfg.shape = CUBE_CFG
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,

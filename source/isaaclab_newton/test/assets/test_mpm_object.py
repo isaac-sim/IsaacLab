@@ -13,12 +13,11 @@ import torch
 
 newton = pytest.importorskip("newton")
 
-from isaaclab_newton.assets.mpm_object import MPMObjectCfg
+from isaaclab_newton.assets.mpm_object import MPMObject, MPMObjectCfg
 from isaaclab_newton.physics import MPMSolverCfg, NewtonCfg, NewtonMPMManager
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg
 
 from isaaclab.assets import RigidObjectCfg
-from isaaclab.cloner.query import iter_sources
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
@@ -50,6 +49,7 @@ def test_mpm_object_initializes_from_interactive_scene():
         sim.reset()
 
         media = scene["media"]
+        assert isinstance(media, MPMObject)
         assert media.num_instances == 2
         assert media.particles_per_object == 1
         assert media.data.particle_pos_w.torch.shape == (2, 1, 3)
@@ -154,14 +154,12 @@ def test_mpm_object_publishes_points_without_kit_visualizer():
         expected_paths = [f"/World/envs/env_{env_idx}/Sand/Particles" for env_idx in range(media.num_instances)]
         assert list(publication) == expected_paths
 
-        for _, _, source_path, _ in iter_sources(sim.get_clone_plan(), media.cfg.prim_path):
-            points_prim = media.stage.GetPrimAtPath(source_path + "/Particles")
-            assert points_prim.IsValid()
-            points = UsdGeom.Points(points_prim)
-            assert not points.GetResetXformStack()
-            assert len(points.GetPointsAttr().Get()) == media.particles_per_object
-            assert len(points.GetWidthsAttr().Get()) == media.particles_per_object
-            assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
+        points = UsdGeom.Points(media.stage.GetPrimAtPath(media.cfg.spawn.spawn_path + "/Particles"))
+        assert points
+        assert not points.GetResetXformStack()
+        assert len(points.GetPointsAttr().Get()) == media.particles_per_object
+        assert len(points.GetWidthsAttr().Get()) == media.particles_per_object
+        assert tuple(points.GetDisplayColorAttr().Get()[0]) == pytest.approx((0.1, 0.2, 0.3))
 
         before = np.stack([values.numpy() for values in publication.values()])
         for _ in range(3):

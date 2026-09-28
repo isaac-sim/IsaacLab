@@ -52,7 +52,7 @@ import tqdm
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, instantiate
 
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
 from isaaclab.physics import PhysicsCfg  # isort:skip
@@ -149,7 +149,7 @@ class DeformablesSceneCfg(InteractiveSceneCfg):
         for idx, origin in tqdm.tqdm(enumerate(origins), total=len(origins)):
             # randomly select an object to spawn
             obj_name = random.choice(list(OBJECT_CFGS.keys()))
-            obj_cfg = OBJECT_CFGS[obj_name].copy()
+            obj_cfg = clone(OBJECT_CFGS[obj_name])
             # randomize the deformable material stiffness
             if args_cli.physics == "newton_vbd" and obj_name == "cloth":
                 obj_cfg.physics_material.tri_ke = random.uniform(5e3, 5e4)
@@ -207,7 +207,7 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # reset
         if count % int(3.0 / sim_dt) == 0:
             # reset counters
@@ -247,22 +247,18 @@ def main():
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,
             )
-        # Initialize the simulation context
         sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])
 
         scene_cfg = DeformablesSceneCfg(num_envs=1, env_spacing=0.0)
-        scene = scene_cfg.class_type(scene_cfg)
-        # Play the simulator
+        scene = instantiate(scene_cfg)
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
         run_simulator(sim, scene.deformable_objects)
         print("[INFO]: Simulation complete...")
 
 
 if __name__ == "__main__":
-    # run the main function
     main()

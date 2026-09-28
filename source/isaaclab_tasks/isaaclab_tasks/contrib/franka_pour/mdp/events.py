@@ -15,8 +15,6 @@ if TYPE_CHECKING:
     from ..pour_env import FrankaPourEnv
 
 
-def reset_pour_scene(env: FrankaPourEnv, env_ids: torch.Tensor) -> None:
+def reset_pour_scene(env: FrankaPourEnv, env_ids: torch.Tensor | slice) -> None:
     """Reset the arm to home and refill the source cup with media for ``env_ids``."""
-    if not isinstance(env_ids, torch.Tensor):
-        env_ids = torch.as_tensor(env_ids, device=env.device, dtype=torch.long)
-    env.reset_pour_scene(env_ids.long())
+    env.reset_pour_scene(env_ids)

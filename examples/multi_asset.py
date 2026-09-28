@@ -42,7 +42,7 @@ from isaaclab.scene import InteractiveSceneCfg
 
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_LSTM_ACTUATOR_CFG  # isort: skip
 
-from isaaclab.utils import Timer, configclass
+from isaaclab.utils import Timer, configclass, instantiate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 if TYPE_CHECKING:
@@ -178,7 +178,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     count = 0
     step_count = 0
     # Step while a visualizer window is still open (or none exist, e.g. headless); works for kit and newton.
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         # Reset
         if count % 250 == 0:
             # reset counter
@@ -240,16 +240,12 @@ def main():
             scene_cfg.object.spawn.assets_cfg = scene_cfg.object.spawn.assets_cfg[1:2]
             scene_cfg.robot.spawn.usd_path = scene_cfg.robot.spawn.usd_path[0]
         with Timer("[INFO] Time to create scene: "):
-            scene = scene_cfg.class_type(scene_cfg)
+            scene = instantiate(scene_cfg)
 
-        # Play the simulator
         sim.reset()
-        # Now we are ready!
         print("[INFO]: Setup complete...")
-        # Run the simulator
         run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
-    # run the main execution
     main()

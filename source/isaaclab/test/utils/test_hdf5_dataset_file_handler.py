@@ -12,6 +12,7 @@ import h5py
 import pytest
 import torch
 
+from isaaclab.test.utils import test_devices
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 pytestmark = pytest.mark.unit
@@ -113,7 +114,7 @@ def test_create_resets_env_args_when_reusing_handler(temp_dir):
     assert env_args == {"env_name": "second_env", "type": 2}
 
 
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("device", test_devices())
 def test_write_and_load_episode(temp_dir, device):
     """Test writing and loading an episode to and from the dataset file."""
     dataset_file_path = os.path.join(temp_dir, f"{uuid.uuid4()}.hdf5")

@@ -9,7 +9,7 @@ from .. import sim as sim_utils
 from ..actuators import ImplicitActuatorCfg
 from ..assets import ArticulationCfg, RigidObjectCfg
 from ..scene import InteractiveSceneCfg
-from ..utils import configclass
+from ..utils import clone, configclass
 from ..utils.assets import ISAACLAB_NUCLEUS_DIR
 
 _CARTPOLE_TEST_CFG = ArticulationCfg(
@@ -46,7 +46,7 @@ class CartpoleTestSceneCfg(InteractiveSceneCfg):
     not assert ground or lighting behavior.
     """
 
-    robot: ArticulationCfg = _CARTPOLE_TEST_CFG.copy()
+    robot: ArticulationCfg = clone(_CARTPOLE_TEST_CFG)
 
 
 @configclass

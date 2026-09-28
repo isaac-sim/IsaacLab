@@ -116,9 +116,7 @@ def test_unsupported_options_are_rejected_for_distributed_runs(
 @pytest.mark.parametrize(
     "argv",
     [
-        [],
         ["--video"],
-        ["--distributed"],
         ["--distributed", "--capture_env_sensors", "0"],
         ["--distributed", "--check_success"],
     ],

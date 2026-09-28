@@ -570,6 +570,8 @@ class DeformableObject(AssetBase):
         """
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, torch.Tensor):
             if env_ids.dtype == torch.int64:
                 env_ids = env_ids.to(torch.int32)

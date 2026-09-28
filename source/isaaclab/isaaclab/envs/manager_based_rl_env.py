@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
 from typing import Any, ClassVar
 
 import gymnasium as gym
@@ -14,6 +13,7 @@ import numpy as np
 import torch
 
 from ..managers import CommandManager, CurriculumManager, RewardManager, TerminationManager
+from ..utils import index_fill_
 from .common import VecEnvStepReturn
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
@@ -209,35 +209,19 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
+
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             self.action_manager.apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
             self.recorder_manager.record_post_physics_decimation_step()
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self.action_manager.apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                self.recorder_manager.record_post_physics_decimation_step()
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -274,11 +258,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         if self.sim.consume_reset_request():
             # Only reset envs not already reset this step to avoid redundant resets.
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            not_yet_reset[reset_env_ids] = False
+            index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
             if len(manual_reset_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
-                self.reset_terminated[manual_reset_ids] = True
+                index_fill_(self.reset_terminated, manual_reset_ids, True)
                 # mirror the recorder lifecycle used for normal resets
                 self.recorder_manager.record_pre_reset(manual_reset_ids)
                 self._reset_idx(manual_reset_ids)
@@ -392,11 +376,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.observation_space = gym.vector.utils.batch_space(self.single_observation_space, self.num_envs)
         self.action_space = gym.vector.utils.batch_space(self.single_action_space, self.num_envs)
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: torch.Tensor | slice):
         """Reset environments based on specified indices.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_ids: A slice or environment indices on the environment device.
         """
         # update the curriculum for environments that need a reset
         self.curriculum_manager.compute(env_ids=env_ids)
@@ -436,4 +420,4 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
 
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)

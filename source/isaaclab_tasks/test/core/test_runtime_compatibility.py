@@ -14,6 +14,7 @@ concrete renderer configurations. No Kit/GPU required.
 import argparse
 import sys
 
+import isaaclab_physx.app as physx_app
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.physics import OvPhysxCfg
@@ -21,9 +22,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
-import isaaclab.app.sim_launcher as sim_launcher_module
-import isaaclab.utils as isaaclab_utils
-from isaaclab.app import scan
+from isaaclab.app import SimulationLauncher, scan
 from isaaclab.app.sim_launcher import _get_kit_runtime_sources, _validate_runtime, launch_simulation
 from isaaclab.physics import PhysxAutoCfg
 
@@ -344,8 +343,7 @@ def test_livestream_rtx_injects_kit_before_auto_rtx_resolution(monkeypatch: pyte
     """Livestreaming should make ``presets=newton_mjwarp,rtx`` choose Isaac RTX."""
     env_cfg = _resolve_with_presets("newton_mjwarp,rtx")
     launcher_args = argparse.Namespace(livestream=2, visualizer=None, visualizer_explicit=False)
-    monkeypatch.setattr(sim_launcher_module, "_ensure_isaac_sim_available", lambda: None)
-    monkeypatch.setattr(isaaclab_utils, "has_kit", lambda: True)
+    monkeypatch.setattr(physx_app, "KitLauncher", SimulationLauncher)
 
     with launch_simulation(env_cfg, launcher_args) as physics_cfg:
         assert type(physics_cfg).__name__ == "NewtonCfg"

@@ -17,29 +17,29 @@ __all__ = [
     "make_valid_clone_combinations",
     "num_spawn_variants",
     "path",
+    "PrototypeWorldTopology",
     "query",
     "random",
     "ReplicateSession",
     "replicate",
     "sequential",
+    "to_warp",
     "UsdReplicateContext",
     "usd_replicate",
 ]
 
-from . import path, query
-from ._fabric_notices import disabled_fabric_change_notifies
-from .clone_plan import (
-    ClonePlan,
-    clone_plan_from_env_0,
-    grid_transforms,
-    make_clone_plan,
-    make_valid_clone_combinations,
-    num_spawn_variants,
-)
+from .clone_plan import ClonePlan, PrototypeWorldTopology, grid_transforms, make_clone_plan, path, query, to_warp
 from .cloner_cfg import CloneCfg, InclusionSet, add, expand_env_regex_ns
 from .cloner_strategies import random, sequential
 from .collision_filter import filter_collisions
-from .replicate_session import ReplicateSession, replicate
+from .fabric_notices import disabled_fabric_change_notifies
+from .replicate_session import (
+    ReplicateSession,
+    clone_plan_from_env_0,
+    make_valid_clone_combinations,
+    num_spawn_variants,
+    replicate,
+)
 from .usd import (
     UsdReplicateContext,
     usd_replicate,

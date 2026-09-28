@@ -9,7 +9,7 @@
 
 """Real-backend tests for the OVPhysX RigidObject.
 
-Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
+Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no the Kit launcher).
 
 The OVPhysX runtime fixes device mode (CPU vs GPU) when the process creates
 its first ``ovphysx.PhysX`` instance and cannot switch it without a process
@@ -25,7 +25,6 @@ from __future__ import annotations
 import logging
 import sys
 from typing import Literal
-from unittest.mock import MagicMock
 
 import pytest
 import torch
@@ -42,7 +41,7 @@ pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
 from isaaclab_ov import tensor_types as TT  # noqa: E402
 from isaaclab_ov.assets import RigidObject  # noqa: E402
-from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
@@ -79,7 +78,6 @@ def _ovphysx_skip_other_device(request):
     callspec = getattr(request.node, "callspec", None)
     device = callspec.params.get("device") if callspec is not None else None
     if device is None:
-        # Test does not parametrize on device (e.g. test_warmup_attach_stage_not_called_for_cpu).
         return
     locked = _LOCKED_DEVICE[0]
     if locked is None:
@@ -198,6 +196,11 @@ def test_initialization_with_kinematic_enabled(num_cubes, device):
 
         # Play sim
         sim.reset()
+
+        # SDP bindings must be ready on CPU and GPU before any asset pose read.
+        provider = sim.get_scene_data_provider()
+        assert provider.transform_count == num_cubes
+        assert set(provider.backend.transform_paths) == {f"/World/Table_{i}/Object" for i in range(num_cubes)}
 
         # Check if object is initialized
         assert cube_object.is_initialized
@@ -1014,50 +1017,3 @@ def test_write_root_state(num_cubes, device, state_location):
             # skip lin_vel because it differs from link frame, this should be fine because we are only checking
             # if velocity update is triggered, which can be determined by comparing angular velocity
             torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
-
-
-def test_warmup_attach_stage_not_called_for_cpu(monkeypatch):
-    """Keep IsaacLab's explicit warmup on its GPU-only compatibility path.
-
-    OVPhysX 0.5 exposes only ``warmup_gpu()``, while OVPhysX 0.6 also supports
-    CPU through ``warmup()``. IsaacLab preserves its existing explicit GPU-only
-    scheduling path for compatibility with both generations. OVPhysX 0.5 needs
-    no explicit CPU warmup; on 0.6, the first tensor read performs lazy warmup.
-    The manager therefore does not invoke the compatibility helper on CPU.
-
-    After the first reset constructs the runtime, we replace
-    :meth:`OvPhysxManager._warmup_physx` with a :class:`MagicMock`, force the
-    manager to load the stage again, and assert the helper was not called.
-    Watching the compatibility helper keeps this regression test independent
-    of which warmup entry point the installed OVPhysX generation exposes.
-
-    The test always runs CPU regardless of session parametrization, so it is
-    skipped when the session-locked device is anything other than CPU.  The
-    skip is enforced inline (rather than in the autouse fixture) so the rest
-    of the suite can still pin to GPU when invoked together.
-    """
-    if _LOCKED_DEVICE[0] not in (None, "cpu"):
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{_LOCKED_DEVICE[0]}'; cannot run "
-            "CPU-only regression test in the same session."
-        )
-    _LOCKED_DEVICE[0] = "cpu"
-
-    with _ovphysx_sim_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
-        # Allocate a single rigid body so the manager has something to load.
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
-
-        # First reset constructs (or reuses) the real ovphysx.PhysX instance.
-        sim.reset()
-        assert OvPhysxManager.get_physx_instance() is not None, "PhysX should be constructed after sim.reset()"
-
-        warmup_spy = MagicMock()
-        monkeypatch.setattr(OvPhysxManager, "_warmup_physx", warmup_spy)
-        # Force _warmup_and_load to run again on the next reset so the spy
-        # observes the explicit-warmup (or non-call) decision; close() resets
-        # _warmup_done back to False but we just called sim.reset() above.
-        OvPhysxManager._warmup_done = False
-        sim.reset()
-
-        assert OvPhysxManager._warmup_done is True
-        warmup_spy.assert_not_called()

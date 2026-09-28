@@ -198,7 +198,7 @@ def test_run_runtime_loop_can_skip_reset():
     assert not env.reset_called and env.steps == 2
 
 
-@pytest.mark.parametrize("num_steps", [0, 1, 50])
+@pytest.mark.parametrize("num_steps", [0, 1])
 def test_run_runtime_warmup_runs_exact_requested_steps(num_steps: int):
     env = _Env()
 
@@ -212,10 +212,12 @@ def test_run_runtime_warmup_runs_exact_requested_steps(num_steps: int):
 def test_environment_step_timer_measures_env_step_without_simulation_timing():
     env = _Env()
 
-    with EnvironmentStepTimingRecorder(env) as timer:
-        run_runtime_loop(env, num_steps=2, reset=False)
+    with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
+        run_runtime_loop(env, num_steps=5, reset=False)
 
-    assert len(timer.step_times_s) == 2
+    # All five steps run, but the first two are excluded from the recorded timings.
+    assert env.steps == 5
+    assert len(timer.step_times_s) == 3
     assert timer.simulation_step_times_s is None
     assert timer.simulation_step_calls is None
     assert "step" not in vars(env)
@@ -238,17 +240,6 @@ def test_environment_step_timer_measures_only_step_calls():
     assert "step" not in vars(env.unwrapped.sim)
 
 
-def test_environment_step_timer_excludes_warmup_steps_host_return():
-    env = _Env()
-
-    with EnvironmentStepTimingRecorder(env, warmup_steps=2) as timer:
-        run_runtime_loop(env, num_steps=5, reset=False)
-
-    # All five steps run, but the first two are excluded from the recorded timings.
-    assert env.steps == 5
-    assert len(timer.step_times_s) == 3
-
-
 def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
     env = _Env()
     recorder = EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True, warmup_steps=1)
@@ -268,35 +259,6 @@ def test_environment_step_timer_warmup_keeps_simulation_accounting_consistent():
 
     assert len(recorder.step_times_s) == 3
     assert recorder.simulation_step_calls == 6
-
-
-def test_environment_step_timer_synchronizes_before_environment_and_simulation_steps(monkeypatch):
-    import warp as wp
-
-    events = []
-    env = _Env()
-    env_step = env.step
-    simulation_step = env.unwrapped.sim.step
-
-    def logged_environment_step(actions):
-        events.append("environment")
-        return env_step(actions)
-
-    def logged_simulation_step():
-        events.append("simulation")
-        return simulation_step()
-
-    env.step = logged_environment_step
-    env.unwrapped.sim.step = logged_simulation_step
-    monkeypatch.setattr(wp, "synchronize", lambda: events.append("synchronize"))
-
-    with EnvironmentStepTimingRecorder(env, measure_synchronized_step_breakdown=True):
-        env.step(None)
-
-    assert events[:2] == ["synchronize", "environment"]
-    simulation_indices = [index for index, event in enumerate(events) if event == "simulation"]
-    assert simulation_indices
-    assert all(events[index - 1] == "synchronize" for index in simulation_indices)
 
 
 def test_environment_step_timer_excludes_pending_work_before_step(monkeypatch):

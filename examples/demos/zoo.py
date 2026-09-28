@@ -38,7 +38,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate, replace
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # isort: skip
 from isaaclab_assets.robots.anymal import ANYDRIVE_3_SIMPLE_ACTUATOR_CFG, ANYMAL_D_CFG  # isort: skip
@@ -64,15 +64,6 @@ _RIGID_PROPS = {
 _HAND_CFG = SHADOW_HAND_NEWTON_CFG if args_cli.physics == "newton_mjwarp" else SHADOW_HAND_PHYSX_CFG
 
 
-def _prop_cfg(spawn: sim_utils.RigidObjectSpawnerCfg, position: tuple[float, float, float]) -> RigidObjectCfg:
-    """Create a dynamic prop configuration."""
-    return RigidObjectCfg(
-        prim_path="",
-        spawn=spawn,
-        init_state=RigidObjectCfg.InitialStateCfg(pos=position),
-    )
-
-
 @configclass
 class ZooSceneCfg(InteractiveSceneCfg):
     """Configuration for the robot zoo."""
@@ -83,55 +74,49 @@ class ZooSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(intensity=2500.0, color=(0.75, 0.75, 0.75)),
     )
 
-    arm: ArticulationCfg = UR10e_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Arm",
-        init_state=UR10e_CFG.init_state.replace(pos=(-2.2, 1.4, 0.0)),
+    arm: ArticulationCfg = replace(UR10e_CFG, prim_path="{ENV_REGEX_NS}/Arm")
+    arm.init_state.pos = (-2.2, 1.4, 0.0)
+    biped: ArticulationCfg = replace(G1_CFG, prim_path="{ENV_REGEX_NS}/Biped")
+    biped.init_state.pos = (0.0, 1.5, 0.74)
+    quadruped: ArticulationCfg = replace(
+        ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Quadruped", actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG}
     )
-    biped: ArticulationCfg = G1_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Biped",
-        init_state=G1_CFG.init_state.replace(pos=(0.0, 1.5, 0.74)),
-    )
-    quadruped: ArticulationCfg = ANYMAL_D_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Quadruped",
-        init_state=ANYMAL_D_CFG.init_state.replace(pos=(2.2, 1.4, 0.6)),
-        actuators={"legs": ANYDRIVE_3_SIMPLE_ACTUATOR_CFG},
-    )
-    hand: ArticulationCfg = _HAND_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Hand",
-        init_state=_HAND_CFG.init_state.replace(pos=(-1.4, -1.3, 0.5)),
-    )
-    drone: ArticulationCfg = CRAZYFLIE_CFG.replace(
-        prim_path="{ENV_REGEX_NS}/Drone",
-        init_state=CRAZYFLIE_CFG.init_state.replace(pos=(1.5, -1.4, 1.3)),
-    )
+    quadruped.init_state.pos = (2.2, 1.4, 0.6)
+    hand: ArticulationCfg = replace(_HAND_CFG, prim_path="{ENV_REGEX_NS}/Hand")
+    hand.init_state.pos = (-1.4, -1.3, 0.5)
+    drone: ArticulationCfg = replace(CRAZYFLIE_CFG, prim_path="{ENV_REGEX_NS}/Drone")
+    drone.init_state.pos = (1.5, -1.4, 1.3)
 
     props: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            "cube": _prop_cfg(
-                sim_utils.CuboidCfg(
+            "cube": RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Props/Cube",
+                spawn=sim_utils.CuboidCfg(
                     size=(0.3, 0.3, 0.3),
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.15, 0.55, 0.95)),
                     **_RIGID_PROPS,
                 ),
-                (0.0, -0.6, 2.0),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Cube"),
-            "sphere": _prop_cfg(
-                sim_utils.SphereCfg(
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, -0.6, 2.0)),
+            ),
+            "sphere": RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Props/Sphere",
+                spawn=sim_utils.SphereCfg(
                     radius=0.18,
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.95, 0.35, 0.15)),
                     **_RIGID_PROPS,
                 ),
-                (0.4, -0.6, 2.5),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Sphere"),
-            "cylinder": _prop_cfg(
-                sim_utils.CylinderCfg(
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(0.4, -0.6, 2.5)),
+            ),
+            "cylinder": RigidObjectCfg(
+                prim_path="{ENV_REGEX_NS}/Props/Cylinder",
+                spawn=sim_utils.CylinderCfg(
                     radius=0.16,
                     height=0.4,
                     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.45, 0.8, 0.25)),
                     **_RIGID_PROPS,
                 ),
-                (-0.4, -0.6, 3.0),
-            ).replace(prim_path="{ENV_REGEX_NS}/Props/Cylinder"),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=(-0.4, -0.6, 3.0)),
+            ),
         }
     )
 
@@ -195,7 +180,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene) -> 
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     step_count = 0
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if step_count % 800 == 0:
             _reset_scene(scene)
             sim_time = 0.0
@@ -239,7 +224,7 @@ def main() -> None:
         camera_scale = math.ceil(math.sqrt(args_cli.num_envs))
         sim.set_camera_view(eye=(6.0 * camera_scale, -7.5 * camera_scale, 4.5 * camera_scale), target=(0.0, 0.0, 0.7))
         scene_cfg = ZooSceneCfg(num_envs=args_cli.num_envs, env_spacing=6.0, replicate_physics=True)
-        scene = scene_cfg.class_type(scene_cfg)
+        scene = instantiate(scene_cfg)
         sim.reset()
         print("[INFO]: Robot zoo ready.")
         run_simulator(sim, scene)
