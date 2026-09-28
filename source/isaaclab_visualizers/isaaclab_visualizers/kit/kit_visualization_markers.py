@@ -155,8 +155,12 @@ class KitVisualizationMarkers:
                 self._instancer_manager.GetProtoIndicesAttr().Set([0] * num_markers)
         if environment_ids is not None:
             if not self._matches_cached_environment_ids(environment_ids):
-                self._environment_ids_source = environment_ids.detach().clone()
-                self._environment_ids = tuple(int(env_id) for env_id in self._environment_ids_source.cpu().tolist())
+                source = environment_ids.detach().clone()
+                ids = tuple(source.cpu().tolist())
+                if any(env_id < 0 for env_id in ids):
+                    raise ValueError("Expected `environment_ids` to contain non-negative indices.")
+                self._environment_ids_source = source
+                self._environment_ids = ids
             if num_markers == 0:
                 num_markers = len(self._environment_ids)
         elif num_markers != 0 and num_markers != previous_count:

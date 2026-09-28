@@ -111,6 +111,28 @@ def list_envs(args: list[str] | None = None) -> None:
     command_list_envs(args)
 
 
+def demo(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab demo.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import DEMOS, run_program_cli
+
+    run_program_cli("demo", DEMOS, args)
+
+
+def example(args: list[str] | None = None) -> None:
+    """List or run a packaged Isaac Lab example.
+
+    Args:
+        args: Command-line arguments. Uses ``sys.argv`` when omitted.
+    """
+    from isaaclab.programs import EXAMPLES, run_program_cli
+
+    run_program_cli("example", EXAMPLES, args)
+
+
 def teleop(args: list[str] | None = None) -> None:
     """Run a live teleoperation, demonstration recording, or demonstration replay workflow.
 
@@ -165,6 +187,12 @@ def cli() -> None:
     if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
         list_envs(sys.argv[2:])
         return
+    if len(sys.argv) > 1 and sys.argv[1] == "demo":
+        demo(sys.argv[2:])
+        return
+    if len(sys.argv) > 1 and sys.argv[1] == "example":
+        example(sys.argv[2:])
+        return
     if len(sys.argv) > 1 and sys.argv[1] in subcommands:
         _load_external_tasks()
         subcommands[sys.argv[1]](sys.argv[2:])
@@ -184,6 +212,8 @@ def cli() -> None:
             "  benchmark       Run a runtime, startup, training, or play benchmark\n"
             "                  (append _multigpu to a workflow to run it across GPUs)\n"
             "  microbenchmark  Run a component micro-benchmark\n"
+            "  demo            List or run packaged demonstrations\n"
+            "  example         List or run packaged standalone examples\n"
             "  leapp           Export or deploy a policy with LEAPP\n"
             "  list_envs       List registered environments and presets\n"
             "  train           Train an RL policy\n"

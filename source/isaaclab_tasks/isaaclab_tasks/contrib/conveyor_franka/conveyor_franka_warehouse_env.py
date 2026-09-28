@@ -128,6 +128,8 @@ class ConveyorFrankaWarehouseEnv(ConveyorFrankaEnv):
         """Shuffle a mixed batch across the authored feeds in selected environments."""
         from .conveyor_warehouse_geometry import warehouse_parcel_positions
 
+        if isinstance(env_ids, slice):
+            env_ids = self.scene._ALL_INDICES[env_ids]
         pool = self.conveyor_cube_pool
         pool.reset(env_ids)
         super()._reset_idx(env_ids)

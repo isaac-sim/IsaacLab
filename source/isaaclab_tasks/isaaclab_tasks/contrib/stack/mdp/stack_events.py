@@ -205,7 +205,7 @@ def randomize_object_pose(
         return
 
     # Randomize poses in each environment independently
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),
             min_separation=min_separation,
@@ -246,7 +246,7 @@ def randomize_rigid_objects_in_focus(
     # List of rigid objects in focus for each env (dim = [num_envs, num_rigid_objects])
     env.rigid_objects_in_focus = []
 
-    for cur_env in env_ids.tolist():
+    for cur_env in range(env.num_envs)[env_ids] if isinstance(env_ids, slice) else env_ids.tolist():
         # Sample in focus object poses
         pose_list = sample_object_poses(
             num_objects=len(asset_cfgs),
@@ -319,6 +319,9 @@ def randomize_visual_texture_material(
     enable_extension("omni.replicator.core")
     # we import the module here since we may not always need the replicator
     import omni.replicator.core as rep
+
+    if env.cfg.seed is not None:
+        rep.set_global_seed(env.cfg.seed)
 
     # check to make sure replicate_physics is set to False, else raise error
     # note: We add an explicit check here since texture randomization can happen outside of 'prestartup' mode

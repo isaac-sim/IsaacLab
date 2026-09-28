@@ -17,7 +17,7 @@ from isaaclab.envs import DirectMARLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg
 
@@ -56,7 +56,7 @@ class PendulumSceneCfg(InteractiveSceneCfg):
     """Cart-double-pendulum assets constructed and cloned as one scene."""
 
     ground = AssetBaseCfg(prim_path="/World/ground", spawn=sim_utils.GroundPlaneCfg())
-    robot: ArticulationCfg = CART_DOUBLE_PENDULUM_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(CART_DOUBLE_PENDULUM_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.actuators["pendulum_actuator"].armature = 0.05
     light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))

@@ -384,6 +384,8 @@ class ConveyorFrankaA09A12EnvCfg(ConveyorFrankaEnvCfg):
         self.commands.transfer = ConveyorSortCommandCfg()
         # Kit renders the authored USD directly; Newton needs only the physical geometry.
         self.sim.physics.load_visual_shapes = False
+        # Adjacent static belt sections must not consume the parcel contact budget.
+        self.sim.physics.collision_cfg.include_static_kinematic_pairs = False
         self.conveyor_force.transported_body_count_per_env = len(self.commands.transfer.parcel_destinations)
         self.sim.physics.solver_cfg.nconmax = 400
         self.sim.physics.solver_cfg.njmax = 600

@@ -110,7 +110,7 @@ Configuration Requirements
 Usage Example
 ~~~~~~~~~~~~~
 
-To use the tactile sensor in a simulation environment, run the demo:
+To use the tactile sensor in a simulation environment, run the example:
 
 .. tab-set::
 
@@ -118,13 +118,13 @@ To use the tactile sensor in a simulation environment, run the demo:
 
       .. code-block:: bash
 
-          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
+          uv run --extra isaacsim isaaclab example tactile-sensor --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
+          ./isaaclab.sh example tactile-sensor --use_tactile_rgb --use_tactile_ff --tactile_compliance_stiffness 100.0 --tactile_compliant_damping 1.0 --contact_object_type nut --num_envs 16 --save_viz --viz kit
 
 Available command-line options include:
 
@@ -146,7 +146,7 @@ Available command-line options include:
 .. note::
 
    Since Isaac Lab 3.0, visualizers are selected independently from the simulation backend. Use the ``--viz``
-   argument to choose the visualizer backend, such as ``kit`` or ``newton``. The TacSL demo currently supports
+   argument to choose the visualizer backend, such as ``kit`` or ``newton``. The TacSL example currently supports
    only the PhysX simulation backend; running the tactile sensor simulation with the Newton backend is not
    supported.
 
@@ -159,16 +159,16 @@ For a complete list of available options:
 
       .. code-block:: bash
 
-          uv run --extra isaacsim python scripts/demos/sensors/tacsl_sensor.py -h
+          uv run --extra isaacsim isaaclab example tactile-sensor -h
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p scripts/demos/sensors/tacsl_sensor.py -h
+          ./isaaclab.sh example tactile-sensor -h
 
 .. note::
-   The demo examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
+   The examples are based on the Gelsight R1.5, which is a prototype sensor that is now discontinued. The same procedure can be adapted for other visuotactile sensors.
 
 .. figure:: ../_static/overview/sensors/tacsl_demo.jpg
     :align: center

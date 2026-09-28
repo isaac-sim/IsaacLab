@@ -14,7 +14,6 @@ from typing import TYPE_CHECKING
 import numpy as np
 from filelock import FileLock
 
-from isaaclab.utils.assets import check_file_path, retrieve_file_path
 from isaaclab.utils.version import has_kit
 
 from ... import converters, schemas
@@ -32,9 +31,15 @@ from ...utils import (
     select_usd_variants,
     set_prim_visibility,
 )
-from .._utils import bare_fragments, fragment_mapping, props_expr, subtree_carries_api
 from ..materials import SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
+from ..utils import (
+    apply_schema_props,
+    bare_fragments,
+    fragment_mapping,
+    props_expr,
+    subtree_carries_api,
+)
 
 if TYPE_CHECKING:
     from pxr import Gf, Sdf, Usd, UsdGeom  # noqa: F401
@@ -83,7 +88,7 @@ def spawn_from_usd(
         FileNotFoundError: If the USD file does not exist at the given path.
     """
     # spawn asset from the given usd file
-    return _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -127,7 +132,7 @@ def spawn_from_urdf(
     # urdf loader to convert urdf to usd
     urdf_loader = converters.UrdfConverter(cfg)
     # spawn asset from the generated usd file
-    return _spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, urdf_loader.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -169,7 +174,7 @@ def spawn_from_mjcf(
     # mjcf loader to convert mjcf to usd
     mjcf_loader = converters.MjcfConverter(cfg)
     # spawn asset from the generated usd file
-    return _spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
+    return spawn_from_usd_file(prim_path, mjcf_loader.usd_path, cfg, translation, orientation)
 
 
 @clone
@@ -227,7 +232,7 @@ def spawn_from_mesh(
             physics_material_path=cfg.physics_material_path,
             physics_material=cfg.physics_material,
         )
-        return _spawn_from_usd_file(prim_path, mesh_converter.usd_path, usd_cfg, translation, orientation)
+        return spawn_from_usd_file(prim_path, mesh_converter.usd_path, usd_cfg, translation, orientation)
 
     return _spawn_mesh_data(prim_path, cfg, translation, orientation)
 
@@ -265,37 +270,23 @@ def spawn_ground_plane(
         ValueError: If the prim path already exists.
     """
     stage = get_current_stage()
+    prim = create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
 
-    # Spawn Ground-plane
-    if not stage.GetPrimAtPath(prim_path).IsValid():
-        create_prim(prim_path, usd_path=cfg.usd_path, translation=translation, orientation=orientation, stage=stage)
-    else:
-        raise ValueError(f"A prim already exists at path: '{prim_path}'.")
-
-    # Create physics material
     if cfg.physics_material is not None:
-        spawn_physics_material(f"{prim_path}/physicsMaterial", cfg.physics_material, stage=stage)
-        # Apply physics material to ground plane
+        material_path = f"{prim_path}/physicsMaterial"
+        spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         collision_prim = get_first_matching_child_prim(
-            prim_path,
-            predicate=lambda _prim: _prim.GetTypeName() == "Plane",
-            stage=stage,
+            prim_path, predicate=lambda _prim: _prim.GetTypeName() == "Plane", stage=stage
         )
         if collision_prim is None:
             raise ValueError(f"No collision prim found at path: '{prim_path}'.")
-        # bind physics material to the collision prim
-        collision_prim_path = str(collision_prim.GetPath())
-        bind_physics_material(collision_prim_path, f"{prim_path}/physicsMaterial", stage=stage)
+        bind_physics_material(str(collision_prim.GetPath()), material_path, stage=stage)
 
-    # Obtain environment prim
-    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
     # Scale only the mesh
     # Warning: This is specific to the default grid plane asset.
+    environment_prim = stage.GetPrimAtPath(f"{prim_path}/Environment")
     if environment_prim.IsValid():
-        # compute scale from size
-        scale = (cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0)
-        # apply scale to the mesh
-        environment_prim.GetAttribute("xformOp:scale").Set(scale)
+        environment_prim.GetAttribute("xformOp:scale").Set((cfg.size[0] / 100.0, cfg.size[1] / 100.0, 1.0))
 
         # The default asset maps its texture through ``primvars:st`` alone, so rescale the UVs with the
         # plane to keep the 2 m tile -- and therefore the 1 m checks -- metric in every renderer.
@@ -321,34 +312,21 @@ def spawn_ground_plane(
     if cfg.color is not None:
         from pxr import Gf, Sdf  # noqa: PLC0415
 
-        # change the color
         change_prim_property(
             prop_path=f"{prim_path}/Looks/theGrid/Shader.inputs:diffuse_tint",
             value=Gf.Vec3f(*cfg.color),
             stage=stage,
             type_to_create_if_not_exist=Sdf.ValueTypeNames.Color3f,
         )
-    # Remove the light from the ground plane (USD API, works without Kit/Newton)
-    # It isn't bright enough and messes up with the user's lighting settings
+    # Hide the asset's light: it isn't bright enough and interferes with the user's lighting
     light_prim = stage.GetPrimAtPath(f"{prim_path}/SphereLight")
     if light_prim.IsValid():
-        from pxr import UsdGeom  # noqa: PLC0415
+        set_prim_visibility(light_prim, False)
 
-        imageable = UsdGeom.Imageable(light_prim)
-        imageable.MakeInvisible()
-
-    prim = stage.GetPrimAtPath(prim_path)
-    # Apply semantic tags
-    if hasattr(cfg, "semantic_tags") and cfg.semantic_tags is not None:
-        # note: taken from replicator scripts.utils.utils.py
+    # semantic labels do not allow spaces
+    if cfg.semantic_tags is not None:
         for semantic_type, semantic_value in cfg.semantic_tags:
-            # deal with spaces by replacing them with underscores
-            semantic_type_sanitized = semantic_type.replace(" ", "_")
-            semantic_value_sanitized = semantic_value.replace(" ", "_")
-            # add labels to the prim
-            add_labels(prim, labels=[semantic_value_sanitized], instance_name=semantic_type_sanitized)
-
-    # Apply visibility
+            add_labels(prim, labels=[semantic_value.replace(" ", "_")], instance_name=semantic_type.replace(" ", "_"))
     set_prim_visibility(prim, cfg.visible)
     return prim
 
@@ -621,14 +599,13 @@ def _spawn_mesh_data(
 
     # collision properties anchor at the mesh prim, like the mesh converter
     if cfg.collision_props is not None:
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
-        if collision_props_mapping is not None:
-            for pattern, fragments in collision_props_mapping.items():
-                schemas.apply_collision_properties(
-                    props_expr(mesh_prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_collision_properties(mesh_prim_path, cfg.collision_props, stage=stage)
+        apply_schema_props(
+            cfg.collision_props,
+            mesh_prim_path,
+            schemas.apply_collision_properties,
+            schemas.define_collision_properties,
+            stage,
+        )
         if cfg.mesh_collision_props is not None:
             if bare_fragments(cfg.mesh_collision_props):
                 fragments = cfg.mesh_collision_props
@@ -639,43 +616,36 @@ def _spawn_mesh_data(
                 schemas.define_mesh_collision_properties(mesh_prim_path, cfg.mesh_collision_props, stage=stage)
 
     if cfg.visual_material is not None:
-        material_path = _resolve_material_path(prim_path, cfg.visual_material_path)
+        material_path = (
+            cfg.visual_material_path
+            if cfg.visual_material_path.startswith("/")
+            else f"{prim_path}/{cfg.visual_material_path}"
+        )
         cfg.visual_material.func(material_path, cfg.visual_material)
         bind_visual_material(mesh_prim_path, material_path, stage=stage)
     if cfg.physics_material is not None:
-        material_path = _resolve_material_path(prim_path, cfg.physics_material_path)
+        material_path = (
+            cfg.physics_material_path
+            if cfg.physics_material_path.startswith("/")
+            else f"{prim_path}/{cfg.physics_material_path}"
+        )
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(mesh_prim_path, material_path, stage=stage)
 
     # mass and rigid body properties anchor at the root prim
     if cfg.rigid_props is not None:
         if cfg.mass_props is not None:
-            mass_props_mapping = fragment_mapping(cfg.mass_props)
-            if mass_props_mapping is not None:
-                for pattern, fragments in mass_props_mapping.items():
-                    schemas.apply_mass_properties(
-                        props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                    )
-            else:
-                schemas.define_mass_properties(prim_path, cfg.mass_props, stage=stage)
-        rigid_props_mapping = fragment_mapping(cfg.rigid_props)
-        if rigid_props_mapping is not None:
-            for pattern, fragments in rigid_props_mapping.items():
-                schemas.apply_rigid_body_properties(
-                    props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage
-                )
-        else:
-            schemas.define_rigid_body_properties(prim_path, cfg.rigid_props, stage=stage)
+            apply_schema_props(
+                cfg.mass_props, prim_path, schemas.apply_mass_properties, schemas.define_mass_properties, stage
+            )
+        apply_schema_props(
+            cfg.rigid_props, prim_path, schemas.apply_rigid_body_properties, schemas.define_rigid_body_properties, stage
+        )
 
     return root_prim
 
 
-def _resolve_material_path(prim_path: str, material_path: str) -> str:
-    """Resolve a material path relative to ``prim_path`` unless it is absolute."""
-    return material_path if material_path.startswith("/") else f"{prim_path}/{material_path}"
-
-
-def _spawn_from_usd_file(
+def spawn_from_usd_file(
     prim_path: str,
     usd_path: str,
     cfg: from_files_cfg.FileCfg,
@@ -711,17 +681,11 @@ def _spawn_from_usd_file(
     # the same cached USD files cause segfaults in Sdf_CrateFile::_MmapStream::Read.
     _world_size = int(os.environ.get("LOCAL_WORLD_SIZE", "1"))
 
-    file_status = check_file_path(usd_path)
-    if file_status == 0:
-        raise FileNotFoundError(f"USD file not found at path: '{usd_path}'.")
-
     if _world_size > 1:
         lock = FileLock(os.path.join(tempfile.gettempdir(), "isaaclab_usd_spawn.lock"))
     else:
         lock = nullcontext()
     with lock:
-        if file_status == 2:
-            usd_path = retrieve_file_path(usd_path, force_download=False)
         stage = get_current_stage()
         if not stage.GetPrimAtPath(prim_path).IsValid():
             create_prim(
@@ -735,13 +699,16 @@ def _spawn_from_usd_file(
         else:
             logger.warning(f"A prim already exists at prim path: '{prim_path}'.")
 
-    # modify variants
-    if hasattr(cfg, "variants") and cfg.variants is not None:
-        select_usd_variants(prim_path, cfg.variants)
+    from . import from_files_cfg  # noqa: PLC0415
 
-    # make instance proxies editable before any override tries to author properties on them
-    if getattr(cfg, "make_uninstanceable", False):
-        make_uninstanceable(prim_path, stage=stage)
+    # variant selection and instancing overrides only exist on USD file spawners
+    if isinstance(cfg, from_files_cfg.UsdFileCfg):
+        # modify variants
+        if cfg.variants is not None:
+            select_usd_variants(prim_path, cfg.variants)
+        # make instance proxies editable before any override tries to author properties on them
+        if cfg.make_uninstanceable:
+            make_uninstanceable(prim_path, stage=stage)
 
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)
@@ -796,7 +763,6 @@ def _spawn_from_usd_file(
             if cfg.physics_material_path.startswith("/")
             else f"{prim_path}/{cfg.physics_material_path}"
         )
-        # create material (accepts a legacy material cfg or rigid-body fragment(s))
         spawn_physics_material(material_path, cfg.physics_material, stage=stage)
         bind_physics_material(prim_path, material_path, stage=stage)
     return stage.GetPrimAtPath(prim_path)
@@ -832,8 +798,7 @@ def spawn_from_usd_with_compliant_contact_material(
     Raises:
         FileNotFoundError: If the USD file does not exist at the given path.
     """
-
-    prim = _spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
+    prim = spawn_from_usd_file(prim_path, cfg.usd_path, cfg, translation, orientation)
     stiff = cfg.compliant_contact_stiffness
     damp = cfg.compliant_contact_damping
     if cfg.physics_material_prim_path is None:

@@ -3,25 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Unit tests for observation managers."""
+
 # needed to import for allowing type-hinting: torch.Tensor | None
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
+# ignore private usage of variables warning
+# pyright: reportPrivateUsage=none
 from collections import namedtuple
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import pytest
 import torch
 
-import isaaclab.sim as sim_utils
 from isaaclab.managers import (
     ManagerTermBase,
     ObservationGroupCfg,
@@ -29,9 +23,9 @@ from isaaclab.managers import (
     ObservationTermCfg,
     RewardTermCfg,
 )
-from isaaclab.utils import configclass, modifiers
+from isaaclab.utils import DelayBuffer, configclass, modifiers, noise, to_dict, update_from_dict, validate
 
-pytestmark = pytest.mark.integration
+pytestmark = pytest.mark.unit
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -103,24 +97,23 @@ def lin_vel_w_data(env) -> torch.Tensor:
     return env.data.lin_vel_w
 
 
-@pytest.fixture(autouse=True)
+class DummySimulation:
+    """Minimal playing simulation double."""
+
+    def is_playing(self) -> bool:
+        """Return whether the simulated timeline is playing."""
+        return True
+
+
+@pytest.fixture
 def setup_env():
     dt = 0.01
     num_envs = 20
-    device = "cuda:0"
-    # set up sim
-    sim_cfg = sim_utils.SimulationCfg(dt=dt, device=device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    # create dummy environment
-    env = namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(
-        num_envs, device, MyDataClass(num_envs, device), dt, sim
+    device = "cpu"
+    # create dummy environment with a playing simulation, so the manager resolves terms immediately
+    return namedtuple("ManagerBasedEnv", ["num_envs", "device", "data", "dt", "sim"])(
+        num_envs, device, MyDataClass(num_envs, device), dt, DummySimulation()
     )
-    # let the simulation play (we need this for observation manager to compute obs dims)
-    env.sim._app_control_on_stop_handle = None
-    env.sim.reset()
-    yield env
-    sim.stop()
-    sim_utils.SimulationContext.clear_instance()
 
 
 def test_str(setup_env):
@@ -146,59 +139,22 @@ def test_str(setup_env):
             )
 
         policy: ObservationGroupCfg = SampleGroupCfg()
+        # a term history flattens into the term shape
+        hist: ObservationGroupCfg = SampleGroupCfg(
+            term_1=ObservationTermCfg(func=grilled_chicken, scale=10, history_length=5)
+        )
 
     # create observation manager
     cfg = MyObservationManagerCfg()
     obs_man = ObservationManager(cfg, env)
     assert len(obs_man.active_terms["policy"]) == 5
-    # print the expected string
     obs_man_str = str(obs_man)
-    print()
-    print(obs_man_str)
-    obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = next(i for i, s in enumerate(obs_man_str_split) if s.strip() == "term_1")
-    term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
-    assert term_1_str_shape == "(4,)"
-
-
-def test_str_with_history(setup_env):
-    env = setup_env
-    """Test the string representation of the observation manager with history terms."""
-
-    TERM_1_HISTORY = 5
-
-    @configclass
-    class MyObservationManagerCfg:
-        """Test config class for observation manager."""
-
-        @configclass
-        class SampleGroupCfg(ObservationGroupCfg):
-            """Test config class for policy observation group."""
-
-            term_1 = ObservationTermCfg(func=grilled_chicken, scale=10, history_length=TERM_1_HISTORY)
-            term_2 = ObservationTermCfg(func=grilled_chicken, scale=2)
-            term_3 = ObservationTermCfg(func=grilled_chicken_with_bbq, scale=5, params={"bbq": True})
-            term_4 = ObservationTermCfg(
-                func=grilled_chicken_with_yoghurt, scale=1.0, params={"hot": False, "bland": 2.0}
-            )
-            term_5 = ObservationTermCfg(
-                func=grilled_chicken_with_yoghurt_and_bbq, scale=1.0, params={"hot": False, "bland": 2.0}
-            )
-
-        policy: ObservationGroupCfg = SampleGroupCfg()
-
-    # create observation manager
-    cfg = MyObservationManagerCfg()
-    obs_man = ObservationManager(cfg, env)
-    assert len(obs_man.active_terms["policy"]) == 5
-    # print the expected string
-    obs_man_str = str(obs_man)
-    print()
-    print(obs_man_str)
-    obs_man_str_split = obs_man_str.split("|")
-    term_1_str_index = next(i for i, s in enumerate(obs_man_str_split) if s.strip() == "term_1")
-    term_1_str_shape = obs_man_str_split[term_1_str_index + 1].strip()
-    assert term_1_str_shape == "(20,)"
+    for group_name, expected_shape in (("policy", "(4,)"), ("hist", "(20,)")):
+        group_str = obs_man_str.split(f"Group: '{group_name}'")[1]
+        group_str_split = group_str.split("|")
+        term_1_str_index = next(i for i, s in enumerate(group_str_split) if s.strip() == "term_1")
+        term_1_str_shape = group_str_split[term_1_str_index + 1].strip()
+        assert term_1_str_shape == expected_shape
 
 
 def test_config_equivalence(setup_env):
@@ -316,6 +272,7 @@ def test_compute(setup_env):
     """Test the observation computation."""
 
     pos_scale_tuple = (2.0, 3.0, 1.0)
+    original_pos = torch.clone(env.data.pos_w)
 
     @configclass
     class MyObservationManagerCfg:
@@ -327,7 +284,7 @@ def test_compute(setup_env):
 
             term_1 = ObservationTermCfg(func=grilled_chicken, scale=10)
             term_2 = ObservationTermCfg(func=grilled_chicken_with_curry, scale=0.0, params={"hot": False})
-            term_3 = ObservationTermCfg(func=pos_w_data, scale=pos_scale_tuple)
+            term_3 = ObservationTermCfg(func=pos_w_data, clip=(0.0, 0.5), scale=pos_scale_tuple)
             term_4 = ObservationTermCfg(func=lin_vel_w_data, scale=1.5)
 
         @configclass
@@ -369,60 +326,49 @@ def test_compute(setup_env):
     assert torch.equal(obs_critic[:, 0:3], obs_critic[:, 6:9])
     assert torch.equal(obs_critic[:, 3:6], obs_critic[:, 9:12])
     # -- between groups
-    assert torch.equal(obs_policy[:, 5:8], obs_critic[:, 0:3])
+    torch.testing.assert_close(env.data.pos_w, original_pos)
+    torch.testing.assert_close(obs_policy[:, 5:8], original_pos.clamp(0.0, 0.5) * torch.tensor(pos_scale_tuple))
     assert torch.equal(obs_policy[:, 8:11], obs_critic[:, 3:6])
 
 
-def test_compute_with_history(setup_env):
+def destination_position(env, bias: float = 0.0, *, out: torch.Tensor | None = None):
+    """Exercise destination writes and parameter forwarding independently of camera processing."""
+    return torch.add(env.data.pos_w, bias, out=out)
+
+
+def test_destination_output_preserves_snapshots(setup_env):
+    """Fresh destinations preserve dtype, parameter values and retained observations."""
     env = setup_env
-    """Test the observation computation with history buffers."""
-    HISTORY_LENGTH = 5
+    cfg = ObservationGroupCfg()
+    env.data.pos_w = env.data.pos_w.double()
+    cfg.position = ObservationTermCfg(func=destination_position, params={"bias": 0.25})
+    manager = ObservationManager({"policy": cfg}, env)
+    expected = env.data.pos_w.double() + 0.25
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(result, expected)
+    env.data.pos_w.zero_()
+    torch.testing.assert_close(manager.compute()["policy"], torch.full_like(expected, 0.25))
+    manager.reset()
+    torch.testing.assert_close(result, expected)
 
-    @configclass
-    class MyObservationManagerCfg:
-        """Test config class for observation manager."""
 
-        @configclass
-        class PolicyCfg(ObservationGroupCfg):
-            """Test config class for policy observation group."""
+def test_compute_preserves_shared_scratch_outputs(setup_env):
+    """Term results are secured before the next term overwrites shared scratch storage."""
+    env = setup_env
 
-            term_1 = ObservationTermCfg(func=grilled_chicken, history_length=HISTORY_LENGTH)
-            # total observation size: term_dim (4) * history_len (5) = 20
-            term_2 = ObservationTermCfg(func=lin_vel_w_data)
-            # total observation size: term_dim (3) = 3
+    def scratch_term(env, value):
+        return env.data.pos_w.fill_(value)
 
-        policy: ObservationGroupCfg = PolicyCfg()
-
-    # create observation manager
-    cfg = MyObservationManagerCfg()
-    obs_man = ObservationManager(cfg, env)
-    # compute observation using manager
-    observations = obs_man.compute()
-    # obtain the group observations
-    obs_policy: torch.Tensor = observations["policy"]
-    # check the observation shape
-    assert obs_policy.shape == (env.num_envs, 23)
-    # check the observation data
-    expected_obs_term_1_data = torch.ones(env.num_envs, 4 * HISTORY_LENGTH, device=env.device)
-    expected_obs_term_2_data = lin_vel_w_data(env)
-    expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
-    # test that the history buffer holds previous data
-    for _ in range(HISTORY_LENGTH):
-        observations = obs_man.compute()
-        obs_policy = observations["policy"]
-    expected_obs_term_1_data = torch.ones(env.num_envs, 4 * HISTORY_LENGTH, device=env.device)
-    expected_obs_data_t5 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    assert torch.equal(expected_obs_data_t5, obs_policy)
-    # test reset
-    obs_man.reset()
-    observations = obs_man.compute()
-    obs_policy = observations["policy"]
-    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
-    # test reset of specific env ids
-    reset_env_ids = [2, 4, 16]
-    obs_man.reset(reset_env_ids)
-    torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
+    cfg = ObservationGroupCfg()
+    cfg.first = ObservationTermCfg(func=scratch_term, params={"value": 1.0})
+    cfg.second = ObservationTermCfg(func=scratch_term, params={"value": 2.0})
+    manager = ObservationManager({"policy": cfg}, env)
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(result[:, :3], torch.ones_like(env.data.pos_w))
+    torch.testing.assert_close(result[:, 3:], torch.full_like(env.data.pos_w, 2.0))
+    env.data.pos_w.zero_()
+    torch.testing.assert_close(result[:, :3], torch.ones_like(env.data.pos_w))
+    torch.testing.assert_close(result[:, 3:], torch.full_like(env.data.pos_w, 2.0))
 
 
 def test_compute_with_2d_history(setup_env):
@@ -471,62 +417,38 @@ def test_compute_with_2d_history(setup_env):
     assert obs_policy.shape == (env.num_envs, HISTORY_LENGTH, 128, 256, 1)
 
 
-def test_compute_with_group_history(setup_env):
+@pytest.mark.parametrize(
+    ("history_order", "expected_values"),
+    [
+        (None, [2.0, 3.0, 3.0, 4.0, 11.0, 12.0]),
+        ("time", [2.0, 3.0, 11.0, 3.0, 4.0, 12.0]),
+    ],
+)
+def test_group_history_flatten_order(setup_env, history_order, expected_values):
+    """Flattened group history keeps the selected term or time ordering."""
     env = setup_env
-    """Test the observation computation with group level history buffer configuration."""
-    TERM_HISTORY_LENGTH = 5
-    GROUP_HISTORY_LENGTH = 10
 
-    @configclass
-    class MyObservationManagerCfg:
-        """Test config class for observation manager."""
+    def first_term(env):
+        return env.data.pos_w[:, :2]
 
-        @configclass
-        class PolicyCfg(ObservationGroupCfg):
-            """Test config class for policy observation group."""
+    def second_term(env):
+        return env.data.lin_vel_w[:, :1]
 
-            history_length = GROUP_HISTORY_LENGTH
-            # group level history length will override all terms
-            term_1 = ObservationTermCfg(func=grilled_chicken, history_length=TERM_HISTORY_LENGTH)
-            # total observation size: term_dim (4) * history_len (5) = 20
-            # with override total obs size: term_dim (4) * history_len (10) = 40
-            term_2 = ObservationTermCfg(func=lin_vel_w_data)
-            # total observation size: term_dim (3) = 3
-            # with override total obs size: term_dim (3) * history_len (10) = 30
+    cfg = ObservationGroupCfg(history_length=2)
+    if history_order is not None:
+        cfg.history_order = history_order
+    cfg.first = ObservationTermCfg(func=first_term)
+    cfg.second = ObservationTermCfg(func=second_term)
+    manager = ObservationManager({"policy": cfg}, env)
 
-        policy: ObservationGroupCfg = PolicyCfg()
+    for step in range(3):
+        env.data.pos_w[:, :2] = torch.tensor([step + 1.0, step + 2.0])
+        env.data.lin_vel_w[:, :1] = step + 10.0
+        observation = manager.compute(update_history=True)["policy"]
 
-    # create observation manager
-    cfg = MyObservationManagerCfg()
-    obs_man = ObservationManager(cfg, env)
-    # compute observation using manager
-    observations = obs_man.compute()
-    # obtain the group observations
-    obs_policy: torch.Tensor = observations["policy"]
-    # check the total observation shape
-    assert obs_policy.shape == (env.num_envs, 70)
-    # check the observation data is initialized properly
-    expected_obs_term_1_data = torch.ones(env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=env.device)
-    expected_obs_term_2_data = lin_vel_w_data(env).repeat(1, GROUP_HISTORY_LENGTH)
-    expected_obs_data_t0 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
-    # test that the history buffer holds previous data
-    for _ in range(GROUP_HISTORY_LENGTH):
-        observations = obs_man.compute()
-        obs_policy = observations["policy"]
-    expected_obs_term_1_data = torch.ones(env.num_envs, 4 * GROUP_HISTORY_LENGTH, device=env.device)
-    expected_obs_term_2_data = lin_vel_w_data(env).repeat(1, GROUP_HISTORY_LENGTH)
-    expected_obs_data_t10 = torch.concat((expected_obs_term_1_data, expected_obs_term_2_data), dim=-1)
-    torch.testing.assert_close(expected_obs_data_t10, obs_policy)
-    # test reset
-    obs_man.reset()
-    observations = obs_man.compute()
-    obs_policy = observations["policy"]
-    torch.testing.assert_close(expected_obs_data_t0, obs_policy)
-    # test reset of specific env ids
-    reset_env_ids = [2, 4, 16]
-    obs_man.reset(reset_env_ids)
-    torch.testing.assert_close(expected_obs_data_t0[reset_env_ids], obs_policy[reset_env_ids])
+    assert manager.group_obs_dim["policy"] == (6,)
+    assert observation.shape == (env.num_envs, 6)
+    torch.testing.assert_close(observation, torch.tensor(expected_values).expand(env.num_envs, -1))
 
 
 def test_invalid_observation_config(setup_env):
@@ -616,7 +538,8 @@ def test_non_callable_class_term(setup_env):
         ObservationManager(cfg, env)
 
 
-def test_modifier_compute(setup_env):
+@pytest.mark.parametrize("position_term", [pos_w_data, destination_position])
+def test_modifier_compute(setup_env, position_term):
     env = setup_env
     """Test the observation computation with modifiers."""
 
@@ -634,19 +557,19 @@ def test_modifier_compute(setup_env):
             """Test config class for policy observation group."""
 
             concatenate_terms = False
-            term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
-            term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
-            term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_4])
+            term_1 = ObservationTermCfg(func=position_term, modifiers=[])
+            term_2 = ObservationTermCfg(func=position_term, modifiers=[modifier_1])
+            term_3 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_4])
 
         @configclass
         class CriticCfg(ObservationGroupCfg):
             """Test config class for critic observation group"""
 
             concatenate_terms = False
-            term_1 = ObservationTermCfg(func=pos_w_data, modifiers=[])
-            term_2 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1])
-            term_3 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2])
-            term_4 = ObservationTermCfg(func=pos_w_data, modifiers=[modifier_1, modifier_2, modifier_3])
+            term_1 = ObservationTermCfg(func=position_term, modifiers=[])
+            term_2 = ObservationTermCfg(func=position_term, modifiers=[modifier_1])
+            term_3 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_2])
+            term_4 = ObservationTermCfg(func=position_term, modifiers=[modifier_1, modifier_2, modifier_3])
 
         policy: ObservationGroupCfg = PolicyCfg()
         critic: ObservationGroupCfg = CriticCfg()
@@ -663,10 +586,33 @@ def test_modifier_compute(setup_env):
 
     # check correct application of modifications
     assert torch.equal(obs_policy["term_1"] + 1.0, obs_policy["term_2"])
+    # the first integration step averages the biased signal with a zero initial value
+    torch.testing.assert_close(obs_policy["term_3"], 0.5 * (obs_policy["term_1"] + 1.0) * env.dt)
     assert torch.equal(obs_critic["term_1"] + 1.0, obs_critic["term_2"])
     assert torch.equal(2.0 * (obs_critic["term_1"] + 1.0), obs_critic["term_3"])
     assert torch.min(obs_critic["term_4"]) >= -0.5
     assert torch.max(obs_critic["term_4"]) <= 0.5
+
+    # Dictionary outputs must also survive updates to a modifier's internal state.
+    expected_integral = 0.5 * (env.data.pos_w + 1.0) * env.dt
+    obs_man.compute()
+    obs_man.reset()
+    torch.testing.assert_close(obs_policy["term_3"], expected_integral)
+
+    # A concatenated observation must survive subsequent updates to a modifier's internal state.
+    cfg.policy.term_1 = None
+    cfg.policy.term_2 = None
+    cfg.policy.concatenate_terms = True
+    cfg.policy.term_3.scale = 2.0
+    obs_man = ObservationManager(cfg, env)
+    first = obs_man.compute()["policy"]
+    expected = (env.data.pos_w + 1.0) * env.dt
+    torch.testing.assert_close(first, expected)
+    second = obs_man.compute()["policy"]
+    torch.testing.assert_close(second, 3.0 * expected)
+    torch.testing.assert_close(first, expected)
+    obs_man.reset()
+    torch.testing.assert_close(first, expected)
 
 
 def test_serialize(setup_env):
@@ -798,3 +744,230 @@ def test_concatenate_dim(setup_env):
 
     # For critic_neg_dim: check that it is the same as critic
     torch.testing.assert_close(obs_critic_neg_dim, obs_critic)
+
+
+def dummy_observation(env: DummyEnv) -> torch.Tensor:
+    """Return the dummy environment observation."""
+    return env.observation
+
+
+class DummyEnv:
+    """Minimal environment double used by :class:`ObservationManager`."""
+
+    def __init__(self, num_envs: int = 2) -> None:
+        self.num_envs = num_envs
+        self.device = "cpu"
+        self.sim = DummySimulation()
+        self.observation = torch.arange(num_envs, dtype=torch.float32).unsqueeze(-1)
+
+
+class StatefulBiasModifier(modifiers.ModifierBase):
+    """Stateful modifier used to verify lazy callable resolution."""
+
+    def __init__(self, cfg: modifiers.ModifierCfg, data_dim: tuple[int, ...], device: str) -> None:
+        super().__init__(cfg, data_dim, device)
+        self.value = cfg.params["value"]
+        self.reset_count = 0
+
+    def reset(self, env_ids=None) -> None:
+        self.reset_count += 1
+
+    def __call__(self, data: torch.Tensor) -> torch.Tensor:
+        return data + self.value
+
+
+class InvalidModifier:
+    """Class with the modifier constructor contract but the wrong base type."""
+
+    def __init__(self, cfg, data_dim, device):
+        pass
+
+
+@configclass
+class HistoryObservationsCfg:
+    """Observation configuration with group-level history."""
+
+    @configclass
+    class PolicyCfg(ObservationGroupCfg):
+        """Policy observation group configuration."""
+
+        dummy: ObservationTermCfg = ObservationTermCfg(func=dummy_observation)
+
+        def __post_init__(self):
+            self.history_length = 5
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+def test_class_modifier_roundtrip_preserves_func_and_params():
+    """Reproduce #6067 with a class modifier and non-empty parameters."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=StatefulBiasModifier, params={"value": 2.0})]
+    update_from_dict(cfg, to_dict(cfg))
+    term_cfg = cfg.policy.dummy
+    assert term_cfg.modifiers is not None
+    modifier_cfg = term_cfg.modifiers[0]
+    assert isinstance(modifier_cfg, modifiers.ModifierCfg)
+    assert isinstance(modifier_cfg.func, str)
+    assert modifier_cfg.params == {"value": 2.0}
+
+    env = DummyEnv()
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    prepared_term_cfg = manager.cfg.policy.dummy
+    assert prepared_term_cfg.modifiers is not None
+    prepared_modifier_cfg = prepared_term_cfg.modifiers[0]
+    assert isinstance(prepared_modifier_cfg.func, StatefulBiasModifier)
+    observations = manager.compute()["policy"]
+    torch.testing.assert_close(observations, env.observation + 2.0)
+
+    manager.reset()
+    assert prepared_modifier_cfg.func.reset_count == 1
+
+
+def test_stateless_modifier_cfg_roundtrip_preserves_signature_validation():
+    """A stateless modifier remains callable and inspectable after a configuration round-trip."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=modifiers.bias, params={"value": 2.0})]
+    update_from_dict(cfg, to_dict(cfg))
+
+    env = DummyEnv()
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    observations = manager.compute()["policy"]
+    torch.testing.assert_close(observations, env.observation + 2.0)
+
+
+def test_class_modifier_validates_constructed_instance():
+    """Class modifier validation checks the constructed object."""
+    cfg = HistoryObservationsCfg()
+    cfg.policy.history_length = None
+    cfg.policy.dummy.modifiers = [modifiers.ModifierCfg(func=InvalidModifier)]
+    update_from_dict(cfg, to_dict(cfg))
+
+    with pytest.raises(TypeError, match="is not an instance of 'ModifierBase'"):
+        ObservationManager(cfg, cast("ManagerBasedEnv", DummyEnv()))
+
+
+@pytest.mark.parametrize(
+    ("lag", "history_length", "term_history"), [(0, 2, False), (1, 0, False), (1, 2, False), (0, 2, True)]
+)
+def test_compute_updates_history_only_when_requested(lag, history_length, term_history):
+    """History alone, delay alone, and their combination advance only on recorded samples.
+
+    A group history length overrides the term's own history length; without one, the term history applies.
+    """
+    cfg = HistoryObservationsCfg()
+    cfg.policy.concatenate_terms = not term_history
+    if term_history:
+        cfg.policy.history_length = None
+        cfg.policy.dummy.history_length = history_length
+    else:
+        cfg.policy.history_length = history_length
+        cfg.policy.dummy.history_length = 3
+    cfg.policy.enable_corruption = True
+    cfg.policy.dummy.delay_min_lag = cfg.policy.dummy.delay_max_lag = lag
+    cfg.policy.dummy.delay_hold_prob = 0.5 if history_length == 0 else 1.0
+    cfg.policy.dummy.noise = noise.ConstantNoiseCfg(bias=0.0)
+    cfg.policy.dummy.scale = 2.0
+    env = DummyEnv()
+    manager = ObservationManager(cfg, cast("ManagerBasedEnv", env))
+    delay = manager._group_obs_term_delay_buffer["policy"].get("dummy")
+    history = manager._group_obs_term_history_buffer["policy"].get("dummy")
+    manager.compute()
+    if delay:
+        assert isinstance(delay, DelayBuffer)
+        assert torch.all(delay.num_pushes == 0)
+    if history:
+        assert torch.all(history.current_length == 0)
+
+    def compute_output(update_history=False):
+        output = manager.compute(update_history=update_history)["policy"]
+        return output["dummy"] if term_history else output
+
+    outputs = []
+    for step in range(6):
+        if step == 3:
+            manager.reset([1])
+        env.observation.fill_(step)
+        # Delay retains each sample's noise; history stacks the delayed, scaled outputs.
+        manager.cfg.policy.dummy.noise.bias = float(step)
+        output = compute_output(update_history=True)
+        sample_steps = torch.arange(step - max(1, history_length) + 1, step + 1)
+        expected = 4.0 * (sample_steps - lag).clamp_min(0).expand(env.num_envs, -1).clone()
+        if step >= 3:
+            expected[1].clamp_(min=12.0)
+        torch.testing.assert_close(output, expected)
+        outputs.append((output, expected))
+        env.observation.fill_(-100.0)
+        rng_state = torch.get_rng_state()
+        torch.testing.assert_close(compute_output(), expected)
+        group_output = manager.compute_group("policy")
+        torch.testing.assert_close(group_output["dummy"] if term_history else group_output, expected)
+        assert torch.equal(torch.get_rng_state(), rng_state)
+    # returned observations must not alias the manager's history or delay storage
+    for output, expected in outputs:
+        torch.testing.assert_close(output, expected)
+
+
+@pytest.mark.parametrize(
+    ("params", "error"),
+    [
+        ({"delay_min_lag": -1}, ValueError),
+        ({"delay_min_lag": 2, "delay_max_lag": 1}, ValueError),
+        ({"delay_min_lag": 0.5}, TypeError),
+        ({"delay_hold_prob": -0.1}, ValueError),
+        ({"delay_hold_prob": 1.1}, ValueError),
+    ],
+)
+def test_observation_delay_config_validation(params, error):
+    """Delay requires ordered nonnegative integer bounds and a probability in [0, 1]."""
+    cfg = ObservationTermCfg(func=dummy_observation, **params)
+    with pytest.raises(error, match="delay"):
+        validate(cfg)
+
+
+@pytest.mark.parametrize("invalid_default", [False, True])
+def test_destination_configuration_rejected(setup_env, invalid_default):
+    """Destinations are supplied by the manager and ordinary probing must use out=None."""
+
+    def invalid_term(env, *, out=1):
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = (
+        ObservationTermCfg(func=invalid_term)
+        if invalid_default
+        else ObservationTermCfg(func=destination_position, params={"out": None})
+    )
+    with pytest.raises(ValueError, match="out"):
+        ObservationManager({"policy": cfg}, setup_env)
+
+
+def test_destination_must_be_returned(setup_env):
+    """A callable that ignores its destination must not expose uninitialized manager storage."""
+
+    def ignores_destination(env, *, out=None):
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = ObservationTermCfg(func=ignores_destination)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    with pytest.raises(ValueError, match="must return the supplied 'out' tensor"):
+        manager.compute()
+
+
+def test_positional_out_does_not_enable_destination_writes(setup_env):
+    """Only the explicit keyword-only contract enables manager-supplied destinations."""
+
+    def ordinary_term(env, out=None):
+        assert out is None
+        return env.data.pos_w
+
+    cfg = ObservationGroupCfg()
+    cfg.position = ObservationTermCfg(func=ordinary_term)
+    manager = ObservationManager({"policy": cfg}, setup_env)
+    expected = torch.clone(setup_env.data.pos_w)
+    result = manager.compute()["policy"]
+    setup_env.data.pos_w.zero_()
+    torch.testing.assert_close(result, expected)

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab_physx.assets import SurfaceGripper
@@ -101,7 +102,4 @@ class SurfaceGripperBinaryAction(ActionTerm):
         self._asset.write_data_to_sim()
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        if env_ids is None:
-            self._raw_actions[:] = 0.0
-        else:
-            self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)

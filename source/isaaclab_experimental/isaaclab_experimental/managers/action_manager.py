@@ -20,6 +20,7 @@ from prettytable import PrettyTable
 from isaaclab.assets import AssetBase
 from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor, _warn_io_descriptors_deprecated
 from isaaclab.managers.manager_term_cfg import ActionTermCfg
+from isaaclab.utils import instantiate
 
 from .manager_base import ManagerBase, ManagerTermBase
 
@@ -492,7 +493,7 @@ class ActionManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, ActionTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type ActionType.")

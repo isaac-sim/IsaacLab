@@ -115,8 +115,10 @@ class ConveyorFrankaEnv(ManagerBasedRLEnv):
             register_callback(self._goal_selector.render, position="panel")
             return
 
-    def _reset_idx(self, env_ids: Sequence[int]):
+    def _reset_idx(self, env_ids: Sequence[int] | slice):
         """Reset selected environments and discard stale conveyor forces."""
+        if isinstance(env_ids, slice):
+            env_ids = self.scene._ALL_INDICES[env_ids]
         super()._reset_idx(env_ids)
 
         conveyor_driver = getattr(self, "_conveyor_driver", None)

@@ -8,7 +8,7 @@
 ##
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.core.cabinet import mdp
 
@@ -27,7 +27,7 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         super().__post_init__()
 
         # Set OpenArm as robot
-        self.scene.robot = OPENARM_UNI_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set Actions for the specific robot type (OpenArm)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -48,7 +48,7 @@ class OpenArmCabinetEnvCfg(CabinetEnvCfg):
         # the other frames are the fingers
         self.scene.ee_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/openarm_link0",
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+            visualizer_cfg=replace(FRAME_MARKER_SMALL_CFG, prim_path="/Visuals/EndEffectorFrameTransformer"),
             debug_vis=False,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(

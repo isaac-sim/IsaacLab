@@ -1,6 +1,19 @@
 Changelog
 ---------
 
+0.2.3 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation for environment and circular-buffer resets.
+* Changed ``seed()`` of the Warp environments to no longer seed Replicator; the Replicator event terms seed it
+  with ``env.cfg.seed``.
+* Changed ``render()`` with ``render_mode="rgb_array"`` in the Warp environments to warn and return ``None``,
+  matching the core environments. Use ``VideoRecorderCfg`` on ``env_cfg.video_recorders`` to capture frames.
+
+
 0.2.2 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~
 

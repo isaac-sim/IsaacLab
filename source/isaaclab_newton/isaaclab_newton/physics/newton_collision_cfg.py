@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, to_dict
 
 
 @configclass
@@ -106,6 +106,13 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``"explicit"`` (same as Newton's default when ``broad_phase=None``).
     """
 
+    include_static_kinematic_pairs: bool = True
+    """Whether to generate contacts between two immovable shapes.
+
+    Set to ``False`` to exclude static-static, static-kinematic, and kinematic-kinematic
+    pairs. Defaults to ``True``, matching Newton's default.
+    """
+
     reduce_contacts: bool = True
     """Whether to reduce contacts for mesh-mesh collisions.
 
@@ -190,7 +197,7 @@ class NewtonCollisionPipelineCfg:
         """
         from newton.geometry import HydroelasticSDF
 
-        cfg_dict = self.to_dict()
+        cfg_dict = to_dict(self)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)

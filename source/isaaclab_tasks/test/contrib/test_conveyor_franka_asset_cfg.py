@@ -74,6 +74,31 @@ def test_racetrack_and_sorting_tasks_share_the_policy_contract() -> None:
     assert cfg.sim.physics.load_visual_shapes is False
 
 
+def test_sorting_contacts_exclude_stationary_conveyor_pairs() -> None:
+    """Touching belt sections must not consume contacts needed to support parcels."""
+    import newton
+    import warp as wp
+
+    builder = newton.ModelBuilder()
+    for x in (0.0, 0.15):
+        section = newton.ModelBuilder()
+        section.add_shape_box(-1, hx=0.1, hy=0.1, hz=0.1)
+        builder.add_builder(section, xform=wp.transform((x, 0.0, 0.0), wp.quat_identity()))
+    parcel = builder.add_body(xform=wp.transform((0.0, 0.0, 0.18), wp.quat_identity()))
+    builder.add_shape_box(parcel, hx=0.1, hy=0.1, hz=0.1)
+    model = builder.finalize(device="cpu")
+    cfg = ConveyorFrankaA09A12EnvCfg().sim.physics.collision_cfg
+    pipeline = newton.CollisionPipeline(model, **cfg.to_pipeline_args())
+    contacts = pipeline.contacts()
+    pipeline.collide(model.state(), contacts)
+    count = int(contacts.rigid_contact_count.numpy()[0])
+    assert count > 0
+    bodies = model.shape_body.numpy()
+    first = bodies[contacts.rigid_contact_shape0.numpy()[:count]]
+    second = bodies[contacts.rigid_contact_shape1.numpy()[:count]]
+    assert ((first == parcel) | (second == parcel)).all()
+
+
 def test_a09_a12_config_import_does_not_preload_usd() -> None:
     """Task discovery must not import USD before a requested Kit application starts."""
     code = (
@@ -322,7 +347,8 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
         )
 
 
-def test_warehouse_reset_loads_mixed_feeds_only_in_selected_environments(monkeypatch) -> None:
+@pytest.mark.parametrize("use_slice", [False, True])
+def test_warehouse_reset_loads_mixed_feeds_only_in_selected_environments(monkeypatch, use_slice) -> None:
     """A seeded reset shuffles all physical arrivals without disturbing other environments."""
     import torch
 
@@ -357,6 +383,7 @@ def test_warehouse_reset_loads_mixed_feeds_only_in_selected_environments(monkeyp
 
     class Scene(dict):
         env_origins = origins
+        _ALL_INDICES = torch.arange(2)
 
     env = ConveyorFrankaWarehouseEnv.__new__(ConveyorFrankaWarehouseEnv)
     env.scene = Scene(cubes)
@@ -367,7 +394,7 @@ def test_warehouse_reset_loads_mixed_feeds_only_in_selected_environments(monkeyp
     monkeypatch.setattr(ConveyorFrankaEnv, "_reset_idx", lambda self, ids: None)
     monkeypatch.setattr(ConveyorFrankaEnv, "close", lambda self: None)
     torch.manual_seed(42)
-    env._reset_idx(torch.tensor([1]))
+    env._reset_idx(slice(1, 2) if use_slice else torch.tensor([1]))
     actual_positions = []
     for i in range(len(positions)):
         actual = cubes[f"cube_{i}"].data.root_pose_w.torch
@@ -383,7 +410,7 @@ def test_warehouse_reset_loads_mixed_feeds_only_in_selected_environments(monkeyp
     assert distances.argmin(dim=1).unique().numel() == len(positions)
     assert not torch.allclose(actual_positions, expected)
     torch.manual_seed(42)
-    env._reset_idx(torch.tensor([1]))
+    env._reset_idx(slice(1, 2) if use_slice else torch.tensor([1]))
     repeated = torch.stack([cube.data.root_pose_w.torch[1, :3] - origins[1] for cube in cubes.values()])
     torch.testing.assert_close(repeated, actual_positions)
 

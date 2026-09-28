@@ -17,6 +17,7 @@ from rl_games.torch_runner import Runner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -161,7 +162,7 @@ def run(argv: list[str]) -> None:
                 # reset recurrent states for episodes that have terminated
                 if agent.is_rnn and agent.states is not None and len(dones) > 0:
                     for state in agent.states:
-                        state[:, dones, :] = 0.0
+                        index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

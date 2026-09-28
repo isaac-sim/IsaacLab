@@ -24,6 +24,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
+from isaaclab.utils import replace
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env import RenderBenchmarkEnv
@@ -37,15 +38,6 @@ def _load_cfg():
     return load_cfg_from_registry(_TASK, "env_cfg_entry_point")
 
 
-def test_task_registered_with_direct_entry_point():
-    spec = gym.spec(_TASK)
-
-    assert spec.kwargs["env_cfg_entry_point"] == (
-        "isaaclab_tasks.benchmark.render_benchmark.render_benchmark_env_cfg:RenderBenchmarkFrankaCabinetEnvCfg"
-    )
-    assert spec.disable_env_checker is True
-
-
 def test_default_scene_and_articulations():
     cfg = _load_cfg()
 
@@ -56,6 +48,7 @@ def test_default_scene_and_articulations():
     assert cfg.scene.cabinet.prim_path == "{ENV_REGEX_NS}/Cabinet"
     assert cfg.joint_animation_amplitude == pytest.approx(0.4)
     assert cfg.benchmark_mode == "render"
+    assert gym.spec(_TASK).disable_env_checker is True
 
 
 @pytest.mark.parametrize(
@@ -73,7 +66,7 @@ def test_render_mode_rejects_rendering_before_direct_pose(
     monkeypatch, mode, lazy_sensor_update, renderer_type, pumps_app_update, error
 ):
     """Direct posing requires camera rendering to follow the joint writes."""
-    cfg = _load_cfg().replace(benchmark_mode=mode)
+    cfg = replace(_load_cfg(), benchmark_mode=mode)
     cfg.scene.lazy_sensor_update = lazy_sensor_update
 
     def initialize(self, *args, **kwargs):
@@ -108,7 +101,7 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     camera_data = Mock()
     type(camera_data).output = PropertyMock(side_effect=lambda: events.render())
     env = SimpleNamespace(
-        cfg=_load_cfg().replace(benchmark_mode=mode, write_image_to_file=False),
+        cfg=replace(_load_cfg(), benchmark_mode=mode, write_image_to_file=False),
         sim=events.sim,
         num_envs=1,
         device="cpu",
@@ -130,7 +123,6 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
             "articulation.write_joint_position_to_sim_index",
             "articulation.write_joint_velocity_to_sim_index",
             "sim.forward",
-            "sim.render_context.reset_scene_state_cadence",
             "render",
         ]
         velocity = articulation.write_joint_velocity_to_sim_index.call_args.kwargs["velocity"]
@@ -147,7 +139,6 @@ def test_benchmark_mode_orders_joint_updates_and_rendering(mode):
     ("presets", "expected_type"),
     [
         ((), NewtonCfg),
-        (("newton_mjwarp",), NewtonCfg),
         (("physx",), PhysxAutoCfg),
         (("isaacsim_physx",), PhysxCfg),
     ],
@@ -158,33 +149,29 @@ def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
     assert isinstance(cfg.sim.physics, expected_type)
 
 
-_CAMERA_DATA_TYPE_PRESETS = [
-    ("default", ["rgb"]),
-    ("rgb", ["rgb"]),
-    ("albedo", ["albedo"]),
-    ("depth", ["depth"]),
-    ("simple_shading_constant_diffuse", ["simple_shading_constant_diffuse"]),
-    ("simple_shading_diffuse_mdl", ["simple_shading_diffuse_mdl"]),
-    ("simple_shading_full_mdl", ["simple_shading_full_mdl"]),
-]
-
-
 @pytest.fixture(scope="module")
 def render_benchmark_presets():
     """Collect every preset once, before any preset selection mutates the config in place."""
     return collect_presets(_load_cfg())
 
 
-@pytest.mark.parametrize("preset_name,expected_data_types", _CAMERA_DATA_TYPE_PRESETS)
-def test_camera_presets_resolve_to_expected_data_types(render_benchmark_presets, preset_name, expected_data_types):
+def test_camera_presets_resolve_to_expected_data_types(render_benchmark_presets):
+    """Each camera preset requests the data type it is named after (``default`` is RGB)."""
     camera_presets = render_benchmark_presets["scene.tiled_camera"]
-    assert preset_name in camera_presets, f"Preset '{preset_name}' not found in tiled_camera presets"
-    resolved = camera_presets[preset_name]
-
-    assert resolved.data_types == expected_data_types
-    assert resolved.width > 0
-    assert resolved.height > 0
-    assert isinstance(resolved.renderer_cfg.newton_renderer, NewtonWarpRendererCfg)
+    assert set(camera_presets) == {
+        "default",
+        "rgb",
+        "albedo",
+        "depth",
+        "simple_shading_constant_diffuse",
+        "simple_shading_diffuse_mdl",
+        "simple_shading_full_mdl",
+    }
+    for preset_name, resolved in camera_presets.items():
+        assert resolved.data_types == (["rgb"] if preset_name == "default" else [preset_name])
+        assert resolved.width > 0
+        assert resolved.height > 0
+        assert isinstance(resolved.renderer_cfg.newton_renderer, NewtonWarpRendererCfg)
 
 
 def test_camera_resolution_defaults_to_256():

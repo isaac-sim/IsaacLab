@@ -11,6 +11,7 @@ from collections.abc import Sequence
 import torch
 
 from isaaclab.envs import DirectMARLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import sample_uniform
 
 from .pendulum_marl_env_cfg import PendulumMARLEnvCfg
@@ -29,9 +30,13 @@ class PendulumMARLEnv(DirectMARLEnv):
         super().__init__(cfg, render_mode, **kwargs)
 
         self.robot = self.scene["robot"]
-        self._cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
-        self._pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
-        self._pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
+        cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
+        pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
+        pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
+        # device indices avoid per-step host uploads
+        self._cart_dof_idx = torch.tensor(cart_dof_idx, device=self.device)
+        self._pole_dof_idx = torch.tensor(pole_dof_idx, device=self.device)
+        self._pendulum_dof_idx = torch.tensor(pendulum_dof_idx, device=self.device)
 
         self.joint_pos = self.robot.data.joint_pos.torch
         self.joint_vel = self.robot.data.joint_vel.torch
@@ -50,15 +55,15 @@ class PendulumMARLEnv(DirectMARLEnv):
         )
 
     def _get_observations(self) -> dict[str, torch.Tensor]:
-        pole_joint_pos = normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]].unsqueeze(dim=1))
-        pendulum_joint_pos = normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1))
+        pole_joint_pos = normalize_angle(self.joint_pos[:, self._pole_dof_idx])
+        pendulum_joint_pos = normalize_angle(self.joint_pos[:, self._pendulum_dof_idx])
         observations = {
             "cart": torch.cat(
                 (
-                    self.joint_pos[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
-                    self.joint_vel[:, self._cart_dof_idx[0]].unsqueeze(dim=1),
+                    self.joint_pos[:, self._cart_dof_idx],
+                    self.joint_vel[:, self._cart_dof_idx],
                     pole_joint_pos,
-                    self.joint_vel[:, self._pole_dof_idx[0]].unsqueeze(dim=1),
+                    self.joint_vel[:, self._pole_dof_idx],
                 ),
                 dim=-1,
             ),
@@ -66,7 +71,7 @@ class PendulumMARLEnv(DirectMARLEnv):
                 (
                     pole_joint_pos + pendulum_joint_pos,
                     pendulum_joint_pos,
-                    self.joint_vel[:, self._pendulum_dof_idx[0]].unsqueeze(dim=1),
+                    self.joint_vel[:, self._pendulum_dof_idx],
                 ),
                 dim=-1,
             ),
@@ -74,6 +79,8 @@ class PendulumMARLEnv(DirectMARLEnv):
         return observations
 
     def _get_rewards(self) -> dict[str, torch.Tensor]:
+        pole_pos = self.joint_pos[:, self._pole_dof_idx][:, 0]
+        pendulum_pos = self.joint_pos[:, self._pendulum_dof_idx][:, 0]
         team_reward = compute_rewards(
             self.cfg.rew_scale_alive,
             self.cfg.rew_scale_terminated,
@@ -84,16 +91,12 @@ class PendulumMARLEnv(DirectMARLEnv):
             self.cfg.rew_scale_pendulum_vel,
             self.cfg.rew_scale_upright,
             self.cfg.rew_scale_action,
-            self.joint_vel[:, self._cart_dof_idx[0]],
-            normalize_angle(self.joint_pos[:, self._pole_dof_idx[0]]),
-            self.joint_vel[:, self._pole_dof_idx[0]],
-            normalize_angle(self.joint_pos[:, self._pendulum_dof_idx[0]]),
-            self.joint_vel[:, self._pendulum_dof_idx[0]],
-            links_upright(
-                self.joint_pos[:, self._pole_dof_idx[0]],
-                self.joint_pos[:, self._pendulum_dof_idx[0]],
-                self.cfg.success_upright_angle,
-            ),
+            self.joint_vel[:, self._cart_dof_idx][:, 0],
+            normalize_angle(pole_pos),
+            self.joint_vel[:, self._pole_dof_idx][:, 0],
+            normalize_angle(pendulum_pos),
+            self.joint_vel[:, self._pendulum_dof_idx][:, 0],
+            links_upright(pole_pos, pendulum_pos, self.cfg.success_upright_angle),
             self.actions["cart"],
             self.actions["pendulum"],
             math.prod(self.terminated_dict.values()),
@@ -112,8 +115,8 @@ class PendulumMARLEnv(DirectMARLEnv):
         terminated = {agent: out_of_bounds for agent in self.cfg.possible_agents}
         time_outs = {agent: time_out for agent in self.cfg.possible_agents}
         upright = links_upright(
-            self.joint_pos[:, self._pole_dof_idx[0]],
-            self.joint_pos[:, self._pendulum_dof_idx[0]],
+            self.joint_pos[:, self._pole_dof_idx][:, 0],
+            self.joint_pos[:, self._pendulum_dof_idx][:, 0],
             self.cfg.success_upright_angle,
         )
         self._consecutive_upright_steps = update_upright_steps(self._consecutive_upright_steps, upright)
@@ -130,8 +133,9 @@ class PendulumMARLEnv(DirectMARLEnv):
                 self._consecutive_upright_steps[env_ids],
                 self._success_required_steps,
             )
-            self.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean().item()
-            self._consecutive_upright_steps[env_ids] = 0
+            # no .item(): avoids a sync on every reset
+            self.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean()
+            index_fill_(self._consecutive_upright_steps, env_ids, 0)
         super()._reset_idx(env_ids)
 
         joint_pos = self.robot.data.default_joint_pos.torch[env_ids]
