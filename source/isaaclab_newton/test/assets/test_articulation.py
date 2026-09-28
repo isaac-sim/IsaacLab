@@ -28,10 +28,12 @@ simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).ap
 
 """Rest everything follows."""
 
+import logging
 import sys
 from copy import copy, deepcopy
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import newton
 import numpy as np
@@ -2412,14 +2414,15 @@ def test_setting_articulation_root_prim_path(sim, device, articulation_type, roo
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
-def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled, articulation_type):
+def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled, articulation_type, caplog):
     """Joint limit and joint state writes update the joint buffers and refresh the body state without a step.
 
     This test verifies that:
     1. Joint position limits are written and keep in-limit default joint positions
     2. A partial joint state write with unsorted int64 selectors updates only the selected entries
     3. A joint state write moves the bodies and refreshes the derived body poses and velocities
-    4. Indexed joint limits that exclude a default joint position clamp it into the new limits
+    4. Joint limits that exclude a default joint position clamp it into the new limits and report the
+       clamping at the requested log level, without a device readback when that level is disabled
 
     Args:
         sim: The simulation fixture
@@ -2509,7 +2512,10 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
     limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
     limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
-    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
+    articulation_logger = Articulation.__module__
+    with caplog.at_level(logging.WARNING, logger=articulation_logger):
+        articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
+    assert any(record.levelno == logging.WARNING for record in caplog.records)
 
     # Check new limits are in place and the defaults are clamped into them
     torch.testing.assert_close(articulation.data.joint_pos_limits.torch[env_ids][:, joint_ids], limits)
@@ -2518,6 +2524,24 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
         default_joint_pos_torch[env_ids][:, joint_ids] <= limits[..., 1]
     )
     assert torch.all(within_bounds)
+
+    # Info-level clamping reports are logged when enabled and skip the device readback otherwise.
+    articulation.data.default_joint_pos.torch.fill_(1.0)
+    full_limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+    full_limits[..., 1] = 0.5
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=articulation_logger):
+        articulation.write_joint_position_limit_to_sim_mask(limits=full_limits, warn_limit_violation=False)
+    assert [record.levelno for record in caplog.records] == [logging.INFO]
+    articulation.data.default_joint_pos.torch.fill_(1.0)
+    caplog.clear()
+    with (
+        caplog.at_level(logging.WARNING, logger=articulation_logger),
+        patch.object(wp.array, "numpy", side_effect=AssertionError("unexpected device readback")),
+    ):
+        articulation.write_joint_position_limit_to_sim_mask(limits=full_limits, warn_limit_violation=False)
+    assert not caplog.records
+    torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(full_limits[..., 1], 0.5))
 
 
 @pytest.mark.parametrize("selector_kind", ["index", "mask"])
