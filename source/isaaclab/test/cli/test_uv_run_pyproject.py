@@ -158,7 +158,7 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     for package in ("torch", "torchvision", "torchaudio"):
         assert f"{package}=={versions[package]}" in dependencies
 
-    # The Newton uv override mirrors the authoritative release branch.
+    # The Newton uv override is its single pin and may select a release or Git revision.
     newton_spec = next(requirement for requirement in overrides if requirement.startswith("newton[sim]"))
     assert newton_spec.endswith(f"newton.git@{versions['newton']}")
 

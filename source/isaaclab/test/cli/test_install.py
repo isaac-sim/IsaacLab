@@ -334,16 +334,16 @@ class TestDeterminePythonVersion:
 class TestEnsureNewton:
     """Tests for :func:`~isaaclab.cli.commands.install._ensure_newton`.
 
-    Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the configured
-    Newton build (sourced from ``[tool.uv].override-dependencies``) over it.
+    Isaac Sim bundles ``newton[sim]==1.2.0``; the install CLI must force the pinned
+    Newton release (sourced from ``[tool.uv].override-dependencies``) over it.
     """
 
     @staticmethod
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_configured_build_when_absent(self, source_checkout_root: Path):
-        """When the configured build is not installed, uninstall Newton then install it."""
+    def test_installs_pinned_release_when_absent(self, source_checkout_root: Path):
+        """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 
         overrides = install._load_root_pyproject()["tool"]["uv"]["override-dependencies"]
