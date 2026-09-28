@@ -184,9 +184,10 @@ class PickAndPlaceEnv(DirectRLEnv):
             xy_efforts[mask] = (goal_xy[mask] - head_pos_xy[mask]) * 5.0
 
         # Set the joint effort targets for the picker
-        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 0:1], joint_ids=self._x_dof_idx)
-        self.pick_and_place.set_joint_effort_target_index(target=xy_efforts[:, 1:2], joint_ids=self._y_dof_idx)
-        self.pick_and_place.set_joint_effort_target_index(target=self.actions[:, 2:3], joint_ids=self._z_dof_idx)
+        command = self.pick_and_place.actuators.target_command
+        command.set_effort_index(value=xy_efforts[:, 0:1], joint_ids=self._x_dof_idx)
+        command.set_effort_index(value=xy_efforts[:, 1:2], joint_ids=self._y_dof_idx)
+        command.set_effort_index(value=self.actions[:, 2:3], joint_ids=self._z_dof_idx)
         # Set the gripper command
         self.gripper.set_grippers_command(self.actions[:, 3])
 
