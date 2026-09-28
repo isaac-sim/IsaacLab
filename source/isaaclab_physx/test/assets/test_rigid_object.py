@@ -6,16 +6,9 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from isaaclab.test.utils import launch_test_simulation, test_devices
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import resolve_test_sim_device, test_devices
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import sys
 from typing import Literal
@@ -799,35 +792,19 @@ def test_write_root_state(num_cubes, device, with_offset, state_location):
 
 
 @pytest.mark.isaacsim_ci
-def test_warmup_attach_stage_not_called_for_cpu():
-    """Regression test: CPU warmup must force-load without explicitly attaching the stage.
-
-    Bug (commit 0ba9c5cb3b): ``PhysxManager._warmup_and_create_views()`` called
-    ``_physx_sim.attach_stage()`` unconditionally before ``force_load_physics_from_usd()``.
-    These are two alternative initialization patterns; combining them causes
-    double-initialization that corrupts the CPU MBP broadphase, producing
-    non-deterministic collision failures (objects passing through surfaces).
-
-    The CPU pipeline attaches implicitly via ``force_load_physics_from_usd()`` when
-    the ``omni.physics.physx`` bridge registers the backend.
-
-    This test verifies that the PhysX backend is registered with the unified physics
-    API, ``attach_stage`` is not called, and ``force_load_physics_from_usd`` is called
-    exactly once during CPU warmup.
-    """
+@pytest.mark.parametrize("device", test_devices())
+def test_warmup_loads_physics_once(device):
+    """Attach on GPU or force-load on CPU, without destroying and rebuilding native objects."""
     from unittest.mock import MagicMock, patch
 
     import omni.kit.app
     import omni.physx
 
-    with build_simulation_context(device="cpu", add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
+    with build_simulation_context(device=device, add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        generate_cubes_scene(num_cubes=1, height=1.0, device="cpu")
+        cube, _ = generate_cubes_scene(num_cubes=1, height=1.0, device=device)
 
-        # PhysxManager no longer caches the simulation interface; it resolves it on each use
-        # via ``omni.physx.get_physx_simulation_interface()`` (the accessor memoizes it).
-        # The PhysX interfaces are C++ bindings whose attributes are read-only. Patch
-        # their accessors with wrapping mocks so the real calls still execute.
+        # Wrap read-only native interfaces through their accessors; real calls still execute.
         physx_spy = MagicMock(wraps=omni.physx.get_physx_interface())
         physx_sim_spy = MagicMock(wraps=omni.physx.get_physx_simulation_interface())
         with (
@@ -840,8 +817,11 @@ def test_warmup_attach_stage_not_called_for_cpu():
         assert extension_manager.is_extension_enabled("omni.physics.physx"), (
             "The omni.physics.physx bridge must register PhysX with the unified physics API."
         )
-        assert physx_sim_spy.attach_stage.call_count == 0, (
-            f"attach_stage() was called {physx_sim_spy.attach_stage.call_count} time(s) during CPU warmup. "
-            "This indicates the CPU MBP broadphase double-initialization regression is present."
-        )
-        physx_spy.force_load_physics_from_usd.assert_called_once_with()
+        assert physx_sim_spy.attach_stage.call_count == int(device.startswith("cuda"))
+        assert physx_spy.force_load_physics_from_usd.call_count == int(device == "cpu")
+        assert cube.is_initialized and cube.num_instances == 1
+        initial = cube.data.root_pos_w.torch.clone()
+        for _ in range(10):
+            sim.step(render=False)
+            cube.update(sim.get_physics_dt())
+        assert torch.all(cube.data.root_pos_w.torch[:, 2] < initial[:, 2])

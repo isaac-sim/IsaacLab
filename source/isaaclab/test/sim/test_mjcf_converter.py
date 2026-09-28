@@ -3,27 +3,31 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Run the converter from the standalone importer wheel when installed; otherwise launch Isaac Sim."""
+"""Run the converter from the standalone importer wheel when installed; otherwise launch the default runtime."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 from isaaclab.utils.version import standalone_importers_available
 
-# Prefer kit-less; fall back to Kit when the standalone importers are not usable.
-_USE_KIT = not standalone_importers_available() and AppLauncher.is_available()
-simulation_app = AppLauncher(headless=True).app if _USE_KIT else None
+# The standalone importers need no runtime; without them the default runtime provides the importer.
+_USE_RUNTIME = not standalone_importers_available()
+if _USE_RUNTIME:
+    try:
+        launch_test_simulation()
+    except SystemExit:
+        # the launcher exits when its runtime is not installed; without either importer there is nothing to test
+        import pytest
 
-"""Rest everything follows."""
+        pytest.skip(
+            "Needs the MJCF importer: install isaacsim-asset-isolated or the Isaac Sim runtime.",
+            allow_module_level=True,
+        )
 
 import os
 import sys
 from types import SimpleNamespace
 
-import pytest
-
-if _USE_KIT:
-    import omni.kit.app
-
 import newton
+import pytest
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
@@ -33,21 +37,10 @@ from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.kitless]
 
 
-_MJCF_IMPORTER_EXTENSION = "isaacsim.asset.importer.mjcf"
+_MJCF_IMPORTER_MODULE = "isaacsim.asset.importer.mjcf"
 
-# Portable MJCF for the kitless path (the Kit path uses the importer extension's bundled
-# ``nv_ant.xml``). ``newton`` ships the same NVIDIA Ant model and is a base dependency of both
-# environments.
+# Portable NVIDIA Ant MJCF; ``newton`` is a base dependency of every environment.
 _PORTABLE_MJCF = os.path.join(os.path.dirname(newton.__file__), "examples", "assets", "nv_ant.xml")
-
-
-def _get_extension_path_without_enabling(extension_name: str) -> str:
-    """Get the path for an extension without enabling it."""
-    manager = omni.kit.app.get_app().get_extension_manager()
-    for extension in manager.get_extensions():
-        if extension["name"] == extension_name:
-            return extension["path"]
-    raise RuntimeError(f"Extension not found: {extension_name}")
 
 
 @pytest.fixture(autouse=True)
@@ -55,21 +48,16 @@ def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Create a new stage
     stage = sim_utils.create_new_stage()
-    if _USE_KIT:
-        # Kit path: create a simulation context and use the importer extension's asset.
+    if _USE_RUNTIME:
         sim = SimulationContext(SimulationCfg(dt=0.01))
-        extension_path = _get_extension_path_without_enabling(_MJCF_IMPORTER_EXTENSION)
-        asset_path = f"{extension_path}/data/mjcf/nv_ant.xml"
     else:
-        # Kitless path: the converter loads the importer from the standalone wheel. Spawning and
-        # inspecting prims needs a USD stage but neither physics nor Kit, so the plain stage above
-        # stands in for the simulation context; use newton's bundled ``nv_ant.xml``.
+        # Spawning and inspecting prims needs a USD stage but no physics, so the plain stage
+        # stands in for the simulation context.
         sim = SimpleNamespace(stage=stage)
-        asset_path = _PORTABLE_MJCF
 
     # Setup: Create MJCF config
     config = MjcfConverterCfg(
-        asset_path=asset_path,
+        asset_path=_PORTABLE_MJCF,
         self_collision=False,
     )
 
@@ -77,39 +65,26 @@ def test_setup_teardown():
     yield sim, config
 
     # Teardown: Cleanup simulation
-    if _USE_KIT:
+    if _USE_RUNTIME:
         sim._disable_app_control_on_stop_handle = True  # prevent timeout
         sim.stop()
         sim.clear_instance()
 
 
-def test_converter_enables_importer_extension(test_setup_teardown):
-    """Constructing the converter makes the importer API available on the active backend.
-
-    Under Kit that means the owning extension is enabled; kitlessly the importer module is
-    resolved from the standalone wheel instead, with no extension manager involved.
-    """
+def test_converter_loads_importer(test_setup_teardown):
+    """Converting loads the importer module on the active runtime."""
     _, mjcf_config = test_setup_teardown
     # the importer is loaded lazily during conversion, which is skipped when a matching USD
     # already exists, so force it to run
     mjcf_config.force_usd_conversion = True
 
-    if not _USE_KIT:
-        MjcfConverter(mjcf_config)
-
-        # the importer must come from the installed wheel, not a Kit extension tree
-        module_path = sys.modules[_MJCF_IMPORTER_EXTENSION].__file__
-        assert module_path is not None
-        assert "site-packages" in module_path, f"expected a wheel-provided importer, got {module_path}"
-        return
-
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION):
-        pytest.skip("MJCF importer extension was already enabled before constructing MjcfConverter.")
-
     MjcfConverter(mjcf_config)
 
-    assert manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION)
+    module_path = sys.modules[_MJCF_IMPORTER_MODULE].__file__
+    assert module_path is not None
+    if not _USE_RUNTIME:
+        # without a runtime the importer must come from the installed wheel
+        assert "site-packages" in module_path, f"expected a wheel-provided importer, got {module_path}"
 
 
 def test_no_change(test_setup_teardown):

@@ -92,7 +92,8 @@ def test_clone_recipes_resolve_heterogeneous_asset_paths_without_stage_matching(
     stage = Usd.Stage.CreateInMemory()
     for env_id in (0, 1):
         UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object")
-    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: SimpleNamespace(env_ids=(0, 1, 2, 3)))
+    topology = SimpleNamespace(world_prototype_layout=(0, 1, 0, 1))
+    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: SimpleNamespace(topology=topology))
     monkeypatch.setattr(PhysicsManager, "_sim", sim)
     manager = manager_module.OvPhysxManager
     manager._active_clone_recipes = [

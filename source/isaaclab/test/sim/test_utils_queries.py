@@ -3,16 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
 # note: need to enable cameras to be able to make replicator core available
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
+from isaaclab.test.utils import launch_test_simulation
 
-"""Rest everything follows."""
-
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 
@@ -29,7 +23,6 @@ def test_setup_teardown():
     """Create a blank new stage for each test."""
     # Setup: Create a new stage
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
 
     # Yield for the test
     yield

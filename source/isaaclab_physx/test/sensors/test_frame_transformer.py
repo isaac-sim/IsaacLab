@@ -3,14 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 from types import SimpleNamespace
@@ -31,7 +26,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformerCfg, OffsetCfg
 from isaaclab.sensors.frame_transformer import BaseFrameTransformer
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
@@ -59,7 +54,7 @@ class MySceneCfg(InteractiveSceneCfg):
     terrain = TerrainImporterCfg(prim_path="/World/ground", terrain_type="plane")
 
     # articulation - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors - frame transformer (filled inside unit test)
     frame_transformer: FrameTransformerCfg = None
@@ -430,10 +425,11 @@ def test_frame_transformer_duplicate_body_names(sim, source_robot, path_prefix):
 
     # Create scene config with appropriate prim paths
     scene_cfg = MultiRobotSceneCfg(num_envs=num_envs, env_spacing=env_spacing, lazy_sensor_update=False)
-    scene_cfg.robot = ANYMAL_C_CFG.replace(prim_path=f"{path_prefix}/Robot")
-    scene_cfg.robot_1 = ANYMAL_C_CFG.replace(
+    scene_cfg.robot = replace(ANYMAL_C_CFG, prim_path=f"{path_prefix}/Robot")
+    scene_cfg.robot_1 = replace(
+        ANYMAL_C_CFG,
         prim_path=f"{path_prefix}/Robot_1",
-        init_state=ANYMAL_C_CFG.init_state.replace(pos=(2.0, 0.0, 0.6)),
+        init_state=replace(ANYMAL_C_CFG.init_state, pos=(2.0, 0.0, 0.6)),
     )
 
     # Frame transformer tracking same-named bodies from both robots

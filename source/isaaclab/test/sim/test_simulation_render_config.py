@@ -119,6 +119,8 @@ def test_isaac_rtx_global_settings(monkeypatch):
     utils = importlib.import_module("isaaclab_physx.renderers.isaac_rtx_renderer_utils")
     settings = _FakeSettings()
     monkeypatch.setattr(utils, "get_settings_manager", lambda: settings)
+    # the stubs replace Replicator, so there is no Kit extension to enable
+    monkeypatch.setattr(utils, "enable_extension", lambda _name: None)
     global_settings = IsaacRtxRendererGlobalSettingsCfg(
         enable_translucency=True,
         enable_reflections=True,

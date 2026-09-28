@@ -9,15 +9,19 @@ import shutil
 import numpy as np
 import pytest
 import torch
+import trimesh
 
 from isaaclab.terrains import (
     FlatPatchSamplingCfg,
+    MeshFileTerrainCfg,
     MeshRepeatedBoxesTerrainCfg,
     MeshStarTerrainCfg,
     TerrainGenerator,
     TerrainGeneratorCfg,
 )
 from isaaclab.terrains.config.rough import ROUGH_TERRAINS_CFG
+from isaaclab.terrains.height_field import HfInvertedPyramidSlopedTerrainCfg
+from isaaclab.terrains.trimesh.utils import make_box, make_cone, make_cylinder
 from isaaclab.utils.seed import configure_seed
 
 pytestmark = pytest.mark.integration
@@ -70,6 +74,26 @@ def test_generation_star_terrain():
     assert terrain_generator.terrain_origins.shape == (cfg.num_rows, cfg.num_cols, 3)
 
 
+@pytest.mark.parametrize(
+    "make_object, object_kwargs",
+    [
+        (make_box, {"length": 1.0, "width": 1.0}),
+        (make_cylinder, {"radius": 0.5}),
+        (make_cone, {"radius": 0.5}),
+    ],
+)
+def test_object_max_yx_angle_units(make_object, object_kwargs):
+    """``max_yx_angle`` limits the object tilt the same way whether it is given in degrees or radians."""
+    np.random.seed(0)
+    mesh_deg = make_object(height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=30.0, degrees=True, **object_kwargs)
+    np.random.seed(0)
+    mesh_rad = make_object(
+        height=1.0, center=(0.0, 0.0, 0.0), max_yx_angle=np.deg2rad(30.0), degrees=False, **object_kwargs
+    )
+
+    np.testing.assert_allclose(mesh_rad.vertices, mesh_deg.vertices, atol=1e-6)
+
+
 def test_repeated_objects_default_object_type():
     """The default resolvable ``object_type`` of the repeated-object configs is called, not looked up by name."""
     object_cfg = MeshRepeatedBoxesTerrainCfg.ObjectCfg(num_objects=3, height=0.2, size=(0.3, 0.3))
@@ -81,6 +105,40 @@ def test_repeated_objects_default_object_type():
     # three objects, ground plane and platform
     assert len(meshes) == 5
     assert origin.shape == (3,)
+
+
+def test_mesh_file_terrain(tmp_path):
+    """A mesh file is centered on the sub-terrain with its height kept and the origin on its top surface."""
+    mesh_path = tmp_path / "terrain.obj"
+    trimesh.creation.box(
+        extents=(2.0, 3.0, 0.5), transform=trimesh.transformations.translation_matrix((10.0, -5.0, 0.3))
+    ).export(mesh_path)
+    cfg = MeshFileTerrainCfg(size=(4.0, 6.0), mesh_path=str(mesh_path))
+    meshes, origin = cfg.function(0.0, cfg)
+
+    assert len(meshes) == 1
+    np.testing.assert_allclose(meshes[0].bounds, [[1.0, 1.5, 0.05], [3.0, 4.5, 0.55]], atol=1e-6)
+    np.testing.assert_allclose(origin, [2.0, 3.0, 0.55], atol=1e-6)
+
+
+@pytest.mark.parametrize("platform_width,border_width", [(0.5, 0.0), (1.0, 0.0), (1.5, 0.2)])
+def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_width: float):
+    cfg = HfInvertedPyramidSlopedTerrainCfg(
+        size=(8.0, 8.0),
+        horizontal_scale=0.1,
+        vertical_scale=0.005,
+        border_width=border_width,
+        slope_range=(0.4, 0.4),
+        platform_width=platform_width,
+    )
+    meshes, origin = cfg.function(1.0, cfg)
+    center_vertices = meshes[0].vertices[
+        np.isclose(meshes[0].vertices[:, 0], 4.0) & np.isclose(meshes[0].vertices[:, 1], 4.0)
+    ]
+
+    np.testing.assert_allclose(origin[:2], (4.0, 4.0))
+    assert len(center_vertices) == 1
+    assert origin[2] == pytest.approx(center_vertices[0, 2])
 
 
 @pytest.mark.parametrize("use_global_seed", [True, False])

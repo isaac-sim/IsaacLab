@@ -7,56 +7,20 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-from newton import Model
+from newton import Model, ModelBuilder
 from newton.solvers import SolverVBD
 
 from .newton_manager import NewtonManager
 from .vbd_manager_cfg import VBDSolverCfg
-
-if TYPE_CHECKING:
-    from isaaclab.sim.simulation_context import SimulationContext
 
 
 class NewtonVBDManager(NewtonManager):
     """Newton manager specialization for the VBD solver."""
 
     @classmethod
-    def initialize(cls, sim_context: SimulationContext) -> None:
-        """Initialize VBD deformable integration when contrib is available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import install_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            install_deformable_builder_hooks()
-        super().initialize(sim_context)
-
-    @classmethod
-    def start_simulation(cls) -> None:
-        """Color the prebuilt model before starting simulation."""
-        if cls._builder is not None:
-            cls._builder.color(balance_colors=False)
-        super().start_simulation()
-
-    @classmethod
-    def instantiate_builder_from_stage(cls) -> None:
-        """Create and color the VBD builder from the USD stage."""
-        super().instantiate_builder_from_stage()
-        if cls._builder is None:
-            raise RuntimeError("Newton stage import did not create a builder.")
-        # Warp's optional balancing pass can cycle indefinitely for valid graph colorings.
-        # The initial assignment is sufficient for VBD correctness.
-        cls._builder.color(balance_colors=False)
-
-    @classmethod
-    def _get_usd_import_ignore_paths(cls) -> list[str]:
-        """Return registered deformable mesh paths excluded from USD import."""
-        return [
-            path for entry in cls._deformable_registry for path in (entry.sim_mesh_prim_path, entry.vis_mesh_prim_path)
-        ]
+    def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
+        """Color the completed builder before allocating the model."""
+        builder.color(balance_colors=False)
 
     @classmethod
     def _create_solver(cls, model: Model, solver_cfg: VBDSolverCfg) -> SolverVBD:
@@ -70,17 +34,6 @@ class NewtonVBDManager(NewtonManager):
         NewtonManager._use_single_state = False
         NewtonManager._needs_collision_pipeline = True
         NewtonManager._supports_rigid_body_force_input = not solver_cfg.integrate_with_external_rigid_solver
-
-    @classmethod
-    def _solver_specific_clear(cls) -> None:
-        """Clear contrib deformable integration when available."""
-        try:
-            from isaaclab_contrib.deformable.deformable_object import clear_deformable_builder_hooks
-        except ModuleNotFoundError as exc:
-            if exc.name not in {"isaaclab_contrib", "isaaclab_contrib.deformable"}:
-                raise
-        else:
-            clear_deformable_builder_hooks()
 
     @classmethod
     def _simulate_physics_only(cls) -> None:

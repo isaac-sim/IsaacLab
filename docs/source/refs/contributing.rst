@@ -272,6 +272,10 @@ Note that ``__init__.py`` files are an exception to the above: they use
 :func:`~isaaclab.utils.module.lazy_export` instead of traditional imports.
 See the `Lazy Loading & Module Exports`_ section for details.
 
+Pass ``ProxyArray`` objects directly to Warp kernels. Keep one proxy per owned array, without
+parallel ``_ta``, ``_warp``, or ``_torch`` attributes; timestamped array caches can own the proxy in
+``data``. Use explicit native access only where the receiving API requires it.
+
 Python does not have a concept of private and public classes and functions. However, we follow the
 convention of prefixing the private functions and classes with an underscore.
 The public functions and classes are the ones that are intended to be used by the users. The private
@@ -334,6 +338,34 @@ To address this, we use two complementary techniques:
 
 See the `Resolvable Strings`_ and `Lazy Loading & Module Exports`_ sections for full
 examples of both patterns.
+
+Configuration Operations
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use :func:`~isaaclab.utils.instantiate` to construct the implementation selected by a config:
+
+.. code-block:: python
+
+   from isaaclab.utils import clone, instantiate, replace, to_dict, update_from_dict, validate
+
+   robot_cfg = replace(ROBOT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+   other_cfg = clone(robot_cfg)
+   update_from_dict(other_cfg, {"init_state": {"pos": (1.0, 0.0, 0.0)}})
+   validate(other_cfg)
+   settings = to_dict(other_cfg)
+   robot = instantiate(robot_cfg)
+   action = instantiate(action_cfg, env)
+
+``instantiate`` passes the config as the first constructor argument, followed by any additional
+arguments. It does not copy configs, construct nested configs, or cache instances. Resource
+sharing remains the responsibility of ``SimulationContext.get_or_create_backend``.
+
+``clone`` and ``replace`` return new configurations, preserving fields explicitly marked as borrowed.
+``update_from_dict`` updates an existing configuration in place. ``validate`` checks required
+fields and runs nested ``validate_config`` hooks. Prefer these functions in new code; the existing
+``cfg.copy()``, ``cfg.replace(...)``, ``cfg.validate()``, ``cfg.to_dict()``, ``cfg.from_dict(...)``, and
+``cfg.class_type(cfg, ...)`` calls remain supported without deprecation.
+The longer function names ``class_to_dict`` and ``update_class_from_dict`` also remain supported.
 
 Lazy Loading & Module Exports
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

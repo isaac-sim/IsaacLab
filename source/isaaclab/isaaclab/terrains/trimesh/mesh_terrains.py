@@ -711,6 +711,36 @@ def star_terrain(
     return meshes_list, origin
 
 
+def mesh_file_terrain(
+    difficulty: float, cfg: mesh_terrains_cfg.MeshFileTerrainCfg
+) -> tuple[list[trimesh.Trimesh], np.ndarray]:
+    """Generate a terrain from a mesh file.
+
+    The mesh is translated so that its bounding box is centered on the terrain in the XY plane. Its
+    height is preserved. The origin is placed on the highest surface point at the terrain center, or at
+    the top of the mesh if nothing lies below the center.
+
+    Note:
+        The :obj:`difficulty` parameter is ignored for this terrain.
+
+    Args:
+        difficulty: The difficulty of the terrain. This is a value between 0 and 1.
+        cfg: The configuration for the terrain.
+
+    Returns:
+        A tuple containing the tri-mesh of the terrain and the origin of the terrain (in m).
+    """
+    mesh = trimesh.load(cfg.mesh_path, force="mesh")
+    center = np.array([0.5 * cfg.size[0], 0.5 * cfg.size[1]])
+    mesh.apply_translation([*(center - mesh.bounds[:, :2].mean(axis=0)), 0.0])
+    # cast a ray down from above the mesh to find the surface height at the center
+    ray_origin = [[center[0], center[1], mesh.bounds[1, 2] + 1.0]]
+    hits, _, _ = mesh.ray.intersects_location(ray_origin, [[0.0, 0.0, -1.0]])
+    height = hits[:, 2].max() if len(hits) > 0 else mesh.bounds[1, 2]
+
+    return [mesh], np.array([center[0], center[1], height])
+
+
 def repeated_objects_terrain(
     difficulty: float, cfg: mesh_terrains_cfg.MeshRepeatedObjectsTerrainCfg
 ) -> tuple[list[trimesh.Trimesh], np.ndarray]:

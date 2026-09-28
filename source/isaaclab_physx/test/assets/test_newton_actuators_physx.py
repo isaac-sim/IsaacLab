@@ -14,9 +14,10 @@ Using ANYmal-C — a 12-DOF quadruped on a floating base — exercises the
 full Lab-to-Newton config translation pipeline on a real-world robot.
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import functools
 import os
@@ -183,10 +184,8 @@ def _run_simulation(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+        art_cfg = replace(
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -349,10 +348,8 @@ def _assert_newton_actuator_uses_current_joint_state(
         sim._app_control_on_stop_handle = None
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-        art_cfg = ANYMAL_C_CFG.replace(
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+        art_cfg = replace(
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         articulation = Articulation(art_cfg)
         sim.reset()
@@ -502,12 +499,11 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
         for i in range(NUM_ENVS):
             sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 6.0, 0, 0))
 
-        anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-        cartpole_cfg = CARTPOLE_CFG.replace(
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-            prim_path="/World/Env_[^/]*/Cartpole",
+        anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+        cartpole_cfg = replace(
+            CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
         )
-        cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+        cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
 
         anymal = Articulation(anymal_cfg)
         cartpole = Articulation(cartpole_cfg)
@@ -607,10 +603,7 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             sim._app_control_on_stop_handle = None
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 3.0, 0, 0))
-            art_cfg = ANYMAL_C_CFG.replace(
-                actuators=IMPLICIT_ONLY_ACTUATORS,
-                prim_path="/World/Env_.*/Robot",
-            )
+            art_cfg = replace(ANYMAL_C_CFG, actuators=IMPLICIT_ONLY_ACTUATORS, prim_path="/World/Env_.*/Robot")
             anymal = Articulation(art_cfg)
             sim.reset()
 
@@ -655,12 +648,11 @@ class TestRandomizeActuatorGainsViaEventsPhysx(unittest.TestCase):
             for i in range(NUM_ENVS):
                 sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=(i * 6.0, 0, 0))
 
-            anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-            cartpole_cfg = CARTPOLE_CFG.replace(
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-                prim_path="/World/Env_[^/]*/Cartpole",
+            anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+            cartpole_cfg = replace(
+                CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
             )
-            cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+            cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
             anymal = Articulation(anymal_cfg)
             cartpole = Articulation(cartpole_cfg)
             sim.reset()
@@ -725,7 +717,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
         return SimulationCfg(dt=DT, physics=PhysxCfg(), use_newton_actuators=use_newton_actuators)
 
     def _make_articulation(self) -> Articulation:
-        return Articulation(ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
+        return Articulation(replace(ANYMAL_C_CFG, actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot"))
 
     def _get_adapter(self, articulation):
         return articulation.newton_actuator_adapter

@@ -6,17 +6,12 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-
-"""Launch Isaac Sim Simulator first."""
-
 import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import pytest
 import torch
@@ -117,8 +112,8 @@ def generate_surface_gripper(
     # Create Top-level Xforms, one for each articulation
     for i in range(num_surface_grippers):
         sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(articulation_cfg.replace(prim_path="/World/Env_[^/]*/Robot"))
-    surface_gripper_cfg = surface_gripper_cfg.replace(prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
+    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
+    surface_gripper_cfg = replace(surface_gripper_cfg, prim_path="/World/Env_[^/]*/Robot/Gripper/SurfaceGripper")
     surface_gripper = SurfaceGripper(surface_gripper_cfg)
 
     return surface_gripper, articulation, translations

@@ -18,6 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils import clone, replace, to_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -740,7 +741,7 @@ def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
 
     presets = {"env": collect_presets(env_cfg)}
     global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": env_cfg.to_dict()}
+    hydra_cfg = {"env": to_dict(env_cfg)}
     env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
     return env_cfg
 
@@ -1516,7 +1517,7 @@ def _motion_data_type(data_types: list[str]) -> str:
 
 def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
     """Create a Cartpole camera environment that exposes every configured test AOV."""
-    from isaaclab.utils.buffers import CircularBuffer
+    from isaaclab.utils.images import CameraFrameStack
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 
@@ -1533,11 +1534,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
             super(CartpoleCameraEnv, self).__init__(cfg)
 
             self._tiled_camera = self.scene["tiled_camera"]
-            self._stack = None
-            if frame_stack > 1:
-                self._stack = CircularBuffer(
-                    max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
-                )
+            self._frames = CameraFrameStack(self.num_envs, self.device, frame_stack, channel_first=True)
 
     return _CartpoleRenderingTestEnv(env_cfg)
 
@@ -1738,9 +1735,10 @@ def rendering_test_cartpole(
 
     @configclass
     class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
-        cartpole = CARTPOLE_CFG.replace(
+        cartpole = replace(
+            CARTPOLE_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+            spawn=replace(CARTPOLE_CFG.spawn, semantic_tags=[("class", "cartpole")]),
         )
         tiled_camera = _CartpoleTiledCameraTestCfg()
 
@@ -1856,6 +1854,7 @@ def rendering_test_lift_kuka(
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass
 
@@ -1875,34 +1874,36 @@ def rendering_test_lift_kuka(
 
     @configclass
     class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
-        distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
-        distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
-        distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
-        distance_to_image_plane64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
-        distance_to_image_plane128 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=128, height=128
+        distance_to_camera64 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=64, height=64)
+        distance_to_camera128 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=128, height=128)
+        distance_to_camera256 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=256, height=256)
+        distance_to_image_plane64 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=64, height=64
         )
-        distance_to_image_plane256 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=256, height=256
+        distance_to_image_plane128 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=128, height=128
         )
-        normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
-        normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
-        normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
-        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
-        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
-        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        distance_to_image_plane256 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=256, height=256
         )
-        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        normals64 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=64, height=64)
+        normals128 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=128, height=128)
+        normals256 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=256, height=256)
+        instance_segmentation64 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=256, height=256)
+        instance_id_segmentation_fast64 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
-        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        instance_id_segmentation_fast128 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=128, height=128
         )
-        motion_vectors64 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=64, height=64)
-        motion_vectors128 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=128, height=128)
-        motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
+        instance_id_segmentation_fast256 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
+        motion_vectors64 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=64, height=64)
+        motion_vectors128 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=128, height=128)
+        motion_vectors256 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
     class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
@@ -1941,6 +1942,10 @@ def rendering_test_lift_kuka(
         env_cfg.events.joint_friction = None
         env_cfg.events.object_scale_mass = None
         env_cfg.events.finger_closing_speed = None
+        # No policy image term accepts motion vectors, but the camera must still be read every step.
+        env_cfg.observations.base_image.object_observation_b = ObservationTermCfg(
+            func=lambda env: env.scene.sensors["base_camera"].data.output["motion_vectors"].torch
+        )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
 
@@ -2040,10 +2045,11 @@ def rendering_test_kuka_visual_material_randomization(
         material_path = f"{{ENV_REGEX_NS}}/Robot/{material_name}"
         setattr(scene_cfg, material_name, VisualMaterialCfg(prim_path=material_path, spawn=sim_utils.PbrMdlCfg()))
         bindings[link_path] = f"./{material_name}"
-    robot_spawn = KUKA_ALLEGRO_CFG.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
-    scene_cfg.robot = KUKA_ALLEGRO_CFG.replace(
+    robot_spawn = replace(KUKA_ALLEGRO_CFG.spawn, activate_contact_sensors=False, visual_material_bindings=bindings)
+    scene_cfg.robot = replace(
+        KUKA_ALLEGRO_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, robot_spawn.copy()], random_choice=False),
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, clone(robot_spawn)], random_choice=False),
     )
 
     sim = None
@@ -2074,7 +2080,7 @@ def rendering_test_kuka_visual_material_randomization(
         assert set(scene.extras) == {"sky_light"}
         assert set(scene.sensors) == {"base_camera"}
         assert set(scene.visual_materials) == set(material_names)
-        assert len(scene.clone_plan.cfg_rows[id(scene_cfg.robot)]) == 2
+        assert len(scene_cfg.robot.spawn.spawn_paths) == 2
         for material_name in material_names:
             material_cfg = SceneEntityCfg(material_name)
             material_cfg.resolve(scene)
@@ -2116,11 +2122,15 @@ def rendering_test_kuka_visual_material_randomization(
 
 def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[str]) -> None:
     """Shrink the scene and force image-only observations for Franka golden AOV tests."""
-    from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
     from isaaclab.utils import configclass
+    from isaaclab.utils.images import normalize_camera_image
+
+    def camera_observation(env, sensor_cfg: SceneEntityCfg, data_type: str):
+        images = env.scene.sensors[sensor_cfg.name].data.output[data_type].torch
+        return normalize_camera_image(images, data_type, output_channel_dim=1)
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2129,8 +2139,8 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
-                func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0], "permute": True},
+                func=camera_observation,
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0]},
             )
 
             def __post_init__(self) -> None:

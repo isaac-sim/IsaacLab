@@ -6,14 +6,9 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import math
 
@@ -181,8 +176,6 @@ def setup(sensor_type: str = "cube"):
     # Get the requested sensor configuration using the factory function
     sensor_cfg = get_sensor_cfg_by_type(sensor_type)
 
-    # load stage
-    sim_utils.update_stage()
     return sim, sensor_cfg, dt, robot_cfg, cube_cfg, nut_cfg
 
 

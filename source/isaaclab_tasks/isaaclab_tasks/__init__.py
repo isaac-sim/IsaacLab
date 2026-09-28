@@ -33,7 +33,7 @@ import builtins
 
 from .utils import import_packages
 
-# Guard: AppLauncher._create_app() temporarily removes all "lab" modules from
+# Guard: KitLauncher._create_app() temporarily removes all "lab" modules from
 # sys.modules while creating SimulationApp.  If Kit re-imports this package
 # during that window, __init__ runs again and re-registers every gym env.
 # We stash a flag on builtins because it is never evicted from sys.modules.

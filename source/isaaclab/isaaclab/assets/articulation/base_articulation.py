@@ -18,7 +18,7 @@ import torch
 import warp as wp
 
 from ...sim import SimulationContext
-from ...utils.buffers import TimestampedBufferWarp
+from ...utils.buffers import TimestampedBuffer
 from ...utils.leapp.leapp_semantics import OutputKindEnum, joint_names_resolver, leapp_tensor_semantics
 from ...utils.warp import ProxyArray
 from ..asset_base import AssetBase
@@ -2740,7 +2740,7 @@ class BaseArticulation(AssetBase):
     def _get_backend_ordered_joint_buffer(
         self,
         user_buffer: wp.array,
-        backend_buffer: wp.array | TimestampedBufferWarp | None,
+        backend_buffer: wp.array | TimestampedBuffer | None,
         *,
         component_count: int | None = None,
     ) -> wp.array:
@@ -2760,7 +2760,7 @@ class BaseArticulation(AssetBase):
         Args:
             user_buffer: Public-order joint buffer to reorder.
             backend_buffer: Backend-order staging destination, either a raw Warp
-                array or a :class:`~isaaclab.utils.buffers.TimestampedBufferWarp`.
+                array or a :class:`~isaaclab.utils.buffers.TimestampedBuffer`.
                 Required when the articulation has a non-identity joint ordering.
             component_count: Number of trailing components per joint for a
                 three-dimensional buffer, or ``None`` for a two-dimensional buffer.
@@ -2779,7 +2779,7 @@ class BaseArticulation(AssetBase):
         if backend_buffer is None:
             detail = "backend staging" if component_count is None else "3-D backend staging"
             raise RuntimeError(f"{self.__backend_name__} joint ordering requires {detail}.")
-        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBufferWarp) else backend_buffer
+        backend_data = backend_buffer.data if isinstance(backend_buffer, TimestampedBuffer) else backend_buffer
         if component_count is None:
             wp.launch(
                 ordering_kernels.reorder_2d_user_to_backend,

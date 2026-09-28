@@ -46,14 +46,6 @@ class BaseDeformableObject(AssetBase):
     __backend_name__: str = "base"
     """The name of the backend for the deformable object."""
 
-    def __init__(self, cfg: DeformableObjectCfg):
-        """Initialize the deformable object.
-
-        Args:
-            cfg: A configuration instance.
-        """
-        super().__init__(cfg)
-
     """
     Properties
     """

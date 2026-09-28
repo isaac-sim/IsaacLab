@@ -28,25 +28,22 @@ The rest of the environment is similar to the previous tutorials.
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse the command-line arguments first."""
 
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Tutorial on creating a floating cube environment.")
 parser.add_argument("--num_envs", type=int, default=64, help="Number of environments to spawn.")
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
 
 """Rest everything follows."""
 
@@ -56,15 +53,18 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 import isaaclab.envs.mdp as mdp
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
-from isaaclab.envs import ManagerBasedEnv, ManagerBasedEnvCfg
+from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.managers import ActionTerm, ActionTermCfg, SceneEntityCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate
 from isaaclab.visualizers import VisualizerCfg
+
+if TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
 
 ##
 # Custom action term
@@ -315,39 +315,39 @@ def main():
 
     # setup base environment
     env_cfg = CubeEnvCfg()
-    env = ManagerBasedEnv(cfg=env_cfg)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(env_cfg, args_cli):
+        env = instantiate(env_cfg)
 
-    # setup target position commands
-    target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
-    target_position[:, 2] += 2.0
-    # offset all targets so that they move to the world origin
-    target_position -= env.scene.env_origins
+        # setup target position commands
+        target_position = torch.rand(env.num_envs, 3, device=env.device) * 2
+        target_position[:, 2] += 2.0
+        # offset all targets so that they move to the world origin
+        target_position -= env.scene.env_origins
 
-    # simulate physics
-    count = 0
-    obs, _ = env.reset()
-    while simulation_app.is_running():
-        with torch.inference_mode():
-            # reset
-            if count % 300 == 0:
-                count = 0
-                obs, _ = env.reset()
-                print("-" * 80)
-                print("[INFO]: Resetting environment...")
-            # step env
-            obs, _ = env.step(target_position)
-            # print mean squared position error between target and current position
-            error = torch.linalg.norm(obs["policy"] - target_position).mean().item()
-            print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
-            # update counter
-            count += 1
+        # simulate physics
+        count = 0
+        obs, _ = env.reset()
+        while env.sim.is_running():
+            with torch.inference_mode():
+                # reset
+                if count % 300 == 0:
+                    count = 0
+                    obs, _ = env.reset()
+                    print("-" * 80)
+                    print("[INFO]: Resetting environment...")
+                # step env
+                obs, _ = env.step(target_position)
+                # print mean squared position error between target and current position
+                error = torch.linalg.norm(obs["policy"] - target_position).mean().item()
+                print(f"[Step: {count:04d}]: Mean position error: {error:.4f}")
+                # update counter
+                count += 1
 
-    # close the environment
-    env.close()
+        # close the environment
+        env.close()
 
 
 if __name__ == "__main__":
     # run the main function
     main()
-    # close sim app
-    simulation_app.close()

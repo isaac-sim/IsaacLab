@@ -15,6 +15,7 @@ import trimesh
 from .. import sim as sim_utils
 from ..markers import VisualizationMarkers
 from ..markers.config import FRAME_MARKER_CFG
+from ..utils import instantiate, replace, to_dict, validate
 from .utils import create_prim_from_mesh
 
 if TYPE_CHECKING:
@@ -67,7 +68,7 @@ class TerrainImporter:
             ValueError: If terrain type is 'usd' or 'plane' and no configuration provided for ``env_spacing``.
         """
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs
         self.cfg = cfg
         self.device = sim_utils.SimulationContext.instance().device  # type: ignore
@@ -85,9 +86,7 @@ class TerrainImporter:
             if self.cfg.terrain_generator is None:
                 raise ValueError("Input terrain type is 'generator' but no value provided for 'terrain_generator'.")
             # generate the terrain
-            terrain_generator = self.cfg.terrain_generator.class_type(
-                cfg=self.cfg.terrain_generator, device=self.device
-            )
+            terrain_generator = instantiate(self.cfg.terrain_generator, device=self.device)
             self.import_mesh("terrain", terrain_generator.terrain_mesh)
             # Tag the terrain collider with its height-field resolution. Backends that
             # collide against heightfields (e.g. Newton) can swap the large collision
@@ -168,7 +167,7 @@ class TerrainImporter:
         if debug_vis:
             if not hasattr(self, "origin_visualizer"):
                 self.origin_visualizer = VisualizationMarkers(
-                    cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/TerrainOrigin")
+                    cfg=replace(FRAME_MARKER_CFG, prim_path="/Visuals/TerrainOrigin")
                 )
                 if self.terrain_origins is not None:
                     self.origin_visualizer.visualize(self.terrain_origins.reshape(-1, 3))
@@ -215,7 +214,7 @@ class TerrainImporter:
         # obtain ground plane color from the configured visual material
         color = None
         if self.cfg.visual_material is not None:
-            material = self.cfg.visual_material.to_dict()
+            material = to_dict(self.cfg.visual_material)
             if "diffuse_color" in material:
                 color = material["diffuse_color"]
             else:

@@ -190,7 +190,7 @@ def keep_running(sim, count: int) -> bool:
     """Return whether the example loop should continue this frame."""
     if args_cli.max_steps >= 0 and count >= args_cli.max_steps:
         return False
-    return sim.is_headless_or_exist_active_visualizer()
+    return sim.is_running()
 
 
 def run_simulator(sim, scene) -> None:

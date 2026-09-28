@@ -13,7 +13,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.stack import mdp
@@ -84,7 +84,7 @@ class UR10CubeStackEnvCfg(StackEnvCfg):
     ]
     cube_scale = (1.0, 1.0, 1.0)
     # Listens to the required transforms
-    marker_cfg = FRAME_MARKER_CFG.copy()
+    marker_cfg = clone(FRAME_MARKER_CFG)
     marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
@@ -162,7 +162,7 @@ class UR10LongSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         self.events = EventCfgLongSuction()
 
         # Set UR10 as robot
-        self.scene.robot = UR10_LONG_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(UR10_LONG_SUCTION_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(
@@ -199,7 +199,7 @@ class UR10ShortSuctionCubeStackEnvCfg(UR10CubeStackEnvCfg):
         self.sim.device = "cpu"
 
         # Set UR10 as robot
-        self.scene.robot = UR10_SHORT_SUCTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(UR10_SHORT_SUCTION_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set surface gripper: Ensure the SurfaceGripper prim has the required attributes
         self.scene.surface_gripper = SurfaceGripperCfg(

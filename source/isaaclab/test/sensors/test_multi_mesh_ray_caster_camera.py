@@ -6,14 +6,9 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True, enable_cameras=True).app
-
-"""Rest everything follows."""
+launch_test_simulation(enable_cameras=True)
 
 import copy
 from collections.abc import Callable
@@ -22,15 +17,15 @@ import numpy as np
 import pytest
 import torch
 
-import omni.replicator.core as rep
 from pxr import Gf
 
 import isaaclab.sim as sim_utils
 from isaaclab import cloner as lab_cloner
-from isaaclab.cloner import ClonePlan
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology
 from isaaclab.sensors.camera import Camera, CameraCfg
 from isaaclab.sensors.ray_caster import MultiMeshRayCasterCamera, MultiMeshRayCasterCameraCfg, patterns
-from isaaclab.sim import PinholeCameraCfg
+from isaaclab.sim import PinholeCameraCfg, SpawnerCfg
 from isaaclab.terrains.trimesh.utils import make_plane
 from isaaclab.terrains.utils import create_prim_from_mesh
 
@@ -74,8 +69,6 @@ def setup_simulation():
     # Ground-plane
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh("/World/defaultGroundPlane", mesh)
-    # load stage
-    sim_utils.update_stage()
 
     camera_cfg = MultiMeshRayCasterCameraCfg(
         prim_path="/World/Camera",
@@ -98,8 +91,6 @@ def setup_simulation():
     yield sim, dt, camera_cfg
 
     # Cleanup
-    # close all the opened viewport from before.
-    rep.vp_manager.destroy_hydra_textures("Replicator")
     # stop simulation
     sim.stop()
     # clear the stage
@@ -333,27 +324,25 @@ def _create_heterogeneous_clone_scene(sim: sim_utils.SimulationContext, num_envs
         mask=np.concatenate((robot_mask, object_mask), axis=0),
     )
 
-    sim.set_clone_plan(
-        ClonePlan(
-            sources=(
-                env_fmt.format(0) + "/Robot",
-                env_fmt.format(1) + "/Robot",
-                env_fmt.format(0) + "/Object",
-                env_fmt.format(1) + "/Object",
-            ),
-            destinations=(
-                env_fmt + "/Robot",
-                env_fmt + "/Robot",
-                env_fmt + "/Object",
-                env_fmt + "/Object",
-            ),
-            clone_mask=np.concatenate((robot_mask, object_mask), axis=0),
-            env_ids=env_ids,
-            positions=None,
-            cfg_rows={},
-        )
+    plan = ClonePlan(
+        PrototypeWorldTopology(
+            num_asset_prototypes=4,
+            world_prototypes=np.array([0, 2, 0, 3, 1, 2, 1, 3]),
+            world_prototype_starts=np.array([0, 0, 2, 4, 6, 8]),
+            world_prototype_layout=robot_mask.argmax(axis=0) * 2 + object_mask.argmax(axis=0),
+        ),
+        asset_cfgs=tuple(
+            AssetBaseCfg(
+                prim_path=f"{env_fmt.format('[^/]+')}/{name}",
+                spawn=SpawnerCfg(spawn_path=f"{env_fmt.format(i)}/{name}"),
+            )
+            for name in ("Robot", "Object")
+            for i in range(2)
+        ),
+        env_template=env_fmt,
+        positions=env_origins,
     )
-    sim_utils.update_stage()
+    sim.set_clone_plan(plan)
     return torch.as_tensor(env_origins, device=sim.device)
 
 

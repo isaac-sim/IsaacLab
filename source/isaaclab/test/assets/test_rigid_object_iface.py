@@ -46,9 +46,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 _backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 _NUM_INSTANCES = 2
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
-)
 _production_backends = pytest.mark.parametrize(
     "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
 )
@@ -62,16 +59,23 @@ _production_backends = pytest.mark.parametrize(
 class TestRigidObjectIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_index_resolution_backends
-    def test_resolve_env_ids_handles_tensor_view_shape(self, backend):
-        obj, _ = get_rigid_object(backend, num_instances=4, device="cpu")
+    @_production_backends
+    @_devices
+    def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
+        obj, _ = get_rigid_object(backend, num_instances=4, device=device)
 
-        env_ids = torch.arange(4, dtype=torch.int32, device="cpu")
+        env_ids = torch.arange(4, dtype=torch.int32, device=device)
         resolved_full = obj._resolve_env_ids(env_ids)
         resolved_view = obj._resolve_env_ids(env_ids[:2])
 
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
+        cached = wp.to_torch(obj._ALL_INDICES)
+        for selection in (slice(None), slice(1, None, 2), slice(0, 0)):
+            resolved = wp.to_torch(obj._resolve_env_ids(selection))
+            torch.testing.assert_close(resolved, cached[selection])
+            assert resolved.data_ptr() == cached[selection].data_ptr()
+            assert resolved.stride() == cached[selection].stride()
 
 
 # ---------------------------------------------------------------------------
@@ -180,11 +184,23 @@ class TestRigidObjectDataProperties:
     def test_rigid_object_data_property_contract(self, backend, device):
         obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device)
         obj.data.update(dt=0.01)
+        if backend == "newton":
+            for name in ("root_link_vel_w", "root_com_pose_w", "body_com_pose_b", "projected_gravity_b", "heading_w"):
+                assert getattr(obj.data, "_" + name).data is None
         shapes = {"N": (_NUM_INSTANCES,), "N1": (_NUM_INSTANCES, 1), "N19": (_NUM_INSTANCES, 1, 9)}
         for name, shape_kind, dtype in _RIGID_OBJECT_DATA_PROPERTIES:
             _check_proxy_array(
                 getattr(obj.data, name), expected_shape=shapes[shape_kind], expected_dtype=dtype, name=name
             )
+
+        for frame in ("root_link", "root_com", "body_link", "body_com"):
+            for quantity, components in (("pose", ("pos", "quat")), ("vel", ("lin_vel", "ang_vel"))):
+                packed = getattr(obj.data, f"{frame}_{quantity}_w").torch
+                for component, expected in zip(components, (packed[..., :3], packed[..., 3:]), strict=True):
+                    view = getattr(obj.data, f"{frame}_{component}_w").torch
+                    torch.testing.assert_close(view, expected)
+                    assert view.data_ptr() == expected.data_ptr()
+                    assert view.stride() == expected.stride()
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +407,7 @@ class TestRigidObjectCacheInvalidation:
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
         obj.data.update(dt=0.01)
+        body_velocity = obj.data.body_link_vel_w
         buffers = _prime_timestamped_properties(
             obj.data,
             [
@@ -403,6 +420,9 @@ class TestRigidObjectCacheInvalidation:
         root_velocity = _make_data_warp((obj.num_instances,), "cpu", wp.spatial_vectorf)
         obj.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
         _assert_buffers_stale(obj.data, buffers)
+        # Read the body alias first; zero angular velocity makes link and COM velocities equal.
+        _assert_reads_back(obj.data.body_link_vel_w, wp.to_torch(root_velocity).unsqueeze(1), "body_link_vel_w")
+        assert obj.data.body_link_vel_w is body_velocity
 
     @_production_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
@@ -623,7 +643,7 @@ class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
 
     @_production_backends
-    def test_external_wrench_frames(self, backend, monkeypatch):
+    def test_external_wrench_frames(self, backend):
         """Forward local and world wrenches through the real writer in each backend's frame."""
         device = "cpu"  # the composer and wrench-packing kernels are device-independent
         obj, raw_backend = get_rigid_object(backend, num_instances=2, device=device)
@@ -632,13 +652,9 @@ class TestRigidObjectWritersBody:
             [[1.0, 2.0, 3.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5], [4.0, 5.0, 6.0, 0.0, 0.0, 2.0**-0.5, 2.0**-0.5]],
             device=device,
         )
-        if backend == "newton":
-            from isaaclab_newton.physics import NewtonManager
-
-            # The mocked view has no state for forward kinematics; seed the body pose FK would publish below.
-            monkeypatch.setattr(NewtonManager, "forward", MagicMock())
         obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
         if backend == "newton":
+            # Seed the body pose the native FK would publish.
             obj.data._sim_bind_body_link_pose_w.assign(wp.from_torch(root_pose, dtype=wp.transformf))
         composer = obj.permanent_wrench_composer
         forces = torch.arange(1.0, 7.0, device=device).reshape(2, 1, 3)

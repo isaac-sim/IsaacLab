@@ -21,6 +21,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
+from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -76,7 +77,7 @@ class DirectMARLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -139,7 +140,7 @@ class DirectMARLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = self.cfg.scene.class_type(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -211,13 +212,13 @@ class DirectMARLEnv(gym.Env):
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.action_noise_model.items()
                 if noise_model is not None
             }
         if self.cfg.observation_noise_model:
             self._observation_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.observation_noise_model.items()
                 if noise_model is not None
             }
@@ -407,33 +408,17 @@ class DirectMARLEnv(gym.Env):
         # note: uses cached property to avoid settings lookup every step
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        if self._physics_handles_decimation:
-            self._sim_step_counter += self.cfg.decimation
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             self._apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            # render only when a render_interval boundary falls within this decimation block,
-            # mirroring the per-sub-step check in the else branch.
+            # render_enabled=False skips Kit (camera/GUI); standalone visualizers still update
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render(skip_app_pumping=not self.render_enabled)
-            self.scene.update(dt=self.step_dt)
-        else:
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
-                # set actions into buffers
-                self._apply_action()
-                # set actions into simulator
-                self.scene.write_data_to_sim()
-                # simulate
-                self.sim.step(render=False)
-                # render between steps only if the GUI or an RTX sensor needs it.
-                # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
-                # but standalone visualizers (Newton, Rerun, Viser) still update.
-                if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
-                    self.sim.render(skip_app_pumping=not self.render_enabled)
-                # update buffers at sim dt
-                self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step:
         # -- update env counters (used for curriculum generation)
@@ -460,11 +445,11 @@ class DirectMARLEnv(gym.Env):
         if self.sim.consume_reset_request():
             not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
             if len(reset_env_ids) > 0:
-                not_yet_reset[reset_env_ids] = False
+                index_fill_(not_yet_reset, reset_env_ids, False)
             manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1)
             if len(manual_reset_ids) > 0:
                 for agent in self.terminated_dict:
-                    self.terminated_dict[agent][manual_reset_ids] = True
+                    index_fill_(self.terminated_dict[agent], manual_reset_ids, True)
                 self._reset_idx(manual_reset_ids)
 
         # post-step: step interval event
@@ -514,14 +499,6 @@ class DirectMARLEnv(gym.Env):
         Returns:
             The seed used for random generator.
         """
-        # set seed for replicator
-        try:
-            import omni.replicator.core as rep
-
-            rep.set_global_seed(seed)
-        except ModuleNotFoundError:
-            pass
-        # set seed for torch and other libraries
         return configure_seed(seed)
 
     def render(self, recompute: bool = False) -> np.ndarray | None:
@@ -708,7 +685,7 @@ class DirectMARLEnv(gym.Env):
             for noise_model in self._observation_noise_model.values():
                 noise_model.reset(env_ids)
 
-        self.episode_length_buf[env_ids] = 0
+        index_fill_(self.episode_length_buf, env_ids, 0)
 
     """
     Implementation-specific functions.

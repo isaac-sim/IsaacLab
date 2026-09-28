@@ -10,6 +10,8 @@ from collections.abc import Callable, Sequence
 import newton.ik as ik
 import warp as wp
 
+from isaaclab.utils import instantiate
+
 from .newton_ik_objectives import NewtonIKBuildContext, NewtonIKObjective
 from .newton_ik_objectives_cfg import NewtonIKObjectiveCfg
 from .newton_ik_solver_cfg import NewtonIKSolverCfg
@@ -57,7 +59,7 @@ class NewtonIKSolver:
         self.objectives_by_name: dict[str, NewtonIKObjective] = {}
         solver_objectives: list[ik.IKObjective] = []
         for objective_cfg in objectives:
-            objective = objective_cfg.class_type(objective_cfg, ctx)
+            objective = instantiate(objective_cfg, ctx)
             if objective.name is not None:
                 if objective.name in self.objectives_by_name:
                     raise ValueError(f"Newton IK objective names must be unique: duplicate '{objective.name}'.")

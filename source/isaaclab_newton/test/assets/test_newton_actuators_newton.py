@@ -18,9 +18,10 @@ Each test class overrides ANYmal's default actuators with a specific Lab
 config (IdealPD, DCMotor, or mixed) and verifies Lab vs Newton equivalence.
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import functools
 import os
@@ -160,10 +161,8 @@ def _run_simulation(
     ) as sim:
         sim._app_control_on_stop_handle = None
         sim_utils.create_prim("/World/Env_0", "Xform")
-        art_cfg = ANYMAL_C_CFG.replace(
-            actuators=actuators,
-            prim_path="/World/Env_[^/]*/Robot",
-            joint_ordering=joint_ordering,
+        art_cfg = replace(
+            ANYMAL_C_CFG, actuators=actuators, prim_path="/World/Env_[^/]*/Robot", joint_ordering=joint_ordering
         )
         clone_plan_from_env_0(
             CloneCfg(clone_template="/World/Env_{}"),
@@ -406,13 +405,12 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 
         sim_utils.create_prim("/World/Env_0", "Xform")
 
-        anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-        cartpole_cfg = CARTPOLE_CFG.replace(
-            actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-            prim_path="/World/Env_[^/]*/Cartpole",
+        anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+        cartpole_cfg = replace(
+            CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
         )
         # Stand the cartpole well clear of the anymal.
-        cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+        cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
 
         clone_plan_from_env_0(
             CloneCfg(clone_template="/World/Env_{}"),
@@ -520,12 +518,11 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             sim._app_control_on_stop_handle = None
             sim_utils.create_prim("/World/Env_0", "Xform")
 
-            anymal_cfg = ANYMAL_C_CFG.replace(actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
-            cartpole_cfg = CARTPOLE_CFG.replace(
-                actuators=CARTPOLE_EXPLICIT_ACTUATORS,
-                prim_path="/World/Env_[^/]*/Cartpole",
+            anymal_cfg = replace(ANYMAL_C_CFG, actuators=IDEAL_PD_ACTUATORS, prim_path="/World/Env_[^/]*/Anymal")
+            cartpole_cfg = replace(
+                CARTPOLE_CFG, actuators=CARTPOLE_EXPLICIT_ACTUATORS, prim_path="/World/Env_[^/]*/Cartpole"
             )
-            cartpole_cfg.init_state = cartpole_cfg.init_state.replace(pos=(0.0, 3.0, 2.0))
+            cartpole_cfg.init_state = replace(cartpole_cfg.init_state, pos=(0.0, 3.0, 2.0))
             clone_plan_from_env_0(
                 CloneCfg(clone_template="/World/Env_{}"),
                 (anymal_cfg, cartpole_cfg, AssetBaseCfg(prim_path="/World/defaultGroundPlane")),
@@ -684,7 +681,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
         return SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
 
     def _make_articulation(self) -> Articulation:
-        cfg = ANYMAL_C_CFG.replace(actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot")
+        cfg = replace(ANYMAL_C_CFG, actuators=DELAYED_PD_ACTUATORS, prim_path="/World/Env_.*/Robot")
         plan = clone_plan_from_env_0(
             CloneCfg(clone_template="/World/Env_{}"),
             (cfg, AssetBaseCfg(prim_path="/World/defaultGroundPlane")),

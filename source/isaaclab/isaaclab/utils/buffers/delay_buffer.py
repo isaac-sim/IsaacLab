@@ -10,6 +10,8 @@ from collections.abc import Sequence
 
 import torch
 
+from ..array import index_fill_
+
 
 class DelayBuffer:
     """Ring storage for delayed batched tensors, independent of actions or observations.
@@ -159,8 +161,9 @@ class DelayBuffer:
             raise ValueError(f"The maximum time lag cannot be larger than the history length. Received: {max_time_lag}")
 
         if isinstance(time_lag, torch.Tensor):
-            time_lag = time_lag.to(device=self.device, dtype=self._time_lags.dtype)
-        self._time_lags[batch_ids] = time_lag
+            self._time_lags[batch_ids] = time_lag.to(device=self.device, dtype=self._time_lags.dtype)
+        else:
+            index_fill_(self._time_lags, batch_ids, time_lag)
 
     def reset(self, batch_ids: Sequence[int] | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
@@ -172,7 +175,7 @@ class DelayBuffer:
             batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
         """
         indices = slice(None) if batch_ids is None else batch_ids
-        self._num_pushes[indices] = 0
+        index_fill_(self._num_pushes, indices, 0)
         if self._hold_prob is not None:
             self._time_lags[indices] = torch.randint(
                 self._min_lag,

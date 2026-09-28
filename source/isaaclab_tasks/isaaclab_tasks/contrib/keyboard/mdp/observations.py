@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import subtract_frame_transforms
 
 if TYPE_CHECKING:
@@ -97,7 +98,7 @@ class key_positions_b(ManagerTermBase):
             active = torch.ones(self.num_envs, self.num_slots, dtype=torch.bool, device=self.device)
         else:
             active = torch.zeros(self.num_envs, self.num_slots, dtype=torch.bool, device=self.device)
-            active[:, torch.as_tensor(tuple(active_slots), dtype=torch.long, device=self.device)] = True
+            index_fill_(active, tuple(active_slots), True, dim=1)
         self._active = active.unsqueeze(-1).float()  # (num_envs, num_slots, 1)
 
     def __call__(

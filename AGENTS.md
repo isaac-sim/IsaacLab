@@ -10,6 +10,8 @@
 - Use modern Python type hints, including `X | None` instead of `Optional[X]`.
 - Use `snake_case` for methods, functions, and CLI arguments.
 - Keep related public symbols discoverable through consistent prefixes.
+- Keep source-prim uniqueness and match-count validation in the shared resolver; assets and sensors
+  must not repair duplicate query results independently.
 - Keep Newton solver schema registration in the active manager's builder factory; the cloner must not depend on solver modules.
 - Resolve Newton raycast BVH requirements before builder finalization; sensor task registration must not add a late BVH fallback.
 - Keep joint-wrench sensor coverage separate from articulation control-joint selection. Reuse cached
@@ -19,6 +21,10 @@
   locators, resource keys, or separate renderer registries.
 - Renderers consume geometry through `SceneDataProvider`. Keep Newton imports out of OVRTX renderers
   and Fabric destination ownership and shadow remapping out of physics backends.
+- Keep SDP caches data-only, with direct timestamp guards rather than binding factories or stored
+  update callbacks. Cache ownership must not extend caller-owned destination lifetimes.
+- Lazy-data aliases must refresh their owning property on every read; a cached view does not imply fresh data.
+  Component views preserve parent strides; do not allocate extraction buffers just because a parent is non-contiguous.
 - For external wrenches, follow the asset API's `is_global` boolean and `_b`/`_w` buffer naming. Keep
   frame conversion decisions in `WrenchComposer` and track pending contributions with plain booleans;
   do not introduce frame enums, content bitmasks, or a classification layer.
@@ -39,6 +45,10 @@
 
 ## Code style
 
+- Keep short expressions on one line within the configured limit; break longer ones at meaningful boundaries.
+- Keep loop headers focused on iteration; unpack bulky nested records in the body instead of wrapping the header.
+- Prefer descriptive names to new acronyms. Reuse matching sequences or mappings with `*`/`**` instead of
+  unpacking and rebuilding them; do not add packing containers or reflective assignment just to shorten code.
 - Group imports in PEP 8 order, separated by blank lines: `__future__`, standard library, third-party,
   Omniverse runtime packages (`isaacsim`, `omni`, `pxr`, `carb`, ...), Isaac Lab packages, then local relative imports.
   Ruff enforces this order through `uv run isaaclab -f`; do not sort imports by hand.
@@ -61,6 +71,8 @@
   Do not derive the expected wrench by repeating the production transformation on the backend's raw output.
 - Use hard-coded values only when they are the intended contract or a small, independently verified example; otherwise derive the expected result from a separate, simple reference calculation.
 - Keep tests focused and remove or consolidate redundant coverage instead of growing overlapping test suites.
+- In subprocess-based Mimic integration tests, launch Kit only in the child script; the parent can download
+  HDF5 inputs without starting a second SimulationApp.
 - Do not add debug output to production Warp kernels. Use temporary standalone reproductions and remove debug output before committing.
 
 ## Changelog and release metadata

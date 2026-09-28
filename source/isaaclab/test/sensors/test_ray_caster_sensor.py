@@ -9,9 +9,9 @@
 
 from typing import Literal
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 import numpy as np
 import pytest
@@ -40,7 +40,6 @@ def _make_sim_and_ground():
     sim = sim_utils.SimulationContext(sim_cfg)
     mesh = make_plane(size=(100, 100), height=0.0, center_zero=True)
     create_prim_from_mesh(_GROUND_PATH, mesh)
-    sim_utils.update_stage()
     return sim
 
 
@@ -304,7 +303,6 @@ def test_ray_caster_tracks_physics_body_parent_motion(sim_ground):
         raise RuntimeError(f"Failed to create collision cube at {cube_path}.")
     cube.CreateSizeAttr().Set(0.1)
     UsdPhysics.CollisionAPI.Apply(stage.GetPrimAtPath(cube_path))
-    sim_utils.update_stage()
 
     sensor = RayCaster(_ray_caster_cfg(parent_path, "world"))
     sim.reset()

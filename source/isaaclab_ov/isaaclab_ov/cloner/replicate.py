@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -98,43 +98,29 @@ def _validate_variant_topology(stage: Usd.Stage, sources: Sequence[str], destina
 
 def _clone_recipes(
     stage: Usd.Stage,
-    sources: Sequence[str],
-    destinations: Sequence[str],
+    copies: Iterable[tuple[tuple[str, str], np.ndarray]],
     env_ids: np.ndarray,
-    mapping: np.ndarray,
     positions: np.ndarray | None,
     quaternions: np.ndarray | None,
 ) -> list[CloneRecipe]:
-    """Build OvPhysX clone recipes from one flat mapping."""
-    if len(sources) != len(destinations):
-        raise ValueError(f"Expected one destination per source, got {len(sources)} and {len(destinations)}.")
-    if mapping.shape != (len(sources), len(env_ids)):
-        raise ValueError(
-            f"mapping must have shape [num_sources, num_envs], got {list(mapping.shape)} for "
-            f"{len(sources)} sources and {len(env_ids)} environments."
-        )
+    """Build OvPhysX clone recipes from the selected native instance groups."""
     if positions is not None and positions.shape != (len(env_ids), 3):
         raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
     if quaternions is not None and quaternions.shape != (len(env_ids), 4):
         raise ValueError(f"quaternions must have shape [num_envs, 4], got {list(quaternions.shape)}.")
 
-    columns_by_row = [[] for _ in range(mapping.shape[0])]
-    for row, column in np.argwhere(mapping):
-        columns_by_row[row].append(column)
-    active_rows = [row for row, columns in enumerate(columns_by_row) if columns]
-    _validate_variant_topology(
-        stage,
-        [sources[row] for row in active_rows],
-        [destinations[row] for row in active_rows],
-    )
+    copies = list(copies)
+    active = [pair for pair, columns in copies if len(columns) and columns[0] != -1]
+    _validate_variant_topology(stage, [source for source, _ in active], [template for _, template in active])
+
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
-    for row, source in enumerate(sources):
-        columns = columns_by_row[row]
-        if not columns:
+    for (source, template), columns in copies:
+        if not len(columns) or columns[0] == -1:
             continue
-        active_env_ids = env_ids[columns]
-        matched = cloner.path.match(source, destinations[row])
+        prefix, _, suffix = template.partition("{}")
+        env_template = prefix + "{}" + suffix.split("/", 1)[0]
+        matched = cloner.path.match(source, env_template)
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
         source_prim = stage.GetPrimAtPath(source)
@@ -142,22 +128,20 @@ def _clone_recipes(
         if self_env_id is None:
             source_anchor_world = Gf.Matrix4d(1.0)
         else:
-            prefix, _ = cloner.path.split(destinations[row])
-            source_anchor_path = f"{prefix}{self_env_id}"
+            source_anchor_path = env_template.format(self_env_id)
             source_anchor = stage.GetPrimAtPath(source_anchor_path)
             if not source_anchor.IsValid():
                 raise ValueError(f"OvPhysX clone source anchor prim is not valid on the stage: {source_anchor_path}")
             source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor).RemoveScaleShear()
         source_relative = source_world * source_anchor_world.GetInverse()
 
-        targets = []
-        target_transforms = []
-        target_env_ids = []
-        for env_id, column in zip(active_env_ids, columns):
+        targets, target_transforms, target_env_ids = [], [], []
+        for env_id, column in zip(env_ids[columns], columns, strict=True):
             env_id = int(env_id)
-            if env_id == self_env_id:
+            destination = template.format(env_id)
+            if destination == source:
                 continue
-            targets.append(destinations[row].format(env_id))
+            targets.append(destination)
             target_env_ids.append(env_id)
             target_env_world = Gf.Matrix4d(1.0)
             if positions is not None:
@@ -187,31 +171,31 @@ class OvPhysxReplicateContext:
         self._sim = sim_context
         self.stage = sim_context.stage
 
-    def replicate(self, plan: ClonePlan) -> None:
-        """Publish clone operations from this context's plan rows.
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish clone operations from this context's source declarations.
 
         Args:
             plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVPhysX.
 
         Raises:
-            ValueError: If environment IDs are missing, source/destination lengths or mapping/position
-                shapes are inconsistent, an active source or anchor is invalid, or variants for one
-                destination differ in body/joint topology or effective DOF axes.
+            ValueError: If positions are malformed, a source or source anchor is invalid, or variants
+                for one destination differ in body/joint topology or effective DOF axes.
         """
-        if plan.env_ids is None:
-            raise ValueError("ClonePlan.env_ids is required for replication.")
-        rows = plan.context_rows[type(self)]
-        recipes = _clone_recipes(
-            stage=self.stage,
-            sources=tuple(plan.sources[row] for row in rows),
-            destinations=tuple(plan.destinations[row] for row in rows),
-            env_ids=plan.env_ids,
-            mapping=plan.clone_mask[list(rows)],
-            positions=plan.positions,
-            quaternions=None,
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
         )
-        for source, targets, transforms, target_env_ids in recipes:
-            self._sim.physics_manager._register_clone_transforms(source, targets, transforms, target_env_ids)
+        copies = {}
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            for index in range(*starts[group : group + 2]):
+                if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                    copies.setdefault((sources[asset], templates[index]), []).append(targets)
+        copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        for recipe in _clone_recipes(self.stage, copies, env_ids, plan.positions, None):
+            self._sim.physics_manager._register_clone_transforms(*recipe)
 
 
 def ovphysx_replicate(
@@ -240,17 +224,18 @@ def ovphysx_replicate(
             an active source or source anchor is invalid, or variants for one destination differ
             in body/joint topology or effective DOF axes.
     """
-    recipes = _clone_recipes(
-        stage=stage,
-        sources=sources,
-        destinations=destinations,
-        env_ids=env_ids,
-        mapping=mapping,
-        positions=positions,
-        quaternions=quaternions,
-    )
+    if len(sources) != len(destinations):
+        raise ValueError(f"Expected one destination per source, got {len(sources)} and {len(destinations)}.")
+    if mapping.shape != (len(sources), len(env_ids)):
+        raise ValueError(
+            f"mapping must have shape [num_sources, num_envs], got {list(mapping.shape)} for "
+            f"{len(sources)} sources and {len(env_ids)} environments."
+        )
+    pairs = zip(sources, destinations, strict=True)
+    copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
+    recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    for source, targets, transforms, target_env_ids in recipes:
-        sim.physics_manager._register_clone_transforms(source, targets, transforms, target_env_ids)
+    for recipe in recipes:
+        sim.physics_manager._register_clone_transforms(*recipe)

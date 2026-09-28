@@ -3,14 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import math
 
@@ -445,7 +441,7 @@ def test_franka_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller
@@ -463,7 +459,7 @@ def test_ur10_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot_cfg.spawn.rigid_props.disable_gravity = True
     robot = Articulation(cfg=robot_cfg)
 

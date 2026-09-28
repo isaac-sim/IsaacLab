@@ -3,15 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
-
+launch_test_simulation()
 
 import pytest
 from isaaclab_physx.sim.schemas.schemas_cfg import PhysxDeformableBodyPropertiesCfg
@@ -32,8 +26,6 @@ def sim():
     dt = 0.1
     # Load kit helper
     sim = SimulationContext(SimulationCfg(dt=dt))
-    # Wait for spawning
-    sim_utils.update_stage()
     yield sim
     # Cleanup
     sim._disable_app_control_on_stop_handle = True  # prevent timeout

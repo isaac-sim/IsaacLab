@@ -16,10 +16,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "isaaclab" / "test" / "sim"))
 
-from isaaclab.app import AppLauncher
-from isaaclab.test.utils import DeviceScope, resolve_test_sim_device, test_devices
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
-simulation_app = AppLauncher(headless=True, device=resolve_test_sim_device()).app
+launch_test_simulation()
 
 import pytest  # noqa: E402
 import torch  # noqa: E402
@@ -41,7 +40,6 @@ PARENT_POS = (0.0, 0.0, 1.0)
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     sim_utils.create_new_stage()
-    sim_utils.update_stage()
     yield
     sim_utils.clear_stage()
     sim_utils.SimulationContext.clear_instance()

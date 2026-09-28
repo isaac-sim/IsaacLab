@@ -17,7 +17,7 @@ Prerequisites:
 
 import argparse
 import math
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING
 
 import torch
 
@@ -30,7 +30,7 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, instantiate, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG
@@ -127,8 +127,8 @@ class FrankaHaplySceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.50, 0.0, 1.05), rot=(0.707, 0, 0, 0.707)),
     )
 
-    robot_cfg: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-    robot = robot_cfg.class_type(robot_cfg)
+    robot_cfg: ArticulationCfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot = instantiate(robot_cfg)
     robot.init_state.pos = (-0.02, 0.0, 1.05)
     robot.spawn.activate_contact_sensors = True
 
@@ -235,7 +235,7 @@ def run_simulator(
     print("  Move handler: Control pose of the end-effector")
     print("  Button A: Open | Button B: Close | Button C: Rotate EE (60°)\n")
 
-    while sim.is_headless_or_exist_active_visualizer() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
+    while sim.is_running() and (args_cli.max_steps < 0 or step_count < args_cli.max_steps):
         if reset_count % 10000 == 0:
             reset_count = 1
             root_pose = robot.data.default_root_pose.torch.clone()
@@ -312,7 +312,7 @@ def run_simulator(
         # Update joints: 6 from IK + 1 from button control (correct by design)
         joint_pos_target[arm_joint_indices] = joint_pos_des[0]  # panda_joint1-6 from IK
         joint_pos_target[6] = ee_rotation_angle  # panda_joint7 - end-effector rotation (button C)
-        joint_pos_target[[-2, -1]] = gripper_target  # gripper
+        joint_pos_target[-2:].fill_(gripper_target)  # gripper
 
         robot.set_joint_position_target_index(target=joint_pos_target.unsqueeze(0))
 
@@ -343,8 +343,7 @@ def main() -> None:
         sim.set_camera_view([1.6, 1.0, 1.70], [0.4, 0.0, 1.0])
 
         scene_cfg = FrankaHaplySceneCfg(num_envs=1, env_spacing=2.0)
-        scene_class = cast(type["InteractiveScene"], scene_cfg.class_type)
-        scene = scene_class(scene_cfg)
+        scene: InteractiveScene = instantiate(scene_cfg)
 
         # Create Haply device
         haply_cfg = HaplyDeviceCfg(
@@ -353,7 +352,7 @@ def main() -> None:
             sim_device=args_cli.device,
             limit_force=2.0,
         )
-        haply_device = haply_cfg.class_type(cfg=haply_cfg)
+        haply_device = instantiate(haply_cfg)
         print(f"[INFO] Haply connected: {args_cli.websocket_uri}")
 
         sim.reset()

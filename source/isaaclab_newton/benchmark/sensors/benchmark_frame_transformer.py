@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_positive_int
+from isaaclab.benchmark.cli import parse_positive_int
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the Newton FrameTransformer update path.")

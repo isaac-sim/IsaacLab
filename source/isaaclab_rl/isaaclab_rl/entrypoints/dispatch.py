@@ -128,14 +128,14 @@ def _normalize_argv(argv: list[str] | None) -> list[str]:
     """Return the command line to dispatch with space-separated Kit arguments fused.
 
     The backends parse this explicit list rather than ``sys.argv``, so the fusing that
-    :meth:`~isaaclab.app.AppLauncher.add_app_launcher_args` applies to ``sys.argv`` never reaches it.
+    :func:`~isaaclab.app.add_launcher_args` applies to ``sys.argv`` never reaches it.
     """
     # imported here so that importing this module stays lightweight
-    from isaaclab.app import AppLauncher
+    from isaaclab.app.sim_launcher import fuse_kit_args
 
     if argv is None:
         argv = sys.argv[1:]
-    return AppLauncher._fuse_kit_args(argv)
+    return fuse_kit_args(argv)
 
 
 def _resolve_default_library(argv: list[str], backends: dict[str, str]) -> str | None:

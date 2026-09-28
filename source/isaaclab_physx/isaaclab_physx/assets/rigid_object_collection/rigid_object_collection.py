@@ -20,6 +20,7 @@ from pxr import UsdPhysics
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection import BaseRigidObjectCollection
+from isaaclab.utils import clone, validate
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.wrench_composer import WrenchComposer
 
@@ -72,9 +73,9 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         # Note: We never call the parent constructor as it tries to call its own spawning which we don't want.
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs
-        self.cfg = cfg.copy()
+        self.cfg = clone(cfg)
         # flag for whether the asset is initialized
         self._is_initialized = False
         # spawn the rigid objects
@@ -1312,6 +1313,8 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """Resolve environment indices."""
         if (env_ids is None) or (env_ids == slice(None)):
             return self._ALL_ENV_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_ENV_INDICES)[env_ids])
         if isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self.device)
         return env_ids

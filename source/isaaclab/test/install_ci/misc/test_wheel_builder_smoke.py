@@ -13,7 +13,7 @@ Tests:
     - from isaaclab import __version__ -> verify version matches wheel filename
     - inspect the wheel and isaaclab.__path__ -> verify the core package has a flat layout
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
-    - from isaaclab.app import AppLauncher -> verify importable
+    - from isaaclab.app import launch_simulation -> verify importable
     - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
@@ -28,8 +28,7 @@ Tests:
         from isaaclab.programs import DEMOS, EXAMPLES, _run_script
         def fail_launch(*args, **kwargs):
             raise AssertionError(f'{sys.argv[0]} launched simulation while handling --help')
-        app.AppLauncher.__init__ = fail_launch
-        app.launch_simulation = fail_launch
+                app.launch_simulation = fail_launch
         for command, catalog in (('demo', DEMOS), ('example', EXAMPLES)):
             for program in catalog:
                 sys.argv = [f'isaaclab {command} {program.name}', '--help']
@@ -161,16 +160,16 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
     # from isaaclab import _deprioritize_prebundle_paths
     def test_isaaclab_prebundle_path_sanitizer_exported(self):
-        """Verify the wheel exports the prebundle path sanitizer used by AppLauncher."""
+        """Verify the wheel exports the prebundle path sanitizer used by the Kit launcher."""
         result = self.run_in_uv_env(
             ["python", "-c", "from isaaclab import _deprioritize_prebundle_paths; _deprioritize_prebundle_paths()"]
         )
         assert result.returncode == 0, f"import path sanitizer failed:\n{result.stdout}\n{result.stderr}"
 
-    # from isaaclab.app import AppLauncher
+    # from isaaclab.app import launch_simulation
     def test_isaaclab_app_importable(self):
-        """Verify isaaclab.app and AppLauncher are importable."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
+        """Verify the simulation launcher is importable from isaaclab.app."""
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import launch_simulation"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab.envs import VideoRecorderCfg
@@ -224,7 +223,6 @@ def fail_launch(*args, **kwargs):
     raise AssertionError(f"{sys.argv[0]} launched simulation while handling --help")
 
 
-app.AppLauncher.__init__ = fail_launch
 app.launch_simulation = fail_launch
 
 for command, catalog in (("demo", DEMOS), ("example", EXAMPLES)):

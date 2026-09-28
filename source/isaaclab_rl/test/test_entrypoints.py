@@ -320,7 +320,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
         observation_space="observations",
         action_space=SimpleNamespace(shape=(1, 1)),
         unwrapped=SimpleNamespace(
-            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
         reset=lambda: None,
@@ -370,7 +370,7 @@ def test_simple_agent_video_step_budget(
         observation_space="observations",
         action_space=SimpleNamespace(shape=(1, 1)),
         unwrapped=SimpleNamespace(
-            sim=SimpleNamespace(is_headless_or_exist_active_visualizer=lambda: True),
+            sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
         reset=lambda: None,
@@ -641,7 +641,7 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
 
     from isaaclab_rl.entrypoints.backends import train_rsl_rl
 
-    caller_state = (False, False, True, True)
+    caller_state = (False, False, True, False)
     settings = (
         (torch.backends.cuda.matmul, "allow_tf32"),
         (torch.backends.cudnn, "allow_tf32"),
@@ -654,7 +654,7 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     monkeypatch.setattr(train_rsl_rl, "_parse_args", lambda argv: types.SimpleNamespace())
 
     def fail_after_mutation(_args_cli) -> None:
-        assert _torch_backend_state() == (True, True, False, False)
+        assert _torch_backend_state() == (True, True, False, True)
         raise RuntimeError("failed")
 
     monkeypatch.setattr(train_rsl_rl, "_run", fail_after_mutation)
