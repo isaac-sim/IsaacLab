@@ -18,7 +18,7 @@ from typing_extensions import deprecated
 from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from ...utils import to_dict
-from ...utils.string import string_to_callable, to_camel_case
+from ...utils.string import to_camel_case
 from ..utils import (
     apply_nested,
     create_prim,
@@ -141,11 +141,6 @@ def _get_field_declaring_class(cfg_class: type, field_name: str) -> type | None:
 def _cfg_fields(cfg) -> dict[str, object]:
     """Return the dataclass field values of a cfg; class-level ``_usd_*`` metadata is not a field."""
     return {f.name: getattr(cfg, f.name) for f in dataclasses.fields(cfg)}
-
-
-def _resolve_func(cfg: schemas_cfg.SchemaFragment) -> Callable:
-    """Return a fragment's applier, resolving a ``module:attr`` import string."""
-    return cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
 
 
 def apply_namespaced_schemas(prim, cfg, cfg_dict: dict) -> None:
@@ -327,7 +322,6 @@ def apply_articulation_root_properties(
                 f"Expected ArticulationRootFragment, got '{type(fragment).__name__}'."
                 " Pass legacy cfgs to modify_articulation_root_properties."
             )
-    dispatchers = [_resolve_func(fragment) for fragment in fragments]
     if stage is None:
         stage = get_current_stage()
     if not fragments and fix_root_link is None:
@@ -371,8 +365,8 @@ def apply_articulation_root_properties(
                 joint.GetJointEnabledAttr().Set(False)
 
         root_path = root.GetPath().pathString
-        for fragment, func in zip(fragments, dispatchers):
-            success = bool(func(fragment, root_path, stage)) and success
+        for fragment in fragments:
+            success = bool(fragment.func(fragment, root_path, stage)) and success
 
     return success
 
@@ -828,7 +822,7 @@ def apply_mesh_collision_properties(
     # aggregate per-fragment results so a reported failure is not masked
     success = True
     for cfg in fragments:
-        success = bool(_resolve_func(cfg)(cfg, prim_path, stage)) and success
+        success = bool(cfg.func(cfg, prim_path, stage)) and success
     return success
 
 
@@ -1387,7 +1381,6 @@ def apply_joint_drive_properties(
         return True
     # ``ensure_drives_exist`` only makes sense for the solver-common drive fragment
     drive_cfg = next((f for f in fragments if isinstance(f, schemas_cfg.UsdPhysicsDriveCfg)), None)
-    dispatchers = [_resolve_func(cfg) for cfg in fragments]
 
     # non-joint matches are ignored silently since a subtree expression matches every descendant
     targets, _, any_skipped = _match_fragment_targets(
@@ -1400,7 +1393,7 @@ def apply_joint_drive_properties(
         drive_api_name = drive_instance_name(joint_prim)
         if create_if_missing:
             _get_or_apply_drive_api(joint_prim, drive_api_name)
-        results = [bool(func(cfg, joint_prim_path, stage)) for cfg, func in zip(fragments, dispatchers)]
+        results = [bool(cfg.func(cfg, joint_prim_path, stage)) for cfg in fragments]
         if not any(results):
             continue
         count_success += 1
@@ -1582,9 +1575,8 @@ def _apply_tendon_fragments(
     target_paths = [target.GetPath().pathString for target in targets]
     success = not any_skipped
     for cfg in fragments:
-        func = _resolve_func(cfg)
         # every target is visited; the list keeps ``any`` from short-circuiting the dispatch
-        results = [bool(func(cfg, path, stage)) for path in target_paths]
+        results = [bool(cfg.func(cfg, path, stage)) for path in target_paths]
         success = any(results) and success
     return success
 

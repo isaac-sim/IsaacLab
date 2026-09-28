@@ -10,7 +10,6 @@ import dataclasses
 from pxr import Usd, UsdPhysics, UsdShade
 
 from isaaclab.utils import validate
-from isaaclab.utils.string import string_to_callable
 
 from ...schemas.schemas import apply_namespaced_schemas
 from ...utils import clone
@@ -85,8 +84,7 @@ def spawn_rigid_body_material_from_fragments(
 
     # dispatch each fragment's applier (writes its single namespace onto the material prim)
     for cfg in fragments:
-        func = cfg.func if callable(cfg.func) else string_to_callable(cfg.func)
-        func(cfg, prim_path, stage)
+        cfg.func(cfg, prim_path, stage)
     return prim
 
 
