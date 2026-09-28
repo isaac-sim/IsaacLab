@@ -21,7 +21,7 @@ import torch
 from ..managers import EventManager
 from ..sim import SimulationContext
 from ..sim.utils.stage import use_stage
-from ..utils import index_fill_
+from ..utils import index_fill_, instantiate, validate
 from ..utils.noise import NoiseModel
 from ..utils.seed import configure_seed
 from ..utils.timer import Timer
@@ -77,7 +77,7 @@ class DirectMARLEnv(gym.Env):
         self._is_closed = True
 
         # check that the config is valid
-        cfg.validate()
+        validate(cfg)
         # store inputs to class
         self.cfg = cfg
         # store the render mode
@@ -140,7 +140,7 @@ class DirectMARLEnv(gym.Env):
         with Timer("[INFO]: Time taken for scene creation", "scene_creation", activity="Creating scene"):
             # set the stage context for scene creation steps which use the stage
             with use_stage(self.sim.stage):
-                self.scene = self.cfg.scene.class_type(self.cfg.scene)
+                self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
             self.sim.register_interactive_scene(self.scene)
         print("[INFO]: Scene manager: ", self.scene)
@@ -212,13 +212,13 @@ class DirectMARLEnv(gym.Env):
         # setup noise cfg for adding action and observation noise
         if self.cfg.action_noise_model:
             self._action_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.action_noise_model.items()
                 if noise_model is not None
             }
         if self.cfg.observation_noise_model:
             self._observation_noise_model: dict[AgentID, NoiseModel] = {
-                agent: noise_model.class_type(noise_model, num_envs=self.num_envs, device=self.device)
+                agent: instantiate(noise_model, num_envs=self.num_envs, device=self.device)
                 for agent, noise_model in self.cfg.observation_noise_model.items()
                 if noise_model is not None
             }

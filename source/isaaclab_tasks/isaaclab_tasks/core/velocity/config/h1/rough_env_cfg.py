@@ -7,7 +7,7 @@
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets import H1_MINIMAL_CFG
 
@@ -79,7 +79,7 @@ class H1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(H1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8

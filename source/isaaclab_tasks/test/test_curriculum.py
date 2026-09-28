@@ -9,6 +9,8 @@ from types import SimpleNamespace
 
 import torch
 
+from isaaclab.utils import instantiate
+
 from isaaclab_tasks.contrib.nist.mdp.curriculums import DifficultyScheduler
 from isaaclab_tasks.contrib.nist.utils import (
     BetaSamplingStrategyCfg,
@@ -22,7 +24,7 @@ def test_uniform_only_sampler_is_uniform():
     """A uniform-only sampler with no floor returns exact uniform probabilities."""
     rates = torch.rand(100)
     cfg = SamplerCfg(strategies=[UniformSamplingStrategyCfg(weight=1.0)], eps=0.0)
-    probs = cfg.class_type(cfg, rates).probabilities()
+    probs = instantiate(cfg, rates).probabilities()
     torch.testing.assert_close(probs, torch.full_like(probs, 1.0 / 100))
 
 
@@ -35,7 +37,7 @@ def test_sampler_probabilities_are_finite_nonnegative_and_normalized():
         ],
         eps=1e-3,
     )
-    sampler = cfg.class_type(cfg, rates)
+    sampler = instantiate(cfg, rates)
     assert sampler.names == ["beta", "uniform"]
     probs = sampler.probabilities()
     assert torch.isfinite(probs).all()

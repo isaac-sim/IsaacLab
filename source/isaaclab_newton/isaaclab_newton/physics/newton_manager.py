@@ -45,7 +45,7 @@ import isaaclab.cloner as cloner
 from isaaclab.physics import CallbackHandle, PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import checked_apply
+from isaaclab.utils import checked_apply, to_dict
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.string import resolve_matching_names
 from isaaclab.utils.timer import Timer
@@ -1392,7 +1392,7 @@ class NewtonManager(PhysicsManager):
         are always excluded — ``model`` is passed positionally at construction.
         """
         valid = set(inspect.signature(solver_cls.__init__).parameters) - {"self", "model"}
-        kwargs = {k: v for k, v in solver_cfg.to_dict().items() if k in valid}
+        kwargs = {k: v for k, v in to_dict(solver_cfg).items() if k in valid}
         if "deterministic" in valid:
             kwargs["deterministic"] = NewtonManager._deterministic_mode
         return kwargs

@@ -33,7 +33,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBaseCfg, RigidObjectCfg, RigidObjectCollectionCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim.spawners.materials import UsdPhysicsRigidBodyMaterialCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 DOMINO_SIZE = (0.12, 0.032, 0.36)
 DOMINO_SPACING = 0.12
@@ -109,8 +109,8 @@ class DominoSceneCfg(InteractiveSceneCfg):
     )
     dominoes: RigidObjectCollectionCfg = RigidObjectCollectionCfg(
         rigid_objects={
-            f"domino_{index:04d}": _domino_cfg(position, orientation).replace(
-                prim_path=f"/World/Dominoes/Domino{index:04d}"
+            f"domino_{index:04d}": replace(
+                _domino_cfg(position, orientation), prim_path=f"/World/Dominoes/Domino{index:04d}"
             )
             for index, (position, orientation) in enumerate(LOGO_DOMINO_POSES)
         }

@@ -24,6 +24,7 @@ from isaaclab.scene import InteractiveScene
 from isaaclab.sensors import Camera, SensorBase
 from isaaclab.sensors.camera.camera_data import CameraData
 from isaaclab.sim import BackendCfg, SimulationContext
+from isaaclab.utils import replace
 from isaaclab.utils.warp import ProxyArray
 
 pytest.importorskip("isaaclab_physx")
@@ -55,13 +56,13 @@ def test_renderer_registry_sharing_and_early_clone_requirements(sim):
     renderer = sim.get_or_create_backend(cfg)
 
     assert sim.get_or_create_backend(cfg) is renderer
-    assert sim.get_or_create_backend(cfg.replace()) is renderer
+    assert sim.get_or_create_backend(replace(cfg)) is renderer
     constructor.assert_called_once_with(cfg)
     assert constructor.call_args.args[0] is cfg
     assert sim.render_context.clone_contexts == set(cfg.cloning_contexts)
     renderer.initialize.assert_not_called()
 
-    assert sim.get_or_create_backend(cfg.replace(semantic_filter="class:robot")) is not renderer
+    assert sim.get_or_create_backend(replace(cfg, semantic_filter="class:robot")) is not renderer
     assert sim.get_or_create_backend(NewtonWarpRendererCfg(class_type=_renderer)) is not renderer
     sim.get_or_create_backend(BackendCfg(class_type=lambda cfg: object()))
     assert sim.render_context.renderer_types == ("isaac_rtx", "isaac_rtx", "newton_warp")
@@ -75,7 +76,7 @@ def test_renderer_initializes_once_before_or_after_physics_ready(sim):
     sim.render_context.ensure_initialize()
     first.initialize.assert_called_once_with()
 
-    second_cfg = cfg.replace(renderer_type="second")
+    second_cfg = replace(cfg, renderer_type="second")
     second = sim.get_or_create_backend(second_cfg)
     second.initialize.assert_called_once_with()
     assert sim.get_or_create_backend(second_cfg) is second
@@ -88,7 +89,7 @@ def test_conflicting_global_settings_are_rejected_before_construction(sim):
     constructor = Mock(side_effect=_renderer)
     cfg = IsaacRtxRendererCfg(class_type=constructor)
     renderer = sim.get_or_create_backend(cfg)
-    conflicting = cfg.replace(global_settings=cfg.global_settings.replace(enable_shadows=False))
+    conflicting = replace(cfg, global_settings=replace(cfg.global_settings, enable_shadows=False))
 
     with pytest.raises(ValueError, match="global settings differ"):
         sim.get_or_create_backend(conflicting)
@@ -116,8 +117,8 @@ def test_finalized_consumers_allow_cache_hits_but_reject_new_renderers_with_mate
         )
     sim.render_context.finalize_consumers([])
 
-    assert sim.get_or_create_backend(cfg.replace()) is renderer
-    late_cfg = cfg.replace(renderer_type="late")
+    assert sim.get_or_create_backend(replace(cfg)) is renderer
+    late_cfg = replace(cfg, renderer_type="late")
     if has_materials:
         with pytest.raises(RuntimeError, match="before rendering consumers are finalized"):
             sim.get_or_create_backend(late_cfg)

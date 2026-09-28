@@ -21,7 +21,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -140,12 +140,10 @@ class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
     )
-    robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(
+    robot: ArticulationCfg = replace(
+        FRANKA_PANDA_HIGH_PD_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
-            pos=(1.0, 0.0, 0.0),
-            rot=(0.0, 0.0, 1.0, 0.0),
-        ),
+        init_state=replace(FRANKA_PANDA_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
     cabinet: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",

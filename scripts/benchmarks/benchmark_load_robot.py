@@ -65,7 +65,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.benchmark import BaseIsaacLabBenchmark, SingleMeasurement
 from isaaclab.physics import PhysicsCfg
 from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 if TYPE_CHECKING:
     from isaaclab.scene import InteractiveScene
@@ -96,11 +96,11 @@ class RobotSceneCfg(InteractiveSceneCfg):
 
     # articulation
     if args_cli.robot == "h1":
-        robot: ArticulationCfg = H1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(H1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "g1":
-        robot: ArticulationCfg = G1_MINIMAL_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(G1_MINIMAL_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "anymal_d":
-        robot: ArticulationCfg = ANYMAL_D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        robot: ArticulationCfg = replace(ANYMAL_D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:
         raise ValueError(f"Unsupported robot type: {args_cli.robot}.")
 

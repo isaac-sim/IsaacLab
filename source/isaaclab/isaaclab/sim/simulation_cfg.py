@@ -28,7 +28,7 @@ class BackendCfg:
     """
 
     class_type: type = MISSING
-    """Resource class constructed as ``class_type(cfg)``; must implement ``close()``."""
+    """Resource class constructed as ``instantiate(cfg)``; must implement ``close()``."""
 
 
 @configclass

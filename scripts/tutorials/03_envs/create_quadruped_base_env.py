@@ -52,7 +52,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg, patterns
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, check_file_path, read_file
 from isaaclab.utils.noise import UniformNoiseCfg as Unoise
 
@@ -99,7 +99,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # add robot
-    robot: ArticulationCfg = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot: ArticulationCfg = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
     # sensors
     height_scanner = RayCasterCfg(

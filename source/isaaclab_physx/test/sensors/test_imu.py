@@ -28,7 +28,7 @@ from isaaclab.assets import ArticulationCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.imu import Imu, ImuCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
@@ -82,7 +82,7 @@ class MySceneCfg(InteractiveSceneCfg):
     )
 
     # articulations - robot
-    robot = ANYMAL_C_CFG.replace(prim_path="{ENV_REGEX_NS}/robot")
+    robot = replace(ANYMAL_C_CFG, prim_path="{ENV_REGEX_NS}/robot")
     # pendulum - uses merge_fixed_joints=True so that fixed-joint
     # child links (base, imu_link) are merged into their parents during URDF XML
     # pre-processing. This avoids fixed-joint constraint violations at velocity level

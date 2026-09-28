@@ -50,7 +50,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import FrameTransformer, FrameTransformerCfg, OffsetCfg
 from isaaclab.sim import SimulationContext
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 ##
 # Pre-defined configs
@@ -70,7 +70,7 @@ class FrameTransformerSceneCfg(InteractiveSceneCfg):
     light = AssetBaseCfg(
         prim_path="/World/Light", spawn=sim_utils.DistantLightCfg(intensity=3000.0, color=(0.75, 0.75, 0.75))
     )
-    robot = ANYMAL_C_CFG.replace(prim_path=ROBOT_PRIM_PATH_EXPR)
+    robot = replace(ANYMAL_C_CFG, prim_path=ROBOT_PRIM_PATH_EXPR)
 
     # Example using .* to get full body + LF_FOOT
     frame_transformer = FrameTransformerCfg(
@@ -102,7 +102,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     # to step through each frame so the user can verify that the correct frame
     # is being visualized as the frame names are printing to console
     if not args_cli.headless:
-        cfg = FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameVisualizerFromScript")
+        cfg = replace(FRAME_MARKER_CFG, prim_path="/Visuals/FrameVisualizerFromScript")
         cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         transform_visualizer = VisualizationMarkers(cfg)
         # debug drawing for lines connecting the frame

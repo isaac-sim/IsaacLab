@@ -18,6 +18,7 @@ from isaaclab_physx.assets.articulation import Articulation
 from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
+from isaaclab.utils import instantiate
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -104,7 +105,7 @@ class Multirotor(Articulation):
             )
 
             # Create the multirotor instance
-            multirotor = multirotor_cfg.class_type(multirotor_cfg)
+            multirotor = instantiate(multirotor_cfg)
 
     .. note::
         The allocation matrix maps individual thruster forces to a 6D wrench (3 forces + 3 torques)
@@ -468,8 +469,8 @@ class Multirotor(Articulation):
             }
 
             # Create thruster actuator
-            actuator: Thruster = actuator_cfg.class_type(
-                cfg=actuator_cfg,
+            actuator: Thruster = instantiate(
+                actuator_cfg,
                 thruster_names=thruster_names,
                 thruster_ids=thruster_array_indices,
                 num_envs=self.num_instances,
