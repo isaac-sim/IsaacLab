@@ -342,8 +342,8 @@ class OVRTXCameraRenderData:
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
         self.camera_writes: deque[tuple[wp.array, wp.array, Operation, wp.Stream]] = deque()
-        self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict] | None = None
-        self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict] | None = None
+        self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
+        self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.capture: dict[str, ProxyArray] = {}
         # Per-output metadata collected during render() and copied into CameraData.info by read_output().
         # Populated for "semantic_segmentation" (with an "idToLabels" mapping) and
@@ -999,7 +999,13 @@ class OVRTXRenderer(BaseRenderer):
         capture = {}
         if render_data.ready is not None:
             operation, capture = render_data.ready
+            if capture is None:
+                render_data.ready = None
+                return
             self._process_render_products((render_data,), operation.wait().fetch())
+            if render_data.ready is render_data.pending:
+                # Retain the native operation, but do not publish this priming image twice.
+                render_data.pending = (operation, None)
             render_data.ready = None
         for output_name in camera_data.info:
             info = render_data.renderer_info.get(output_name)

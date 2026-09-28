@@ -437,6 +437,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         buffers["rgba"].fill_(value)
 
     renderer.backend.renderer = types.SimpleNamespace(step_async=submit)
+    consume = MagicMock(side_effect=consume)
     monkeypatch.setattr(renderer, "_process_render_frame", consume)
 
     def capture(value, indices):
@@ -459,6 +460,7 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     capture(1, (0, 1))
     capture(2, (0, 1))
     capture(3, (0,))
+    assert consume.call_count == 3  # Priming images are not extracted again on the next capture.
     for index, expected in enumerate((2, 1)):
         data = camera_data[index]
         np.testing.assert_array_equal(data.output["rgb"].warp.numpy(), expected)
@@ -475,7 +477,9 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     capture(4, (0,))
     np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(saved_capture["pos_w"].warp.numpy(), 2)
-    capture(5, (1,))
+    capture(5, (0, 1))
+    assert consume.call_count == 5
+    np.testing.assert_array_equal(camera_data[0].output["rgb"].warp.numpy(), 4)
     np.testing.assert_array_equal(camera_data[1].output["rgb"].warp.numpy(), 2)
     renderer.cleanup(cameras[0])
 
