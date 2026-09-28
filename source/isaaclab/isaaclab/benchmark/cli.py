@@ -28,6 +28,5 @@ def validate_warmup_steps(warmup_steps: int, available_steps: int) -> None:
     """Validate that training warm-up leaves at least one measured environment step."""
     if warmup_steps >= available_steps:
         raise ValueError(
-            f"warmup_steps ({warmup_steps}) must be less than resolved training environment steps "
-            f"({available_steps})"
+            f"warmup_steps ({warmup_steps}) must be less than resolved training environment steps ({available_steps})"
         )

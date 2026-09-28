@@ -38,7 +38,7 @@ def register_joint_drive_skip_predicate(predicate: Callable) -> None:
         _JOINT_DRIVE_SKIP_PREDICATES.append(predicate)
 
 
-def _skip_joint_drive(prim) -> bool:
+def skip_joint_drive(prim) -> bool:
     """Return whether any backend-registered predicate excludes ``prim`` from joint-drive authoring."""
     return any(predicate(prim) for predicate in _JOINT_DRIVE_SKIP_PREDICATES)
 
@@ -66,6 +66,6 @@ def register_articulation_root_companion(schema_name: str, namespace: str) -> No
     _ARTICULATION_ROOT_COMPANIONS[schema_name] = namespace
 
 
-def _articulation_root_companion_namespace(schema_name: str) -> str | None:
+def articulation_root_companion_namespace(schema_name: str) -> str | None:
     """Return the registered attribute namespace for an articulation-root companion schema."""
     return _ARTICULATION_ROOT_COMPANIONS.get(schema_name)
