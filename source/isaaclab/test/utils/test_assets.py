@@ -253,7 +253,8 @@ def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypa
 
     layer = (
         f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Shader "Material" {{\n'
-        " asset info:mdl:sourceAsset = @./material.mdl@\n asset inputs:file = @texture.<UDIM>.png@\n}\n"
+        " asset info:mdl:sourceAsset = @./material.mdl@\n asset unresolved = @./missing.mdl@\n"
+        " asset inputs:file = @texture.<UDIM>.png@\n}\n"
     )
     module = 'mdl 1.7;\nimport ::anno::*;\nexport material example() [[anno::description("wood.png")]] = material();\n'
     payloads = {"scene.usda": layer, "material.mdl": module, "texture.1002.png": "tile", "texture.1004.png": "tile"}
@@ -278,6 +279,7 @@ def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypa
     material = stage.GetPrimAtPath("/Material")
     directory = "https://example.com" if remote else str(asset_cache)
     assert material.GetAttribute("info:mdl:sourceAsset").Get().path == f"{directory}/material.mdl"
+    assert material.GetAttribute("unresolved").Get().path == f"{directory}/missing.mdl"
     assert material.GetAttribute("inputs:file").Get().path == f"{directory}/texture.<UDIM>.png"
     if not remote:
         layer = Sdf.Layer.FindOrOpen(str(asset_cache / "scene.usda"))

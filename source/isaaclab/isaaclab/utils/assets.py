@@ -685,8 +685,8 @@ def retrieve_file_path(path: str, download_dir: str | None = None, force_downloa
                     _REMOTE_FINGERPRINTS.pop(dependency, None)
                 exists = check_file_path(dependency)
                 if ref.endswith(".mdl"):
-                    # Material loaders own module imports and texture resources.
-                    resolved = identifier if not exists and resolver.IsContextDependentPath(identifier) else dependency
+                    # Keep native module names; anchor explicit paths to the source, not the download mirror.
+                    resolved = dependency if exists or identifier != ref else identifier
                 elif exists:
                     resolved = localize(dependency)
                 else:
