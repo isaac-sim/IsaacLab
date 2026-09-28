@@ -361,8 +361,6 @@ class KitLauncher(SimulationLauncher):
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
-        # Add the deprecated cpu flag to raise an error if it is used
-        arg_group.add_argument("--cpu", action="store_true", help=argparse.SUPPRESS)
         arg_group.add_argument(
             "--verbose",  # Note: This is read by SimulationApp through sys.argv
             action="store_true",
@@ -572,8 +570,6 @@ class KitLauncher(SimulationLauncher):
                 " Expected: a string with the format 'cuda', 'cuda:<device_id>', or 'cpu'."
             )
         device_id = int(device.split(":")[-1]) if "cuda:" in device else 0
-        if launcher_args.get("cpu", False):
-            raise ValueError("The `--cpu` flag is deprecated. Please use `--device cpu` instead.")
 
         if distributed:
             # ``launch_simulation`` already resolved the per-rank ``device``

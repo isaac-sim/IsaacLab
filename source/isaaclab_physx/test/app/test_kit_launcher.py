@@ -15,7 +15,6 @@ import isaaclab_physx.app.kit_launcher as kit_launcher_module
 import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
 
-import isaaclab.app.settings_manager as settings_manager_module
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
@@ -224,7 +223,7 @@ def test_visualizer_alias_parsing():
     assert args.visualizer_explicit is True
 
 
-@pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras"])
+@pytest.mark.parametrize("deprecated_arg", ["--headless", "--enable_cameras", "--cpu"])
 def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
     """Test that removed render flags are rejected by the parser."""
     parser = argparse.ArgumentParser()
@@ -232,15 +231,6 @@ def test_deprecated_render_flags_are_rejected(deprecated_arg: str):
 
     with pytest.raises(SystemExit):
         parser.parse_args([deprecated_arg])
-
-
-def test_deprecated_cpu_flag_raises(monkeypatch: pytest.MonkeyPatch):
-    """Test that the deprecated ``--cpu`` flag points to ``--device cpu``."""
-    parser = argparse.ArgumentParser()
-    add_launcher_args(parser)
-
-    with pytest.raises(ValueError, match="--device cpu"):
-        _resolve_devices_and_kit_args(vars(parser.parse_args(["--cpu"])), monkeypatch)
 
 
 def test_help_on_parser_with_required_positionals(monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture):
@@ -717,16 +707,6 @@ def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
 
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
         sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
-
-
-def test_deprecated_settings_manager_api_warns():
-    manager = settings_manager_module.get_settings_manager()
-    with pytest.warns(DeprecationWarning):
-        settings_manager_module.initialize_carb_settings()
-    with pytest.warns(DeprecationWarning):
-        manager.initialize_carb_settings()
-    with pytest.warns(DeprecationWarning):
-        assert manager.is_omniverse_mode is (manager._backend is not None)
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():

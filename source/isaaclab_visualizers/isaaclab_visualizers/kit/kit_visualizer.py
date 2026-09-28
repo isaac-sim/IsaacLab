@@ -131,7 +131,7 @@ class KitVisualizer(BaseVisualizer):
             return
 
         scene_data_provider = self._set_scene_data_provider(scene_data_provider)
-        usd_stage = scene_data_provider.usd_stage
+        usd_stage = SimulationContext.instance().stage
         num_envs = scene_data_provider.num_envs
 
         self._ensure_simulation_app()
@@ -274,7 +274,7 @@ class KitVisualizer(BaseVisualizer):
         # captured frame contains real rendered output, not empty/blank data.
         if self._rgb_annotator is None:
             self._rgb_render_product = rep.create.render_product(camera_path, (w, h))
-            self._apply_render_product_background(self._scene_data_provider.usd_stage, self._rgb_render_product.path)
+            self._apply_render_product_background(SimulationContext.instance().stage, self._rgb_render_product.path)
             self._rgb_annotator = rep.AnnotatorRegistry.get_annotator("rgb", device="cpu")
             self._rgb_annotator.attach([self._rgb_render_product])
         elif self._runtime_headless and self._rgb_render_product is not None:
@@ -789,7 +789,7 @@ class KitVisualizer(BaseVisualizer):
         if self._camera_sensor is None or not self._camera_is_owned:
             return
         target_positions = prim_world_positions(
-            self._scene_data_provider.get_usd_stage(),
+            SimulationContext.instance().stage,
             self.cfg.streaming_cam_target_prim_path,
             self._camera_env_indices,
             scene=self._scene_data_provider.get_interactive_scene(),
@@ -989,9 +989,7 @@ class KitVisualizer(BaseVisualizer):
             ``True`` when authored values changed, otherwise ``False``.
         """
         # TODO: Remove this USD-side pose path once Fabric-backed camera transforms propagate reliably to Kit.
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
+        usd_stage = SimulationContext.instance().stage
 
         eye = torch.as_tensor(position, dtype=torch.float32, device="cpu").reshape(1, 3)
         lookat = torch.as_tensor(target, dtype=torch.float32, device="cpu").reshape(1, 3)
@@ -1055,9 +1053,7 @@ class KitVisualizer(BaseVisualizer):
         """
         if self._viewport_api is None:
             return False
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return False
+        usd_stage = SimulationContext.instance().stage
         camera_prim = usd_stage.GetPrimAtPath(camera_path)
         if not camera_prim.IsValid():
             return False
@@ -1091,9 +1087,7 @@ class KitVisualizer(BaseVisualizer):
         """Re-apply ``invisibleIds`` for env-scaled `/Visuals` instancers (handles lazy marker creation)."""
         if self._resolved_visible_env_ids is None or self._scene_data_provider is None:
             return
-        usd_stage = self._scene_data_provider.usd_stage
-        if usd_stage is None:
-            return
+        usd_stage = SimulationContext.instance().stage
         num_envs = self._scene_data_provider.num_envs
         if num_envs <= 0:
             return
@@ -1142,9 +1136,7 @@ class KitVisualizer(BaseVisualizer):
 
     def _restore_env_visibility(self) -> None:
         """Restore environment visibilities and PointInstancer ``invisibleIds`` from partial viz."""
-        usd_stage = self._scene_data_provider.usd_stage if self._scene_data_provider else None
-        if usd_stage is None:
-            return
+        usd_stage = SimulationContext.instance().stage
         for env_path, prev in self._hidden_env_visibilities.items():
             prim = usd_stage.GetPrimAtPath(env_path)
             if not prim.IsValid():

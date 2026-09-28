@@ -11,7 +11,6 @@ import contextlib
 import logging
 import os
 import threading
-import warnings
 from collections.abc import Callable, Generator
 from typing import TYPE_CHECKING
 
@@ -165,23 +164,6 @@ def create_new_stage() -> Usd.Stage:
     return stage
 
 
-def is_current_stage_in_memory() -> bool:
-    """Return whether the current stage is not the stage of the active simulation.
-
-    .. deprecated::
-        Backends attach the simulation stage wherever they need it; compare against
-        :attr:`~isaaclab.sim.SimulationContext.stage` instead.
-    """
-    warnings.warn(
-        "`is_current_stage_in_memory` is deprecated; compare against `SimulationContext.instance().stage` instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    from ..simulation_context import SimulationContext  # noqa: PLC0415
-
-    return get_current_stage() is not SimulationContext.instance().stage
-
-
 def open_stage(usd_path: str) -> Usd.Stage:
     """Open the given USD file.
 
@@ -265,21 +247,6 @@ def use_stage(stage: Usd.Stage) -> Generator[None, None, None]:
                 delattr(_context, "stage")
             else:
                 _context.stage = previous_stage
-
-
-def update_stage() -> None:
-    """Do nothing; backends process stage changes when the simulation resets, steps, or renders.
-
-    .. deprecated::
-        Call :meth:`~isaaclab.sim.SimulationContext.reset` or :meth:`~isaaclab.sim.SimulationContext.render`
-        on the simulation instead.
-    """
-    warnings.warn(
-        "`update_stage` is deprecated and does nothing; the simulation's reset, step, and render process stage"
-        " changes.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
 
 
 def save_stage(usd_path: str, save_and_reload_in_place: bool = True) -> bool:
@@ -481,20 +448,3 @@ def get_current_stage_id() -> int:
             raise RuntimeError("Stage has no root layer - cannot cache an incomplete stage.")
         stage_id = stage_cache.Insert(stage).ToLongInt()
     return stage_id
-
-
-def show_stage_in_viewport(usd_path: str) -> None:
-    """Open a USD file in the Kit viewport and keep the app running until the user closes it.
-
-    .. deprecated::
-        Use :func:`isaaclab_physx.app.show_stage_in_viewport` instead.
-    """
-    warnings.warn(
-        "`isaaclab.sim.utils.show_stage_in_viewport` is deprecated; use"
-        " `isaaclab_physx.app.show_stage_in_viewport` instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    from ...utils.string import string_to_callable  # noqa: PLC0415
-
-    string_to_callable("isaaclab_physx.app:show_stage_in_viewport")(usd_path)

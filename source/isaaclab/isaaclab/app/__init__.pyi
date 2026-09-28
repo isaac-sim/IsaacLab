@@ -8,7 +8,6 @@ __all__ = [
     "SimulationLauncher",
     "SettingsManager",
     "get_settings_manager",
-    "initialize_carb_settings",
     "add_launcher_args",
     "launch_simulation",
     "make_physics_cfg",
@@ -20,7 +19,7 @@ __all__ = [
 
 from .app_launcher import AppLauncher
 from .loading_screen import LoadingScreen, report_activity
-from .settings_manager import SettingsManager, get_settings_manager, initialize_carb_settings
+from .settings_manager import SettingsManager, get_settings_manager
 from .sim_launcher import (
     Scan,
     SimulationLauncher,

@@ -203,15 +203,6 @@ class SceneDataProvider:
         return self.backend.transform_count
 
     @property
-    def usd_stage(self) -> Usd.Stage:
-        """Pixar :class:`Usd.Stage` of the simulation, for visualizers and renderers that walk USD."""
-        return sim_utils.SimulationContext.instance().stage
-
-    def get_usd_stage(self) -> Usd.Stage:
-        """Return the USD stage for callers using the older method-style API."""
-        return self.usd_stage
-
-    @property
     def num_envs(self) -> int:
         """Number of environments discovered from ``/World/envs/env_<id>`` prims.
 
@@ -220,7 +211,7 @@ class SceneDataProvider:
         """
         if self._num_envs_cache is not None:
             return self._num_envs_cache
-        self._num_envs_cache = _discover_num_envs(self.usd_stage)
+        self._num_envs_cache = _discover_num_envs(sim_utils.SimulationContext.instance().stage)
         return self._num_envs_cache
 
     def get_camera_transforms(self) -> dict[str, Any] | None:
@@ -232,7 +223,7 @@ class SceneDataProvider:
             lists, with ``None`` for absent envs), and ``num_envs``. Returns
             ``None`` when no USD stage is available.
         """
-        return _walk_camera_prims(self.usd_stage)
+        return _walk_camera_prims(sim_utils.SimulationContext.instance().stage)
 
     def init_output(
         self,

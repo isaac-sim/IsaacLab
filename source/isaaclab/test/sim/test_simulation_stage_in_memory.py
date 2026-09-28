@@ -33,7 +33,6 @@ def sim():
     """Create a simulation context."""
     cfg = SimulationCfg(create_stage_in_memory=True)
     sim = SimulationContext(cfg=cfg)
-    sim_utils.update_stage()
     yield sim
     omni.physx.get_physx_simulation_interface().detach_stage()
     sim.stop()

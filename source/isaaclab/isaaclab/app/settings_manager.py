@@ -14,7 +14,6 @@ the full Omniverse/SimulationApp stack.
 """
 
 import sys
-import warnings
 from typing import Any
 
 # Key for storing singleton in sys.modules to survive module reloads (e.g., from Hydra)
@@ -84,24 +83,6 @@ class SettingsManager:
             backend: A ``carb.settings``-compatible settings interface.
         """
         self._backend = backend
-
-    def initialize_carb_settings(self) -> None:
-        """Deprecated no-op; the Kit launcher sets the backend with :meth:`set_backend`."""
-        warnings.warn(
-            "`initialize_carb_settings` is deprecated and has no effect; the Kit launcher sets the settings backend.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-
-    @property
-    def is_omniverse_mode(self) -> bool:
-        """Deprecated. Whether a settings backend (``carb.settings`` under Kit) is set."""
-        warnings.warn(
-            "`is_omniverse_mode` is deprecated; check `isaaclab.utils.version.has_kit()` instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self._backend is not None
 
     def set(self, path: str, value: Any) -> None:
         """Set a setting value at the given path.
@@ -195,12 +176,3 @@ def get_settings_manager() -> SettingsManager:
     if instance is None:
         instance = SettingsManager()
     return instance
-
-
-def initialize_carb_settings() -> None:
-    """Deprecated no-op; the Kit launcher sets the settings backend."""
-    warnings.warn(
-        "`initialize_carb_settings` is deprecated and has no effect; the Kit launcher sets the settings backend.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
