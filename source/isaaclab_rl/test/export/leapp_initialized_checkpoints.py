@@ -324,13 +324,10 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    # TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
-    # can corrupt the heap while parsing the Newton Franka payload concurrently.
     cli_args = SimpleNamespace(
         seed=args.seed,
         algorithm=args.algorithm,
         headless=True,
-        limit_cpu_threads=1,
     )
     task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
     task_dir.mkdir(parents=True, exist_ok=True)
