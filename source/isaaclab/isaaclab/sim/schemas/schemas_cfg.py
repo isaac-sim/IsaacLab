@@ -163,8 +163,6 @@ class SchemaFragment:
 class RigidBodyFragment(SchemaFragment):
     """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
 
-    pass
-
 
 @configclass
 class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
@@ -194,8 +192,6 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
 class CollisionFragment(SchemaFragment):
     """Marker base for collision fragments; types the ``collision_props`` slot."""
 
-    pass
-
 
 @configclass
 class ArticulationRootFragment(SchemaFragment):
@@ -209,14 +205,10 @@ class ArticulationRootFragment(SchemaFragment):
     :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` behaviour).
     """
 
-    pass
-
 
 @configclass
 class JointDriveFragment(SchemaFragment):
     """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
-
-    pass
 
 
 @configclass
@@ -248,8 +240,6 @@ class FixedTendonFragment(SchemaFragment):
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 
-    pass
-
 
 @configclass
 class SpatialTendonFragment(SchemaFragment):
@@ -261,8 +251,6 @@ class SpatialTendonFragment(SchemaFragment):
     does not apply an anchor schema; it only tunes existing root instances via each fragment's
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
-
-    pass
 
 
 @configclass
@@ -674,8 +662,6 @@ class MassPropertiesCfg:
 class MassFragment(SchemaFragment):
     """Marker base for mass fragments; types the ``mass_props`` slot."""
 
-    pass
-
 
 @configclass
 class MassCfg(MassFragment):
@@ -957,5 +943,3 @@ class DeformableBodyPropertiesBaseCfg:
     This class is currently empty. It will be populated once the USD deformable
     schemas can be unified more cleanly between physics backends.
     """
-
-    pass
