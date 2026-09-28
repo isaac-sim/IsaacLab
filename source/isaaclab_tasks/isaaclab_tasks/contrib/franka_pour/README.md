@@ -71,16 +71,20 @@ an exactly reproducible custom run, the generator also prints the optional
 
 ## Fill and success levels
 
-`env.source_fill_level` is the initial media height as a fraction of the source-cup cavity. The
-default `0.70` creates a 7×7×15 lattice (735 particles); values are quantized to complete lattice
-layers and must lie in `(0, 1]`. This analytic fill volume is non-colliding. The visible cup mesh
-remains a particle-only collider so it can physically contain the media. The receiver uses a solid
-analytic box only for robot contact; it is invisible to particles, which continue to collide with
-the hollow receiver mesh.
+`env.source_fill_level` is the initial media height as a fraction of the source-cup cavity. It
+defaults to `0.70` and accepts values in `(0, 1]`. The particle count is derived from the requested
+height, quantized to complete lattice layers; it is not a separate fixed task setting. The 15 mm
+voxel and 6 mm particle spacing stay fixed across fill levels. Although the reset artifact records
+particle layouts, runtime restores its rigid start states with the currently configured lattice.
+Changing the fill therefore does not require regenerating the artifact. This analytic fill volume
+is non-colliding. The visible cup mesh remains a particle-only collider so it can physically contain
+the media. The receiver uses a solid analytic box only for robot contact; it is invisible to particles,
+which continue to collide with the hollow receiver mesh. An invisible particle-only plane at the table
+height contains spilled media without adding rigid contacts or visible geometry.
 
 The particle generator and MPM solver both use a 15 mm voxel. Setting
-`particles_per_cell=3` targets three particles per solver cell along each axis (27 per 3D cell),
-while the bounded sparse grid, particle-backed automatic warm start, and two MPM entry substeps keep
+`particles_per_cell=2.5` gives 6 mm particle spacing at every fill level, while the
+bounded sparse grid, particle-backed automatic warm start, and two MPM entry substeps keep
 the configuration CUDA-graph compatible. Collider projection remains disabled because manager-level
 post-step projection is not supported inside a coupled MPM entry; contact is resolved by the MPM
 solve.

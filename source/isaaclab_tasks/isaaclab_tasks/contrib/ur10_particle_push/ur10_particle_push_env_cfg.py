@@ -63,10 +63,11 @@ HEIGHTMAP_VISUALIZER_CFG = VisualizationMarkersCfg(
     },
 )
 
-# Enforce a per-world lower-node minimum and a 32-node total upper minimum.
-SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 6
+# Enforce measured topology floors and amortize the wide upper hierarchy across nearby worlds.
+SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD = 1 << 2
 SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD = 1
 SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT = 1 << 5
+SPARSE_MPM_WORLDS_PER_UPPER_NODE = 1 << 3
 
 # Shared source of truth for the visible MPM and hidden rigid solver geometry.
 WORK_SURFACE_SIZE = (1.28, 0.91, 0.04)
@@ -223,7 +224,8 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
 
     Command-line ``--num_envs`` overrides are applied after config construction. The environment
     calls this function once more immediately before simulation creation, so reduced evaluation
-    runs and large distributed jobs reserve proportional memory.
+    runs and large distributed jobs reserve proportional memory. Upper nodes cover a much wider
+    spatial region than a single environment, so their reservation is shared across nearby worlds.
     """
     per_world = {
         "active cells": cfg.mpm_active_cell_count_per_world,
@@ -254,13 +256,13 @@ def configure_sparse_mpm_capacities(cfg: UR10ParticlePushEnvCfg) -> None:
 
     world_count = max(1, int(cfg.scene.num_envs))
     solver_cfg = get_mpm_solver_cfg(cfg)
-    solver_cfg.max_active_cell_count = per_world["active cells"] * world_count
-    solver_cfg.max_leaf_node_count = per_world["leaf nodes"] * world_count
-    solver_cfg.max_lower_node_count = per_world["lower nodes"] * world_count
     solver_cfg.max_upper_node_count = max(
         SPARSE_MPM_MIN_TOTAL_UPPER_NODE_COUNT,
-        per_world["upper nodes"] * world_count,
+        math.ceil(per_world["upper nodes"] * world_count / SPARSE_MPM_WORLDS_PER_UPPER_NODE),
     )
+    solver_cfg.max_lower_node_count = max(per_world["lower nodes"] * world_count, solver_cfg.max_upper_node_count)
+    solver_cfg.max_leaf_node_count = max(per_world["leaf nodes"] * world_count, solver_cfg.max_lower_node_count)
+    solver_cfg.max_active_cell_count = max(per_world["active cells"] * world_count, solver_cfg.max_leaf_node_count)
 
 
 def _kinematic_box(
@@ -685,9 +687,9 @@ class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     state_bound_max_joint_velocity: float = 20.0
     state_bound_max_ee_linear_velocity: float = 10.0
     state_bound_max_ee_angular_velocity: float = 50.0
-    # Reserve active sparse-grid cells per world, independent of particle count.
-    mpm_active_cell_count_per_world: int = 3072
-    mpm_leaf_node_count_per_world: int = 1 << 9
+    # Bounded capacities permit CUDA graph capture without reserving the conservative grid defaults.
+    mpm_active_cell_count_per_world: int = 1536
+    mpm_leaf_node_count_per_world: int = 48
     mpm_lower_node_count_per_world: int = SPARSE_MPM_MIN_LOWER_NODES_PER_WORLD
     mpm_upper_node_count_per_world: int = SPARSE_MPM_MIN_UPPER_NODES_PER_WORLD
     # Scale only the virtual paddle inertia inside MPM to limit proxy acceleration under granular

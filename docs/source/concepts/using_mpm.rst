@@ -41,8 +41,9 @@ or self-hosted asset tree. Digest pinning remains available for custom
 reproducible experiments.
 
 The source uses a non-colliding analytic fill volume whose height is controlled
-by ``env.source_fill_level`` in ``(0, 1]``. The default ``0.70`` produces a
-735-particle jittered lattice up to roughly 70% of the cup height.
+by ``env.source_fill_level`` in ``(0, 1]``. The default ``0.70`` fills roughly
+70% of the cup height; the particle count follows the requested fill level
+while voxel size and particle spacing stay fixed.
 ``env.pour_target_frac`` independently controls the fraction of that live
 payload that must reach the receiver.
 

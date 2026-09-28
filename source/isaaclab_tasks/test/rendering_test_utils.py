@@ -415,7 +415,7 @@ MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES, flaky=False),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
@@ -2343,11 +2343,9 @@ def rendering_test_mpm_particles(
 
     Two properties of this suite are worth knowing before debugging a failure here:
 
-    * The retry from ``_FLAKY_MARK`` cannot rescue a failure. Only the first environment built in
-      a process reproduces the goldens; a second one renders RTX colour differently and lands
-      ~37 % of pixels away on ``rgb``/``rgba`` while the geometry AOVs still match exactly. Two
-      separate processes agree with each other, so a real regression and a retried failure look
-      alike. Compare a fresh process against the goldens rather than trusting the retries.
+    * Only the first environment built in a process reproduces the goldens; a second one renders
+      RTX colour differently. This case therefore has no flaky retry mark, so each comparison
+      uses a fresh process rather than a second environment in the same process.
     * ``semantic_segmentation`` and ``instance_segmentation`` carry only silhouette-level signal.
       Nothing in this scene is semantically tagged, so the pile shares one unlabelled region with
       the table and would barely move those AOVs if it stopped rendering. ``rgb``/``rgba`` and
@@ -2426,6 +2424,7 @@ def rendering_test_mpm_particles(
 
     try:
         env = UR10ParticlePushEnv(env_cfg)
+        env.reset()
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 

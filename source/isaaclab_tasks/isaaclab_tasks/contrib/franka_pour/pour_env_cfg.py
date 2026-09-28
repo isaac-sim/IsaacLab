@@ -98,7 +98,7 @@ _TARGET_CUP_FRICTION = 0.8
 _MEDIA_FILL_LEVEL = 0.70
 _MEDIA_FILL_RESOLUTION = 0.005
 _MPM_VOXEL_SIZE = 0.015
-_MPM_PARTICLES_PER_CELL = 3.0
+_MPM_PARTICLES_PER_CELL = 2.5
 
 
 def _source_cup_asset_cfg() -> RigidObjectCfg:
@@ -173,6 +173,7 @@ FRANKA_POUR_ARM_COLLISION_PROXIES = frozenset(
         "link7_c",
     }
 )
+SPILL_FLOOR_LABEL_PATTERN = r".*/SpillFloor$"
 
 
 def spawn_franka_with_arm_collisions(
@@ -283,6 +284,7 @@ def _resolve_mpm_cell_cap(cfg: FrankaPourResetDatasetEnvCfg) -> int:
         if alignment <= 0:
             raise ValueError("mpm_cell_capacity_alignment must be positive.")
         particle_count = media_particle_count(cfg.scene.media)
+        # Newton activates at most one sparse voxel per particle; guard cells remain empty.
         per_world = ((particle_count + alignment - 1) // alignment) * alignment
         capacity = per_world * int(cfg.scene.num_envs)
     else:
@@ -652,7 +654,10 @@ class FrankaPourResetDatasetEnvCfg(ManagerBasedRLEnvCfg):
                             solver="jacobi",
                             separate_worlds=True,
                         ),
+                        bodies=[SPILL_FLOOR_LABEL_PATTERN],
                         all_particles=True,
+                        include_static_shapes=False,
+                        include_child_joints=False,
                         # The tall source payload needs a smaller MPM step than the coupled rigid solve.
                         substeps=2,
                         in_place=True,
