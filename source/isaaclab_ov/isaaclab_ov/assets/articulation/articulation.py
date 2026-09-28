@@ -40,7 +40,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .actuator_control import OvPhysxActuatorControl
 from .articulation_data import ArticulationData
@@ -3952,9 +3952,8 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
-        clone_paths = OvPhysxManager._resolved_clone_paths(pattern, self._articulation_root_path)
-        selection = {"prim_paths": clone_paths} if clone_paths else {"pattern": pattern}
-        self._root_view = OvPhysxView(self._ovphysx, device=self._device, **selection)
+        paths = _expand_env_pattern(pattern, PhysicsManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         self._root_view.try_binding_for(TT.ROOT_POSE)
         self._root_view._use_resolved_prim_paths()
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor

@@ -28,7 +28,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.assets.kernels import _body_wrench_to_world
 from isaaclab_ov.physics import OvPhysxManager
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .rigid_object_data import RigidObjectData
 
@@ -946,7 +946,7 @@ class RigidObject(BaseRigidObject):
             return bool(prim.HasAPI(UsdPhysics.RigidBodyAPI))
 
         resolve_kwargs = {"predicate": has_rigid_body_api, "expected_num_matches": 1}
-        source_prim, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
+        _, root_prim_path_expr = resolve_matching_prims_from_source(self.cfg.prim_path, **resolve_kwargs)[0]
 
         # IsaacLab paths may use ``.*`` regex or ``{ENV_REGEX_NS}`` placeholder; ovphysx
         # ``create_tensor_binding`` expects fnmatch globs.
@@ -957,9 +957,8 @@ class RigidObject(BaseRigidObject):
         # Eagerly create every binding the data container reads at init, so failures
         # surface here with a helpful message rather than as a raw wheel exception
         # (or a KeyError) at first writer call.
-        clone_paths = OvPhysxManager._resolved_clone_paths(pattern, source_prim.GetPath().pathString)
-        selection = {"prim_paths": clone_paths} if clone_paths else {"pattern": pattern}
-        self._root_view = OvPhysxView(self._ovphysx, device=self._device, **selection)
+        paths = _expand_env_pattern(pattern, OvPhysxManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         eager_types = (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,

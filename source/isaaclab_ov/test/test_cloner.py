@@ -11,9 +11,10 @@ from types import SimpleNamespace
 import numpy as np
 import pytest
 from isaaclab_ov.cloner import OvPhysxReplicateContext, ovphysx_replicate
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.cloner import make_clone_plan
@@ -30,8 +31,7 @@ def _pose_matrix(position: tuple[float, float, float], quaternion: tuple[float, 
 
 def test_nested_clone_uses_final_target_pose(monkeypatch):
     """Nested clone rows keep their source-local pose under the target environment."""
-    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
-    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
     half_sqrt_two = math.sqrt(0.5)
     source_half_angle_sin = 0.5
     source_half_angle_cos = math.sqrt(0.75)
@@ -71,14 +71,15 @@ def test_nested_clone_uses_final_target_pose(monkeypatch):
     )
     expected_transform = (10.0 - half_sqrt_two, 20.0 + half_sqrt_two, 32.0, *expected_orientation.tolist())
 
-    assert len(OvPhysxManager._pending_clones) == 1
-    pending_source, pending_targets, pending_transforms, pending_env_ids = OvPhysxManager._pending_clones[0]
-    assert pending_source == "/World/envs/env_0/Robot"
-    assert pending_targets == ["/World/envs/env_1/Robot"]
-    assert pending_env_ids == [1]
-    assert len(pending_transforms) == 1
-    assert pending_transforms[0][:3] == pytest.approx(expected_transform[:3])
-    orientation = np.asarray(pending_transforms[0][3:], dtype=np.float32)
+    assert len(OvPhysxManager._clone_recipes) == 1
+    source, targets, poses, env_ids, source_env_id = OvPhysxManager._clone_recipes[0]
+    assert source == "/World/envs/env_0/Robot"
+    assert targets == ["/World/envs/env_1/Robot"]
+    assert env_ids == [1]
+    assert source_env_id == 0
+    assert len(poses) == 1
+    assert poses[0][:3] == pytest.approx(expected_transform[:3])
+    orientation = np.asarray(poses[0][3:], dtype=np.float32)
     if np.dot(orientation, expected_orientation) < 0.0:
         orientation = -orientation
     assert orientation.tolist() == pytest.approx(expected_orientation.tolist())
@@ -90,7 +91,7 @@ def test_ovphysx_context_consumes_plan():
     UsdGeom.Xform.Define(stage, "/World/envs/env_0").AddTranslateOp().Set((2, 0, 0))
     UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot").AddTranslateOp().Set((0.25, 0, 0))
     recipes = []
-    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot"),)
     positions = np.array([[2, 0, 0], [5, 2, 3], [8, 0, 0]], dtype=np.float32)
     plan = make_clone_plan(assets, ((0, 0), (0,)), 3, weights=(2, 1), positions=positions)
@@ -115,12 +116,12 @@ def test_ovphysx_context_preserves_heterogeneous_world_prototypes():
         stage.DefinePrim(f"/World/envs/env_{env_id}/Object/Geometry", geometry_type)
 
     recipes = []
-    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    manager = SimpleNamespace(_clone_recipes=recipes)
     assets = (AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Object"),) * 2
     plan = make_clone_plan(assets, ((0,), (1,)), 4, clone_strategy=lambda weights, count: np.arange(count) % 2)
     OvPhysxReplicateContext(SimpleNamespace(stage=stage, physics_manager=manager)).replicate(plan, (0, 1))
 
-    assert [(source, targets, env_ids) for source, targets, _, env_ids in recipes] == [
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Object", ["/World/envs/env_2/Object"], [2]),
         ("/World/envs/env_1/Object", ["/World/envs/env_3/Object"], [3]),
     ]
@@ -136,7 +137,7 @@ def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
         stage.DefinePrim(f"/World/envs/env_{env_id}/Object/Geometry", geometry_type)
 
     recipes = []
-    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    manager = SimpleNamespace(_clone_recipes=recipes)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
     ovphysx_replicate(
         stage,
@@ -148,7 +149,7 @@ def test_raw_replicate_preserves_rigid_body_variants_and_env_ids(monkeypatch):
         ),
     )
 
-    assert [(source, targets, env_ids) for source, targets, _, env_ids in recipes] == [
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Object", ["/World/envs/env_2/Object", "/World/envs/env_4/Object"], [2, 4]),
         ("/World/envs/env_1/Object", ["/World/envs/env_3/Object", "/World/envs/env_5/Object"], [3, 5]),
     ]
@@ -164,7 +165,7 @@ def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
         UsdPhysics.RigidBodyAPI.Apply(source)
 
     recipes = []
-    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    manager = SimpleNamespace(_clone_recipes=recipes)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
     ovphysx_replicate(
         stage,
@@ -174,7 +175,7 @@ def test_raw_replicate_preserves_source_only_geometry_variants(monkeypatch):
         mapping=np.eye(2, dtype=np.bool_),
     )
 
-    assert recipes == [("/World/envs/env_1/Object", [], [], [])]
+    assert recipes == [("/World/envs/env_1/Object", [], [], [], 1)]
 
 
 def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monkeypatch):
@@ -190,7 +191,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
         stage.DefinePrim(f"/World/envs/env_{env_id}/Robot/Link/Geometry", geometry_type)
 
     recipes = []
-    manager = SimpleNamespace(_register_clone_transforms=lambda *recipe: recipes.append(recipe))
+    manager = SimpleNamespace(_clone_recipes=recipes)
     monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=manager))
     ovphysx_replicate(
         stage,
@@ -200,7 +201,7 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
         mapping=np.array([[True, False, True, False], [False, True, False, True]], dtype=np.bool_),
     )
 
-    assert [(source, targets, env_ids) for source, targets, _, env_ids in recipes] == [
+    assert [(source, targets, env_ids) for source, targets, _, env_ids, _ in recipes] == [
         ("/World/envs/env_0/Robot", ["/World/envs/env_2/Robot"], [2]),
         ("/World/envs/env_1/Robot", ["/World/envs/env_3/Robot"], [3]),
     ]
@@ -252,14 +253,12 @@ def test_raw_replicate_rejects_d6_axis_layout_mismatch(changed_axis):
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):
     """World positions become target-root poses with identity rotations."""
-    monkeypatch.setattr(OvPhysxManager, "_active_clone_recipes", [])
-    monkeypatch.setattr(OvPhysxManager, "_pending_clones", [])
+    monkeypatch.setattr(OvPhysxManager, "_clone_recipes", [])
 
     OvPhysxManager.register_clone("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0)])
 
-    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None)]
-    assert OvPhysxManager._active_clone_recipes == expected_recipes
-    assert OvPhysxManager._pending_clones == expected_recipes
+    expected_recipes = [("/World/env_0", ["/World/env_1"], [(1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0)], None, 0)]
+    assert OvPhysxManager._clone_recipes == expected_recipes
 
 
 def test_raw_replicate_validates_sources_and_pose_arrays():
@@ -288,3 +287,80 @@ def test_raw_replicate_validates_sources_and_pose_arrays():
 
     with pytest.raises(ValueError, match="/World/envs/env_0"):
         ovphysx_replicate(StageWithoutAnchor(), sources, destinations, **options)
+
+
+@pytest.mark.parametrize("full_stage", [False, True])
+@pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/Scenes/World_{}"])
+def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template):
+    """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
+    stage = Usd.Stage.CreateInMemory()
+    for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
+        root = env_template.format(env_id)
+        prim = stage.DefinePrim(root + "/Object", "Xform")
+        prim.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
+    stage.DefinePrim("/Shared/Ground", "Xform")
+    stage.DefinePrim(env_template.format(3) + "/Independent", "Xform")
+    recipes = [
+        (env_template.format(i) + "/Object", [env_template.format(i + 2) + "/Object"], [], [i + 2], i) for i in range(2)
+    ]
+    # A target can also be inside a world which retains a different prototype.
+    support = stage.DefinePrim(env_template.format(0) + "/Support", "Xform")
+    support.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
+    targets = [env_template.format(i) + "/Support" for i in range(1, 4)]
+    recipes.append((str(support.GetPath()), targets, [], [1, 2, 3], 0))
+    stage.DefinePrim(targets[0], "Xform")
+    before = stage.GetRootLayer().ExportToString()
+
+    for _ in range(2):
+        layer = Sdf.Layer.CreateAnonymous("export.usda")
+        assert layer.ImportFromString(_serialize_stage(stage, recipes, full_stage, use_env_ids=False))
+        exported = Usd.Stage.Open(layer)
+        for env_id, variant in enumerate(("cube", "sphere")):
+            assert (
+                exported.GetPrimAtPath(env_template.format(env_id) + "/Object").GetAttribute("test:variant").Get()
+                == variant
+            )
+        assert exported.GetPrimAtPath("/Shared/Ground")
+        assert exported.GetPrimAtPath(env_template.format(3) + "/Independent")
+        for target in targets:
+            prim = exported.GetPrimAtPath(target)
+            assert bool(prim) is full_stage
+            if full_stage:
+                assert prim.GetAttribute("test:physics").Get()
+        assert stage.GetRootLayer().ExportToString() == before
+        assert len(recipes) == 3
+
+
+def test_full_stage_export_preserves_nested_authored_opinions():
+    """Copy parents before children and keep independently authored descendants."""
+    stage = Usd.Stage.CreateInMemory()
+    source = stage.DefinePrim("/Source/Robot", "Xform")
+    source.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
+    child = stage.DefinePrim("/Source/Robot/Link", "Xform")
+    child.CreateAttribute("test:mass", Sdf.ValueTypeNames.Float).Set(3.0)
+    UsdGeom.Mesh.Define(stage, "/Target/Robot")
+    stage.DefinePrim("/Target/Robot/Camera", "Camera")
+    recipes = [
+        ("/Source/Robot/Link", ["/Target/Robot/Link", "/Other/Nested/Robot/Link"], [], [1, 2], 0),
+        ("/Source/Robot", ["/Target/Robot"], [], [1], 0),
+    ]
+    layer = Sdf.Layer.CreateAnonymous("export.usda")
+    assert layer.ImportFromString(_serialize_stage(stage, recipes, full_stage=True, use_env_ids=False))
+    exported = Usd.Stage.Open(layer)
+    assert exported.GetPrimAtPath("/Target/Robot").GetAttribute("test:physics").Get()
+    assert exported.GetPrimAtPath("/Target/Robot").IsA(UsdGeom.Mesh)
+    assert exported.GetPrimAtPath("/Target/Robot/Camera").IsA(UsdGeom.Camera)
+    for root in ("/Target", "/Other/Nested"):
+        prim = exported.GetPrimAtPath(root + "/Robot/Link")
+        assert prim.IsDefined()
+        assert prim.GetAttribute("test:mass").Get() == 3.0
+    assert not stage.GetPrimAtPath("/Target/Robot/Link")
+
+
+def test_native_clone_export_rejects_source_overlap():
+    stage = Usd.Stage.CreateInMemory()
+    stage.DefinePrim("/World/Source", "Xform")
+    before = stage.GetRootLayer().ExportToString()
+    with pytest.raises(ValueError, match="overlaps a clone source"):
+        _serialize_stage(stage, [("/World/Source", ["/World"], [], [0], 0)], False, True)
+    assert stage.GetRootLayer().ExportToString() == before

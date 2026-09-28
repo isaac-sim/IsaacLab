@@ -46,9 +46,12 @@ from __future__ import annotations
 
 import logging
 import math
+from fnmatch import fnmatchcase
 from typing import Any, ClassVar, Protocol
 
 import warp as wp
+
+from isaaclab import cloner
 
 from isaaclab_ov._clone import ordered_clone_paths
 from isaaclab_ov._runtime import import_ovphysx
@@ -58,6 +61,28 @@ logger = logging.getLogger(__name__)
 
 # Pure-Python enum (no native dependency); safe to import regardless of USD state.
 TensorType = import_ovphysx("ovphysx.types").TensorType
+
+
+def _expand_env_pattern(pattern: str, plan: cloner.ClonePlan | None) -> list[str]:
+    """Expand planned world instances in world order; leave other native globs unchanged."""
+    if plan is None:
+        return [pattern]
+    templates, starts, worlds, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    paths = []
+    for group in range(1, len(starts) - 1):
+        env_ids = worlds[world_starts[group] : world_starts[group + 1]]
+        for template in templates[starts[group] : starts[group + 1]]:
+            matched = cloner.path.match(pattern, template)
+            if matched is not None:
+                paths.extend(
+                    (int(env_id), template.format(env_id) + matched.suffix)
+                    for env_id in env_ids
+                    if fnmatchcase(str(env_id), matched.instance)
+                )
+    return list(dict.fromkeys(path for _, path in sorted(paths))) if paths else [pattern]
+
 
 # Tensor types that cannot be written. The first group is read-only by PhysX
 # convention (accelerations, inverse mass/inertia, projected joint force); the
@@ -566,9 +591,8 @@ class OvPhysxView:
 
     def _use_resolved_prim_paths(self) -> None:
         """Reuse the first binding's ordered prims instead of repeating a stage-wide glob."""
-        if self._pattern is not None:
-            self._prim_paths = self.prim_paths
-            self._pattern = None
+        self._prim_paths = self.prim_paths
+        self._pattern = None
 
     @property
     def dof_names(self) -> list[str]:

@@ -10,11 +10,14 @@ from collections.abc import Sequence
 from fnmatch import fnmatchcase
 
 CloneTransform = tuple[float, float, float, float, float, float, float]
-CloneRecipe = tuple[str, list[str], list[CloneTransform], list[int] | None]
+# Source, destinations, destination poses, destination world IDs, source world ID.
+CloneRecipe = tuple[str, list[str], list[CloneTransform], list[int] | None, int | None]
 
 
 def ordered_clone_paths(paths: list[str], patterns: list[str]) -> list[str]:
     """Order binding rows numerically within each requested body pattern."""
+    if paths == patterns:
+        return paths
 
     def order_key(path: str) -> tuple:
         group = next((i for i, pattern in enumerate(patterns) if fnmatchcase(path, pattern)), len(patterns))

@@ -64,8 +64,7 @@ def manager_module(monkeypatch):
         "_warmup_done": False,
         "_requires_full_stage": False,
         "_locked_device": None,
-        "_active_clone_recipes": [],
-        "_pending_clones": [],
+        "_clone_recipes": [],
         "_atexit_registered": False,
         "_scene_data_backend": None,
         "_physx_schemas_registered": False,
@@ -84,36 +83,16 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
-def test_clone_recipes_resolve_heterogeneous_asset_paths_without_stage_matching(monkeypatch, manager_module):
-    from pxr import Usd, UsdGeom
-
-    from isaaclab.physics import PhysicsManager
-
-    stage = Usd.Stage.CreateInMemory()
-    for env_id in (0, 1):
-        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Object")
-    topology = SimpleNamespace(world_prototype_layout=(0, 1, 0, 1))
-    sim = SimpleNamespace(stage=stage, get_clone_plan=lambda: SimpleNamespace(topology=topology))
-    monkeypatch.setattr(PhysicsManager, "_sim", sim)
-    manager = manager_module.OvPhysxManager
-    manager._active_clone_recipes = [
-        ("/World/envs/env_0/Object", ["/World/envs/env_2/Object"], [], [2]),
-        ("/World/envs/env_1/Object", ["/World/envs/env_3/Object"], [], [3]),
-    ]
-
-    assert manager._resolved_clone_paths("/World/envs/env_*/Object", "/World/envs/env_0/Object") == [
-        f"/World/envs/env_{env_id}/Object" for env_id in range(4)
-    ]
-
-
 def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch, manager_module):
+    import isaaclab_ov.cloner.replicate as cloner_module
+
     manager = manager_module.OvPhysxManager
     env_ids = list(range(1, 514))
     targets = [f"/World/envs/env_{env_id}/Robot" for env_id in env_ids]
     transforms = [(float(env_id), 0.0, 0.0, 0.0, 0.0, 0.0, 1.0) for env_id in env_ids]
-    manager._pending_clones = [
-        ("/World/envs/env_0/Robot", targets, transforms, env_ids),
-        ("/World/envs/env_0/table", ["/World/envs/env_1/table"], [], [1]),
+    manager._clone_recipes = [
+        ("/World/envs/env_0/Robot", targets, transforms, env_ids, 0),
+        ("/World/envs/env_0/table", ["/World/envs/env_1/table"], [], [1], 0),
     ]
     clone_calls = []
     waits = []
@@ -124,9 +103,9 @@ def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch
         clone_calls.append((source, target_paths, target_transforms, target_env_ids))
         return len(clone_calls)
 
-    monkeypatch.setattr(manager_module, "clone_physics", record_clone)
+    monkeypatch.setattr(cloner_module, "clone_physics", record_clone)
 
-    manager._replay_pending_clones(physx, requires_full_stage=False)
+    cloner_module._replay_clones(physx, manager._clone_recipes)
 
     assert [len(call[1]) for call in clone_calls] == [512, 1, 1]
     assert [path for call in clone_calls[:2] for path in call[1]] == targets
@@ -134,7 +113,7 @@ def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch
     assert [env_id for call in clone_calls[:2] for env_id in call[3]] == env_ids
     assert clone_calls[-1] == ("/World/envs/env_0/table", ["/World/envs/env_1/table"], None, [1])
     assert waits == [1, 2, 3]
-    assert manager._pending_clones == []
+    assert len(manager._clone_recipes) == 2
 
 
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
@@ -540,6 +519,25 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     assert "NORMAL_ATEXIT" in output, output[-8000:]
     assert "OVPHYSX_STOP" in output, output[-8000:]
     _assert_no_atexit_errors(output)
+
+
+@pytest.mark.parametrize("device", ["cpu", "gpu"])
+@pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
+def test_scene_external_forces_every_iteration(monkeypatch, manager_module, device, override, expected):
+    """Default TGS force integration and explicit overrides reach the USD physics scene."""
+    from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
+
+    from pxr import Usd
+
+    from isaaclab.physics import PhysicsManager
+
+    cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
+    assert cfg.enable_external_forces_every_iteration is expected
+    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    stage = Usd.Stage.CreateInMemory()
+    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
+    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
+    assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
 
 
 def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):

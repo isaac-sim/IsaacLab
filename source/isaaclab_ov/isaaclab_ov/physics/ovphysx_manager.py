@@ -18,16 +18,14 @@ import importlib.util
 import logging
 import math
 import os
-import re
 import stat
 from collections.abc import Sequence
-from fnmatch import fnmatchcase
 from typing import TYPE_CHECKING, Any, ClassVar
 
 import numpy as np
 import warp as wp
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -39,13 +37,14 @@ from isaaclab.scene_data.deformable_discovery import (
 from isaaclab.sim.simulation_context import SimulationContext
 from isaaclab.utils.buffers import TimestampedBuffer
 
-from isaaclab_ov._clone import CloneRecipe, CloneTransform, clone_transforms_from_positions, ordered_clone_paths
+from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
+from isaaclab_ov.cloner.replicate import _replay_clones, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
-from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS, OVPHYSX_VERSION, clone_physics, supports_clone_env_ids
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS, OVPHYSX_VERSION, supports_clone_env_ids
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
@@ -88,9 +87,6 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
 
 
 logger = logging.getLogger(__name__)
-
-# Large articulated clone calls scale poorly in OVPhysX 0.6.3; keep each operation bounded.
-_MAX_CLONE_TARGETS_PER_CALL = 512
 
 
 def _newton_schema_root() -> str | None:
@@ -380,12 +376,8 @@ class OvPhysxManager(PhysicsManager):
     _requires_full_stage: ClassVar[bool] = False
     # Device mode is process-wide; later contexts must reuse the first selected device.
     _locked_device: ClassVar[str | None] = None
-    # Active clone recipes survive the consumable pending queue so a forced
-    # re-warmup can rebuild serialized-stage or runtime-only clones.
-    _active_clone_recipes: ClassVar[list[CloneRecipe]] = []
-    # Consumable snapshot of the active recipes. Full-stage warmup materializes
-    # these into serialized USDA; env-0-only warmup replays them with physx.clone().
-    _pending_clones: ClassVar[list[CloneRecipe]] = []
+    # Retain construction inputs for hard reset; serialization and replay never consume them.
+    _clone_recipes: ClassVar[list[CloneRecipe]] = []
     _atexit_registered: ClassVar[bool] = False
     _scene_data_backend: ClassVar[OvPhysxSceneDataBackend | None] = None
     kinematics_dirty: ClassVar[bool] = False
@@ -429,54 +421,7 @@ class OvPhysxManager(PhysicsManager):
                 target roots. Each position uses an identity rotation.
         """
         target_transforms = clone_transforms_from_positions(parent_positions or [])
-        cls._register_clone_transforms(source, targets, target_transforms, None)
-
-    @classmethod
-    def _register_clone_transforms(
-        cls, source: str, targets: list[str], target_transforms: list[CloneTransform], env_ids: list[int] | None = None
-    ) -> None:
-        """Register final target-root world poses for the current simulation context."""
-        recipe = (source, list(targets), list(target_transforms), None if env_ids is None else list(env_ids))
-        cls._active_clone_recipes.append(recipe)
-        cls._pending_clones.append(recipe)
-
-    @classmethod
-    def _resolved_clone_paths(cls, pattern: str, source_path: str) -> list[str] | None:
-        """Return exact cloned prim paths when the recipes cover every environment."""
-        sim = PhysicsManager._sim
-        plan = sim.get_clone_plan() if sim is not None else None
-        if plan is None:
-            return None
-        anchors = [
-            source
-            for source, _, _, _ in cls._active_clone_recipes
-            if source_path == source or source_path.startswith(source + "/")
-        ]
-        if not anchors:
-            return None
-        suffix = source_path[len(max(anchors, key=len)) :]
-        paths: list[str] = []
-        for source, targets, _, _ in cls._active_clone_recipes:
-            candidate = source + suffix
-            if fnmatchcase(candidate, pattern) and sim.stage.GetPrimAtPath(candidate).IsValid():
-                paths.extend([candidate, *(target + suffix for target in targets)])
-        paths = list(dict.fromkeys(paths))
-        if len(paths) != len(plan.topology.world_prototype_layout):
-            return None
-        return ordered_clone_paths(paths, [pattern])
-
-    @classmethod
-    def _rearm_pending_clones(cls) -> None:
-        """Refresh the consumable clone queue from active context recipes."""
-        cls._pending_clones = [
-            (
-                source,
-                list(targets),
-                list(target_transforms),
-                None if target_env_ids is None else list(target_env_ids),
-            )
-            for source, targets, target_transforms, target_env_ids in cls._active_clone_recipes
-        ]
+        cls._clone_recipes.append((source, targets, target_transforms, None, 0))
 
     _physx_schemas_registered: ClassVar[bool] = False
 
@@ -543,8 +488,7 @@ class OvPhysxManager(PhysicsManager):
         cls._warmup_done = False
         cls._requires_full_stage = False
         cls._stage_usda = None
-        cls._pending_clones = []
-        cls._active_clone_recipes = []
+        cls._clone_recipes = []
         # Construct the SceneDataBackend eagerly so :class:`SimulationContext`
         # captures a real instance (not ``None``) when it builds the central
         # :class:`~isaaclab.scene.scene_data_provider.SceneDataProvider` in
@@ -640,8 +584,7 @@ class OvPhysxManager(PhysicsManager):
                 cls._stage_usda = None
                 cls._warmup_done = False
                 cls._requires_full_stage = False
-                cls._active_clone_recipes = []
-                cls._pending_clones = []
+                cls._clone_recipes = []
                 # Drop the SceneDataBackend singleton: its cached bindings and buffers
                 # belong to the runtime instance just released. The next
                 # SimulationContext re-creates it in initialize().
@@ -783,223 +726,6 @@ class OvPhysxManager(PhysicsManager):
     # ------------------------------------------------------------------
 
     @classmethod
-    def _materialize_pending_clones_in_layer(cls, layer: Any) -> int:
-        """Materialize queued clone targets into a flattened stage layer.
-
-        OVPhysX runtime cloning is unsafe after a heterogeneous full-stage load:
-        cloning one leaf can disturb tensor discovery for already loaded sibling
-        assets. Missing targets are copied into the flattened layer. When another
-        clone has already created a target ancestor, an internal reference overlays
-        the source physics without replacing authored descendants. The live USD
-        stage remains unchanged.
-
-        Args:
-            layer: Flattened stage layer to augment.
-
-        Returns:
-            Number of clone targets materialized in the layer.
-        """
-        from pxr import Sdf, Usd  # noqa: PLC0415
-
-        pending_clones = list(cls._pending_clones)
-        cls._pending_clones.clear()
-        if not pending_clones:
-            return 0
-
-        exported_stage = Usd.Stage.Open(layer)
-        if exported_stage is None:
-            raise RuntimeError("OvPhysxManager: failed to open the flattened full-stage layer.")
-
-        envs_path = Sdf.Path("/World/envs")
-        operations: list[tuple[Sdf.Path, Sdf.Path, bool]] = []
-        processed_targets: set[Sdf.Path] = set()
-        for source, targets, _, _ in pending_clones:
-            source_path = Sdf.Path(source)
-            if layer.GetPrimAtPath(source_path) is None:
-                raise RuntimeError(f"OvPhysxManager: clone source {source!r} is absent from the full stage.")
-            for target in targets:
-                target_path = Sdf.Path(target)
-                if target_path in processed_targets:
-                    continue
-                boundary_path = target_path.GetParentPath()
-                for prefix in target_path.GetPrefixes():
-                    if prefix.GetParentPath() == envs_path:
-                        boundary_path = prefix
-                        break
-                if layer.GetPrimAtPath(boundary_path) is None:
-                    raise RuntimeError(f"OvPhysxManager: clone target parent is absent for {target!r}.")
-                operations.append((source_path, target_path, layer.GetPrimAtPath(target_path) is not None))
-                processed_targets.add(target_path)
-
-        operations.sort(key=lambda operation: len(operation[1].GetPrefixes()))
-        for source_path, target_path, target_exists in operations:
-            parent_path = target_path.GetParentPath()
-            parent_spec = layer.GetPrimAtPath(parent_path)
-            if parent_spec is None:
-                generated_paths: list[Sdf.Path] = []
-                # ``CreatePrimInLayer`` authors missing ancestors as ``over`` specs. Track only
-                # paths absent before creation so generated ancestors become defined without
-                # changing existing authored specs.
-                ancestor_path = parent_path
-                while layer.GetPrimAtPath(ancestor_path) is None:
-                    generated_paths.append(ancestor_path)
-                    ancestor_path = ancestor_path.GetParentPath()
-                if Sdf.CreatePrimInLayer(layer, parent_path) is None:
-                    raise RuntimeError(
-                        f"OvPhysxManager: failed to materialize clone target parent {str(parent_path)!r}."
-                    )
-                for generated_path in generated_paths:
-                    generated_spec = layer.GetPrimAtPath(generated_path)
-                    if generated_spec is not None and generated_spec.specifier == Sdf.SpecifierOver:
-                        generated_spec.specifier = Sdf.SpecifierDef
-            if target_exists:
-                target_prim = exported_stage.GetPrimAtPath(target_path)
-                if not target_prim.GetReferences().AddInternalReference(source_path):
-                    raise RuntimeError(f"OvPhysxManager: failed to overlay clone target {str(target_path)!r}.")
-            elif not Sdf.CopySpec(layer, source_path, layer, target_path):
-                raise RuntimeError(f"OvPhysxManager: failed to materialize clone target {str(target_path)!r}.")
-
-        if operations:
-            logger.info("OvPhysxManager: materialized %d clone targets in the full-stage layer", len(operations))
-        return len(operations)
-
-    @staticmethod
-    def _strip_non_source_environments(layer: Any, sources: list[str]) -> int:
-        """Strip authored ``env_<i>`` prims that are not clone sources from a stage layer."""
-        envs_spec = layer.GetPrimAtPath("/World/envs")
-        if envs_spec is None or not envs_spec:
-            return 0
-
-        envs_path = Sdf.Path("/World/envs")
-        source_environment_names = {"env_0"}
-        for source in sources:
-            for prefix in Sdf.Path(source).GetPrefixes():
-                if prefix.GetParentPath() == envs_path:
-                    source_environment_names.add(prefix.name)
-                    break
-
-        env_name_re = re.compile(r"^env_(\d+)$")
-        names_to_remove = [
-            child_name
-            for child_name in list(envs_spec.nameChildren.keys())
-            if env_name_re.match(child_name) and child_name not in source_environment_names
-        ]
-        for child_name in names_to_remove:
-            del envs_spec.nameChildren[child_name]
-        return len(names_to_remove)
-
-    @classmethod
-    def _serialize_selected_stage(cls, sim_stage: Any) -> str:
-        """Serialize the selected stage representation for OVStage population."""
-        layer = sim_stage.Flatten()
-        if cls._requires_full_stage:
-            cls._materialize_pending_clones_in_layer(layer)
-            logger.info("OvPhysxManager: serialized the full USD stage in memory")
-        else:
-            sources = [source for source, _, _, _ in cls._pending_clones]
-            # Remove runtime destinations even when their environment contains another source.
-            source_paths = [Sdf.Path(source) for source in sources]
-            for _, targets, _, _ in cls._pending_clones:
-                for target in targets:
-                    target_path = Sdf.Path(target)
-                    if any(source.HasPrefix(target_path) for source in source_paths):
-                        raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
-                    target_spec = layer.GetPrimAtPath(target_path)
-                    if target_spec is not None:
-                        del target_spec.nameParent.nameChildren[target_spec.name]
-            removed_count = cls._strip_non_source_environments(layer, sources)
-            if cls._has_nonzero_clone_source():
-                cls._add_clone_collision_placeholders(layer, sim_stage)
-            if removed_count:
-                logger.info(
-                    "OvPhysxManager: stripped %d non-source env_<i> subtrees from in-memory USD",
-                    removed_count,
-                )
-            else:
-                logger.debug("OvPhysxManager: no cloned environments to strip — serialized stage as-is.")
-        return layer.ExportToString()
-
-    @classmethod
-    def _has_nonzero_clone_source(cls) -> bool:
-        """Whether retained physics sources occupy more than the default environment."""
-        return any(
-            (match := re.search(r"/env_(\d+)(?:/|$)", source)) and int(match[1]) != 0
-            for source, _, _, _ in cls._active_clone_recipes
-        )
-
-    @classmethod
-    def _add_clone_collision_placeholders(cls, layer: Sdf.Layer, stage: Usd.Stage) -> None:
-        """Keep collection membership resolvable without loading destination physics.
-
-        OvPhysX looks up each cloned shape in the destination collision collection.
-        Plain prims are enough for that lookup; no collision geometry is duplicated.
-        """
-        if not any(prim.IsA(UsdPhysics.CollisionGroup) for prim in stage.Traverse()):
-            return
-        exported_stage = Usd.Stage.Open(layer)
-        xforms = UsdGeom.XformCache()
-        for source, targets, transforms, _ in cls._pending_clones:
-            source_path = Sdf.Path(source)
-            physics_paths = [
-                prim.GetPath()
-                for prim in Usd.PrimRange(stage.GetPrimAtPath(source), Usd.TraverseInstanceProxies())
-                if prim.HasAPI(UsdPhysics.CollisionAPI) or prim.HasAPI(UsdPhysics.RigidBodyAPI)
-            ]
-            paths = sorted(
-                {prefix for path in physics_paths for prefix in path.GetPrefixes() if prefix.HasPrefix(source_path)}
-            )
-            for i, target in enumerate(targets):
-                for path in paths:
-                    target_path = path.ReplacePrefix(source_path, Sdf.Path(target))
-                    xform = UsdGeom.Xform.Define(exported_stage, target_path)
-                    source_prim = stage.GetPrimAtPath(path)
-                    if "PhysxContactReportAPI" in source_prim.GetPrimTypeInfo().GetAppliedAPISchemas():
-                        # Contact bindings inspect authored targets before falling back to clone lineage.
-                        xform.GetPrim().AddAppliedSchema("PhysxContactReportAPI")
-                    world = xforms.GetLocalToWorldTransform(source_prim)
-                    if path == source_path:
-                        # The runtime prefers authored target poses over clone anchors.
-                        if transforms:
-                            pose = transforms[i]
-                            world = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
-                            world.SetTranslateOnly(Gf.Vec3d(*pose[:3]))
-                        xform.AddTransformOp().Set(world)
-                        xform.SetResetXformStack(True)
-                    else:
-                        parent_world = xforms.GetLocalToWorldTransform(source_prim.GetParent())
-                        xform.AddTransformOp().Set(world * parent_world.GetInverse())
-
-    @classmethod
-    def _replay_pending_clones(cls, physx: Any, requires_full_stage: bool) -> None:
-        pending_clones = list(cls._pending_clones)
-        cls._pending_clones.clear()
-
-        if requires_full_stage:
-            return
-
-        for source, targets, target_transforms, target_env_ids in pending_clones:
-            if not targets:
-                continue
-            logger.info(
-                "OvPhysxManager: cloning %s -> %d targets (%s ... %s)",
-                source,
-                len(targets),
-                targets[0],
-                targets[-1],
-            )
-            transforms = target_transforms or None
-            for start in range(0, len(targets), _MAX_CLONE_TARGETS_PER_CALL):
-                end = start + _MAX_CLONE_TARGETS_PER_CALL
-                op_idx = clone_physics(
-                    physx,
-                    source,
-                    targets[start:end],
-                    transforms[start:end] if transforms is not None else None,
-                    target_env_ids[start:end] if target_env_ids is not None else None,
-                )
-                physx.wait_op(op_idx)
-
-    @classmethod
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
@@ -1021,11 +747,18 @@ class OvPhysxManager(PhysicsManager):
         sim = PhysicsManager._sim
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
-        if cls._has_nonzero_clone_source() and not supports_clone_env_ids(OVPHYSX_VERSION):
+        plan = sim.get_clone_plan()
+        # Parsed source bodies have native ID 0. Clones in a retained source world must
+        # use USD collision groups instead, including repeated members in world 0.
+        use_env_ids = all(
+            source_env_id == 0 and (env_ids is None or 0 not in env_ids)
+            for _, _, _, env_ids, source_env_id in cls._clone_recipes
+        )
+        if not use_env_ids and not supports_clone_env_ids(OVPHYSX_VERSION):
             raise RuntimeError("Heterogeneous OvPhysX cloning requires ovphysx>=0.6.3; use uv run --extra ovphysx.")
 
         entries = None
-        if (plan := sim.get_clone_plan()) is not None:
+        if plan is not None:
             env_ids = np.arange(len(plan.topology.world_prototype_layout))
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
@@ -1040,18 +773,11 @@ class OvPhysxManager(PhysicsManager):
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
-            if cls._active_clone_recipes:
+            if cls._clone_recipes:
                 scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        # Serialize sources without duplicating destination physics, even when a
-        # USD cloning context also authored the targets. The live stage remains
-        # available to USD-based sensors; only the physics export is stripped.
-        # Heterogeneous scenes retain each source variant and lightweight target
-        # placeholders for collision groups. Features requiring a full stage
-        # instead materialize missing targets and bypass runtime cloning.
-        cls._rearm_pending_clones()
-        stage_usda = cls._serialize_selected_stage(sim.stage)
+        stage_usda = _serialize_stage(sim.stage, cls._clone_recipes, cls._requires_full_stage, use_env_ids)
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend
@@ -1059,7 +785,7 @@ class OvPhysxManager(PhysicsManager):
             OvPhysxBackendCfg(
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
-                use_env_ids=not cls._has_nonzero_clone_source(),
+                use_env_ids=use_env_ids,
             )
         )
         cls._locked_device = ovphysx_device
@@ -1075,7 +801,8 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        cls._replay_pending_clones(cls.backend.physx, requires_full_stage=cls._requires_full_stage)
+        if not cls._requires_full_stage:
+            _replay_clones(cls.backend.physx, cls._clone_recipes)
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)

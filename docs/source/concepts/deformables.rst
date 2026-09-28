@@ -475,8 +475,6 @@ Cable limitations
   and end fittings that must transfer orientation are not representable.
 * **No damping knobs.** The four stiffness moduli are exposed; their damping counterparts are not.
 * **CPU-only render sync** (NVBug 6502662); periodic curves are not synced.
-* **Culled by Isaac RTX scene partitioning** once the cable deforms beyond its initial extent
-  (OMPE-105749). See :ref:`known-issues-animated-curve-scene-partition`.
 
 .. note::
     An attachment joint is created only when the attachment stiffness is unauthored or infinite. A

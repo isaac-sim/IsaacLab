@@ -12,33 +12,17 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
-from isaaclab_ov._clone import CloneRecipe, CloneTransform
+from isaaclab_ov._clone import CloneRecipe
+from isaaclab_ov.physics.ovphysx_compat import clone_physics
 
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
-
-
-def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
-    """Convert a USD pose matrix to an OvPhysX xyzw clone transform."""
-    matrix = matrix.RemoveScaleShear()
-    position = matrix.ExtractTranslation()
-    quaternion = matrix.ExtractRotationQuat()
-    imaginary = quaternion.GetImaginary()
-    return (
-        float(position[0]),
-        float(position[1]),
-        float(position[2]),
-        float(imaginary[0]),
-        float(imaginary[1]),
-        float(imaginary[2]),
-        float(quaternion.GetReal()),
-    )
 
 
 def _physics_topology(source_prim: Usd.Prim) -> tuple[tuple, ...]:
@@ -149,11 +133,13 @@ def _clone_recipes(
             if quaternions is not None:
                 q = quaternions[column]
                 target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
-            target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
-        # env_0 is retained by the serializer even without a clone call. Other source-only
-        # variants still need an empty recipe so their authored source environment survives.
+            pose = (source_relative * target_env_world).RemoveScaleShear()
+            rotation = pose.ExtractRotationQuat()
+            target_transforms.append((*pose.ExtractTranslation(), *rotation.GetImaginary(), rotation.GetReal()))
+        # Retained nonzero sources participate in the native collision-ID decision even
+        # when this variant needs no copies.
         if targets or self_env_id != 0:
-            recipes.append((source, targets, target_transforms, target_env_ids))
+            recipes.append((source, targets, target_transforms, target_env_ids, self_env_id))
     return recipes
 
 
@@ -194,8 +180,8 @@ class OvPhysxReplicateContext:
                     copies.setdefault((sources[asset], templates[index]), []).append(targets)
         copies = ((key, np.concatenate(groups)) for key, groups in copies.items())
         env_ids = np.arange(len(plan.topology.world_prototype_layout))
-        for recipe in _clone_recipes(self.stage, copies, env_ids, plan.positions, None):
-            self._sim.physics_manager._register_clone_transforms(*recipe)
+        recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
+        self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
 def ovphysx_replicate(
@@ -237,5 +223,79 @@ def ovphysx_replicate(
     sim = PhysicsManager._sim
     if sim is None:
         raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
-    for recipe in recipes:
-        sim.physics_manager._register_clone_transforms(*recipe)
+    sim.physics_manager._clone_recipes.extend(recipes)
+
+
+def _serialize_stage(stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool, use_env_ids: bool) -> str:
+    """Export once, retaining sources and replacing only scheduled native clone targets.
+
+    OVPhysX 0.6.3 resolves USD collision collections against destination prims before
+    cloning. Those destinations need nonphysical placeholders when native env IDs cannot
+    represent retained sources. The live stage remains untouched.
+    """
+    layer = stage.Flatten()
+    exported = Usd.Stage.Open(layer)
+    if full_stage:
+        # Features without native cloning import complete USD copies. Existing destination
+        # opinions win, while a reference supplies missing source physics and descendants.
+        copies = {(source, target) for source, targets, _, _, _ in recipes for target in targets}
+        for source, target in sorted(copies, key=lambda pair: pair[1].count("/")):
+            if not exported.GetPrimAtPath(source):
+                raise ValueError(f"OvPhysX clone source {source!r} is absent from the stage.")
+            target_prim = exported.GetPrimAtPath(target)
+            if target_prim:
+                target_prim.GetReferences().AddInternalReference(source)
+            else:
+                exported.DefinePrim(Sdf.Path(target).GetParentPath())
+                Sdf.CopySpec(layer, source, layer, target)
+        return layer.ExportToString()
+
+    # Delete exact targets, not whole environments: a destination world may also contain
+    # a retained source or an independently authored asset.
+    sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
+    with Sdf.ChangeBlock():
+        for _, targets, _, _, _ in recipes:
+            for target in targets:
+                target_path = Sdf.Path(target)
+                if any(source.HasPrefix(target_path) for source in sources):
+                    raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
+                if (spec := layer.GetPrimAtPath(target_path)) is not None:
+                    del spec.nameParent.nameChildren[spec.name]
+
+    if not use_env_ids:
+        xforms = UsdGeom.XformCache()
+        for source, targets, transforms, _, _ in recipes:
+            source_path = Sdf.Path(source)
+            prims = Usd.PrimRange(stage.GetPrimAtPath(source), Usd.TraverseInstanceProxies())
+            physics_paths = [
+                p.GetPath() for p in prims if p.HasAPI(UsdPhysics.CollisionAPI) or p.HasAPI(UsdPhysics.RigidBodyAPI)
+            ]
+            paths = sorted({p for path in physics_paths for p in path.GetPrefixes() if p.HasPrefix(source_path)})
+            for index, target in enumerate(targets):
+                for path in paths:
+                    prim = stage.GetPrimAtPath(path)
+                    xform = UsdGeom.Xform.Define(exported, path.ReplacePrefix(source_path, Sdf.Path(target)))
+                    if "PhysxContactReportAPI" in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+                        xform.GetPrim().AddAppliedSchema("PhysxContactReportAPI")
+                    world = xforms.GetLocalToWorldTransform(prim)
+                    if path == source_path:
+                        if transforms:
+                            pose = transforms[index]
+                            world = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
+                            world.SetTranslateOnly(Gf.Vec3d(*pose[:3]))
+                        xform.SetResetXformStack(True)
+                    else:
+                        world *= xforms.GetLocalToWorldTransform(prim.GetParent()).GetInverse()
+                    xform.AddTransformOp().Set(world)
+    return layer.ExportToString()
+
+
+def _replay_clones(physx, recipes: Sequence[CloneRecipe]) -> None:
+    """Apply compiled operations after native stage attachment and before warmup."""
+    # Large articulated calls scale poorly in OVPhysX 0.6.3.
+    for source, targets, transforms, env_ids, _ in recipes:
+        for start in range(0, len(targets), 512):
+            selection = slice(start, start + 512)
+            poses = transforms[selection] if transforms else None
+            worlds = env_ids[selection] if env_ids is not None else None
+            physx.wait_op(clone_physics(physx, source, targets[selection], poses, worlds))

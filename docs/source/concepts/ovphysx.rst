@@ -81,6 +81,12 @@ call with matching environment IDs. Tensor bindings use numeric environment
 order so indexed resets, actions and observations address the correct variant.
 Older runtimes retain the legacy homogeneous clone call signature.
 
+The clone context compiles the plan's prototypes and world assignments once.
+The physics manager attaches one exported stage, replays those operations, and
+warms the runtime before assets and sensors bind. Hard reset reuses the same
+operations; there is no separate consumable queue. Binding paths come from the
+plan's world layout and environment template, not from native clone order.
+
 In OvPhysX 0.6.3, authored sources all receive runtime environment ID zero;
 explicit clone IDs apply only to destinations. When sources occupy different
 environments, Isaac Lab therefore uses USD collision groups for isolation on
