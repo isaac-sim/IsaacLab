@@ -42,8 +42,7 @@ class SuccessMonitor:
         self.device = device
 
         num_slots = num_partitions * partition_size
-        # a trailing scratch row absorbs masked and overflowing outcomes, so updates need no
-        # data-dependent indexing (and therefore no host synchronization)
+        # a scratch row absorbs masked and overflowing outcomes, avoiding sync-inducing boolean indexing
         self._outcome_buf = torch.zeros((num_slots + 1, cfg.monitored_history_len), device=device)
         self.success_buf = self._outcome_buf[:num_slots]
         self.success_rate = torch.zeros(num_slots, device=device)
@@ -55,10 +54,7 @@ class SuccessMonitor:
         return self.success_rate.clone()
 
     def get_mean_success_rate(self) -> torch.Tensor:
-        """Average rates across slots that have recorded outcomes, as a 0-d tensor; zero before any outcome.
-
-        Returned on the device so per-step logging does not synchronize; loggers read it when they report.
-        """
+        """Average rates across slots that have recorded outcomes, as a 0-d device tensor; zero before any outcome."""
         measured = self.success_size > 0
         return (self.success_rate * measured).sum() / measured.sum().clamp(min=1)
 

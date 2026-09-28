@@ -30,7 +30,7 @@ class CartpoleEnv(DirectRLEnv):
         self.cartpole = self.scene["cartpole"]
         cart_dof_idx, _ = self.cartpole.find_joints(self.cfg.cart_dof_name)
         pole_dof_idx, _ = self.cartpole.find_joints(self.cfg.pole_dof_name)
-        # device indices keep per-step indexing and effort writes free of host uploads
+        # device indices avoid per-step host uploads
         self._cart_dof_idx = torch.tensor(cart_dof_idx, device=self.device)
         self._pole_dof_idx = torch.tensor(pole_dof_idx, device=self.device)
         self.action_scale = self.cfg.action_scale
@@ -86,7 +86,7 @@ class CartpoleEnv(DirectRLEnv):
 
         # log the survival success rate before resetting (survived = timed out without terminating early)
         survived = self.reset_time_outs[env_ids].float()
-        # kept on the device so resets do not synchronize; loggers read it when they report
+        # no .item(): avoids a sync on every reset
         self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
 
         super()._reset_idx(env_ids)

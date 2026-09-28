@@ -33,7 +33,7 @@ class PendulumMARLEnv(DirectMARLEnv):
         cart_dof_idx, _ = self.robot.find_joints(self.cfg.cart_dof_name)
         pole_dof_idx, _ = self.robot.find_joints(self.cfg.pole_dof_name)
         pendulum_dof_idx, _ = self.robot.find_joints(self.cfg.pendulum_dof_name)
-        # device indices keep per-step indexing and effort writes free of host uploads
+        # device indices avoid per-step host uploads
         self._cart_dof_idx = torch.tensor(cart_dof_idx, device=self.device)
         self._pole_dof_idx = torch.tensor(pole_dof_idx, device=self.device)
         self._pendulum_dof_idx = torch.tensor(pendulum_dof_idx, device=self.device)
@@ -133,7 +133,7 @@ class PendulumMARLEnv(DirectMARLEnv):
                 self._consecutive_upright_steps[env_ids],
                 self._success_required_steps,
             )
-            # kept on the device so resets do not synchronize; loggers read it when they report
+            # no .item(): avoids a sync on every reset
             self.extras.setdefault("log", {})["Metrics/success_rate"] = success.float().mean()
             index_fill_(self._consecutive_upright_steps, env_ids, 0)
         super()._reset_idx(env_ids)

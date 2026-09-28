@@ -213,7 +213,7 @@ class ActionManager(ManagerBase):
 
         # call the base class constructor (this prepares the terms)
         super().__init__(cfg, env)
-        # term dimensions are fixed once the terms are built; they are queried every step
+        # fixed once the terms are built
         self._action_term_dim = [term.action_dim for term in self._terms.values()]
         self._total_action_dim = sum(self._action_term_dim)
         # create buffers to store actions
