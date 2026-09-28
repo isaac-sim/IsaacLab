@@ -452,6 +452,28 @@ def test_cleanup_survives_failed_slot_writes(strategy, timeline):
     assert len(errors) == 1
 
 
+@pytest.mark.parametrize("next_frame", [1, 2], ids=["same-frame", "next-frame"])
+def test_cleanup_retains_new_render_after_previous_delivery_fails(strategy, timeline, next_frame):
+    """Output extraction failure must not orphan the render submitted just before it."""
+    renderer = _FakeRenderer(timeline)
+    consumed = []
+    strategy.announce_frame(0)
+    _render(strategy, renderer, 0, consumed)
+
+    def fail_delivery(render_data, products):
+        raise RuntimeError("output extraction failed")
+
+    strategy.announce_frame(1)
+    strategy.render(renderer, {"/Render/Product"}, 1 / 60, (_DEFAULT_CAMERA,), fail_delivery)
+    strategy.announce_frame(next_frame)
+    with pytest.raises(RuntimeError, match="output extraction failed"):
+        _render(strategy, renderer, 2, consumed)
+
+    assert strategy.cleanup() == []
+    assert all(op.waited for op in renderer.ops)
+    assert consumed == [0, 2]
+
+
 def test_sync_strategy_needs_no_barrier(timeline):
     """The barrier is a no-op for synchronous rendering, which holds nothing in flight."""
     strategy = _SyncRenderStrategy()

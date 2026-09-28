@@ -363,15 +363,15 @@ class _AsyncRenderStrategy(_RenderStrategy):
         A repeat render of a camera within one frame delivers the camera's previous entry first,
         so a caller that renders without advancing the frame cannot grow the ring.
         """
-        while self._ring and self._ring[0].frame != self._frame_index:
-            self._try_drain_one()
-        for queued_entry in tuple(self._ring):
-            shares_camera = any(queued is camera for queued in queued_entry.render_data for camera in render_data)
-            if shares_camera:
-                self._ring.remove(queued_entry)
-                queued_entry.deliver()
+        pending = tuple(self._ring)
+        # Retain the submitted operation even if delivery of an earlier frame fails.
         entry = _AsyncRenderEntry(op, render_data, consume_products, self._frame_index)
         self._ring.append(entry)
+        for queued_entry in pending:
+            shares_camera = any(queued is camera for queued in queued_entry.render_data for camera in render_data)
+            if queued_entry.frame != self._frame_index or shares_camera:
+                self._ring.remove(queued_entry)
+                queued_entry.deliver()
         return entry
 
     def initialize(self, num_envs: int) -> None:
