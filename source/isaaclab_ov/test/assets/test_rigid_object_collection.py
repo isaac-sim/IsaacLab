@@ -9,8 +9,12 @@
 """Real OVPhysX rigid-object-collection coverage on one module-scoped scene per device.
 
 Each device builds one scene of locally authored ``N=2, B=3`` collections, resets it once, and keeps it
-alive for every test that uses it. Each collection belongs to one test, so the tests do not depend on each
-other's order. Initialization failures need their own scenes and therefore build them before any shared scene.
+alive for every test that uses it. Each collection belongs to one test, so those tests do not depend on each
+other's order.
+
+Initialization failures need their own scenes. A second simulation context cannot start while a shared
+scene is alive, so these tests must run before any shared-scene test in the same session; they are
+defined first and pytest runs them before it creates the module-scoped scenes.
 """
 
 from __future__ import annotations
@@ -245,6 +249,7 @@ def test_wrench_reaches_only_the_selected_collection_body(scene: _CollectionScen
 @pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
 @pytest.mark.xfail(
     strict=True,
+    raises=AssertionError,
     reason=(
         "OVPhysX RigidObjectCollection partial body pose writes push whole environment rows from a pose buffer "
         "that is not refreshed first, so unselected bodies of a selected environment are rewound to stale poses."
