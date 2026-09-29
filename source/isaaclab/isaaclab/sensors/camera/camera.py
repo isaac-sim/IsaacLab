@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import sys
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, cast
 
 import numpy as np
 import torch
@@ -16,24 +16,22 @@ import warp as wp
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
-import isaaclab.sim as sim_utils
-from isaaclab.app.logging_utils import force_log_level
-from isaaclab.renderers import BaseRenderer, CameraRenderSpec
-from isaaclab.sim.views import FrameView
-from isaaclab.utils.math import (
+from ... import sim as sim_utils
+from ...app.logging_utils import force_log_level
+from ...renderers import BaseRenderer, CameraRenderSpec
+from ...sim.views import FrameView
+from ...utils.math import (
     convert_camera_frame_orientation_convention,
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData, RenderBufferKind
 
 if TYPE_CHECKING:
     from .camera_cfg import CameraCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -259,25 +257,25 @@ class Camera(SensorBase):
         # and several env classes read it before the renderer's __init__ runs.
         renderer_type = getattr(self.cfg.renderer_cfg, "renderer_type", None)
         if renderer_type == "isaac_rtx":
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
             settings = get_settings_manager()
-            settings.set_bool("/isaaclab/render/rtx_sensors", True)
-            settings.set_bool("/physics/fabricUpdateTransformations", True)
+            settings.set("/isaaclab/render/rtx_sensors", True)
+            settings.set("/physics/fabricUpdateTransformations", True)
             if require_hdr_output:
-                settings.set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+                settings.set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
         elif renderer_type == "ovrtx" and require_hdr_output:
-            from isaaclab.app.settings_manager import get_settings_manager
+            from ...app.settings_manager import get_settings_manager
 
-            get_settings_manager().set_bool("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
-            # FIXME: settings set_bool is a no-op for ovrtx
+            get_settings_manager().set("/rtx/rtpt/gaussian/skipTonemapping/enabled", False)
+            # FIXME: settings.set is a no-op for ovrtx
             # warning only since it affects only ParticleField3DGaussianSplat scene
             logger.warning(
                 "OVRTX backend with PPISP/HDR requires /rtx/rtpt/gaussian/skipTonemapping/enabled to be false."
             )
 
         # UsdGeom Camera prim for the sensor
-        self._sensor_prims: list[UsdGeom.Camera] = list()
+        self._sensor_prims: list[UsdGeom.Camera] = []
         # Allocated in :meth:`_create_buffers` once the renderer's output contract is known.
         self._data: CameraData | None = None
         # The backend's ``__init__`` is its pre-physics phase, so it has to exist before
@@ -330,6 +328,18 @@ class Camera(SensorBase):
     @property
     def num_instances(self) -> int:
         return self._view.count
+
+    @property
+    def supports_batch_update(self) -> bool:
+        """Whether captures can use the shared camera batch implementation.
+
+        Custom scalar capture hooks retain their individual update path. Subclasses may opt
+        in explicitly when they also provide a compatible ``_update_buffers_batch_impl``.
+        """
+        return (
+            type(self)._update_buffers_impl is Camera._update_buffers_impl
+            and type(self)._update_outdated_buffers is SensorBase._update_outdated_buffers
+        )
 
     @property
     def data(self) -> CameraData:
@@ -517,19 +527,11 @@ class Camera(SensorBase):
         """
         pos_wp = None
         if positions is not None:
-            if isinstance(positions, np.ndarray):
-                positions = torch.from_numpy(positions).to(device=self._device)
-            elif not isinstance(positions, torch.Tensor):
-                positions = torch.tensor(positions, device=self._device)
-            positions = positions.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+            positions = self._as_device_tensor(positions, 3)
             pos_wp = wp.from_torch(positions.contiguous(), dtype=wp.vec3f)
         ori_wp = None
         if orientations is not None:
-            if isinstance(orientations, np.ndarray):
-                orientations = torch.from_numpy(orientations).to(device=self._device)
-            elif not isinstance(orientations, torch.Tensor):
-                orientations = torch.tensor(orientations, device=self._device)
-            orientations = orientations.to(device=self._device, dtype=torch.float32).reshape(-1, 4)
+            orientations = self._as_device_tensor(orientations, 4)
             orientations = convert_camera_frame_orientation_convention(orientations, origin=convention, target="opengl")
             ori_wp = wp.from_torch(orientations.contiguous(), dtype=wp.vec4f)
         idx_wp = self._resolve_env_ids_wp(env_ids)
@@ -556,16 +558,8 @@ class Camera(SensorBase):
                 whole batch). When only some rows are degenerate, those rows are skipped and the
                 remaining poses are still applied; a warning is logged.
         """
-        if isinstance(eyes, np.ndarray):
-            eyes = torch.from_numpy(eyes).to(device=self._device)
-        elif not isinstance(eyes, torch.Tensor):
-            eyes = torch.tensor(eyes, device=self._device)
-        eyes = eyes.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
-        if isinstance(targets, np.ndarray):
-            targets = torch.from_numpy(targets).to(device=self._device)
-        elif not isinstance(targets, torch.Tensor):
-            targets = torch.tensor(targets, device=self._device)
-        targets = targets.to(device=self._device, dtype=torch.float32).reshape(-1, 3)
+        eyes = self._as_device_tensor(eyes, 3)
+        targets = self._as_device_tensor(targets, 3)
         if env_ids is None:
             env_ids_torch = torch.arange(self._view.count, dtype=torch.int32, device=self._device)
         elif isinstance(env_ids, slice):
@@ -609,7 +603,7 @@ class Camera(SensorBase):
     Operations
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None, env_mask: wp.array | None = None):
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
         # reset the timestamps
@@ -654,18 +648,12 @@ class Camera(SensorBase):
         # any renderer-side per-camera setup) and ``create_render_data`` consume
         # it, and the prims are already authored at this point.
         cam_paths = tuple(str(p.GetPath()) for p in sim_utils.find_matching_prims(self.cfg.prim_path, self.stage))
-        env_0_prefix = "/World/envs/env_0/"
-        rel_under_env0 = (
-            cam_paths[0].removeprefix(env_0_prefix) if cam_paths and cam_paths[0].startswith(env_0_prefix) else ""
-        )
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
-            device=device_str,
+            device=str(self._device),
             num_instances=self._num_envs,
             camera_prim_paths=cam_paths,
             view_count=self._num_envs,
-            camera_path_relative_to_env_0=rel_under_env0,
         )
 
         # Delegate per-camera USD setup to the renderer — must run **before**
@@ -710,14 +698,17 @@ class Camera(SensorBase):
         # Create internal buffers (includes intrinsic matrix and pose init)
         self._create_buffers()
 
-    def _update_buffers_impl(self, env_mask: wp.array):
-        if not self._env_mask_has_any(env_mask):
-            return
-        # Increment frame count
+    def _prepare_camera(self, env_mask: wp.array) -> None:
+        """Advance capture frames and refresh requested poses before rendering."""
         if self.cfg.update_latest_camera_pose:
             self._update_poses(env_mask=env_mask, frame_op=1)
         else:
             self._update_camera_state(env_mask=env_mask, frame_op=1)
+
+    def _update_buffers_impl(self, env_mask: wp.array):
+        if not self._env_mask_has_any(env_mask):
+            return
+        self._prepare_camera(env_mask)
 
         sim_ctx = sim_utils.SimulationContext.instance()
         renderer = self._renderer
@@ -732,6 +723,30 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._data)
+
+    @staticmethod
+    def _update_buffers_batch_impl(sensors: Sequence[SensorBase]) -> None:
+        """Prepare due cameras and render them together through their shared context."""
+        cameras = cast(Sequence[Camera], sensors)
+        sim_ctx = sim_utils.SimulationContext.instance()
+        if sim_ctx is None:
+            for camera in cameras:
+                camera._update_buffers_impl(camera._is_outdated)
+            return
+
+        ready = []
+        for camera in cameras:
+            if not camera._env_mask_has_any(camera._is_outdated):
+                continue
+            camera._prepare_camera(camera._is_outdated)
+            ready.append(camera)
+        if not ready:
+            return
+
+        sim_ctx.render_context.render_into_cameras(
+            [(camera._renderer, camera._render_data, camera._data) for camera in ready],
+            sim_ctx.get_physics_step_count(),
+        )
 
     """
     Private Helpers
@@ -789,7 +804,6 @@ class Camera(SensorBase):
             )
         if errors:
             raise ValueError("\n".join(errors))
-        device_str = self._device if isinstance(self._device, str) else str(self._device)
         self._data = CameraData.allocate(
             data_types=known,
             height=self.cfg.height,
@@ -800,7 +814,7 @@ class Camera(SensorBase):
         )
         # Camera-frame state (pose / intrinsics) is owned by the camera, not
         # the renderer: allocate warp buffers and populate them.
-        self._data.create_buffers(self._view.count, device_str)
+        self._data.create_buffers(self._view.count, str(self._device))
         self._initialize_intrinsics()
         self._update_poses()
         self._renderer.set_outputs(self._render_data, self._data.output)
@@ -972,6 +986,14 @@ class Camera(SensorBase):
             device=self._device,
         )
 
+    def _as_device_tensor(self, value: np.ndarray | torch.Tensor | Sequence, num_cols: int) -> torch.Tensor:
+        """Convert array-like input to a float32 tensor of shape (N, ``num_cols``) on the camera device."""
+        if isinstance(value, np.ndarray):
+            value = torch.from_numpy(value)
+        elif not isinstance(value, torch.Tensor):
+            value = torch.tensor(value)
+        return value.to(device=self._device, dtype=torch.float32).reshape(-1, num_cols)
+
     def _resolve_env_ids_wp(self, env_ids: Sequence[int] | torch.Tensor | wp.array | slice | None) -> wp.array | None:
         """Resolve camera indices to a Warp ``int32`` array."""
         if env_ids is None:
@@ -989,16 +1011,19 @@ class Camera(SensorBase):
             if not env_ids.is_contiguous():
                 env_ids = env_ids.contiguous()
             return wp.from_torch(env_ids, dtype=wp.int32)
+        elif isinstance(env_ids, slice) and (env_ids.step or 1) > 0:
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         elif isinstance(env_ids, slice):
+            # Torch cannot slice with a negative step.
             env_ids = np.arange(self._view.count, dtype=np.int32)[env_ids]
         else:
             env_ids = np.asarray(env_ids, dtype=np.int32).reshape(-1)
         return wp.array(env_ids, dtype=wp.int32, device=self._device)
 
-    @staticmethod
-    def _env_mask_has_any(env_mask: wp.array) -> bool:
+    def _env_mask_has_any(self, env_mask: wp.array) -> bool:
         """Return whether the mask selects any camera."""
-        return bool(np.any(env_mask.numpy()))
+        # A zero update period marks every camera outdated.
+        return self.cfg.update_period <= 0.0 or bool(np.any(env_mask.numpy()))
 
     """
     Internal simulation callbacks.

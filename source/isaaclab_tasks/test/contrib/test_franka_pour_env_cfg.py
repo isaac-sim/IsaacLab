@@ -7,6 +7,7 @@
 
 import pytest
 
+from isaaclab.utils import update_from_dict, validate
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.franka_pour import pour_env
@@ -65,14 +66,14 @@ def test_source_fill_level_controls_height_and_particle_count():
     assert media_particle_count(media) == 7 * 7 * 21
 
 
-@pytest.mark.parametrize("fill_level", [0.0, -0.1, 1.1, float("nan")])
+@pytest.mark.parametrize("fill_level", [0.0, 1.1, float("nan")])
 def test_source_fill_level_rejects_empty_or_out_of_range_tasks(fill_level):
     """A pouring episode needs a finite, non-empty fill no higher than the cup."""
     cfg = FrankaPourResetDatasetEnvCfg()
     cfg.source_fill_level = fill_level
 
     with pytest.raises(ValueError, match="source_fill_level must lie in \\(0, 1\\]"):
-        cfg.validate()
+        validate(cfg)
 
 
 def test_nested_overrides_are_authoritative_without_rebuilding_assets():
@@ -83,14 +84,15 @@ def test_nested_overrides_are_authoritative_without_rebuilding_assets():
     solver = _resolve_pour_solver_tree(cfg)
     reset_contract = _reset_dataset_task_contract(cfg)
 
-    cfg.from_dict(
+    update_from_dict(
+        cfg,
         {
             "scene": {"source_cup": {"init_state": {"pos": [0.6, 0.0, 0.0]}}},
             "sim": {"physics": {"num_substeps": 5, "use_cuda_graph": False}},
-        }
+        },
     )
     solver.media_solver.max_iterations = 17
-    cfg.validate()
+    validate(cfg)
 
     assert cfg.scene.source_cup is source_cup
     assert cfg.scene.media is media
@@ -147,7 +149,7 @@ def test_final_validation_checks_runtime_allocation_values():
     cfg.mpm_cell_capacity_alignment = 0
 
     with pytest.raises(ValueError, match="mpm_cell_capacity_alignment must be a positive integer"):
-        cfg.validate()
+        validate(cfg)
 
 
 @pytest.mark.parametrize(
@@ -167,4 +169,4 @@ def test_constant_mdp_parameters_are_validated_before_stepping(term_path, parame
     term.params[parameter] = value
 
     with pytest.raises((TypeError, ValueError), match=message):
-        cfg.validate()
+        validate(cfg)

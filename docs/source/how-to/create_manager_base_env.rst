@@ -41,7 +41,7 @@ directory.
 
    .. literalinclude:: ../../../scripts/tutorials/03_envs/create_cartpole_base_env.py
       :language: python
-      :emphasize-lines: 47-51, 54-71, 74-108, 111-130, 135-139, 144, 148, 153-154, 160-161
+      :emphasize-lines: 50-54, 57-74, 77-111, 114-132, 138-144, 153, 159
       :linenos:
 
 The Code Explained
@@ -119,6 +119,12 @@ default values for this tutorial.
    :language: python
    :pyobject: ObservationsCfg
 
+For a policy that needs a flattened history with all terms from each time step together, set
+``history_length`` and ``history_order="time"`` on its :class:`managers.ObservationGroupCfg`.
+The resulting observation has shape ``(num_envs, history_length * combined_term_dim)`` and can be
+reshaped to ``(num_envs, history_length, combined_term_dim)``. The default ``"term"`` order keeps
+each term's history together; use it for policies trained with the existing layout.
+
 Defining events
 ---------------
 
@@ -174,6 +180,12 @@ call the :meth:`envs.ManagerBasedEnv.reset` method to reset the environment and 
 method to step the environment. Both these functions return the observation and an info dictionary
 which may contain additional information provided by the environment. These can be used by an
 agent for decision-making.
+
+Before the environment is created, its configuration is passed to :func:`app.launch_simulation`, which
+launches the simulator runtime that the configuration needs and closes it when the ``with`` block exits.
+Inside this block, :func:`~isaaclab.utils.instantiate` constructs the environment from the class named by
+the configuration's :attr:`~envs.ManagerBasedEnvCfg.class_type` attribute. The class is resolved lazily, so the environment
+class, which works on the USD stage, is only imported once the simulator runtime is running.
 
 The :class:`envs.ManagerBasedEnv` class does not have any notion of terminations since that concept is
 specific for episodic tasks. Thus, the user is responsible for defining the termination condition

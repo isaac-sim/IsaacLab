@@ -7,14 +7,12 @@
 
 from __future__ import annotations
 
+import functools
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
-import torch
-
 from isaaclab.sensors import save_images_to_file
-from isaaclab.utils.buffers import CircularBuffer
-from isaaclab.utils.images import is_rgb_like, normalize_camera_image
+from isaaclab.utils.images import CameraFrameStack, normalize_camera_image
 
 from .cartpole_direct_env import CartpoleEnv
 
@@ -45,59 +43,23 @@ class CartpoleCameraEnv(CartpoleEnv):
                 f" provided: {self.cfg.scene.tiled_camera.data_types}"
             )
 
-        self._stack: CircularBuffer | None = None
-        if self.cfg.frame_stack > 1:
-            # channel-stack mode: the buffer storage is laid out so that ``stacked`` is a free
-            # contiguous reshape into (B, K*C, H, W) without a per-step permute or reshape
-            self._stack = CircularBuffer(
-                max_len=self.cfg.frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
-            )
+        self._frames = CameraFrameStack(self.num_envs, self.device, self.cfg.frame_stack, channel_first=True)
 
     def _get_observations(self) -> dict:
         data_type = self.cfg.scene.tiled_camera.data_types[0]
-        camera_data = self._tiled_camera.data.output[data_type]
-
-        rgb_like = is_rgb_like(data_type)
-        segmentation = data_type == "semantic_segmentation"
-        # defer normalization past the ring buffer when stacking RGB-like data so the ring holds
-        # uint8 (4x cheaper per-step copies); the math is identical since the K frames live in
-        # disjoint channel slices of (B, K*C, H, W). Colorized segmentation is uint8 RGBA and
-        # qualifies; non-colorized segmentation is an int32 label map and does not.
-        defer_normalize = self._stack is not None and (rgb_like or (segmentation and camera_data.dtype == torch.uint8))
-
+        images = self._tiled_camera.data.output[data_type].torch
         if data_type == "albedo":
             # albedo carries an extra alpha channel that the policy does not use
-            camera_data = camera_data[..., :3]
-        if (rgb_like or segmentation) and not defer_normalize:
-            camera_data = normalize_camera_image(camera_data, data_type)
-        elif data_type == "depth":
-            camera_data[camera_data == float("inf")] = 0
-
-        # convert to channel-first [B, C, H, W] expected by the CNN policies (rsl_rl, rl_games, skrl)
-        obs = camera_data.permute(0, 3, 1, 2).contiguous()
-
-        if self._stack is not None:
-            self._stack.append(obs)
-            obs = self._stack.stacked
-
-        if defer_normalize:
-            # no ``out=``: a fresh float32 tensor is allocated per call, so the previous step's
-            # observations (still referenced by the trainer) are not overwritten before
-            # ``record_transition`` reads them. See :func:`isaaclab.utils.warp.ops.normalize_image_uint8`
-            # for the aliasing hazard.
-            obs = normalize_camera_image(obs, data_type, channel_dim=1)
-        elif self._stack is not None:
-            # ``stacked`` is a view of the ring buffer storage which is overwritten on
-            # the next ``env.step``; clone so the returned tensor outlives the next step.
-            obs = obs.clone()
+            images = images[..., :3]
+        # channel-first [B, C, H, W] as expected by the CNN policies (rsl_rl, rl_games, skrl)
+        obs = self._frames(images, functools.partial(normalize_camera_image, data_type=data_type))
 
         if self.cfg.write_image_to_file:
-            save_images_to_file(self._tiled_camera.data.output[data_type] / 255.0, f"cartpole_{data_type}.png")
+            save_images_to_file(self._tiled_camera.data.output[data_type].torch / 255.0, f"cartpole_{data_type}.png")
 
         critic_obs = super()._get_observations()["policy"]
         return {"policy": obs, "critic": critic_obs}
 
     def _reset_idx(self, env_ids: Sequence[int] | None):
         super()._reset_idx(env_ids)
-        if self._stack is not None:
-            self._stack.reset(env_ids)
+        self._frames.reset(env_ids)

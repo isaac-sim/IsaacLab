@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -35,7 +36,7 @@ class pole_upright(ManagerTermBase):
 
     def reset(self, env_ids: torch.Tensor):
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._success[env_ids].mean().item()
-        self._consecutive_upright[env_ids] = 0.0
+        index_fill_(self._consecutive_upright, env_ids, 0.0)
 
     def __call__(
         self, env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, success_threshold: float, hold_time_s: float = 0.5

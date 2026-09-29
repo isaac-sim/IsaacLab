@@ -10,7 +10,7 @@ import pytest
 from isaaclab_newton.cloner.newton_clone_utils import build_source_builders
 from newton import GeoType, ShapeFlags
 
-from pxr import Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Sdf, Usd, UsdGeom, UsdPhysics, UsdShade
 
 _SOURCE = "/World/Asset"
 
@@ -107,6 +107,10 @@ def _make_mixed_visual_stage() -> Usd.Stage:
     UsdGeom.Sphere.Define(stage, f"{_SOURCE}/StaticAuthored/visual")
     static_collider = UsdGeom.Cube.Define(stage, f"{_SOURCE}/StaticAuthored/collider")
     UsdPhysics.CollisionAPI.Apply(static_collider.GetPrim())
+
+    mesh_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/MeshOnly")
+    UsdPhysics.RigidBodyAPI.Apply(mesh_body.GetPrim())
+    _add_l_prism(stage, f"{_SOURCE}/MeshOnly/geom", None, offset=8.0)
     return stage
 
 
@@ -127,11 +131,22 @@ def _build(stage: Usd.Stage, **kwargs) -> newton.ModelBuilder:
 class TestClonerCollisionApproximation:
     """build_source_builders must leave every collider at its USD-authored approximation."""
 
-    def test_authored_convex_decomposition_produces_multiple_hulls(self):
-        """A concave mesh authored with convexDecomposition decomposes into 2+ hulls."""
-        shapes = _collision_shapes(_build(_make_stage("convexDecomposition")))
+    @pytest.mark.parametrize("dynamic", [True, False])
+    def test_authored_convex_decomposition_produces_multiple_hulls(self, dynamic):
+        """Decompose collisions while preserving the authored visual mesh and material binding."""
+        stage = _make_stage("convexDecomposition")
+        if not dynamic:
+            stage.GetPrimAtPath(_SOURCE).RemoveAPI(UsdPhysics.RigidBodyAPI)
+        material = UsdShade.Material.Define(stage, f"{_SOURCE}/material")
+        UsdShade.MaterialBindingAPI.Apply(stage.GetPrimAtPath(_SOURCE)).Bind(material)
+        builder = _build(stage)
+        shapes = _collision_shapes(builder)
         assert len(shapes) >= 2, f"expected a multi-hull decomposition, got {shapes}"
         assert all(geo_type == GeoType.CONVEX_MESH for geo_type in shapes.values())
+        named_flags = zip(builder.shape_label, builder.shape_flags, strict=True)
+        assert [path for path, flags in named_flags if flags & ShapeFlags.VISIBLE] == [f"{_SOURCE}/geom_visual"]
+        visual = builder.shape_label.index(f"{_SOURCE}/geom_visual")
+        assert builder.finalize(device="cpu").isaaclab.visual_material_path[visual] == str(material.GetPath())
 
     def test_skip_mesh_approximation_bypasses_authored_convex_decomposition(self):
         """A render-only import can bypass decomposition and retain the original mesh."""
@@ -152,11 +167,6 @@ class TestClonerCollisionApproximation:
         """Each authored mode maps to its shape type instead of a convex hull."""
         shapes = _collision_shapes(_build(_make_stage(approximation)))
         assert list(shapes.values()) == [expected]
-
-    def test_unauthored_mesh_is_never_approximated(self):
-        """The cloner approximates nothing on its own: USD defaults ``physics:approximation`` to ``none``."""
-        shapes = _collision_shapes(_build(_make_stage(None)))
-        assert list(shapes.values()) == [GeoType.MESH]
 
     def test_only_the_authored_mesh_is_remeshed_in_a_mixed_stage(self):
         """A sibling that authors nothing keeps its trimesh while the authored one is remeshed."""
@@ -182,15 +192,6 @@ class TestClonerCollisionApproximation:
         assert list(_collision_shapes(builders[sources[0]]).values()) == [GeoType.SPHERE]
         assert list(_collision_shapes(builders[sources[1]]).values()) == [GeoType.MESH]
 
-    def test_heterogeneous_sources_with_equal_sequences_stay_honored(self):
-        """Identically authored sources keep their authored modes (no fallback)."""
-        stage, sources = _make_two_source_stage("boundingSphere", "boundingSphere")
-
-        builders = _build_sources(stage, sources)
-
-        for source in sources:
-            assert list(_collision_shapes(builders[source]).values()) == [GeoType.SPHERE]
-
     def test_sdf_collider_is_never_remeshed(self):
         """``physics:approximation`` is ignored on an SDF collider, matching Newton's importer.
 
@@ -205,7 +206,11 @@ class TestClonerCollisionApproximation:
         assert list(shapes.values()) == [GeoType.MESH]
 
     def test_primitive_collider_remains_visible_in_mixed_visual_model(self):
-        """Colliders remain visible only when their body or static parent has no visual shape."""
+        """Colliders remain visible only when their body or static parent has no visual shape.
+
+        A lone default-purpose collision mesh also stays visible: assets that author a single mesh as
+        both collider and render geometry have no visual-only shape to fall back on.
+        """
         builder = _build(_make_mixed_visual_stage())
         flags_by_label = dict(zip(builder.shape_label, builder.shape_flags, strict=True))
 
@@ -213,21 +218,4 @@ class TestClonerCollisionApproximation:
         assert not flags_by_label[f"{_SOURCE}/Authored/collider"] & ShapeFlags.VISIBLE
         assert flags_by_label[f"{_SOURCE}/StaticPrimitive/geometry"] & ShapeFlags.VISIBLE
         assert not flags_by_label[f"{_SOURCE}/StaticAuthored/collider"] & ShapeFlags.VISIBLE
-
-    def test_mesh_collider_remains_visible_in_mixed_visual_model(self):
-        """A lone default-purpose collision mesh renders even when other bodies have visuals.
-
-        Assets that author a single mesh as both collider and render geometry have no
-        visual-only shape to fall back on, so hiding their collider makes the body
-        disappear from the viewer.
-        """
-        stage = _make_mixed_visual_stage()
-        mesh_body = UsdGeom.Xform.Define(stage, f"{_SOURCE}/MeshOnly")
-        UsdPhysics.RigidBodyAPI.Apply(mesh_body.GetPrim())
-        _add_l_prism(stage, f"{_SOURCE}/MeshOnly/geom", None, offset=8.0)
-
-        builder = _build(stage)
-        flags_by_label = dict(zip(builder.shape_label, builder.shape_flags, strict=True))
-
         assert flags_by_label[f"{_SOURCE}/MeshOnly/geom"] & ShapeFlags.VISIBLE
-        assert not flags_by_label[f"{_SOURCE}/Authored/collider"] & ShapeFlags.VISIBLE

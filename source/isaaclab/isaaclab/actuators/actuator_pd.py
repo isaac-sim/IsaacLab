@@ -12,11 +12,10 @@ from typing import TYPE_CHECKING, ClassVar
 
 import torch
 
-from isaaclab.utils import DelayBuffer, LinearInterpolation
-from isaaclab.utils.types import ArticulationActions
-
-from ._compat import _limits_equal
+from ..utils import DelayBuffer, LinearInterpolation
+from ..utils.types import ArticulationActions
 from .actuator_base import ActuatorBase, resolve_joint_parameter
+from .actuator_compat import limits_equal
 
 if TYPE_CHECKING:
     from .actuator_control import ActuatorControl
@@ -28,7 +27,6 @@ if TYPE_CHECKING:
         RemotizedPDActuatorCfg,
     )
 
-# import logger
 logger = logging.getLogger(__name__)
 
 """
@@ -90,7 +88,7 @@ class ImplicitActuator(ActuatorBase):
                 DeprecationWarning,
                 stacklevel=2,
             )
-            if joint_effort_limit is not None and not _limits_equal(joint_effort_limit, effort_limit):
+            if joint_effort_limit is not None and not limits_equal(joint_effort_limit, effort_limit):
                 raise ValueError(
                     "Received conflicting joint_effort_limit and deprecated effort_limit constructor arguments."
                 )
@@ -327,7 +325,7 @@ class IdealPDActuator(ActuatorBase):
         # calculate the desired joint torques
         self.computed_effort = self.stiffness * error_pos + self.damping * error_vel + control_action.joint_efforts
         # clip the torques based on the motor limits
-        self.applied_effort = self._clip_effort(self.computed_effort)
+        self.applied_effort = self._clip_effort(self.computed_effort, joint_vel)
         # set the computed actions back into the control action
         control_action.joint_efforts = self.applied_effort
         control_action.joint_positions = None
@@ -415,33 +413,17 @@ class DCMotor(IdealPDActuator):
         self._vel_at_effort_lim = self.actuator_velocity_limit * (
             1 + self.actuator_effort_limit / self._saturation_effort
         )
-        # prepare joint vel buffer for max effort computation
-        self._joint_vel = torch.zeros_like(self.computed_effort)
-        # create buffer for zeros effort
-        self._zeros_effort = torch.zeros_like(self.computed_effort)
-
-    """
-    Operations.
-    """
-
-    def compute(
-        self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
-    ) -> ArticulationActions:
-        # save current joint vel
-        self._joint_vel[:] = joint_vel
-        # calculate the desired joint torques
-        return super().compute(control_action, joint_pos, joint_vel)
 
     """
     Helper functions.
     """
 
-    def _clip_effort(self, effort: torch.Tensor) -> torch.Tensor:
-        # save current joint vel
-        self._joint_vel[:] = torch.clip(self._joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
+    def _clip_effort(self, effort: torch.Tensor, joint_vel: torch.Tensor) -> torch.Tensor:
+        # Clamp the local value without modifying the measured joint velocity.
+        joint_vel = torch.clip(joint_vel, min=-self._vel_at_effort_lim, max=self._vel_at_effort_lim)
         # compute torque limits
-        torque_speed_top = self._saturation_effort * (1.0 - self._joint_vel / self.actuator_velocity_limit)
-        torque_speed_bottom = self._saturation_effort * (-1.0 - self._joint_vel / self.actuator_velocity_limit)
+        torque_speed_top = self._saturation_effort * (1.0 - joint_vel / self.actuator_velocity_limit)
+        torque_speed_bottom = self._saturation_effort * (-1.0 - joint_vel / self.actuator_velocity_limit)
         # -- max limit
         max_effort = torch.clip(torque_speed_top, max=self.actuator_effort_limit)
         # -- min limit
@@ -473,16 +455,14 @@ class DelayedPDActuator(IdealPDActuator):
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
-        # all of the envs
-        self._ALL_INDICES = torch.arange(self._num_envs, dtype=torch.long, device=self._device)
+        self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
     def reset(self, env_ids: Sequence[int]):
         super().reset(env_ids)
         # number of environments (since env_ids can be a slice)
-        if env_ids is None or env_ids == slice(None):
-            num_envs = self._num_envs
-        else:
-            num_envs = len(env_ids)
+        if env_ids is None:
+            env_ids = slice(None)
+        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # set a new random delay for environments in env_ids
         time_lags = torch.randint(
             low=self.cfg.min_delay,
@@ -491,14 +471,10 @@ class DelayedPDActuator(IdealPDActuator):
             dtype=torch.int,
             device=self._device,
         )
-        # set delays
-        self.positions_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.velocities_delay_buffer.set_time_lag(time_lags, env_ids)
-        self.efforts_delay_buffer.set_time_lag(time_lags, env_ids)
-        # reset buffers
-        self.positions_delay_buffer.reset(env_ids)
-        self.velocities_delay_buffer.reset(env_ids)
-        self.efforts_delay_buffer.reset(env_ids)
+        # set delays and reset buffers
+        for delay_buffer in self._delay_buffers:
+            delay_buffer.set_time_lag(time_lags, env_ids)
+            delay_buffer.reset(env_ids)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor
@@ -507,7 +483,6 @@ class DelayedPDActuator(IdealPDActuator):
         control_action.joint_positions = self.positions_delay_buffer.compute(control_action.joint_positions)
         control_action.joint_velocities = self.velocities_delay_buffer.compute(control_action.joint_velocities)
         control_action.joint_efforts = self.efforts_delay_buffer.compute(control_action.joint_efforts)
-        # compte actuator model
         return super().compute(control_action, joint_pos, joint_vel)
 
 

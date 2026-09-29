@@ -14,6 +14,7 @@ import torch
 
 from isaaclab.assets import Articulation
 from isaaclab.envs import DirectMARLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import quat_conjugate, quat_mul, sample_uniform, saturate, scale_transform, unscale_transform
 
 from isaaclab_tasks.core.reorient.utils import (
@@ -256,7 +257,7 @@ class HandoverEnv(DirectMARLEnv):
         self.extras.setdefault("log", {})["Metrics/success_rate"] = succeeded.float().mean()
         for statistic, value in self._goal_distance.reset(env_ids).items():
             self.extras["log"][f"Diagnostics/episode_min_goal_distance_{statistic}"] = value
-        self._episode_succeeded[env_ids] = False
+        index_fill_(self._episode_succeeded, env_ids, False)
         # reset articulation and rigid body attributes
         super()._reset_idx(env_ids)
 

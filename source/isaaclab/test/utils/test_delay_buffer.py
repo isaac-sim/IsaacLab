@@ -8,6 +8,7 @@ from collections.abc import Generator
 import pytest
 import torch
 
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import DelayBuffer
 
 pytestmark = pytest.mark.unit
@@ -37,60 +38,67 @@ def test_constant_time_lags(delay_buffer):
 
     all_data = []
     for i, data in enumerate(_generate_data(batch_size, 20, delay_buffer.device)):
+        # Reads before the first recorded sample use the input without allocating history.
+        if i == 0:
+            torch.testing.assert_close(delay_buffer.compute(data, update_history=False), data)
+            assert torch.all(delay_buffer.num_pushes == 0)
         all_data.append(data)
         # apply delay
         delayed_data = delay_buffer.compute(data)
         error = delayed_data - all_data[max(0, i - const_lag)]
         assert torch.all(error == 0)
+        torch.testing.assert_close(delay_buffer.compute(data + 100, update_history=False), delayed_data)
+        assert torch.all(delay_buffer.num_pushes == i + 1)
 
 
-def test_reset(delay_buffer):
-    """Test resetting the last two batch indices after iteration `reset_itr`."""
-    const_lag: int = 2
-    reset_itr = 10
-    batch_size: int = 10
+@pytest.mark.parametrize("feature_shape", [(), (2, 3)])
+def test_reset(delay_buffer, feature_shape):
+    """Partial and full resets return fresh samples without affecting other histories."""
+    import isaaclab.utils.buffers.delay_buffer as delay_module
 
-    delay_buffer.set_time_lag(const_lag)
-
-    all_data = []
-    for i, data in enumerate(_generate_data(batch_size, 20, delay_buffer.device)):
-        all_data.append(data)
-        # from 'reset_itr' iteration reset the last and second-to-last environments
-        if i == reset_itr:
-            delay_buffer.reset([-2, -1])
-        # apply delay
-        delayed_data = delay_buffer.compute(data)
-        # before 'reset_itr' is is similar to test_constant_time_lags
-        # after that indices [-2, -1] should be treated separately
-        if i < reset_itr:
-            error = delayed_data - all_data[max(0, i - const_lag)]
-            assert torch.all(error == 0)
-        else:
-            # error_regular = delayed_data[:-2] - all_data[max(0, i - const_lag)][:-2]
-            error2_reset = delayed_data[-2, -1] - all_data[max(reset_itr, i - const_lag)][-2, -1]
-            # assert torch.all(error_regular == 0)
-            assert torch.all(error2_reset == 0)
+    assert not hasattr(delay_module, "CircularBuffer"), "Delay storage must not depend on frame stacking."
+    delay_buffer.set_time_lag(2)
+    first_step = torch.zeros(delay_buffer.batch_size, dtype=torch.long, device=delay_buffer.device)
+    shape = (delay_buffer.batch_size, *([1] * len(feature_shape)))
+    for step in range(20):
+        data = torch.full((delay_buffer.batch_size, *feature_shape), step, device=delay_buffer.device)
+        if step in (7, 12):
+            ids = [1] if step == 7 else None
+            delay_buffer.reset(ids)
+            first_step[ids if ids is not None else slice(None)] = step
+            expected = torch.maximum(first_step, torch.full_like(first_step, step - 3))
+            torch.testing.assert_close(
+                delay_buffer.compute(data, update_history=False), expected.view(shape).expand_as(data)
+            )
+        expected = torch.maximum(first_step, torch.full_like(first_step, step - 2))
+        torch.testing.assert_close(delay_buffer.compute(data), expected.view(shape).expand_as(data))
 
 
-def test_random_time_lags(delay_buffer):
-    """Test random delays."""
-    max_lag: int = 3
-    time_lags = torch.randint(
-        low=0, high=max_lag + 1, size=(delay_buffer.batch_size,), dtype=torch.int, device=delay_buffer.device
-    )
+@pytest.mark.parametrize("hold_prob", [0.0, 0.5, 1.0])
+def test_random_time_lags(delay_buffer, hold_prob, monkeypatch):
+    """Each batch retains its lag or resamples; reset always starts a new episode."""
+    delay_buffer = DelayBuffer(4, delay_buffer.batch_size, delay_buffer.device, min_lag=1, hold_prob=hold_prob)
+    time_lags = torch.randint(1, 5, (delay_buffer.batch_size,), device=delay_buffer.device)
+    # Indexed assignment must accept int64 lags as well as the buffer's int32 dtype.
+    delay_buffer.set_time_lag(time_lags, list(range(delay_buffer.batch_size)))
+    expected_lags = time_lags.int()
+    first_step = torch.zeros_like(expected_lags)
+    draws = torch.tensor([0.25, 0.75] * (delay_buffer.batch_size // 2), device=delay_buffer.device)
+    monkeypatch.setattr(torch, "rand", lambda *args, **kwargs: draws)
+    monkeypatch.setattr(torch, "randint", lambda low, high, size, **kwargs: torch.full(size, sampled_lag, **kwargs))
 
-    delay_buffer.set_time_lag(time_lags)
-
-    all_data = []
-    for i, data in enumerate(_generate_data(delay_buffer.batch_size, 20, delay_buffer.device)):
-        all_data.append(data)
-        # apply delay
-        delayed_data = delay_buffer.compute(data)
-        true_delayed_index = torch.maximum(i - delay_buffer.time_lags, torch.zeros_like(delay_buffer.time_lags))
-        true_delayed_index = true_delayed_index.tolist()
-        for i in range(delay_buffer.batch_size):
-            error = delayed_data[i] - all_data[true_delayed_index[i]][i]
-            assert torch.all(error == 0)
+    for step, data in enumerate(_generate_data(delay_buffer.batch_size, 12, delay_buffer.device)):
+        sampled_lag = 1 + step % 4
+        if step == 7:
+            delay_buffer.reset([0])
+            expected_lags[0] = sampled_lag
+            first_step[0] = step
+        expected_lags[draws >= hold_prob] = sampled_lag
+        result = delay_buffer.compute(data)
+        torch.testing.assert_close(delay_buffer.time_lags, expected_lags)
+        expected = torch.maximum(step - expected_lags, first_step).unsqueeze(-1)
+        torch.testing.assert_close(result, expected)
+        torch.testing.assert_close(delay_buffer.compute(data + 100, update_history=False), expected)
 
 
 @pytest.mark.parametrize(
@@ -119,14 +127,33 @@ def test_invalid_time_lag_does_not_mutate_state(delay_buffer, time_lag, batch_id
 
 
 def test_compute_result_independent_of_internal_buffer(delay_buffer):
-    """``compute()``'s returned tensor must not alias the internal circular buffer storage.
-
-    Regression: ``DelayBuffer.compute`` previously called ``.clone()`` defensively. After
-    dropping the clone (advanced indexing returns a copy), this asserts the contract is
-    preserved — mutating the result in place must not affect the next ``compute()`` output.
-    """
-    delay_buffer.set_time_lag(0)
+    """Mutating a delayed output must not corrupt retained samples."""
+    delay_buffer.set_time_lag(1)
     first = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 1, dtype=torch.int))
-    first.fill_(999)  # mutate the returned tensor
+    first.fill_(999)
     second = delay_buffer.compute(torch.full((delay_buffer.batch_size, 1), 2, dtype=torch.int))
-    assert torch.all(second == 2), "Mutation of a prior compute() result leaked into the next call"
+    assert torch.all(second == 1)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_delay_buffer_cuda_graph(delay_buffer, device):
+    """Sampling and ring writes work during graph replay, including across partial resets."""
+    with torch.cuda.device(device):
+        delay_buffer = DelayBuffer(4, delay_buffer.batch_size, device, min_lag=1, hold_prob=0.5)
+        data = torch.zeros(delay_buffer.batch_size, 1, device=delay_buffer.device)
+        delay_buffer.compute(data)
+        graph = torch.cuda.CUDAGraph()
+        with torch.cuda.graph(graph):
+            result = delay_buffer.compute(data)
+            read = delay_buffer.compute(data, update_history=False)
+        delay_buffer.reset()
+        for step in range(9):
+            if step == 4:
+                delay_buffer.reset([1])
+            data.fill_(step)
+            graph.replay()
+            expected = (step - delay_buffer.time_lags).clamp_min(0).unsqueeze(-1).to(data.dtype)
+            if step >= 4:
+                expected[1].clamp_(min=4)
+            torch.testing.assert_close(result, expected)
+            torch.testing.assert_close(read, expected)

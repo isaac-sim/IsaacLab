@@ -13,11 +13,11 @@ import numpy as np
 import torch
 import trimesh
 
-from isaaclab.utils.dict import dict_to_md5_hash
-from isaaclab.utils.io import dump_yaml
-from isaaclab.utils.timer import Timer
-from isaaclab.utils.warp import convert_to_warp_mesh
-
+from ..utils import clone, to_dict
+from ..utils.dict import dict_to_md5_hash
+from ..utils.io import dump_yaml
+from ..utils.timer import Timer
+from ..utils.warp import convert_to_warp_mesh
 from .trimesh.utils import make_border
 from .utils import color_meshes_by_height, find_flat_patches
 
@@ -25,7 +25,6 @@ if TYPE_CHECKING:
     from .sub_terrain_cfg import FlatPatchSamplingCfg, SubTerrainBaseCfg
     from .terrain_generator_cfg import TerrainGeneratorCfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -150,7 +149,7 @@ class TerrainGenerator:
         # buffer for storing valid patches
         self.flat_patches = {}
         # create a list of all sub-terrains
-        self.terrain_meshes = list()
+        self.terrain_meshes = []
         self.terrain_origins = np.zeros((self.cfg.num_rows, self.cfg.num_cols, 3))
 
         # parse configuration and add sub-terrains
@@ -214,7 +213,7 @@ class TerrainGenerator:
     def _generate_random_terrains(self):
         """Add terrains based on randomly sampled difficulty parameter."""
         # normalize the proportions of the sub-terrains
-        proportions = np.array([sub_cfg.proportion for sub_cfg in self.cfg.sub_terrains.values()])
+        proportions = np.array([sub_cfg.proportion for sub_cfg in self.cfg.sub_terrains.values()], dtype=float)
         proportions /= np.sum(proportions)
         # create a list of all terrain configs
         sub_terrains_cfgs = list(self.cfg.sub_terrains.values())
@@ -235,7 +234,7 @@ class TerrainGenerator:
     def _generate_curriculum_terrains(self):
         """Add terrains based on the difficulty parameter."""
         # normalize the proportions of the sub-terrains
-        proportions = np.array([sub_cfg.proportion for sub_cfg in self.cfg.sub_terrains.values()])
+        proportions = np.array([sub_cfg.proportion for sub_cfg in self.cfg.sub_terrains.values()], dtype=float)
         proportions /= np.sum(proportions)
 
         # find the sub-terrain index for each column
@@ -357,12 +356,12 @@ class TerrainGenerator:
             The sub-terrain mesh and origin.
         """
         # copy the configuration
-        cfg = cfg.copy()
+        cfg = clone(cfg)
         # add other parameters to the sub-terrain configuration
         cfg.difficulty = float(difficulty)
         cfg.seed = self.cfg.seed
         # generate hash for the sub-terrain
-        sub_terrain_hash = dict_to_md5_hash(cfg.to_dict())
+        sub_terrain_hash = dict_to_md5_hash(to_dict(cfg))
         # generate the file name
         sub_terrain_cache_dir = os.path.join(self.cfg.cache_dir, sub_terrain_hash)
         sub_terrain_obj_filename = os.path.join(sub_terrain_cache_dir, "mesh.obj")

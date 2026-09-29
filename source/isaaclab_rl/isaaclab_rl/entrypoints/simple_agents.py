@@ -24,6 +24,7 @@ import torch
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs.utils.spaces import sample_space
 from isaaclab.utils import math as math_utils
+from isaaclab.utils import validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
@@ -77,7 +78,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
     apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")
     # reject unsupported configurations before launching Kit or initializing a native physics backend
     try:
-        env_cfg.validate()
+        validate(env_cfg)
     except (TypeError, ValueError) as exc:
         raise SystemExit(f"Invalid environment configuration: {exc}") from None
 
@@ -99,7 +100,7 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
                 # keep running while any visualizer is open and the step budget is not exhausted
                 sim = env.unwrapped.sim
                 step = 0
-                while sim.is_headless_or_exist_active_visualizer():
+                while sim.is_running():
                     if max_steps is not None and step >= max_steps:
                         break
                     step += 1

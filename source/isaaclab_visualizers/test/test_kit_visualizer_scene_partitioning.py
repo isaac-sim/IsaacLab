@@ -16,20 +16,46 @@ from isaaclab_visualizers.kit.kit_visualizer_cfg import KitVisualizerCfg
 
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.renderers import RendererCfg
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+
+
+@pytest.mark.parametrize("headless", [False, True])
+def test_viewport_pose_publication_is_deferred_for_headless_capture(monkeypatch, headless):
+    visualizer = KitVisualizer(KitVisualizerCfg(headless=headless, origin_type="asset"))
+    visualizer._is_initialized = True
+    visualizer._fabric = MagicMock()
+    visualizer._scene_data_provider = MagicMock()
+    sim = MagicMock(render_generation=12)
+    monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
+    monkeypatch.setattr(visualizer, "is_training_paused", lambda: True)
+    tracking = MagicMock()
+    monkeypatch.setattr(visualizer, "_update_asset_tracking_camera", tracking)
+    monkeypatch.setattr(visualizer, "_update_camera_image_panel", MagicMock())
+    monkeypatch.setattr(visualizer, "_refresh_partial_viz_point_instancers_if_needed", MagicMock())
+
+    visualizer.step(0.1)
+
+    assert tracking.call_count == int(not headless)
+    if headless:
+        visualizer._fabric.update_transforms.assert_not_called()
+        visualizer._fabric.update_geometries.assert_not_called()
+    else:
+        visualizer._fabric.update_transforms.assert_called_once_with(visualizer._scene_data_provider)
+        visualizer._fabric.update_geometries.assert_called_once_with(visualizer._scene_data_provider, 12)
 
 
 @pytest.mark.parametrize("generated", [False, True])
 def test_streaming_renderer_registers_before_visualizer_initialization(monkeypatch, generated):
     sim = MagicMock()
-    settings = MagicMock()
-    settings.get.return_value = True
-    renderer_cfg = object()
+    renderer_cfg = RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom")
     monkeypatch.setattr(kit_visualizer_module.SimulationContext, "instance", lambda: sim)
-    monkeypatch.setattr(kit_visualizer_module, "get_settings_manager", lambda: settings)
-    monkeypatch.setattr(KitVisualizer, "_resolve_streaming_renderer_cfg", lambda self: renderer_cfg)
-
-    KitVisualizer(KitVisualizerCfg(streaming_view=True, streaming_cam_target_prim_path="/Robot" if generated else None))
+    cfg = KitVisualizerCfg(
+        streaming_view=True,
+        streaming_cam_target_prim_path="/Robot" if generated else None,
+        streaming_cam_renderer_cfg=renderer_cfg,
+    )
+    KitVisualizer(cfg)
 
     if generated:
         sim.get_or_create_backend.assert_called_once_with(renderer_cfg)
@@ -104,8 +130,8 @@ def test_marker_partition_detection_uses_canonical_environment_root() -> None:
     assert markers._scene_partitioning_is_active()
 
 
-def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
-    """Omitted environment IDs should persist only while the marker count is unchanged."""
+def test_marker_environment_ids_are_sticky_and_revalidated_on_change() -> None:
+    """Preserve ownership for stable counts and reject changed invalid IDs."""
     stage = Usd.Stage.CreateInMemory()
     for env_id in range(2):
         env_prim = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
@@ -117,15 +143,21 @@ def test_marker_environment_ids_are_sticky_until_count_changes() -> None:
     markers._environment_ids = None
     markers._count = 0
 
+    environment_ids = torch.tensor([0, 1])
     markers.visualize(
         translations=torch.zeros((2, 3)),
         orientations=None,
         scales=None,
         marker_indices=None,
-        environment_ids=torch.tensor([0, 1]),
+        environment_ids=environment_ids,
     )
     primvar = UsdGeom.PrimvarsAPI(instancer).GetPrimvar("omni:scenePartition")
     assert list(primvar.Get()) == ["env_0", "env_1"]
+
+    environment_ids[0] = -1
+    with pytest.raises(ValueError, match="non-negative indices"):
+        markers.visualize(None, None, None, None, environment_ids)
+    environment_ids[0] = 0
 
     markers.visualize(
         translations=torch.ones((2, 3)),

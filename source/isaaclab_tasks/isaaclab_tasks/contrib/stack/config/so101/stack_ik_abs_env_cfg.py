@@ -9,7 +9,7 @@ import numpy as np
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.utils import preset
@@ -220,19 +220,16 @@ class SO101CubeStackEnvCfg(stack_joint_pos_env_cfg.SO101CubeStackEnvCfg):
         # without penetrating. ``joint_effort_limit`` is the "strength" knob and ``joint_velocity_limit``
         # the "speed" knob; stiffness/damping keep the asset defaults. Tune in-sim (lower effort if
         # it still pushes through; raise it if the cube drops).
-        self.scene.robot = self.scene.robot.replace(
+        self.scene.robot = replace(
+            self.scene.robot,
             soft_joint_pos_limit_factor=SO101_HIGH_PD_CFG.soft_joint_pos_limit_factor,
-            spawn=SO101_HIGH_PD_CFG.spawn.replace(
+            spawn=replace(
+                SO101_HIGH_PD_CFG.spawn,
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(
-                        default="physx",
-                        isaacsim_physx="physx",
-                        physx="physx",
-                        newton_mjwarp="physics",
-                    ),
-                }
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                },
             ),
             actuators={
                 "arm": SO101_HIGH_PD_CFG.actuators["arm"],
