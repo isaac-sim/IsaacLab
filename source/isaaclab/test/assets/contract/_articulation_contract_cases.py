@@ -14,6 +14,7 @@ The backends run on mocked views, so these cases need neither Isaac Sim nor a GP
 
 import math
 import warnings
+from contextlib import AbstractContextManager, nullcontext
 from unittest.mock import MagicMock, patch
 
 import numpy as np
@@ -175,33 +176,28 @@ class TestArticulationFinderReturnModes:
         assert finder(first_name) == ([0], [first_name])
 
 
+def _fixed_tendon_articulation(backend: str):
+    """Create a two-environment articulation with two fixed tendons and no spatial tendons."""
+    art, _ = get_articulation(
+        backend, num_instances=2, num_joints=2, num_bodies=2, num_fixed_tendons=2, num_spatial_tendons=0, device="cpu"
+    )
+    return art
+
+
 class TestFixedTendonTargetScheduling:
     """Commanding a tendon target is what schedules the write, not merely having tendons."""
-
-    @staticmethod
-    def _articulation(backend):
-        art, _ = get_articulation(
-            backend,
-            num_instances=2,
-            num_joints=2,
-            num_bodies=2,
-            num_fixed_tendons=2,
-            num_spatial_tendons=0,
-            device="cpu",
-        )
-        return art
 
     @contract_backend("fixed_tendon_target_scheduling")
     def test_commanding_a_target_schedules_the_write(self, backend):
         """The target setter marks the write pending; a static offset write keeps its own contract."""
-        art = self._articulation(backend)
+        art = _fixed_tendon_articulation(backend)
         art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
         assert art._fixed_tendon_target_dirty is True
 
     @requires_backend("newton")
     def test_newton_reports_a_missing_tendon_actuator(self):
         """Without a MuJoCo tendon actuator the solver has no adapter, so commanding must say so."""
-        art = self._articulation("newton")
+        art = _fixed_tendon_articulation("newton")
         with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
             art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
 
@@ -210,7 +206,7 @@ class TestFixedTendonTargetScheduling:
         """A solver with no tendon transmission says so, rather than returning nothing."""
         from isaaclab_newton.physics import NewtonManager
 
-        art = self._articulation("newton")
+        art = _fixed_tendon_articulation("newton")
         with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
             NewtonManager.create_fixed_tendon_control(art)
 
@@ -997,9 +993,8 @@ class TestArticulationWritersJoint:
         expected_joint_pos = art.data.joint_pos.torch.clone()
         expected_joint_vel = art.data.joint_vel.torch.clone()
         # Newton reads body poses through FK bindings, so only its body velocity is a timestamped cache.
-        caches = ("_body_link_vel_w",) if backend == "newton" else ("_body_link_pose_w", "_body_com_vel_w")
-        for cache in caches:
-            getattr(art.data, cache[1:])
+        cached_properties = ("body_link_vel_w",) if backend == "newton" else ("body_link_pose_w", "body_com_vel_w")
+        caches = _prime_timestamped_properties(art.data, [(name, f"_{name}") for name in cached_properties])
         # Seed the finite-difference state so an untouched cell shows whether the write leaked into it.
         previous_joint_vel = wp.to_torch(art.data._previous_joint_vel)
         previous_joint_vel.fill_(3.0)
@@ -1037,11 +1032,10 @@ class TestArticulationWritersJoint:
         torch.testing.assert_close(torch.from_numpy(backend_joint_pos), expected_joint_pos)
         torch.testing.assert_close(torch.from_numpy(backend_joint_vel), expected_joint_vel)
         # ``skip_forward`` leaves the body caches to the caller; a regular write invalidates them.
-        for cache in caches:
-            assert getattr(art.data, cache).timestamp == art.data._sim_timestamp, cache
+        for name, buffer in caches:
+            assert buffer.timestamp == art.data._sim_timestamp, name
         art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
-        for cache in caches:
-            assert getattr(art.data, cache).timestamp < art.data._sim_timestamp, cache
+        _assert_buffers_stale(art.data, caches)
 
     @_writes_backends
     def test_deprecated_joint_state_writer_matches_public_writers(self, backend):
@@ -1314,14 +1308,18 @@ _PARTIAL_WRITES = {
 def _read_backend_rows(backend: str, art, raw_backend, quantity: str) -> torch.Tensor:
     """Read one articulation quantity from backend storage as one row per environment."""
     if backend == "physx":
-        getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities", "mass": "get_masses"}
-        values = wp.to_torch(getattr(raw_backend, getter[quantity])())
+        getter = {
+            "root_pose": raw_backend.get_root_transforms,
+            "root_velocity": raw_backend.get_root_velocities,
+            "mass": raw_backend.get_masses,
+        }
+        values = wp.to_torch(getter[quantity]())
     elif backend == "newton":
         if quantity == "mass":
             values = wp.to_torch(art.data._sim_bind_body_mass)
         else:
-            getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities"}[quantity]
-            values = wp.to_torch(getattr(raw_backend, getter)(None))
+            getter = {"root_pose": raw_backend.get_root_transforms, "root_velocity": raw_backend.get_root_velocities}
+            values = wp.to_torch(getter[quantity](None))
     else:
         from isaaclab_ov import tensor_types as TT
 
@@ -1470,15 +1468,13 @@ _TENDON_WRITER_CASES = [
 ]
 
 
-def _push_tendon_properties(art, backend: str, kind: str) -> None:
-    """Write staged tendon properties to the backend so data read-backs see them on every backend."""
-    if backend == "newton":
-        from isaaclab_newton.physics import NewtonManager
+def _suppress_newton_model_changes(backend: str) -> AbstractContextManager:
+    """Return a context that drops Newton model-change notifications, which need a solver the mock lacks."""
+    if backend != "newton":
+        return nullcontext()
+    from isaaclab_newton.physics import NewtonManager
 
-        with patch.object(NewtonManager, "add_model_change"):
-            getattr(art, f"write_{kind}_tendon_properties_to_sim_index")()
-    else:
-        getattr(art, f"write_{kind}_tendon_properties_to_sim_index")()
+    return patch.object(NewtonManager, "add_model_change")
 
 
 class TestArticulationWritersTendon:
@@ -1544,7 +1540,8 @@ class TestArticulationWritersTendon:
         method(**{kwarg: _make_data_torch(subset_shape, device, wp_dtype)}, **subset)
         # warp, all envs + all tendons: after the push, the matching data property reads the written values back
         method(**{kwarg: _make_payload_warp(full_shape, device, wp_dtype)})
-        _push_tendon_properties(art, backend, kind)
+        with _suppress_newton_model_changes(backend):
+            getattr(art, f"write_{kind}_tendon_properties_to_sim_index")()
         _assert_reads_back(getattr(art.data, getter), _make_payload_torch(full_shape, device, wp_dtype), getter)
         # warp, subset
         method(**{kwarg: _make_data_warp(subset_shape, device, wp_dtype)}, **subset)
@@ -1610,16 +1607,12 @@ class TestArticulationWritersTendon:
                 if len(selected_envs) < num_instances:
                     mask = wp.array([i in selected_envs for i in range(num_instances)], dtype=wp.bool, device=device)
                 write_kwargs = {"env_mask": mask}
+            with _suppress_newton_model_changes(backend):
+                write(**write_kwargs)
             if backend == "newton":
-                from isaaclab_newton.physics import NewtonManager
-
-                with patch.object(NewtonManager, "add_model_change"):
-                    write(**write_kwargs)
                 sim_after = wp.to_torch(art.data._sim_bind_fixed_tendon_stiffness)
                 env_writes.append(
                     [env for env in range(num_instances) if not torch.equal(sim_after[env], sim_before[env])]
                 )
-            else:
-                write(**write_kwargs)
             assert env_writes, "no tendon properties were written"
             assert all(envs == selected_envs for envs in env_writes), env_writes
