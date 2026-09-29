@@ -15,6 +15,13 @@ This guide walks you through setting up CloudXR, connecting an XR device, and ru
 teleoperation session. For additional details see the `Isaac Capture Quick Start
 <https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_.
 
+.. note::
+
+   Isaac Lab currently pins the 1.4 ``isaacteleop`` distribution and import package. Upstream
+   renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in this
+   guide are intentional. See the `Isaac Capture migration guide
+   <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
+
 .. tip::
 
    For architecture details, retargeting pipelines, control scheme recommendations, and how to
@@ -405,9 +412,9 @@ choose the tab that matches your hardware.
          .. note::
 
             The web client URL is versioned. The ``release-1.4.x`` path corresponds to the
-            Isaac Capture version Isaac Lab is pinned to (``isaacteleop~=1.4.145`` in the
-            ``teleop`` extra of the root ``pyproject.toml``). When Isaac Lab bumps its Isaac
-            Capture pin, update this link to the matching client release.
+            ``isaacteleop`` version pinned by Isaac Lab (``isaacteleop~=1.4.145`` in the ``teleop``
+            extra of the root ``pyproject.toml``). When Isaac Lab updates its teleoperation
+            dependency, update this link to the matching client release.
 
          .. tip::
 
@@ -634,8 +641,8 @@ Prerequisites
 
   .. note::
 
-     When Isaac Lab bumps its Isaac Capture pin, check out the matching ``release/<version>.x``
-     branch instead.
+     When Isaac Lab updates its teleoperation dependency, check out the matching
+     ``release/<version>.x`` branch instead.
 
   Grant the host access to the Manus dongle **once, on the host machine**. Run this outside any
   container -- udev rules are processed by ``systemd-udevd``, which does not run inside Docker, so

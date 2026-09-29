@@ -9,6 +9,14 @@ Isaac Capture
 egocentric and robot data collection. It provides a standardized device interface, a flexible
 graph-based retargeting pipeline, and works seamlessly across simulated and real-world robots.
 
+.. note::
+
+   **Name transition.** Isaac Teleop was rebranded as **Isaac Capture**. Isaac Lab currently pins
+   the 1.4 release, whose Python distribution and import package are still named ``isaacteleop``.
+   Upstream renamed both to ``isaaccapture`` in 1.6, so the ``isaacteleop`` commands and imports in
+   this documentation are intentional. See the `Isaac Capture migration guide
+   <https://nvidia.github.io/IsaacCapture/main/references/migration.html>`_ for details.
+
 Isaac Capture replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
 Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 
@@ -399,8 +407,8 @@ Prerequisites
 
   .. note::
 
-     When Isaac Lab bumps its Isaac Capture pin, check out the matching ``release/<version>.x``
-     branch instead.
+     When Isaac Lab updates its teleoperation dependency, check out the matching
+     ``release/<version>.x`` branch instead.
 
   The plugin is installed to ``<IsaacCapture>/install/plugins/so101_leader/so101_leader_plugin``.
   Every later command in this section runs from the Isaac Capture checkout root; substitute your own
