@@ -15,11 +15,9 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
-from isaaclab_physx.physics import PhysxCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
-from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -48,6 +46,9 @@ logger = logging.getLogger(__name__)
 def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
+        # core must not import a backend package at module level
+        from isaaclab_physx.physics import PhysxCfg
+
         physics_cfg = PhysxCfg()
     elif not isinstance(physics_cfg, PhysicsCfg):
         raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
@@ -162,6 +163,9 @@ class SimulationContext:
         # left for the config built afterwards.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
+        # sim_launcher loads the backend configs; keep it out of this module's import
+        from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
+
         self.cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
             self.cfg.visualizer_cfgs,
             _parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
@@ -925,6 +929,9 @@ def build_simulation_context(
             sim_cfg.device = device
 
         if visualizers:
+            # sim_launcher loads the backend configs; keep it out of this module's import
+            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
+
             sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
                 sim_cfg.visualizer_cfgs, _parse_visualizer_csv(visualizers)
             )
