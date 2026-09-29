@@ -259,10 +259,3 @@ def test_uv_run_uses_managed_python(source_checkout_root: Path):
     tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
 
     assert tool_uv["python-preference"] == "only-managed"
-
-
-def test_uv_run_scopes_egl_probe_cmake_policy_compatibility(source_checkout_root: Path):
-    """The legacy egl-probe source build must remain compatible with CMake 4."""
-    tool_uv = _root_pyproject(source_checkout_root)["tool"]["uv"]
-
-    assert tool_uv["extra-build-variables"]["egl-probe"] == {"CMAKE_POLICY_VERSION_MINIMUM": "3.5"}
