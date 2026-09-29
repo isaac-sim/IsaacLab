@@ -20,6 +20,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 from fractions import Fraction
 from types import SimpleNamespace
+from unittest.mock import patch
 
 import pytest
 import warp as wp
@@ -29,6 +30,8 @@ from isaaclab.sensors import SensorBase, SensorBaseCfg
 from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
+
+_VARIABLE_DTS = [0.005, 0.005, 0.010, 0.002, 0.003, 0.004, 0.001, 0.0075]
 
 
 @wp.kernel
@@ -66,12 +69,8 @@ class _RefreshLogSensor(SensorBase):
             get_physics_dt=lambda: 0.0,
             get_clone_plan=lambda: SimpleNamespace(topology=SimpleNamespace(world_prototype_layout=[0] * num_envs)),
         )
-        original_instance = sim_utils.SimulationContext.instance
-        sim_utils.SimulationContext.instance = staticmethod(lambda: sim)
-        try:
+        with patch.object(sim_utils.SimulationContext, "instance", staticmethod(lambda: sim)):
             self._initialize_impl()
-        finally:
-            sim_utils.SimulationContext.instance = original_instance
         self._is_initialized = True
 
     def _initialize_impl(self):
@@ -197,8 +196,7 @@ def test_non_integer_period_waits_for_the_next_step_after_the_refresh(device, dt
 @pytest.mark.parametrize("update_period, read_every", [(0.02, 1), (0.1, 4)])
 def test_variable_dt(device, update_period, read_every):
     """``update(dt)`` may receive a different ``dt`` on every call."""
-    pattern = [0.005, 0.005, 0.010, 0.002, 0.003, 0.004, 0.001, 0.0075]
-    dts = pattern * round(40.0 / sum(pattern))
+    dts = _VARIABLE_DTS * round(40.0 / sum(_VARIABLE_DTS))
     sensor = _RefreshLogSensor(update_period, num_envs=2, device=device, max_refreshes=len(dts))
     actual = _run(sensor, dts, read_every=read_every)
     expected = _expected_refreshes(dts, update_period, read_every=read_every)
@@ -207,10 +205,10 @@ def test_variable_dt(device, update_period, read_every):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("read_every", [3, 4])
-def test_lazy_reads_shift_the_refresh_phase(device, read_every):
+def test_lazy_reads_shift_the_refresh_phase(device):
     """An unread sensor stays due, and the next period is counted from the read that refreshed it."""
-    dt, update_period = 0.005, 0.02
+    # reads every 3 steps leave a 4-step sensor due and unread for 2 steps, so it refreshes every 6 steps
+    dt, update_period, read_every = 0.005, 0.02, 3
     dts = [dt] * round(20.0 / dt)
     sensor = _RefreshLogSensor(update_period, num_envs=2, device=device, max_refreshes=len(dts))
     actual = _run(sensor, dts, read_every=read_every)
@@ -269,5 +267,21 @@ def test_zero_period_refreshes_on_every_read(device):
     actual = _run(sensor, dts, read_every=3)
     expected = list(range(3, len(dts) + 1, 3))
     assert _expected_refreshes(dts, 0.0, read_every=3) == expected
+    for env_refreshes in actual:
+        _assert_schedule(env_refreshes, expected)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+@pytest.mark.parametrize(
+    "dts",
+    [[0.005] * 4000, _VARIABLE_DTS * round(40.0 / sum(_VARIABLE_DTS))],
+    ids=["constant_dt", "variable_dt"],
+)
+def test_cpu_refresh_schedule(device, dts):
+    """The CPU build of the scheduling kernels follows the same schedule as the long CUDA runs above."""
+    update_period = 0.02
+    sensor = _RefreshLogSensor(update_period, num_envs=2, device=device, max_refreshes=len(dts))
+    actual = _run(sensor, dts)
+    expected = _expected_refreshes(dts, update_period)
     for env_refreshes in actual:
         _assert_schedule(env_refreshes, expected)
