@@ -7,6 +7,7 @@
 
 import argparse
 import logging
+import signal
 import sys
 from types import SimpleNamespace
 
@@ -852,13 +853,25 @@ def test_is_available_reflects_simulation_app_presence(monkeypatch: pytest.Monke
 
 
 def test_close_pumps_the_app_before_closing():
-    """Callbacks queued by the closing simulation run before Kit shuts down."""
+    """Drain callbacks and close Kit despite repeated Ctrl+C during teardown."""
     calls = []
-    launcher = KitLauncher.__new__(KitLauncher)
-    launcher._app = SimpleNamespace(
-        update=lambda: calls.append("update"), close=lambda exit_code: calls.append(exit_code)
-    )
+    previous_handler = signal.getsignal(signal.SIGINT)
 
-    launcher.close(exit_code=3)
+    def update():
+        signal.raise_signal(signal.SIGINT)
+        calls.append("update")
+
+    def close(exit_code):
+        signal.raise_signal(signal.SIGINT)
+        calls.append(exit_code)
+
+    launcher = KitLauncher.__new__(KitLauncher)
+    launcher._app = SimpleNamespace(update=update, close=close)
+
+    try:
+        launcher.close(exit_code=3)
+    except KeyboardInterrupt:
+        pytest.fail("Ctrl+C interrupted Kit teardown")
 
     assert calls == ["update", 3]
+    assert signal.getsignal(signal.SIGINT) is previous_handler

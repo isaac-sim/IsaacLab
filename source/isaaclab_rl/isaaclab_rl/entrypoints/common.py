@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import re
+import signal
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -554,6 +555,19 @@ def create_isaaclab_env(
 
         env = multi_agent_to_single_agent(env)
     return env
+
+
+def close_env(env: gym.Env) -> None:
+    """Close the outermost environment wrapper without interrupting its teardown.
+
+    Args:
+        env: Environment to close on the entrypoint's main thread.
+    """
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        env.close()
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
 
 
 """
