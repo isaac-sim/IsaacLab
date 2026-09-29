@@ -26,3 +26,11 @@ Added
   and a framework installer that retained Isaac Lab's torch environment. Documented
   setup, checkpoint-specific settings, guidance limitations, and the distinction
   between independent runtime images and offline reference-frame video generation.
+
+Changed
+^^^^^^^
+
+* **Changed default behavior:** disabled foreground pixel compositing by default.
+  Set ``CameraDRCfg.composite_foreground=True`` to retain source pixels exactly.
+  Simplified the custom/distilled checkpoint setup instructions and documented
+  zero boundary dilation and source projection through the final step as defaults.

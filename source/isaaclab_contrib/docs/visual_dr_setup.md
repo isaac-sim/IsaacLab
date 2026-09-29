@@ -74,28 +74,28 @@ weights in Cosmos export format. Older local exports missing the four modality
 embedding flags are loaded through a temporary config view with legacy defaults;
 the original config and weight files are unchanged.
 
-## Distilled checkpoint recipe
+## Custom and distilled checkpoints
 
-Use `scripts/visual_dr/recipes/cosmos_distilled.yaml` and supply your export:
+Use `--checkpoint` to select a custom or distilled Cosmos export, with sampling
+and resolution settings appropriate for that checkpoint. For example, run a
+four-step transfer export at the camera resolution:
 
 ```bash
 uv run --inexact python scripts/visual_dr/run_rollout.py \
-  --backend cosmos --num_envs 1 --steps 8 \
-  --recipe scripts/visual_dr/recipes/cosmos_distilled.yaml \
-  --checkpoint /path/to/exported-distilled-checkpoint
+  --num_envs 1 --steps 100 --episode_length_s 30 --policy scripted \
+  --backend cosmos --checkpoint /path/to/four-step-transfer-checkpoint \
+  --num_steps 4 --guidance 1.0 --control_guidance 1.0 --resolution 480 \
+  --native_resolution --mask_guidance --mask_strength 1.0 \
+  --video_dir /tmp/cosmos_rollout
 ```
 
-The tested export uses four SDE steps at sigmas `[1, 0.9375, 0.8333333333333, 0.625]`,
-then zero, with text and control guidance both 1. The checkpoint configuration
-selects this sampler; merely setting `num_steps: 4` on the public checkpoint does
-not make it a distilled model. A mismatched fixed-step count is rejected.
+You can also use `scripts/visual_dr/recipes/cosmos_distilled.yaml` as a starting
+recipe and override its checkpoint or settings on the command line.
 
-The distilled recipe opts into `native_resolution: true`, meaning generation at
-the input camera dimensions, for the validated custom 640x480 export. This name
-does **not** mean the public checkpoint's native bucket. Keep it false for public
-Nano. Camera-sized dimensions must be positive multiples of 32, and the temporary
-bucket override is restored after every request. For stock 480-tier generation,
-use `native_resolution: false`, `resolution: "480"`, and `shift: 5.0`.
+Boundary dilation defaults to zero and foreground compositing defaults to off.
+With mask guidance enabled, `mask_step_threshold: null` (the default) projects the
+preserved source through the final denoising step. No extra flags are needed for
+these defaults.
 
 ## Guidance, boundaries, and compositing
 
@@ -118,7 +118,8 @@ it does not copy a sampler implementation or paste source pixels into the output
   Shared edges stay filled. Adjust the radius for the camera resolution and thin
   objects. A mapping such as `{table: 8}` instead shrinks only exposed table edges.
   Positive erosion cannot be combined with positive `boundary_px` dilation.
-- `composite_foreground: true` explicitly pastes source pixels back after generation.
+- `composite_foreground` defaults to false. Setting it to true explicitly pastes
+  source pixels back after generation.
   It preserves exact pixels and their original lighting. It is independent of
   `mask_guidance`; disabling guidance does not itself disable compositing.
 

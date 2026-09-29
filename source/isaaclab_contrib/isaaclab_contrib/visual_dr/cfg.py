@@ -81,12 +81,13 @@ class CameraDRCfg:
     in view should be protected by either mechanism. Naming a class that never
     appears raises rather than silently regenerating everything."""
 
-    composite_foreground: bool = True
-    """Paste source pixels over the generated foreground when enabled.
+    composite_foreground: bool = False
+    """Paste source pixels over the generated foreground when explicitly enabled.
 
-    This guarantees pixel identity but also restores the source lighting. Disable
-    to observe the model's foreground and any relighting from generation. Mask
-    guidance is a separate latent-space constraint and is not pixel-exact.
+    Disabled by default so the generated foreground is returned unchanged.
+
+    Enabling it guarantees pixel identity but also restores the source lighting.
+    Mask guidance is a separate latent-space constraint and is not pixel-exact.
     """
 
     unknown_policy: Literal["preserve", "randomize"] = "preserve"

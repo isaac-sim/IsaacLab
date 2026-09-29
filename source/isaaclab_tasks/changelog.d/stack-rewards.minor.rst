@@ -16,3 +16,10 @@ Added
 
 * Added a Franka stacking configuration and demo scripts for runtime visual domain
   randomization, with segmentation controls and preserved robot/table/object masks.
+
+Changed
+^^^^^^^
+
+* Changed the runtime DR stacking task to inherit zero boundary dilation and
+  disabled foreground compositing. Set ``boundary_px=1`` and
+  ``composite_foreground=True`` explicitly to restore its previous behavior.

@@ -14,7 +14,7 @@ runtime stays task-agnostic and the task-coupled parts live with the task.
 The scene is already semantically tagged (``robot``, ``table``, ``ground``,
 ``cube_1..3``), so the preserved foreground is a list of class names rather than
 an asset-authoring exercise. The prompts describe only what surrounds the table,
-because that is all the composite is allowed to replace.
+while semantic classes identify the foreground for optional mask guidance.
 """
 
 from isaaclab.managers import ObservationTermCfg, RewardTermCfg, SceneEntityCfg
@@ -185,11 +185,7 @@ class FrankaStackRuntimeDRCfg(FrankaCubeStackVisuomotorCosmosEnvCfg):
         self.visual_dr = VisualDRCfg(
             enabled=True,
             probability=1.0,
-            cameras={
-                # A one-pixel ring hides the seam the composite leaves, since the
-                # background was generated without knowing what covers it.
-                DR_CAMERA: CameraDRCfg(preserve_classes=PRESERVE_CLASSES, boundary_px=1)
-            },
+            cameras={DR_CAMERA: CameraDRCfg(preserve_classes=PRESERVE_CLASSES)},
             backend=CosmosBackendCfg(
                 class_type=CosmosBackend,
                 prompts=PromptBankCfg(

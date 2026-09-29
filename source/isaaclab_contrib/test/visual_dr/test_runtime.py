@@ -92,7 +92,9 @@ def test_probability_zero_never_generates(cpu_frames):
 
 
 def test_foreground_is_preserved_exactly_and_repeat_reads_match(cpu_frames):
-    runtime = VisualDRRuntime(make_cfg(), num_envs=2, device="cpu")
+    cfg = make_cfg()
+    cfg.cameras["cam_0"].composite_foreground = True
+    runtime = VisualDRRuntime(cfg, num_envs=2, device="cpu")
     runtime.backend = Mock()
     runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
     runtime.activate()
@@ -108,11 +110,12 @@ def test_foreground_is_preserved_exactly_and_repeat_reads_match(cpu_frames):
     assert runtime.backend.generate.call_count == 1
 
 
-def test_cleared_composite_lets_the_generated_frame_stand(cpu_frames):
-    # The mask is still built -- a backend may send it to the model as a guidance
-    # signal -- so only the paste may be skipped, not the mask.
+@pytest.mark.parametrize("composite", [None, False, True])
+def test_compositing_is_opt_in(cpu_frames, composite):
+    # A full guidance mask must not paste pixels unless compositing is enabled.
     cfg = make_cfg()
-    cfg.cameras["cam_0"].composite_foreground = False
+    if composite is not None:
+        cfg.cameras["cam_0"].composite_foreground = composite
     runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
     runtime.backend = Mock()
     runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
@@ -120,7 +123,8 @@ def test_cleared_composite_lets_the_generated_frame_stand(cpu_frames):
     runtime.sync(make_env(1, [0], step=1))
 
     frame = make_frame(1, preserve=True)
-    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))
+    expected = frame.rgb if composite else torch.full_like(frame.rgb, 99)
+    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), expected)
 
 
 def test_background_is_replaced_where_nothing_is_preserved(cpu_frames):
@@ -428,30 +432,12 @@ def test_disabled_runtime_advances_no_scheduling_state(cpu_frames):
 
 def test_compositing_requires_classes_to_preserve():
     with pytest.raises(ValueError, match="must name the foreground"):
-        CameraDRCfg()
+        CameraDRCfg(composite_foreground=True)
 
 
-def test_clearing_the_composite_makes_preserve_classes_unnecessary():
-    cfg = CameraDRCfg(composite_foreground=False)
+def test_default_camera_does_not_require_preserve_classes():
+    cfg = CameraDRCfg()
     assert cfg.preserve_classes == ()
-
-
-def test_generated_frame_stands_as_is_without_the_composite(cpu_frames):
-    cfg = make_cfg()
-    cfg.cameras["cam_0"].composite_foreground = False
-    runtime = VisualDRRuntime(cfg, num_envs=1, device="cpu")
-    runtime.backend = Mock()
-    runtime.backend.generate.side_effect = lambda sub, request: torch.full_like(sub.rgb, 99)
-    runtime.activate()
-    runtime.sync(make_env(1, [0], step=1))
-    # The observation term hands over an empty mask in this mode, so nothing is
-    # pasted back even though the frame carries a foreground.
-    frame = DRFrame(
-        torch.full((1, 1, 2, 3), 10, dtype=torch.uint8),
-        torch.ones(1, 1, 2, 1),
-        torch.zeros(1, 1, 2, 1, dtype=torch.bool),
-    )
-    assert torch.equal(runtime.read("cam_0", frame.rgb, lambda: frame), torch.full_like(frame.rgb, 99))
 
 
 def test_mask_guidance_is_off_by_default():
@@ -459,9 +445,9 @@ def test_mask_guidance_is_off_by_default():
     from isaaclab_contrib.visual_dr.cosmos import CosmosBackend
 
     cfg = CosmosBackendCfg(class_type=CosmosBackend, prompts=PromptBankCfg(variants=("a lab",)))
-    # Stock cosmos-framework cannot accept a mask, so the default has to be off or
-    # every default configuration would fail to load.
+    # Mask guidance is opt-in; when enabled, its default threshold covers all steps.
     assert cfg.mask_guidance is False
+    assert cfg.mask_step_threshold is None
 
 
 def test_mask_guidance_support_is_detected_not_assumed():
