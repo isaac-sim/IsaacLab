@@ -1360,7 +1360,7 @@ class OVRTXRenderer(BaseRenderer):
             if material_writer is not None:
                 material_writer.publish()
             products = self.backend.renderer.step(
-                render_products={data.render_product_path for data in render_data},
+                render_products=set(self._render_product_paths),
                 delta_time=1.0 / 60.0,
             )
         finally:
@@ -1515,6 +1515,11 @@ class OVRTXRenderer(BaseRenderer):
 
     def render_batch(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
         """Render all requested camera products in one native submission.
+
+        Every registered render product is submitted, not just the requested ones: OVRTX
+        batches products within a step, and naming only a subset makes each product that
+        re-enters the set on a later step far more expensive. Only ``render_data`` is read
+        back, so products left out of the request keep their previous outputs.
 
         Args:
             render_data: Cameras whose poses and output buffers have been prepared. An empty
@@ -1786,7 +1791,7 @@ class OVRTXRenderer(BaseRenderer):
                 with drain_errors:
                     material_writer.drain()
         products = self.backend.renderer.step(
-            render_products={data.render_product_path for data in render_data},
+            render_products=set(self._render_product_paths),
             delta_time=1.0 / 60.0,
             ordinal=self._current_ordinal,
         )

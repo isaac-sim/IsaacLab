@@ -1,0 +1,4 @@
+Test-only change: removed the OpenUSD work-thread limit from the LEAPP export tests
+and the hidden --limit_cpu_threads passthrough on the export CLI. usd-exchange 3.0.0
+supplies OpenUSD 26.08, which satisfies the >=26.5 precondition the workaround was
+gated on. No user-facing behavior changes.

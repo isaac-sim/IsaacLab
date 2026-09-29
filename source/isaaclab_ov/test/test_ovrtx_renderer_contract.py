@@ -165,8 +165,10 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
         ("frame", True, True),
     ],
 )
-def test_ovrtx_render_submits_requested_products_and_routes_outputs(monkeypatch, use_ovstage, missing_output, batch):
-    """A submission fills each camera from its product and rejects incomplete results."""
+def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
+    monkeypatch, use_ovstage, missing_output, batch
+):
+    """A submission covers every registered product, fills each requested camera, and rejects gaps."""
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = use_ovstage
     renderer._initialized_scene = True
@@ -219,7 +221,8 @@ def test_ovrtx_render_submits_requested_products_and_routes_outputs(monkeypatch,
         assert not postprocessed
 
     assert len(submissions) == 1
-    assert submissions[0]["render_products"] == {camera.render_product_path for camera in cameras}
+    # Unrequested products are submitted too, and only the requested cameras are read back.
+    assert submissions[0]["render_products"] == set(renderer._render_product_paths)
     if use_ovstage:
         assert submissions[0]["ordinal"] == 7
         assert published_ordinals == [7]
