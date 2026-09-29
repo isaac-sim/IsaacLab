@@ -111,7 +111,8 @@ def check_markers() -> list[str]:
 def check_lock_pins() -> list[str]:
     """Return an error for each local package whose ``uv.lock`` version differs from its ``pyproject.toml``.
 
-    Only these pins are compared; the rest of ``uv.lock`` is not resolved.
+    Catches a PR that edits a version or takes its side of a ``uv.lock`` conflict, which would make the next
+    ``uv run`` rewrite ``uv.lock``. Only these pins are compared; the rest of ``uv.lock`` is not resolved.
     """
     errors = []
     for package in tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))["package"]:
@@ -127,6 +128,7 @@ def check_lock_pins() -> list[str]:
 
 
 def cmd_check(args: argparse.Namespace) -> int:
+    """PR gate: check the fragments added since the merge base, the release-notes markers and the lock pins."""
     base = run("git", "merge-base", f"origin/{args.base_ref}", "HEAD").strip()
     target = [] if args.include_worktree else ["HEAD"]
     changed = run("git", "diff", "--name-only", "--no-renames", base, *target).splitlines()
@@ -162,16 +164,20 @@ def compile_package(pkg: Path) -> str | None:
     fragments = pkg / "changelog.d"
     if not fragments.is_dir():
         return None
-    for path in sorted(fragments.glob("*.rst")):  # WAR
+    # WAR: split legacy multi-section fragments into towncrier's one-type-per-file fragments, so open PRs
+    # need no migration. Remove with legacy.py once they have merged.
+    for path in sorted(fragments.glob("*.rst")):
         if legacy.LEGACY_RE.match(path.name):
             for name, text in legacy.split_legacy(path).items():
+                # Another fragment with the same slug would otherwise lose its entry.
                 if (fragments / name).exists():
                     raise ValueError(f"splitting {path.name} would overwrite {name}")
                 (fragments / name).write_text(text, encoding="utf-8")
             path.unlink()
     names = [path.name for path in fragments.iterdir()]
+    # No entries means no release: drop the .skip and tier files, so a stale tier cannot bump a later release.
     if not any(ENTRY_RE.match(name) for name in names):
-        for name in filter(MARKER_RE.match, names):  # stale skip and tier files
+        for name in filter(MARKER_RE.match, names):
             (fragments / name).unlink()
         return None
     bump = next((tier for tier in ("major", "minor") if any(n.endswith(f".{tier}") for n in names)), "patch")
@@ -190,15 +196,15 @@ def without_local_versions(lock_text: str) -> dict:
 
 
 def sync_lock() -> None:
-    """Re-lock ``uv.lock`` for the bumped versions, refusing any other change.
-
-    Another uv release can re-serialize the whole lockfile; unlocked dependency edits can move pins.
-    """
+    """Re-lock ``uv.lock`` for the bumped versions; restore it and raise on any other change."""
     before = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
+    # Under UV_FROZEN, which developer shells may export, `uv lock` only validates and keeps the old pins.
     run("uv", "lock", env={k: v for k, v in os.environ.items() if k != "UV_FROZEN"})
     after = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
     diff = run("git", "diff", "--no-color", "-U0", "--", "uv.lock")
     moved = [line for line in diff.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---"))]
+    # Only version lines may move, which rejects a uv release that re-serializes the file, and only local
+    # packages' versions may change, which rejects a moved dependency pin.
     if any(not line[1:].startswith("version = ") for line in moved) or (
         without_local_versions(before) != without_local_versions(after)
     ):
@@ -207,6 +213,10 @@ def sync_lock() -> None:
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
+    """Nightly: bump and build every package with pending entries, re-lock ``uv.lock`` and stage the outputs.
+
+    Returns 1 if anything failed; whatever succeeded stays staged.
+    """
     # Rolling back a failed package restores HEAD, so start clean to never discard local work.
     if run("git", "status", "--porcelain"):
         print("::error::compile needs a clean checkout; commit or stash local changes first", file=sys.stderr)
