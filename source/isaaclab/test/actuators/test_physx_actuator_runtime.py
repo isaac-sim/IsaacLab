@@ -19,18 +19,13 @@ def _runtime() -> PhysxActuatorRuntime:
     return PhysxActuatorRuntime(SimpleNamespace(device="cuda:0"), logger=Mock())
 
 
-def _cuda_device(*, is_capturing: bool) -> SimpleNamespace:
-    """Describe a CUDA device with the given capture state."""
-    return SimpleNamespace(is_cuda=True, is_capturing=is_capturing)
-
-
-def test_graph_capture_failure_restores_adapter_state_and_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch):
+def test_graph_capture_failure_restores_adapter_state_and_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
     """A failed second capture discards the graphs and restores the state swapped by the first capture."""
 
     class _FailingCapture:
         capture_count = 0
 
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             self.capture_index = type(self).capture_count
             type(self).capture_count += 1
             self.graph = object()
@@ -40,7 +35,7 @@ def test_graph_capture_failure_restores_adapter_state_and_falls_back_to_eager(mo
                 raise RuntimeError("second capture unavailable")
             return self
 
-        def __exit__(self, exc_type, exc_value, traceback):
+        def __exit__(self, exc_type, exc_value, traceback) -> bool:
             return False
 
     state_a, state_b = object(), object()
@@ -61,23 +56,23 @@ def test_graph_capture_failure_restores_adapter_state_and_falls_back_to_eager(mo
     runtime._logger.warning.assert_called_once()
 
 
-def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.MonkeyPatch):
+def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.MonkeyPatch) -> None:
     """A graphable adapter whose capture fails still computes the current command eagerly."""
 
     class _FailingCapture:
-        def __init__(self, *args, **kwargs):
+        def __init__(self, *args, **kwargs) -> None:
             pass
 
         def __enter__(self):
             raise RuntimeError("capture unavailable")
 
-        def __exit__(self, exc_type, exc_value, traceback):
+        def __exit__(self, exc_type, exc_value, traceback) -> bool:
             return False
 
     runtime = _runtime()
     runtime.adapter = SimpleNamespace(is_stateful=False, is_all_graphable=True, _states_a=object(), _states_b=object())
     eager_compute = Mock()
-    monkeypatch.setattr(wp, "get_device", lambda device: _cuda_device(is_capturing=False))
+    monkeypatch.setattr(wp, "get_device", lambda device: SimpleNamespace(is_cuda=True, is_capturing=False))
     monkeypatch.setattr(wp, "ScopedCapture", _FailingCapture)
     monkeypatch.setattr(runtime, "_run_native_actuator_kernels", eager_compute)
     collection = SimpleNamespace()
@@ -91,11 +86,11 @@ def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.Mo
     eager_compute.assert_called_with(collection, 0.01)
 
 
-def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.MonkeyPatch):
+def test_stateful_actuator_rejects_outer_cuda_capture(monkeypatch: pytest.MonkeyPatch) -> None:
     """Stateful adapters cannot safely mutate their buffers inside an outer CUDA capture."""
     runtime = _runtime()
     runtime.adapter = SimpleNamespace(is_stateful=True)
-    monkeypatch.setattr(wp, "get_device", lambda device: _cuda_device(is_capturing=True))
+    monkeypatch.setattr(wp, "get_device", lambda device: SimpleNamespace(is_cuda=True, is_capturing=True))
 
     with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
         runtime.compute(SimpleNamespace(), 0.01)
