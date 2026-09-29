@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
@@ -24,14 +24,12 @@ from isaaclab.utils.leapp import (
     joint_names_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
-
+from ...utils.warp import ProxyArray
 from . import ordering_kernels
 
 if TYPE_CHECKING:
-    from isaaclab.actuators import ActuatorCollection
-    from isaaclab.utils.buffers import TimestampedBufferWarp
-
+    from ...actuators import ActuatorCollection
+    from ...utils.buffers import TimestampedBuffer
     from .ordering import ArticulationNameMap
 
 
@@ -250,7 +248,7 @@ class BaseArticulationData(ABC):
             backend_rows = tuple(int(backend_id) - 1 for backend_id in body_user_to_backend if int(backend_id) != 0)
         return wp.array(backend_rows, dtype=wp.int32, device=self.device)
 
-    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBufferWarp) -> None:
+    def _fetch_body_com_pose_b_backend(self, buf: TimestampedBuffer) -> None:
         """Read the current backend-order static body COM pose into ``buf`` when stale.
 
         Backend hook for :meth:`_ensure_body_com_pose_b_current` and

@@ -18,7 +18,7 @@ from typing import TYPE_CHECKING, Literal
 
 from isaaclab_newton.physics import NewtonCollisionPipelineCfg, NewtonSolverCfg
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_newton.physics import NewtonManager

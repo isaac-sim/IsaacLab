@@ -13,15 +13,42 @@ Tests:
     - from isaaclab import __version__ -> verify version matches wheel filename
     - inspect the wheel and isaaclab.__path__ -> verify the core package has a flat layout
     - from isaaclab import _deprioritize_prebundle_paths -> verify wheel exports path sanitizer
-    - from isaaclab.app import AppLauncher -> verify importable
+    - from isaaclab.app import launch_simulation -> verify importable
     - from isaaclab.envs import VideoRecorderCfg -> verify importable
     - from isaaclab_assets.robots.allegro import ALLEGRO_HAND_CFG -> verify importable
     - from isaaclab.scene import InteractiveSceneCfg -> verify importable
     - python -m isaaclab --help -> verify CLI functional
+    - python -c "from isaaclab.programs import DEMOS, EXAMPLES;
+        assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))"
+        -> verify packaged program catalogs resolve private script resources
+    - python -c "import contextlib
+        import io
+        import sys
+        import isaaclab.app as app
+        from isaaclab.programs import DEMOS, EXAMPLES, _run_script
+        def fail_launch(*args, **kwargs):
+            raise AssertionError(f'{sys.argv[0]} launched simulation while handling --help')
+                app.launch_simulation = fail_launch
+        for command, catalog in (('demo', DEMOS), ('example', EXAMPLES)):
+            for program in catalog:
+                sys.argv = [f'isaaclab {command} {program.name}', '--help']
+                with contextlib.redirect_stdout(io.StringIO()):
+                    try:
+                        _run_script(program.path)
+                    except SystemExit as error:
+                        if error.code != 0:
+                            raise AssertionError(f'{sys.argv[0]} --help exited with {error.code}') from error
+                    else:
+                        raise AssertionError(f'{sys.argv[0]} --help did not exit')"
+        -> verify packaged programs expose help without launching simulation
     - verify project-generator resources are installed
     - import pinocchio -> verify importable
     - python -c "import importlib.util; raise SystemExit(importlib.util.find_spec('pytetwild') is not None)"
         -> verify the RL extras omit tetrahedralization dependencies
+    - python -c "import isaaclab_rl" -> verify isaaclab_rl importable
+    - python -c "import isaaclab_tasks" -> verify isaaclab_tasks importable
+    - python -c "import importlib.metadata as m; m.version('isaacsim')"
+        -> verify isaacsim NOT installed (extra not requested)
 """
 
 from __future__ import annotations
@@ -108,6 +135,15 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
         assert "isaaclab/app/__init__.py" in names
         assert "isaaclab/apps/isaaclab.python.kit" in names
+        assert "isaaclab/programs.py" in names
+        assert "isaaclab/examples/demos/zoo.py" in names
+        assert "isaaclab/examples/assets/nvidia_logo_domino_poses.pth" in names
+        assert "isaaclab/examples/cables.py" in names
+        assert "isaaclab/examples/newton_viewer_dominoes.py" in names
+        assert "isaaclab/examples/mpm/newton_mpm_granular.py" in names
+        assert not any(
+            name.startswith(("isaaclab/_demos/", "isaaclab/demos/", "isaaclab/_examples/")) for name in names
+        )
         nested_prefix = "isaaclab/source/isaaclab/isaaclab/"
         assert not any(name.startswith(nested_prefix) for name in names)
 
@@ -124,16 +160,16 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
 
     # from isaaclab import _deprioritize_prebundle_paths
     def test_isaaclab_prebundle_path_sanitizer_exported(self):
-        """Verify the wheel exports the prebundle path sanitizer used by AppLauncher."""
+        """Verify the wheel exports the prebundle path sanitizer used by the Kit launcher."""
         result = self.run_in_uv_env(
             ["python", "-c", "from isaaclab import _deprioritize_prebundle_paths; _deprioritize_prebundle_paths()"]
         )
         assert result.returncode == 0, f"import path sanitizer failed:\n{result.stdout}\n{result.stderr}"
 
-    # from isaaclab.app import AppLauncher
+    # from isaaclab.app import launch_simulation
     def test_isaaclab_app_importable(self):
-        """Verify isaaclab.app and AppLauncher are importable."""
-        result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import AppLauncher"])
+        """Verify the simulation launcher is importable from isaaclab.app."""
+        result = self.run_in_uv_env(["python", "-c", "from isaaclab.app import launch_simulation"])
         assert result.returncode == 0, f"import isaaclab.app failed:\n{result.stdout}\n{result.stderr}"
 
     # from isaaclab.envs import VideoRecorderCfg
@@ -159,6 +195,50 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         """Verify the isaaclab CLI is functional."""
         result = self.run_in_uv_env(["python", "-m", "isaaclab", "--help"])
         assert result.returncode == 0, f"isaaclab CLI help failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_installed_program_catalogs_resolve_private_resources(self):
+        """Verify the installed CLI resolves private demo resources without a source checkout."""
+        result = self.run_in_uv_env(
+            [
+                "python",
+                "-c",
+                "from isaaclab.programs import DEMOS, EXAMPLES; "
+                "assert all(program.path.is_file() for program in (*DEMOS, *EXAMPLES))",
+            ]
+        )
+        assert result.returncode == 0, f"installed program catalogs are incomplete:\n{result.stdout}\n{result.stderr}"
+
+    def test_installed_programs_expose_help_without_launching(self):
+        """Verify every packaged program handles ``--help`` before launching simulation."""
+        check_help = """
+import contextlib
+import io
+import sys
+
+import isaaclab.app as app
+from isaaclab.programs import DEMOS, EXAMPLES, _run_script
+
+
+def fail_launch(*args, **kwargs):
+    raise AssertionError(f"{sys.argv[0]} launched simulation while handling --help")
+
+
+app.launch_simulation = fail_launch
+
+for command, catalog in (("demo", DEMOS), ("example", EXAMPLES)):
+    for program in catalog:
+        sys.argv = [f"isaaclab {command} {program.name}", "--help"]
+        with contextlib.redirect_stdout(io.StringIO()):
+            try:
+                _run_script(program.path)
+            except SystemExit as error:
+                if error.code != 0:
+                    raise AssertionError(f"{sys.argv[0]} --help exited with {error.code}") from error
+            else:
+                raise AssertionError(f"{sys.argv[0]} --help did not exit")
+"""
+        result = self.run_in_uv_env(["python", "-c", check_help])
+        assert result.returncode == 0, f"packaged program help failed:\n{result.stdout}\n{result.stderr}"
 
     def test_project_generator_is_bundled(self):
         """Verify the installed CLI includes the project generator."""
@@ -190,3 +270,21 @@ class Test_Wheel_Builder_Smoke(UV_Mixin):
         assert result.returncode == 0, (
             f"pytetwild should not be installed by {self._extras}:\n{result.stdout}\n{result.stderr}"
         )
+
+    def test_install_rl_tasks_makes_isaaclab_rl_importable(self):
+        """``import isaaclab_rl`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_rl"])
+        assert result.returncode == 0, f"import isaaclab_rl failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_makes_isaaclab_tasks_importable(self):
+        """``import isaaclab_tasks`` succeeds with the RL extras installed."""
+        result = self.run_in_uv_env(["python", "-c", "import isaaclab_tasks"])
+        assert result.returncode == 0, f"import isaaclab_tasks failed:\n{result.stdout}\n{result.stderr}"
+
+    def test_install_rl_tasks_omits_isaacsim(self):
+        """The Isaac Sim runtime is absent when the isaacsim extra is not requested.
+
+        Ask the distribution directly so this remains independent of namespace-package behavior.
+        """
+        result = self.run_in_uv_env(["python", "-c", "import importlib.metadata as m; m.version('isaacsim')"])
+        assert result.returncode != 0, f"isaacsim should not be installed by the {self._extras} extras"

@@ -21,7 +21,7 @@ Port Isaac Gym code directly to the current Isaac Lab APIs; do not introduce an 
 1. Identify the Isaac Gym task structure: assets, environment state tensors, observations, rewards, resets, and training runner.
 2. If the user needs a new full-feature Isaac Sim setup, point them to the automatic uv installation guide first. If the user expects PhysX or Kit execution, run a runtime preflight from the Isaac Lab checkout before a long port: verify `uv run --extra isaacsim python` uses the intended Python environment and checkout, imports `isaacsim` and `omni`, and provides the requested RL library.
 3. Read the IsaacGymEnvs migration guide and direct workflow docs before proposing edits. Treat the guide as a direct mapping to the current Isaac Lab APIs, including physics presets, `ProxyArray` access, XYZW quaternions, and explicit indexed or masked write methods.
-4. For a scratch or external migration project, start from the Isaac Lab template generator instead of hand-rolling package scaffolding. From the Isaac Lab checkout, use `uv run isaaclab -n`, choose an external project, choose the scratch path, choose the direct single-agent workflow for Isaac Gym style tasks, and select the needed RL library such as `rsl_rl`.
+4. For a new scratch or external migration project, follow the [template scaffolding workflow](../create-environments/SKILL.md#scaffold-a-new-task). Use `uv run isaaclab --new`, choose External, a parent path outside Isaac Lab, project/task-family/robot names, direct single-agent for ordinary Isaac Gym tasks, and the needed RL library. Preserve existing project layouts when migrating into an established package.
 5. Migrate to a direct workflow first by default. This preserves the single-class structure that most Isaac Gym tasks already use.
 6. Choose the initial backend target. Start with PhysX when matching Isaac Gym behavior; add Newton only after the direct PhysX migration is validated or if the user explicitly targets Newton.
 7. Map Isaac Gym PhysX parameters through the schema cfg docs: first to Isaac Lab PhysX cfgs, then to backend-portable base cfgs or Newton/MuJoCo cfgs where an equivalent exists.
@@ -42,7 +42,7 @@ Use this feedback loop:
 uv run --with pytest python -m pytest PATH_TO_MIGRATION_TEST
 ```
 
-For manual smoke testing, run the smallest random-action entry point available for the migrated task before training. For external scratch work, prefer a template-generated external project and install its extension in editable mode, or put the generated project extension and every package under the Isaac Lab checkout's `source/` directory at the front of `PYTHONPATH`; this avoids accidentally importing `isaaclab_tasks` or extension packages from another checkout or installed wheel. Ensure the task package is imported before Gym lookup; use a small wrapper for scripts without `--external_callback`, and use the callback option when a training script exposes one.
+For manual smoke testing, run the smallest random-action entry point before training. For generated external projects, run `uv sync` from the project root and use the generated `isaaclab.tasks` entry point for CLI discovery; see [External Template Projects](reference.md#external-template-projects). Standalone validation scripts must import the task registration module before Gym lookup. When matching Isaac Gym PhysX behavior, retain `--extra isaacsim` and the `physics=isaacsim_physx` preset on simulation commands.
 
 For policy validation, follow the policy-success loop in [Reference](reference.md#policy-success-validation-loop). The loop must import/register the migrated task, smoke-test reset and random steps, train to a useful budget, parse TensorBoard or equivalent scalars, evaluate the saved checkpoint in a bounded rollout, then adjust the migration and rerun the shortest affected gate until the policy succeeds or a concrete blocker is identified.
 
@@ -60,7 +60,7 @@ uv run --no-project python tools/skills/cli.py check
 
 ## Maintenance
 
-Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/overview/core-concepts/task_workflows.rst`, `docs/source/overview/core-concepts/multi_backend_architecture.rst`, `docs/source/overview/core-concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
+Keep this skill synchronized with the Isaac Gym section in `docs/source/migration/migrating_to_isaaclab_3-0.rst`, `docs/source/setup/installation/index.rst`, `docs/source/concepts/task_workflows.rst`, `docs/source/concepts/backend_architecture.rst`, `docs/source/concepts/schema_cfgs.rst`, the direct environment tutorial, and direct task examples such as `source/isaaclab_tasks/isaaclab_tasks/core/locomotion/ant/`, `source/isaaclab_tasks/isaaclab_tasks/contrib/anymal_c_direct/`, and `source/isaaclab_tasks/isaaclab_tasks/core/velocity/config/anymal_d/`. If the migration requires documentation-level details, update `docs/source/` or the maintained examples first and keep this skill as a workflow router.
 
 ## References
 
@@ -71,9 +71,9 @@ Keep this skill synchronized with the Isaac Gym section in `docs/source/migratio
 - [Evaluations](evaluations.md)
 - [Direct to manager conversion skill](../convert-direct-to-manager/SKILL.md)
 - [Migration guide: Isaac Gym section](../../../docs/source/migration/migrating_to_isaaclab_3-0.rst#migration-from-isaac-gym-and-isaacgymenvs)
-- [Task workflows](../../../docs/source/overview/core-concepts/task_workflows.rst)
-- [Multi-backend architecture](../../../docs/source/overview/core-concepts/multi_backend_architecture.rst)
-- [Schema cfgs](../../../docs/source/overview/core-concepts/schema_cfgs.rst)
+- [Task workflows](../../../docs/source/concepts/task_workflows.rst)
+- [Backend architecture](../../../docs/source/concepts/backend_architecture.rst)
+- [Schema cfgs](../../../docs/source/concepts/schema_cfgs.rst)
 - [Environment browser](../../../docs/source/setup/environments.rst)
-- [Create direct workflow environment tutorial](../../../docs/source/tutorials/03_envs/create_direct_rl_env.rst)
-- [Create manager-based environment tutorial](../../../docs/source/tutorials/03_envs/create_manager_rl_env.rst)
+- [Create direct workflow environment tutorial](../../../docs/source/how-to/create_direct_rl_env.rst)
+- [Create manager-based environment tutorial](../../../docs/source/how-to/create_manager_rl_env.rst)

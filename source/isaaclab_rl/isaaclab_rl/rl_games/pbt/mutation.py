@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Hyperparameter mutation rules for Population-Based Training."""
+
 import random
 from collections.abc import Callable
 from typing import Any
@@ -33,6 +35,7 @@ def mutate(
     mutation_rate: float,
     change_range: tuple[float, float],
 ) -> dict[str, Any]:
+    """Mutate each parameter that has a rule in *mutations* with probability *mutation_rate*."""
     cmin, cmax = change_range
     out: dict[str, Any] = {}
     for name, val in params.items():

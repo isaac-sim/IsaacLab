@@ -8,8 +8,8 @@ category = "isaaclab"
 readme  = "README.md"
 
 title = "{{ name }} UI Extension"
-author = "Isaac Lab Project Developers"
-maintainer = "Isaac Lab Project Developers"
+author = "{{ authors_toml }}"
+maintainer = "{{ authors_toml }}"
 description="Isaac Sim UI extension for {{ name }}"
 repository = "https://github.com/isaac-sim/IsaacLab.git"
 keywords = ["extension", "template", "isaaclab"]

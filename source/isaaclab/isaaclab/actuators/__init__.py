@@ -23,6 +23,6 @@ commands, and telemetry are handled by :class:`isaaclab.actuators.ActuatorCollec
 which is exposed through :attr:`isaaclab.assets.Articulation.actuators`.
 """
 
-from isaaclab.utils.module import lazy_export
+from ..utils.module import lazy_export
 
 lazy_export()

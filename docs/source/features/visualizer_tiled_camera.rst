@@ -34,7 +34,7 @@ This guide is accompanied by the ``run_tiled_camera_visualizer.py`` script in
 
    .. literalinclude:: ../../../scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py
       :language: python
-      :emphasize-lines: 72-78,81-83,89-96,107-109
+      :emphasize-lines: 72-78,81-83,93-99,107-109
       :linenos:
 
 See `Examples`_ below for the two ways the script can be run, and `Usage`_ for the
@@ -98,7 +98,7 @@ Example 2: Streaming from Robot-Mounted Cameras
 
 .. code-block:: bash
 
-   uv run python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
+   uv run --extra teleop python scripts/tutorials/07_visualizers/run_tiled_camera_visualizer.py \
        --task IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor --num_envs 25 --viz newton_gl
 
 The Galbot cube-stacking environment ships with wrist-mounted cameras giving an egocentric

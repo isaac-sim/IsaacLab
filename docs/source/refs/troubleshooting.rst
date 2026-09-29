@@ -156,14 +156,14 @@ prompt when launching an Isaac Lab process:
 
       .. code:: bash
 
-          uv run --extra isaacsim python scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code:: bash
 
-          ./isaaclab.sh -p scripts/demos/bipeds.py --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
+          ./isaaclab.sh demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -198,7 +198,7 @@ sync:
 .. code:: python
 
     from isaaclab.physics import PhysxAutoCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
     from isaaclab_ov.physics import OvPhysxCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
@@ -248,7 +248,7 @@ CPU configuration, consult the maintained upstream guides:
   <https://docs.omniverse.nvidia.com/kit/docs/omni_physics/latest/dev_guide/guides/physics-performance.html>`_
 
 For Newton-specific performance and solver parameters, see the
-:doc:`Newton physics documentation <../overview/core-concepts/physical-backends/newton/index>`.
+:ref:`Newton physics documentation <physics-backends-newton>`.
 
 
 Joints actuate in PhysX but not in a Newton-based backend
@@ -312,7 +312,7 @@ Livestreaming and WebRTC
 ``NVST_R_BUSY`` / ``NVST_R_INTERNAL_ERROR`` on ``LIVESTREAM=1`` or ``LIVESTREAM=2``
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-:class:`~isaaclab.app.AppLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
+:class:`~isaaclab_physx.app.KitLauncher` pins TCP port ``49100`` for WebRTC signaling whenever
 ``LIVESTREAM=1`` (public network) or ``LIVESTREAM=2`` (private network) is set. If a
 previous livestream process is still bound to that port, the new session fails to start
 with:

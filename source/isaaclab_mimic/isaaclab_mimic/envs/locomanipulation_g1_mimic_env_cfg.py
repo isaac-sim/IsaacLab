@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg import (
     LocomanipulationG1EnvCfg,
@@ -14,6 +14,8 @@ from isaaclab_tasks.contrib.locomanip_pick_place.locomanipulation_g1_env_cfg imp
 @configclass
 class LocomanipulationG1MimicEnvCfg(LocomanipulationG1EnvCfg, MimicEnvCfg):
     """Configuration for G1 Locomanipulation Mimic environment."""
+
+    class_type: type | str = "{DIR}.locomanipulation_g1_mimic_env:LocomanipulationG1MimicEnv"
 
     def __post_init__(self):
         # Call parent post-init

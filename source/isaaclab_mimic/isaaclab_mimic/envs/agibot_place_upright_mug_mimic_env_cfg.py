@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_upright_mug_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceUprightMugEnvCfg,
@@ -17,6 +17,8 @@ class RmpFlowAgibotPlaceUprightMugMimicEnvCfg(RmpFlowAgibotPlaceUprightMugEnvCfg
     """
     Isaac Lab Mimic environment config class for Agibot Place Upright Mug env.
     """
+
+    class_type: type | str = "{DIR}.pick_place_mimic_env:PickPlaceRelMimicEnv"
 
     def __post_init__(self):
         # post init of parents

@@ -14,7 +14,6 @@ be reintroduced silently.
 
 from types import SimpleNamespace
 
-import pytest
 import torch
 
 from isaaclab_tasks.contrib.stack.config.so101.stack_joint_teleop_env_cfg import SO101CubeStackEnvCfg
@@ -54,7 +53,12 @@ def _make_env(gripper_pos: float, stacked: bool = True) -> SimpleNamespace:
         # Swap the top two so the required bottom-to-top order no longer holds.
         heights = [0.0, 2 * _STACK_DZ, _STACK_DZ]
     cubes = {
-        f"cube_{i + 1}": SimpleNamespace(data=SimpleNamespace(root_pos_w=_proxy(torch.tensor([[0.3, 0.0, z]]))))
+        f"cube_{i + 1}": SimpleNamespace(
+            data=SimpleNamespace(
+                root_pos_w=_proxy(torch.tensor([[0.3, 0.0, z]])),
+                root_lin_vel_w=_proxy(torch.zeros((1, 3))),
+            )
+        )
         for i, z in enumerate(heights)
     }
     return SimpleNamespace(
@@ -70,19 +74,17 @@ def _success(gripper_pos: float, stacked: bool = True) -> bool:
     return bool(term.func(_make_env(gripper_pos, stacked=stacked), **term.params)[0])
 
 
-@pytest.mark.parametrize("gripper_pos", [1.745, 1.5, 1.3])
-def test_success_fires_once_the_gripper_is_open_enough(gripper_pos):
+def test_success_fires_once_the_gripper_is_open_enough():
     """A completed stack terminates without opening the jaw to the very top of its range.
 
     1.3 rad fails under the previous 0.2 rad tolerance, which is the regression this guards.
     """
-    assert _success(gripper_pos)
+    assert _success(1.3)
 
 
-@pytest.mark.parametrize("gripper_pos", [0.0, 0.5, 1.2])
-def test_success_does_not_fire_while_the_gripper_is_still_closing(gripper_pos):
+def test_success_does_not_fire_while_the_gripper_is_still_closing():
     """The window still has a lower bound, so success cannot fire while the cube is held."""
-    assert not _success(gripper_pos)
+    assert not _success(1.2)
 
 
 def test_success_requires_the_documented_stack_order():

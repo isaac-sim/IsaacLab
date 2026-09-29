@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib
+import importlib.util
 import inspect
 import os
 import re
@@ -18,7 +19,7 @@ from typing import TYPE_CHECKING
 import gymnasium as gym
 import yaml
 
-from isaaclab_tasks.utils.hydra import _user_stacklevel, resolve_task_config
+from isaaclab_tasks.utils.hydra import resolve_task_config, user_stacklevel
 
 if TYPE_CHECKING:
     from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -60,6 +61,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
 
     Raises:
         ValueError: If the entry point key is not available in the gym registry for the task.
+        ImportError: If a Python configuration requires a missing Pink IK dependency.
     """
     spec = gym.spec(task_name.split(":")[-1])
     # Emit a FutureWarning when loading the env cfg for a retired task
@@ -78,7 +80,7 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
             warnings.warn(
                 f"Task '{spec.id}' is deprecated and will be removed in a future release. Use '{new_command}'.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
     # obtain the configuration entry point
     cfg_entry_point = spec.kwargs.get(entry_point_key)
@@ -112,24 +114,43 @@ def load_cfg_from_registry(task_name: str, entry_point_key: str) -> dict | objec
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
-        if callable(cfg_entry_point):
-            # resolve path to the module location
-            mod_path = inspect.getfile(cfg_entry_point)
+        try:
+            if callable(cfg_entry_point):
+                # resolve path to the module location
+                mod_path = inspect.getfile(cfg_entry_point)
+                # load the configuration
+                cfg_cls = cfg_entry_point()
+            elif isinstance(cfg_entry_point, str):
+                # resolve path to the module location
+                mod_name, attr_name = cfg_entry_point.split(":")
+                mod = importlib.import_module(mod_name)
+                cfg_cls = getattr(mod, attr_name)
+            else:
+                cfg_cls = cfg_entry_point
             # load the configuration
-            cfg_cls = cfg_entry_point()
-        elif isinstance(cfg_entry_point, str):
-            # resolve path to the module location
-            mod_name, attr_name = cfg_entry_point.split(":")
-            mod = importlib.import_module(mod_name)
-            cfg_cls = getattr(mod, attr_name)
-        else:
-            cfg_cls = cfg_entry_point
-        # load the configuration
-        print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
-        if callable(cfg_cls):
-            cfg = cfg_cls()
-        else:
-            cfg = cfg_cls
+            print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+            if callable(cfg_cls):
+                cfg = cfg_cls()
+            else:
+                cfg = cfg_cls
+            if entry_point_key == "env_cfg_entry_point" and getattr(cfg, "actions", None) is not None:
+                from isaaclab.envs.mdp.actions.pink_actions_cfg import PinkInverseKinematicsActionCfg
+
+                # Pink action implementations load lazily; report missing dependencies before simulator startup.
+                actions = cfg.actions if isinstance(cfg.actions, dict) else vars(cfg.actions)
+                if any(isinstance(action, PinkInverseKinematicsActionCfg) for action in actions.values()):
+                    for module_name in ("pinocchio", "pink", "qpsolvers", "daqp"):
+                        if importlib.util.find_spec(module_name) is None:
+                            raise ModuleNotFoundError(f"No module named '{module_name}'", name=module_name)
+        except ModuleNotFoundError as exc:
+            if exc.name not in {"pinocchio", "pink", "qpsolvers", "daqp"}:
+                raise
+            raise ImportError(
+                f"Task '{task_name}' could not load Pink IK dependency '{exc.name}'. "
+                "Pink IK requires Linux x86_64 or aarch64 with the standard Isaac Lab installation. "
+                "Install the pin, pin-pink, and daqp versions specified in pyproject.toml on a supported platform. "
+                "The standard Windows installation does not provide Pinocchio."
+            ) from exc
     return cfg
 
 
@@ -233,7 +254,7 @@ def get_checkpoint_path(
     """
     # check if runs present in directory
     try:
-        # find all runs in the directory that math the regex expression
+        # find all runs in the directory that match the regex expression
         runs = [
             os.path.join(log_path, run) for run in os.scandir(log_path) if run.is_dir() and re.match(run_dir, run.name)
         ]

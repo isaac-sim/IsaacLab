@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceGR1T2EnvCfg
 
@@ -12,6 +12,8 @@ from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_env_cfg import PickPlaceG
 @configclass
 class PickPlaceGR1T2MimicEnvCfg(PickPlaceGR1T2EnvCfg, MimicEnvCfg):
     """Configuration for GR1T2 Pick Place Mimic environment."""
+
+    class_type: type | str = "{DIR}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv"
 
     def __post_init__(self):
         # Calling post init of parents

@@ -51,6 +51,11 @@ input modes, which determine which retargeters and control schemes are available
      - Isaac Teleop plugin (bundled)
      - Migrated from the now-deprecated ``isaac-teleop-device-plugins`` repo.
        Combine with an external wrist-tracking source for wrist positioning. See :ref:`manus-vive-handtracking`.
+   * - Haptikos Exoskeletons
+     - Exoskeleton hand tracking with controller wrist poses
+     - Isaac Teleop plugin (separate executable)
+     - Requires the Haptikos App, exoskeletons, and an OpenXR headset with controllers.
+       See :ref:`haptikos-quest-handtracking`.
 
 
 .. _isaac-teleop-control-schemes:
@@ -86,7 +91,7 @@ starting point, then see the detailed pipeline examples below.
      - 28
      - ``fixed_base_upper_body_ik_g1_env_cfg.py``
    * - Complex dex hand (e.g. GR1T2, G1 Inspire)
-     - Hand tracking / Manus gloves
+     - Hand tracking / Manus gloves / Haptikos exoskeletons
      - Bimanual ``Se3AbsRetargeter`` + ``DexBiManualRetargeter``
      - 36+
      - ``pickplace_gr1t2_env_cfg.py``
@@ -850,6 +855,8 @@ follows.
        controller to overtune and the arm to drift. Move the
        end-effector close to and just above the cube, stop, then
        close the suction cup.
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** end-effector pose via RMPFlow.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
@@ -865,10 +872,14 @@ follows.
      - **Arm:** right-arm end-effector pose via RMPFlow.
        **Gripper:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Long-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - **Arm:** relative IK end-effector control.
        **Suction:** ``K`` on keyboard, left button on SpaceMouse.
    * - ``IsaacContrib-Stack-Cube-UR10-Short-Suction-IK-Rel``
+
+       **CPU simulation only:** pass ``--device cpu`` for teleoperation.
      - Keyboard, SpaceMouse
      - Same as long-suction UR10 above with a shorter suction cup.
    * - ``Isaac-Reach-Franka`` with ``physics=isaacsim_physx presets=diffik``
@@ -1246,6 +1257,37 @@ If you prefer to run the CloudXR runtime manually in a separate terminal
              --visualizer kit --xr
 
 
+Accept the CloudXR license non-interactively
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The NVIDIA CloudXR license is separate from the Omniverse one. The first time the runtime
+starts it asks for it on stdin:
+
+.. code-block:: text
+
+   NVIDIA CloudXR EULA must be accepted to run. View: <license URL>
+
+   Accept NVIDIA CloudXR EULA? [y/N]:
+
+There is no terminal to answer on in a headless, container or CI run, so the launch fails with
+``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``. Set
+``ISAACLAB_CXR_ACCEPT_EULA=1`` to accept it up front, the same way ``OMNI_KIT_ACCEPT_EULA``
+works for the Omniverse license:
+
+.. code-block:: bash
+
+   ISAACLAB_CXR_ACCEPT_EULA=1 ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
+       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
+       --xr
+
+``y``, ``yes`` and ``1`` accept it, case-insensitively and ignoring surrounding whitespace --
+the same spellings ``OMNI_KIT_ACCEPT_EULA`` takes; leaving the variable unset, or setting any
+other value, keeps the interactive prompt. Acceptance is recorded in
+``~/.cloudxr/run/eula_accepted``, so once the license has been accepted -- interactively or
+through this variable -- later runs no longer prompt. The variable applies to every script
+that launches the runtime, including the process-scoped launcher in
+``teleop_replay_agent.py``.
+
 .. _isaac-teleop-xr-anchor:
 
 Configure the XR Anchor
@@ -1304,6 +1346,8 @@ XR device's view.
    feeds.
 
 
+.. _isaac-teleop-xr-camera-feedback:
+
 XR Camera Feedback
 ------------------
 
@@ -1312,17 +1356,35 @@ cameras. The manager publishes each new RGBA frame after rendering, while
 :class:`~isaaclab_teleop.XrCameraFeedLayoutCfg` places the panels manually or in horizontal,
 vertical, and grid layouts. The following registered tasks enable PiP by default:
 
-* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
 * ``IsaacContrib-PickPlace-GR1T2-Abs``
 * ``IsaacContrib-NutPour-GR1T2-Pink-IK-Abs``
 * ``IsaacContrib-ExhaustPipe-GR1T2-Pink-IK-Abs``
+* ``IsaacContrib-PickPlace-Locomanipulation-G1-Abs``
+* ``IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs``
+
+Both G1 tasks present the calibrated head camera in a ``head_locked`` panel that follows headset
+position and orientation. Locomanipulation retains the camera as a recorded policy observation;
+fixed-base G1 uses it only for PiP and keeps its policy observation schema unchanged.
+
+To run fixed-base G1 upper-body teleoperation with its default head-locked PiP:
+
+.. code-block:: bash
+
+   uv run --extra teleop,isaacsim isaaclab teleop run \
+       --task IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs \
+       --num_envs 1 --xr --device cpu
+
+This task uses motion controllers for the arms and TriHand fingers while the robot root remains
+fixed. The panel follows the headset, but its image comes from the robot's head camera, not the
+headset view. ``--device cpu`` selects CPU simulation; camera rendering and CloudXR encoding still
+use the GPU.
 
 ``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
-``CameraCfg`` through ``xr_camera_feeds``. In the registered tasks above, the selected
+``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
 the same view shown to the operator. Each camera is parented to a physical robot body link, so the
-recorded view follows robot motion:
+camera view follows robot motion:
 
 .. figure:: ../_static/teleop/xr-camera-pip.jpg
    :width: 80%
@@ -1332,9 +1394,25 @@ recorded view follows robot motion:
 
 .. warning::
 
-   If a PiP panel enters its source camera's field of view, the camera captures the panel and
-   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera, for example
-   by changing the robot pose, to keep the panel outside the camera's field of view.
+   Without scene-partition isolation, a PiP panel entering its source camera's field of view
+   produces a recursive hall-of-mirrors effect. Move the panel or reorient the camera to keep
+   the panel outside the camera's field of view.
+
+Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
+to avoid this recursion. Before environment construction, preparation temporarily disables
+per-environment partitioning on selected Isaac RTX camera renderers and sets
+``/rtx/scenePartitioning/showAllPartitionsByDefault=False``. Geometry must start as shared,
+unpartitioned background; clearing its partition after camera initialization can hide it from XR.
+Other scene cameras must also set ``enable_scene_partitioning=False``.
+
+The SceneUI adapter assigns the XR camera and ``/ui`` to ``isaaclab_teleop_xr_camera_pip`` and
+refreshes inheritance when SceneUI children appear. Robot cameras see shared background without
+UI; XR sees both. XR/UI overrides use the session layer. Prior camera, renderer, and partition
+settings are restored after the final owner closes, unless changed externally. Prepared sessions
+must close even if environment construction fails; the teleoperation and recording scripts handle
+this cleanup. Panels remain
+hidden while tracking or isolation is unavailable and reappear after recovery. Other tasks retain
+their existing behavior because ``use_scene_partition`` defaults to ``False``.
 
 .. code-block:: bash
 
@@ -1342,20 +1420,16 @@ recorded view follows robot motion:
        --task IsaacContrib-PickPlace-GR1T2-Abs \
        --xr --device cpu
 
-   uv run --extra teleop,isaacsim isaaclab teleop run \
-       --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-       --xr --device cpu
-
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
 startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
-unchanged.
+unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP and retain
+the camera sensor and any configured camera observations.
 
 The reference feeds request render-product-local DLSS Ray Reconstruction and ``quality`` execution
 mode through :class:`~isaaclab_teleop.XrCameraFeedCfg`. The private PiP adapter authors those two
-attributes only on the selected camera render product. On Isaac Sim 6.1 and newer, Ray
-Reconstruction also requires the process-global responsive-denoising setting, which the session
-enables before environment construction. On earlier versions, selected PiP feeds fall back to
-classic DLSS because responsive denoising is unavailable.
+attributes only on the selected camera render product. Ray Reconstruction also requires the
+process-global responsive-denoising setting, which the teleoperation and recording scripts
+enable before environment construction when a selected feed requests Ray Reconstruction.
 
 Camera selection
 ~~~~~~~~~~~~~~~~
@@ -1379,7 +1453,7 @@ Tasks declare their default selection through ``IsaacTeleopCfg.xr_camera_feeds``
    )
 
 For a recorded training view, define the named ``CameraCfg`` in the task scene and a matching
-``mdp.image`` term in ``observations.policy``. The normal recorder then stores that observation,
+``mdp.image_rgb`` term in ``observations.policy``. The normal recorder then stores that observation,
 while the PiP declaration above only selects it for presentation. Enabled task-declared entries
 control camera selection, panel count, display order, and automatic-layout order without mutating
 the reusable task configuration.
@@ -1733,9 +1807,9 @@ There are two levels of device integration:
 
 **Isaac Teleop plugin (C++ level)**
    For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
-   collections. Existing plugins include Manus gloves, OAK-D camera, controller synthetic hands,
-   and foot pedals. After creating the plugin, update the retargeting pipeline config to consume
-   data from the new plugin's source node.
+   collections. Existing plugins include Manus gloves, Haptikos exoskeletons, OAK-D camera,
+   controller synthetic hands, and foot pedals. After creating the plugin, update the retargeting
+   pipeline config to consume data from the new plugin's source node.
 
    See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
 

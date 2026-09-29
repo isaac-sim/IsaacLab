@@ -17,7 +17,7 @@ Supported on Kit, Newton GL, Rerun, and Viser; not yet on Newton RTX. See
 Quick Start
 -----------
 
-This guide is accompanied by ``markers.py`` in ``IsaacLab/scripts/demos``.
+This guide is accompanied by the packaged ``markers`` example.
 
 .. tab-set::
 
@@ -25,13 +25,13 @@ This guide is accompanied by ``markers.py`` in ``IsaacLab/scripts/demos``.
 
       .. code-block:: bash
 
-          uv run --extra isaacsim python scripts/demos/markers.py
+          uv run --extra isaacsim isaaclab example markers
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p scripts/demos/markers.py
+          ./isaaclab.sh example markers
 
 Pass ``--visualizer newton_gl`` (or another supported backend) to switch visualizers; defaults
 to ``kit``.
@@ -39,7 +39,7 @@ to ``kit``.
 .. figure:: ../_static/demos/markers.jpg
    :width: 100%
 
-   Every marker prototype from the demo script, arranged in a grid. Each column rotates in
+   Every marker prototype from the example script, arranged in a grid. Each column rotates in
    place and periodically rolls forward to the next prototype.
 
 To stop, close the window or press ``Ctrl+C``.
@@ -47,9 +47,8 @@ To stop, close the window or press ``Ctrl+C``.
 .. dropdown:: Code for markers.py
    :icon: code
 
-   .. literalinclude:: ../../../scripts/demos/markers.py
+   .. literalinclude:: ../../../examples/markers.py
       :language: python
-      :emphasize-lines: 48-96, 106-107, 146
       :linenos:
 
 
@@ -69,10 +68,9 @@ Configuring markers
    Physics properties on a marker prototype's spawn config are stripped on creation, since
    markers are not simulated.
 
-.. literalinclude:: ../../../scripts/demos/markers.py
+.. literalinclude:: ../../../examples/markers.py
    :language: python
-   :lines: 50-96
-   :dedent:
+   :pyobject: define_markers
 
 
 Drawing markers
@@ -81,9 +79,10 @@ Drawing markers
 :meth:`~markers.VisualizationMarkers.visualize` sets marker poses and, optionally, which
 prototype each marker instance uses via ``marker_indices``.
 
-.. literalinclude:: ../../../scripts/demos/markers.py
+.. literalinclude:: ../../../examples/markers.py
    :language: python
-   :lines: 144-146
+   :start-at: my_visualizer.visualize
+   :end-at: my_visualizer.visualize
    :dedent:
 
 Arguments left as ``None`` keep their previous value. Passing a different number of rows than

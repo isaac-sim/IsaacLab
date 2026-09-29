@@ -255,6 +255,7 @@ From Files
 
     UrdfFileCfg
     UsdFileCfg
+    MeshFileCfg
     GroundPlaneCfg
 
 .. autofunction:: spawn_from_urdf
@@ -266,6 +267,12 @@ From Files
 .. autofunction:: spawn_from_usd
 
 .. autoclass:: UsdFileCfg
+    :members:
+    :exclude-members: __init__, func
+
+.. autofunction:: spawn_from_mesh
+
+.. autoclass:: MeshFileCfg
     :members:
     :exclude-members: __init__, func
 
@@ -295,6 +302,9 @@ Materials
     RigidBodyMaterialFragment
     UsdPhysicsRigidBodyMaterialCfg
     RigidBodyMaterialCfg
+    DeformableMaterialFragment
+    OmniPhysicsDeformableMaterialCfg
+    OmniPhysicsSurfaceDeformableMaterialCfg
     DeformableBodyMaterialBaseCfg
     SurfaceDeformableBodyMaterialBaseCfg
     DeformableBodyMaterialCfg
@@ -347,6 +357,8 @@ Physical Materials
     :show-inheritance:
     :exclude-members: __init__, func
 
+.. autofunction:: spawn_physics_material_from_fragments
+
 .. autofunction:: spawn_rigid_body_material_from_fragments
 
 .. autoclass:: RigidBodyMaterialFragment
@@ -361,6 +373,21 @@ Physical Materials
 
 .. autoclass:: RigidBodyMaterialCfg
     :members:
+    :exclude-members: __init__, func
+
+.. autoclass:: DeformableMaterialFragment
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: OmniPhysicsDeformableMaterialCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, func
+
+.. autoclass:: OmniPhysicsSurfaceDeformableMaterialCfg
+    :members:
+    :show-inheritance:
     :exclude-members: __init__, func
 
 .. autofunction:: spawn_deformable_body_material

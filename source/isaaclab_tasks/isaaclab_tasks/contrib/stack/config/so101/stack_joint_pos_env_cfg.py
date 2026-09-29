@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from isaaclab.assets import ArticulationCfg, RigidObjectCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.stack_env_cfg import (
@@ -88,24 +88,19 @@ class SO101CubeStackEnvCfg(StackEnvCfg):
 
         # Set SO-101 as robot. Seat the base on the table-top and face it toward the cube
         # workspace (see ``_SO101_MOUNT_Z`` / ``_SO101_BASE_SEAT_ROT``).
-        self.scene.robot = SO101_CFG.replace(
+        self.scene.robot = replace(
+            SO101_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=SO101_CFG.spawn.replace(
+            spawn=replace(
+                SO101_CFG.spawn,
                 variants={
                     "Robot": "robot",
                     "Sensor": "sensors",
-                    "Physics": preset(
-                        default="physx",
-                        isaacsim_physx="physx",
-                        physx="physx",
-                        newton_mjwarp="physics",
-                    ),
-                }
+                    "Physics": preset(default="physx", isaacsim_physx="physx", physx="physx", newton_mjwarp="physics"),
+                },
             ),
             init_state=ArticulationCfg.InitialStateCfg(
-                pos=_SO101_BASE_SEAT_POS,
-                rot=_SO101_BASE_SEAT_ROT,
-                joint_pos=_SO101_STACK_INIT_JOINT_POS,
+                pos=_SO101_BASE_SEAT_POS, rot=_SO101_BASE_SEAT_ROT, joint_pos=_SO101_STACK_INIT_JOINT_POS
             ),
         )
 

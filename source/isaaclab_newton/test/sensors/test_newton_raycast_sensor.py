@@ -12,7 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import pytest
 import torch
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_newton.sensors import (
     LegacyMultiMeshRayCaster,
@@ -23,8 +23,9 @@ from isaaclab_newton.sensors import (
 )
 from newton import ShapeFlags
 
+import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab.assets import RigidObject, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg, RigidObject, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors.camera import CameraCfg
 from isaaclab.sensors.ray_caster import (
@@ -37,7 +38,7 @@ from isaaclab.sensors.ray_caster import (
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.sim import SimulationCfg
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 SENSOR_HEIGHT = 2.0
 RAY_OFFSET = 0.2
@@ -55,8 +56,8 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody",
         spawn=sim_utils.CuboidCfg(
             size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, SENSOR_HEIGHT)),
     )
@@ -65,9 +66,9 @@ class RaycastTestSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Box",
         spawn=sim_utils.CuboidCfg(
             size=(1.0, 1.0, 1.0),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(3.0, 0.0, 0.5)),
     )
@@ -123,15 +124,24 @@ def _step_and_read(sim, scene) -> NewtonRaycastSensor:
     return scene["raycast"]
 
 
-@pytest.mark.parametrize("global_world_only", [False, True])
-def test_rays_hit_ground_plane(sim, global_world_only):
-    """All rays of a downward grid pattern hit the global-world ground at the sensor height."""
-    scene_cfg = RaycastTestSceneCfg(num_envs=2)
-    scene_cfg.raycast.global_world_only = global_world_only
+# Graph mode and ``global_world_only`` select independent branches, so each value is covered once.
+@pytest.mark.parametrize(
+    ("sim", "generic_cfg"),
+    [pytest.param(True, False, id="cuda_graph-newton_cfg"), pytest.param(False, True, id="eager-generic_cfg")],
+    indirect=["sim"],
+)
+def test_rays_hit_ground_plane(sim, generic_cfg):
+    """All rays of a downward grid pattern hit the global-world ground at the sensor height.
+
+    The generic row uses the backend-dispatching :class:`RayCasterCfg` with ``global_world_only=True``,
+    which must select the Newton BVH implementation.
+    """
+    # Another consumer may acquire the shared builder before this sensor is constructed.
+    builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
+    scene_cfg = GenericRaycastTestSceneCfg(num_envs=2) if generic_cfg else RaycastTestSceneCfg(num_envs=2)
     scene = InteractiveScene(scene_cfg)
     expected_bvh_flags = ShapeFlags.VISIBLE | ShapeFlags.COLLIDE_SHAPES
-    assert NewtonManager._sensor_bvh_shape_flags == expected_bvh_flags
-    assert NewtonManager._builder.default_bvh_cfg.shape_flags == expected_bvh_flags
+    assert builder.default_bvh_cfg.shape_flags == expected_bvh_flags
     sim.reset()
     sensor = _step_and_read(sim, scene)
 
@@ -143,38 +153,23 @@ def test_rays_hit_ground_plane(sim, global_world_only):
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
     expected_normal = torch.tensor([0.0, 0.0, 1.0], device=normals.device).expand_as(normals)
     torch.testing.assert_close(normals, expected_normal, atol=1e-3, rtol=0)
+    if generic_cfg:
+        assert isinstance(sensor, NewtonRaycastSensor)
+        # Camera and multi-mesh factories retain their explicit legacy implementations.
+        assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
+        assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
+        assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
 
 
-def test_generic_ray_caster_uses_newton_scene_bvh(sim):
-    """The backend-dispatching ray caster selects the Newton BVH implementation."""
-    scene = InteractiveScene(GenericRaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-
-    assert isinstance(sensor, NewtonRaycastSensor)
-    assert hasattr(sensor.data, "ray_distances")
-    torch.testing.assert_close(
-        sensor.data.ray_distances.torch,
-        torch.full_like(sensor.data.ray_distances.torch, RAY_START_HEIGHT),
-        atol=1e-3,
-        rtol=0,
-    )
-
-
-def test_remaining_warp_mesh_factories_select_legacy_newton_adapters(sim):
-    """Camera and multi-mesh factories retain their explicit legacy implementations."""
-    assert RayCasterCamera.resolve_class() is LegacyRayCasterCamera
-    assert MultiMeshRayCaster.resolve_class() is LegacyMultiMeshRayCaster
-    assert MultiMeshRayCasterCamera.resolve_class() is LegacyMultiMeshRayCasterCamera
-
-
+# The legacy adapter does not use the Newton manager graph.
+@pytest.mark.parametrize("sim", [pytest.param(False, id="eager")], indirect=True)
 def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     """Tracked target registration remains valid when discovery returns concrete owner paths."""
     obstacle_cfg = sim_utils.CuboidCfg(
         size=(1.0, 1.0, 1.0),
-        rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionBaseCfg(),
+        rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     )
     obstacle_cfg.func("/World/Origin_00/Obstacle", obstacle_cfg)
 
@@ -190,6 +185,10 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
     )
     sensor = MultiMeshRayCaster(sensor_cfg)
 
+    plan = cloner.clone_plan_from_env_0(
+        cloner.CloneCfg(), (AssetBaseCfg(prim_path="/World/Origin_00/Obstacle"),), 1, 0.0
+    )
+    cloner.replicate(plan)
     sim.reset()
     sensor.update(sim.get_physics_dt(), force_recompute=True)
 
@@ -198,7 +197,10 @@ def test_legacy_multi_mesh_tracks_ad_hoc_regex_target(sim):
 
 
 def test_bvh_refit_tracks_moving_geometry(sim):
-    """Sliding a box under the sensor changes the hits, proving the BVH refits live."""
+    """Sliding a box under the sensor changes the hits, proving the BVH refits live.
+
+    After a carrier pose write, the first sensor read and the pose getter both resolve pending FK.
+    """
     scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
     sim.reset()
     sensor = _step_and_read(sim, scene)
@@ -220,14 +222,10 @@ def test_bvh_refit_tracks_moving_geometry(sim):
     distances = sensor.data.ray_distances.torch
     torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT - 1.0), atol=1e-3, rtol=0)
 
+    initial_distances = distances.clone()
+    initial_positions = sensor.get_world_poses()[0].torch.clone()
 
-def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
-    """The first sensor read after a pose write uses the refreshed carrier pose."""
-    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-    initial_distances = sensor.data.ray_distances.torch.clone()
-
+    # Lift the carrier: the first data read after the write must see the refreshed body_q.
     sensor_body: RigidObject = scene["sensor_body"]
     target_pose = sensor_body.data.root_link_pose_w.torch.clone()
     target_pose[:, 2] += 1.0
@@ -238,22 +236,14 @@ def test_sensor_read_refreshes_fk_after_carrier_pose_write(sim):
     distances = sensor.data.ray_distances.torch
     torch.testing.assert_close(distances, initial_distances + 1.0, atol=1e-3, rtol=0)
 
-
-def test_world_pose_getter_refreshes_fk_after_carrier_pose_write(sim):
-    """The ray-caster pose getter resolves pending FK before reading ``body_q``."""
-    scene = InteractiveScene(RaycastTestSceneCfg(num_envs=1))
-    sim.reset()
-    sensor = _step_and_read(sim, scene)
-    initial_positions = sensor.get_world_poses()[0].torch.clone()
-
-    sensor_body: RigidObject = scene["sensor_body"]
-    target_pose = sensor_body.data.root_link_pose_w.torch.clone()
+    # Shift the carrier sideways: the pose getter must resolve pending FK before reading body_q.
     target_pose[:, 0] += 1.0
     sensor_body.write_root_pose_to_sim_index(root_pose=target_pose)
 
     positions = sensor.get_world_poses()[0].torch
     expected_positions = initial_positions.clone()
     expected_positions[:, 0] += 1.0
+    expected_positions[:, 2] += 1.0
     torch.testing.assert_close(positions, expected_positions, atol=1e-3, rtol=0)
 
 
@@ -265,26 +255,62 @@ class RaycastCameraSceneCfg(RaycastTestSceneCfg):
         prim_path="{ENV_REGEX_NS}/SensorBody/cam",
         width=64,
         height=48,
-        data_types=["depth"],
+        data_types=["depth", "distance_to_image_plane", "distance_to_camera"],
         renderer_cfg=NewtonWarpRendererCfg(),
         offset=CameraCfg.OffsetCfg(pos=(0.0, 0.0, -RAY_OFFSET), rot=(1.0, 0.0, 0.0, 0.0), convention="ros"),
-        spawn=sim_utils.PinholeCameraCfg(),
+        spawn=sim_utils.PinholeCameraCfg(clipping_range=(0.1, 2.0)),
     )
 
 
-def test_renderer_and_raycast_share_newton_manager_graph(sim):
-    """Tiled-camera and ray-cast updates share the Newton manager graph."""
-    scene = InteractiveScene(RaycastCameraSceneCfg(num_envs=1))
-    sim.reset()
-    sim.step()
-    scene.update(sim.get_physics_dt())
+def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
+    """Independent queries preserve depth, clipping, and ray hits across pose writes and hard resets."""
+    cfg = RaycastCameraSceneCfg(num_envs=1)
+    cfg.raycast.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    cfg.camera.renderer_cfg.use_cuda_graph = sim.cfg.physics.use_cuda_graph
+    cfg.camera.update_latest_camera_pose = True
+    cfg.camera.renderer_cfg.depth_clipping_behavior = "max" if sim.cfg.physics.use_cuda_graph else "none"
+    scene = InteractiveScene(cfg)
+    y, x = torch.meshgrid(
+        torch.arange(cfg.camera.height, device=sim.device),
+        torch.arange(cfg.camera.width, device=sim.device),
+        indexing="ij",
+    )
+    far_clip = cfg.camera.spawn.clipping_range[1]
+    background = far_clip if cfg.camera.renderer_cfg.depth_clipping_behavior == "max" else 0.0
+    for _ in range(2):
+        sim.reset()
+        sim.step()
+        scene.update(sim.get_physics_dt())
 
-    depth = scene["camera"].data.output["depth"].torch
-    distances = scene["raycast"].data.ray_distances.torch
-    assert abs(depth[0, 24, 32].item() - RAY_START_HEIGHT) < 5e-3
-    torch.testing.assert_close(distances, torch.full_like(distances, RAY_START_HEIGHT), atol=1e-3, rtol=0)
+        camera = scene["camera"]
+        matrix = camera.data.intrinsic_matrices.torch[0]
+        ray_length = torch.sqrt(
+            1 + ((x + 0.5 - matrix[0, 2]) / matrix[0, 0]) ** 2 + ((y + 0.5 - matrix[1, 2]) / matrix[1, 1]) ** 2
+        )
+        for height in (RAY_START_HEIGHT, RAY_START_HEIGHT + 0.1):
+            carrier = scene["sensor_body"]
+            pose = carrier.data.root_link_pose_w.torch.clone()
+            pose[:, 2] = height + RAY_OFFSET
+            carrier.write_root_pose_to_sim_index(root_pose=pose)
+            sim.step()
+            scene.update(sim.get_physics_dt())
 
-    task_names = sorted(NewtonManager._sensor_tasks)
-    assert any(name.startswith("newton_raycast:") for name in task_names)
-    assert any(name.startswith("newton_warp_render:") for name in task_names)
-    assert (NewtonManager._sensor_graph is not None) == sim.cfg.physics.use_cuda_graph
+            # A downward camera sees constant planar depth; oblique rays travel farther to the ground.
+            expected_ray = height * ray_length
+            hit = expected_ray < far_clip
+            assert hit.any() and (~hit).any()
+            expected_plane = torch.where(hit, height, background)
+            expected_ray = torch.where(hit, expected_ray, background)
+            outputs = camera.data.output
+            for name in ("depth", "distance_to_image_plane"):
+                torch.testing.assert_close(outputs[name].torch[0, ..., 0], expected_plane, atol=1e-5, rtol=1e-5)
+            torch.testing.assert_close(
+                outputs["distance_to_camera"].torch[0, ..., 0], expected_ray, atol=1e-5, rtol=1e-5
+            )
+            distances = scene["raycast"].data.ray_distances.torch
+            torch.testing.assert_close(distances, torch.full_like(distances, height), atol=1e-3, rtol=0)
+
+        camera, raycast = scene["camera"], scene["raycast"]
+        assert camera._renderer.backend is raycast.backend is NewtonManager.backend
+        assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
+        assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph
