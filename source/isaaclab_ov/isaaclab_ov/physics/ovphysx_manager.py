@@ -245,7 +245,8 @@ class OvPhysxBackend:
         }
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
-        ovphysx.PhysX.set_cpu_mode(not is_gpu)
+        # Hard CPU-only mode (``PhysX.set_cpu_mode(True)``) is sticky for the process, so CPU scenes
+        # select CPU dynamics through the scene attributes instead; see _configure_physx_scene_prim.
         self.physx = ovphysx.PhysX(
             config=ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
@@ -323,8 +324,6 @@ class OvPhysxManager(PhysicsManager):
     _warmup_done: ClassVar[bool] = False
     _next_control_ordinal: ClassVar[int] = 2
     _requires_full_stage: ClassVar[bool] = False
-    # Device mode is process-wide; later contexts must reuse the first selected device.
-    _locked_device: ClassVar[str | None] = None
     # Active clone recipes survive the consumable pending queue so a forced
     # re-warmup can rebuild serialized-stage or runtime-only clones.
     _active_clone_recipes: ClassVar[list[tuple[str, list[str], list[CloneTransform], list[int] | None]]] = []
@@ -443,7 +442,6 @@ class OvPhysxManager(PhysicsManager):
         happens lazily in :meth:`reset`.
 
         The simulation registry retains its native resource across reinitialization.
-        ``cls._locked_device`` carries the process-wide first-device policy.
         """
         super().initialize(sim_context)
         cls._ensure_physx_schemas_registered()
@@ -832,19 +830,15 @@ class OvPhysxManager(PhysicsManager):
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
         When no runtime is active, constructs a new :class:`ovphysx.PhysX`
-        instance. The first construction also records IsaacLab's process device
-        choice and registers process-exit cleanup. On a forced re-warm before
+        instance for the simulation device and registers process-exit cleanup.
+        CPU and CUDA simulations may follow each other in one process. On a forced re-warm before
         :meth:`close`, it reuses the active instance, attaches the new USD through
         OVStage, rebuilds active clone recipes through full-stage materialization
         or runtime replay, and re-runs the supported warmup entry point
         so the new stage's bodies are resident.
 
         Raises:
-            RuntimeError: If ``SimulationContext`` is not set, or if a device
-                different from IsaacLab's first device choice is requested.
-                OVPhysX CPU-only mode is process-wide and cannot be reversed;
-                IsaacLab applies the same conservative policy in both
-                directions for a predictable lifecycle.
+            RuntimeError: If ``SimulationContext`` is not set.
         """
         sim = PhysicsManager._sim
         if sim is None:
@@ -856,13 +850,6 @@ class OvPhysxManager(PhysicsManager):
             entries = expand_deformable_entries(deformable_prototypes(sim.stage, plan), plan, env_ids, plan.positions)
 
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
-
-        if cls._locked_device is not None and ovphysx_device != cls._locked_device:
-            raise RuntimeError(
-                f"OvPhysxManager is locked to device {cls._locked_device!r} for the lifetime of this process; "
-                f"cannot switch to {ovphysx_device!r}. IsaacLab pins the first OVPhysX device choice because "
-                "CPU-only mode cannot be reversed; restart the process to use a different device."
-            )
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
         if scene_prim.IsValid():
@@ -901,7 +888,6 @@ class OvPhysxManager(PhysicsManager):
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
             )
         )
-        cls._locked_device = ovphysx_device
         if not cls._atexit_registered:
             atexit.register(cls._close_at_exit)
             cls._atexit_registered = True
@@ -969,10 +955,11 @@ class OvPhysxManager(PhysicsManager):
         so we write the apiSchemas list entry and scene attributes directly via
         raw Sdf metadata manipulation instead of using the high-level USD API.
 
-        The schema, scene-query-support, and solver-determinism/accuracy attributes are applied
-        regardless of device. The GPU-specific dynamics/broadphase/capacity attributes are
-        applied only when ``device == "gpu"`` — without them PhysX defaults to
-        CPU broadphase even when OVPhysX is configured for GPU execution.
+        The schema, scene-query-support, solver-determinism/accuracy, and dynamics/broadphase
+        attributes are applied regardless of device. GPU scenes use ``enableGPUDynamics=true`` and
+        the GPU broadphase. CPU scenes use ``enableGPUDynamics=false`` and the MBP broadphase; the
+        schema default enables GPU dynamics, so a CPU scene that omits them would silently simulate
+        on the GPU. The GPU buffer-capacity attributes are applied only when ``device == "gpu"``.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -1004,17 +991,18 @@ class OvPhysxManager(PhysicsManager):
                 cfg.enable_external_forces_every_iteration
             )
 
-        if device == "gpu":
-            scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(True)
-            scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU")
+        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(device == "gpu")
+        scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set(
+            "GPU" if device == "gpu" else "MBP"
+        )
 
-            if cfg is not None:
-                for attr, val in [
-                    ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
-                    ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
-                    ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
-                    ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
-                    ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
-                    ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
-                ]:
-                    scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
+        if device == "gpu" and cfg is not None:
+            for attr, val in [
+                ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
+                ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
+                ("gpuFoundLostPairsCapacity", cfg.gpu_found_lost_pairs_capacity),
+                ("gpuFoundLostAggregatePairsCapacity", cfg.gpu_found_lost_aggregate_pairs_capacity),
+                ("gpuTotalAggregatePairsCapacity", cfg.gpu_total_aggregate_pairs_capacity),
+                ("gpuCollisionStackSize", cfg.gpu_collision_stack_size),
+            ]:
+                scene_prim.CreateAttribute(f"physxScene:{attr}", Sdf.ValueTypeNames.UInt).Set(val)
