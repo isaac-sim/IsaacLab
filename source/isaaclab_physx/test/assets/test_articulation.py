@@ -3,6 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Real PhysX articulation coverage.
+
+Most checks run against one module-scoped composite scene built from the local branching fixture. Each
+articulation island holds two environments so that partial writes can target environment 1 and prove that
+environment 0 is preserved in the real PhysX state. Tests that need their own simulation context (failure
+modes and asset-specific seams) are defined first: pytest runs them before the composite scene is created,
+and a new simulation context would replace the composite stage.
+"""
+
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
@@ -12,9 +21,6 @@ from isaaclab.test.utils.articulation_ordering import (
     BRANCHING_MJWARP_JOINT_NAMES,
     BRANCHING_PHYSX_BODY_NAMES,
     BRANCHING_PHYSX_JOINT_NAMES,
-    PANDA_BODY_NAMES,
-    PANDA_JOINT_NAMES,
-    PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
 )
 from isaaclab.utils import clone, replace
 
@@ -22,7 +28,9 @@ HEADLESS = True
 
 launch_test_simulation()
 
+import math
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -31,19 +39,24 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 
-from pxr import UsdPhysics
+from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
-import isaaclab.utils.string as string_utils
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.sim import build_simulation_context
+from isaaclab.sim import SimulationContext, build_simulation_context
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
+from isaaclab.utils.math import (
+    combine_frame_transforms,
+    compute_pose_error,
+    matrix_from_quat,
+    quat_apply,
+    quat_inv,
+    subtract_frame_transforms,
+)
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 ##
@@ -271,20 +284,6 @@ def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
     return wp.to_torch(array).to(device=device)
 
 
-def _assert_backend_to_user(
-    public_tensor: torch.Tensor, backend_tensor: torch.Tensor, user_to_backend: list[int]
-) -> None:
-    """Assert a public tensor equals a backend tensor reordered to user order."""
-    torch.testing.assert_close(public_tensor, backend_tensor.to(device=public_tensor.device)[:, user_to_backend])
-
-
-def _assert_user_write_reaches_backend(
-    user_tensor: torch.Tensor, backend_tensor: torch.Tensor, backend_to_user: list[int]
-) -> None:
-    """Assert a user-order write reached backend storage in backend order."""
-    torch.testing.assert_close(backend_tensor.to(device=user_tensor.device), user_tensor[:, backend_to_user])
-
-
 @pytest.fixture
 def sim(request):
     """Create simulation context with the specified device."""
@@ -304,378 +303,124 @@ def sim(request):
         yield sim
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_live_manual_root_preserving_ordering_reorders_backend_reads_and_writes(sim, device, gravity_enabled):
-    """Smoke-test non-identity joint/body ordering through a live PhysX articulation."""
-    articulation_cfg = replace(
-        FRANKA_PANDA_CFG,
-        prim_path="/World/Robot",
-        joint_ordering=tuple(reversed(PANDA_JOINT_NAMES)),
-        body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
-    )
-    articulation = Articulation(articulation_cfg)
+_FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
+_NUM_ENVS = 2
+_ENV_SPACING = 3.0
 
-    sim.reset()
-    assert articulation.is_initialized
-    assert articulation.backend_joint_names == list(PANDA_JOINT_NAMES)
-    assert articulation.backend_body_names == list(PANDA_BODY_NAMES)
-    assert articulation.joint_ordering is not None
-    assert articulation.body_ordering is not None
-
-    joint_user_to_backend = list(articulation.joint_ordering.user_to_backend_indices)
-    joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
-    body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
-
-    joint_index = torch.arange(articulation.num_joints, device=device, dtype=torch.float32).unsqueeze(0)
-    joint_pos = torch.linspace(-0.3, 0.3, articulation.num_joints, device=device).unsqueeze(0)
-    joint_vel = torch.linspace(0.05, 0.13, articulation.num_joints, device=device).unsqueeze(0)
-    joint_stiffness = 10.0 + joint_index
-
-    articulation.write_joint_stiffness_to_sim_index(stiffness=joint_stiffness, full_data=True)
-    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
-    articulation.write_data_to_sim()
-
-    _assert_user_write_reaches_backend(
-        joint_pos, _to_device_tensor(articulation.root_view.get_dof_positions(), device), joint_backend_to_user
-    )
-    _assert_user_write_reaches_backend(
-        joint_vel, _to_device_tensor(articulation.root_view.get_dof_velocities(), device), joint_backend_to_user
-    )
-    _assert_user_write_reaches_backend(
-        joint_stiffness,
-        _to_device_tensor(articulation.root_view.get_dof_stiffnesses(), device),
-        joint_backend_to_user,
-    )
-
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    _assert_backend_to_user(
-        articulation.data.joint_pos.torch,
-        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
-        joint_user_to_backend,
-    )
-    _assert_backend_to_user(
-        articulation.data.joint_vel.torch,
-        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
-        joint_user_to_backend,
-    )
-    _assert_backend_to_user(
-        articulation.data.joint_stiffness.torch,
-        _to_device_tensor(articulation.root_view.get_dof_stiffnesses(), device),
-        joint_user_to_backend,
-    )
-    _assert_backend_to_user(
-        articulation.data.body_link_pose_w.torch,
-        _to_device_tensor(articulation.root_view.get_link_transforms(), device),
-        body_user_to_backend,
-    )
-    _assert_backend_to_user(
-        articulation.data.body_com_pose_b.torch,
-        _to_device_tensor(articulation.root_view.get_coms(), device),
-        body_user_to_backend,
-    )
-
-    # The split accessors must be sliced from the reordered public poses, not from a stale backend-order cache.
-    torch.testing.assert_close(articulation.data.body_com_pos_b.torch, articulation.data.body_com_pose_b.torch[..., :3])
-    torch.testing.assert_close(
-        articulation.data.body_com_quat_b.torch, articulation.data.body_com_pose_b.torch[..., 3:]
-    )
-    torch.testing.assert_close(articulation.data.body_pos_w.torch, articulation.data.body_link_pose_w.torch[..., :3])
-    torch.testing.assert_close(articulation.data.body_quat_w.torch, articulation.data.body_link_pose_w.torch[..., 3:])
+# The branching fixture authors no geometry. Place the links along the x axis so that joints, Jacobians,
+# and center-of-mass offsets act on non-degenerate lever arms. Each joint is anchored at its child link origin,
+# offset from the parent link origin by the listed vector.
+_JOINT_ANCHORS = {
+    "left_shoulder": (0.2, 0.0, 0.0),
+    "left_elbow": (0.5, 0.0, 0.0),
+    "right_shoulder": (-0.2, 0.0, 0.0),
+    "right_elbow": (-0.5, 0.0, 0.0),
+}
+_LINK_POSITIONS = {
+    "left_upper": (0.2, 0.0, 0.0),
+    "left_tip": (0.7, 0.0, 0.0),
+    "right_upper": (-0.2, 0.0, 0.0),
+    "right_tip": (-0.7, 0.0, 0.0),
+}
+# Drive and limit values authored in USD, keyed by joint name. USD angular drives use degree units, so the
+# authored values are converted such that PhysX reports the SI values listed here.
+_USD_STIFFNESS = {"left_shoulder": 4.0, "left_elbow": 5.0, "right_shoulder": 6.0, "right_elbow": 7.0}
+_USD_DAMPING = {"left_shoulder": 0.4, "left_elbow": 0.5, "right_shoulder": 0.6, "right_elbow": 0.7}
+_USD_MAX_FORCE = {"left_shoulder": 40.0, "left_elbow": 41.0, "right_shoulder": 42.0, "right_elbow": 43.0}
+_USD_MAX_VELOCITY = {"left_shoulder": 2.0, "left_elbow": 3.0, "right_shoulder": 4.0, "right_elbow": 5.0}
 
 
-@pytest.mark.parametrize("device", ["cpu"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_reversed_joint_dynamics_use_public_joint_basis(sim, device, gravity_enabled):
-    """Keep dynamics tensors consistent with public joint velocity."""
-    articulation = Articulation(
-        ArticulationCfg(
-            prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=str(Path(__file__).parent / "data" / "articulation_ordering_branching.usda")
-            ),
-            actuators={},
-        )
-    )
-    UsdPhysics.FixedJoint.Define(sim.stage, "/World/Robot/fixed_root").GetBody1Rel().SetTargets(["/World/Robot/base"])
-    joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_elbow")
-    body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
-    joint.GetBody0Rel().SetTargets(body1)
-    joint.GetBody1Rel().SetTargets(body0)
-    sim.reset()
-
-    velocity = torch.zeros((1, articulation.num_joints), device=device)
-    velocity[:, articulation.find_joints("left_shoulder")[0][0]] = 0.4
-    velocity[:, articulation.find_joints("left_elbow")[0][0]] = 0.7
-    articulation.write_joint_velocity_to_sim_index(velocity=velocity)
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    joint_velocity = articulation.data.joint_vel.torch
-    predicted_velocity = torch.einsum("nbij,nj->nbi", articulation.data.body_com_jacobian_w.torch, joint_velocity)
-    torch.testing.assert_close(predicted_velocity, articulation.data.body_com_vel_w.torch[:, 1:], atol=1e-5, rtol=1e-5)
-
-    generalized_energy = 0.5 * torch.einsum(
-        "ni,nij,nj->n", joint_velocity, articulation.data.mass_matrix.torch, joint_velocity
-    )
-    body_velocity = articulation.data.body_com_vel_w.torch
-    body_inertia = articulation.data.body_inertia.torch.reshape(1, articulation.num_bodies, 3, 3)
-    body_energy = 0.5 * (
-        (articulation.data.body_mass.torch.unsqueeze(-1) * body_velocity[..., :3].square()).sum((-1, -2))
-        + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], body_inertia, body_velocity[..., 3:])
-    )
-    torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-5)
+def _branching_cfg(prim_path: str = "/World/Robot", **kwargs) -> ArticulationCfg:
+    """Create a configuration of the local branching fixture with implicit drives on every joint."""
+    kwargs.setdefault("actuators", {"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=5.0, damping=0.5)})
+    return ArticulationCfg(prim_path=prim_path, spawn=sim_utils.UsdFileCfg(usd_path=str(_FIXTURE)), **kwargs)
 
 
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_live_floating_root_writers_match_identity_after_body_reordering(sim, device, gravity_enabled):
-    """Keep floating-base root writes invariant when public body order moves the root."""
-    floating_spawn = replace(FRANKA_PANDA_CFG.spawn, fix_root_link=False)
-    identity = Articulation(
-        replace(FRANKA_PANDA_CFG, prim_path="/World/IdentityRobot", spawn=floating_spawn, body_ordering=None)
-    )
-    ordered = Articulation(
-        replace(
-            FRANKA_PANDA_CFG,
-            prim_path="/World/OrderedRobot",
-            spawn=floating_spawn,
-            body_ordering=tuple(reversed(PANDA_BODY_NAMES)),
-        )
-    )
-
-    sim.reset()
-    assert identity.is_initialized and ordered.is_initialized
-    assert not identity.is_fixed_base and not ordered.is_fixed_base
-    assert identity.body_ordering is None
-    assert ordered.body_ordering is not None
-    assert ordered.body_ordering.backend_to_user_indices[0] != 0
-
-    backend_coms = torch.zeros((1, len(PANDA_BODY_NAMES), 7), device=device)
-    body_index = torch.arange(len(PANDA_BODY_NAMES), device=device, dtype=torch.float32)
-    backend_coms[0, :, 0] = 0.05 + 0.01 * body_index
-    backend_coms[0, :, 1] = -0.03 - 0.02 * body_index
-    backend_coms[0, :, 2] = 0.02 + 0.03 * body_index
-    backend_coms[..., 6] = 1.0
-    identity.set_coms_index(
-        coms=wp.from_torch(backend_coms.contiguous(), dtype=wp.transformf),
-        full_data=True,
-    )
-    ordered_user_to_backend = list(ordered.body_ordering.user_to_backend_indices)
-    ordered.set_coms_index(
-        coms=wp.from_torch(backend_coms[:, ordered_user_to_backend].contiguous(), dtype=wp.transformf),
-        full_data=True,
-    )
-    torch.testing.assert_close(_to_device_tensor(identity.root_view.get_coms(), device), backend_coms)
-    torch.testing.assert_close(_to_device_tensor(ordered.root_view.get_coms(), device), backend_coms)
-
-    root_com_pose = torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]], device=device)
-    root_link_velocity = torch.tensor([[0.4, -0.3, 0.2, 1.1, -0.7, 0.9]], device=device)
-    for articulation in (identity, ordered):
-        articulation.write_root_com_pose_to_sim_index(root_pose=root_com_pose)
-        articulation.write_root_link_velocity_to_sim_index(root_velocity=root_link_velocity)
-
-    torch.testing.assert_close(
-        _to_device_tensor(ordered.root_view.get_root_transforms(), device),
-        _to_device_tensor(identity.root_view.get_root_transforms(), device),
-    )
-    torch.testing.assert_close(
-        _to_device_tensor(ordered.root_view.get_root_velocities(), device),
-        _to_device_tensor(identity.root_view.get_root_velocities(), device),
-    )
-    torch.testing.assert_close(ordered.data.root_com_vel_w.torch, identity.data.root_com_vel_w.torch)
-    for articulation in (identity, ordered):
-        torch.testing.assert_close(articulation.data.root_com_pose_w.torch, root_com_pose)
-        torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.parametrize("body_ordering", ["identity", "reversed"])
-def test_live_direct_view_mass_inertia_writes_become_visible(sim, device, gravity_enabled, body_ordering):
-    """Direct tensor-view writes to body masses/inertias become visible on the lazy read.
-
-    Develop reads these properties directly from the tensor view on every access. The timestamp-lazy
-    implementation could instead hide direct ``root_view.set_masses`` / ``set_inertias`` writes after
-    its first read. This regression requires those writes to become visible through ``data.body_mass`` /
-    ``data.body_inertia`` when the lazy buffer is next eligible to refresh:
-
-    - Case A: after a primed read and a subsequent simulation update (the lazy gate opens once per
-      step).
-    - Case B: on the very first read of a cold buffer.
-
-    Case B runs first so that the buffers are still cold. Both identity and non-identity (reversed) body
-    ordering are covered; under ordering the public buffers must equal the backend-order view gathered through
-    ``user_to_backend``.
-    """
-    body_ordering_arg = None if body_ordering == "identity" else PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES
-    articulation = Articulation(replace(FRANKA_PANDA_CFG, prim_path="/World/Robot", body_ordering=body_ordering_arg))
-    sim.reset()
-    assert articulation.is_initialized
-
-    if body_ordering == "identity":
-        assert articulation.body_ordering is None
-        body_user_to_backend = list(range(articulation.num_bodies))
-    else:
-        assert articulation.body_ordering is not None
-        body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
-
-    cpu_env_ids = wp.array(list(range(articulation.num_instances)), dtype=wp.int32, device="cpu")
-
-    def write_backend_mass_inertia(delta_mass: float, delta_inertia: float) -> tuple[torch.Tensor, torch.Tensor]:
-        """Write distinct backend-order masses/inertias straight through the tensor view."""
-        backend_masses = wp.to_torch(articulation.root_view.get_masses()).clone() + delta_mass
-        backend_inertias = wp.to_torch(articulation.root_view.get_inertias()).clone() + delta_inertia
-        articulation.root_view.set_masses(
-            wp.from_torch(backend_masses.contiguous(), dtype=wp.float32), indices=cpu_env_ids
-        )
-        articulation.root_view.set_inertias(
-            wp.from_torch(backend_inertias.contiguous(), dtype=wp.float32), indices=cpu_env_ids
-        )
-        return backend_masses, backend_inertias
-
-    # Case B: the buffers have not been read since reset, so the first read must reflect the write.
-    backend_masses, backend_inertias = write_backend_mass_inertia(0.293, 0.023)
-    _assert_backend_to_user(articulation.data.body_mass.torch, backend_masses, body_user_to_backend)
-    _assert_backend_to_user(articulation.data.body_inertia.torch, backend_inertias, body_user_to_backend)
-
-    # Case A: the buffers are now primed; a new write becomes visible after the sim update opens the lazy gate.
-    backend_masses, backend_inertias = write_backend_mass_inertia(0.137, 0.011)
-    articulation.update(sim.cfg.dt)
-    _assert_backend_to_user(articulation.data.body_mass.torch, backend_masses, body_user_to_backend)
-    _assert_backend_to_user(articulation.data.body_inertia.torch, backend_inertias, body_user_to_backend)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_enabled):
-    """Resolve concrete breadth-first PhysX and depth-first MJWarp name orders."""
-    fixture_path = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
-    articulation = Articulation(
-        ArticulationCfg(
-            prim_path="/World/Robot",
-            spawn=sim_utils.UsdFileCfg(usd_path=str(fixture_path)),
-            actuators={},
-            joint_ordering="mjwarp",
-            body_ordering="mjwarp",
-        )
-    )
-    sim.reset()
-    assert articulation.is_initialized
-
-    assert tuple(articulation.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
-    assert tuple(articulation.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
-    assert get_articulation_name_ordering(articulation, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
-    assert get_articulation_name_ordering(articulation, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
-    assert tuple(articulation.joint_names) == BRANCHING_MJWARP_JOINT_NAMES
-    assert tuple(articulation.body_names) == BRANCHING_MJWARP_BODY_NAMES
-    assert articulation.joint_ordering is not None
-    assert articulation.body_ordering is not None
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_initialization_floating_base(sim, num_articulations, device, add_ground_plane):
-    """Test initialization for a floating-base with articulation root on provided prim path.
-
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation is not fixed base
-    3. All buffers have correct shapes
+def _author_branching_robot(
+    robot_path: str,
+    *,
+    fixed_base: bool = False,
+    root_on_base: bool = False,
+    reversed_left_elbow: bool = False,
+    spatial_tendon: bool = False,
+    joint_limits_deg: tuple[float, float] = (-170.0, 170.0),
+) -> None:
+    """Author geometry, drives, and optional structure on one spawned branching robot.
 
     Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
+        robot_path: Prim path of the spawned robot.
+        fixed_base: Whether to fix the base link to the world with a fixed joint.
+        root_on_base: Whether to move the articulation root API from the robot prim onto the base link.
+        reversed_left_elbow: Whether to swap the bodies of the left elbow joint.
+        spatial_tendon: Whether to attach a spatial tendon from the base to the left tip.
+        joint_limits_deg: Lower and upper joint limits [deg] applied to every joint. PhysX ignores limit writes
+            on joints authored without limits.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal", stiffness=0.0, damping=0.0)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
+    stage = sim_utils.get_current_stage()
+    for body_name, position in _LINK_POSITIONS.items():
+        UsdGeom.Xformable(stage.GetPrimAtPath(f"{robot_path}/{body_name}")).AddTranslateOp().Set(Gf.Vec3d(*position))
+    for joint_name, anchor in _JOINT_ANCHORS.items():
+        joint = UsdPhysics.RevoluteJoint.Get(stage, f"{robot_path}/{joint_name}")
+        if reversed_left_elbow and joint_name == "left_elbow":
+            body0, body1 = joint.GetBody0Rel().GetTargets(), joint.GetBody1Rel().GetTargets()
+            joint.GetBody0Rel().SetTargets(body1)
+            joint.GetBody1Rel().SetTargets(body0)
+            joint.CreateLocalPos0Attr(Gf.Vec3f(0.0))
+            joint.CreateLocalPos1Attr(Gf.Vec3f(*anchor))
+        else:
+            joint.CreateLocalPos0Attr(Gf.Vec3f(*anchor))
+            joint.CreateLocalPos1Attr(Gf.Vec3f(0.0))
+        joint.CreateLowerLimitAttr(joint_limits_deg[0])
+        joint.CreateUpperLimitAttr(joint_limits_deg[1])
+        drive = UsdPhysics.DriveAPI.Apply(joint.GetPrim(), "angular")
+        drive.CreateStiffnessAttr(math.radians(_USD_STIFFNESS[joint_name]))
+        drive.CreateDampingAttr(math.radians(_USD_DAMPING[joint_name]))
+        drive.CreateMaxForceAttr(_USD_MAX_FORCE[joint_name])
+        physx_joint = PhysxSchema.PhysxJointAPI.Apply(joint.GetPrim())
+        physx_joint.CreateMaxJointVelocityAttr(math.degrees(_USD_MAX_VELOCITY[joint_name]))
+    # The base carries one collision shape so that its inertia follows from real geometry.
+    collision = UsdGeom.Cube.Define(stage, f"{robot_path}/base/collision")
+    collision.CreateSizeAttr(0.1)
+    UsdPhysics.CollisionAPI.Apply(collision.GetPrim())
+    if fixed_base:
+        fixed_joint = UsdPhysics.FixedJoint.Define(stage, f"{robot_path}/fixed_root")
+        fixed_joint.GetBody1Rel().SetTargets([f"{robot_path}/base"])
+    if root_on_base:
+        stage.GetPrimAtPath(robot_path).RemoveAPI(UsdPhysics.ArticulationRootAPI)
+        UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(f"{robot_path}/base"))
+    if spatial_tendon:
+        root_prim = stage.GetPrimAtPath(f"{robot_path}/base")
+        root_attachment = PhysxSchema.PhysxTendonAttachmentAPI(root_prim, "root")
+        root_attachment.CreateLocalPosAttr(Gf.Vec3f(0.0))
+        root = PhysxSchema.PhysxTendonAttachmentRootAPI.Apply(root_prim, "root")
+        root.CreateStiffnessAttr(5.0)
+        root.CreateDampingAttr(0.5)
+        root.CreateLimitStiffnessAttr(1.0)
+        root.CreateOffsetAttr(0.0)
+        leaf_prim = stage.GetPrimAtPath(f"{robot_path}/left_tip")
+        leaf_attachment = PhysxSchema.PhysxTendonAttachmentAPI(leaf_prim, "leaf")
+        leaf_attachment.CreateLocalPosAttr(Gf.Vec3f(0.0))
+        leaf_attachment.CreateParentAttachmentAttr("root")
+        leaf_attachment.CreateParentLinkRel().SetTargets([root_prim.GetPath()])
+        leaf = PhysxSchema.PhysxTendonAttachmentLeafAPI.Apply(leaf_prim, "leaf")
+        leaf.CreateRestLengthAttr(0.5)
+        leaf.CreateLowerLimitAttr(0.0)
+        leaf.CreateUpperLimitAttr(2.0)
 
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
 
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that floating base
-    assert not articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 12)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-
-    # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
-    # -- actuator type
-    for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
+def _in_user_order(values: dict[str, float], names: list[str], device: str) -> torch.Tensor:
+    """Return per-name values as a ``(num_envs, len(names))`` tensor in the given name order."""
+    return torch.tensor([[values[name] for name in names]] * _NUM_ENVS, device=device)
 
 
-@pytest.mark.parametrize("num_articulations", [1, 2])
-@pytest.mark.parametrize("device", test_devices())
-def test_initialization_fixed_base(sim, num_articulations, device):
-    """Test initialization for fixed base.
+def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
+    """Return a unit quaternion ``(x, y, z, w)`` for a rotation of ``angle`` [rad] about the world z axis."""
+    return (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
 
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation is fixed base
-    3. All buffers have correct shapes
-    4. The articulation maintains its default state
 
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that fixed base
-    assert articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 9)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-
-    # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
-    # -- actuator type
-    for actuator_name, actuator in articulation.actuators.items():
-        is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
-
-        # check that the root is at the correct state - its default state as it is fixed base
-        default_root_pose = articulation.data.default_root_pose.torch.clone()
-        default_root_vel = articulation.data.default_root_vel.torch.clone()
-        default_root_pose[:, :3] = default_root_pose[:, :3] + translations
-
-        torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
-        torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
+##
+# Tests that own their simulation context. Keep them above the composite scene.
+##
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -726,100 +471,6 @@ def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, devi
     expected[0] = rest_length[0] - 0.3
     expected[1, 0] = rest_length[1, 0] - mask_target[1, 0]
     torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_initialization_floating_base_made_fixed_base(sim, num_articulations, device, add_ground_plane):
-    """Test initialization for a floating-base articulation made fixed-base using schema properties.
-
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation is fixed base after modification
-    3. All buffers have correct shapes
-    4. The articulation maintains its default state
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = clone(generate_articulation_cfg(articulation_type="anymal"))
-    # Fix root link by making it kinematic
-    articulation_cfg.spawn.fix_root_link = True
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that is fixed base
-    assert articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 12)
-
-    # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
-
-    # Simulate physics
-    for _ in range(10):
-        # perform rendering
-        sim.step()
-        # update articulation
-        articulation.update(sim.cfg.dt)
-
-        # check that the root is at the correct state - its default state as it is fixed base
-        default_root_pose = articulation.data.default_root_pose.torch.clone()
-        default_root_vel = articulation.data.default_root_vel.torch.clone()
-        default_root_pose[:, :3] = default_root_pose[:, :3] + translations
-
-        torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
-        torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_initialization_fixed_base_made_floating_base(sim, num_articulations, device, add_ground_plane):
-    """Test initialization for fixed base made floating-base using schema properties.
-
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation is floating base after modification
-    3. All buffers have correct shapes
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = clone(generate_articulation_cfg(articulation_type="panda"))
-    # Unfix root link by making it non-kinematic
-    articulation_cfg.spawn.fix_root_link = False
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that is floating base
-    assert not articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 9)
-
-    # -- link names (check within articulation ordering is correct)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -877,81 +528,6 @@ def test_out_of_range_default_joint_vel(sim, device):
 
 
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
-    """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
-
-    This test verifies that:
-    1. Joint limits can be set correctly
-    2. Default positions are preserved when setting new limits
-    3. Joint limits can be set with indexing
-    4. Invalid joint positions are properly handled
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-
-    # Get current default joint pos
-    default_joint_pos = articulation._data.default_joint_pos.torch.clone()
-
-    # Set new joint limits
-    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
-    limits[..., 0] = (torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0) * -1.0
-    limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
-    articulation.write_joint_position_limit_to_sim_index(limits=limits)
-
-    # Check new limits are in place
-    torch.testing.assert_close(articulation._data.joint_pos_limits.torch, limits)
-    torch.testing.assert_close(articulation._data.default_joint_pos.torch, default_joint_pos)
-
-    # Set new joint limits with indexing
-    env_ids = torch.arange(1, device=device, dtype=torch.int32)
-    joint_ids = torch.arange(2, device=device, dtype=torch.int32)
-    limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
-    limits[..., 0] = (torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0) * -1.0
-    limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) + 5.0
-    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
-
-    # Check new limits are in place
-    torch.testing.assert_close(articulation._data.joint_pos_limits.torch[env_ids][:, joint_ids], limits)
-    torch.testing.assert_close(articulation._data.default_joint_pos.torch, default_joint_pos)
-
-    # Set new joint limits that invalidate default joint pos
-    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
-    limits[..., 0] = torch.rand(num_articulations, articulation.num_joints, device=device) * -0.1
-    limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) * 0.1
-    articulation.write_joint_position_limit_to_sim_index(limits=limits)
-
-    # Check if all values are within the bounds
-    default_joint_pos_torch = articulation._data.default_joint_pos.torch
-    within_bounds = (default_joint_pos_torch >= limits[..., 0]) & (default_joint_pos_torch <= limits[..., 1])
-    assert torch.all(within_bounds)
-
-    # Set new joint limits that invalidate default joint pos with indexing
-    limits = torch.zeros(env_ids.shape[0], joint_ids.shape[0], 2, device=device)
-    limits[..., 0] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * -0.1
-    limits[..., 1] = torch.rand(env_ids.shape[0], joint_ids.shape[0], device=device) * 0.1
-    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
-
-    # Check if all values are within the bounds
-    default_joint_pos_torch = articulation._data.default_joint_pos.torch
-    within_bounds = (default_joint_pos_torch[env_ids][:, joint_ids] >= limits[..., 0]) & (
-        default_joint_pos_torch[env_ids][:, joint_ids] <= limits[..., 1]
-    )
-    assert torch.all(within_bounds)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane):
@@ -982,806 +558,6 @@ def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane):
     articulation._data.applied_torque.torch.fill_(50.0)  # pretend actuator clipped to 50
     out = joint_effort_out_of_limit(env, robot_all)  # [N]
     assert torch.all(out)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_external_force_on_single_body(sim, num_articulations, device, add_ground_plane):
-    """Test application of external force on the base of the articulation.
-
-    This test verifies that:
-    1. External forces can be applied to specific bodies
-    2. The forces affect the articulation's motion correctly
-    3. The articulation responds to the forces as expected
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-    # Play the simulator
-    sim.reset()
-
-    # Find bodies to apply the force
-    body_ids, _ = articulation.find_bodies("base")
-    # Sample a large force
-    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 1] = 1000.0
-
-    # Now we are ready!
-    for _ in range(5):
-        # reset root state
-        root_pose = articulation.data.default_root_pose.torch.clone()
-        root_pose[:, :3] += translations
-        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
-        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
-        # reset dof state
-        joint_pos, joint_vel = (
-            articulation.data.default_joint_pos.torch,
-            articulation.data.default_joint_vel.torch,
-        )
-        articulation.write_joint_position_to_sim_index(position=joint_pos)
-        articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
-        # reset articulation
-        articulation.reset()
-        # apply force
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=external_wrench_b[..., :3], torques=external_wrench_b[..., 3:], body_ids=body_ids
-        )
-        # perform simulation
-        for _ in range(100):
-            # apply action to the articulation
-            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
-            articulation.write_data_to_sim()
-            # perform step
-            sim.step()
-            # update buffers
-            articulation.update(sim.cfg.dt)
-        # the lateral force along the base y-axis must push the standing robot sideways
-        lateral_displacement = articulation.data.root_pos_w.torch[:, 1] - translations[:, 1]
-        assert torch.all(lateral_displacement > 0.5), f"lateral displacement {lateral_displacement.tolist()}"
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_external_force_on_single_body_at_position(sim, num_articulations, device, add_ground_plane):
-    """Test application of external force on the base of the articulation at a given position.
-
-    This test verifies that:
-    1. External forces can be applied to specific bodies at a given position
-    2. External forces can be applied to specific bodies in the global frame
-    3. External forces are calculated and composed correctly
-    4. The forces affect the articulation's motion correctly
-    5. The articulation responds to the forces as expected
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, translations = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-    # Play the simulator
-    sim.reset()
-
-    # Find bodies to apply the force
-    body_ids, _ = articulation.find_bodies("base")
-    # Sample a large force
-    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 500.0
-    external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    external_wrench_positions_b[..., 1] = 1.0
-
-    # Now we are ready!
-    for i in range(5):
-        # reset root state
-        root_pose = articulation.data.default_root_pose.torch.clone()
-        root_pose[:, :3] += translations
-
-        articulation.write_root_pose_to_sim_index(root_pose=root_pose)
-        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
-        # reset dof state
-        joint_pos, joint_vel = (
-            articulation.data.default_joint_pos.torch,
-            articulation.data.default_joint_vel.torch,
-        )
-        articulation.write_joint_position_to_sim_index(position=joint_pos)
-        articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
-        # reset articulation
-        articulation.reset()
-        # apply force
-        is_global = False
-
-        if i % 2 == 0:
-            body_com_pos_w = articulation.data.body_com_pos_w.torch[:, body_ids, :3]
-            is_global = True
-            external_wrench_positions_b[..., 0] = 0.0
-            external_wrench_positions_b[..., 1] = 1.0
-            external_wrench_positions_b[..., 2] = 0.0
-            external_wrench_positions_b += body_com_pos_w
-        else:
-            external_wrench_positions_b[..., 0] = 0.0
-            external_wrench_positions_b[..., 1] = 1.0
-            external_wrench_positions_b[..., 2] = 0.0
-
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=external_wrench_b[..., :3],
-            torques=external_wrench_b[..., 3:],
-            positions=external_wrench_positions_b,
-            body_ids=body_ids,
-            is_global=is_global,
-        )
-        articulation.permanent_wrench_composer.add_forces_and_torques_index(
-            forces=external_wrench_b[..., :3],
-            torques=external_wrench_b[..., 3:],
-            positions=external_wrench_positions_b,
-            body_ids=body_ids,
-            is_global=is_global,
-        )
-        # perform simulation
-        for _ in range(100):
-            # apply action to the articulation
-            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
-            articulation.write_data_to_sim()
-            # perform step
-            sim.step()
-            # update buffers
-            articulation.update(sim.cfg.dt)
-        # the upward force applied 1 m along the base y-axis must roll the robot about its x-axis
-        roll_rate = articulation.data.root_ang_vel_b.torch[:, 0]
-        assert torch.all(roll_rate > 0.1), f"roll rate {roll_rate.tolist()} (is_global={is_global})"
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_external_force_on_multiple_bodies(sim, num_articulations, device):
-    """Test application of external force on the legs of the articulation.
-
-    This test verifies that:
-    1. External forces can be applied to multiple bodies
-    2. The forces affect the articulation's motion correctly
-    3. The articulation responds to the forces as expected
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-
-    # Play the simulator
-    sim.reset()
-
-    # Find bodies to apply the force
-    body_ids, _ = articulation.find_bodies(".*_SHANK")
-    # Sample a large force
-    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 1] = 100.0
-
-    # Now we are ready!
-    for _ in range(5):
-        # reset root state
-        articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
-        # reset dof state
-        joint_pos, joint_vel = (
-            articulation.data.default_joint_pos.torch,
-            articulation.data.default_joint_vel.torch,
-        )
-        articulation.write_joint_position_to_sim_index(position=joint_pos)
-        articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
-        # reset articulation
-        articulation.reset()
-        # apply force
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=external_wrench_b[..., :3], torques=external_wrench_b[..., 3:], body_ids=body_ids
-        )
-        # perform simulation
-        for _ in range(100):
-            # apply action to the articulation
-            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
-            articulation.write_data_to_sim()
-            # perform step
-            sim.step()
-            # update buffers
-            articulation.update(sim.cfg.dt)
-        # check condition
-        for i in range(num_articulations):
-            # since there is a moment applied on the articulation, the articulation should rotate
-            assert articulation.data.root_ang_vel_w.torch[i, 2].item() > 0.1
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_external_force_on_multiple_bodies_at_position(sim, num_articulations, device):
-    """Test application of external force on the legs of the articulation at a given position.
-
-    This test verifies that:
-    1. External forces can be applied to multiple bodies at a given position
-    2. External forces can be applied to multiple bodies in the global frame
-    3. External forces are calculated and composed correctly
-    4. The forces affect the articulation's motion correctly
-    5. The articulation responds to the forces as expected
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-
-    # Play the simulator
-    sim.reset()
-
-    # Find bodies to apply the force
-    body_ids, _ = articulation.find_bodies(".*_SHANK")
-    # Sample a large force
-    external_wrench_b = torch.zeros(articulation.num_instances, len(body_ids), 6, device=sim.device)
-    external_wrench_b[..., 2] = 500.0
-    external_wrench_positions_b = torch.zeros(articulation.num_instances, len(body_ids), 3, device=sim.device)
-    external_wrench_positions_b[..., 1] = 1.0
-
-    # Now we are ready!
-    for i in range(5):
-        # reset root state
-        articulation.write_root_pose_to_sim_index(root_pose=articulation.data.default_root_pose.torch.clone())
-        articulation.write_root_velocity_to_sim_index(root_velocity=articulation.data.default_root_vel.torch.clone())
-        # reset dof state
-        joint_pos, joint_vel = (
-            articulation.data.default_joint_pos.torch,
-            articulation.data.default_joint_vel.torch,
-        )
-        articulation.write_joint_position_to_sim_index(position=joint_pos)
-        articulation.write_joint_velocity_to_sim_index(velocity=joint_vel)
-        # reset articulation
-        articulation.reset()
-
-        is_global = False
-        if i % 2 == 0:
-            body_com_pos_w = articulation.data.body_com_pos_w.torch[:, body_ids, :3]
-            is_global = True
-            external_wrench_positions_b[..., 0] = 0.0
-            external_wrench_positions_b[..., 1] = 1.0
-            external_wrench_positions_b[..., 2] = 0.0
-            external_wrench_positions_b += body_com_pos_w
-        else:
-            external_wrench_positions_b[..., 0] = 0.0
-            external_wrench_positions_b[..., 1] = 1.0
-            external_wrench_positions_b[..., 2] = 0.0
-
-        # apply force
-        articulation.permanent_wrench_composer.set_forces_and_torques_index(
-            forces=external_wrench_b[..., :3],
-            torques=external_wrench_b[..., 3:],
-            positions=external_wrench_positions_b,
-            body_ids=body_ids,
-            is_global=is_global,
-        )
-        articulation.permanent_wrench_composer.add_forces_and_torques_index(
-            forces=external_wrench_b[..., :3],
-            torques=external_wrench_b[..., 3:],
-            positions=external_wrench_positions_b,
-            body_ids=body_ids,
-            is_global=is_global,
-        )
-        # perform simulation
-        for _ in range(100):
-            # apply action to the articulation
-            articulation.set_joint_position_target_index(target=articulation.data.default_joint_pos.torch.clone())
-            articulation.write_data_to_sim()
-            # perform step
-            sim.step()
-            # update buffers
-            articulation.update(sim.cfg.dt)
-        # check condition
-        for i in range(num_articulations):
-            # the response axis depends on the link frames, so check that the articulation rotates
-            assert torch.linalg.vector_norm(articulation.data.root_ang_vel_w.torch[i]).item() > 0.1
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_loading_gains_from_usd(sim, num_articulations, device):
-    """Test that gains are loaded from USD file if actuator model has them as None.
-
-    This test verifies that:
-    1. Gains are loaded correctly from USD file
-    2. Default gains are applied when not specified
-    3. The gains match the expected values
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=None, damping=None)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=sim.device)
-
-    # Play sim
-    sim.reset()
-
-    # Expected gains
-    # -- Stiffness values
-    expected_stiffness = {
-        ".*_waist.*": 20.0,
-        ".*_upper_arm.*": 10.0,
-        "pelvis": 10.0,
-        ".*_lower_arm": 2.0,
-        ".*_thigh:0": 10.0,
-        ".*_thigh:1": 20.0,
-        ".*_thigh:2": 10.0,
-        ".*_shin": 5.0,
-        ".*_foot.*": 2.0,
-    }
-    indices_list, _, values_list = string_utils.resolve_matching_names_values(
-        expected_stiffness, articulation.joint_names
-    )
-    expected_stiffness = torch.zeros(articulation.num_instances, articulation.num_joints, device=articulation.device)
-    expected_stiffness[:, indices_list] = torch.tensor(values_list, device=articulation.device)
-    # -- Damping values
-    expected_damping = {
-        ".*_waist.*": 5.0,
-        ".*_upper_arm.*": 5.0,
-        "pelvis": 5.0,
-        ".*_lower_arm": 1.0,
-        ".*_thigh:0": 5.0,
-        ".*_thigh:1": 5.0,
-        ".*_thigh:2": 5.0,
-        ".*_shin": 0.1,
-        ".*_foot.*": 1.0,
-    }
-    indices_list, _, values_list = string_utils.resolve_matching_names_values(
-        expected_damping, articulation.joint_names
-    )
-    expected_damping = torch.zeros_like(expected_stiffness)
-    expected_damping[:, indices_list] = torch.tensor(values_list, device=articulation.device)
-
-    # Check that gains are loaded from USD file
-    torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
-    torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize(("stiffness", "damping"), [(10.0, 2.0), ({".*": 10.0}, {".*": 2.0})])
-def test_setting_gains_from_cfg(sim, num_articulations, device, add_ground_plane, stiffness, damping):
-    """Test that gains are loaded from the configuration correctly.
-
-    This test verifies that:
-    1. Gains are loaded correctly from a scalar or a per-joint dictionary configuration
-    2. The gains match the expected values
-    3. The gains are applied correctly to the actuators
-
-    The humanoid has its articulation root on a rigid body below the spawned prim, so this test also checks
-    that the floating-base root is discovered there.
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid", stiffness=stiffness, damping=damping)
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=sim.device
-    )
-
-    # Play sim
-    sim.reset()
-
-    # Floating-base root discovered on a rigid body below the spawned prim
-    assert articulation.is_initialized
-    assert not articulation.is_fixed_base
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 21)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
-
-    # Expected gains
-    expected_stiffness = torch.full(
-        (articulation.num_instances, articulation.num_joints), 10.0, device=articulation.device
-    )
-    expected_damping = torch.full_like(expected_stiffness, 2.0)
-
-    # Check that gains are loaded from USD file
-    torch.testing.assert_close(articulation.actuators["body"].stiffness, expected_stiffness)
-    torch.testing.assert_close(articulation.actuators["body"].damping, expected_damping)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("joint_velocity_limit", [1e5, None])
-def test_setting_velocity_limit_writes_to_solver(sim, device, joint_velocity_limit):
-    """Test that the resolved joint velocity limit reaches the PhysX solver.
-
-    The full limit-resolution matrix (config override vs. USD default, implicit and explicit
-    actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
-    level. This smoke test only verifies the PhysX write path: the configured limit (or the
-    USD-authored default when unset) lands in the native solver buffers and matches
-    ``data.joint_vel_limits``.
-    """
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="single_joint_implicit",
-        joint_velocity_limit=joint_velocity_limit,
-    )
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg,
-        num_articulations=1,
-        device=device,
-    )
-    # Play sim
-    sim.reset()
-
-    # read the values set into the simulation
-    physx_vel_limit = wp.to_torch(articulation.root_view.get_dof_max_velocities()).to(device)
-    # check data buffer
-    torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
-    # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
-    if joint_velocity_limit is None:
-        limit = next(
-            p.max_joint_velocity for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, PhysxJointCfg)
-        )
-    else:
-        limit = joint_velocity_limit
-    expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
-    torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
-
-
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("joint_effort_limit", [1e5, None])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_setting_effort_limit_writes_to_solver(sim, device, joint_effort_limit, gravity_enabled):
-    """Test that the resolved joint effort limit and a commanded effort reach the PhysX solver.
-
-    The full limit-resolution matrix (config override vs. USD default, implicit and explicit
-    actuators, actuator-limit soft fallback) is covered on the Newton backend and at unit
-    level. This smoke test verifies the PhysX write path: the configured limit (or the USD-authored
-    default when unset) lands in the native solver buffers, and a commanded effort produces motion.
-    """
-    articulation_cfg = generate_articulation_cfg(
-        articulation_type="single_joint_implicit",
-        joint_effort_limit=joint_effort_limit,
-    )
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg,
-        num_articulations=1,
-        device=device,
-    )
-    # Play sim
-    sim.reset()
-
-    # obtain the physx effort limits
-    physx_effort_limit = wp.to_torch(articulation.root_view.get_dof_max_forces()).to(device=device)
-    # check data buffer
-    torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
-    # the solver keeps the USD-authored limit unless the user overrides it explicitly
-    if joint_effort_limit is None:
-        limit = next(
-            p.max_force for p in articulation_cfg.spawn.joint_drive_props if isinstance(p, sim_utils.UsdPhysicsDriveCfg)
-        )
-    else:
-        limit = joint_effort_limit
-    expected_effort_limit = torch.full_like(physx_effort_limit, limit)
-    torch.testing.assert_close(physx_effort_limit, expected_effort_limit)
-
-    # Exercise the command path as well as the property readback. The Isaac Sim 6.0 tensor backend
-    # accepted this write and updated its staging buffer without applying the effort to the joint.
-    initial_position = articulation.data.default_joint_pos.torch.clone()
-    articulation.write_joint_state_to_sim_index(
-        position=initial_position,
-        velocity=torch.zeros_like(initial_position),
-        full_data=True,
-    )
-    effort_target = torch.full_like(initial_position, 10.0)
-    articulation.actuators.target_command.set_position_index(value=initial_position, full_data=True)
-    articulation.actuators.target_command.set_velocity_index(value=torch.zeros_like(initial_position), full_data=True)
-    articulation.actuators.target_command.set_effort_index(value=effort_target, full_data=True)
-    articulation.write_data_to_sim()
-    sim.step()
-    articulation.update(sim.cfg.dt)
-    assert torch.all(articulation.data.joint_vel.torch > 1e-3), (
-        "a positive effort target must accelerate the commanded joint"
-    )
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_reset(sim, num_articulations, device, monkeypatch):
-    """Test that reset method works properly."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
-    )
-
-    # Play the simulator
-    sim.reset()
-
-    # Now we are ready!
-    actuator = next(iter(articulation.actuators.values()))
-    actuator_reset = actuator.reset
-    reset_env_ids = []
-
-    def record_actuator_reset(env_ids=None):
-        reset_env_ids.append(env_ids)
-        actuator_reset(env_ids)
-
-    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
-
-    num_bodies = articulation.num_bodies
-    composers = (articulation.instantaneous_wrench_composer, articulation.permanent_wrench_composer)
-    ones = torch.ones((num_articulations, num_bodies, 3), device=device)
-    articulation.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
-    articulation.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
-
-    # A partial reset clears only the selected environment
-    articulation.reset(env_ids=torch.tensor([0], device=device))
-    for composer in composers:
-        assert composer.active
-        for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
-            assert torch.count_nonzero(buffer[0]) == 0
-            assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel()
-
-    # A full reset resets every actuator environment and clears all external forces and torques
-    reset_env_ids.clear()
-    articulation.reset()
-    assert reset_env_ids == [None]
-    for composer in composers:
-        assert not composer.active
-        assert torch.count_nonzero(composer.out_force_b.torch) == 0
-        assert torch.count_nonzero(composer.out_torque_b.torch) == 0
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
-    """Test applying of joint position target functions correctly for a robotic arm."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
-    )
-
-    # Play the simulator
-    sim.reset()
-
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-    # reset dof state
-    joint_pos = articulation.data.default_joint_pos.torch.clone()
-    joint_pos[:, 3] = 0.0
-
-    # apply action to the articulation
-    articulation.set_joint_position_target_index(target=joint_pos)
-    articulation.write_data_to_sim()
-
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-    # The commanded joint must move toward its target. We can't check that it reached the target as the gains
-    # are not properly tuned
-    default_joint_pos = articulation.data.default_joint_pos.torch
-    assert torch.all(articulation.data.joint_pos.torch[:, 3].abs() < default_joint_pos[:, 3].abs() - 0.5)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("with_offset", [True, False])
-def test_body_root_state(sim, num_articulations, device, with_offset):
-    """Test for reading the `body_state_w` property.
-
-    This test verifies that:
-    1. Body states can be read correctly
-    2. States are correct with and without offsets
-    3. States are consistent across different devices
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-        with_offset: Whether to test with offset
-    """
-    sim._app_control_on_stop_handle = None
-    articulation_cfg = generate_articulation_cfg(articulation_type="single_joint_implicit")
-    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10, "Possible reference leak for articulation"
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized, "Articulation is not initialized"
-    # Check that fixed base
-    assert articulation.is_fixed_base, "Articulation is not a fixed base"
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 1)
-    prim_path_body_names = [path.split("/")[-1] for path in articulation.root_view.link_paths[0]]
-    assert prim_path_body_names == articulation.body_names
-
-    # Resolve body indices by name (ordering may differ across physics backends)
-    root_idx = articulation.body_names.index("CenterPivot")
-    arm_idx = articulation.body_names.index("Arm")
-
-    # change center of mass offset from link frame
-    if with_offset:
-        offset = [0.5, 0.0, 0.0]
-    else:
-        offset = [0.0, 0.0, 0.0]
-
-    # create com offsets — apply offset to the Arm body
-    num_bodies = articulation.num_bodies
-    com = wp.to_torch(articulation.root_view.get_coms())
-    link_offset = [1.0, 0.0, 0.0]  # the offset from CenterPivot to Arm frames
-    new_com = torch.tensor(offset, device=device).repeat(num_articulations, 1, 1)
-    com[:, arm_idx, :3] = new_com.squeeze(-2)
-    articulation.set_coms_index(
-        coms=wp.from_torch(com.to(device).contiguous(), dtype=wp.transformf),
-        env_ids=wp.from_torch(env_idx, dtype=wp.int32),
-    )
-
-    # check they are set
-    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com.cpu())
-
-    for i in range(50):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-        # get state properties
-        root_link_pose_w = articulation.data.root_link_pose_w.torch
-        root_link_vel_w = articulation.data.root_link_vel_w.torch
-        root_com_pose_w = articulation.data.root_com_pose_w.torch
-        root_com_vel_w = articulation.data.root_com_vel_w.torch
-        body_link_pose_w = articulation.data.body_link_pose_w.torch
-        body_link_vel_w = articulation.data.body_link_vel_w.torch
-        body_com_pose_w = articulation.data.body_com_pose_w.torch
-        body_com_vel_w = articulation.data.body_com_vel_w.torch
-
-        # the fixed root stays at its default state
-        default_root_pose = articulation.data.default_root_pose.torch.clone()
-        default_root_pose[:, :3] += env_pos
-        torch.testing.assert_close(root_link_pose_w, default_root_pose)
-        torch.testing.assert_close(root_com_vel_w, articulation.data.default_root_vel.torch)
-
-        if with_offset:
-            # get joint state
-            joint_pos = articulation.data.joint_pos.torch.unsqueeze(-1)
-            joint_vel = articulation.data.joint_vel.torch.unsqueeze(-1)
-
-            # LINK state
-            # angular velocity should be the same for both COM and link frames
-            torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
-            torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
-
-            # lin_vel arm
-            lin_vel_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
-            vx = -(link_offset[0]) * joint_vel * torch.sin(joint_pos)
-            vy = torch.zeros(num_articulations, 1, 1, device=device)
-            vz = (link_offset[0]) * joint_vel * torch.cos(joint_pos)
-            lin_vel_gt[:, arm_idx, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
-
-            # linear velocity of root link should be zero
-            torch.testing.assert_close(lin_vel_gt[:, root_idx, :], root_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
-            # linear velocity of pendulum link should be
-            torch.testing.assert_close(lin_vel_gt, body_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
-
-            # ang_vel
-            torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
-            torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
-
-            # COM state
-            # position and orientation shouldn't match for the _state_com_w but everything else will
-            pos_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
-            px = (link_offset[0] + offset[0]) * torch.cos(joint_pos)
-            py = torch.zeros(num_articulations, 1, 1, device=device)
-            pz = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
-            pos_gt[:, arm_idx, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
-            pos_gt += env_pos.unsqueeze(-2).repeat(1, num_bodies, 1)
-            torch.testing.assert_close(pos_gt[:, root_idx, :], root_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
-            torch.testing.assert_close(pos_gt, body_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
-
-            # orientation
-            com_quat_b = articulation.data.body_com_quat_b.torch
-            com_quat_w = math_utils.quat_mul(body_link_pose_w[..., 3:], com_quat_b)
-            torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
-            torch.testing.assert_close(com_quat_w[:, root_idx, :], root_com_pose_w[..., 3:])
-
-            # angular velocity should be the same for both COM and link frames
-            torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
-            torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
-        else:
-            # single joint center of masses are at link frames so they will be the same
-            torch.testing.assert_close(root_link_pose_w, root_com_pose_w)
-            torch.testing.assert_close(root_com_vel_w, root_link_vel_w)
-            torch.testing.assert_close(body_link_pose_w, body_com_pose_w)
-            torch.testing.assert_close(body_com_vel_w, body_link_vel_w)
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("with_offset", [True, False])
-@pytest.mark.parametrize("state_location", ["com", "link"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_write_root_state(sim, num_articulations, device, with_offset, state_location, gravity_enabled):
-    """Test the setters for root_state using both the link frame and center of mass as reference frame.
-
-    This test verifies that:
-    1. Root states can be written correctly
-    2. States are correct with and without offsets
-    3. States can be written for both COM and link frames
-    4. States are consistent across different devices
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-        with_offset: Whether to test with offset
-        state_location: Whether to test COM or link frame
-    """
-    sim._app_control_on_stop_handle = None
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)], device=device, dtype=torch.int32)
-
-    # Play sim
-    sim.reset()
-
-    # change center of mass offset from link frame
-    if with_offset:
-        offset = torch.tensor([1.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
-    else:
-        offset = torch.tensor([0.0, 0.0, 0.0]).repeat(num_articulations, 1, 1)
-
-    # create com offsets
-    com = wp.to_torch(articulation.root_view.get_coms())
-    new_com = offset
-    com[:, 0, :3] = new_com.squeeze(-2)
-    articulation.set_coms_index(
-        coms=wp.from_torch(com.to(device).contiguous(), dtype=wp.transformf),
-        env_ids=wp.from_torch(env_idx, dtype=wp.int32),
-    )
-
-    # check they are set
-    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_coms()), com)
-
-    rand_state = torch.zeros(num_articulations, 13, device=device)
-    rand_state[..., :7] = articulation.data.default_root_pose.torch
-    rand_state[..., :3] += env_pos
-    # make quaternion a unit vector
-    rand_state[..., 3:7] = torch.nn.functional.normalize(rand_state[..., 3:7], dim=-1)
-
-    env_idx = env_idx.to(device)
-    for i in range(10):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-        if state_location == "com":
-            if i % 2 == 0:
-                articulation.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7])
-                articulation.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-            else:
-                articulation.write_root_com_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_idx)
-                articulation.write_root_com_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_idx)
-        elif state_location == "link":
-            if i % 2 == 0:
-                articulation.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7])
-                articulation.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:])
-            else:
-                articulation.write_root_link_pose_to_sim_index(root_pose=rand_state[..., :7], env_ids=env_idx)
-                articulation.write_root_link_velocity_to_sim_index(root_velocity=rand_state[..., 7:], env_ids=env_idx)
-
-        if state_location == "com":
-            torch.testing.assert_close(rand_state[..., :7], articulation.data.root_com_pose_w.torch)
-            torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_com_vel_w.torch)
-        elif state_location == "link":
-            torch.testing.assert_close(rand_state[..., :7], articulation.data.root_link_pose_w.torch)
-            torch.testing.assert_close(rand_state[..., 7:], articulation.data.root_link_vel_w.torch)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
@@ -1817,82 +593,6 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
     # Play sim
     with pytest.raises(RuntimeError):
         sim.reset()
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("gravity_enabled", [False])
-def test_write_joint_state_data_consistency(sim, num_articulations, device, gravity_enabled):
-    """Test the setters for root_state using both the link frame and center of mass as reference frame.
-
-    This test verifies that after write_joint_state_to_sim operations:
-    1. state, com_state, link_state value consistency
-    2. body_pose, link
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    sim._app_control_on_stop_handle = None
-    articulation_cfg = generate_articulation_cfg(articulation_type="anymal")
-    articulation, env_pos = generate_articulation(articulation_cfg, num_articulations, device)
-    env_idx = torch.tensor([x for x in range(num_articulations)])
-
-    # Play sim
-    sim.reset()
-
-    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
-    limits[..., 0] = (torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0) * -1.0
-    limits[..., 1] = torch.rand(num_articulations, articulation.num_joints, device=device) + 5.0
-    articulation.write_joint_position_limit_to_sim_index(limits=limits)
-
-    from torch.distributions import Uniform
-
-    joint_pos_limits = articulation.data.joint_pos_limits.torch
-    joint_vel_limits = articulation.data.joint_vel_limits.torch
-    pos_dist = Uniform(joint_pos_limits[..., 0], joint_pos_limits[..., 1])
-    vel_dist = Uniform(-joint_vel_limits, joint_vel_limits)
-
-    original_body_link_pose_w = articulation.data.body_link_pose_w.torch.clone()
-    original_body_com_vel_w = articulation.data.body_com_vel_w.torch.clone()
-
-    rand_joint_pos = pos_dist.sample()
-    rand_joint_vel = vel_dist.sample()
-
-    articulation.write_joint_position_to_sim_index(position=rand_joint_pos)
-    articulation.write_joint_velocity_to_sim_index(velocity=rand_joint_vel)
-    # make sure valued updated
-    body_link_pose_w = articulation.data.body_link_pose_w.torch
-    body_com_vel_w = articulation.data.body_com_vel_w.torch
-    original_body_states = torch.cat([original_body_link_pose_w, original_body_com_vel_w], dim=-1)
-    body_state_w = torch.cat([body_link_pose_w, body_com_vel_w], dim=-1)
-    # every non-root body must move with the joint write
-    assert torch.all((original_body_states[:, 1:] != body_state_w[:, 1:]).any(dim=-1))
-    # validate body - link consistency
-    body_link_vel_w = articulation.data.body_link_vel_w.torch
-    # skip lin_vel because it differs from link frame, this should be fine because we are only checking
-    # if velocity update is triggered, which can be determined by comparing angular velocity
-    torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
-
-    # validate link - com conistency
-    body_com_pos_b = articulation.data.body_com_pos_b.torch
-    body_com_quat_b = articulation.data.body_com_quat_b.torch
-    expected_com_pos, expected_com_quat = math_utils.combine_frame_transforms(
-        body_link_pose_w[..., :3].view(-1, 3),
-        body_link_pose_w[..., 3:].view(-1, 4),
-        body_com_pos_b.view(-1, 3),
-        body_com_quat_b.view(-1, 4),
-    )
-    body_com_pos_w = articulation.data.body_com_pos_w.torch
-    body_com_quat_w = articulation.data.body_com_quat_w.torch
-    torch.testing.assert_close(expected_com_pos.view(len(env_idx), -1, 3), body_com_pos_w)
-    torch.testing.assert_close(expected_com_quat.view(len(env_idx), -1, 4), body_com_quat_w)
-
-    # validate body - com consistency
-    body_com_lin_vel_w = articulation.data.body_com_lin_vel_w.torch
-    body_com_ang_vel_w = articulation.data.body_com_ang_vel_w.torch
-    torch.testing.assert_close(body_com_vel_w[..., :3], body_com_lin_vel_w)
-    torch.testing.assert_close(body_com_vel_w[..., 3:], body_com_ang_vel_w)
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -1969,127 +669,6 @@ def test_spatial_tendons(sim, num_articulations, device):
     expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
-
-
-@pytest.mark.parametrize("add_ground_plane", [True])
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_write_joint_frictions_to_sim(sim, num_articulations, device, add_ground_plane):
-    """Test that joint friction coefficients written through the combined API reach the simulation."""
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(
-        articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
-    )
-
-    # Play the simulator
-    sim.reset()
-
-    # apply action to the articulation
-    dynamic_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-    viscous_friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-    friction = torch.rand(num_articulations, articulation.num_joints, device=device)
-
-    # Guarantee that the dynamic friction is not greater than the static friction
-    dynamic_friction = torch.min(dynamic_friction, friction)
-
-    # The static friction must be set first to be sure the dynamic friction is not greater than static
-    # when both are set.
-    articulation.write_joint_friction_coefficient_to_sim_index(
-        joint_friction_coeff=friction,
-        joint_dynamic_friction_coeff=dynamic_friction,
-        joint_viscous_friction_coeff=viscous_friction,
-    )
-    articulation.write_data_to_sim()
-
-    for _ in range(100):
-        # perform step
-        sim.step()
-        # update buffers
-        articulation.update(sim.cfg.dt)
-
-    friction_props_from_sim = wp.to_torch(articulation.root_view.get_dof_friction_properties())
-    joint_friction_coeff_sim = friction_props_from_sim[:, :, 0]
-    joint_dynamic_friction_coeff_sim = friction_props_from_sim[:, :, 1]
-    joint_viscous_friction_coeff_sim = friction_props_from_sim[:, :, 2]
-    assert torch.allclose(joint_dynamic_friction_coeff_sim, dynamic_friction.cpu())
-    assert torch.allclose(joint_viscous_friction_coeff_sim, viscous_friction.cpu())
-    assert torch.allclose(joint_friction_coeff_sim, friction.cpu())
-
-
-##
-# Shape-contract regression tests for the new BaseArticulation accessors.
-# Mirror the Newton-side tests so both backends can be diffed against the
-# same documented contract. These are PhysX's reference shapes — when the
-# Newton-side tests pass with the same expected_shape formulas, the
-# cross-backend contract holds.
-##
-
-
-@pytest.mark.parametrize("num_articulations", [4])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.isaacsim_ci
-def test_get_jacobians_link_origin_contract(sim, num_articulations, device, articulation_type, gravity_enabled):
-    """PhysX reference: ``J · q_dot`` matches ``[body_link_lin_vel_w; body_link_ang_vel_w]``.
-
-    The cross-backend contract on
-    :attr:`~isaaclab.assets.BaseArticulationData.body_link_jacobian_w` says
-    the Jacobian's linear rows reference each body's link origin. PhysX's
-    raw ``_root_view.get_jacobians()`` returns COM-referenced linear rows;
-    the IsaacLab wrapper applies the COM→origin shift kernel so the contract
-    holds. This test pins the identity from the PhysX side and parametrizes
-    on Anymal so the (non-trivial) shift surfaces if it ever regresses.
-
-    Scene gravity is disabled (``gravity_enabled=False``) so the only source
-    of a J · q_dot ↔ body_*_w mismatch is the reference-point contract (or a
-    regression). The tolerance ``5e-2`` is loose enough to absorb the small
-    PhysX state-propagation lag between the Jacobian and the velocity
-    buffers (~2% on max angular speed) but well below the
-    COM-vs-link-origin bug magnitude (panda hand COM offset ≈ 3 cm × ω at
-    typical motion ≈ several rad/s gives a 0.1+ m/s linear-row residual,
-    2× the tolerance).
-    """
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    assert articulation.is_initialized
-
-    torch.manual_seed(0)
-    qdot = torch.randn(num_articulations, articulation.num_joints, device=device) * 0.5
-    articulation.write_joint_velocity_to_sim(velocity=qdot)
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    # body_link_jacobian_w prepends ``num_base_dofs`` floating-base columns; slice past
-    # them so the joint axis aligns with joint_vel (actuated-only).
-    J = articulation.data.body_link_jacobian_w.torch[..., articulation.num_base_dofs :]
-    qdot_view = articulation.data.joint_vel.torch
-    v_pred = torch.einsum("nbij,nj->nbi", J, qdot_view)
-
-    body_lin_w = articulation.data.body_link_lin_vel_w.torch
-    body_ang_w = articulation.data.body_link_ang_vel_w.torch
-    if articulation.is_fixed_base:
-        body_lin_w = body_lin_w[:, 1:]
-        body_ang_w = body_ang_w[:, 1:]
-
-    torch.testing.assert_close(v_pred[..., 3:6], body_ang_w, atol=1.5e-1, rtol=5e-2)
-    torch.testing.assert_close(v_pred[..., 0:3], body_lin_w, atol=1.5e-1, rtol=5e-2)
-
-    # Shape contract: fixed-base Jacobians omit the root body; floating-base ones prepend the base DoFs.
-    num_dofs = articulation.num_joints + articulation.num_base_dofs
-    num_jacobian_bodies = articulation.num_bodies - 1 if articulation.is_fixed_base else articulation.num_bodies
-    J_full = articulation.data.body_link_jacobian_w.torch
-    assert J_full.shape == (num_articulations, num_jacobian_bodies, 6, num_dofs)
-
-    # The joint-space mass matrix is square over all DoFs, symmetric, and positive definite.
-    M = articulation.data.mass_matrix.torch
-    assert M.shape == (num_articulations, num_dofs, num_dofs)
-    assert (M.diagonal(dim1=-2, dim2=-1) > 1e-6).all()
-    asym = (M - M.transpose(-1, -2)).abs().max().item()
-    assert asym < 1e-4, f"|M - M^T|_max = {asym:.3e} — mass matrix is not symmetric"
-    eye = torch.eye(M.shape[-1], device=M.device, dtype=M.dtype).expand_as(M)
-    torch.linalg.cholesky(M + 1e-6 * eye)
 
 
 @pytest.mark.parametrize("num_articulations", [1])
@@ -2248,5 +827,734 @@ def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_ena
     assert rot_mean < 5e-2, f"IK rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v", "--maxfail=1"])
+##
+# Composite scene shared by the remaining tests.
+##
+
+
+@dataclass
+class _ArticulationScene:
+    """Articulation islands that share one real PhysX lifecycle."""
+
+    sim: SimulationContext
+    device: str
+    ordered: Articulation
+    """Fixed base, MJWarp joint and body ordering, gains and limits loaded from USD."""
+    floating: Articulation
+    """Floating base discovered on the base link below the spawned prim, gains and limits from the config."""
+    reordered: Articulation
+    """Floating base with an explicit root path and a body ordering that moves the root link."""
+    tendon: Articulation
+    """Fixed base with a reversed left elbow and a spatial tendon."""
+    origins: dict[str, torch.Tensor]
+    """World position of every environment of each island, keyed by island name."""
+    refcounts: dict[str, int]
+    """Reference count of each articulation right after construction."""
+
+    @property
+    def islands(self) -> dict[str, Articulation]:
+        """All articulations keyed by island name."""
+        return {name: getattr(self, name) for name in ("ordered", "floating", "reordered", "tendon")}
+
+    def step(self, num_steps: int = 1) -> None:
+        """Write, step, and update every articulation."""
+        for _ in range(num_steps):
+            for articulation in self.islands.values():
+                articulation.write_data_to_sim()
+            self.sim.step()
+            for articulation in self.islands.values():
+                articulation.update(self.sim.cfg.dt)
+
+
+def _spawn_island(name: str, y_offset: float, cfg: ArticulationCfg, **authoring) -> tuple[Articulation, torch.Tensor]:
+    """Spawn one two-environment island and return the articulation and its environment origins."""
+    island_path = f"/World/{name}"
+    sim_utils.create_prim(island_path, "Xform", translation=(0.0, y_offset, 0.0))
+    origins = []
+    for env_index in range(_NUM_ENVS):
+        sim_utils.create_prim(f"{island_path}/Env_{env_index}", "Xform", translation=(_ENV_SPACING * env_index, 0, 0))
+        origins.append((_ENV_SPACING * env_index, y_offset, 0.0))
+    articulation = Articulation(replace(cfg, prim_path=f"{island_path}/Env_[^/]*/Robot"))
+    for env_index in range(_NUM_ENVS):
+        _author_branching_robot(f"{island_path}/Env_{env_index}/Robot", **authoring)
+    return articulation, torch.tensor(origins)
+
+
+@pytest.fixture(scope="module", params=test_devices())
+def articulation_scene(request) -> _ArticulationScene:
+    """Initialize every composite-scene articulation once for this module."""
+    device = request.param
+    with build_simulation_context(device=device, gravity_enabled=False) as sim:
+        sim._app_control_on_stop_handle = None
+        islands, origins, refcounts = {}, {}, {}
+        island_specs = {
+            "ordered": (
+                _branching_cfg(
+                    actuators={"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None)},
+                    joint_ordering="mjwarp",
+                    body_ordering="mjwarp",
+                ),
+                {"fixed_base": True},
+            ),
+            "floating": (
+                _branching_cfg(
+                    actuators={
+                        "joints": ImplicitActuatorCfg(
+                            joint_names_expr=[".*"],
+                            stiffness={".*_shoulder": 6.0, ".*_elbow": 4.0},
+                            damping={".*_shoulder": 0.6, ".*_elbow": 0.4},
+                            joint_velocity_limit=7.0,
+                            joint_effort_limit=30.0,
+                        )
+                    },
+                ),
+                {"root_on_base": True},
+            ),
+            "reordered": (
+                _branching_cfg(
+                    articulation_root_prim_path="/base",
+                    body_ordering=("left_tip", "base", "right_upper", "right_tip", "left_upper"),
+                ),
+                {"root_on_base": True},
+            ),
+            "tendon": (_branching_cfg(), {"fixed_base": True, "reversed_left_elbow": True, "spatial_tendon": True}),
+        }
+        for index, (name, (cfg, authoring)) in enumerate(island_specs.items()):
+            islands[name], origins[name] = _spawn_island(name.capitalize(), 3.0 * index, cfg, **authoring)
+            refcounts[name] = sys.getrefcount(islands[name])
+        sim.reset()
+        yield _ArticulationScene(
+            sim=sim,
+            device=device,
+            origins={name: value.to(device) for name, value in origins.items()},
+            refcounts=refcounts,
+            **islands,
+        )
+
+
+def test_articulation_initialization_and_ordering(articulation_scene: _ArticulationScene):
+    """Resolve the configured structure, orderings, gains, and limits of every real island."""
+    scene = articulation_scene
+    device = scene.device
+    for name, articulation in scene.islands.items():
+        assert articulation.is_initialized, name
+        assert articulation.num_instances == _NUM_ENVS, name
+        # Check that the framework doesn't hold excessive strong references.
+        assert scene.refcounts[name] < 10, name
+        for actuator_name, actuator in articulation.actuators.items():
+            is_implicit_model_cfg = isinstance(articulation.cfg.actuators[actuator_name], ImplicitActuatorCfg)
+            assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
+    assert scene.ordered.is_fixed_base and scene.tendon.is_fixed_base
+    assert not scene.floating.is_fixed_base and not scene.reordered.is_fixed_base
+    # The floating root is discovered on the base link below the spawned robot prim; the reordered root is
+    # resolved through the configured root path.
+    assert scene.floating.root_view.prim_paths[0] == "/World/Floating/Env_0/Robot/base"
+    assert scene.reordered.root_view.prim_paths[0] == "/World/Reordered/Env_0/Robot/base"
+
+    ordered, floating = scene.ordered, scene.floating
+    assert tuple(ordered.backend_joint_names) == BRANCHING_PHYSX_JOINT_NAMES
+    assert tuple(ordered.backend_body_names) == BRANCHING_PHYSX_BODY_NAMES
+    assert get_articulation_name_ordering(ordered, "mjwarp", "joint") == BRANCHING_MJWARP_JOINT_NAMES
+    assert get_articulation_name_ordering(ordered, "mjwarp", "body") == BRANCHING_MJWARP_BODY_NAMES
+    assert tuple(ordered.joint_names) == BRANCHING_MJWARP_JOINT_NAMES
+    assert tuple(ordered.body_names) == BRANCHING_MJWARP_BODY_NAMES
+    assert ordered.joint_ordering is not None
+    assert ordered.body_ordering is not None
+    # Without a custom ordering the public body order is the PhysX link order.
+    assert floating.body_ordering is None
+    assert [path.split("/")[-1] for path in floating.root_view.link_paths[0]] == floating.body_names
+    for articulation in (ordered, floating):
+        assert articulation.data.root_pos_w.torch.shape == (_NUM_ENVS, 3)
+        assert articulation.data.root_quat_w.torch.shape == (_NUM_ENVS, 4)
+        assert articulation.data.joint_pos.torch.shape == (_NUM_ENVS, 4)
+        assert articulation.data.body_mass.torch.shape == (_NUM_ENVS, 5)
+        assert articulation.data.body_inertia.torch.shape == (_NUM_ENVS, 5, 9)
+
+    # Unset actuator gains and limits are loaded from the USD drives, in public joint order.
+    joint_backend_to_user = list(ordered.joint_ordering.backend_to_user_indices)
+    for public, usd_values, raw in (
+        (ordered.actuators["joints"].stiffness, _USD_STIFFNESS, ordered.root_view.get_dof_stiffnesses()),
+        (ordered.actuators["joints"].damping, _USD_DAMPING, ordered.root_view.get_dof_dampings()),
+        (ordered.data.joint_effort_limits.torch, _USD_MAX_FORCE, ordered.root_view.get_dof_max_forces()),
+        (ordered.data.joint_vel_limits.torch, _USD_MAX_VELOCITY, ordered.root_view.get_dof_max_velocities()),
+    ):
+        expected = _in_user_order(usd_values, ordered.joint_names, device)
+        torch.testing.assert_close(public, expected)
+        torch.testing.assert_close(_to_device_tensor(raw, device), expected[:, joint_backend_to_user])
+    torch.testing.assert_close(ordered.data.joint_stiffness.torch, ordered.actuators["joints"].stiffness)
+    torch.testing.assert_close(ordered.data.joint_damping.torch, ordered.actuators["joints"].damping)
+    # Configured gains and limits override USD and reach the solver.
+    for attribute, raw, values in (
+        ("stiffness", floating.root_view.get_dof_stiffnesses(), (6.0, 4.0)),
+        ("damping", floating.root_view.get_dof_dampings(), (0.6, 0.4)),
+    ):
+        per_joint = {name: values[0] if name.endswith("shoulder") else values[1] for name in floating.joint_names}
+        expected = _in_user_order(per_joint, floating.joint_names, device)
+        torch.testing.assert_close(getattr(floating.actuators["joints"], attribute), expected)
+        torch.testing.assert_close(_to_device_tensor(raw, device), expected)
+    for public, raw, limit in (
+        (floating.data.joint_vel_limits.torch, floating.root_view.get_dof_max_velocities(), 7.0),
+        (floating.data.joint_effort_limits.torch, floating.root_view.get_dof_max_forces(), 30.0),
+    ):
+        torch.testing.assert_close(public, torch.full((_NUM_ENVS, 4), limit, device=device))
+        torch.testing.assert_close(_to_device_tensor(raw, device), public)
+
+
+def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _ArticulationScene):
+    """Joint state writes reach PhysX in backend order and reads return public order."""
+    scene = articulation_scene
+    device = scene.device
+    articulation = scene.ordered
+    joint_user_to_backend = list(articulation.joint_ordering.user_to_backend_indices)
+    joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
+    body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
+
+    # Full-data writes land in backend order.
+    joint_pos = torch.linspace(-0.3, 0.3, 4, device=device).repeat(_NUM_ENVS, 1)
+    joint_vel = torch.linspace(0.05, 0.13, 4, device=device).repeat(_NUM_ENVS, 1)
+    initial_stiffness = articulation.data.joint_stiffness.torch.clone()
+    joint_stiffness = 10.0 + torch.arange(4, device=device, dtype=torch.float32).repeat(_NUM_ENVS, 1)
+    original_body_link_pose_w = articulation.data.body_link_pose_w.torch.clone()
+    articulation.write_joint_stiffness_to_sim_index(stiffness=joint_stiffness, full_data=True)
+    articulation.write_joint_position_to_sim_index(position=joint_pos, full_data=True)
+    articulation.write_joint_velocity_to_sim_index(velocity=joint_vel, full_data=True)
+    for raw, written in (
+        (articulation.root_view.get_dof_positions(), joint_pos),
+        (articulation.root_view.get_dof_velocities(), joint_vel),
+        (articulation.root_view.get_dof_stiffnesses(), joint_stiffness),
+    ):
+        torch.testing.assert_close(_to_device_tensor(raw, device), written[:, joint_backend_to_user])
+
+    # A joint write refreshes the body state without stepping.
+    body_link_pose_w = articulation.data.body_link_pose_w.torch
+    assert torch.all((original_body_link_pose_w[:, 1:] != body_link_pose_w[:, 1:]).any(dim=-1))
+    body_com_pose_b = articulation.data.body_com_pose_b.torch
+    expected_com_pos, expected_com_quat = combine_frame_transforms(
+        body_link_pose_w[..., :3].reshape(-1, 3),
+        body_link_pose_w[..., 3:].reshape(-1, 4),
+        body_com_pose_b[..., :3].reshape(-1, 3),
+        body_com_pose_b[..., 3:].reshape(-1, 4),
+    )
+    torch.testing.assert_close(expected_com_pos.view(_NUM_ENVS, -1, 3), articulation.data.body_com_pos_w.torch)
+    torch.testing.assert_close(expected_com_quat.view(_NUM_ENVS, -1, 4), articulation.data.body_com_quat_w.torch)
+    body_com_vel_w = articulation.data.body_com_vel_w.torch
+    torch.testing.assert_close(body_com_vel_w[..., 3:], articulation.data.body_link_vel_w.torch[..., 3:])
+    torch.testing.assert_close(body_com_vel_w[..., :3], articulation.data.body_com_lin_vel_w.torch)
+    torch.testing.assert_close(body_com_vel_w[..., 3:], articulation.data.body_com_ang_vel_w.torch)
+
+    # After a step, public reads are the backend state in public order.
+    scene.step()
+    for public, raw, user_to_backend in (
+        (articulation.data.joint_pos.torch, articulation.root_view.get_dof_positions(), joint_user_to_backend),
+        (articulation.data.joint_vel.torch, articulation.root_view.get_dof_velocities(), joint_user_to_backend),
+        (articulation.data.joint_stiffness.torch, articulation.root_view.get_dof_stiffnesses(), joint_user_to_backend),
+        (articulation.data.body_link_pose_w.torch, articulation.root_view.get_link_transforms(), body_user_to_backend),
+        (articulation.data.body_com_pose_b.torch, articulation.root_view.get_coms(), body_user_to_backend),
+    ):
+        torch.testing.assert_close(public, _to_device_tensor(raw, device)[:, user_to_backend])
+    # The split accessors must be sliced from the reordered public poses, not from a stale backend-order cache.
+    data = articulation.data
+    torch.testing.assert_close(data.body_com_pos_b.torch, data.body_com_pose_b.torch[..., :3])
+    torch.testing.assert_close(data.body_com_quat_b.torch, data.body_com_pose_b.torch[..., 3:])
+    torch.testing.assert_close(data.body_pos_w.torch, data.body_link_pose_w.torch[..., :3])
+    torch.testing.assert_close(data.body_quat_w.torch, data.body_link_pose_w.torch[..., 3:])
+
+    # Partial writes with int64 selectors in non-sorted order reach only the selected cells.
+    env_ids = torch.tensor([1], dtype=torch.int64, device=device)
+    joint_ids = torch.tensor([3, 0], dtype=torch.int64, device=device)
+    position = torch.tensor([[0.21, -0.13]], device=device)
+    velocity = torch.tensor([[0.41, -0.23]], device=device)
+    expected_position = articulation.data.joint_pos.torch.clone()
+    expected_velocity = articulation.data.joint_vel.torch.clone()
+    expected_position[env_ids[:, None], joint_ids] = position
+    expected_velocity[env_ids[:, None], joint_ids] = velocity
+    articulation.write_joint_state_to_sim_index(
+        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
+    )
+    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
+    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
+    torch.testing.assert_close(
+        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
+        expected_position[:, joint_backend_to_user],
+    )
+    torch.testing.assert_close(
+        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
+        expected_velocity[:, joint_backend_to_user],
+    )
+    # Restore the USD gains for the following tests.
+    articulation.write_joint_stiffness_to_sim_index(stiffness=initial_stiffness, full_data=True)
+
+
+def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _ArticulationScene):
+    """Selected joint and body properties reach the selected PhysX entries and read back in public order."""
+    scene = articulation_scene
+    device = scene.device
+
+    # Direct tensor-view mass and inertia writes become visible on the lazy read: on the first read of a cold
+    # buffer (identity order), and after the next update once the buffer is primed (non-identity order).
+    cpu_env_ids = wp.array(list(range(_NUM_ENVS)), dtype=wp.int32, device="cpu")
+
+    def write_backend_mass_inertia(articulation: Articulation, delta_mass: float, delta_inertia: float):
+        """Write distinct backend-order masses/inertias straight through the tensor view."""
+        backend_masses = wp.to_torch(articulation.root_view.get_masses()).clone() + delta_mass
+        backend_inertias = wp.to_torch(articulation.root_view.get_inertias()).clone()
+        backend_inertias[..., [0, 4, 8]] += delta_inertia
+        articulation.root_view.set_masses(
+            wp.from_torch(backend_masses.contiguous(), dtype=wp.float32), indices=cpu_env_ids
+        )
+        articulation.root_view.set_inertias(
+            wp.from_torch(backend_inertias.contiguous(), dtype=wp.float32), indices=cpu_env_ids
+        )
+        return backend_masses.to(device), backend_inertias.to(device)
+
+    backend_masses, backend_inertias = write_backend_mass_inertia(scene.tendon, 0.293, 0.023)
+    torch.testing.assert_close(scene.tendon.data.body_mass.torch, backend_masses)
+    torch.testing.assert_close(scene.tendon.data.body_inertia.torch, backend_inertias)
+
+    articulation = scene.ordered
+    body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
+    body_backend_to_user = list(articulation.body_ordering.backend_to_user_indices)
+    joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
+    articulation.data.body_mass.torch  # prime the lazy buffers
+    articulation.data.body_inertia.torch
+    backend_masses, backend_inertias = write_backend_mass_inertia(articulation, 0.137, 0.011)
+    articulation.update(scene.sim.cfg.dt)
+    torch.testing.assert_close(articulation.data.body_mass.torch, backend_masses[:, body_user_to_backend])
+    torch.testing.assert_close(articulation.data.body_inertia.torch, backend_inertias[:, body_user_to_backend])
+
+    # Joint friction coefficients reach their TensorAPI slots for the selected cells only.
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    joint_ids = torch.tensor([3, 0], dtype=torch.int32, device=device)
+    raw_friction_before = wp.to_torch(articulation.root_view.get_dof_friction_properties()).clone()
+    frictions = {
+        "joint_friction_coeff": torch.tensor([[0.9, 0.7]], device=device),
+        "joint_dynamic_friction_coeff": torch.tensor([[0.4, 0.3]], device=device),
+        "joint_viscous_friction_coeff": torch.tensor([[0.11, 0.22]], device=device),
+    }
+    expected_frictions = {name: getattr(articulation.data, name).torch.clone() for name in frictions}
+    articulation.write_joint_friction_coefficient_to_sim_index(
+        joint_friction_coeff=frictions["joint_friction_coeff"],
+        joint_dynamic_friction_coeff=frictions["joint_dynamic_friction_coeff"],
+        joint_viscous_friction_coeff=frictions["joint_viscous_friction_coeff"],
+        env_ids=env_ids,
+        joint_ids=joint_ids,
+    )
+    expected_raw_friction = raw_friction_before.clone()
+    for component, (name, values) in enumerate(frictions.items()):
+        expected_frictions[name][env_ids[:, None], joint_ids] = values
+        torch.testing.assert_close(getattr(articulation.data, name).torch, expected_frictions[name])
+        expected_raw_friction[..., component] = expected_frictions[name][:, joint_backend_to_user].cpu()
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_dof_friction_properties()), expected_raw_friction)
+
+    # Joint position limits reach the solver; limits that exclude a default position clamp it.
+    raw_limits_before = wp.to_torch(articulation.root_view.get_dof_limits()).clone()
+    initial_limits = articulation.data.joint_pos_limits.torch.clone()
+    default_joint_pos = articulation.data.default_joint_pos.torch.clone()
+    limits = torch.tensor([[[-1.5, 1.25], [-1.0, 0.75]]], device=device)
+    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
+    expected_limits = initial_limits.clone()
+    expected_limits[env_ids[:, None], joint_ids] = limits
+    torch.testing.assert_close(articulation.data.joint_pos_limits.torch, expected_limits)
+    torch.testing.assert_close(articulation.data.default_joint_pos.torch, default_joint_pos)
+    expected_raw_limits = raw_limits_before.clone()
+    expected_raw_limits[1] = expected_limits[1, joint_backend_to_user].cpu()
+    torch.testing.assert_close(wp.to_torch(articulation.root_view.get_dof_limits()), expected_raw_limits)
+    articulation.write_joint_position_limit_to_sim_index(
+        limits=torch.tensor([[[0.05, 0.2], [-0.2, -0.1]]], device=device), env_ids=env_ids, joint_ids=joint_ids
+    )
+    expected_defaults = default_joint_pos.clone()
+    expected_defaults[1, joint_ids] = torch.tensor([0.05, -0.1], device=device)
+    torch.testing.assert_close(articulation.data.default_joint_pos.torch, expected_defaults)
+    articulation.write_joint_position_limit_to_sim_index(limits=initial_limits, full_data=True)
+
+    # Inertial properties of selected bodies reach the backend entries of the reordered bodies.
+    body_ids = torch.tensor([4, 1], dtype=torch.int32, device=device)
+    masses = torch.tensor([[2.5, 3.5]], device=device)
+    coms = articulation.data.body_com_pose_b.torch[env_ids][:, body_ids].clone()
+    coms[0, 0, :3] = torch.tensor([0.02, -0.01, 0.03], device=device)
+    coms[0, 1, :3] = torch.tensor([-0.03, 0.01, 0.02], device=device)
+    inertias = articulation.data.body_inertia.torch[env_ids][:, body_ids].clone()
+    inertias[0, 0, 0] *= 1.2
+    inertias[0, 1, 4] *= 1.3
+    for setter, kwarg, value, name in (
+        (articulation.set_masses_index, "masses", masses, "body_mass"),
+        (articulation.set_coms_index, "coms", coms, "body_com_pose_b"),
+        (articulation.set_inertias_index, "inertias", inertias, "body_inertia"),
+    ):
+        expected = getattr(articulation.data, name).torch.clone()
+        expected[env_ids[:, None], body_ids] = value
+        setter(**{kwarg: value, "env_ids": env_ids, "body_ids": body_ids})
+        torch.testing.assert_close(getattr(articulation.data, name).torch, expected)
+    for public, raw in (
+        (articulation.data.body_mass.torch, articulation.root_view.get_masses()),
+        (articulation.data.body_com_pose_b.torch, articulation.root_view.get_coms()),
+        (articulation.data.body_inertia.torch, articulation.root_view.get_inertias()),
+    ):
+        torch.testing.assert_close(_to_device_tensor(raw, device), public[:, body_backend_to_user])
+
+
+def _rotate_z(angle: torch.Tensor, vector: tuple[float, float, float] | torch.Tensor) -> torch.Tensor:
+    """Rotate vectors about the world z axis by per-environment angles [rad]."""
+    vector = torch.as_tensor(vector, dtype=angle.dtype, device=angle.device).expand(*angle.shape, 3)
+    cos, sin = torch.cos(angle), torch.sin(angle)
+    return torch.stack(
+        (cos * vector[..., 0] - sin * vector[..., 1], sin * vector[..., 0] + cos * vector[..., 1], vector[..., 2]), -1
+    )
+
+
+def _cross_z(rate: torch.Tensor, vector: torch.Tensor) -> torch.Tensor:
+    """Return ``(rate * z) x vector`` for per-environment angular rates about the world z axis."""
+    return torch.stack((-rate * vector[..., 1], rate * vector[..., 0], torch.zeros_like(rate)), -1)
+
+
+def _expected_fixed_branching_state(articulation: Articulation, origins: torch.Tensor, com_b: torch.Tensor) -> dict:
+    """Compute link and center-of-mass kinematics of a fixed branching island from its joint state.
+
+    Every joint rotates about +z and is anchored at its child link origin, so the expected state follows from
+    the literal fixture geometry, the joint state, and the body-frame center-of-mass offsets.
+    """
+    q = dict(zip(articulation.joint_names, articulation.data.joint_pos.torch.unbind(-1)))
+    qd = dict(zip(articulation.joint_names, articulation.data.joint_vel.torch.unbind(-1)))
+    zero = torch.zeros_like(q["left_shoulder"])
+    links = {"base": (zero, origins, zero, torch.zeros_like(origins))}
+    for side in ("left", "right"):
+        shoulder, elbow = f"{side}_shoulder", f"{side}_elbow"
+        upper_pos = origins + torch.tensor(_JOINT_ANCHORS[shoulder], device=origins.device)
+        tip_lever = _rotate_z(q[shoulder], _JOINT_ANCHORS[elbow])
+        links[f"{side}_upper"] = (q[shoulder], upper_pos, qd[shoulder], torch.zeros_like(origins))
+        links[f"{side}_tip"] = (
+            q[shoulder] + q[elbow],
+            upper_pos + tip_lever,
+            qd[shoulder] + qd[elbow],
+            _cross_z(qd[shoulder], tip_lever),
+        )
+    expected = {key: [] for key in ("heading", "link_pos", "ang_vel", "link_lin_vel", "com_pos", "com_lin_vel")}
+    for body_index, body_name in enumerate(articulation.body_names):
+        yaw, link_pos, yaw_rate, link_lin_vel = links[body_name]
+        com_lever = _rotate_z(yaw, com_b[:, body_index])
+        expected["heading"].append(_rotate_z(yaw, (1.0, 0.0, 0.0)))
+        expected["link_pos"].append(link_pos)
+        expected["ang_vel"].append(torch.stack((zero, zero, yaw_rate), -1))
+        expected["link_lin_vel"].append(link_lin_vel)
+        expected["com_pos"].append(link_pos + com_lever)
+        expected["com_lin_vel"].append(link_lin_vel + _cross_z(yaw_rate, com_lever))
+    return {key: torch.stack(values, dim=1) for key, values in expected.items()}
+
+
+def _assert_jacobian_contract(articulation: Articulation, generalized_velocity: torch.Tensor):
+    """Check the link and center-of-mass Jacobians against body velocities and the mass-matrix contract."""
+    data = articulation.data
+    num_dofs = articulation.num_joints + articulation.num_base_dofs
+    first_body = 1 if articulation.is_fixed_base else 0
+    num_jacobian_bodies = articulation.num_bodies - first_body
+    # Read the body state first: it refreshes forward kinematics after the joint write.
+    body_velocities = {
+        "body_link_jacobian_w": data.body_link_lin_vel_w.torch.clone(),
+        "body_com_jacobian_w": data.body_com_lin_vel_w.torch.clone(),
+    }
+    ang_vel = data.body_link_ang_vel_w.torch.clone()
+    for jacobian_name, lin_vel in body_velocities.items():
+        jacobian = getattr(data, jacobian_name).torch
+        # Shape contract: fixed-base Jacobians omit the root body; floating-base ones prepend the base DoFs.
+        assert jacobian.shape == (_NUM_ENVS, num_jacobian_bodies, 6, num_dofs)
+        predicted = torch.einsum("nbij,nj->nbi", jacobian, generalized_velocity)
+        torch.testing.assert_close(predicted[..., :3], lin_vel[:, first_body:], atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(predicted[..., 3:], ang_vel[:, first_body:], atol=1e-4, rtol=1e-4)
+    # The joint-space mass matrix is square over all DoFs, symmetric, and positive definite.
+    mass_matrix = data.mass_matrix.torch
+    assert mass_matrix.shape == (_NUM_ENVS, num_dofs, num_dofs)
+    assert (mass_matrix.diagonal(dim1=-2, dim2=-1) > 1e-6).all()
+    asymmetry = (mass_matrix - mass_matrix.transpose(-1, -2)).abs().max().item()
+    assert asymmetry < 1e-4, f"|M - M^T|_max = {asymmetry:.3e} — mass matrix is not symmetric"
+    eye = torch.eye(num_dofs, device=mass_matrix.device, dtype=mass_matrix.dtype).expand_as(mass_matrix)
+    torch.linalg.cholesky(mass_matrix + 1e-6 * eye)
+    # The generalized kinetic energy equals the kinetic energy of the bodies.
+    generalized_energy = 0.5 * torch.einsum("ni,nij,nj->n", generalized_velocity, mass_matrix, generalized_velocity)
+    body_velocity = data.body_com_vel_w.torch
+    body_inertia = data.body_inertia.torch.reshape(_NUM_ENVS, articulation.num_bodies, 3, 3)
+    body_rotation = matrix_from_quat(data.body_com_quat_w.torch)
+    world_inertia = body_rotation @ body_inertia @ body_rotation.transpose(-1, -2)
+    body_energy = 0.5 * (
+        (data.body_mass.torch.unsqueeze(-1) * body_velocity[..., :3].square()).sum((-1, -2))
+        + torch.einsum("nbi,nbij,nbj->n", body_velocity[..., 3:], world_inertia, body_velocity[..., 3:])
+    )
+    torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-4)
+
+
+def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene):
+    """Drive targets and efforts move the selected joints; dynamics quantities match the live state."""
+    scene = articulation_scene
+    device = scene.device
+    articulation = scene.ordered
+    joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
+    left_shoulder = articulation.find_joints("left_shoulder")[0][0]
+    right_shoulder = articulation.find_joints("right_shoulder")[0][0]
+
+    # Start at rest on the drive targets, then command one position target and one effort in environment 1.
+    zeros = torch.zeros((_NUM_ENVS, articulation.num_joints), device=device)
+    articulation.write_joint_state_to_sim_index(position=zeros, velocity=zeros, full_data=True)
+    target_command = articulation.actuators.target_command
+    target_command.set_position_index(value=zeros)
+    target_command.set_velocity_index(value=zeros)
+    target_command.set_effort_index(value=zeros)
+    target_command.set_position_index(
+        value=torch.tensor([[0.4]], device=device), joint_ids=[left_shoulder], env_ids=[1]
+    )
+    target_command.set_effort_index(
+        value=torch.tensor([[10.0]], device=device), joint_ids=[right_shoulder], env_ids=[1]
+    )
+    articulation.write_data_to_sim()
+    expected_targets = zeros.clone()
+    expected_targets[1, left_shoulder] = 0.4
+    expected_efforts = zeros.clone()
+    expected_efforts[1, right_shoulder] = 10.0
+    torch.testing.assert_close(
+        _to_device_tensor(articulation.root_view.get_dof_position_targets(), device),
+        expected_targets[:, joint_backend_to_user],
+    )
+    torch.testing.assert_close(
+        _to_device_tensor(articulation.root_view.get_dof_actuation_forces(), device),
+        expected_efforts[:, joint_backend_to_user],
+    )
+    # The effort must reach the solver, not only its staging buffer.
+    scene.step()
+    assert articulation.data.joint_vel.torch[1, right_shoulder] > 1e-3, "a positive effort must accelerate the joint"
+    scene.step(19)
+    # The commanded joint moves toward its target; environment 0 stays at rest on its targets.
+    assert 0.05 < articulation.data.joint_pos.torch[1, left_shoulder] < 0.4
+    torch.testing.assert_close(articulation.data.joint_pos.torch[0], zeros[0], atol=1e-6, rtol=0.0)
+    torch.testing.assert_close(articulation.data.joint_vel.torch[0], zeros[0], atol=1e-6, rtol=0.0)
+    # The fixed root stays at its default state.
+    for fixed_articulation, origins in (
+        (articulation, scene.origins["ordered"]),
+        (scene.tendon, scene.origins["tendon"]),
+    ):
+        default_root_pose = fixed_articulation.data.default_root_pose.torch.clone()
+        default_root_pose[:, :3] += origins
+        torch.testing.assert_close(fixed_articulation.data.root_link_pose_w.torch, default_root_pose)
+        torch.testing.assert_close(
+            fixed_articulation.data.root_com_vel_w.torch, fixed_articulation.data.default_root_vel.torch
+        )
+
+    # With known center-of-mass offsets, the link and center-of-mass kinematics follow the joint state.
+    com_b = torch.tensor(
+        [[0.0, 0.0, 0.0], [0.03, 0.02, -0.01], [0.05, -0.02, 0.01], [-0.04, 0.01, 0.02], [0.02, 0.03, -0.02]],
+        device=device,
+    ).repeat(_NUM_ENVS, 1, 1)
+    coms = torch.cat((com_b, torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).expand(_NUM_ENVS, 5, 4)), dim=-1)
+    articulation.set_coms_index(coms=coms, full_data=True)
+    # PhysX applies new mass properties to the kinematic state on the next step.
+    scene.step()
+    joint_pos = torch.tensor([[0.3, -0.4, 0.2, 0.5], [-0.2, 0.6, -0.5, 0.1]], device=device)
+    joint_vel = torch.tensor([[0.8, -0.6, 0.5, 0.7], [-0.4, 0.9, 0.3, -0.5]], device=device)
+    articulation.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
+    expected = _expected_fixed_branching_state(articulation, scene.origins["ordered"], com_b)
+    data = articulation.data
+    torch.testing.assert_close(
+        quat_apply(data.body_link_quat_w.torch, torch.tensor([1.0, 0.0, 0.0], device=device).expand(_NUM_ENVS, 5, 3)),
+        expected["heading"],
+        atol=1e-4,
+        rtol=1e-4,
+    )
+    for public, key in (
+        (data.body_link_pos_w.torch, "link_pos"),
+        (data.body_link_lin_vel_w.torch, "link_lin_vel"),
+        (data.body_link_ang_vel_w.torch, "ang_vel"),
+        (data.body_com_pos_w.torch, "com_pos"),
+        (data.body_com_lin_vel_w.torch, "com_lin_vel"),
+        (data.body_com_ang_vel_w.torch, "ang_vel"),
+    ):
+        torch.testing.assert_close(public, expected[key], atol=1e-4, rtol=1e-4, msg=key)
+    _assert_jacobian_contract(articulation, data.joint_vel.torch)
+
+    # A reversed joint keeps the dynamics in the public joint basis; floating Jacobians prepend the base DoFs.
+    for island in (scene.tendon, scene.floating):
+        island.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
+    root_velocity = torch.tensor([[0.3, -0.2, 0.1, 0.2, 0.1, -0.3], [-0.1, 0.2, 0.3, -0.2, 0.3, 0.1]], device=device)
+    scene.floating.write_root_link_velocity_to_sim_index(root_velocity=root_velocity)
+    _assert_jacobian_contract(scene.tendon, scene.tendon.data.joint_vel.torch)
+    floating_velocity = torch.cat(
+        (scene.floating.data.root_link_vel_w.torch, scene.floating.data.joint_vel.torch), dim=-1
+    )
+    _assert_jacobian_contract(scene.floating, floating_velocity)
+
+
+def _place_at_rest(articulation: Articulation, root_pose: torch.Tensor) -> None:
+    """Teleport a floating island to ``root_pose`` with zero root and joint velocities and no external wrench."""
+    zeros = torch.zeros((_NUM_ENVS, articulation.num_joints), device=root_pose.device)
+    articulation.write_root_link_pose_to_sim_index(root_pose=root_pose)
+    articulation.write_root_velocity_to_sim_index(root_velocity=torch.zeros((_NUM_ENVS, 6), device=root_pose.device))
+    articulation.write_joint_state_to_sim_index(position=zeros, velocity=zeros, full_data=True)
+    articulation.reset()
+
+
+def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _ArticulationScene, monkeypatch):
+    """Root writes and external wrenches reach the selected floating roots in the frames they are given in."""
+    scene = articulation_scene
+    device = scene.device
+    floating, reordered = scene.floating, scene.reordered
+    rest_pose = torch.cat(
+        (scene.origins["floating"], torch.tensor(_yaw_quat(0.5 * math.pi), device=device).expand(_NUM_ENVS, 4)), -1
+    )
+    _place_at_rest(floating, rest_pose)
+    reordered_rest_pose = rest_pose.clone()
+    reordered_rest_pose[:, :3] = scene.origins["reordered"]
+    _place_at_rest(reordered, reordered_rest_pose)
+
+    # A partial root pose write reaches only the selected root.
+    target_pose = rest_pose[1:].clone()
+    target_pose[:, :3] += torch.tensor([0.2, -0.1, 0.3], device=device)
+    target_pose[:, 3:] = torch.tensor(_yaw_quat(0.7), device=device)
+    floating.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=[1])
+    expected_pose = torch.cat((rest_pose[:1], target_pose))
+    torch.testing.assert_close(floating.data.root_link_pose_w.torch, expected_pose)
+    torch.testing.assert_close(_to_device_tensor(floating.root_view.get_root_transforms(), device), expected_pose)
+
+    # Root writers are invariant to a public body order that moves the root link.
+    assert reordered.body_ordering is not None
+    assert reordered.body_ordering.backend_to_user_indices[0] != 0
+    backend_coms = torch.zeros((_NUM_ENVS, 5, 7), device=device)
+    body_index = torch.arange(5, device=device, dtype=torch.float32)
+    backend_coms[:, :, 0] = 0.05 + 0.01 * body_index
+    backend_coms[:, :, 1] = -0.03 - 0.02 * body_index
+    backend_coms[:, :, 2] = 0.02 + 0.03 * body_index
+    backend_coms[..., 6] = 1.0
+    reordered_user_to_backend = list(reordered.body_ordering.user_to_backend_indices)
+    floating.set_coms_index(coms=backend_coms, full_data=True)
+    reordered.set_coms_index(coms=backend_coms[:, reordered_user_to_backend], full_data=True)
+    torch.testing.assert_close(_to_device_tensor(floating.root_view.get_coms(), device), backend_coms)
+    torch.testing.assert_close(_to_device_tensor(reordered.root_view.get_coms(), device), backend_coms)
+    root_com_pose = rest_pose.clone()
+    root_com_pose[:, :3] += torch.tensor([0.5, 0.25, 0.75], device=device)
+    root_com_pose[:, 3:] = torch.tensor(_yaw_quat(0.6), device=device)
+    island_offset = scene.origins["reordered"] - scene.origins["floating"]
+    root_link_velocity = torch.tensor([[0.4, -0.3, 0.2, 1.1, -0.7, 0.9]], device=device).repeat(_NUM_ENVS, 1)
+    for articulation, offset in ((floating, 0.0), (reordered, island_offset)):
+        pose = root_com_pose.clone()
+        pose[:, :3] += offset
+        articulation.write_root_com_pose_to_sim_index(root_pose=pose)
+        articulation.write_root_link_velocity_to_sim_index(root_velocity=root_link_velocity)
+        torch.testing.assert_close(articulation.data.root_com_pose_w.torch, pose)
+        torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
+    reordered_transforms = _to_device_tensor(reordered.root_view.get_root_transforms(), device).clone()
+    reordered_transforms[:, :3] -= island_offset
+    torch.testing.assert_close(
+        reordered_transforms, _to_device_tensor(floating.root_view.get_root_transforms(), device)
+    )
+    torch.testing.assert_close(
+        _to_device_tensor(reordered.root_view.get_root_velocities(), device),
+        _to_device_tensor(floating.root_view.get_root_velocities(), device),
+    )
+    torch.testing.assert_close(reordered.data.root_com_vel_w.torch, floating.data.root_com_vel_w.torch)
+    # The derived root link pose carries the written center-of-mass pose at the root's center-of-mass offset.
+    for articulation, offset in ((floating, 0.0), (reordered, island_offset)):
+        link_pose = articulation.data.root_link_pose_w.torch
+        root_com_b = articulation.data.body_com_pose_b.torch[:, articulation.body_names.index("base")]
+        com_pos, com_quat = combine_frame_transforms(
+            link_pose[:, :3], link_pose[:, 3:], root_com_b[:, :3], root_com_b[:, 3:]
+        )
+        expected_com_pose = root_com_pose.clone()
+        expected_com_pose[:, :3] += offset
+        torch.testing.assert_close(torch.cat((com_pos, com_quat), -1), expected_com_pose)
+
+    # Link-pose and center-of-mass velocity writes keep the other frame consistent with the offset.
+    floating.write_root_link_pose_to_sim_index(root_pose=root_com_pose)
+    floating.write_root_com_velocity_to_sim_index(root_velocity=root_link_velocity)
+    torch.testing.assert_close(floating.data.root_link_pose_w.torch, root_com_pose)
+    torch.testing.assert_close(floating.data.root_com_vel_w.torch, root_link_velocity)
+    expected_com_pos, expected_com_quat = combine_frame_transforms(
+        root_com_pose[:, :3], root_com_pose[:, 3:], backend_coms[:, 0, :3], backend_coms[:, 0, 3:]
+    )
+    torch.testing.assert_close(
+        floating.data.root_com_pose_w.torch, torch.cat((expected_com_pos, expected_com_quat), -1)
+    )
+    torch.testing.assert_close(floating.data.root_com_vel_w.torch[:, 3:], floating.data.root_link_vel_w.torch[:, 3:])
+
+    # A body-frame force on environment 1 accelerates only that root, along the rotated force direction.
+    base = [floating.find_bodies("base")[0][0]]
+    _place_at_rest(floating, rest_pose)
+    floating.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=torch.tensor([[[8.0, 0.0, 0.0]]], device=device), body_ids=base, env_ids=[1]
+    )
+    scene.step()
+    root_velocity = floating.data.root_com_lin_vel_w.torch
+    assert root_velocity[1, 1] > 0.01, f"body-frame force did not act along the rotated axis: {root_velocity[1]}"
+    torch.testing.assert_close(root_velocity[0], torch.zeros(3, device=device), atol=1e-6, rtol=0.0)
+
+    # A world-frame force, and a force at a world-frame position, act like their body-frame counterparts.
+    for local_wrench, global_wrench, response in (
+        ({"forces": [[[8.0, 0.0, 0.0]]]}, {"forces": [[[0.0, 8.0, 0.0]]]}, "root_com_lin_vel_w"),
+        (
+            {"forces": [[[0.0, 0.0, 8.0]]], "positions": [[[0.0, 1.0, 0.0]]]},
+            {"forces": [[[0.0, 0.0, 8.0]]], "positions": [[[-1.0, 0.0, 0.0]]]},
+            "root_ang_vel_b",
+        ),
+    ):
+        _place_at_rest(floating, rest_pose)
+        local_wrench = {key: torch.tensor(value, device=device) for key, value in local_wrench.items()}
+        global_wrench = {key: torch.tensor(value, device=device) for key, value in global_wrench.items()}
+        if "positions" in global_wrench:
+            # World-frame positions add the rotated body-frame lever arm to the base center of mass.
+            global_wrench["positions"] = global_wrench["positions"] + floating.data.body_com_pos_w.torch[:1, base]
+        floating.permanent_wrench_composer.set_forces_and_torques_index(body_ids=base, env_ids=[1], **local_wrench)
+        floating.permanent_wrench_composer.set_forces_and_torques_index(
+            body_ids=base, env_ids=[0], is_global=True, **global_wrench
+        )
+        scene.step()
+        response_value = getattr(floating.data, response).torch
+        torch.testing.assert_close(response_value[0], response_value[1], atol=1e-4, rtol=1e-3)
+    # Applied 1 m along the base y-axis instead of at the center of mass, the upward force also rolls the base
+    # about its x-axis.
+    _place_at_rest(floating, rest_pose)
+    upward_force = torch.tensor([[[0.0, 0.0, 8.0]]], device=device)
+    floating.permanent_wrench_composer.set_forces_and_torques_index(forces=upward_force, body_ids=base, env_ids=[0])
+    floating.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=upward_force, positions=torch.tensor([[[0.0, 1.0, 0.0]]], device=device), body_ids=base, env_ids=[1]
+    )
+    scene.step()
+    roll_rate = floating.data.root_ang_vel_b.torch[:, 0]
+    assert roll_rate[1] - roll_rate[0] > 0.1, roll_rate
+
+    # Forces on several bodies push each selected body along its own force direction, also when the public body
+    # order differs from the PhysX link order.
+    _place_at_rest(reordered, reordered_rest_pose)
+    tips = reordered.find_bodies(["left_tip", "right_tip"], preserve_order=True)[0]
+    reordered.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=torch.tensor([[[0.0, 4.0, 0.0], [0.0, -4.0, 0.0]]], device=device), body_ids=tips, env_ids=[1]
+    )
+    scene.step()
+    tip_velocity = reordered.data.body_link_lin_vel_w.torch[:, tips]
+    tip_direction = quat_apply(
+        reordered.data.body_link_quat_w.torch[1, tips], torch.tensor([[0.0, 1.0, 0.0], [0.0, -1.0, 0.0]], device=device)
+    )
+    assert torch.all((tip_velocity[1] * tip_direction).sum(-1) > 1e-3), tip_velocity[1]
+    torch.testing.assert_close(tip_velocity[0], torch.zeros_like(tip_velocity[0]), atol=1e-6, rtol=0.0)
+
+    # A partial reset clears the selected environment; a full reset resets every actuator environment and
+    # clears all external forces and torques.
+    actuator = next(iter(floating.actuators.values()))
+    actuator_reset = actuator.reset
+    reset_env_ids = []
+
+    def record_actuator_reset(env_ids=None):
+        reset_env_ids.append(env_ids)
+        actuator_reset(env_ids)
+
+    monkeypatch.setattr(actuator, "reset", record_actuator_reset)
+    composers = (floating.instantaneous_wrench_composer, floating.permanent_wrench_composer)
+    ones = torch.ones((_NUM_ENVS, floating.num_bodies, 3), device=device)
+    floating.permanent_wrench_composer.set_forces_and_torques_index(forces=ones, torques=ones)
+    floating.instantaneous_wrench_composer.add_forces_and_torques_index(forces=ones, torques=ones)
+    floating.reset(env_ids=torch.tensor([0], device=device))
+    for composer in composers:
+        assert composer.active
+        for buffer in (composer.out_force_b.torch, composer.out_torque_b.torch):
+            assert torch.count_nonzero(buffer[0]) == 0
+            assert torch.count_nonzero(buffer[1:]) == buffer[1:].numel()
+    reset_env_ids.clear()
+    floating.reset()
+    assert reset_env_ids == [None]
+    for composer in composers:
+        assert not composer.active
+        assert torch.count_nonzero(composer.out_force_b.torch) == 0
+        assert torch.count_nonzero(composer.out_torque_b.torch) == 0
