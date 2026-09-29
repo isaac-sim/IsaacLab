@@ -245,15 +245,6 @@ terminal or ``source`` step is needed. Launch a teleoperation session directly:
              --visualizer kit \
              --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-             --visualizer kit \
-             --xr
-
 To verify that the headset and controller tracking poses are reaching Isaac Lab, add
 ``--enable_debug_visualization`` to the command. The visualization draws red markers at tracked
 hand joints and RGB axes at tracked controller aim poses. See
@@ -302,16 +293,6 @@ so pair it with a hand-tracking task such as
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop run \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit \
-             --xr \
-             --cloudxr_env avp
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit \
              --xr \
@@ -465,15 +446,6 @@ choose the tab that matches your hardware.
                .. code-block:: bash
 
                   uv run --extra teleop,isaacsim isaaclab teleop run \
-                      --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                      --visualizer kit --xr \
-                      --cloudxr_env avp
-
-            .. tab-item:: isaaclab.sh / isaaclab.bat
-
-               .. code-block:: bash
-
-                  ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
                       --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                       --visualizer kit --xr \
                       --cloudxr_env avp
@@ -720,14 +692,6 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
              --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
              --visualizer kit --xr
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
-             --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-             --visualizer kit --xr
-
 .. important::
 
    Manus gloves and other external push-device peripherals require
@@ -747,19 +711,6 @@ Launch a teleoperation session paired with a hand-tracking task, as shown in
             sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
 
             uv run --extra teleop,isaacsim isaaclab teleop run \
-                --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
-                --visualizer kit --xr \
-                --cloudxr_env ~/manus.env
-
-      .. tab-item:: isaaclab.sh / isaaclab.bat
-
-         .. code-block:: bash
-
-            # Copy a shipped profile and enable push devices
-            cp $(python -c "from isaaclab_teleop import CLOUDXR_JS_ENV; print(CLOUDXR_JS_ENV)") ~/manus.env
-            sed -i 's/NV_CXR_ENABLE_PUSH_DEVICES=0/NV_CXR_ENABLE_PUSH_DEVICES=1/' ~/manus.env
-
-            ./isaaclab.sh -p scripts/environments/teleoperation/teleop_se3_agent.py \
                 --task IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs \
                 --visualizer kit --xr \
                 --cloudxr_env ~/manus.env
@@ -958,16 +909,6 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
       .. code-block:: bash
 
          uv run --extra teleop,isaacsim isaaclab teleop record \
-           --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
-           --num_demos 5 \
-           --dataset_file ./datasets/dataset.hdf5 \
-           --xr --visualizer kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/record_demos.py \
            --task IsaacContrib-PickPlace-Locomanipulation-G1-Abs \
            --num_demos 5 \
            --dataset_file ./datasets/dataset.hdf5 \

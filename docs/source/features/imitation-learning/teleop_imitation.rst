@@ -481,8 +481,7 @@ Install the Robomimic framework using the following command:
    # resolve and verify Robomimic in the uv-managed environment
    uv run --extra mimic python -c "import robomimic"
 
-For a legacy environment, install the same dependencies with
-``./isaaclab.sh -i mimic``.
+To prepare the dependencies explicitly, run ``uv sync --extra mimic``.
 
 
 Train an Agent

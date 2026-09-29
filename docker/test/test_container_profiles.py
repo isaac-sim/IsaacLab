@@ -313,7 +313,7 @@ def test_image_is_verified_before_it_is_published():
 def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
     """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
 
-    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``isaaclab.sh``
+    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``uv run isaaclab``
     refuses to combine with the image's ``VIRTUAL_ENV``.
     """
     script = (REPO_ROOT / ".github" / "actions" / "run-tests" / "run_tests.sh").read_text(encoding="utf-8")

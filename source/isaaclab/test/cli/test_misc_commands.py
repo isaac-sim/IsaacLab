@@ -96,7 +96,7 @@ def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     with (
         mock.patch.object(misc, "ISAACLAB_ROOT", workspace),
         mock.patch.object(misc, "run_command") as run_command,
-        mock.patch.object(misc, "_repoint_source_build_prebundles") as repoint_prebundles,
+        mock.patch.object(misc, "repoint_prebundle_packages") as repoint_prebundles,
         mock.patch.object(misc.sys, "platform", "linux"),
         mock.patch.object(misc.platform, "machine", return_value="x86_64"),
     ):

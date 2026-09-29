@@ -198,7 +198,7 @@ runs:
         FROM ${{ inputs.image-tag }}
         ARG IMAGE_USER
         USER root
-        RUN ${ISAACLAB_PATH}/isaaclab.sh -p -m pip install \
+        RUN uv pip install --python ${VIRTUAL_ENV}/bin/python \
               pytest pytest-mock junitparser flaky "coverage>=7.6.1"
         USER ${IMAGE_USER}
         DOCKERFILE

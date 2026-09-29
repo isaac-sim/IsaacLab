@@ -5,17 +5,11 @@
 
 import argparse
 import importlib.metadata
+import os
 import sys
 from pathlib import Path
 
-from .commands.envs import command_setup_conda, command_setup_uv
 from .commands.format import command_format
-from .commands.install import (
-    CORE_ISAACLAB_SUBMODULES,
-    OPTIONAL_ISAACLAB_SUBMODULES,
-    VALID_EXTRA_FEATURES,
-    command_install,
-)
 from .commands.list_envs import command_list_envs
 from .commands.misc import (
     command_build_docs,
@@ -27,8 +21,10 @@ from .commands.misc import (
     command_test,
 )
 from .utils import (
+    DEFAULT_ISAAC_SIM_PATH,
     ISAACLAB_ROOT,
-    is_windows,
+    is_isaac_sim_source_build,
+    runs_isaac_sim_python,
     run_python_command,
 )
 
@@ -184,6 +180,22 @@ def cli() -> None:
         "zero_agent": zero_agent,
         "random_agent": random_agent,
     }
+    # uv selects the environment; local Kit builds still need their native runtime paths.
+    # Delegate before importing tasks or simulator libraries, and avoid wrapping the child twice.
+    runtime_commands = {*subcommands, "list_envs", "demo", "example", "teleop"}
+    configured_path = os.environ.get("ISAAC_PATH")
+    if (
+        len(sys.argv) > 1
+        and sys.argv[1] in runtime_commands
+        and (DEFAULT_ISAAC_SIM_PATH / ("python.bat" if os.name == "nt" else "python.sh")).is_file()
+        and (
+            is_isaac_sim_source_build(DEFAULT_ISAAC_SIM_PATH)
+            or runs_isaac_sim_python(DEFAULT_ISAAC_SIM_PATH, sys.executable, os.environ.get("VIRTUAL_ENV"))
+        )
+        and (configured_path is None or Path(configured_path).resolve() != DEFAULT_ISAAC_SIM_PATH.resolve())
+    ):
+        run_python_command("-m", ["isaaclab", *sys.argv[1:]], check=True)
+        return
     if len(sys.argv) > 1 and sys.argv[1] == "list_envs":
         list_envs(sys.argv[2:])
         return
@@ -202,7 +214,7 @@ def cli() -> None:
         return
 
     executable_name = Path(sys.argv[0]).name
-    default_prog = "isaaclab.bat" if is_windows() else "isaaclab.sh"
+    default_prog = "isaaclab"
     parser = argparse.ArgumentParser(
         description="Isaac Lab CLI",
         prog=executable_name if executable_name != "__main__.py" else default_prog,
@@ -225,59 +237,6 @@ def cli() -> None:
         ),
     )
 
-    _optional_str = ", ".join(sorted(OPTIONAL_ISAACLAB_SUBMODULES))
-    _extras_str = ", ".join(sorted(VALID_EXTRA_FEATURES))
-    _core_str = ", ".join(CORE_ISAACLAB_SUBMODULES)
-    parser.add_argument(
-        "-i",
-        "--install",
-        nargs="?",
-        const="all",
-        help=(
-            "Install Isaac Lab submodules and optional extra dependencies.\n"
-            "\n"
-            "All core submodules are always installed:\n"
-            f"  {_core_str}\n"
-            "\n"
-            "Accepts a comma-separated list of optional submodule names and/or\n"
-            "extra feature selectors, or one of the special values below.\n"
-            "\n"
-            f"* Optional submodules: {_optional_str}\n"
-            "  Installed by 'all' or by explicit token.\n"
-            "\n"
-            f"* Extra feature sets: {_extras_str}\n"
-            "  Install optional heavy dependencies for a feature on top of the core.\n"
-            "  Supports an optional selector in brackets:\n"
-            "    contrib[rlinf]\n"
-            "    ov[ovrtx|ovphysx|all]\n"
-            "    rl[rsl-rl|skrl|sb3|rl-games]  (default: all)\n"
-            "    visualizer[kit|rerun|viser]  (default: all)\n"
-            "  Tetrahedralization has no selector and must be requested explicitly.\n"
-            "  On Linux/macOS, quote selectors containing brackets:\n"
-            "    --install 'rl[rsl-rl]'\n"
-            "\n"
-            "* Special values:\n"
-            "  all   - Core + optional submodules (mimic, teleop) + auto extra\n"
-            "          features (newton, rl, visualizer). Does not install contrib/ov\n"
-            "          dependency extras or tetrahedralization (default).\n"
-            "  core  - Core submodules only; no optional submodules, no extra features.\n"
-            "  <empty> (-i with no value) - Same as 'all'.\n"
-            "\n"
-            "Explicit-only dependency extras:\n"
-            "  ./isaaclab.sh -i 'contrib[rlinf]'\n"
-            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
-            "  ./isaaclab.sh -i tetrahedralization\n"
-            "\n"
-            "Examples:\n"
-            "  ./isaaclab.sh -i\n"
-            "  ./isaaclab.sh -i core\n"
-            "  ./isaaclab.sh -i tetrahedralization\n"
-            "  ./isaaclab.sh -i 'rl[rsl-rl]'\n"
-            "  ./isaaclab.sh -i mimic,teleop,'visualizer[rerun]'\n"
-            "  ./isaaclab.sh -i 'ov[ovrtx]'\n"
-            "\n"
-        ),
-    )
     parser.add_argument(
         "-f",
         "--format",
@@ -326,26 +285,6 @@ def cli() -> None:
         help="Create a new external project or internal task from template.",
     )
     parser.add_argument(
-        "-c",
-        "--conda",
-        nargs="?",
-        const="env_isaaclab",
-        help=(
-            "Create a new conda environment for Isaac Lab. Default name is 'env_isaaclab'. "
-            "Downloaded Isaac Sim packages are not supported."
-        ),
-    )
-    parser.add_argument(
-        "-u",
-        "--uv",
-        nargs="?",
-        const="env_isaaclab",
-        help=(
-            "Create a new uv environment for Isaac Lab. Default name is 'env_isaaclab'. "
-            "Downloaded Isaac Sim packages are not supported."
-        ),
-    )
-    parser.add_argument(
         "--isaacsim_source",
         metavar="PATH",
         help=(
@@ -356,17 +295,8 @@ def cli() -> None:
 
     args = parser.parse_args()
 
-    if args.install:
-        command_install(args.install)
-
-    elif args.format:
+    if args.format:
         command_format()
-
-    elif args.conda:
-        command_setup_conda(args.conda)
-
-    elif args.uv:
-        command_setup_uv(args.uv)
 
     elif args.isaacsim_source:
         command_build_isaacsim(args.isaacsim_source)

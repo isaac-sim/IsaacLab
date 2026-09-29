@@ -42,12 +42,6 @@ the environment config:
 
           uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole --viz kit --video
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole --viz kit --video
-
 See `Source types`_ for the full list of recordable sources and `Clip control`_ for length and
 interval options.
 

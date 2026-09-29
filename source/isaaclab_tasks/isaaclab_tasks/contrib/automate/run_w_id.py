@@ -62,12 +62,7 @@ def main():
     update_task_param(args.cfg_path, args.assembly_id, args.train, args.log_eval)
 
     # build the command
-    if sys.platform.startswith("win"):
-        command = ["isaaclab.bat"]
-    else:
-        command = ["./isaaclab.sh"]
-
-    command.append("-p")
+    command = [sys.executable]
 
     if args.train:
         command.extend(

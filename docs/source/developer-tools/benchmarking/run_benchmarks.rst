@@ -55,7 +55,7 @@ From a source installation, run:
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark runtime \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --warmup_steps 50 \
@@ -224,7 +224,7 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark play \
+   uv run isaaclab benchmark play \
        --rl_library rsl_rl \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
@@ -284,7 +284,7 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark training \
+   uv run isaaclab benchmark training \
        --rl_library rsl_rl \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
@@ -363,7 +363,7 @@ Run it
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark startup \
+   uv run isaaclab benchmark startup \
        --task Isaac-Cartpole-Direct \
        --num_envs 4096 \
        --top_n 30 \
@@ -451,7 +451,7 @@ and sensor preset explicitly:
 
 .. code-block:: bash
 
-   ./isaaclab.sh benchmark runtime \
+   uv run isaaclab benchmark runtime \
        --task Isaac-Cartpole-Camera-Direct \
        --num_envs 1024 \
        --warmup_steps 50 \

@@ -19,64 +19,8 @@ Installation
    :target: https://www.microsoft.com/en-ca/windows/windows-11
    :alt: Windows 11
 
-Choose the path that matches what you want to install and how you want to run it. Start with the
-automatic ``uv`` setup unless you need to manage your own environment, use a downloaded Isaac Sim
-package, or deploy to Docker or the cloud. Each card jumps to complete instructions on this page.
-
-Choose an installation path
----------------------------
-
-.. grid:: 1 1 2 2
-   :gutter: 2
-
-   .. grid-item-card:: **Automatic setup with uv**
-      :link: installation-method-uv
-      :link-type: ref
-
-      Run from the Isaac Lab checkout while ``uv`` creates and manages the environment.
-      **Recommended for most users.**
-
-   .. grid-item-card:: **isaaclab.sh installer (legacy)**
-      :link: installation-legacy-installer
-      :link-type: ref
-
-      Use the legacy installer script to select packages in a virtual environment.
-
-   .. grid-item-card:: **Python environment with Isaac Sim**
-      :link: installation-method-python-env
-      :link-type: ref
-
-      Manage a uv, venv, or conda environment and install Isaac Sim with pip.
-
-   .. grid-item-card:: **Isaac Lab Python package**
-      :link: installation-method-wheel
-      :link-type: ref
-
-      Install the released Isaac Lab package as a dependency of your own project.
-
-   .. grid-item-card:: **Downloaded Isaac Sim package**
-      :link: installation-method-binary
-      :link-type: ref
-
-      Download Isaac Sim and use the Python interpreter included with it.
-
-   .. grid-item-card:: **Build Isaac Sim from source**
-      :link: installation-method-source
-      :link-type: ref
-
-      Build or modify Isaac Sim itself. This is an advanced workflow.
-
-   .. grid-item-card:: **Docker and HPC clusters**
-      :link: installation-method-container
-      :link-type: ref
-
-      Develop in a container or submit containerized jobs to an HPC cluster.
-
-   .. grid-item-card:: **Cloud workstations**
-      :link: installation-method-cloud
-      :link-type: ref
-
-      Provision a remote GPU workstation on a supported cloud provider.
+Install Isaac Lab with uv. Use the source checkout for development, or install the
+published wheel with uv in your own project. Containers use the same uv dependency lock.
 
 .. _installation-system-requirements:
 
@@ -91,6 +35,7 @@ require additional VRAM. Confirm your machine against the `Isaac Sim system requ
 <https://docs.omniverse.nvidia.com/materials-and-rendering/latest/common/technical-requirements.html>`__.
 
 Isaac Sim 5.1 and older are not supported. Use Isaac Sim 6.1 with Python 3.12.
+The Isaac Sim wheels require GLIBC 2.35 or newer on Linux.
 
 The CUDA 13.0 PyTorch build requires NVIDIA driver ``580.65.06`` or newer on Linux and
 ``580.88`` or newer on Windows, as documented in the `PyTorch 2.12 release announcement
@@ -251,313 +196,30 @@ PyTorch indexes because uv does not inherit a dependency project's ``tool.uv.sou
 Head over to the :doc:`/source/setup/quickstart`, which starts with your first task and
 introduces the available commands, RL libraries, backends, and visualizers.
 
-.. _installation-legacy-installer:
-
-``isaaclab.sh`` installer (legacy)
-----------------------------------
-
-Kit-less installation uses a Python 3.12 environment and does not install Isaac Sim. Clone Isaac
-Lab, create and activate an environment, then install the default source packages and dependencies.
-Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ or
-`conda <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>`__ before starting:
-
-.. isaaclab-clone-commands::
-
-.. tab-set::
-
-   .. tab-item:: uv environment (recommended)
-
-      .. tab-set::
-         :sync-group: os
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux
-            :sync: linux
-
-            .. code-block:: bash
-
-               uv venv --python 3.12 --seed env_isaaclab
-               source env_isaaclab/bin/activate
-               uv pip install --upgrade pip
-               ./isaaclab.sh -i
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows
-            :sync: windows
-
-            .. code-block:: batch
-
-               uv venv --python 3.12 --seed env_isaaclab
-               env_isaaclab\Scripts\activate
-               uv pip install --upgrade pip
-               isaaclab.bat -i
-
-   .. tab-item:: conda environment
-
-      .. tab-set::
-         :sync-group: os
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux
-            :sync: linux
-
-            .. code-block:: bash
-
-               conda create -n env_isaaclab python=3.12
-               conda activate env_isaaclab
-               python -m pip install --upgrade pip
-               ./isaaclab.sh -i
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows
-            :sync: windows
-
-            .. code-block:: batch
-
-               conda create -n env_isaaclab python=3.12
-               conda activate env_isaaclab
-               python -m pip install --upgrade pip
-               isaaclab.bat -i
-
-.. _installation-selective-install:
-
-``-i`` always installs the core source packages. With no value, it also installs the optional
-``mimic`` and ``teleop`` submodules plus the default Newton, RL, and visualizer dependencies.
-It does not install ``tetrahedralization``, ``contrib``, ``ov``, or Isaac Sim;
-request those explicitly when needed.
-
-Use ``-i core`` for core packages only. Otherwise, pass a comma-separated list of selectors:
-
-.. list-table::
-   :header-rows: 1
-
-   * - Selector
-     - Installs
-   * - ``mimic``
-     - Imitation-learning tools.
-   * - ``teleop``
-     - Teleoperation tools (Linux x86_64).
-   * - ``newton``
-     - Newton interactive-viewer dependencies.
-   * - ``rl[<framework>]``
-     - RL framework dependencies. Select ``rsl-rl``, ``skrl``, ``sb3``, or ``rl-games``.
-   * - ``visualizer[<backend>]``
-     - Visualizer dependencies. Select ``rerun``, ``viser``, ``newton``, or ``kit``.
-   * - ``tetrahedralization``
-     - Dependencies for automatic tetrahedral mesh generation.
-   * - ``contrib[rlinf]``
-     - Contrib runtime dependencies for RLinF.
-   * - ``ov[<runtime>]``
-     - OV runtime wheels. Select ``ovrtx``, ``ovphysx``, or ``all``.
-   * - ``isaacsim``
-     - The Isaac Sim pip package.
-
-For example:
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         # Core packages only
-         ./isaaclab.sh -i core
-
-         # Newton, RSL-RL, and the Newton visualizer
-         ./isaaclab.sh -i 'newton,rl[rsl-rl],visualizer[newton]'
-
-         # OVRTX runtime dependencies
-         ./isaaclab.sh -i 'ov[ovrtx]'
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         :: Core packages only
-         isaaclab.bat -i core
-
-         :: Newton, RSL-RL, and the Newton visualizer
-         isaaclab.bat -i "newton,rl[rsl-rl],visualizer[newton]"
-
-         :: OVRTX runtime dependencies
-         isaaclab.bat -i "ov[ovrtx]"
-
 .. _installation-method-python-env:
 
-Python environment with Isaac Sim
----------------------------------
+Manage a uv environment explicitly
+----------------------------------
 
-Use this path when you want an editable Isaac Lab checkout with full Isaac Sim support and a
-Python environment you manage yourself. Create and activate the environment before installing
-Isaac Sim or Isaac Lab. Isaac Sim's pip packages require GLIBC 2.35 or newer on Linux. Enable
-`Windows long-path support <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`__
-before installing on Windows.
+To prepare the checkout without launching a workflow, run:
 
-.. note::
+.. code-block:: bash
 
-   If you plan to :ref:`set up Visual Studio Code <setup-vs-code>`, use the
-   :ref:`downloaded Isaac Sim package <installation-method-binary>` instead.
+   uv sync --extra isaacsim
+   uv run --extra isaacsim python scripts/tutorials/00_sim/create_empty.py --viz kit
 
-Create and activate a Python 3.12 environment:
+Omit ``--extra isaacsim`` for the default Newton environment. uv downloads the required
+Python version and manages ``.venv``. To choose another directory, set
+``UV_PROJECT_ENVIRONMENT`` before both ``uv sync`` and ``uv run``. Keep the same extras
+on subsequent commands so uv preserves the integrations you selected.
 
-.. tab-set::
-   :sync-group: python-environment
+You can activate this environment for tools that expect ``python`` on PATH:
 
-   .. tab-item:: uv environment (recommended)
-      :sync: uv
+.. code-block:: bash
 
-      .. tab-set::
-         :sync-group: os
+   source .venv/bin/activate
 
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux
-            :sync: linux
-
-            .. code-block:: bash
-
-               uv venv --python 3.12 --seed env_isaaclab
-               source env_isaaclab/bin/activate
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows
-            :sync: windows
-
-            .. code-block:: batch
-
-               uv venv --python 3.12 --seed env_isaaclab
-               env_isaaclab\Scripts\activate
-
-   .. tab-item:: conda environment
-      :sync: conda
-
-      .. code-block:: bash
-
-         conda create -n env_isaaclab python=3.12
-         conda activate env_isaaclab
-
-Install Isaac Sim and the CUDA 13.0 PyTorch build for your platform:
-
-.. tab-set::
-   :sync-group: python-environment
-
-   .. tab-item:: uv environment (recommended)
-      :sync: uv
-
-      .. isaaclab-isaacsim-install::
-
-   .. tab-item:: conda environment
-      :sync: conda
-
-      .. isaaclab-isaacsim-install:: pip
-
-.. tab-set::
-   :sync-group: pip-platform
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-      :sync: linux-x86_64
-
-      .. tab-set::
-         :sync-group: python-environment
-
-         .. tab-item:: uv environment (recommended)
-            :sync: uv
-
-            .. isaaclab-torch-install:: cu130
-
-         .. tab-item:: conda environment
-            :sync: conda
-
-            .. isaaclab-torch-install:: cu130 pip
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
-      :sync: windows-x86_64
-
-      .. tab-set::
-         :sync-group: python-environment
-
-         .. tab-item:: uv environment (recommended)
-            :sync: uv
-
-            .. isaaclab-torch-install:: cu130
-
-         .. tab-item:: conda environment
-            :sync: conda
-
-            .. isaaclab-torch-install:: cu130 pip
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-      :sync: linux-aarch64
-
-      .. note::
-
-         On aarch64 systems such as DGX Spark, install the required development packages before
-         installing Isaac Sim:
-
-         .. code-block:: bash
-
-            sudo apt install python3.12-dev libgl1-mesa-dev libx11-dev libxcursor-dev libxi-dev \
-               libxinerama-dev libxrandr-dev
-
-      .. tab-set::
-         :sync-group: python-environment
-
-         .. tab-item:: uv environment (recommended)
-            :sync: uv
-
-            .. isaaclab-torch-install:: cu130
-
-         .. tab-item:: conda environment
-            :sync: conda
-
-            .. isaaclab-torch-install:: cu130 pip
-
-      .. note::
-
-         If the system and PyTorch GNU OpenMP libraries are both preloaded, Isaac Sim can emit
-         ``libgomp`` warnings. Use the system OpenMP library:
-
-         .. code-block:: bash
-
-            unset LD_PRELOAD
-            export LD_PRELOAD=/lib/aarch64-linux-gnu/libgomp.so.1
-
-      .. note::
-
-         If importing ``omni.client`` or ``torch`` fails because ``libcarb.so`` cannot allocate a
-         static TLS block, preload ``libcarb.so`` before launching Python:
-
-         .. code-block:: bash
-
-            export LD_PRELOAD=$(python -c "import sys,os;[print(os.path.join(p,'omni','client','libcarb.so')) for p in sys.path if os.path.isfile(os.path.join(p,'omni','client','libcarb.so'))]" 2>/dev/null | head -1)${LD_PRELOAD:+:$LD_PRELOAD}
-
-         ``./isaaclab.sh -p`` configures this automatically, as does the conda activation hook.
-
-The first launch asks you to accept the NVIDIA Omniverse EULA. For non-interactive environments,
-set ``OMNI_KIT_ACCEPT_EULA=yes``. Verify Isaac Sim with ``isaacsim``.
-
-With the environment still active, clone, install, and verify Isaac Lab:
-
-.. isaaclab-clone-commands::
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         sudo apt install cmake build-essential
-         ./isaaclab.sh -i
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         isaaclab.bat -i
-         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
-
-The verification command should open a black simulator viewport. The initial launch can take over
-ten minutes while Isaac Sim downloads extensions.
+On Windows Command Prompt, use ``.venv\Scripts\activate``.
 
 .. _installation-method-wheel:
 
@@ -804,85 +466,6 @@ Generate VS Code or Cursor settings for the current workspace with:
    The Pyright configuration inherits an existing ``[tool.pyright]`` table and adds paths discovered
    from the active Python environment.
 
-.. _installation-method-binary:
-.. _isaaclab-binaries-installation:
-
-Downloaded Isaac Sim package
-----------------------------
-
-Use this path when you prefer a downloaded Isaac Sim package instead of pip. Download and extract
-the `Isaac Sim pre-built package
-<https://docs.isaacsim.omniverse.nvidia.com/latest/installation/download.html>`__. Binary installs
-must use Isaac Sim's bundled Python; combining them with conda, ``uv``, or ``venv`` is unsupported.
-If you need a dedicated Python environment, use :ref:`installation-method-python-env` instead.
-
-The commands below assume the package was extracted to ``${HOME}/isaacsim`` on Linux or
-``C:\isaacsim`` on Windows. Set the installation paths and verify the simulator:
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         export ISAACSIM_PATH="${HOME}/isaacsim"
-         export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
-         ${ISAACSIM_PATH}/isaac-sim.sh
-         ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
-         ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         set ISAACSIM_PATH="C:\isaacsim"
-         set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
-         %ISAACSIM_PATH%\isaac-sim.bat
-         %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
-         %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
-
-.. caution::
-
-   If you used an earlier Isaac Sim version, reset its user data and cached variables before the
-   first launch: ``${ISAACSIM_PATH}/isaac-sim.sh --reset-user`` on Linux or
-   ``%ISAACSIM_PATH%\isaac-sim.bat --reset-user`` on Windows.
-
-Clone Isaac Lab, create the ``_isaac_sim`` link, install, and verify:
-
-.. isaaclab-clone-commands::
-
-.. tab-set::
-   :sync-group: os
-
-   .. tab-item:: :icon:`fa-brands fa-linux` Linux
-      :sync: linux
-
-      .. code-block:: bash
-
-         cd IsaacLab
-         ln -s ${ISAACSIM_PATH} _isaac_sim
-         sudo apt install cmake build-essential
-         ./isaaclab.sh -i
-         ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
-
-   .. tab-item:: :icon:`fa-brands fa-windows` Windows
-      :sync: windows
-
-      .. code-block:: batch
-
-         cd IsaacLab
-         mklink /D _isaac_sim %ISAACSIM_PATH%
-         isaaclab.bat -i
-         isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
-
-The tutorial command should open a black simulator viewport. If either verification command fails,
-consult the `Isaac Sim Linux troubleshooting guide
-<https://docs.omniverse.nvidia.com/dev-guide/latest/linux-troubleshooting.html>`__ or the
-`Isaac Sim forums <https://docs.isaacsim.omniverse.nvidia.com/latest/common/feedback.html>`__.
-
 .. _installation-method-source:
 .. _isaaclab-source-installation:
 
@@ -896,132 +479,25 @@ On Windows, enable `long-path support
 <https://learn.microsoft.com/en-us/windows/win32/fileio/maximum-file-path-limitation?tabs=registry#enable-long-paths-in-windows-10-version-1607-and-later>`__
 before building.
 
-Choose how to connect the Isaac Sim source build to Isaac Lab:
+Clone Isaac Sim next to the Isaac Lab checkout. From the Isaac Lab root, run the source-build
+command. It incrementally builds Isaac Sim and links the live release tree as ``_isaac_sim``:
 
-.. tab-set::
-   :sync-group: isaacsim-source-installation-method
+.. code-block:: text
 
-   .. tab-item:: uv (Recommended)
-      :sync: uv
+   git clone https://github.com/isaac-sim/IsaacSim.git ../IsaacSim
+   uv run isaaclab --isaacsim_source ../IsaacSim
 
-      Clone Isaac Sim next to the Isaac Lab checkout. From the Isaac Lab root, run the source-build
-      command. It incrementally builds Isaac Sim and links the live release tree as ``_isaac_sim``:
+Isaac Lab runs the active ``uv`` environment through Isaac Sim's generated Python launcher.
+This loads Kit and extensions directly from the source build without creating wheels or
+changing ``pyproject.toml`` and ``uv.lock``. Run Isaac Lab against the source build with:
 
-      .. code-block:: text
+.. code-block:: text
 
-         git clone https://github.com/isaac-sim/IsaacSim.git ../IsaacSim
-         uv run isaaclab --isaacsim_source ../IsaacSim
+   uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=isaacsim_physx
 
-      Isaac Lab runs the active ``uv`` environment through Isaac Sim's generated Python launcher.
-      This loads Kit and extensions directly from the source build without creating wheels or
-      changing ``pyproject.toml`` and ``uv.lock``. Run Isaac Lab against the source build with:
-
-      .. code-block:: text
-
-         uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct physics=isaacsim_physx
-
-      After changing Isaac Sim source, run the same ``--isaacsim_source`` command again. The native
-      build is incremental, and the link continues to expose the updated build immediately; no
-      wheel packaging or dependency resolution step is required.
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-      :sync: isaaclab-script
-
-      Build and verify Isaac Sim for your platform:
-
-      .. tab-set::
-         :sync-group: installation-platform
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-            :sync: linux-x86_64
-
-            .. code-block:: bash
-
-               git clone https://github.com/isaac-sim/IsaacSim.git
-               cd IsaacSim
-               ./build.sh
-               export ISAACSIM_PATH="${PWD}/_build/linux-x86_64/release"
-               export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
-               ${ISAACSIM_PATH}/isaac-sim.sh
-               ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
-               ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-            :sync: linux-aarch64
-
-            .. code-block:: bash
-
-               git clone https://github.com/isaac-sim/IsaacSim.git
-               cd IsaacSim
-               ./build.sh
-               export ISAACSIM_PATH="${PWD}/_build/linux-aarch64/release"
-               export ISAACSIM_PYTHON_EXE="${ISAACSIM_PATH}/python.sh"
-               ${ISAACSIM_PATH}/isaac-sim.sh
-               ${ISAACSIM_PYTHON_EXE} -c "print('Isaac Sim configuration is now complete.')"
-               ${ISAACSIM_PYTHON_EXE} ${ISAACSIM_PATH}/standalone_examples/api/isaacsim.core.experimental.api/add_cubes.py
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
-            :sync: windows-x86_64
-
-            .. code-block:: batch
-
-               git clone https://github.com/isaac-sim/IsaacSim.git
-               cd IsaacSim
-               build.bat
-               set ISAACSIM_PATH="%cd%\_build\windows-x86_64\release"
-               set ISAACSIM_PYTHON_EXE="%ISAACSIM_PATH:"=%\python.bat"
-               %ISAACSIM_PATH%\isaac-sim.bat
-               %ISAACSIM_PYTHON_EXE% -c "print('Isaac Sim configuration is now complete.')"
-               %ISAACSIM_PYTHON_EXE% %ISAACSIM_PATH%\standalone_examples\api\isaacsim.core.experimental.api\add_cubes.py
-
-      Return to the workspace containing the ``IsaacSim`` checkout, then clone Isaac Lab:
-
-      .. code-block:: text
-
-         cd ..
-
-      .. isaaclab-clone-commands::
-
-      Link Isaac Lab to the source build, install, and verify:
-
-      .. tab-set::
-         :sync-group: installation-platform
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux (x86_64)
-            :sync: linux-x86_64
-
-            .. code-block:: bash
-
-               cd IsaacLab
-               ln -s ${ISAACSIM_PATH} _isaac_sim
-               sudo apt install cmake build-essential
-               ./isaaclab.sh -i
-               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
-
-         .. tab-item:: :icon:`fa-brands fa-linux` Linux (aarch64)
-            :sync: linux-aarch64
-
-            .. code-block:: bash
-
-               cd IsaacLab
-               ln -s ${ISAACSIM_PATH} _isaac_sim
-               sudo apt install cmake build-essential python3.12-dev libgl1-mesa-dev libx11-dev \
-                  libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev
-               ./isaaclab.sh -i
-               ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --viz kit
-
-         .. tab-item:: :icon:`fa-brands fa-windows` Windows (x86_64)
-            :sync: windows-x86_64
-
-            .. code-block:: batch
-
-               cd IsaacLab
-               mklink /D _isaac_sim %ISAACSIM_PATH%
-               isaaclab.bat -i
-               isaaclab.bat -p scripts\tutorials\00_sim\create_empty.py --viz kit
-
-      The tutorial command should open a black simulator viewport. Use the binary-installation
-      troubleshooting links above if the source build does not launch.
+After changing Isaac Sim source, run the same ``--isaacsim_source`` command again. The native
+build is incremental, and the link continues to expose the updated build immediately; no
+wheel packaging or dependency resolution step is required.
 
 
 .. _installation-method-container:
@@ -1104,14 +580,14 @@ Launch Isaac Sim:
 
       .. code-block:: bash
 
-         ./isaaclab.sh -s
+         uv run isaaclab -s
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
       .. code-block:: batch
 
-         isaaclab.bat -s
+         uv run isaaclab -s
 
 Select the ``CACHE:`` message in the upper-right corner and enable `Hub Workstation Cache
 <https://docs.omniverse.nvidia.com/utilities/latest/cache/hub-workstation.html>`__. The first load

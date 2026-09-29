@@ -11,6 +11,7 @@ import shutil
 import sys
 from pathlib import Path
 
+from ..prebundles import repoint_prebundle_packages
 from ..utils import (
     ISAAC_SIM_SOURCE_BUILD_MARKER,
     ISAACLAB_ROOT,
@@ -167,7 +168,7 @@ def command_build_isaacsim(source_path: str) -> None:
         raise SystemExit(1) from error
     (release_dir / ISAAC_SIM_SOURCE_BUILD_MARKER).touch()
     print_info(f"Linked {link_path} -> {release_dir}")
-    _repoint_source_build_prebundles()
+    repoint_prebundle_packages()
 
     print_info("Isaac Sim is ready. Python commands now use the live source build through '_isaac_sim'.")
     print_info("Run Isaac Lab against it with:")
@@ -190,15 +191,6 @@ def _resolve_isaacsim_release_dir(isaacsim_root: Path) -> Path:
         print_error(f"Isaac Sim source builds are not supported on platform '{sys.platform}' with machine '{machine}'.")
         raise SystemExit(1)
     return isaacsim_root / "_build" / target / "release"
-
-
-def _repoint_source_build_prebundles() -> None:
-    """Keep Isaac Sim's prebundled packages from shadowing the active environment."""
-    # ``install`` imports ``command_editor`` from this module, so defer this import until
-    # both command modules are initialized. Reuse the same protection as the legacy installer.
-    from .install import _repoint_prebundle_packages
-
-    _repoint_prebundle_packages()
 
 
 def command_run_docker(args: list[str]) -> None:

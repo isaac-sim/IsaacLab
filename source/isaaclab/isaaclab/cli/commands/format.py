@@ -5,7 +5,7 @@
 
 import subprocess
 
-from ..utils import ISAACLAB_ROOT, extract_python_exe, get_pip_command, print_info, run_command
+from ..utils import ISAACLAB_ROOT, extract_python_exe, print_info, run_command
 
 
 def command_format() -> None:
@@ -31,8 +31,7 @@ def command_format() -> None:
     # If pre-commit is not installed, install it.
     if not pre_commit_module:
         print_info('Pre-commit not found. Installing "pre-commit" module...')
-        pip_cmd = get_pip_command(python_exe)
-        run_command(pip_cmd + ["install", "pre-commit"])
+        run_command(["uv", "pip", "install", "--python", python_exe, "pre-commit"])
 
     print_info("Formatting the repository...")
 

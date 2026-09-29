@@ -17,8 +17,7 @@ maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["kit", "robotics", "learning", "ai"]
 requires-python = ">=3.12"
 # Third-party requirements are centralized in the root pyproject.toml
-# (single source of truth for the uv workspace, the wheel builder, and the
-# ./isaaclab.sh -i install CLI).
+# (single source of truth for the uv workspace and wheel builder).
 dependencies = []
 
 [project.urls]

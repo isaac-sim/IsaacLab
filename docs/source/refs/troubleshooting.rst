@@ -86,7 +86,7 @@ was launched without it. Either install Isaac Sim:
 
 .. code-block:: bash
 
-   ./isaaclab.sh -i isaacsim
+   uv sync --extra isaacsim
 
 or run a Newton-based task, which does not need Kit:
 
@@ -158,12 +158,6 @@ prompt when launching an Isaac Lab process:
 
           uv run --extra isaacsim isaaclab demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code:: bash
-
-          ./isaaclab.sh demo zoo --physics isaacsim_physx --viz kit --kit_args "--/persistent/physics/omniPvdOvdRecordingDirectory=/tmp/ --/physics/omniPvdOutputEnabled=true"
 
 GPU buffer capacity errors
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -281,7 +275,7 @@ If you see a crash involving ``libusd_tf-*.so`` and conflicting USD versions
 (e.g. ``pxrInternal_v0_25_5`` vs ``pxrInternal_v0_25_11``):
 
 1. Ensure ``LD_PRELOAD`` is set to ovrtx's ``libcarb.so`` and install the OVRTX
-   runtime with ``./isaaclab.sh -i 'ov[ovrtx]'`` (see :ref:`modularized installation <installation-selective-install>`)
+   runtime with ``uv sync --extra ovrtx`` (see :ref:`modularized installation <installation-optional-extras>`)
 2. Ensure ``isaacsim`` / ``omniverse-kit`` is **not** installed in the same
    environment — their bundled USD libraries conflict with ovrtx's
 
@@ -402,13 +396,6 @@ For instance, to run a standalone script with verbose logging, you can use the f
 
           # Run the standalone script with info logging
           uv run python scripts/tutorials/00_sim/create_empty.py --info
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-          # Run the standalone script with info logging
-          ./isaaclab.sh -p scripts/tutorials/00_sim/create_empty.py --info
 
 For more fine-grained control, you can modify the logging channels through the ``logger`` module.
 For more information, please refer to its `documentation <https://docs.python.org/3/library/logging.html>`__.

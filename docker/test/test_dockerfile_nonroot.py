@@ -23,8 +23,10 @@ def _load_module(name: str, path: Path):
     return module
 
 
-# Collect every Dockerfile.* from the entire repository tree.
-DOCKERFILES = sorted(REPO_ROOT.glob("**/Dockerfile.*"))
+# Source Dockerfiles only; generated wheel staging trees may contain duplicate copies.
+DOCKERFILES = sorted(
+    [*REPO_ROOT.glob("docker/Dockerfile.*"), REPO_ROOT / "source/isaaclab/test/install_ci/Dockerfile.installci"]
+)
 
 ROOT_USERS = {"root", "0"}
 
@@ -153,7 +155,7 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     with (REPO_ROOT / "pyproject.toml").open("rb") as file:
         extras = tomllib.load(file)["project"]["optional-dependencies"]
 
-    # Installed from the lock rather than through isaaclab.sh: only the lock applies
+    # Installed from the lock rather than through uv sync: only the lock applies
     # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
     # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
     assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
@@ -161,7 +163,7 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.
     assert "isaacsim" not in "".join(extras["all"])
     # The interpreter must sit outside ISAACLAB_PATH. CI bind-mounts the checkout over that path,
-    # so a venv beneath it is masked and isaaclab.sh execs a missing interpreter (exit 127).
+    # so a venv beneath it is masked and uv run isaaclab execs a missing interpreter (exit 127).
     assert "ARG VENV_PATH_ARG=/opt/isaaclab-venv" in dockerfile_text
     assert "ENV VIRTUAL_ENV=${VENV_PATH_ARG}" in dockerfile_text
     # ``uv sync`` honours the project's ``only-managed`` preference and would rebuild the venv
@@ -169,7 +171,6 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     # dangling. The image must pin uv to the system interpreter.
     assert "ENV UV_PYTHON=/usr/bin/python3.12" in dockerfile_text
     assert "ENV UV_PYTHON_PREFERENCE=only-system" in dockerfile_text
-    assert "COPY isaaclab.sh ./" in dockerfile_text
     assert "'isaacsim' not in names" in dockerfile_text
     assert "'isaacsim-asset-isolated' in names" in dockerfile_text
     assert "'ovphysx' in names" in dockerfile_text

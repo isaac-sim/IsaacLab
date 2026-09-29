@@ -1127,7 +1127,7 @@ def make_require_ovlibs_install_fixture():
     """Create an autouse fixture that fails fast when OV libraries are required but not installed.
 
     Only parametrized cases with ``renderer == "ovrtx_renderer"`` or ``physics_backend == "ovphysx"`` are checked.
-    Install with ``./isaaclab.sh -i 'ov[all]'`` (or the equivalent in your environment).
+    Install with ``uv sync --extra ov`` (or the equivalent in your environment).
     """
 
     @pytest.fixture(autouse=True)
@@ -1144,7 +1144,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVRTX rendering tests require the optional dependency ov[ovrtx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovrtx]'\n"
+                    "Install with: uv sync --extra ovrtx\n"
                     f"ImportError: {exc}"
                 )
 
@@ -1156,7 +1156,7 @@ def make_require_ovlibs_install_fixture():
             except ImportError as exc:
                 pytest.fail(
                     "Kitless OVPhysX rendering tests require the optional dependency ov[ovphysx]. "
-                    "Install with: ./isaaclab.sh -i 'ov[ovphysx]'\n"
+                    "Install with: uv sync --extra ovphysx\n"
                     f"ImportError: {exc}"
                 )
 

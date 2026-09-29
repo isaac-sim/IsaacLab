@@ -151,14 +151,6 @@ Quick Start
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model
 
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh train --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model
-
 **Evaluation** — Evaluate a pretrained (base) model with video recording:
 
 .. tab-set::
@@ -172,15 +164,6 @@ Quick Start
              --model_path /path/to/base_model \
              --video
 
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model \
-             --video
-
 **Evaluation** — Evaluate an RL-finetuned checkpoint with video recording:
 
 .. tab-set::
@@ -190,16 +173,6 @@ Quick Start
       .. code-block:: bash
 
          uv run --no-sync isaaclab play --rl_library rlinf \
-             --config_name isaaclab_ppo_gr00t_assemble_trocar \
-             --model_path /path/to/base_model \
-             --checkpoint /path/to/checkpoints/global_step_N \
-             --video
-
-   .. tab-item:: isaaclab.sh
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rlinf \
              --config_name isaaclab_ppo_gr00t_assemble_trocar \
              --model_path /path/to/base_model \
              --checkpoint /path/to/checkpoints/global_step_N \
@@ -287,4 +260,4 @@ Key Files
    └── extension.py       # Task registration, obs/action conversion
 
 For detailed configuration options, CLI arguments, and how to add new tasks,
-use the unified ``./isaaclab.sh train --rl_library rlinf`` and ``./isaaclab.sh play --rl_library rlinf`` commands.
+use the unified ``uv run isaaclab train --rl_library rlinf`` and ``uv run isaaclab play --rl_library rlinf`` commands.

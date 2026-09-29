@@ -43,37 +43,14 @@ your project does not use that feature.
 Installation
 ------------
 
-Start from a fresh Isaac Lab 3.0 checkout and Python 3.12 environment instead of upgrading the
-packages inside an existing 2.x environment. The recommended workflow now uses ``uv`` to resolve the
-project environment and optional integrations when a command runs. The ``isaaclab.sh`` installer is
-still available for manually managed environments, but it is no longer the default path.
+Start from a fresh Isaac Lab 3.0 checkout. uv is the only supported installation method;
+create a new environment instead of upgrading an existing 2.x environment.
 
-.. grid:: 2
-   :gutter: 2
+.. code-block:: bash
 
-   .. grid-item-card:: Isaac Lab 2.x
-
-      Create and activate an environment, install every extension, then launch a library-specific script.
-
-      .. code-block:: bash
-
-         conda create -n env_isaaclab python=3.11
-         conda activate env_isaaclab
-         ./isaaclab.sh --install rsl_rl
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
-            --task Isaac-Cartpole
-
-   .. grid-item-card:: Isaac Lab 3.0
-
-      Install ``uv`` once; ``uv run`` creates or synchronizes the project environment and launches the
-      unified command. Select optional runtimes with ``--extra`` before ``isaaclab``.
-
-      .. code-block:: bash
-
-         curl -LsSf https://astral.sh/uv/install.sh | sh
-         uv run --extra isaacsim isaaclab train \
-            --rl_library rsl_rl --task Isaac-Cartpole \
-            physics=isaacsim_physx
+   uv sync --extra isaacsim
+   uv run --extra isaacsim isaaclab train \
+      --rl_library rsl_rl --task Isaac-Cartpole physics=isaacsim_physx
 
 Use ``uv run isaaclab ...`` for Newton-only workflows, ``--extra ovphysx`` for OV PhysX, and
 ``--extra isaacsim`` for full Isaac Sim support. See :ref:`installation-method-uv` for platform-specific
@@ -2035,13 +2012,6 @@ Enable it by setting an environment variable before launching your script:
          export WARN_ON_TORCH_QUATF_ACCESS=1
          uv run python my_script.py
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         export WARN_ON_TORCH_QUATF_ACCESS=1
-         ./isaaclab.sh -p my_script.py
-
 Every read of ``.torch`` on a ``ProxyArray`` whose underlying ``wp.array`` has
 dtype ``wp.quatf`` then emits a :class:`UserWarning` with the message:
 
@@ -2386,7 +2356,7 @@ Move training and inference workflows to the unified entrypoints after the envir
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+         uv run python scripts/reinforcement_learning/rsl_rl/train.py \
             --task Isaac-Cartpole --resume --load_run RUN
 
    .. grid-item-card:: Isaac Lab 3.0
@@ -2415,13 +2385,6 @@ and play. Instead of launching library-specific scripts under
          # Isaac Lab 3.0
          uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Isaac Lab 3.0
-         ./isaaclab.sh train --rl_library rsl_rl --task Isaac-Cartpole
-
 The same pattern applies to the play workflow:
 
 .. tab-set::
@@ -2431,12 +2394,6 @@ The same pattern applies to the play workflow:
       .. code-block:: bash
 
          uv run isaaclab play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh play --rl_library rsl_rl --task Isaac-Cartpole --checkpoint /PATH/TO/model.pt
 
 Supported reinforcement learning libraries are ``rsl_rl``, ``rl_games``, ``skrl``,
 ``sb3``, and ``rlinf``. Backend-local ``train.py`` and ``play.py`` scripts were removed; use these
@@ -2789,7 +2746,7 @@ Finish by updating importers, benchmarks, and optional integrations used around 
 
       .. code-block:: bash
 
-         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py \
+         uv run python scripts/benchmarks/benchmark_rsl_rl.py \
             --task Isaac-Cartpole
 
    .. grid-item-card:: Isaac Lab 3.0
@@ -2872,16 +2829,6 @@ automatically by the importer based on the robot name and cannot be overridden.
            --fix-base \
            --merge-joints
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir/robot.usd \
-           --fix-base \
-           --merge-joints
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -2891,18 +2838,6 @@ automatically by the importer based on the robot name and cannot be overridden.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_urdf.py \
-           robot.urdf \
-           /output/dir \
-           --fix-base \
-           --joint-stiffness 100.0 \
-           --joint-damping 1.0 \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_urdf.py \
            robot.urdf \
            /output/dir \
            --fix-base \
@@ -3052,16 +2987,6 @@ are no longer available.
            --import-sites \
            --make-instanceable
 
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --import-sites \
-           --make-instanceable
-
 **After (Isaac Lab 3.0):**
 
 .. tab-set::
@@ -3071,17 +2996,6 @@ are no longer available.
       .. code-block:: bash
 
          uv run --extra importers python scripts/tools/convert_mjcf.py \
-           ../mujoco_menagerie/unitree_h1/h1.xml \
-           source/isaaclab_assets/data/Robots/Unitree/h1.usd \
-           --merge-mesh \
-           --self-collision \
-           --viz kit
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         ./isaaclab.sh -p scripts/tools/convert_mjcf.py \
            ../mujoco_menagerie/unitree_h1/h1.xml \
            source/isaaclab_assets/data/Robots/Unitree/h1.usd \
            --merge-mesh \
@@ -3219,20 +3133,6 @@ exactly as for the training workflow. There is no ``--physics`` or ``--render`` 
 
          # Training benchmark (RSL-RL)
          uv run python scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
-
-         # Wrapper shell runners
-         ./scripts/benchmarks/run_non_rl_benchmarks.sh
-         ./scripts/benchmarks/run_training_benchmarks.sh
-
-   .. tab-item:: isaaclab.sh / isaaclab.bat
-
-      .. code-block:: bash
-
-         # Non-RL (random-action) runtime benchmark
-         ./isaaclab.sh -p scripts/benchmarks/benchmark_non_rl.py --task Isaac-Cartpole-Direct
-
-         # Training benchmark (RSL-RL)
-         ./isaaclab.sh -p scripts/benchmarks/benchmark_rsl_rl.py --task Isaac-Cartpole-Direct
 
          # Wrapper shell runners
          ./scripts/benchmarks/run_non_rl_benchmarks.sh

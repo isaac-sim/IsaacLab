@@ -488,7 +488,7 @@ Install via the Isaac Lab CLI using the ``ov[ovrtx]`` token:
 .. code-block:: bash
 
    # Install the ovrtx runtime wheel on top of an existing install
-   ./isaaclab.sh -i ov[ovrtx]
+   uv sync --extra ovrtx
 
 .. note::
 
