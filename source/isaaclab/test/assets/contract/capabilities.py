@@ -50,12 +50,12 @@ BACKEND_DECLARATIONS = (
     BackendDeclaration(
         name="physx",
         required_modules=("carb", "isaaclab_physx"),
-        capabilities=_SHARED_CAPABILITIES | _PHYSX_FAMILY_CAPABILITIES | {"index_resolution"},
+        capabilities=_SHARED_CAPABILITIES | _PHYSX_FAMILY_CAPABILITIES,
     ),
     BackendDeclaration(
         name="newton",
         required_modules=("isaaclab_newton",),
-        capabilities=_SHARED_CAPABILITIES | {"index_resolution"},
+        capabilities=_SHARED_CAPABILITIES,
         unsupported={
             "fixed_tendon_extended": "Newton does not implement fixed-tendon limit stiffness, rest length, or offset",
             "spatial_tendons": "Newton does not support spatial tendons",
@@ -69,7 +69,6 @@ BACKEND_DECLARATIONS = (
         name="ovphysx",
         required_modules=("ovphysx", "isaaclab_ov"),
         capabilities=_SHARED_CAPABILITIES | _PHYSX_FAMILY_CAPABILITIES,
-        unsupported={"index_resolution": "OVPhysX does not expose the joint and body index-resolution helpers"},
         # The mocked bindings allocate pinned host staging buffers even for CPU tensors.
         requires_cuda_runtime=True,
     ),
