@@ -10,11 +10,8 @@
 
 from __future__ import annotations
 
-import multiprocessing
-import queue
+import re
 import sys
-import traceback
-from typing import Any
 
 import ovphysx.types  # noqa: F401
 import pytest
@@ -130,23 +127,6 @@ def _assert_rest_positions_match_authored(
         )
 
 
-def _run_cpu_deformable_initialization(result_queue: Any) -> None:
-    """Run the CPU initialization contract in a fresh spawned process."""
-    try:
-        with _ovphysx_sim_context(device="cpu") as sim:
-            deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
-            assert sys.getrefcount(deformable) < 10
-            try:
-                sim.reset()
-            except RuntimeError as error:
-                result = ("runtime_error", str(error), deformable.is_initialized)
-            else:
-                result = ("no_error", "", deformable.is_initialized)
-    except BaseException:
-        result = ("child_error", traceback.format_exc(), None)
-    result_queue.put(result)
-
-
 @pytest.mark.parametrize(
     "num_objects, material_path",
     [
@@ -199,30 +179,17 @@ def test_initialization(num_objects: int, material_path: str | None):
 
 
 def test_initialization_on_device_cpu():
-    """Test that OVPhysX deformable initialization rejects a CPU simulation."""
-    context = multiprocessing.get_context("spawn")
-    result_queue = context.Queue()
-    process = context.Process(target=_run_cpu_deformable_initialization, args=(result_queue,))
-    process.start()
-    process.join(timeout=30.0)
+    """Test that OVPhysX deformable initialization rejects a CPU simulation.
 
-    if process.is_alive():
-        process.terminate()
-        process.join()
-        pytest.fail("CPU deformable initialization child process timed out.")
-    assert process.exitcode == 0
-
-    try:
-        result_kind, message, is_initialized = result_queue.get(timeout=5.0)
-    except queue.Empty:
-        pytest.fail("CPU deformable initialization child process returned no result.")
-    finally:
-        result_queue.close()
-        result_queue.join_thread()
-
-    assert result_kind == "runtime_error", message
-    assert message == "OVPhysX deformable tensors require a CUDA simulation device; received 'cpu'."
-    assert is_initialized is False
+    CPU and CUDA OVPhysX simulations can follow each other in one process, so this runs beside the CUDA tests.
+    """
+    message = "OVPhysX deformable tensors require a CUDA simulation device; received 'cpu'."
+    with _ovphysx_sim_context(device="cpu") as sim:
+        deformable = _generate_deformable_scene(pre_tetrahedralized_deformable_spawn_cfg(), num_objects=5)
+        assert sys.getrefcount(deformable) < 10
+        with pytest.raises(RuntimeError, match=f"^{re.escape(message)}$"):
+            sim.reset()
+        assert deformable.is_initialized is False
 
 
 @flaky(max_runs=3, min_passes=1)
