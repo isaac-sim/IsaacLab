@@ -165,6 +165,8 @@ def compile_package(pkg: Path) -> str | None:
     for path in sorted(fragments.glob("*.rst")):  # WAR
         if legacy.LEGACY_RE.match(path.name):
             for name, text in legacy.split_legacy(path).items():
+                if (fragments / name).exists():
+                    raise ValueError(f"splitting {path.name} would overwrite {name}")
                 (fragments / name).write_text(text, encoding="utf-8")
             path.unlink()
     names = [path.name for path in fragments.iterdir()]
@@ -178,20 +180,37 @@ def compile_package(pkg: Path) -> str | None:
     return version
 
 
+def without_local_versions(lock_text: str) -> dict:
+    """Return a parsed ``uv.lock`` without the versions of the local (editable) packages."""
+    lock = tomllib.loads(lock_text)
+    for package in lock["package"]:
+        if "editable" in package.get("source", {}):
+            package.pop("version", None)
+    return lock
+
+
 def sync_lock() -> None:
     """Re-lock ``uv.lock`` for the bumped versions, refusing any other change.
 
     Another uv release can re-serialize the whole lockfile; unlocked dependency edits can move pins.
     """
+    before = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
     run("uv", "lock", env={k: v for k, v in os.environ.items() if k != "UV_FROZEN"})
+    after = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
     diff = run("git", "diff", "--no-color", "-U0", "--", "uv.lock")
     moved = [line for line in diff.splitlines() if line[:1] in "+-" and not line.startswith(("+++", "---"))]
-    if any(not line[1:].startswith("version = ") for line in moved):
+    if any(not line[1:].startswith("version = ") for line in moved) or (
+        without_local_versions(before) != without_local_versions(after)
+    ):
         run("git", "checkout", "--", "uv.lock")
         raise RuntimeError("uv lock changed more than package versions; uv.lock left unchanged")
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
+    # Rolling back a failed package restores HEAD, so start clean to never discard local work.
+    if run("git", "status", "--porcelain"):
+        print("::error::compile needs a clean checkout; commit or stash local changes first", file=sys.stderr)
+        return 1
     failed = False
     bumped = []
     for pkg in packages():

@@ -4,11 +4,14 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+import datetime
+import shutil
 import subprocess
 
 import cli
 import legacy
 import pytest
+import tomllib
 
 CHANGELOG = "Changelog\n---------\n\n.. towncrier release notes start\n"
 
@@ -144,6 +147,13 @@ def test_compile_bumps_highest_tier_then_builds(repo, monkeypatch):
     assert (pkg / "changelog.d/a.fixed.rst").read_text() == "* Fixed x.\n"
 
 
+def test_compile_refuses_to_overwrite_a_fragment_when_splitting(repo):
+    write(repo, {FRAGMENTS + "a.rst": "Fixed\n^^^^^\n\n* Fixed x.\n", FRAGMENTS + "a.fixed.rst": "* Fixed y.\n"})
+    with pytest.raises(ValueError):
+        cli.compile_package(repo / "source/pkg")
+    assert (repo / FRAGMENTS / "a.fixed.rst").read_text() == "* Fixed y.\n"
+
+
 def test_compile_drops_stale_markers_without_entries(repo, monkeypatch):
     write(repo, {FRAGMENTS + "a.skip": "", FRAGMENTS + "a.minor": ""})
     monkeypatch.setattr(cli, "run", lambda *cmd, env=None: pytest.fail(f"unexpected {cmd}"))
@@ -151,7 +161,7 @@ def test_compile_drops_stale_markers_without_entries(repo, monkeypatch):
     assert [p.name for p in (repo / FRAGMENTS).iterdir()] == [".gitkeep"]
 
 
-def fake_tools(repo, monkeypatch, relocked):
+def fake_tools(repo, monkeypatch, relocked, stray=False):
     """Replace uv and towncrier with file edits that mimic them; git still runs for real."""
     run = cli.run
 
@@ -161,6 +171,8 @@ def fake_tools(repo, monkeypatch, relocked):
             return "1.0.1\n"
         if cmd[: len(cli.TOWNCRIER)] == cli.TOWNCRIER:
             write(repo, {"source/pkg/docs/CHANGELOG.rst": CHANGELOG + "\n1.0.1 (today)\n"})
+            if stray:
+                write(repo, {"notes.txt": "a file no compile output should touch"})
             (repo / FRAGMENTS / "a.fixed.rst").unlink()
             return ""
         if cmd[:2] == ("uv", "lock"):
@@ -174,9 +186,8 @@ def fake_tools(repo, monkeypatch, relocked):
 def test_compile_stages_only_its_outputs(repo, monkeypatch):
     write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n"})
     commit(repo, "fragment")
-    write(repo, {"notes.txt": "stray"})
-    fake_tools(repo, monkeypatch, relocked=lock(pkg="1.0.1"))
-    assert cli.cmd_compile(argparse.Namespace()) == 1  # the stray file is reported
+    fake_tools(repo, monkeypatch, relocked=lock(pkg="1.0.1"), stray=True)
+    assert cli.cmd_compile(argparse.Namespace()) == 1  # the stray notes.txt a tool wrote is reported
     staged = set(git(repo, "diff", "--cached", "--name-only").split())
     assert staged == {
         "source/pkg/pyproject.toml",
@@ -184,6 +195,14 @@ def test_compile_stages_only_its_outputs(repo, monkeypatch):
         FRAGMENTS + "a.fixed.rst",
         "uv.lock",
     }
+
+
+def test_compile_refuses_a_dirty_checkout(repo, monkeypatch):
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "notes.txt": "local work"})
+    run = cli.run
+    monkeypatch.setattr(cli, "run", lambda *cmd, env=None: run(*cmd) if cmd[0] == "git" else pytest.fail(f"ran {cmd}"))
+    assert cli.cmd_compile(argparse.Namespace()) == 1
+    assert (repo / "notes.txt").read_text() == "local work"
 
 
 def test_compile_holds_every_bump_when_the_relock_is_refused(repo, monkeypatch):
@@ -206,3 +225,41 @@ def test_sync_lock_accepts_only_version_lines(repo, monkeypatch, relocked, accep
         with pytest.raises(RuntimeError):
             cli.sync_lock()
     assert (repo / "uv.lock").read_text() == (relocked if accepted else lock())
+
+
+def test_sync_lock_rejects_a_version_change_outside_local_packages(repo, monkeypatch):
+    root = '\n[[package]]\nname = "root"\nversion = "{}"\nsource = {{ virtual = "." }}\n'
+    write(repo, {"uv.lock": lock() + root.format("0.1.0")})
+    commit(repo, "root package")
+    fake_tools(repo, monkeypatch, relocked=lock() + root.format("0.2.0"))  # only a `version =` line moves
+    with pytest.raises(RuntimeError):
+        cli.sync_lock()
+    assert (repo / "uv.lock").read_text() == lock() + root.format("0.1.0")
+
+
+@pytest.mark.skipif(not (shutil.which("uv") and shutil.which("uvx")), reason="needs uv and uvx")
+def test_compile_renders_the_changelog_with_real_uv_and_towncrier(repo, monkeypatch):
+    """Runs the real ``uv version`` and towncrier with the repository config and template."""
+    shutil.copytree(cli.CONFIG.parent, repo / "tools/changelog", ignore=shutil.ignore_patterns("test", "__pycache__"))
+    monkeypatch.setattr(cli, "CONFIG", repo / "tools/changelog/towncrier.toml")
+    old_entry = "\n1.0.0 (2026-01-01)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
+    write(
+        repo,
+        {
+            "source/pkg/docs/CHANGELOG.rst": CHANGELOG + old_entry,
+            FRAGMENTS + "b.fixed.rst": "* Fixed y.\n",
+            FRAGMENTS + "a.added.rst": "* Added x.\n  More on x.\n",
+            FRAGMENTS + "a.minor": "",
+            FRAGMENTS + "c.skip": "",
+        },
+    )
+    commit(repo, "fragments")
+    assert cli.compile_package(repo / "source/pkg") == "1.1.0"
+    today = datetime.date.today().isoformat()
+    title = f"1.1.0 ({today})"
+    new_entry = (
+        f"\n{title}\n{'~' * len(title)}\n\nAdded\n^^^^^\n\n* Added x.\n  More on x.\n\nFixed\n^^^^^\n\n* Fixed y.\n\n"
+    )
+    assert (repo / "source/pkg/docs/CHANGELOG.rst").read_text() == CHANGELOG + new_entry + old_entry
+    assert [p.name for p in (repo / FRAGMENTS).iterdir()] == [".gitkeep"]
+    assert tomllib.loads((repo / "source/pkg/pyproject.toml").read_text())["project"]["version"] == "1.1.0"
