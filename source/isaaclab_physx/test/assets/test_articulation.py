@@ -1103,7 +1103,12 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         "joint_dynamic_friction_coeff": torch.tensor([[0.4, 0.3]], device=device),
         "joint_viscous_friction_coeff": torch.tensor([[0.11, 0.22]], device=device),
     }
-    expected_frictions = {name: getattr(articulation.data, name).torch.clone() for name in frictions}
+    friction_readers = {
+        "joint_friction_coeff": lambda: articulation.data.joint_friction_coeff.torch,
+        "joint_dynamic_friction_coeff": lambda: articulation.data.joint_dynamic_friction_coeff.torch,
+        "joint_viscous_friction_coeff": lambda: articulation.data.joint_viscous_friction_coeff.torch,
+    }
+    expected_frictions = {name: read().clone() for name, read in friction_readers.items()}
     articulation.write_joint_friction_coefficient_to_sim_index(
         joint_friction_coeff=frictions["joint_friction_coeff"],
         joint_dynamic_friction_coeff=frictions["joint_dynamic_friction_coeff"],
@@ -1114,7 +1119,7 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     expected_raw_friction = raw_friction_before.clone()
     for component, (name, values) in enumerate(frictions.items()):
         expected_frictions[name][env_ids[:, None], joint_ids] = values
-        torch.testing.assert_close(getattr(articulation.data, name).torch, expected_frictions[name])
+        torch.testing.assert_close(friction_readers[name](), expected_frictions[name])
         expected_raw_friction[..., component] = expected_frictions[name][:, joint_backend_to_user].cpu()
     torch.testing.assert_close(wp.to_torch(articulation.root_view.get_dof_friction_properties()), expected_raw_friction)
 
@@ -1148,15 +1153,18 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     inertias = articulation.data.body_inertia.torch[env_ids][:, body_ids].clone()
     inertias[0, 0, 0] *= 1.2
     inertias[0, 1, 4] *= 1.3
-    for setter, kwarg, value, name in (
-        (articulation.set_masses_index, "masses", masses, "body_mass"),
-        (articulation.set_coms_index, "coms", coms, "body_com_pose_b"),
-        (articulation.set_inertias_index, "inertias", inertias, "body_inertia"),
-    ):
-        expected = getattr(articulation.data, name).torch.clone()
-        expected[env_ids[:, None], body_ids] = value
-        setter(**{kwarg: value, "env_ids": env_ids, "body_ids": body_ids})
-        torch.testing.assert_close(getattr(articulation.data, name).torch, expected)
+    expected_masses = articulation.data.body_mass.torch.clone()
+    expected_masses[env_ids[:, None], body_ids] = masses
+    articulation.set_masses_index(masses=masses, env_ids=env_ids, body_ids=body_ids)
+    torch.testing.assert_close(articulation.data.body_mass.torch, expected_masses)
+    expected_coms = articulation.data.body_com_pose_b.torch.clone()
+    expected_coms[env_ids[:, None], body_ids] = coms
+    articulation.set_coms_index(coms=coms, env_ids=env_ids, body_ids=body_ids)
+    torch.testing.assert_close(articulation.data.body_com_pose_b.torch, expected_coms)
+    expected_inertias = articulation.data.body_inertia.torch.clone()
+    expected_inertias[env_ids[:, None], body_ids] = inertias
+    articulation.set_inertias_index(inertias=inertias, env_ids=env_ids, body_ids=body_ids)
+    torch.testing.assert_close(articulation.data.body_inertia.torch, expected_inertias)
     for public, raw in (
         (articulation.data.body_mass.torch, articulation.root_view.get_masses()),
         (articulation.data.body_com_pose_b.torch, articulation.root_view.get_coms()),
@@ -1491,11 +1499,11 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
 
     # A world-frame force, and a force at a world-frame position, act like their body-frame counterparts.
     for local_wrench, global_wrench, response in (
-        ({"forces": [[[8.0, 0.0, 0.0]]]}, {"forces": [[[0.0, 8.0, 0.0]]]}, "root_com_lin_vel_w"),
+        ({"forces": [[[8.0, 0.0, 0.0]]]}, {"forces": [[[0.0, 8.0, 0.0]]]}, lambda: floating.data.root_com_lin_vel_w),
         (
             {"forces": [[[0.0, 0.0, 8.0]]], "positions": [[[0.0, 1.0, 0.0]]]},
             {"forces": [[[0.0, 0.0, 8.0]]], "positions": [[[-1.0, 0.0, 0.0]]]},
-            "root_ang_vel_b",
+            lambda: floating.data.root_ang_vel_b,
         ),
     ):
         _place_at_rest(floating, rest_pose)
@@ -1509,7 +1517,7 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
             body_ids=base, env_ids=[0], is_global=True, **global_wrench
         )
         scene.step()
-        response_value = getattr(floating.data, response).torch
+        response_value = response().torch
         torch.testing.assert_close(response_value[0], response_value[1], atol=1e-4, rtol=1e-3)
     # Applied 1 m along the base y-axis instead of at the center of mass, the upward force also rolls the base
     # about its x-axis.
