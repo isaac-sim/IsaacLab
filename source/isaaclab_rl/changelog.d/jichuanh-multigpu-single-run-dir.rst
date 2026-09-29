@@ -10,3 +10,6 @@ Fixed
 * Fixed skrl multi-GPU training saving the final checkpoint from every rank to the same file.
 * Fixed multi-GPU training ending with a ``destroy_process_group() was not called`` warning after a
   successful run.
+* Fixed resumed RSL-RL multi-GPU training loading the checkpoint onto the GPU that saved it in every
+  process instead of the process's own GPU, which could make the first update fail with
+  ``normal expects all elements of std >= 0.0``.

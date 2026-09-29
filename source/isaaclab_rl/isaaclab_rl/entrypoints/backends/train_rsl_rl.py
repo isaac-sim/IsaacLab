@@ -179,7 +179,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             runner.add_git_repo_to_log(__file__)
             if resume_path is not None:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
-                runner.load(resume_path)
+                # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
+                runner.load(resume_path, map_location=agent_cfg.device)
             dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if agent_cfg.logger == "wandb":
