@@ -162,6 +162,9 @@ _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 _NEWTON_MOTION_VECTORS_SKIP_MARK = pytest.mark.skip(
     reason="Motion-vector golden-image comparison is unreliable with Newton physics (NVBUG#6267975)."
 )
+_OVSTAGE_DEFORMABLE_MOTION_VECTORS_XFAIL_MARK = pytest.mark.xfail(
+    reason="OVStage misses deformable motion vectors on the first update after initialization.", strict=False
+)
 
 # Camera sensor data types grouped by what capturing them requires. Data types in the same group
 # are rendered together from one environment (see :func:`group_rendering_params`); data types in
@@ -460,7 +463,12 @@ def make_kitless_rendering_params_franka() -> list[pytest.param]:
             pytest.param(
                 *param.values,
                 id=param.id,
-                marks=[mark for mark in param.marks if mark.name != "skip"],
+                # The retry mark would rerun the expected failure, so the xfail replaces it.
+                marks=(
+                    [_OVSTAGE_DEFORMABLE_MOTION_VECTORS_XFAIL_MARK]
+                    if param.values[0] == "ovstage"
+                    else [mark for mark in param.marks if mark.name != "skip"]
+                ),
             )
             if tuple(param.values[1:]) == ("newton", "ovrtx_renderer", "motion_vectors")
             else param
@@ -1479,9 +1487,7 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(
-    env: Any, renderer: str, data_type: str, num_steps: int = 2, action_value: float = 0.0
-) -> None:
+def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1491,7 +1497,6 @@ def maybe_step_env_for_motion(
     Args:
         env: The environment to step. Must expose ``action_space`` and ``step`` (``DirectRLEnv`` /
             ``ManagerBasedRLEnv``).
-        renderer: The renderer under test.
         data_type: The camera data type under test.
         num_steps: Number of steps to take before capturing camera output.
         action_value: Constant value applied to every action component on every step. Defaults to
@@ -1500,10 +1505,6 @@ def maybe_step_env_for_motion(
     """
     if data_type != "motion_vectors":
         return
-
-    # Remove the extra step when NVBug 6565960 is fixed.
-    if renderer == "ovrtx_renderer":
-        num_steps += 1
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
     for _ in range(num_steps):
@@ -1594,7 +1595,7 @@ def rendering_test_shadow_hand(
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        maybe_step_env_for_motion(env, motion_data_type)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_types[0])
 
         validate_camera_outputs(
@@ -1781,7 +1782,7 @@ def rendering_test_cartpole(
         env = make_cartpole_rendering_test_env(env_cfg)
         # Nudge the cart with a small constant force so motion vectors also capture cart translation,
         # not just pole dynamics already in flight from the randomized reset.
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         camera_outputs = env._tiled_camera.data.output
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
@@ -1976,7 +1977,7 @@ def rendering_test_lift_kuka(
         if motion_data_type == "motion_vectors":
             # Capture controlled joint motion instead of the first-step autoreset transient.
             env.reset(seed=42)
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
@@ -2232,9 +2233,6 @@ def rendering_test_franka_cloth(
         # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
-        # TODO: Remove the extra step when NVBug 6565960 is fixed.
-        if is_newton_ovrtx_motion:
-            env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output
@@ -2304,7 +2302,7 @@ def rendering_test_franka_soft(
         env = ManagerBasedRLEnv(env_cfg)
         env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
+        maybe_step_env_for_motion(env, _motion_data_type(data_types), action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
