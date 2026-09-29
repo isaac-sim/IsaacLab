@@ -3,337 +3,254 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Real PhysX deformable-object coverage on locally authored surface and volume meshes.
+
+The meshes are authored directly with their simulation topology, so no mesher or collision cooking runs. Each
+deformable holds two environments so that partial writes can target environment 1 and prove that environment 0
+is preserved in the real PhysX state. The CPU failure test owns its simulation context and is defined first:
+pytest runs it before the composite scene is created, and a new simulation context would replace that stage.
+"""
+
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from isaaclab.test.utils import launch_test_simulation
+from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
 
 launch_test_simulation()
 
 import sys
+from dataclasses import dataclass
 
 import pytest
 import torch
 import warp as wp
-from flaky import flaky
 from isaaclab_physx.assets import DeformableObject
-from isaaclab_physx.sim import (
-    PhysxDeformableBodyMaterialCfg,
-    PhysxDeformableBodyPropertiesCfg,
-    PhysxSurfaceDeformableBodyMaterialCfg,
-)
+from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg, PhysxSurfaceDeformableBodyMaterialCfg
 
-import carb
+from pxr import Gf, Sdf, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
-import isaaclab.utils.math as math_utils
 from isaaclab.assets import DeformableObjectCfg
 from isaaclab.sim import build_simulation_context
+from isaaclab.utils.math import quat_apply
 
-# Temporarily disabled: this suite intermittently aborts with SIGABRT on CI.
-# Re-enable once the underlying crash is fixed.
-pytestmark = pytest.mark.skip(reason="Temporarily disabled due to intermittent crash on CI.")
+_NUM_ENVS = 2
+_VOLUME_POINTS = [(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.0, 0.2, 0.0), (0.0, 0.0, 0.2), (0.2, 0.2, 0.2)]
+_VOLUME_TETS = [(0, 1, 2, 3), (1, 2, 3, 4)]
+_VOLUME_FACES = [(0, 2, 1), (0, 1, 3), (0, 3, 2), (1, 2, 4), (2, 3, 4), (3, 1, 4)]
+_SURFACE_POINTS = [(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.2, 0.2, 0.0), (0.0, 0.2, 0.0)]
+_SURFACE_TRIANGLES = [(0, 1, 2), (0, 2, 3)]
 
 
-def generate_cubes_scene(
-    num_cubes: int = 1,
-    height: float = 1.0,
-    initial_rot: tuple[float, ...] = (0.0, 0.0, 0.0, 1.0),
-    has_api: bool = True,
-    material_path: str | None = "material",
-    kinematic_enabled: bool = False,
-    deformable_type: str = "volume",
-    device: str = "cuda:0",
-) -> DeformableObject:
-    """Generate a scene with the provided number of cubes.
+def _add_api_schemas(prim, schemas: list[str]) -> None:
+    """Set the applied API schemas of a prim explicitly."""
+    schemas_op = Sdf.TokenListOp()
+    schemas_op.explicitItems = schemas
+    prim.SetMetadata("apiSchemas", schemas_op)
 
-    Args:
-        num_cubes: Number of cubes to generate.
-        height: Height of the cubes. Default is 1.0.
-        initial_rot: Initial rotation of the cubes (xyzw format). Default is (0.0, 0.0, 0.0, 1.0).
-        has_api: Whether the cubes have a deformable body API on them.
-        material_path: Path to the material file. If None, no material is added. Default is "material",
-            which is path relative to the spawned object prim path.
-        kinematic_enabled: Whether the cubes are kinematic.
-        deformable_type: The type of deformable body to spawn. Supported values are "volume" and "surface".
-        device: Device to use for the simulation.
 
-    Returns:
-        The deformable object representing the cubes.
-
-    """
-    origins = torch.tensor([(i * 1.0, 0, height) for i in range(num_cubes)]).to(device)
-    # Create Top-level Xforms, one for each cube
-    for i, origin in enumerate(origins):
-        sim_utils.create_prim(f"/World/Table_{i}", "Xform", translation=origin)
-
-    # Resolve spawn configuration
-    if has_api:
-        spawn_cfg = sim_utils.MeshCuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            deformable_props=PhysxDeformableBodyPropertiesCfg(kinematic_enabled=kinematic_enabled),
-        )
-        # Add physics material if provided
-        if material_path is not None:
-            if deformable_type == "surface":
-                spawn_cfg.physics_material = PhysxSurfaceDeformableBodyMaterialCfg()
-            else:
-                spawn_cfg.physics_material = PhysxDeformableBodyMaterialCfg()
-            spawn_cfg.physics_material_path = material_path
-        else:
-            spawn_cfg.physics_material = None
-    else:
-        # since no deformable body properties defined, this is just a static collider
-        spawn_cfg = sim_utils.MeshCuboidCfg(
-            size=(0.2, 0.2, 0.2),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
-        )
-    # Create deformable object
-    cube_object_cfg = DeformableObjectCfg(
-        prim_path="/World/Table_[^/]*/Object",
-        spawn=spawn_cfg,
-        init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
+def _author_deformable_body(body_prim, points: list[Gf.Vec3f], sim_api: str, material_cfg) -> None:
+    """Author the deformable body schemas, rest shape, and a bound physics material on a mesh prim."""
+    _add_api_schemas(
+        body_prim,
+        ["OmniPhysicsDeformableBodyAPI", sim_api, "OmniPhysicsDeformablePoseAPI:default", "PhysicsCollisionAPI"],
     )
-    cube_object = DeformableObject(cfg=cube_object_cfg)
-
-    return cube_object
-
-
-@pytest.fixture
-def sim():
-    """Create simulation context."""
-    with build_simulation_context(auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        yield sim
-
-
-@pytest.mark.parametrize(
-    "num_cubes, material_path",
-    [
-        (1, "material"),
-        (2, None),
-        (2, "/World/SoftMaterial"),
-        (2, "material"),
-    ],
-)
-def test_initialization(sim, num_cubes, material_path):
-    """Test initialization for prim with deformable body API at the provided prim path."""
-    cube_object = generate_cubes_scene(num_cubes=num_cubes, material_path=material_path)
-
-    # Check that the framework doesn't hold excessive strong references.
-    # sys.getrefcount() adds 1 for its own argument. The baseline is 2 (local var +
-    # getrefcount arg) but Omniverse event-bus subscriptions and Python/torch runtime
-    # internals may legitimately add a few more. We use a threshold to catch real leaks.
-    assert sys.getrefcount(cube_object) < 10
-
-    # Play sim
-    sim.reset()
-
-    # Check if object is initialized
-    assert cube_object.is_initialized
-
-    # Check correct number of cubes
-    assert cube_object.num_instances == num_cubes
-    assert cube_object.root_view.count == num_cubes
-
-    # Check correct number of materials in the view
-    if material_path:
-        if material_path.startswith("/"):
-            assert cube_object.material_physx_view.count == 1
-        else:
-            assert cube_object.material_physx_view.count == num_cubes
-    else:
-        assert cube_object.material_physx_view is None
-
-    # Check buffers that exist and have correct shapes
-    # nodal_state_w is (N, V) vec6f -> wp.to_torch gives (N, V, 6)
-    assert cube_object.data.nodal_state_w.torch.shape == (num_cubes, cube_object.max_sim_vertices_per_body, 6)
-    # nodal_kinematic_target is (N, V) vec4f -> .torch gives (N, V, 4)
-    assert cube_object.data.nodal_kinematic_target.torch.shape == (
-        num_cubes,
-        cube_object.max_sim_vertices_per_body,
-        4,
+    body_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(points)
+    body_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
+        ["bindPose"]
     )
-    # root_pos_w is (N,) vec3f -> wp.to_torch gives (N, 3)
-    assert cube_object.data.root_pos_w.torch.shape == (num_cubes, 3)
-    assert cube_object.data.root_vel_w.torch.shape == (num_cubes, 3)
+    body_prim.CreateAttribute("omniphysics:restShapePoints", Sdf.ValueTypeNames.Point3fArray).Set(points)
+    body_prim.CreateAttribute("velocities", Sdf.ValueTypeNames.Vector3fArray).Set([Gf.Vec3f()] * len(points))
+    material_prim = material_cfg.func(f"{body_prim.GetPath()}/material", material_cfg)
+    UsdShade.MaterialBindingAPI.Apply(body_prim)
+    UsdShade.MaterialBindingAPI(body_prim).Bind(
+        UsdShade.Material(material_prim),
+        bindingStrength=UsdShade.Tokens.weakerThanDescendants,
+        materialPurpose="physics",
+    )
 
 
-@pytest.mark.isaacsim_ci
-def test_initialization_surface_deformable(sim):
-    """Test initialization of a surface deformable body."""
-    num_cubes = 2
-    cube_object = generate_cubes_scene(num_cubes=num_cubes, deformable_type="surface")
+def _spawn_volume_deformables(root: str, y_offset: float) -> DeformableObject:
+    """Author one five-node, two-tetrahedron volume deformable per environment."""
+    stage = sim_utils.get_current_stage()
+    points = [Gf.Vec3f(*point) for point in _VOLUME_POINTS]
+    for env_index in range(_NUM_ENVS):
+        object_path = f"{root}/Env_{env_index}/Object"
+        sim_utils.create_prim(f"{root}/Env_{env_index}", "Xform", translation=(env_index * 1.0, y_offset, 1.0))
+        UsdGeom.Xform.Define(stage, object_path)
+        tet_mesh = UsdGeom.TetMesh.Define(stage, f"{object_path}/simulation")
+        tet_mesh.CreatePointsAttr(points)
+        tet_mesh.CreateTetVertexIndicesAttr([Gf.Vec4i(*tet) for tet in _VOLUME_TETS])
+        tet_mesh.CreateSurfaceFaceVertexIndicesAttr([Gf.Vec3i(*face) for face in _VOLUME_FACES])
+        body_prim = tet_mesh.GetPrim()
+        _author_deformable_body(
+            body_prim, points, "OmniPhysicsVolumeDeformableSimAPI", PhysxDeformableBodyMaterialCfg()
+        )
+        body_prim.CreateAttribute("omniphysics:restTetVtxIndices", Sdf.ValueTypeNames.Int4Array).Set(
+            [Gf.Vec4i(*tet) for tet in _VOLUME_TETS]
+        )
+        visual = UsdGeom.Mesh.Define(stage, f"{object_path}/visual")
+        visual.CreatePointsAttr(points)
+        visual.CreateFaceVertexCountsAttr([3] * len(_VOLUME_FACES))
+        visual.CreateFaceVertexIndicesAttr([index for face in _VOLUME_FACES for index in face])
+    return DeformableObject(DeformableObjectCfg(prim_path=f"{root}/Env_[^/]*/Object"))
 
-    # Play sim
-    sim.reset()
 
-    # Check if object is initialized
-    assert cube_object.is_initialized
-    assert cube_object._deformable_type == "surface"
-
-    # Check correct number of instances
-    assert cube_object.num_instances == num_cubes
-    assert cube_object.root_view.count == num_cubes
-
-    # Check material view is created
-    assert cube_object.material_physx_view is not None
-    assert cube_object.material_physx_view.count == num_cubes
-
-    # Check nodal state buffers have correct shapes
-    assert cube_object.data.nodal_state_w.torch.shape == (num_cubes, cube_object.max_sim_vertices_per_body, 6)
-    assert cube_object.data.root_pos_w.torch.shape == (num_cubes, 3)
-    assert cube_object.data.root_vel_w.torch.shape == (num_cubes, 3)
-
-    # Kinematic targets are not allocated for surface deformables
-    assert cube_object.data.nodal_kinematic_target is None
-
-    # Writing kinematic targets should raise ValueError
-    dummy_targets = torch.zeros(num_cubes, cube_object.max_sim_vertices_per_body, 4, device=sim.device)
-    with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
-        cube_object.write_nodal_kinematic_target_to_sim_index(dummy_targets)
+def _spawn_surface_deformables(root: str, y_offset: float) -> DeformableObject:
+    """Author one four-node, two-triangle surface deformable per environment."""
+    stage = sim_utils.get_current_stage()
+    points = [Gf.Vec3f(*point) for point in _SURFACE_POINTS]
+    for env_index in range(_NUM_ENVS):
+        sim_utils.create_prim(f"{root}/Env_{env_index}", "Xform", translation=(env_index * 1.0, y_offset, 1.0))
+        mesh = UsdGeom.Mesh.Define(stage, f"{root}/Env_{env_index}/Object")
+        mesh.CreatePointsAttr(points)
+        mesh.CreateFaceVertexCountsAttr([3] * len(_SURFACE_TRIANGLES))
+        mesh.CreateFaceVertexIndicesAttr([index for triangle in _SURFACE_TRIANGLES for index in triangle])
+        body_prim = mesh.GetPrim()
+        _author_deformable_body(
+            body_prim,
+            points,
+            "OmniPhysicsSurfaceDeformableSimAPI",
+            PhysxSurfaceDeformableBodyMaterialCfg(density=900.0, youngs_modulus=2000.0, surface_thickness=0.02),
+        )
+        body_prim.CreateAttribute("omniphysics:restTriVtxIndices", Sdf.ValueTypeNames.Int3Array).Set(
+            [Gf.Vec3i(*triangle) for triangle in _SURFACE_TRIANGLES]
+        )
+    return DeformableObject(DeformableObjectCfg(prim_path=f"{root}/Env_[^/]*/Object"))
 
 
 @pytest.mark.isaacsim_ci
 def test_initialization_on_device_cpu():
     """Test that initialization fails with deformable body API on the CPU."""
-    with build_simulation_context(device="cpu", auto_add_lighting=True) as sim:
+    with build_simulation_context(device="cpu", gravity_enabled=False) as sim:
         sim._app_control_on_stop_handle = None
-        cube_object = generate_cubes_scene(num_cubes=5, device="cpu")
+        deformable = _spawn_volume_deformables("/World/Volume", 0.0)
 
         # Check that the framework doesn't hold excessive strong references.
-        assert sys.getrefcount(cube_object) < 10
+        assert sys.getrefcount(deformable) < 10
 
-        # Play sim
         with pytest.raises(RuntimeError):
             sim.reset()
 
 
-@pytest.mark.isaacsim_ci
-def test_set_nodal_state(sim):
-    """Test setting the state of the deformable object."""
-    num_cubes = 2
-    cube_object = generate_cubes_scene(num_cubes=num_cubes)
+@dataclass
+class _DeformableScene:
+    """Volume and surface deformables that share one real PhysX lifecycle."""
 
-    # Play the simulator
-    sim.reset()
+    sim: sim_utils.SimulationContext
+    device: str
+    volume: DeformableObject
+    surface: DeformableObject
+    refcounts: dict[str, int]
 
-    for state_type_to_randomize in ["nodal_pos_w", "nodal_vel_w"]:
-        state_dict = {
-            "nodal_pos_w": torch.zeros_like(cube_object.data.nodal_pos_w.torch),
-            "nodal_vel_w": torch.zeros_like(cube_object.data.nodal_vel_w.torch),
-        }
-
-        for _ in range(5):
-            cube_object.reset()
-
-            state_dict[state_type_to_randomize] = torch.randn(
-                num_cubes, cube_object.max_sim_vertices_per_body, 3, device=sim.device
-            )
-
-            for _ in range(5):
-                nodal_state = torch.cat(
-                    [
-                        state_dict["nodal_pos_w"],
-                        state_dict["nodal_vel_w"],
-                    ],
-                    dim=-1,
-                )
-                cube_object.write_nodal_state_to_sim_index(nodal_state)
-
-                torch.testing.assert_close(cube_object.data.nodal_state_w.torch, nodal_state, rtol=1e-5, atol=1e-5)
-
-                sim.step()
-                cube_object.update(sim.cfg.dt)
+    def step(self, num_steps: int = 1) -> None:
+        """Write, step, and update both deformables."""
+        for _ in range(num_steps):
+            for deformable in (self.volume, self.surface):
+                deformable.write_data_to_sim()
+            self.sim.step()
+            for deformable in (self.volume, self.surface):
+                deformable.update(self.sim.cfg.dt)
 
 
-@pytest.mark.parametrize(
-    "num_cubes, randomize_pos, randomize_rot",
-    [
-        (1, False, False),
-        (1, True, False),
-        (1, False, True),
-        (2, True, True),
-    ],
-)
-@flaky(max_runs=3, min_passes=1)
-@pytest.mark.isaacsim_ci
-def test_set_nodal_state_with_applied_transform(num_cubes, randomize_pos, randomize_rot):
-    """Test setting the state of the deformable object with applied transform."""
-    carb_settings_iface = carb.settings.get_settings()
-    carb_settings_iface.set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-
-    # Create simulation context with gravity disabled (no fixture needed)
-    with build_simulation_context(auto_add_lighting=True, gravity_enabled=False) as sim:
+@pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
+def deformable_scene(request) -> _DeformableScene:
+    """Initialize the deformables once for this module; PhysX deformables require CUDA."""
+    device = request.param
+    with build_simulation_context(device=device, gravity_enabled=False) as sim:
         sim._app_control_on_stop_handle = None
-        cube_object = generate_cubes_scene(num_cubes=num_cubes)
+        volume = _spawn_volume_deformables("/World/Volume", 0.0)
+        surface = _spawn_surface_deformables("/World/Surface", 2.0)
+        refcounts = {"volume": sys.getrefcount(volume), "surface": sys.getrefcount(surface)}
         sim.reset()
-
-        for _ in range(5):
-            nodal_state = cube_object.data.default_nodal_state_w.torch.clone()
-            mean_nodal_pos_default = nodal_state[..., :3].mean(dim=1)
-
-            if randomize_pos:
-                pos_w = 0.5 * torch.rand(cube_object.num_instances, 3, device=sim.device)
-                pos_w[:, 2] += 0.5
-            else:
-                pos_w = None
-            if randomize_rot:
-                quat_w = math_utils.random_orientation(cube_object.num_instances, device=sim.device)
-            else:
-                quat_w = None
-
-            nodal_state[..., :3] = cube_object.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
-            mean_nodal_pos_init = nodal_state[..., :3].mean(dim=1)
-
-            if pos_w is None:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default, rtol=1e-5, atol=1e-5)
-            else:
-                torch.testing.assert_close(mean_nodal_pos_init, mean_nodal_pos_default + pos_w, rtol=1e-5, atol=1e-5)
-
-            cube_object.write_nodal_state_to_sim_index(nodal_state)
-            cube_object.reset()
-
-            for _ in range(50):
-                sim.step()
-                cube_object.update(sim.cfg.dt)
-
-            torch.testing.assert_close(cube_object.data.root_pos_w.torch, mean_nodal_pos_init, rtol=1e-4, atol=1e-4)
+        yield _DeformableScene(sim=sim, device=device, volume=volume, surface=surface, refcounts=refcounts)
 
 
-@pytest.mark.isaacsim_ci
-def test_set_kinematic_targets(sim):
-    """Test setting kinematic targets for the deformable object."""
-    num_cubes = 2
-    cube_object = generate_cubes_scene(num_cubes=num_cubes, height=1.0)
+def test_deformable_initialization(deformable_scene: _DeformableScene):
+    """Resolve the volume and surface views, their materials, and their nodal buffers."""
+    scene = deformable_scene
+    for name, deformable, num_vertices in (
+        ("volume", scene.volume, len(_VOLUME_POINTS)),
+        ("surface", scene.surface, len(_SURFACE_POINTS)),
+    ):
+        # Check that the framework doesn't hold excessive strong references.
+        assert scene.refcounts[name] < 10
+        assert deformable.is_initialized
+        assert deformable.num_instances == _NUM_ENVS
+        assert deformable.root_view.count == _NUM_ENVS
+        # Each environment binds its own material.
+        assert deformable.material_physx_view is not None
+        assert deformable.material_physx_view.count == _NUM_ENVS
+        assert deformable.max_sim_vertices_per_body == num_vertices
+        assert deformable.data.nodal_state_w.torch.shape == (_NUM_ENVS, num_vertices, 6)
+        assert deformable.data.root_pos_w.torch.shape == (_NUM_ENVS, 3)
+        assert deformable.data.root_vel_w.torch.shape == (_NUM_ENVS, 3)
+    # Only volume deformables carry kinematic targets.
+    assert scene.volume.data.nodal_kinematic_target.torch.shape == (_NUM_ENVS, len(_VOLUME_POINTS), 4)
+    assert scene.surface.data.nodal_kinematic_target is None
+    dummy_targets = torch.zeros(_NUM_ENVS, len(_SURFACE_POINTS), 4, device=scene.device)
+    with pytest.raises(ValueError, match="Kinematic targets can only be set for volume deformable bodies"):
+        scene.surface.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
-    sim.reset()
 
-    nodal_kinematic_targets = wp.to_torch(cube_object.root_view.get_simulation_nodal_kinematic_targets()).clone()
+def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene):
+    """Partial nodal state writes reach only the selected environment of each real view."""
+    scene = deformable_scene
+    device = scene.device
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    for deformable in (scene.volume, scene.surface):
+        initial_state = deformable.data.nodal_state_w.torch.clone()
+        state = initial_state[1:].clone()
+        state[:, 0, :3] += torch.tensor([0.01, 0.02, 0.03], device=device)
+        state[:, 0, 3] = 0.25
+        deformable.write_nodal_state_to_sim_index(state, env_ids=env_ids)
+        expected = torch.cat((initial_state[:1], state))
+        torch.testing.assert_close(deformable.data.nodal_state_w.torch, expected)
+        for getter, component in (
+            (deformable.root_view.get_simulation_nodal_positions, slice(0, 3)),
+            (deformable.root_view.get_simulation_nodal_velocities, slice(3, 6)),
+        ):
+            raw = wp.to_torch(getter()).to(device).reshape(expected[..., component].shape)
+            torch.testing.assert_close(raw, expected[..., component])
 
-    for _ in range(5):
-        cube_object.write_nodal_state_to_sim_index(cube_object.data.default_nodal_state_w.torch)
+    # A transformed default state keeps its shape and moves its mean to the requested position.
+    volume = scene.volume
+    nodal_state = volume.data.default_nodal_state_w.torch.clone()
+    pos_w = torch.tensor([[0.1, 0.2, 1.3], [0.4, -0.3, 1.1]], device=device)
+    quat_w = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.7071068, 0.7071068]], device=device)
+    nodal_pos = volume.transform_nodal_pos(nodal_state[..., :3], pos_w, quat_w)
+    default_offsets = nodal_state[..., :3] - nodal_state[..., :3].mean(dim=1, keepdim=True)
+    torch.testing.assert_close(nodal_pos.mean(dim=1), nodal_state[..., :3].mean(dim=1) + pos_w)
+    torch.testing.assert_close(
+        nodal_pos - nodal_pos.mean(dim=1, keepdim=True),
+        quat_apply(quat_w[:, None].expand_as(nodal_state[..., :4]), default_offsets),
+    )
+    nodal_state[..., :3] = nodal_pos
+    nodal_state[..., 3:] = 0.0
+    volume.write_nodal_state_to_sim_index(nodal_state)
+    torch.testing.assert_close(volume.data.root_pos_w.torch, nodal_pos.mean(dim=1))
 
-        default_root_pos = cube_object.data.default_nodal_state_w.torch.mean(dim=1)
 
-        cube_object.reset()
+def test_volume_kinematic_targets_hold_selected_nodes(deformable_scene: _DeformableScene):
+    """Kinematic targets of environment 0 hold its nodes while environment 1 keeps moving freely."""
+    scene = deformable_scene
+    device = scene.device
+    volume = scene.volume
+    targets = volume.data.nodal_kinematic_target.torch.clone()
+    raw_targets_before = wp.to_torch(volume.root_view.get_simulation_nodal_kinematic_targets()).clone()
+    targets[0, :, :3] = volume.data.nodal_pos_w.torch[0] + torch.tensor([0.01, 0.02, 0.03], device=device)
+    targets[0, :, 3] = 0.0
+    volume.write_nodal_kinematic_target_to_sim_index(targets[:1], env_ids=torch.tensor([0], device=device))
+    torch.testing.assert_close(volume.data.nodal_kinematic_target.torch, targets)
+    raw_targets = wp.to_torch(volume.root_view.get_simulation_nodal_kinematic_targets()).reshape(targets.shape)
+    torch.testing.assert_close(raw_targets[0].to(device), targets[0])
+    torch.testing.assert_close(raw_targets[1], raw_targets_before.reshape(targets.shape)[1])
 
-        nodal_kinematic_targets[1:, :, 3] = 1.0
-        nodal_kinematic_targets[0, :, 3] = 0.0
-        nodal_kinematic_targets[0, :, :3] = cube_object.data.default_nodal_state_w.torch[0, :, :3]
-        cube_object.write_nodal_kinematic_target_to_sim_index(
-            nodal_kinematic_targets[0:1], env_ids=torch.tensor([0], device=sim.device)
-        )
-
-        for _ in range(20):
-            sim.step()
-            cube_object.update(sim.cfg.dt)
-
-            torch.testing.assert_close(
-                cube_object.data.nodal_pos_w.torch[0],
-                nodal_kinematic_targets[0, :, :3],
-                rtol=1e-5,
-                atol=1e-5,
-            )
-            root_pos_w = cube_object.data.root_pos_w.torch
-            assert torch.all(root_pos_w[1:, 2] < default_root_pos[1:, 2])
+    # Environment 1 moves with a uniform nodal velocity; environment 0 stays on its targets.
+    state = volume.data.nodal_state_w.torch.clone()
+    state[1, :, 3:] = torch.tensor([0.0, 0.0, 0.5], device=device)
+    volume.write_nodal_state_to_sim_index(state[1:], env_ids=torch.tensor([1], device=device))
+    free_root_pos = volume.data.root_pos_w.torch[1].clone()
+    scene.step(5)
+    torch.testing.assert_close(volume.data.nodal_pos_w.torch[0], targets[0, :, :3], rtol=1e-5, atol=1e-5)
+    assert volume.data.root_pos_w.torch[1, 2] > free_root_pos[2] + 1e-2
