@@ -69,7 +69,7 @@ def create_physx_rigid_object(
     object.__setattr__(rigid_object, "_root_view", mock_view)
     object.__setattr__(rigid_object, "_device", device)
 
-    # Create RigidObjectData instance (the PhysX manager is patched for this test above)
+    # The data reads gravity from the PhysX manager patched above.
     data = PhysXRigidObjectData(mock_view, device)
     object.__setattr__(rigid_object, "_data", data)
 

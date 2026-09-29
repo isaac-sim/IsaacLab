@@ -686,7 +686,3 @@ class TestNeuralLSTMFunctional(unittest.TestCase):
 
     def test_network_drives_haa_joints(self):
         _assert_network_drives_haa_joints(self, self.result)
-
-
-if __name__ == "__main__":
-    unittest.main()

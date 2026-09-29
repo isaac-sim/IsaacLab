@@ -45,6 +45,8 @@ import isaaclab.sim as sim_utils  # noqa: E402
 import isaaclab.utils.math as math_utils  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
+from isaaclab.envs.mdp import randomize_actuator_gains, randomize_rigid_body_material  # noqa: E402
+from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.test.utils.articulation_ordering import (  # noqa: E402
@@ -61,12 +63,12 @@ _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
 _ALL_DEVICES = test_devices()
 _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
 _ROTATED_JOINT_NAMES = (*BRANCHING_PHYSX_JOINT_NAMES[1:], BRANCHING_PHYSX_JOINT_NAMES[0])
-# We set 80.0 for max force because the USD default is 10e10, which makes testing annoying.
+# The USD default max force (1e10) is effectively unlimited, so the limit islands author a finite one.
 _LIMIT_DRIVE_PROPS = (sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0))
 _ROOT_PRESERVING_REVERSED_BODY_NAMES = (BRANCHING_PHYSX_BODY_NAMES[0], *reversed(BRANCHING_PHYSX_BODY_NAMES[1:]))
 
 
-def _implicit(**kwargs) -> dict:
+def _implicit(**kwargs) -> dict[str, ImplicitActuatorCfg]:
     return {"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=_STIFFNESS, damping=_DAMPING, **kwargs)}
 
 
@@ -339,13 +341,6 @@ def _read_binding_to_torch(articulation: Articulation, tensor_type: int, device:
     return wp.to_torch(articulation.root_view.get_attribute(tensor_type)).to(device)
 
 
-def _backend_to_user(articulation: Articulation) -> list[int]:
-    """Return the public joint index of every backend joint column."""
-    if articulation.joint_ordering is None:
-        return list(range(articulation.num_joints))
-    return list(articulation.joint_ordering.backend_to_user_indices)
-
-
 def _spawn_own_articulation(**cfg) -> Articulation:
     """Spawn one branching articulation for a test that needs its own scene."""
     return Articulation(
@@ -367,7 +362,7 @@ def _spawn_own_articulation(**cfg) -> Articulation:
     ],
     ids=["position", "velocity"],
 )
-def test_out_of_range_default_joint_state(device, init_state, match):
+def test_out_of_range_default_joint_state(device: str, init_state: ArticulationCfg.InitialStateCfg, match: str) -> None:
     """Reject default joint positions outside the joint limits and default velocities above the velocity limits."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
@@ -381,7 +376,7 @@ def test_out_of_range_default_joint_state(device, init_state, match):
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
-def test_setting_invalid_articulation_root_prim_path(device):
+def test_setting_invalid_articulation_root_prim_path(device: str) -> None:
     """Reject an explicit articulation root path that matches no prim."""
     sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
@@ -420,7 +415,7 @@ def test_articulation_initialization_and_partial_state(scene: _ArticulationScene
     )
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
-    backend_to_user = _backend_to_user(articulation)
+    backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)),
         expected_position[:, backend_to_user],
@@ -529,8 +524,6 @@ def test_set_material_properties(scene: _ArticulationScene) -> None:
     :class:`~isaaclab_ov.sim.views.OvPhysxView`. The binding is CPU-native, so the
     buffer lives in host memory.
     """
-    from isaaclab.envs.mdp import randomize_rigid_body_material  # noqa: PLC0415
-
     articulation = scene["ordered"]
     num_articulations = articulation.num_instances
     device = scene.device
@@ -580,9 +573,7 @@ def test_setting_velocity_and_effort_limits_write_to_solver(scene: _Articulation
     actuator_cfg = _ISLANDS[island].actuators["joints"]
     joint_drive_props = _ISLANDS[island].joint_drive_props
 
-    # read the values set into the simulation
     physx_vel_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_VELOCITY, device)
-    # check data buffer
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if actuator_cfg.joint_velocity_limit is None:
@@ -592,9 +583,7 @@ def test_setting_velocity_and_effort_limits_write_to_solver(scene: _Articulation
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
-    # obtain the physx effort limits
     physx_effort_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_FORCE, device)
-    # check data buffer
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if actuator_cfg.joint_effort_limit is None:
@@ -674,12 +663,12 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     selected_com = backend_before[0, backend_body_id].clone()
     selected_com[0] += 0.001
     articulation.set_coms_index(
-        coms=wp.from_torch(selected_com.reshape(1, 1, 7).to(device).contiguous(), dtype=wp.transformf),
+        coms=wp.from_torch(selected_com.reshape(1, 1, 7).to(device), dtype=wp.transformf),
         env_ids=wp.array([0], dtype=wp.int32, device=device),
         body_ids=wp.array([public_body_id], dtype=wp.int32, device=device),
     )
     backend_after = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, "cpu").clone()
-    articulation.root_view.set_attribute(TT.BODY_COM_POSE, wp.from_torch(backend_before.contiguous()))
+    articulation.root_view.set_attribute(TT.BODY_COM_POSE, wp.from_torch(backend_before))
     noop_after = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, "cpu").clone()
     unselected_body_mask = torch.ones(backend_before.shape[1], dtype=torch.bool)
     unselected_body_mask[backend_body_id] = False
@@ -702,7 +691,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     # A COM rotation refreshes the static inertia cache.
     coms = articulation.data.body_com_pose_b.torch[:, public_body_id : public_body_id + 1].clone()
     coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.0, 1.0], device=device)
-    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf), body_ids=[public_body_id])
 
     principal_inertia = torch.tensor([[[1.0, 0.0, 0.0, 0.0, 2.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
     articulation.set_inertias_index(inertias=principal_inertia, body_ids=[public_body_id])
@@ -711,7 +700,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     )
 
     coms[..., 3:7] = torch.tensor([0.0, 0.0, 0.70710677, 0.70710677], device=device)
-    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf), body_ids=[public_body_id])
+    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf), body_ids=[public_body_id])
     scene.step(articulation)
     expected_rotated_inertia = torch.tensor([[[2.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 3.0]]], device=device)
     torch.testing.assert_close(
@@ -941,7 +930,7 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     data.gravity_compensation_forces
     coms = data.body_com_pose_b.torch.clone()
     coms[:, -1, 0] += 0.01
-    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf))
+    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf))
     assert data._body_com_jacobian_w.timestamp < data._sim_timestamp
     assert data._mass_matrix.timestamp < data._sim_timestamp
     assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
@@ -1074,7 +1063,7 @@ def test_floating_articulation_root_state_dynamics_wrench_and_reset(scene: _Arti
     # A written root frame moves the other frame through the root-body COM offset.
     com = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)
     com[:, 0, :3] = torch.tensor([1.0, 0.0, 0.0], device=device)
-    articulation.set_coms_index(coms=wp.from_torch(com.contiguous(), dtype=wp.transformf))
+    articulation.set_coms_index(coms=wp.from_torch(com, dtype=wp.transformf))
     com_pos_b, com_quat_b = com[:, 0, :3], com[:, 0, 3:7]
     link_pos_in_com, link_quat_in_com = math_utils.subtract_frame_transforms(com_pos_b, com_quat_b)
     rand_state = torch.zeros(num_articulations, 13, device=device)
@@ -1172,7 +1161,7 @@ def test_tendon_properties_and_position_targets(scene: _ArticulationScene) -> No
         + 0.01 * torch.arange(num_tendons, dtype=torch.float32, device=device).unsqueeze(0)
     )
     env_mask = wp.array([False, True], dtype=wp.bool, device=device)
-    tendon_mask = wp.array([i == 0 for i in range(num_tendons)], dtype=wp.bool, device=device)
+    tendon_mask = wp.from_torch(torch.arange(num_tendons, device=device) == 0)
     articulation.set_fixed_tendon_position_target_mask(
         target=mask_target, fixed_tendon_mask=tendon_mask, env_mask=env_mask
     )
@@ -1192,7 +1181,7 @@ def test_native_actuator_submits_real_effort(scene: _ArticulationScene) -> None:
     device = scene.device
     assert articulation._actuator_control.native_actuator_path_active
     assert articulation.newton_actuator_adapter is not None
-    backend_to_user = _backend_to_user(articulation)
+    backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
     user_to_backend = list(articulation.joint_ordering.user_to_backend_indices)
 
     initial_pos = articulation.data.joint_pos.torch.clone()
@@ -1226,9 +1215,8 @@ def test_native_actuator_submits_real_effort(scene: _ArticulationScene) -> None:
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
 def test_native_actuator_reset_and_gain_event_are_environment_selective(scene: _ArticulationScene) -> None:
     """Reset and randomize only the selected OVPhysX native-controller environment."""
+    # Newton is only needed by the native actuator path.
     from isaaclab.actuators.newton import read_group_parameter  # noqa: PLC0415
-    from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
-    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
 
     class Env:
         def __init__(self, asset):

@@ -116,7 +116,7 @@ def create_physx_articulation(
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
 
-    # Create ArticulationData instance (the PhysX manager is patched for this test above)
+    # The data reads gravity from the PhysX manager patched above.
     data = PhysXArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 

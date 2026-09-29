@@ -50,7 +50,9 @@ BASE_SURFACE_CLASSES = (
 )
 
 
-def _mapping(class_name: str, members: str, kind: ContractKind, reason: str | None = None):
+def _mapping(
+    class_name: str, members: str, kind: ContractKind, reason: str | None = None
+) -> dict[str, PublicMemberContract]:
     """Classify a whitespace-separated group of members declared by one class."""
     return {f"{class_name}.{member}": PublicMemberContract(kind, reason) for member in members.split()}
 
@@ -240,7 +242,9 @@ PUBLIC_SURFACE_CONTRACTS = {
 }
 
 
-def public_surface_mismatches(classes: tuple[type, ...], contracts: dict[str, PublicMemberContract]) -> dict[str, list]:
+def public_surface_mismatches(
+    classes: tuple[type, ...], contracts: dict[str, PublicMemberContract]
+) -> dict[str, list[str]]:
     """Diff the public members the classes declare against their contract classifications.
 
     Args:

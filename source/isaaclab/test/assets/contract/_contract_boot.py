@@ -20,10 +20,10 @@ if not _kitless:
     launch_test_simulation()
 else:
 
-    def _install_stub(module_name: str, *, is_package: bool = False) -> MagicMock:
+    def _install_stub(module_name: str, *, is_package: bool = False) -> None:
         """Install one import-boundary module double unless the real module is already loaded."""
         if module_name in sys.modules:
-            return sys.modules[module_name]
+            return
         stub = MagicMock()
         stub.__spec__ = ModuleSpec(module_name, loader=None, is_package=is_package)
         if is_package:
@@ -32,10 +32,9 @@ else:
         if "." in module_name:
             parent_name, attribute = module_name.rsplit(".", 1)
             setattr(sys.modules[parent_name], attribute, stub)
-        return stub
 
-    # Worktree installs include the real ``isaaclab_physx`` package but not Kit's Python runtime. Stub only that
-    # external boundary so the contracts still import the real PhysX asset and data classes and their fixture views.
+    # Without Kit's Python runtime, ``carb`` and ``usdrt`` are missing even when ``isaaclab_physx`` is installed. Stub
+    # only that runtime boundary so the contracts still import the real PhysX asset and data classes and their views.
     _install_stub("carb")
     _install_stub("usdrt", is_package=True)
 

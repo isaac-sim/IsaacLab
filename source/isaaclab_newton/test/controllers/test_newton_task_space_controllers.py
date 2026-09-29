@@ -22,6 +22,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -68,7 +69,7 @@ class _Chain:
 
 
 @pytest.fixture(scope="module")
-def chain() -> _Chain:
+def chain() -> Iterator[_Chain]:
     """Build the unpowered chain once, at a configuration away from the joint limits."""
     robot_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
@@ -93,18 +94,15 @@ def chain() -> _Chain:
         )
 
 
-def _compute_ee_pose_root(robot, ee_frame_idx):
-    """Return ``(ee_pos_b, ee_quat_b, root_pose_w)`` in the root frame."""
+def _compute_ee_pose_root(robot: Articulation, ee_frame_idx: int) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return the end-effector position [m] and quaternion ``(x, y, z, w)`` in the root frame."""
     ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
     root_pose_w = robot.data.root_pose_w.torch
-    ee_pos_b, ee_quat_b = subtract_frame_transforms(
-        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
-    )
-    return ee_pos_b, ee_quat_b, root_pose_w
+    return subtract_frame_transforms(root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7])
 
 
-def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
-    """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
+def _compute_jacobian_root_frame(robot: Articulation, ee_jacobi_idx: int, arm_joint_ids: list[int]) -> torch.Tensor:
+    """Return the end-effector Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame, shape [N, 6, D]."""
     jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, arm_joint_ids]
     base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
     jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
@@ -112,29 +110,17 @@ def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
     return jacobian
 
 
-def _compute_ee_vel_root(jacobian_b, joint_vel):
-    """Return the EE 6D velocity in the root frame as ``J · q_dot``.
-
-    Required to make OSC's ``kd * ee_vel_b`` damping term meaningful: zero EE velocity leaves the impedance
-    undamped. ``J`` correctness is pinned independently by the articulation's gravity-compensation identity test.
-    """
-    return torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
-
-
-def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz):
-    """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
-    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
-    target_pos_b = initial_ee_pos_b + torch.tensor([list(delta_xyz)], device=_DEVICE, dtype=initial_ee_pos_b.dtype)
+def _build_relative_pose_target(
+    robot: Articulation, ee_frame_idx: int, delta_xyz: tuple[float, float, float]
+) -> torch.Tensor:
+    """Return the current end-effector pose in the root frame offset by ``delta_xyz`` [m], keeping its orientation."""
+    initial_ee_pos_b, initial_ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pos_b = initial_ee_pos_b + torch.tensor(delta_xyz, device=_DEVICE, dtype=initial_ee_pos_b.dtype)
     return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
 
 
-def _tail_mean(history, tail: int = 200):
-    """Return the mean over the last ``tail`` samples."""
-    tail_slice = history[-tail:]
-    return sum(tail_slice) / len(tail_slice)
-
-
 def _make_osc() -> OperationalSpaceController:
+    """Return a fixed-impedance absolute-pose controller with inertial decoupling and no gravity compensation."""
     return OperationalSpaceController(
         OperationalSpaceControllerCfg(
             target_types=["pose_abs"],
@@ -150,7 +136,9 @@ def _make_osc() -> OperationalSpaceController:
     )
 
 
-def _run_osc(chain: _Chain, osc: OperationalSpaceController, target_pose_b, num_steps: int, *, gravity: bool):
+def _run_osc(
+    chain: _Chain, osc: OperationalSpaceController, target_pose_b: torch.Tensor, num_steps: int, *, gravity: bool
+) -> tuple[list[float], list[float]]:
     """Close the OSC loop for ``num_steps`` steps; return the per-step max position and rotation errors."""
     robot = chain.robot
     pos_history: list[float] = []
@@ -159,10 +147,12 @@ def _run_osc(chain: _Chain, osc: OperationalSpaceController, target_pose_b, num_
         jacobian_b = _compute_jacobian_root_frame(robot, chain.ee_jacobi_idx, chain.arm_joint_ids)
         mass_matrix = robot.data.mass_matrix.torch[:, chain.arm_joint_ids, :][:, :, chain.arm_joint_ids]
         gravity_forces = robot.data.gravity_compensation_forces.torch[:, chain.arm_joint_ids] if gravity else None
-        ee_pos_b, ee_quat_b, _ = _compute_ee_pose_root(robot, chain.ee_frame_idx)
+        ee_pos_b, ee_quat_b = _compute_ee_pose_root(robot, chain.ee_frame_idx)
         ee_pose_b = torch.cat([ee_pos_b, ee_quat_b], dim=-1)
+        # OSC's damping term ``kd * ee_vel_b`` needs the end-effector velocity ``J · q_dot``; a zero velocity
+        # leaves the impedance undamped.
         joint_vel = robot.data.joint_vel.torch[:, chain.arm_joint_ids]
-        ee_vel_b = _compute_ee_vel_root(jacobian_b, joint_vel)
+        ee_vel_b = torch.bmm(jacobian_b, joint_vel.unsqueeze(-1)).squeeze(-1)
 
         osc.set_command(target_pose_b, current_ee_pose_b=ee_pose_b)
         joint_efforts = osc.compute(
@@ -194,8 +184,8 @@ def test_osc_tracking_accuracy(chain: _Chain) -> None:
     target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.05, 0.0, 0.0))
     pos_history, rot_history = _run_osc(chain, _make_osc(), target_pose_b, 300, gravity=False)
 
-    pos_mean = _tail_mean(pos_history)
-    rot_mean = _tail_mean(rot_history)
+    pos_mean = sum(pos_history[-200:]) / 200
+    rot_mean = sum(rot_history[-200:]) / 200
 
     # Regression sentinel: assert on tail mean rather than min. With ``current_ee_vel_b = J · q_dot`` providing
     # OSC's damping term and no joint PD, the impedance settles to machine precision. A wrong J, wrong mass
@@ -225,7 +215,7 @@ def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
     # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
     target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.0, 0.0, 0.0))
 
-    def _stationary_tail_mean(history, label):
+    def _stationary_tail_mean(history: list[float], label: str) -> float:
         """Mean of the last 200 samples, asserting the two tail halves agree within 25%.
 
         The relative check carries a 10 µm absolute floor: at the solver noise floor of the compensated hold,

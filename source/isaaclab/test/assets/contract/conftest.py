@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Fixtures shared by the focused asset contract gate."""
+"""Fixtures shared by the asset contract tests."""
 
 from collections.abc import Iterator
 

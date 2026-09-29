@@ -245,8 +245,8 @@ class OvPhysxBackend:
         }
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
-        # Hard CPU-only mode (``PhysX.set_cpu_mode(True)``) is sticky for the process, so CPU scenes
-        # select CPU dynamics through the scene attributes instead; see _configure_physx_scene_prim.
+        # CPU scenes select CPU dynamics through their scene attributes (see _configure_physx_scene_prim).
+        # OVPhysX's process-wide CPU-only mode is irreversible and would block later CUDA scenes.
         self.physx = ovphysx.PhysX(
             config=ovphysx.PhysXConfig(
                 num_threads=8, cooked_collider_cache_dir=cache_dir, carbonite_overrides=carbonite_overrides
@@ -829,12 +829,11 @@ class OvPhysxManager(PhysicsManager):
     def _warmup_and_load(cls) -> None:
         """Serialize the USD stage and attach it to the ovphysx runtime.
 
-        When no runtime is active, constructs a new :class:`ovphysx.PhysX`
-        instance for the simulation device and registers process-exit cleanup.
-        CPU and CUDA simulations may follow each other in one process. On a forced re-warm before
-        :meth:`close`, it reuses the active instance, attaches the new USD through
-        OVStage, rebuilds active clone recipes through full-stage materialization
-        or runtime replay, and re-runs the supported warmup entry point
+        When no runtime is active, constructs a new :class:`ovphysx.PhysX` instance for the
+        simulation device and registers process-exit cleanup. CPU and CUDA simulations may follow
+        each other in one process. On a forced re-warm before :meth:`close`, it reuses the active
+        instance, attaches the new USD through OVStage, rebuilds active clone recipes through
+        full-stage materialization or runtime replay, and re-runs the supported warmup entry point
         so the new stage's bodies are resident.
 
         Raises:
@@ -956,10 +955,10 @@ class OvPhysxManager(PhysicsManager):
         raw Sdf metadata manipulation instead of using the high-level USD API.
 
         The schema, scene-query-support, solver-determinism/accuracy, and dynamics/broadphase
-        attributes are applied regardless of device. GPU scenes use ``enableGPUDynamics=true`` and
-        the GPU broadphase. CPU scenes use ``enableGPUDynamics=false`` and the MBP broadphase; the
-        schema default enables GPU dynamics, so a CPU scene that omits them would silently simulate
-        on the GPU. The GPU buffer-capacity attributes are applied only when ``device == "gpu"``.
+        attributes are applied regardless of device. GPU scenes use GPU dynamics and the GPU
+        broadphase; CPU scenes use CPU dynamics and the MBP broadphase. The schema default enables
+        GPU dynamics, so CPU scenes must author it explicitly. The GPU buffer-capacity attributes
+        are applied only to GPU scenes.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -991,12 +990,13 @@ class OvPhysxManager(PhysicsManager):
                 cfg.enable_external_forces_every_iteration
             )
 
-        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(device == "gpu")
+        use_gpu = device == "gpu"
+        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(use_gpu)
         scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set(
-            "GPU" if device == "gpu" else "MBP"
+            "GPU" if use_gpu else "MBP"
         )
 
-        if device == "gpu" and cfg is not None:
+        if use_gpu and cfg is not None:
             for attr, val in [
                 ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
                 ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),

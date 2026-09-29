@@ -13,9 +13,9 @@ from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
 
 
-def test_joint_effort_limit_terminates_only_environments_with_clipped_selected_joints():
+def test_joint_effort_limit_terminates_only_environments_with_clipped_selected_joints() -> None:
     """Terminate exactly the environments whose applied effort differs from the computed effort on selected joints."""
-    computed = torch.tensor([[10.0, 20.0, 30.0], [10.0, 20.0, 30.0], [10.0, 20.0, 30.0], [10.0, 20.0, 30.0]])
+    computed = torch.tensor([10.0, 20.0, 30.0]).repeat(4, 1)
     # Environment 0 clips the selected joint, environment 1 clips nothing, environment 2 clips the selected joint
     # downward, and environment 3 clips only joints that are not selected.
     applied = torch.tensor([[10.0, 19.0, 30.0], [10.0, 20.0, 30.0], [10.0, 17.0, 30.0], [9.0, 20.0, 29.0]])

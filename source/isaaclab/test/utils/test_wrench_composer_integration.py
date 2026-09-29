@@ -80,13 +80,16 @@ def test_composed_wrenches_reach_physx_in_the_frame_they_are_delivered(device: s
         )
         assert world.permanent_wrench_composer.get_forces_and_torques()[2] is True
 
+        raw_force = wp.from_torch(force.view(-1, 3), dtype=wp.float32)
+        raw_torque = wp.zeros((1, 3), dtype=wp.float32, device=device)
+        raw_position_data = wp.from_torch(raw_position.view(-1, 3), dtype=wp.float32)
         for _ in range(_NUM_STEPS):
             composed.write_data_to_sim()
             world.write_data_to_sim()
             raw.root_view.apply_forces_and_torques_at_position(
-                force_data=wp.from_torch(force.view(-1, 3).contiguous(), dtype=wp.float32),
-                torque_data=wp.from_torch(torch.zeros_like(force).view(-1, 3).contiguous(), dtype=wp.float32),
-                position_data=wp.from_torch(raw_position.view(-1, 3).contiguous(), dtype=wp.float32),
+                force_data=raw_force,
+                torque_data=raw_torque,
+                position_data=raw_position_data,
                 indices=raw._ALL_INDICES,
                 is_global=True,
             )

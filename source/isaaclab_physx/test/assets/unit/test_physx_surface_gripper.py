@@ -13,8 +13,9 @@ import warp as wp
 from isaaclab_physx.assets.surface_gripper.surface_gripper import SurfaceGripper
 
 
-def _gripper() -> SurfaceGripper:
-    """Create a three-environment CPU gripper around a recording view."""
+def test_command_filter_and_partial_property_update_use_literal_view_payloads() -> None:
+    """Submit only open/close commands and preserve property selector ordering."""
+    # Skip USD initialization: a three-environment CPU gripper around a recording view.
     gripper = object.__new__(SurfaceGripper)
     gripper._device = "cpu"
     gripper._num_envs = 3
@@ -28,12 +29,7 @@ def _gripper() -> SurfaceGripper:
         apply_gripper_action=Mock(),
         set_surface_gripper_properties=Mock(),
     )
-    return gripper
 
-
-def test_command_filter_and_partial_property_update_use_literal_view_payloads() -> None:
-    """Submit only open/close commands and preserve property selector ordering."""
-    gripper = _gripper()
     gripper.set_grippers_command_index(wp.array([0.5, 0.0, -0.5], dtype=wp.float32, device="cpu"))
 
     gripper.write_data_to_sim()

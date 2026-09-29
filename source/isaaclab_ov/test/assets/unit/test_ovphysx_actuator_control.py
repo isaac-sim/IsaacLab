@@ -17,6 +17,7 @@ import pytest
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+from isaaclab_ov.assets.articulation import actuator_control  # noqa: E402
 from isaaclab_ov.assets.articulation.actuator_control import OvPhysxActuatorControl  # noqa: E402
 
 from isaaclab.actuators import ImplicitActuatorCfg  # noqa: E402
@@ -26,8 +27,6 @@ pytestmark = pytest.mark.unit
 
 def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
     """Keep implicit-only articulations on the unchanged solver-drive path."""
-    from isaaclab_ov.assets.articulation import actuator_control
-
     runtime_prepare_calls = []
     runtime = SimpleNamespace(
         prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None

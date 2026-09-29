@@ -19,6 +19,7 @@ from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_device
 launch_test_simulation()
 
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import pytest
@@ -27,7 +28,7 @@ import warp as wp
 from isaaclab_physx.assets import DeformableObject
 from isaaclab_physx.sim import PhysxDeformableBodyMaterialCfg, PhysxSurfaceDeformableBodyMaterialCfg
 
-from pxr import Gf, Sdf, UsdGeom, UsdShade
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdShade
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import DeformableObjectCfg
@@ -42,19 +43,28 @@ _SURFACE_POINTS = [(0.0, 0.0, 0.0), (0.2, 0.0, 0.0), (0.2, 0.2, 0.0), (0.0, 0.2,
 _SURFACE_TRIANGLES = [(0, 1, 2), (0, 2, 3)]
 
 
-def _add_api_schemas(prim, schemas: list[str]) -> None:
-    """Set the applied API schemas of a prim explicitly."""
-    schemas_op = Sdf.TokenListOp()
-    schemas_op.explicitItems = schemas
-    prim.SetMetadata("apiSchemas", schemas_op)
+def _author_deformable_body(
+    body_prim: Usd.Prim,
+    points: list[Gf.Vec3f],
+    sim_api: str,
+    material_cfg: PhysxDeformableBodyMaterialCfg | PhysxSurfaceDeformableBodyMaterialCfg,
+) -> None:
+    """Author the deformable body schemas, rest shape, and a bound physics material on a mesh prim.
 
-
-def _author_deformable_body(body_prim, points: list[Gf.Vec3f], sim_api: str, material_cfg) -> None:
-    """Author the deformable body schemas, rest shape, and a bound physics material on a mesh prim."""
-    _add_api_schemas(
-        body_prim,
-        ["OmniPhysicsDeformableBodyAPI", sim_api, "OmniPhysicsDeformablePoseAPI:default", "PhysicsCollisionAPI"],
-    )
+    Args:
+        body_prim: Mesh or tetrahedral mesh prim that becomes the deformable body.
+        points: Rest positions of the simulation nodes in the prim frame [m].
+        sim_api: Surface or volume deformable simulation API schema to apply.
+        material_cfg: Physics material to create below the prim and bind to it.
+    """
+    applied_schemas = Sdf.TokenListOp()
+    applied_schemas.explicitItems = [
+        "OmniPhysicsDeformableBodyAPI",
+        sim_api,
+        "OmniPhysicsDeformablePoseAPI:default",
+        "PhysicsCollisionAPI",
+    ]
+    body_prim.SetMetadata("apiSchemas", applied_schemas)
     body_prim.CreateAttribute("deformablePose:default:omniphysics:points", Sdf.ValueTypeNames.Point3fArray).Set(points)
     body_prim.CreateAttribute("deformablePose:default:omniphysics:purposes", Sdf.ValueTypeNames.TokenArray).Set(
         ["bindPose"]
@@ -120,7 +130,7 @@ def _spawn_surface_deformables(root: str, y_offset: float) -> DeformableObject:
 
 
 @pytest.mark.isaacsim_ci
-def test_initialization_on_device_cpu():
+def test_initialization_on_device_cpu() -> None:
     """Test that initialization fails with deformable body API on the CPU."""
     with build_simulation_context(device="cpu", gravity_enabled=False) as sim:
         sim._app_control_on_stop_handle = None
@@ -154,7 +164,7 @@ class _DeformableScene:
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
-def deformable_scene(request) -> _DeformableScene:
+def deformable_scene(request) -> Iterator[_DeformableScene]:
     """Initialize the deformables once for this module; PhysX deformables require CUDA."""
     device = request.param
     with build_simulation_context(device=device, gravity_enabled=False) as sim:
@@ -166,7 +176,7 @@ def deformable_scene(request) -> _DeformableScene:
         yield _DeformableScene(sim=sim, device=device, volume=volume, surface=surface, refcounts=refcounts)
 
 
-def test_deformable_initialization(deformable_scene: _DeformableScene):
+def test_deformable_initialization(deformable_scene: _DeformableScene) -> None:
     """Resolve the volume and surface views, their materials, and their nodal buffers."""
     scene = deformable_scene
     for name, deformable, num_vertices in (
@@ -193,7 +203,7 @@ def test_deformable_initialization(deformable_scene: _DeformableScene):
         scene.surface.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
 
-def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene):
+def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene) -> None:
     """Partial nodal state writes reach only the selected environment of each real view."""
     scene = deformable_scene
     device = scene.device
@@ -231,7 +241,7 @@ def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene):
     torch.testing.assert_close(volume.data.root_pos_w.torch, nodal_pos.mean(dim=1))
 
 
-def test_volume_kinematic_targets_hold_selected_nodes(deformable_scene: _DeformableScene):
+def test_volume_kinematic_targets_hold_selected_nodes(deformable_scene: _DeformableScene) -> None:
     """Kinematic targets of environment 0 hold its nodes while environment 1 keeps moving freely."""
     scene = deformable_scene
     device = scene.device

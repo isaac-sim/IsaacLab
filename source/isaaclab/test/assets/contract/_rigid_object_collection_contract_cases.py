@@ -838,18 +838,23 @@ _PARTIAL_WRITES = {
 }
 
 
-def _read_backend_cells(backend: str, raw_backend, quantity: str, num_instances: int, num_bodies: int):
+def _read_backend_cells(backend: str, raw_backend, quantity: str, num_instances: int, num_bodies: int) -> torch.Tensor:
     """Read one collection quantity from backend storage in public ``(env, body, ...)`` order."""
     if backend == "physx":
-        getter = {"body_pose": "get_transforms", "body_velocity": "get_velocities", "mass": "get_masses"}[quantity]
+        getter = {
+            "body_pose": raw_backend.get_transforms,
+            "body_velocity": raw_backend.get_velocities,
+            "mass": raw_backend.get_masses,
+        }
+        values = wp.to_torch(getter[quantity]())
         # PhysX collection views are body-major.
-        values = wp.to_torch(getattr(raw_backend, getter)()).reshape(num_bodies, num_instances, -1).transpose(0, 1)
+        values = values.reshape(num_bodies, num_instances, -1).transpose(0, 1)
     elif backend == "newton":
         if quantity == "mass":
             values = wp.to_torch(raw_backend.get_attribute("body_mass", None))
         else:
-            getter = {"body_pose": "get_root_transforms", "body_velocity": "get_root_velocities"}[quantity]
-            values = wp.to_torch(getattr(raw_backend, getter)(None))
+            getter = {"body_pose": raw_backend.get_root_transforms, "body_velocity": raw_backend.get_root_velocities}
+            values = wp.to_torch(getter[quantity](None))
     else:
         from isaaclab_ov import tensor_types as TT
 

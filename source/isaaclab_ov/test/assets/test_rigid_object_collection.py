@@ -16,6 +16,7 @@ other's order. Initialization failures need their own scenes and therefore build
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import pytest
@@ -38,7 +39,7 @@ pytestmark = pytest.mark.integration
 _NUM_ENVS, _NUM_BODIES = 2, 3
 
 
-def _sim_context(device: str):
+def _sim_context(device: str) -> AbstractContextManager[SimulationContext]:
     """Build a local OVPhysX context from an in-memory USD stage."""
     return build_simulation_context(
         device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device, gravity=(0.0, 0.0, 0.0))
@@ -71,7 +72,7 @@ def _spawn_collection(name: str, y_offset: float, spawn: sim_utils.SpawnerCfg | 
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
-def test_initialization_with_no_rigid_body(device):
+def test_initialization_with_no_rigid_body(device: str) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     with _sim_context(device) as sim:
         # Keep the asset alive: only a live asset initializes, and fails, on reset.

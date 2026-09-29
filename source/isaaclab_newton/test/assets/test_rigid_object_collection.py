@@ -22,6 +22,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -131,8 +132,15 @@ class _Scene:
     sibling: RigidObject
     origins: torch.Tensor
     device: str
+    masses: torch.Tensor
+    """Configured body masses [kg], restored before each test."""
+    coms: torch.Tensor
+    """Configured center-of-mass positions in the body frames [m], restored before each test."""
+    inertias: torch.Tensor
+    """Configured body inertias [kg·m^2], restored before each test."""
 
     def step(self, num_steps: int = 1) -> None:
+        """Step ``num_steps`` times, writing the collection's commands before and updating it after each step."""
         for _ in range(num_steps):
             self.collection.write_data_to_sim()
             self.sim.step()
@@ -150,7 +158,7 @@ class _Scene:
 
 
 @pytest.fixture(scope="module", params=test_devices())
-def shared_scene(request):
+def shared_scene(request: pytest.FixtureRequest) -> Iterator[_Scene]:
     """Initialize the collection and its unrelated sibling bodies once per device for this module."""
     device = request.param
     sibling_cfg = RigidObjectCfg(
@@ -162,26 +170,26 @@ def shared_scene(request):
         assets = spawn_assets({"collection": _collection_cfg(_NUM_CUBES), "sibling": sibling_cfg})
         sim.reset()
         collection = assets["collection"]
-        scene = _Scene(
-            sim=sim, collection=collection, sibling=assets["sibling"], origins=env_origins(device), device=device
+        yield _Scene(
+            sim=sim,
+            collection=collection,
+            sibling=assets["sibling"],
+            origins=env_origins(device),
+            device=device,
+            masses=collection.data.body_mass.torch.clone(),
+            coms=collection.data.body_com_pos_b.torch.clone(),
+            inertias=collection.data.body_inertia.torch.clone(),
         )
-        initial_properties = (
-            collection.data.body_mass.torch.clone(),
-            collection.data.body_com_pos_b.torch.clone(),
-            collection.data.body_inertia.torch.clone(),
-        )
-        yield scene, initial_properties
 
 
 @pytest.fixture
-def scene(shared_scene) -> _Scene:
+def scene(shared_scene: _Scene) -> _Scene:
     """Hand each test the shared scene at rest with the configured inertial properties."""
-    scene, (masses, coms, inertias) = shared_scene
-    scene.collection.set_masses_index(masses=masses)
-    scene.collection.set_coms_index(coms=coms)
-    scene.collection.set_inertias_index(inertias=inertias)
-    scene.rest()
-    return scene
+    shared_scene.collection.set_masses_index(masses=shared_scene.masses)
+    shared_scene.collection.set_coms_index(coms=shared_scene.coms)
+    shared_scene.collection.set_inertias_index(inertias=shared_scene.inertias)
+    shared_scene.rest()
+    return shared_scene
 
 
 def test_initialization(scene: _Scene) -> None:

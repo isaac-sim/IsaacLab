@@ -5,6 +5,7 @@
 
 """Backend-manager and tensor-view doubles shared by the mocked contract factories."""
 
+from collections.abc import Callable
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -44,7 +45,7 @@ def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]
         storage_by_method: Setter name to the view attribute that stores its values.
     """
 
-    def make_setter(storage_name: str):
+    def make_setter(storage_name: str) -> Callable[[wp.array, wp.array | None], None]:
         def setter(values: wp.array, indices: wp.array | None = None) -> None:
             values_np = values.numpy()
             stored = getattr(mock_view, storage_name, None)

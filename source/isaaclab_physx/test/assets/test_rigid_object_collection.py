@@ -20,6 +20,7 @@ launch_test_simulation()
 
 import math
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 import pytest
@@ -97,7 +98,7 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def sim(request):
+def sim(request) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     device = request.getfixturevalue("device")
     gravity_enabled = request.getfixturevalue("gravity_enabled") if "gravity_enabled" in request.fixturenames else True
@@ -113,7 +114,7 @@ def sim(request):
 
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_initialization_with_no_rigid_body(sim, num_cubes, device):
+def test_initialization_with_no_rigid_body(sim, num_cubes, device) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
 
@@ -127,7 +128,7 @@ def test_initialization_with_no_rigid_body(sim, num_cubes, device):
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [False])
-def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled):
+def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled) -> None:
     """A write to one (env, body) cell must move only that object in the simulation."""
     object_collection, _ = generate_cubes_scene(num_envs=2, num_cubes=3)
 
@@ -151,7 +152,7 @@ def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device):
+def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device) -> None:
     """COM and inertia writes to a subset of (env, body) cells must reach only those PhysX view entries."""
     num_envs, num_cubes = 2, 3
     object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes)
@@ -190,22 +191,19 @@ def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device
 @pytest.mark.parametrize("num_cubes", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("gravity_enabled", [True, False])
-def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
+def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled) -> None:
     """Test that gravity vector direction is set correctly for the rigid object."""
     object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes)
 
-    # Obtain gravity direction
     gravity_dir = (0.0, 0.0, -1.0) if gravity_enabled else (0.0, 0.0, 0.0)
 
     sim.reset()
 
-    # Check if gravity vector is set correctly
     gravity_vec = object_collection.data.GRAVITY_VEC_W.torch
     assert gravity_vec[0, 0, 0] == gravity_dir[0]
     assert gravity_vec[0, 0, 1] == gravity_dir[1]
     assert gravity_vec[0, 0, 2] == gravity_dir[2]
 
-    # Perform simulation
     for _ in range(2):
         sim.step()
         object_collection.update(sim.cfg.dt)
@@ -215,7 +213,6 @@ def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled):
         if gravity_enabled:
             gravity[..., 2] = -9.81
 
-        # Check the body accelerations are correct
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
 
@@ -262,7 +259,7 @@ class _CollectionScene:
 
 
 @pytest.fixture(scope="module", params=test_devices())
-def collection_scene(request) -> _CollectionScene:
+def collection_scene(request) -> Iterator[_CollectionScene]:
     """Initialize the composite collection scene once per device."""
     device = request.param
     with build_simulation_context(device=device, gravity_enabled=True) as sim:
@@ -293,7 +290,7 @@ def _rest_poses(scene: _CollectionScene, yaw: float = 0.0) -> torch.Tensor:
     return poses
 
 
-def test_collection_initialization(collection_scene: _CollectionScene):
+def test_collection_initialization(collection_scene: _CollectionScene) -> None:
     """Initialize local collections, including a single-cube one; kinematic cubes hold their pose under gravity."""
     scene = collection_scene
     for name, collection, num_envs, num_cubes in (
@@ -320,7 +317,7 @@ def test_collection_initialization(collection_scene: _CollectionScene):
         torch.testing.assert_close(kinematic.data.body_link_vel_w.torch, default_body_vel)
 
 
-def test_collection_state_writes(collection_scene: _CollectionScene):
+def test_collection_state_writes(collection_scene: _CollectionScene) -> None:
     """Body state writes reach the selected body-major view entries in the frame they are given in."""
     scene = collection_scene
     device = scene.device
@@ -428,7 +425,7 @@ def test_collection_state_writes(collection_scene: _CollectionScene):
         torch.testing.assert_close(object_com_vel_w[..., 3:], object_link_vel_w[..., 3:])
 
 
-def test_collection_masses_reach_selected_view_entries(collection_scene: _CollectionScene):
+def test_collection_masses_reach_selected_view_entries(collection_scene: _CollectionScene) -> None:
     """Mass writes to a non-sorted subset reach only the selected body-major view entries."""
     scene = collection_scene
     device = scene.device
@@ -446,7 +443,7 @@ def test_collection_masses_reach_selected_view_entries(collection_scene: _Collec
     collection.set_masses_index(masses=torch.ones((_NUM_ENVS, _NUM_CUBES), device=device))
 
 
-def test_collection_wrench_delivery_and_reset(collection_scene: _CollectionScene):
+def test_collection_wrench_delivery_and_reset(collection_scene: _CollectionScene) -> None:
     """External wrenches act on the selected bodies in the frame they are given in; reset clears them."""
     scene = collection_scene
     device = scene.device
