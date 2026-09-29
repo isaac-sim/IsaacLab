@@ -335,7 +335,6 @@
             [/Reach-UR10/, "tasks/manipulation/ur10_reach.jpg"],
             [/Reorient-Cube-Allegro/, "tasks/manipulation/allegro_cube.jpg"],
             [/Reorient-Cube-Shadow/, "tasks/manipulation/shadow_cube.jpg"],
-            [/Reorient-Franka/, "tasks/manipulation/franka_lift.jpg"],
             [/Reorient-KukaAllegro/, "tasks/manipulation/kuka_allegro_reorient.jpg"],
             [/Shadow-Handover/, "tasks/manipulation/shadow_hand_over.jpg"],
             [/AnymalB/, "tasks/locomotion/anymal_b_flat.jpg"],
