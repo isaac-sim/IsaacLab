@@ -26,6 +26,9 @@ from isaaclab_ov.assets.articulation.articulation import Articulation  # noqa: E
 from isaaclab_ov.physics import OvPhysxManager  # noqa: E402
 from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet  # noqa: E402
 
+pytestmark = pytest.mark.unit
+
+
 wp.init()
 
 
