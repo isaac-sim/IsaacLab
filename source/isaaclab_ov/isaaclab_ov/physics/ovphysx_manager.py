@@ -25,7 +25,7 @@ from typing import TYPE_CHECKING, Any, ClassVar
 import numpy as np
 import warp as wp
 
-from pxr import Sdf, UsdPhysics
+from pxr import Sdf, Usd, UsdPhysics
 
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataBackend, SceneDataFormat
@@ -83,6 +83,30 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
     if hasattr(os, "getuid") and entry.st_uid != os.getuid():
         raise RuntimeError(f"OVPhysX cache directory '{cache_dir}' is owned by another user; refusing to use it.")
     return cache_dir
+
+
+def _set_scene_dynamics_device(scene_prim: Usd.Prim, device: str) -> None:
+    """Select CPU or GPU dynamics, with the matching broadphase, on a physics scene prim.
+
+    The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode, so the ``PhysxSceneAPI``
+    entry and the scene attributes are written through raw metadata and attributes.
+
+    Args:
+        scene_prim: A ``UsdPhysics.Scene`` prim.
+        device: Resolved physics device, either ``"cpu"`` or ``"gpu"``.
+    """
+    schemas = Sdf.TokenListOp()
+    current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+    items = list(current.prependedItems) if current.prependedItems else []
+    if "PhysxSceneAPI" not in items:
+        items.append("PhysxSceneAPI")
+    schemas.prependedItems = items
+    scene_prim.SetMetadata("apiSchemas", schemas)
+
+    # The schema default enables GPU dynamics, so CPU scenes must author it explicitly.
+    use_gpu = device == "gpu"
+    scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(use_gpu)
+    scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set("GPU" if use_gpu else "MBP")
 
 
 logger = logging.getLogger(__name__)
@@ -245,7 +269,7 @@ class OvPhysxBackend:
         }
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
-        # CPU scenes select CPU dynamics through their scene attributes (see _configure_physx_scene_prim).
+        # CPU scenes select CPU dynamics through their scene attributes (see _set_scene_dynamics_device).
         # OVPhysX's process-wide CPU-only mode is irreversible and would block later CUDA scenes.
         self.physx = ovphysx.PhysX(
             config=ovphysx.PhysXConfig(
@@ -851,10 +875,9 @@ class OvPhysxManager(PhysicsManager):
         ovphysx_device = "gpu" if "cuda" in PhysicsManager._device else "cpu"
 
         scene_prim = sim.stage.GetPrimAtPath(sim.cfg.physics_prim_path)
-        if scene_prim.IsValid():
-            if cls._active_clone_recipes:
-                scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-            cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
+        if scene_prim.IsValid() and cls._active_clone_recipes:
+            scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
+        cls._configure_physics_scenes(sim.stage, sim.cfg.physics_prim_path, PhysicsManager._cfg, ovphysx_device)
 
         # Flatten the current USD stage to USDA text so OVStage can populate it
         # without an intermediate file.
@@ -945,20 +968,36 @@ class OvPhysxManager(PhysicsManager):
         except Exception:
             logger.exception("Failed to close OVPhysX during process exit.")
 
+    @classmethod
+    def _configure_physics_scenes(
+        cls, stage: Usd.Stage, physics_prim_path: str, cfg: OvPhysxCfg | None, device: str
+    ) -> None:
+        """Configure every physics scene in a stage for the simulation device.
+
+        The simulation's physics scene receives the full OVPhysX scene configuration. OVPhysX also
+        simulates every other ``UsdPhysics.Scene`` in the stage, such as one authored by an asset, so
+        each of those selects the simulation device's dynamics and broadphase.
+
+        Args:
+            stage: The USD stage to configure.
+            physics_prim_path: Path of the simulation's physics scene prim.
+            cfg: The configuration of the simulation's physics scene.
+            device: Resolved physics device, either ``"cpu"`` or ``"gpu"``.
+        """
+        scene_prim = stage.GetPrimAtPath(physics_prim_path)
+        if scene_prim.IsValid():
+            cls._configure_physx_scene_prim(scene_prim, cfg, device)
+        for prim in stage.Traverse():
+            if prim.IsA(UsdPhysics.Scene) and prim != scene_prim:
+                _set_scene_dynamics_device(prim, device)
+
     @staticmethod
     def _configure_physx_scene_prim(scene_prim, cfg, device: str) -> None:
-        """Apply PhysxSceneAPI schema and device-specific scene attributes to the
-        scene prim.
+        """Apply the OVPhysX scene configuration to the simulation's physics scene prim.
 
-        The PhysxSchema USD plugin may not be loaded in standalone ovphysx mode,
-        so we write the apiSchemas list entry and scene attributes directly via
-        raw Sdf metadata manipulation instead of using the high-level USD API.
-
-        The schema, scene-query-support, solver-determinism/accuracy, and dynamics/broadphase
-        attributes are applied regardless of device. GPU scenes use GPU dynamics and the GPU
-        broadphase; CPU scenes use CPU dynamics and the MBP broadphase. The schema default enables
-        GPU dynamics, so CPU scenes must author it explicitly. The GPU buffer-capacity attributes
-        are applied only to GPU scenes.
+        The schema, dynamics device and broadphase (see :func:`_set_scene_dynamics_device`),
+        scene-query-support, and solver-determinism/accuracy attributes are applied regardless of
+        device. The GPU buffer-capacity attributes are applied only to GPU scenes.
 
         Args:
             scene_prim: The /World/PhysicsScene prim to configure.
@@ -966,13 +1005,7 @@ class OvPhysxManager(PhysicsManager):
                 values. The GPU buffer-capacity values are only consulted when ``device == "gpu"``.
             device: Resolved physics device — one of ``"cpu"`` or ``"gpu"``.
         """
-        schemas = Sdf.TokenListOp()
-        current = scene_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-        items = list(current.prependedItems) if current.prependedItems else []
-        if "PhysxSceneAPI" not in items:
-            items.append("PhysxSceneAPI")
-        schemas.prependedItems = items
-        scene_prim.SetMetadata("apiSchemas", schemas)
+        _set_scene_dynamics_device(scene_prim, device)
 
         # Propagate scene query support from SimulationCfg so omni.physx creates
         # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
@@ -990,13 +1023,7 @@ class OvPhysxManager(PhysicsManager):
                 cfg.enable_external_forces_every_iteration
             )
 
-        use_gpu = device == "gpu"
-        scene_prim.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(use_gpu)
-        scene_prim.CreateAttribute("physxScene:broadphaseType", Sdf.ValueTypeNames.String).Set(
-            "GPU" if use_gpu else "MBP"
-        )
-
-        if use_gpu and cfg is not None:
+        if device == "gpu" and cfg is not None:
             for attr, val in [
                 ("gpuMaxRigidContactCount", cfg.gpu_max_rigid_contact_count),
                 ("gpuMaxRigidPatchCount", cfg.gpu_max_rigid_patch_count),
