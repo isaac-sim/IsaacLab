@@ -849,19 +849,26 @@ def test_lazy_sensor_reports_contact_loss(device):
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
 @pytest.mark.parametrize(
-    "grav_dir, history_length, max_count",
-    [((-10.0, 0.0, -9.81), 0, 32), ((0.0, -10.0, -9.81), 3, 32), ((-10.0, 0.0, -9.81), 3, 1)],
+    "grav_dir, history_length, max_count, dt",
+    [
+        ((-10.0, 0.0, -9.81), 0, 32, _SIM_DT),
+        ((0.0, -10.0, -9.81), 3, 32, _SIM_DT / 2),
+        ((-10.0, 0.0, -9.81), 3, 1, _SIM_DT),
+    ],
     ids=["no-history", "history", "truncated"],
 )
-def test_friction_reporting(device, grav_dir, history_length, max_count):
-    """Compare full/truncated SDK details, history, reset and contact loss in one scene."""
+def test_friction_reporting(device, grav_dir, history_length, max_count, dt):
+    """Check force balance, filter/capacity independence, history, reset and contact loss."""
     num_envs = 3
-    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=_SIM_DT, device=device, gravity=grav_dir)
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), dt=dt, device=device, gravity=grav_dir)
     with build_simulation_context(device=device, sim_cfg=sim_cfg, add_lighting=False) as sim:
         scene_cfg = ContactSensorSceneCfg(num_envs=num_envs, env_spacing=2.0, lazy_sensor_update=False)
         scene_cfg.terrain = FLAT_TERRAIN_CFG
         scene_cfg.shape = replace(CUBE_CFG, prim_path="{ENV_REGEX_NS}/Cube")
         scene_cfg.shape.init_state.pos = (0.0, 0.0, CUBE_CFG.spawn.size[2] / 2.0)
+        scene_cfg.shape.spawn.mass_props = [schemas.MassCfg(mass=1.0)]
+        scene_cfg.shape.spawn.rigid_props.linear_damping = 0.0
+        scene_cfg.shape.spawn.rigid_props.angular_damping = 0.0
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path=scene_cfg.shape.prim_path,
             history_length=history_length,
@@ -872,56 +879,69 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
             max_contact_data_count_per_prim=max_count,
             filter_prim_paths_expr=[scene_cfg.terrain.prim_path + "/terrain/GroundPlane/CollisionPlane"],
         )
+        aggregate_cfg = replace(scene_cfg.contact_sensor, track_contact_points=False, max_contact_data_count_per_prim=0)
+        scene_cfg.unfiltered = replace(aggregate_cfg, filter_prim_paths_expr=[])
+        scene_cfg.untracked = replace(aggregate_cfg, track_friction_forces=False)
+        scene_cfg.excluded = replace(aggregate_cfg, filter_prim_paths_expr=[scene_cfg.shape.prim_path])
         scene = InteractiveScene(scene_cfg)
         sim.reset()
         scene.reset()
         sensor: ContactSensor = scene["contact_sensor"]
         for _ in range(20):
-            _perform_sim_step(sim, scene, _SIM_DT)
+            _perform_sim_step(sim, scene, dt)
         effective_history = max(history_length, 1)
         samples = []
+        force_names = ("net_forces_w", "net_normal_forces_w", "net_friction_forces_w")
+        force_names += ("force_matrix_w", "normal_force_matrix_w", "friction_force_matrix_w")
+        shape: RigidObject = scene["shape"]
+        gravity = torch.tensor(grav_dir, device=device)
         for _ in range(effective_history + 1):
-            _perform_sim_step(sim, scene, _SIM_DT)
-            samples.append(sensor.data.friction_force_matrix_w.torch.clone())
+            velocity = shape.data.root_lin_vel_w.torch.clone()
+            _perform_sim_step(sim, scene, dt)
+            expected_force = (shape.data.root_lin_vel_w.torch - velocity) / dt - gravity
+            for name in ("contact_sensor", "unfiltered", "untracked", "excluded"):
+                data = scene[name].data
+                torch.testing.assert_close(data.net_forces_w.torch[:, 0], expected_force, atol=0.02, rtol=0.01)
+            samples.append([getattr(sensor.data, name).torch.clone() for name in force_names])
 
         binding, data = sensor.contact_view, sensor.data
         capacity = binding.max_contact_data_count
-        for widths, read, actual, average in (
-            ((1, 3, 3, 1), binding.read_contact_data, data.contact_pos_w, True),
-            ((3, 3), binding.read_friction_data, data.friction_force_matrix_w, False),
-        ):
-            buffers = [wp.empty((capacity, width), dtype=wp.float32, device=device) for width in widths]
-            pair_shape = (binding.sensor_count, binding.filter_count)
-            counts, starts = [wp.empty(pair_shape, dtype=wp.uint32, device=device) for _ in range(2)]
-            read(*buffers, counts, starts)
-            raw = wp.to_torch(buffers[1 if average else 0])
-            assert actual.torch.shape == (num_envs, 1, 1, 3)
-            for env, (start, count) in enumerate(zip(starts.numpy()[:, 0], counts.numpy()[:, 0])):
-                # Slicing naturally limits the reference to the contacts retained by the SDK.
-                values = raw[int(start) : int(start) + int(count)]
-                expected = values.mean(0) if average else values.sum(0)
-                torch.testing.assert_close(actual.torch[env, 0, 0], expected, equal_nan=True)
+        buffers = [wp.empty((capacity, width), dtype=wp.float32, device=device) for width in (1, 3, 3, 1)]
+        pair_shape = (binding.sensor_count, binding.filter_count)
+        counts, starts = [wp.empty(pair_shape, dtype=wp.uint32, device=device) for _ in range(2)]
+        binding.read_normal_contact_data(*buffers, counts, starts)
+        raw = wp.to_torch(buffers[1])
+        for env, (start, count) in enumerate(zip(starts.numpy()[:, 0], counts.numpy()[:, 0])):
+            # Only contact positions depend on detailed-contact capacity.
+            values = raw[int(start) : int(start) + int(count)]
+            torch.testing.assert_close(data.contact_pos_w.torch[env, 0, 0], values.mean(0), equal_nan=True)
 
-        # Truncation may leave later environments without friction entries.
         gravity_xy = torch.tensor(grav_dir[:2], device=device)
         projection = (data.friction_force_matrix_w.torch[:, 0, 0, :2] * gravity_xy).sum(-1)
-        assert torch.all(projection <= 0) and torch.any(projection < 0)
+        assert torch.all(projection < 0)
         torch.testing.assert_close(
-            data.friction_force_matrix_w_history.torch, torch.stack(samples[-effective_history:][::-1], dim=1)
+            data.net_forces_w.torch, data.net_normal_forces_w.torch + data.net_friction_forces_w.torch
         )
-        with pytest.warns(UserWarning, match="total contact force"):
-            torch.testing.assert_close(data.force_matrix_w.torch, data.normal_force_matrix_w.torch)
-        with pytest.raises(NotImplementedError):
-            _ = data.net_friction_forces_w
+        torch.testing.assert_close(
+            data.force_matrix_w.torch, data.normal_force_matrix_w.torch + data.friction_force_matrix_w.torch
+        )
+        torch.testing.assert_close(data.friction_forces_w.torch, data.net_friction_forces_w.torch)
+        for aggregate, matrix in zip(force_names[:3], force_names[3:], strict=True):
+            torch.testing.assert_close(getattr(data, aggregate).torch, getattr(data, matrix).torch.sum(2))
+        for index, name in enumerate(force_names):
+            expected_history = torch.stack([sample[index] for sample in samples[-effective_history:][::-1]], dim=1)
+            torch.testing.assert_close(getattr(data, name + "_history").torch, expected_history)
+        for name in ("unfiltered", "excluded"):
+            torch.testing.assert_close(scene[name].data.net_friction_forces_w.torch, data.net_friction_forces_w.torch)
+        assert scene["unfiltered"].data.force_matrix_w is None
+        assert scene["unfiltered"].data.friction_force_matrix_w is None
+        assert scene["untracked"].data.net_friction_forces_w is None
+        assert scene["untracked"].data.friction_force_matrix_w is None
+        torch.testing.assert_close(scene["untracked"].data.force_matrix_w.torch, data.force_matrix_w.torch)
+        assert torch.count_nonzero(scene["excluded"].data.force_matrix_w.torch) == 0
+        assert torch.count_nonzero(scene["excluded"].data.friction_force_matrix_w.torch) == 0
 
-        forces = (
-            data.net_normal_forces_w,
-            data.net_normal_forces_w_history,
-            data.normal_force_matrix_w,
-            data.normal_force_matrix_w_history,
-            data.friction_force_matrix_w,
-            data.friction_force_matrix_w_history,
-        )
+        forces = tuple(getattr(data, name + suffix) for name in force_names for suffix in ("", "_history"))
         before_reset = [force.torch.clone() for force in forces]
         positions_before_reset = data.contact_pos_w.torch.clone()
         sensor.reset(env_ids=[0])
@@ -932,26 +952,24 @@ def test_friction_reporting(device, grav_dir, history_length, max_count):
         assert torch.isnan(data.contact_pos_w.torch[0]).all()
         torch.testing.assert_close(data.contact_pos_w.torch[1:], positions_before_reset[1:], equal_nan=True)
 
-        shape: RigidObject = scene["shape"]
         pose = shape.data.root_pose_w.torch.clone()
         pose[:, 2] += 2.0
         shape.write_root_pose_to_sim_index(root_pose=pose)
         for _ in range(effective_history + 1):
-            _perform_sim_step(sim, scene, _SIM_DT)
+            _perform_sim_step(sim, scene, dt)
         assert torch.isnan(sensor.data.contact_pos_w.torch).all()
-        assert torch.count_nonzero(sensor.data.friction_force_matrix_w.torch) == 0
-        assert torch.count_nonzero(sensor.data.friction_force_matrix_w_history.torch) == 0
+        for force in forces:
+            assert torch.count_nonzero(force.torch) == 0
 
 
 @pytest.mark.parametrize("device", ["cpu"])
-@pytest.mark.parametrize("feature", ["track_contact_points", "track_friction_forces"])
 @pytest.mark.parametrize(
     "option, value",
     [("filter_prim_paths_expr", []), ("max_contact_data_count_per_prim", 0), ("max_contact_data_count_per_prim", -1)],
 )
-def test_invalid_contact_config(device, feature, option, value):
+def test_invalid_contact_config(device, option, value):
     """Reject invalid detail options at construction, without spawning or starting physics."""
-    options = {"filter_prim_paths_expr": ["/World/ground"], feature: True, option: value}
+    options = {"filter_prim_paths_expr": ["/World/ground"], "track_contact_points": True, option: value}
     with _ovphysx_sim_context(device=device), pytest.raises(ValueError, match=option):
         ContactSensor(ContactSensorCfg(prim_path="/World/Cube", **options))
 

@@ -37,7 +37,7 @@ class ContactSensorCfg(SensorBaseCfg):
     track_friction_forces: bool = False
     """Whether to track friction contact forces. Defaults to False.
 
-    Newton reports aggregate and per-filter friction forces. PhysX reports per-filter friction
+    Newton and OVPhysX report aggregate and per-filter friction forces. Isaac Sim PhysX reports per-filter friction
     forces only and therefore requires :attr:`filter_prim_paths_expr`.
     """
 
