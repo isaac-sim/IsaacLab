@@ -203,26 +203,16 @@ default; Newton's concept page explains the underlying algorithms.
 ADMM Contact Capacity
 ^^^^^^^^^^^^^^^^^^^^^
 
-ADMM detects cross-entry contacts separately from the outer pipeline configured
-by ``NewtonCfg.collision_cfg``. Set
-``CouplerAdmmCfg.contact_max_triangle_pairs`` to budget its triangle-pair storage
-and ``CouplerAdmmCfg.contact_reduction_hashtable_size_factor`` to scale the
-contact-reduction hash table independently. Both default to ``None`` to preserve
-Newton's defaults. These capacities cover all environments in one process and
-are allocated independently on each rank in multi-GPU jobs.
+ADMM's internal contact buffers are independent of ``NewtonCfg.collision_cfg``.
+Increase ``CouplerAdmmCfg.contact_max_triangle_pairs`` for triangle-pair overflows,
+or ``contact_reduction_hashtable_size_factor`` for contact-reduction hash table
+warnings. Both default to ``None`` (Newton's defaults); explicit values require
+support in Newton's ``SolverCoupledADMM.Config``. Capacities cover all environments
+in one process, independently on each rank in multi-GPU jobs.
 
-Explicit capacity overrides require a Newton version containing
-`the public ADMM capacity controls <https://github.com/newton-physics/newton/pull/4309>`_.
-If the installed Newton version lacks these fields, leave both at ``None`` or
-upgrade Newton before setting them. Unsupported overrides raise an error.
-
-Increase the triangle-pair capacity for triangle-pair overflow, or the hash table
-size factor for contact-reduction fill or insertion warnings. Increasing the outer
-collision budget does not resize ADMM's internal buffers. With
-``rigid_contact_matching="latest"`` or ``"sticky"``, the triangle-pair capacity
-must be less than ``2**20``; larger capacities are allowed when matching is
-``"disabled"``. To grow the hash table while retaining matching, increase the
-size factor independently:
+With ``rigid_contact_matching="latest"`` or ``"sticky"``, triangle-pair capacity
+must be less than ``2**20``; larger values require ``"disabled"``. The hash table
+can grow independently while retaining matching:
 
 .. code-block:: python
 

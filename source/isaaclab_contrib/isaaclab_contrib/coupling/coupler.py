@@ -420,11 +420,7 @@ class NewtonCouplerManager(NewtonVBDManager):
         values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
         for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor"):
             if getattr(solver_cfg, name) is not None and name not in values:
-                raise RuntimeError(
-                    f"The installed Newton SolverCoupledADMM.Config does not support {name}. "
-                    "Update Newton to a version containing https://github.com/newton-physics/newton/pull/4309 "
-                    "or leave this field unset."
-                )
+                raise RuntimeError(f"The installed Newton version does not support {name}.")
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:

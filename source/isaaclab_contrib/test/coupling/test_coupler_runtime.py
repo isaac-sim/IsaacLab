@@ -158,7 +158,7 @@ def test_real_coupler_constructs_resets_and_steps(
 
     NewtonManager.backend.model = model
     if algorithm == "admm_capacity" and not hasattr(SolverCoupledADMM.Config, "contact_max_triangle_pairs"):
-        with pytest.raises(RuntimeError, match=r"Newton.*contact_max_triangle_pairs.*4309"):
+        with pytest.raises(RuntimeError, match=r"Newton.*does not support contact_max_triangle_pairs"):
             NewtonCouplerManager._build_solver(model, solver_cfg)
         return
     NewtonCouplerManager._build_solver(model, solver_cfg)

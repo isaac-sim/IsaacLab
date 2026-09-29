@@ -930,7 +930,7 @@ def test_admm_build_rejects_contact_capacity_without_native_support(monkeypatch,
     cfg = CouplerAdmmCfg(contact_pairs=[])
     setattr(cfg, name, value)
 
-    with pytest.raises(RuntimeError, match=rf"Newton.*{name}.*4309"):
+    with pytest.raises(RuntimeError, match=rf"Newton.*does not support {name}"):
         NewtonCouplerManager._build_admm_coupled_solver(_FakeModel(), [], cfg)
 
 

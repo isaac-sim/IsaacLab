@@ -159,30 +159,20 @@ class CouplerProxyCfg(CouplerCfg):
 
 @configclass
 class CouplerAdmmCfg(CouplerCfg):
-    """Configuration for Newton's linearized ADMM coupling.
-
-    Explicit contact-capacity overrides require the corresponding public fields in
-    Newton's ``SolverCoupledADMM.Config``. Older Newton versions support the defaults
-    but raise an error if either override is set.
-    """
+    """Configuration for Newton's linearized ADMM coupling."""
 
     contact_max_triangle_pairs: int | None = None
-    """Triangle-pair capacity of the internal ADMM collision pipeline.
+    """Internal ADMM triangle-pair capacity across all environments in one process.
 
-    This budget covers all environments in one process. It is independent of
-    :attr:`isaaclab_newton.physics.NewtonCfg.collision_cfg`, which configures outer contacts.
-    ``None`` preserves Newton's default. Increase it for internal triangle-pair overflows.
-    With :attr:`rigid_contact_matching` set to ``"latest"`` or ``"sticky"``, configuration
-    validation rejects capacities at or above ``2**20``. Larger capacities are allowed
-    when matching is ``"disabled"``. Increase the hashtable size factor instead for
-    reduction-table warnings.
+    ``None`` uses Newton's default. Must be less than ``2**20`` with
+    :attr:`rigid_contact_matching` set to ``"latest"`` or ``"sticky"``;
+    larger capacities require ``"disabled"``.
     """
 
     contact_reduction_hashtable_size_factor: float | None = None
-    """Multiplier of the internal ADMM triangle-pair capacity used for contact reduction.
+    """Contact-reduction hash table size relative to the internal triangle-pair capacity.
 
-    Newton rounds the resulting table capacity up to a power of two. ``None`` preserves
-    Newton's default. Increase it for contact-reduction hashtable fill or insertion warnings.
+    ``None`` uses Newton's default. Increase it for hash table fill or insertion warnings.
     """
 
     contact_pairs: list[tuple[str, str]] | None = None
