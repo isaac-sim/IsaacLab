@@ -28,6 +28,7 @@ launch_test_simulation()
 
 import math
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -163,11 +164,6 @@ def _author_branching_robot(
         leaf.CreateUpperLimitAttr(2.0)
 
 
-def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
-    """Convert a Warp array to a torch tensor on :paramref:`device`."""
-    return wp.to_torch(array).to(device=device)
-
-
 def _in_user_order(values: dict[str, float], names: list[str], device: str) -> torch.Tensor:
     """Return per-name values as a ``(num_envs, len(names))`` tensor in the given name order."""
     return torch.tensor([[values[name] for name in names]] * _NUM_ENVS, device=device)
@@ -179,7 +175,7 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
 
 
 @pytest.fixture
-def sim(request):
+def sim(request) -> Iterator[SimulationContext]:
     """Create a function-scoped simulation context for tests that own their scene."""
     device = request.getfixturevalue("device")
     gravity_enabled = request.getfixturevalue("gravity_enabled") if "gravity_enabled" in request.fixturenames else True
@@ -222,7 +218,7 @@ def generate_articulation(
     ],
 )
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_out_of_range_default_joint_state_raises(sim, device, init_state, message):
+def test_out_of_range_default_joint_state_raises(sim, device, init_state, message) -> None:
     """Initialization rejects configured default joint states outside the solver limits."""
     articulation = Articulation(_branching_cfg(init_state=ArticulationCfg.InitialStateCfg(**init_state)))
     # Limits of +-30 deg and the USD velocity limits keep the configured defaults out of range.
@@ -236,7 +232,7 @@ def test_out_of_range_default_joint_state_raises(sim, device, init_state, messag
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_setting_invalid_articulation_root_prim_path(sim, device):
+def test_setting_invalid_articulation_root_prim_path(sim, device) -> None:
     """A configured articulation root path that does not exist fails initialization."""
     articulation = Articulation(_branching_cfg(articulation_root_prim_path="/non_existing_prim_path"))
     _author_branching_robot("/World/Robot")
@@ -250,7 +246,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device):
 
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device):
+def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device) -> None:
     """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
 
     The index form commands every tendon of environment 0; the mask form commands tendon 0 of
@@ -268,7 +264,7 @@ def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, devi
     assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
     for actuator_name, actuator in articulation.actuators.items():
         is_implicit_model_cfg = isinstance(articulation_cfg.actuators[actuator_name], ImplicitActuatorCfg)
-        assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
+        assert actuator.is_implicit_model == is_implicit_model_cfg
     num_tendons = articulation.num_fixed_tendons
     assert num_tendons > 0
     rest_length = articulation.data.fixed_tendon_rest_length.torch.clone()
@@ -302,7 +298,7 @@ def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, devi
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device):
+def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device) -> None:
     """PhysX accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
 
     The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
@@ -445,7 +441,7 @@ def _summarize_history(history, tail: int = 200):
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-def test_franka_ik_tracking_accuracy(sim, device, gravity_enabled):
+def test_franka_ik_tracking_accuracy(sim, device, gravity_enabled) -> None:
     """PhysX-side IK convergence sentinel — backend parity with the Newton test.
 
     Mirrors :func:`isaaclab_newton.test.assets.test_articulation.test_franka_ik_tracking_accuracy`
@@ -1244,7 +1240,7 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         assert torch.count_nonzero(composer.out_torque_b.torch) == 0
 
 
-def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationScene):
+def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationScene) -> None:
     """A locally authored spatial tendon is discovered and its selected properties reach PhysX."""
     device = articulation_scene.device
     articulation = articulation_scene.tendon
@@ -1266,7 +1262,7 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
         getattr(articulation, f"set_spatial_tendon_{name}_index")(**{name: value})
     articulation.write_spatial_tendon_properties_to_sim_index()
     for name, getter in getters.items():
-        torch.testing.assert_close(_to_device_tensor(getter(), device), values[name])
+        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
 
     # Partial writes change environment 1 in the data and in the solver and preserve environment 0.
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
@@ -1279,4 +1275,4 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
         torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
     articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
     for name, getter in getters.items():
-        torch.testing.assert_close(_to_device_tensor(getter(), device), values[name])
+        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
