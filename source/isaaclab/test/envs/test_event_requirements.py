@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Construction errors for unsupported event backends and runtimes."""
+"""Construction-time errors raised by event terms."""
 
 import subprocess
 import sys
@@ -12,7 +12,12 @@ from types import SimpleNamespace
 import pytest
 
 from isaaclab.envs import ManagerBasedEnvCfg
-from isaaclab.envs.mdp import randomize_physics_scene_gravity, randomize_visual_color, randomize_visual_shape
+from isaaclab.envs.mdp import (
+    randomize_physics_scene_gravity,
+    randomize_rigid_body_mass,
+    randomize_visual_color,
+    randomize_visual_shape,
+)
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RenderContext, RendererCfg
@@ -70,6 +75,36 @@ def test_replicator_event_rejects_kitless_runtime() -> None:
     )
     with pytest.raises(NotImplementedError, match="require Isaac Sim"):
         randomize_visual_color(cfg, env)
+
+
+@pytest.mark.parametrize(
+    "distribution,params,error",
+    [
+        # gaussian parameters are (mean, std), so a std below the mean is valid
+        pytest.param("gaussian", (0.5, 0.1), None, id="gaussian-std-below-mean"),
+        pytest.param("gaussian", (1.0, -0.1), "standard deviation must be ≥ 0", id="gaussian-negative-std"),
+        pytest.param("gaussian", (0.0, 0.1), "mean must be > 0", id="gaussian-zero-mean"),
+        pytest.param("uniform", (0.5, 0.1), "upper bound", id="uniform-reversed-range"),
+    ],
+)
+def test_scale_range_validation_follows_distribution(distribution, params, error) -> None:
+    """Scale parameters are checked as (mean, std) for gaussian and as (low, high) for uniform."""
+    env = SimpleNamespace(scene={"robot": SimpleNamespace()})
+    cfg = EventTermCfg(
+        func=randomize_rigid_body_mass,
+        mode="startup",
+        params={
+            "asset_cfg": SceneEntityCfg("robot"),
+            "mass_distribution_params": params,
+            "operation": "scale",
+            "distribution": distribution,
+        },
+    )
+    if error is None:
+        randomize_rigid_body_mass(cfg, env)
+    else:
+        with pytest.raises(ValueError, match=error):
+            randomize_rigid_body_mass(cfg, env)
 
 
 def test_unknown_physics_configuration_fails_at_term_construction():

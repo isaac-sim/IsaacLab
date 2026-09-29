@@ -257,8 +257,9 @@ class randomize_rigid_body_mass(ManagerTermBase):
         Raises:
             TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            ValueError: If the lower bound or mean is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+            ValueError: If the standard deviation of a gaussian distribution is negative.
         """
         super().__init__(cfg, env)
 
@@ -266,9 +267,13 @@ class randomize_rigid_body_mass(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
+            distribution = cfg.params.get("distribution", "uniform")
             if "mass_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["mass_distribution_params"], "mass_distribution_params", allow_zero=False
+                    cfg.params["mass_distribution_params"],
+                    "mass_distribution_params",
+                    allow_zero=False,
+                    distribution=distribution,
                 )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
@@ -373,8 +378,9 @@ class randomize_rigid_body_inertia(ManagerTermBase):
 
         Raises:
             ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed for scale operation.
-            ValueError: If the upper bound is less than the lower bound.
+            ValueError: If the lower bound or mean is negative or zero when not allowed for scale operation.
+            ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+            ValueError: If the standard deviation of a gaussian distribution is negative.
         """
         from ...assets import BaseArticulation, BaseRigidObject, BaseRigidObjectCollection
 
@@ -391,9 +397,13 @@ class randomize_rigid_body_inertia(ManagerTermBase):
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
+            distribution = cfg.params.get("distribution", "uniform")
             if "inertia_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["inertia_distribution_params"], "inertia_distribution_params", allow_zero=False
+                    cfg.params["inertia_distribution_params"],
+                    "inertia_distribution_params",
+                    allow_zero=False,
+                    distribution=distribution,
                 )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
@@ -669,8 +679,9 @@ class randomize_actuator_gains(ManagerTermBase):
         Raises:
             TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            ValueError: If the lower bound or mean is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+            ValueError: If the standard deviation of a gaussian distribution is negative.
         """
         super().__init__(cfg, env)
 
@@ -720,12 +731,18 @@ class randomize_actuator_gains(ManagerTermBase):
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
+            distribution = cfg.params.get("distribution", "uniform")
             if "stiffness_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
+                    cfg.params["stiffness_distribution_params"],
+                    "stiffness_distribution_params",
+                    allow_zero=False,
+                    distribution=distribution,
                 )
             if "damping_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
+                _validate_scale_range(
+                    cfg.params["damping_distribution_params"], "damping_distribution_params", distribution=distribution
+                )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_actuator_gains' does not support operation:"
@@ -865,8 +882,9 @@ class randomize_joint_parameters(ManagerTermBase):
         Raises:
             TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            ValueError: If the lower bound or mean is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+            ValueError: If the standard deviation of a gaussian distribution is negative.
         """
         super().__init__(cfg, env)
 
@@ -885,10 +903,19 @@ class randomize_joint_parameters(ManagerTermBase):
 
         # check for valid operation
         if cfg.params["operation"] == "scale":
+            distribution = cfg.params.get("distribution", "uniform")
             if "friction_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["friction_distribution_params"], "friction_distribution_params")
+                _validate_scale_range(
+                    cfg.params["friction_distribution_params"],
+                    "friction_distribution_params",
+                    distribution=distribution,
+                )
             if "armature_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["armature_distribution_params"], "armature_distribution_params")
+                _validate_scale_range(
+                    cfg.params["armature_distribution_params"],
+                    "armature_distribution_params",
+                    distribution=distribution,
+                )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
                 "Randomization term 'randomize_joint_parameters' does not support operation:"
@@ -1039,8 +1066,9 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         Raises:
             TypeError: If `params` is not a tuple of two numbers.
             ValueError: If the operation is not supported.
-            ValueError: If the lower bound is negative or zero when not allowed.
-            ValueError: If the upper bound is less than the lower bound.
+            ValueError: If the lower bound or mean is negative or zero when not allowed.
+            ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+            ValueError: If the standard deviation of a gaussian distribution is negative.
         """
         super().__init__(cfg, env)
 
@@ -1048,15 +1076,23 @@ class randomize_fixed_tendon_parameters(ManagerTermBase):
         self.asset: RigidObject | Articulation = env.scene[self.asset_cfg.name]
         # check for valid operation
         if cfg.params["operation"] == "scale":
+            distribution = cfg.params.get("distribution", "uniform")
             if "stiffness_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["stiffness_distribution_params"], "stiffness_distribution_params", allow_zero=False
+                    cfg.params["stiffness_distribution_params"],
+                    "stiffness_distribution_params",
+                    allow_zero=False,
+                    distribution=distribution,
                 )
             if "damping_distribution_params" in cfg.params:
-                _validate_scale_range(cfg.params["damping_distribution_params"], "damping_distribution_params")
+                _validate_scale_range(
+                    cfg.params["damping_distribution_params"], "damping_distribution_params", distribution=distribution
+                )
             if "limit_stiffness_distribution_params" in cfg.params:
                 _validate_scale_range(
-                    cfg.params["limit_stiffness_distribution_params"], "limit_stiffness_distribution_params"
+                    cfg.params["limit_stiffness_distribution_params"],
+                    "limit_stiffness_distribution_params",
+                    distribution=distribution,
                 )
         elif cfg.params["operation"] not in ("abs", "add"):
             raise ValueError(
@@ -1943,42 +1979,55 @@ def _validate_scale_range(
     *,
     allow_negative: bool = False,
     allow_zero: bool = True,
+    distribution: Literal["uniform", "log_uniform", "gaussian"] = "uniform",
 ) -> None:
     """
-    Validates a (low, high) tuple used in scale-based randomization.
+    Validates the distribution parameters used in scale-based randomization.
 
-    This function ensures the tuple follows expected rules when applying a 'scale'
+    This function ensures the parameters follow expected rules when applying a 'scale'
     operation. It performs type and value checks, optionally allowing negative or
-    zero lower bounds.
+    zero scales. For the ``"uniform"`` and ``"log_uniform"`` distributions the parameters
+    are a (low, high) range. For the ``"gaussian"`` distribution they are (mean, std), so
+    the mean is checked like the lower bound and the standard deviation must not be negative.
 
     Args:
-        params (tuple[float, float] | None): The (low, high) range to validate. If None,
-            validation is skipped.
+        params (tuple[float, float] | None): The (low, high) range or (mean, std) pair to validate.
+            If None, validation is skipped.
         name (str): The name of the parameter being validated, used for error messages.
-        allow_negative (bool, optional): If True, allows the lower bound to be negative.
+        allow_negative (bool, optional): If True, allows the lower bound or mean to be negative.
             Defaults to False.
-        allow_zero (bool, optional): If True, allows the lower bound to be zero.
+        allow_zero (bool, optional): If True, allows the lower bound or mean to be zero.
             Defaults to True.
+        distribution (str, optional): The distribution that the parameters describe.
+            Defaults to ``"uniform"``.
 
     Raises:
         TypeError: If `params` is not a tuple of two numbers.
-        ValueError: If the lower bound is negative or zero when not allowed.
-        ValueError: If the upper bound is less than the lower bound.
+        ValueError: If the lower bound or mean is negative or zero when not allowed.
+        ValueError: If the upper bound is less than the lower bound of a uniform or log-uniform range.
+        ValueError: If the standard deviation of a gaussian distribution is negative.
 
     Example:
         _validate_scale_range((0.5, 1.5), "mass_scale")
+        _validate_scale_range((1.0, 0.1), "mass_scale", distribution="gaussian")
     """
     if params is None:  # caller didn’t request randomisation for this field
         return
-    low, high = params
-    if not isinstance(low, (int, float)) or not isinstance(high, (int, float)):
-        raise TypeError(f"{name}: expected (low, high) to be a tuple of numbers, got {params}.")
-    if not allow_negative and not allow_zero and low <= 0:
-        raise ValueError(f"{name}: lower bound must be > 0 when using the 'scale' operation (got {low}).")
-    if not allow_negative and allow_zero and low < 0:
-        raise ValueError(f"{name}: lower bound must be ≥ 0 when using the 'scale' operation (got {low}).")
-    if high < low:
-        raise ValueError(f"{name}: upper bound ({high}) must be ≥ lower bound ({low}).")
+    first, second = params
+    if not isinstance(first, (int, float)) or not isinstance(second, (int, float)):
+        raise TypeError(f"{name}: expected a tuple of two numbers, got {params}.")
+    # gaussian parameters are (mean, std) rather than a (low, high) range
+    is_gaussian = distribution == "gaussian"
+    first_name = "mean" if is_gaussian else "lower bound"
+    if not allow_negative and not allow_zero and first <= 0:
+        raise ValueError(f"{name}: {first_name} must be > 0 when using the 'scale' operation (got {first}).")
+    if not allow_negative and allow_zero and first < 0:
+        raise ValueError(f"{name}: {first_name} must be ≥ 0 when using the 'scale' operation (got {first}).")
+    if is_gaussian:
+        if second < 0:
+            raise ValueError(f"{name}: standard deviation must be ≥ 0 (got {second}).")
+    elif second < first:
+        raise ValueError(f"{name}: upper bound ({second}) must be ≥ lower bound ({first}).")
 
 
 def _get_backend_events(env: ManagerBasedEnv) -> ModuleType:

@@ -125,6 +125,7 @@ Guidelines for modifications:
 * Jinyeob Kim
 * Jiwen Cai
 * Johnson Sun
+* Jooyoung Lim
 * Juana Du
 * Kai Pei
 * Kaixi Bao
