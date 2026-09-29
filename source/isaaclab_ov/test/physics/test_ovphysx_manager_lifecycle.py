@@ -20,6 +20,9 @@ from isaaclab.test.utils import DeviceScope, test_devices
 
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
+_CPU_DEVICES = test_devices(DeviceScope.CPU)
+_CUDA_DEVICES = test_devices(DeviceScope.CUDA)
+
 
 class _FakePhysXConfig:
     def __init__(self, num_threads=None, cooked_collider_cache_dir=None, carbonite_overrides=None):
@@ -624,10 +627,6 @@ def test_default_cache_dir_rejects_a_directory_owned_by_another_user(manager_mod
 
     with pytest.raises(RuntimeError, match="owned"):
         manager_module._prepare_default_cache_dir(str(target))
-
-
-_CPU_DEVICES = test_devices(DeviceScope.CPU)
-_CUDA_DEVICES = test_devices(DeviceScope.CUDA)
 
 
 @pytest.mark.skipif(not (_CPU_DEVICES and _CUDA_DEVICES), reason="The device sequence requires a CPU and a CUDA device")
