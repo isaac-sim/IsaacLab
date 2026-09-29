@@ -6,11 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""
-Checks that the rigid object interfaces are consistent across backends, and are providing the exact same data as what
-the base rigid object class advertises. All rigid object interfaces need to comply with the same interface contract.
+"""Shared rigid-object contract cases, collected by the ``test_asset_contract_*`` entry modules.
 
-The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
+Checks that every rigid-object backend provides the data and writer behavior the base rigid-object class advertises.
+The backends run on mocked views, so these cases need neither Isaac Sim nor a GPU simulation.
 """
 
 import math
@@ -20,12 +19,11 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _rigid_object_iface_test_utils import BACKENDS, get_rigid_object
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.integration
-
+from ._rigid_object_contract_utils import get_rigid_object
+from .capabilities import contract_backend
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -43,12 +41,11 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
 # getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
-_backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_api_backends = contract_backend("api")
+_data_backends = contract_backend("data")
+_writes_backends = contract_backend("writes")
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 _NUM_INSTANCES = 2
-_production_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
-)
 
 
 # ---------------------------------------------------------------------------
@@ -59,7 +56,7 @@ _production_backends = pytest.mark.parametrize(
 class TestRigidObjectIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_production_backends
+    @_api_backends
     @_devices
     def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
         obj, _ = get_rigid_object(backend, num_instances=4, device=device)
@@ -86,7 +83,7 @@ class TestRigidObjectIndexResolution:
 class TestRigidObjectProperties:
     """Test that rigid object properties return the correct types/values."""
 
-    @_backends
+    @_api_backends
     def test_rigid_object_counts_and_names(self, backend):
         from isaaclab.assets.rigid_object.base_rigid_object_data import BaseRigidObjectData
 
@@ -104,7 +101,7 @@ class TestRigidObjectProperties:
 class TestRigidObjectFinderReturnModes:
     """Test finder return modes on production rigid-object backends."""
 
-    @_production_backends
+    @_api_backends
     def test_find_bodies_returns_legacy_list_or_cached_proxy(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
 
@@ -179,7 +176,7 @@ _RIGID_OBJECT_DATA_PROPERTIES = [
 class TestRigidObjectDataProperties:
     """Test that every data property is a ProxyArray with the advertised shape and dtype."""
 
-    @_backends
+    @_data_backends
     @_devices
     def test_rigid_object_data_property_contract(self, backend, device):
         obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device)
@@ -226,7 +223,7 @@ _RIGID_OBJECT_ALIASES = [
 class TestRigidObjectDataAliases:
     """Test that alias properties return the values of their canonical counterparts."""
 
-    @_backends
+    @_data_backends
     def test_aliases_match_canonical_values(self, backend):
         # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
         obj, _ = get_rigid_object(backend, _NUM_INSTANCES, device="cpu")
@@ -383,7 +380,7 @@ _ROOT_VEL_METHODS = {
 
 
 class TestRigidObjectCacheInvalidation:
-    @_production_backends
+    @_writes_backends
     def test_pose_write_invalidates_pose_dependent_caches(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
         obj.data.update(dt=0.01)
@@ -403,7 +400,7 @@ class TestRigidObjectCacheInvalidation:
         obj.write_root_link_pose_to_sim_index(root_pose=root_pose)
         _assert_buffers_stale(obj.data, buffers)
 
-    @_production_backends
+    @_writes_backends
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
         obj.data.update(dt=0.01)
@@ -424,7 +421,7 @@ class TestRigidObjectCacheInvalidation:
         _assert_reads_back(obj.data.body_link_vel_w, wp.to_torch(root_velocity).unsqueeze(1), "body_link_vel_w")
         assert obj.data.body_link_vel_w is body_velocity
 
-    @_production_backends
+    @_writes_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
     def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
         obj, _ = get_rigid_object(backend, num_instances=2, device="cpu")
@@ -469,7 +466,7 @@ class TestRigidObjectWritersRoot:
 
     # -- index variants --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
     def test_write_root_pose_to_sim_index(self, backend, device, method_suffix):
@@ -497,7 +494,7 @@ class TestRigidObjectWritersRoot:
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
     def test_write_root_velocity_to_sim_index(self, backend, device, method_suffix):
@@ -527,7 +524,7 @@ class TestRigidObjectWritersRoot:
 
     # -- mask variants --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
     def test_write_root_pose_to_sim_mask(self, backend, device, method_suffix):
@@ -561,7 +558,7 @@ class TestRigidObjectWritersRoot:
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
     def test_write_root_velocity_to_sim_mask(self, backend, device, method_suffix):
@@ -603,7 +600,7 @@ class TestRigidObjectWritersRoot:
 _BODY_METHODS = [("set_masses", "masses"), ("set_coms", "coms"), ("set_inertias", "inertias")]
 
 
-def _body_writer_layout(backend: str, method_base: str) -> tuple[type, int, str | None]:
+def _body_writer_layout(backend: str, method_base: str) -> tuple[type, int, str]:
     """Return the warp dtype, torch trailing size, and read-back getter of a body property writer."""
     if method_base == "set_masses":
         return wp.float32, 0, "body_mass"
@@ -612,9 +609,6 @@ def _body_writer_layout(backend: str, method_base: str) -> tuple[type, int, str 
     if backend == "newton":
         # Newton stores the COM as a position only.
         return wp.vec3f, 3, "body_com_pos_b"
-    if backend == "physx":
-        # PhysX re-reads the COM from its view after a write, and the mocked view drops writes.
-        return wp.transformf, 7, None
     return wp.transformf, 7, "body_com_pose_b"
 
 
@@ -642,7 +636,7 @@ def _make_body_warp(shape: tuple[int, int], device: str, wp_dtype: type, trailin
 class TestRigidObjectWritersBody:
     """Test body property writers/setters with all input combinations."""
 
-    @_production_backends
+    @_writes_backends
     def test_external_wrench_frames(self, backend):
         """Forward local and world wrenches through the real writer in each backend's frame."""
         device = "cpu"  # the composer and wrench-packing kernels are device-independent
@@ -692,7 +686,7 @@ class TestRigidObjectWritersBody:
             np.testing.assert_allclose(actual_force, expected_force.cpu().numpy(), atol=1e-5, rtol=1e-5)
             np.testing.assert_allclose(actual_torque, expected_torque.cpu().numpy(), atol=1e-5, rtol=1e-5)
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_index(self, backend, device, method_base, kwarg):
@@ -716,9 +710,8 @@ class TestRigidObjectWritersBody:
         )
         # warp, all envs + all bodies: the matching getter reads the written values back
         method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
-        if getter is not None:
-            expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
-            _assert_reads_back(getattr(obj.data, getter), expected, getter)
+        expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
+        _assert_reads_back(getattr(obj.data, getter), expected, getter)
         # warp, subset
         method(
             **{
@@ -734,7 +727,7 @@ class TestRigidObjectWritersBody:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_mask(self, backend, device, method_base, kwarg):
@@ -757,9 +750,8 @@ class TestRigidObjectWritersBody:
         )
         # warp, no mask: the matching getter reads the written values back
         method(**{kwarg: _make_body_warp((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)})
-        if getter is not None:
-            expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
-            _assert_reads_back(getattr(obj.data, getter), expected, getter)
+        expected = _make_body_torch((num_instances, num_bodies), device, wp_dtype, trailing, payload=True)
+        _assert_reads_back(getattr(obj.data, getter), expected, getter)
         # warp, partial env_mask + body_mask
         method(
             **{
@@ -774,3 +766,72 @@ class TestRigidObjectWritersBody:
         # negative: bad warp shape
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
+
+
+# ---------------------------------------------------------------------------
+# Tests: partial writes reach only the selected backend rows
+# ---------------------------------------------------------------------------
+
+# quantity -> (writer base name, writer keyword, literal per-environment payload)
+_PARTIAL_WRITES = {
+    "root_pose": (
+        "write_root_link_pose_to_sim",
+        "root_pose",
+        [[31.0, 32.0, 33.0, 0.0, 0.0, 0.0, 1.0], [41.0, 42.0, 43.0, 0.0, 0.0, 0.0, 1.0]],
+    ),
+    "root_velocity": (
+        "write_root_com_velocity_to_sim",
+        "root_velocity",
+        [[21.0, 22.0, 23.0, 24.0, 25.0, 26.0], [71.0, 72.0, 73.0, 74.0, 75.0, 76.0]],
+    ),
+    "mass": ("set_masses", "masses", [[51.0], [61.0]]),
+}
+
+
+def _read_backend_rows(backend: str, raw_backend, quantity: str) -> torch.Tensor:
+    """Read one rigid-object quantity from backend storage as one row per environment."""
+    if backend == "physx":
+        getter = {"root_pose": "get_transforms", "root_velocity": "get_velocities", "mass": "get_masses"}[quantity]
+        values = getattr(raw_backend, getter)()
+    elif backend == "newton":
+        if quantity == "mass":
+            values = raw_backend.get_attribute("body_mass", None)
+        else:
+            getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities"}[quantity]
+            values = getattr(raw_backend, getter)(None)
+    else:
+        from isaaclab_ov import tensor_types as TT
+
+        binding = {"root_pose": TT.RIGID_BODY_POSE, "root_velocity": TT.RIGID_BODY_VELOCITY, "mass": TT.RIGID_BODY_MASS}
+        values = raw_backend.bindings[binding[quantity]]._data
+    values = wp.to_torch(values) if isinstance(values, wp.array) else torch.as_tensor(values)
+    return values.reshape(2, -1).cpu().clone()
+
+
+class TestRigidObjectPartialWriteRows:
+    """Test that partial writers reach only the selected rows of backend storage."""
+
+    @_writes_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("quantity", _PARTIAL_WRITES)
+    def test_partial_write_preserves_unselected_backend_rows(self, backend, selection, quantity):
+        obj, raw_backend = get_rigid_object(backend, num_instances=2, device="cpu")
+        writer, kwarg, payload = _PARTIAL_WRITES[quantity]
+        values = torch.tensor(payload, dtype=torch.float32)
+        before = _read_backend_rows(backend, raw_backend, quantity)
+        # Select the second environment so a writer that ignores the selection cannot pass by writing row 0.
+        selected, unselected = 1, 0
+        if selection == "index":
+            kwargs = {kwarg: values[selected : selected + 1], "env_ids": torch.tensor([selected], dtype=torch.int32)}
+            if quantity == "mass":
+                kwargs["body_ids"] = [0]
+        else:
+            kwargs = {kwarg: values, "env_mask": _make_item_mask(2, [selected], "cpu")}
+            if quantity == "mass":
+                kwargs["body_mask"] = _make_item_mask(1, [0], "cpu")
+
+        getattr(obj, f"{writer}_{selection}")(**kwargs)
+
+        after = _read_backend_rows(backend, raw_backend, quantity)
+        torch.testing.assert_close(after[selected], values[selected], rtol=0.0, atol=0.0)
+        torch.testing.assert_close(after[unselected], before[unselected], rtol=0.0, atol=0.0)

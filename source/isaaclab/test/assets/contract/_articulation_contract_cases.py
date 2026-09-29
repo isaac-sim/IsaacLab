@@ -6,27 +6,25 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""
-Checks that the articulation interfaces are consistent across backends, and are providing the exact same data as what
-the base articulation class advertises. All articulation interfaces need to comply with the same interface contract.
+"""Shared articulation contract cases, collected by the ``test_asset_contract_*`` entry modules.
 
-The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
+Checks that every articulation backend provides the data and writer behavior the base articulation class advertises.
+The backends run on mocked views, so these cases need neither Isaac Sim nor a GPU simulation.
 """
 
 import math
 import warnings
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.integration
-
+from ._articulation_contract_utils import get_articulation
+from .capabilities import contract_backend, require_backend_capability, requires_backend
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,16 +42,13 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
 # getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
-_backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_api_backends = contract_backend("api")
+_data_backends = contract_backend("data")
+_writes_backends = contract_backend("writes")
+_index_resolution_backends = contract_backend("index_resolution")
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 # One fixture with distinct instance, joint, and body counts so any swapped axis shows up.
 _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES = 2, 6, 7
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
-)
-_production_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
-)
 
 
 # ---------------------------------------------------------------------------
@@ -64,7 +59,7 @@ _production_backends = pytest.mark.parametrize(
 class TestArticulationIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_production_backends
+    @_api_backends
     @_devices
     def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
         art, _ = get_articulation(backend, num_instances=4, device=device)
@@ -114,7 +109,7 @@ class TestArticulationIndexResolution:
 class TestArticulationProperties:
     """Test that articulation properties return the correct types/values."""
 
-    @_backends
+    @_api_backends
     @pytest.mark.parametrize("is_fixed_base", [False, True], ids=["floating", "fixed"])
     def test_articulation_counts_names_and_finders(self, backend, is_fixed_base):
         from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -137,7 +132,7 @@ class TestArticulationProperties:
 class TestArticulationFinderReturnModes:
     """Test finder return modes on production articulation backends."""
 
-    @_production_backends
+    @_api_backends
     @pytest.mark.parametrize(
         "finder_name, names_attr, count",
         [
@@ -157,8 +152,8 @@ class TestArticulationFinderReturnModes:
             num_spatial_tendons=5,
             device="cpu",
         )
-        if backend == "newton" and finder_name == "find_spatial_tendons":
-            pytest.skip("Newton does not support spatial tendons.")
+        if finder_name == "find_spatial_tendons":
+            require_backend_capability(backend, "spatial_tendons")
         finder = getattr(art, finder_name)
 
         indices, names = finder(".*")
@@ -195,27 +190,23 @@ class TestFixedTendonTargetScheduling:
         )
         return art
 
-    @_production_backends
+    @contract_backend("fixed_tendon_target_scheduling")
     def test_commanding_a_target_schedules_the_write(self, backend):
         """The target setter marks the write pending; a static offset write keeps its own contract."""
-        if backend == "newton":
-            pytest.skip("Newton needs a MuJoCo tendon actuator, covered by the delegation tests below.")
         art = self._articulation(backend)
         art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
         assert art._fixed_tendon_target_dirty is True
 
+    @requires_backend("newton")
     def test_newton_reports_a_missing_tendon_actuator(self):
         """Without a MuJoCo tendon actuator the solver has no adapter, so commanding must say so."""
-        if "newton" not in BACKENDS:
-            pytest.skip(BACKEND_UNAVAILABLE_REASONS.get("newton", "newton backend unavailable"))
         art = self._articulation("newton")
         with pytest.raises(RuntimeError, match="no MuJoCo tendon actuator"):
             art.set_fixed_tendon_position_target_index(target=torch.zeros((2, 2), dtype=torch.float32))
 
+    @requires_backend("newton")
     def test_a_solver_without_tendon_transmission_refuses_to_build_an_adapter(self):
         """A solver with no tendon transmission says so, rather than returning nothing."""
-        if "newton" not in BACKENDS:
-            pytest.skip(BACKEND_UNAVAILABLE_REASONS.get("newton", "newton backend unavailable"))
         from isaaclab_newton.physics import NewtonManager
 
         art = self._articulation("newton")
@@ -231,7 +222,7 @@ class TestFixedTendonTargetScheduling:
 class TestResolveMatchingNamesCache:
     """Test that resolve_matching_names caching returns correct, isolated results."""
 
-    @_backends
+    @_api_backends
     def test_unmatched_regex_raises(self, backend):
         """ValueError from resolve_matching_names propagates correctly."""
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device="cpu")
@@ -240,7 +231,7 @@ class TestResolveMatchingNamesCache:
         with pytest.raises(ValueError):
             art.find_joints("nonexistent_joint_xyz")
 
-    @_backends
+    @_api_backends
     def test_mutating_result_does_not_corrupt_cache(self, backend):
         """Mutating returned lists must not affect future cached results."""
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device="cpu")
@@ -256,7 +247,7 @@ class TestResolveMatchingNamesCache:
             assert len(idx2) == expected_len
             assert "corrupted" not in names2
 
-    @_backends
+    @_api_backends
     def test_find_with_preserve_order(self, backend):
         """A list of patterns resolves each name; preserve_order=True keeps the pattern order."""
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device="cpu")
@@ -337,7 +328,7 @@ _ARTICULATION_DATA_PROPERTIES = [
 class TestArticulationDataProperties:
     """Test that every data property is a ProxyArray with the advertised shape and dtype."""
 
-    @_backends
+    @_data_backends
     @_devices
     def test_articulation_data_property_contract(self, backend, device):
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device=device)
@@ -379,7 +370,7 @@ class TestArticulationDataProperties:
                     assert view.data_ptr() == expected.data_ptr()
                     assert view.stride() == expected.stride()
 
-    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    @requires_backend("physx")
     def test_physx_set_coms_index_updates_body_com_pose_b_cache(self):
         art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
 
@@ -399,7 +390,7 @@ class TestArticulationDataProperties:
 
         assert num_get_coms_calls == 0
 
-    @pytest.mark.skipif("physx" not in BACKENDS, reason="PhysX backend unavailable")
+    @requires_backend("physx")
     def test_physx_joint_position_write_preserves_body_com_pose_b_cache(self):
         art, view = get_articulation("physx", num_instances=2, num_joints=3, num_bodies=4, device="cpu")
 
@@ -423,7 +414,7 @@ class TestArticulationDataProperties:
 
         assert num_get_coms_calls == 1
 
-    @pytest.mark.parametrize("backend", [name for name in ("physx", "ovphysx") if name in BACKENDS])
+    @contract_backend("mocked_dynamics")
     @_devices
     def test_dynamics_buffers_allocate_on_read_and_reuse_across_refreshes(self, backend, device):
         """Optional dynamics allocate independently on demand and retain stable public views."""
@@ -442,7 +433,7 @@ class TestArticulationDataProperties:
         art.data.update(dt=0.01)
         assert art.data.body_link_jacobian_w is wrapper
 
-    @_production_backends
+    @_data_backends
     def test_actuator_compatibility_projections_are_stable(self, backend):
         num_instances, num_joints = 2, 4
         art, _ = get_articulation(backend, num_instances, num_joints, 5, device="cpu")
@@ -464,6 +455,23 @@ class TestArticulationDataProperties:
         assert soft_joint_vel_limits_data.warp.ptr == soft_joint_vel_limits_repeat.warp.ptr
         assert soft_joint_vel_limits_data.warp.ptr == art.actuators._soft_joint_vel_limits.ptr
         assert not [warning for warning in caught_warnings if warning.category is DeprecationWarning]
+
+    @_data_backends
+    def test_deprecated_command_aliases_return_actuator_collection_buffers(self, backend):
+        """The deprecated data command and torque properties warn and alias the actuator collection's buffers."""
+        art, _ = get_articulation(backend, 2, 4, 5, device="cpu")
+        actuators = art.actuators
+        aliases = {
+            "joint_pos_target": actuators.target_command.position,
+            "joint_vel_target": actuators.target_command.velocity,
+            "joint_effort_target": actuators.target_command.effort,
+            "computed_torque": actuators.computed_effort,
+            "applied_torque": actuators.applied_effort,
+        }
+
+        for name, collection_buffer in aliases.items():
+            with pytest.warns(DeprecationWarning, match=name):
+                assert getattr(art.data, name) is collection_buffer, name
 
 
 # ---------------------------------------------------------------------------
@@ -491,7 +499,7 @@ _ARTICULATION_ALIASES = [
 class TestArticulationDataAliases:
     """Test that alias properties return the values of their canonical counterparts."""
 
-    @_backends
+    @_data_backends
     def test_aliases_match_canonical_values(self, backend):
         # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
         art, _ = get_articulation(backend, _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES, device="cpu")
@@ -670,7 +678,7 @@ _ROOT_VEL_METHODS = {
 class TestArticulationWritersRoot:
     """Test root pose/velocity writers with all input combinations."""
 
-    @_production_backends
+    @_writes_backends
     @pytest.mark.parametrize(
         "body_ordering",
         [None, ("body_0", "body_3", "body_2", "body_1")],
@@ -705,7 +713,7 @@ class TestArticulationWritersRoot:
         art.write_root_link_pose_to_sim_index(root_pose=root_pose)
         _assert_buffers_stale(art.data, buffers)
 
-    @_production_backends
+    @_writes_backends
     @pytest.mark.parametrize(
         "body_ordering",
         [None, ("body_0", "body_3", "body_2", "body_1")],
@@ -733,7 +741,7 @@ class TestArticulationWritersRoot:
         art.write_root_com_velocity_to_sim_index(root_velocity=root_velocity)
         _assert_buffers_stale(art.data, buffers)
 
-    @_production_backends
+    @_writes_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
     @pytest.mark.parametrize(
         "body_ordering",
@@ -797,8 +805,6 @@ class TestArticulationWritersRoot:
                 art.set_coms_mask(coms=coms)
 
         if backend == "newton":
-            from unittest.mock import patch
-
             from isaaclab_newton.physics import NewtonManager
 
             with patch.object(NewtonManager, "add_model_change"):
@@ -809,7 +815,7 @@ class TestArticulationWritersRoot:
 
     # -- index variants --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
     def test_write_root_pose_to_sim_index(self, backend, device, method_suffix):
@@ -837,7 +843,7 @@ class TestArticulationWritersRoot:
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
     def test_write_root_velocity_to_sim_index(self, backend, device, method_suffix):
@@ -867,7 +873,7 @@ class TestArticulationWritersRoot:
 
     # -- mask variants --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_POSE_METHODS)
     def test_write_root_pose_to_sim_mask(self, backend, device, method_suffix):
@@ -901,7 +907,7 @@ class TestArticulationWritersRoot:
         with pytest.raises((AssertionError, RuntimeError)):
             method(root_pose=_make_bad_data_warp((num_instances,), device, wp.transformf))
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _ROOT_VEL_METHODS)
     def test_write_root_velocity_to_sim_mask(self, backend, device, method_suffix):
@@ -936,7 +942,7 @@ class TestArticulationWritersRoot:
             method(root_velocity=_make_bad_data_warp((num_instances,), device, wp.spatial_vectorf))
 
 
-@pytest.mark.parametrize("backend", BACKENDS)
+@_writes_backends
 def test_deprecated_joint_friction_writers(backend):
     """The deprecated joint friction writers warn and forward to the index writer on every backend."""
     num_instances, num_joints = 2, 4
@@ -982,7 +988,7 @@ def _read_joint_writer_target(art, getter: str):
 class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize(
         "method_base, kwarg, wp_dtype, accepts_float, getter",
@@ -1036,7 +1042,7 @@ class TestArticulationWritersJoint:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_bad_data_warp((num_instances, num_joints), device, wp_dtype)})
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize(
         "method_base, kwarg, wp_dtype, accepts_float, getter",
@@ -1134,7 +1140,7 @@ def _make_body_warp(shape: tuple[int, int], device: str, wp_dtype: type, trailin
 class TestArticulationWritersBody:
     """Test body property writers/setters with all input combinations."""
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", [m[:2] for m in _BODY_METHODS], ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_index(self, backend, device, method_base, kwarg):
@@ -1175,7 +1181,7 @@ class TestArticulationWritersBody:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", [m[:2] for m in _BODY_METHODS], ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_mask(self, backend, device, method_base, kwarg):
@@ -1217,35 +1223,116 @@ class TestArticulationWritersBody:
 
 
 # ---------------------------------------------------------------------------
+# Tests: partial root and body writes reach only the selected backend rows
+# ---------------------------------------------------------------------------
+
+# quantity -> (writer base name, writer keyword, trailing size). Joint partial writes are covered, with and without
+# a joint ordering, by ``TestArticulationOrderingWriteParity``.
+_PARTIAL_WRITES = {
+    "root_pose": ("write_root_link_pose_to_sim", "root_pose", 7),
+    "root_velocity": ("write_root_com_velocity_to_sim", "root_velocity", 6),
+    "mass": ("set_masses", "masses", 1),
+}
+
+
+def _read_backend_rows(backend: str, art, raw_backend, quantity: str) -> torch.Tensor:
+    """Read one articulation quantity from backend storage as one row per environment."""
+    if backend == "physx":
+        getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities", "mass": "get_masses"}
+        values = wp.to_torch(getattr(raw_backend, getter[quantity])())
+    elif backend == "newton":
+        if quantity == "mass":
+            values = wp.to_torch(art.data._sim_bind_body_mass)
+        else:
+            getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities"}[quantity]
+            values = wp.to_torch(getattr(raw_backend, getter)(None))
+    else:
+        from isaaclab_ov import tensor_types as TT
+
+        binding = {"root_pose": TT.ROOT_POSE, "root_velocity": TT.ROOT_VELOCITY, "mass": TT.BODY_MASS}[quantity]
+        values = torch.as_tensor(raw_backend.bindings[binding]._data)
+    return values.reshape(art.num_instances, -1).cpu().clone()
+
+
+class TestArticulationPartialWriteRows:
+    """Test that partial root and body writers reach only the selected rows of backend storage."""
+
+    @_writes_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("quantity", _PARTIAL_WRITES)
+    def test_partial_write_preserves_unselected_backend_rows(self, backend, selection, quantity):
+        num_instances, num_bodies = 2, 4
+        art, raw_backend = get_articulation(backend, num_instances, 3, num_bodies, device="cpu")
+        writer, kwarg, trailing = _PARTIAL_WRITES[quantity]
+        width = num_bodies if quantity == "mass" else trailing
+        # Literal, per-element distinct payload; poses keep an identity rotation.
+        values = 100.0 * torch.arange(1, num_instances + 1, dtype=torch.float32).unsqueeze(-1) + torch.arange(width)
+        if quantity == "root_pose":
+            values[:, 3:6] = 0.0
+            values[:, 6] = 1.0
+        before = _read_backend_rows(backend, art, raw_backend, quantity)
+        # Select the second environment (and the second body) so a writer that ignores the selection cannot pass.
+        env, body = 1, 1
+        kwargs = {}
+        if selection == "index":
+            kwargs[kwarg] = values[env : env + 1, body : body + 1] if quantity == "mass" else values[env : env + 1]
+            kwargs["env_ids"] = torch.tensor([env], dtype=torch.int32)
+            if quantity == "mass":
+                kwargs["body_ids"] = [body]
+        else:
+            kwargs[kwarg] = values
+            kwargs["env_mask"] = _make_item_mask(num_instances, [env], "cpu")
+            if quantity == "mass":
+                kwargs["body_mask"] = _make_item_mask(num_bodies, [body], "cpu")
+
+        getattr(art, f"{writer}_{selection}")(**kwargs)
+
+        after = _read_backend_rows(backend, art, raw_backend, quantity)
+        expected = before.clone()
+        if quantity == "mass":
+            expected[env, body] = values[env, body]
+        else:
+            expected[env] = values[env]
+        torch.testing.assert_close(after, expected, rtol=0.0, atol=0.0)
+
+
+# ---------------------------------------------------------------------------
 # Tendon tests — counts, names, data, writers
 # ---------------------------------------------------------------------------
 
-# Newton's fixed-tendon solver integration is covered in isaaclab_newton/test/assets/test_articulation.py.
-# This fixture matrix also requires spatial tendons and PhysX-specific properties.
-_tendon_backends = pytest.mark.parametrize("backend", [b for b in BACKENDS if b != "newton"], indirect=False)
+# Every backend supports the core fixed-tendon properties. Newton declares the extended fixed-tendon properties and
+# spatial tendons unsupported, so those rows stay visible as reasoned capability skips.
+_tendon_backends = contract_backend("fixed_tendons")
 
 # The first row covers the zero-spatial-tendon edge; the second has distinct counts on every axis.
-_tendon_dims = pytest.mark.parametrize(
-    "num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons",
-    [
-        (1, 2, 2, 1, 0),  # fixed only
-        (2, 6, 7, 3, 2),  # both types
-    ],
-)
+_TENDON_DIMS = [
+    (1, 2, 2, 1, 0),  # fixed only
+    (2, 6, 7, 3, 2),  # both types
+]
+_TENDON_DIM_NAMES = ("num_instances", "num_joints", "num_bodies", "num_fixed_tendons", "num_spatial_tendons")
+_tendon_dims = pytest.mark.parametrize(_TENDON_DIM_NAMES, _TENDON_DIMS)
 
-# (property, tendon kind, dtype)
+# tendon property family -> (tendon kind, backend capability)
+_TENDON_FAMILIES = {
+    "fixed": ("fixed", "fixed_tendons"),
+    "fixed_extended": ("fixed", "fixed_tendon_extended"),
+    "spatial": ("spatial", "spatial_tendons"),
+}
+
+# (property, family, dtype)
 _TENDON_DATA_PROPERTIES = [
     ("fixed_tendon_stiffness", "fixed", wp.float32),
     ("fixed_tendon_damping", "fixed", wp.float32),
-    ("fixed_tendon_limit_stiffness", "fixed", wp.float32),
-    ("fixed_tendon_rest_length", "fixed", wp.float32),
-    ("fixed_tendon_offset", "fixed", wp.float32),
     ("fixed_tendon_pos_limits", "fixed", wp.vec2f),
+    ("fixed_tendon_limit_stiffness", "fixed_extended", wp.float32),
+    ("fixed_tendon_rest_length", "fixed_extended", wp.float32),
+    ("fixed_tendon_offset", "fixed_extended", wp.float32),
     ("spatial_tendon_stiffness", "spatial", wp.float32),
     ("spatial_tendon_damping", "spatial", wp.float32),
     ("spatial_tendon_limit_stiffness", "spatial", wp.float32),
     ("spatial_tendon_offset", "spatial", wp.float32),
 ]
+_TENDON_PROPERTY_FAMILY = {name: family for name, family, _ in _TENDON_DATA_PROPERTIES}
 
 
 class TestArticulationTendons:
@@ -1254,28 +1341,27 @@ class TestArticulationTendons:
     @_tendon_backends
     @_tendon_dims
     @_devices
+    @pytest.mark.parametrize("family", _TENDON_FAMILIES)
     def test_articulation_tendon_contract(
-        self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
+        self, backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device, family
     ):
+        kind, capability = _TENDON_FAMILIES[family]
+        require_backend_capability(backend, capability)
         art, _ = get_articulation(
             backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
         )
-        counts = {"fixed": num_fixed_tendons, "spatial": num_spatial_tendons}
-        assert art.num_fixed_tendons == num_fixed_tendons
-        assert art.num_spatial_tendons == num_spatial_tendons
-        for names, count in (
-            (art.fixed_tendon_names, num_fixed_tendons),
-            (art.spatial_tendon_names, num_spatial_tendons),
-        ):
-            assert isinstance(names, list)
-            assert len(names) == count
-            assert all(isinstance(n, str) for n in names)
+        num_tendons = num_fixed_tendons if kind == "fixed" else num_spatial_tendons
+        assert getattr(art, f"num_{kind}_tendons") == num_tendons
+        names = getattr(art, f"{kind}_tendon_names")
+        assert isinstance(names, list)
+        assert len(names) == num_tendons
+        assert all(isinstance(n, str) for n in names)
 
         art.data.update(dt=0.01)
-        for name, kind, dtype in _TENDON_DATA_PROPERTIES:
-            if counts[kind] == 0:
+        for name, property_family, dtype in _TENDON_DATA_PROPERTIES:
+            if property_family != family or num_tendons == 0:
                 continue
-            expected_shape = (num_instances, counts[kind])
+            expected_shape = (num_instances, num_tendons)
             if backend == "physx" and name == "fixed_tendon_pos_limits":
                 # Known inconsistency: PhysX exposes (N, T, 2) float32 although its docstring and OVPhysX
                 # advertise (N, T) vec2f. Pin the current layout so a change on either side is noticed.
@@ -1299,34 +1385,64 @@ _SPATIAL_TENDON_METHODS = [
     ("set_spatial_tendon_offset", "offset", "spatial_tendon_offset"),
 ]
 _TENDON_METHODS = [("fixed", *m) for m in _FIXED_TENDON_METHODS] + [("spatial", *m) for m in _SPATIAL_TENDON_METHODS]
+# Writer cases pair each method with the dimension rows that configure at least one tendon of its kind.
+_TENDON_WRITER_CASES = [
+    pytest.param(*method, *dims, id=f"{method[1]}-{'-'.join(map(str, dims))}")
+    for method in _TENDON_METHODS
+    for dims in _TENDON_DIMS
+    if dims[3 if method[0] == "fixed" else 4] > 0
+]
+
+
+def _push_tendon_properties(art, backend: str, kind: str) -> None:
+    """Write staged tendon properties to the backend so data read-backs see them on every backend."""
+    if backend == "newton":
+        from isaaclab_newton.physics import NewtonManager
+
+        with patch.object(NewtonManager, "add_model_change"):
+            getattr(art, f"write_{kind}_tendon_properties_to_sim_index")()
+    else:
+        getattr(art, f"write_{kind}_tendon_properties_to_sim_index")()
 
 
 class TestArticulationWritersTendon:
     """Test tendon writers/setters with all input combinations."""
 
     @_tendon_backends
-    @_tendon_dims
     @_devices
     @pytest.mark.parametrize("selection", ["index", "mask"])
-    @pytest.mark.parametrize("kind, method_base, kwarg, getter", _TENDON_METHODS, ids=[m[1] for m in _TENDON_METHODS])
+    @pytest.mark.parametrize(
+        ("kind", "method_base", "kwarg", "getter", *_TENDON_DIM_NAMES),
+        _TENDON_WRITER_CASES,
+    )
     def test_tendon_writer(
         self,
+        request,
         backend,
-        num_instances,
-        num_joints,
-        num_bodies,
-        num_fixed_tendons,
-        num_spatial_tendons,
         device,
         selection,
         kind,
         method_base,
         kwarg,
         getter,
+        num_instances,
+        num_joints,
+        num_bodies,
+        num_fixed_tendons,
+        num_spatial_tendons,
     ):
+        require_backend_capability(backend, _TENDON_FAMILIES[_TENDON_PROPERTY_FAMILY[getter]][1])
+        if backend == "newton" and selection == "mask":
+            # Product bug: Newton's fixed-tendon mask setters slice full data without validating its shape, so an
+            # oversized input is silently truncated. Every assertion before the negative shape checks still runs.
+            request.applymarker(
+                pytest.mark.xfail(
+                    raises=pytest.fail.Exception,
+                    strict=True,
+                    reason="Newton fixed-tendon mask setters accept data with extra environments",
+                )
+            )
         num_tendons = num_fixed_tendons if kind == "fixed" else num_spatial_tendons
-        if num_tendons == 0:
-            pytest.skip(f"No {kind} tendons configured")
         art, _ = get_articulation(
             backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
         )
@@ -1350,8 +1466,9 @@ class TestArticulationWritersTendon:
         method(**{kwarg: _make_data_torch(full_shape, device, wp_dtype)})
         # torch, subset
         method(**{kwarg: _make_data_torch(subset_shape, device, wp_dtype)}, **subset)
-        # warp, all envs + all tendons: the matching data property reads the written values back
+        # warp, all envs + all tendons: after the push, the matching data property reads the written values back
         method(**{kwarg: _make_payload_warp(full_shape, device, wp_dtype)})
+        _push_tendon_properties(art, backend, kind)
         _assert_reads_back(getattr(art.data, getter), _make_payload_torch(full_shape, device, wp_dtype), getter)
         # warp, subset
         method(**{kwarg: _make_data_warp(subset_shape, device, wp_dtype)}, **subset)
@@ -1374,6 +1491,7 @@ class TestArticulationWritersTendon:
     @pytest.mark.parametrize("kind", ["fixed", "spatial"])
     def test_write_tendon_properties_to_sim_selects_envs(self, backend, device, selection, kind):
         """Pushing tendon properties writes the selected environments to the backend."""
+        require_backend_capability(backend, _TENDON_FAMILIES[kind][1])
         num_instances = 3
         art, raw_backend = get_articulation(backend, num_instances, 2, 2, 2, 2, device)
         art.data.update(dt=0.01)
@@ -1384,7 +1502,7 @@ class TestArticulationWritersTendon:
                 env_writes.append(indices.numpy().tolist())
 
             setattr(raw_backend, f"set_{kind}_tendon_properties", MagicMock(side_effect=capture))
-        else:
+        elif backend == "ovphysx":
             from isaaclab_ov import tensor_types as TT
 
             prefix = "FIXED_TENDON" if kind == "fixed" else "SPATIAL_TENDON"
@@ -1404,14 +1522,28 @@ class TestArticulationWritersTendon:
 
         for selected_envs in (list(range(num_instances)), [0, 2]):
             env_writes.clear()
+            if backend == "newton":
+                # Newton copies staged rows into the solver-model bindings; stage a value no environment holds yet.
+                art.set_fixed_tendon_stiffness_index(stiffness=float(10 * len(selected_envs)))
+                sim_before = wp.to_torch(art.data._sim_bind_fixed_tendon_stiffness).clone()
             if selection == "index":
-                write(
-                    env_ids=None if len(selected_envs) == num_instances else torch.tensor(selected_envs, device=device)
-                )
+                env_ids = None if len(selected_envs) == num_instances else torch.tensor(selected_envs, device=device)
+                write_kwargs = {"env_ids": env_ids}
             else:
                 mask = None
                 if len(selected_envs) < num_instances:
                     mask = wp.array([i in selected_envs for i in range(num_instances)], dtype=wp.bool, device=device)
-                write(env_mask=mask)
+                write_kwargs = {"env_mask": mask}
+            if backend == "newton":
+                from isaaclab_newton.physics import NewtonManager
+
+                with patch.object(NewtonManager, "add_model_change"):
+                    write(**write_kwargs)
+                sim_after = wp.to_torch(art.data._sim_bind_fixed_tendon_stiffness)
+                env_writes.append(
+                    [env for env in range(num_instances) if not torch.equal(sim_after[env], sim_before[env])]
+                )
+            else:
+                write(**write_kwargs)
             assert env_writes, "no tendon properties were written"
             assert all(envs == selected_envs for envs in env_writes), env_writes
