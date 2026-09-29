@@ -208,7 +208,7 @@ class AssetConverterBase(abc.ABC):
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
 
-    def _root_articulations_at_world_joints(self, layered: bool):
+    def _root_articulations_at_world_joints(self, layered: bool) -> None:
         """Root each fixed-base articulation of the converted asset at the fixed joint that attaches it to the world.
 
         With ``fix_base``, the Isaac Sim importers keep a fixed world joint that the asset already has, such as the
@@ -314,7 +314,7 @@ def _attaches_to_world(joint: Usd.Prim, body: Usd.Prim) -> bool:
     return True
 
 
-def _move_articulation_root(source: Usd.Prim, target: Usd.Prim):
+def _move_articulation_root(source: Usd.Prim, target: Usd.Prim) -> None:
     """Move the articulation-root schemas and their authored attributes from one prim to another.
 
     These are the schemas and attributes that the Isaac Sim importers move to a fixed joint that they create. The

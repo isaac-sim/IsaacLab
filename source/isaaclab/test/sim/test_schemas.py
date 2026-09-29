@@ -406,12 +406,19 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
     assert joint.GetJointEnabledAttr().Get() is False
 
 
-def test_fix_root_link_rejects_internal_fixed_joint_root(setup_simulation):
-    """``fix_root_link=True`` must not treat an articulation root on a fixed joint between two bodies as fixed."""
+@pytest.mark.parametrize("static_base", [False, True], ids=["rigid_base", "static_collider_base"])
+def test_fix_root_link_rejects_internal_fixed_joint_root(setup_simulation, static_base):
+    """``fix_root_link=True`` must not treat an articulation root on a fixed joint between two bodies as fixed.
+
+    A collider without a rigid body is a static body, not the world.
+    """
     stage = sim_utils.get_current_stage()
     sim_utils.create_prim("/World/Robot", prim_type="Xform")
-    for name in ("base", "link"):
-        UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim(f"/World/Robot/{name}", prim_type="Xform"))
+    if static_base:
+        UsdPhysics.CollisionAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Cube"))
+    else:
+        UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/link", prim_type="Xform"))
     joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/joint")
     joint.CreateBody0Rel().SetTargets(["/World/Robot/base"])
     joint.CreateBody1Rel().SetTargets(["/World/Robot/link"])

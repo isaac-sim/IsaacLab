@@ -309,11 +309,17 @@ def test_run_asset_transformer_disabled(test_setup_teardown, tmp_path):
 
 
 @pytest.mark.parametrize(
-    "root_joint, root_name",
-    [('<freejoint name="root"/>', "fix_base_joint"), ("", "PhysicsFixedJoint"), ('<joint type="slide"/>', "base")],
+    "root_joint, root_name, root_is_fixed_joint",
+    [
+        ('<freejoint name="root"/>', "fix_base_joint", True),
+        ("", "PhysicsFixedJoint", True),
+        ('<joint type="slide"/>', "base", False),
+    ],
     ids=["free", "welded", "slide"],
 )
-def test_fix_base_roots_articulation_at_world_joint(test_setup_teardown, tmp_path, root_joint, root_name):
+def test_fix_base_roots_articulation_at_world_joint(
+    test_setup_teardown, tmp_path, root_joint, root_name, root_is_fixed_joint
+):
     """Verify that fix_base=True roots the articulation at the fixed joint that attaches the root body to the world.
 
     The importer adds ``fix_base_joint`` for a free root body and keeps the weld of a root body without joints.
@@ -334,8 +340,9 @@ def test_fix_base_roots_articulation_at_world_joint(test_setup_teardown, tmp_pat
     from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(mjcf_converter.usd_path)
-    roots = [prim.GetName() for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
-    assert roots == [root_name]
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert [root.GetName() for root in roots] == [root_name]
+    assert roots[0].IsA(UsdPhysics.FixedJoint) is root_is_fixed_joint
 
 
 @pytest.mark.isaacsim_ci
