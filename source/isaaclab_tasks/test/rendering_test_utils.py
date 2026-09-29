@@ -1706,6 +1706,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
+    async_rendering: bool = False,
 ) -> None:
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -1766,6 +1767,8 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
+    if async_rendering:
+        env_cfg.scene.tiled_camera.renderer_cfg.async_rendering = True
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
