@@ -29,6 +29,7 @@ launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 import functools
 import os
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -39,7 +40,7 @@ from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 
-from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg
+from isaaclab.actuators import ActuatorBaseCfg, DCMotorCfg, DelayedPDActuatorCfg, IdealPDActuatorCfg
 from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg
 from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import read_group_parameter
@@ -78,6 +79,7 @@ TARGET_OFFSET = 0.1  # [rad] added to initial joint positions
 
 
 def _solver_cfg() -> MJWarpSolverCfg:
+    """Return the MJWarp solver configuration shared by the actuator scenes."""
     return MJWarpSolverCfg(
         njmax=500,
         nconmax=500,
@@ -140,7 +142,7 @@ REMOTIZED_PD_ACTUATORS = {
 }
 
 
-def _neural_actuators(mlp_path: str, lstm_path: str) -> dict:
+def _neural_actuators(mlp_path: str, lstm_path: str) -> dict[str, ActuatorBaseCfg]:
     """MLP on HAA, LSTM on HFE, and IdealPD on KFE."""
     return {
         "mlp_legs": ActuatorNetMLPCfg(
@@ -175,7 +177,7 @@ def _neural_actuators(mlp_path: str, lstm_path: str) -> dict:
 class _Island:
     """One actuator configuration under test and the commands its rollout sends."""
 
-    actuators: dict
+    actuators: dict[str, ActuatorBaseCfg]
     usd: str = "floating_two_leg.usda"
     joint_ordering: tuple[str, ...] | None = None
     feedforward: float | None = None
@@ -191,6 +193,7 @@ class _Island:
 
 
 def _islands(mlp_path: str | None = None, lstm_path: str | None = None) -> dict[str, _Island]:
+    """Return the actuator islands, with the neural island when the network checkpoints are given."""
     islands = {
         "ideal": _Island(IDEAL_PD_ACTUATORS),
         "ideal_reordered": _Island(IDEAL_PD_ACTUATORS, joint_ordering=_LEG_REORDERED_JOINT_NAMES),
@@ -230,6 +233,7 @@ class _Run:
 
 
 def _island_cfg(name: str, island: _Island, index: int) -> ArticulationCfg:
+    """Return the articulation of one island, offset along y by its index."""
     init_state = ArticulationCfg.InitialStateCfg() if island.usd != "floating_two_leg.usda" else _LEG_INIT_STATE
     init_state = replace(init_state, pos=(0.0, 3.0 * index, 1.0))
     return ArticulationCfg(
@@ -401,7 +405,7 @@ def _record_lab_state_reset(run: _Run) -> dict[str, tuple[torch.Tensor, torch.Te
 
 
 @pytest.fixture(scope="module", params=test_devices(DeviceScope.CUDA))
-def device(request) -> str:
+def device(request: pytest.FixtureRequest) -> str:
     """Simulation device of the actuator scenes."""
     return request.param
 
@@ -437,7 +441,7 @@ def decimated_runs(device: str) -> dict[str, dict]:
 
 
 @pytest.fixture(scope="module")
-def newton_run(device: str, lab_run: dict, decimated_runs: dict) -> _Run:
+def newton_run(device: str, lab_run: dict, decimated_runs: dict) -> Iterator[_Run]:
     """Roll out every island on the Newton actuator path and keep the scene alive.
 
     Depends on the Lab-path and decimated runs so their scenes are built and closed first.
@@ -719,7 +723,7 @@ def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
     stateful_pairs = [
         (act, st)
         for act, st in zip(adapter.actuators, adapter._states_a)
-        if st is not None and getattr(st, "delay_state", None) is not None
+        if st is not None and st.delay_state is not None
     ]
     assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with delay_state"
 
