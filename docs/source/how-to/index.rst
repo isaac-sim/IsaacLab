@@ -118,6 +118,12 @@ How-to Guides
 
          Prepare an asset and task to run with the Newton MJWarp physics preset.
 
+      .. container:: guide-entry
+
+         :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
+
+         Run source-checkout tutorials for material response, rigid comparison, G1 coupling, and water surfaces.
+
    .. container:: guide-group
 
       .. rubric:: Scenes and Cloning
