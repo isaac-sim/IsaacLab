@@ -16,6 +16,16 @@ apply to the others unless it says so.
 PhysX backends
 --------------
 
+Surface grippers require CPU simulation
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+**Affects:** ``physics=isaacsim_physx`` surface-gripper tasks.
+
+Surface grippers require CPU simulation. This includes the UR10 Long/Short Suction stacking tasks,
+the Galbot Right Arm Suction stacking task, and its relative and absolute Mimic variants.
+Pass ``--device cpu`` when running teleoperation. Zero and random agents preserve these tasks'
+CPU defaults when ``--device`` is omitted; an explicit GPU override is unsupported.
+
 Sensor readings are stale immediately after a reset
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -80,7 +90,7 @@ The issue and upstream fix are described in `OpenUSD PR #4002`_.
    For kitless workflows, Isaac Lab obtains the ``pxr`` modules from ``usd-exchange``.
    ``usd-exchange`` and ``usd-core`` are alternative Python distributions of the same OpenUSD
    runtime and should not be installed together because both provide ``pxr``. They use different
-   distribution version schemes: for example, ``usd-exchange==2.3.0`` provides OpenUSD 25.05.
+   distribution version schemes: for example, ``usd-exchange==3.0.0`` provides OpenUSD 26.08.
    Isaac Sim instead uses its own Kit-bundled OpenUSD runtime.
 
 As a workaround for an affected kitless or pre-6.1 Isaac Sim runtime, limit OpenUSD to one worker
@@ -108,22 +118,13 @@ OpenUSD provider that contains the fix or to Isaac Sim 6.1 or later.
 
 .. _known-issues-closed-loop-newton:
 
-Closed-loop articulations are not available on Newton (e.g. Agility Digit)
+Closed-loop articulations are not validated on Kamino (e.g. Agility Digit)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** ``physics=newton_mjwarp``, ``physics=newton_kamino``.
+**Affects:** ``physics=newton_kamino``.
 
 Robots whose USD encodes a closed kinematic loop — such as the achilles rod and toe push-rods
-on the Agility Digit — are not currently validated on the Newton backends. The Digit-based
-contrib tasks are PhysX-only and do not expose a Newton preset at all:
-
-* ``IsaacContrib-Velocity-Flat-Digit``
-* ``IsaacContrib-Velocity-Rough-Digit``
-* ``IsaacContrib-Tracking-LocoManip-Digit``
-
-Passing ``presets=newton_mjwarp`` to these tasks is rejected, because the preset never
-selected a Newton backend on them; it only stripped a center-of-mass randomization from a
-PhysX run. Use the default PhysX configuration for Digit-based environments.
+on the Agility Digit — are not validated on ``newton_kamino``.
 
 
 Renderers
@@ -153,48 +154,29 @@ its pose:
     for _ in range(12):
         sim.render()
 
-.. _known-issues-animated-curve-scene-partition:
+.. _known-issues-scene-partition-count-cap:
 
-Animated curves disappear under Isaac RTX scene partitioning
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Scene partitioning is capped at 15625 partitions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Affects:** ``renderer=isaacsim_rtx`` with scene partitioning enabled. The OVRTX backend
-updates animated-curve bounding boxes correctly and is unaffected.
+**Affects:** ``renderer=isaacsim_rtx`` with scene partitioning enabled, and ``renderer=ovrtx``.
 
-Cables are authored as ``UsdGeom.BasisCurves`` and animated every frame. Kit RTX
-computes a bounding box for a curve prim once and never refreshes it while the curve
-deforms (OMPE-105749). The per-environment scene partition is sized from the union of
-the bounding boxes of the prims it contains, so that union covers the cable's *initial*
-extent plus whatever static geometry shares the partition. Once the cable moves outside
-that union it is culled and vanishes from the tiled camera images — for example a cable
-resting on a table can disappear the moment a robot arm pushes it off the edge.
+The underlying ``rtx.scenedb.plugin`` allocates a fixed-size pool of scene partitions and
+caps it at 15625, regardless of which renderer requests them. Isaac Lab assigns one scene
+partition per environment when
+:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` is enabled
+for the Isaac RTX renderer, and OVRTX always assigns one scene partition per environment, so
+runs with more than 15625 environments exceed the pool on either backend. Once the cap is
+hit, ``rtx.scenedb.plugin`` logs a warning and discards the remaining partitions:
 
-The bug is specific to the Isaac RTX (Kit) backend with
-:attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` enabled.
+.. code-block:: text
 
-The displacement needed to trip the cull is the distance from the curve's spawn extent to the edge
-of its partition's bounding box, so it depends on what else shares the partition. In a measurement
-on Kit 110.1.2, the cable in ``Isaac-Lift-Cable-Franka-Camera`` vanished at 0.6 m of displacement,
-while a lone curve in a partition containing only itself and a camera survived to roughly 4 m.
-Smaller motions render normally, which is why a settled or lightly perturbed cable looks fine.
+    [Warning] [rtx.scenedb.plugin] SceneDbContext : Maximum number of scene partitions
+    (15625) reached. Additional scene partitions will be discarded.
 
-There are two workarounds:
-
-* **Pin the partition bounds.** Spawn a pair of millimetre-scale static cubes at
-  diagonally opposite corners of a box that conservatively envelops the environment's
-  workspace. They enlarge the partition's bounding-box union to that box, so the cable
-  stays inside it wherever it moves. ``Isaac-Lift-Cable-Franka`` and
-  ``Isaac-Lift-Cable-Franka-Camera`` ship this workaround as the
-  ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene entries; copy
-  the pattern into custom cable environments. With the markers in place, cable visibility matches
-  an unpartitioned render exactly. The markers are static visual prims without colliders, so they
-  do not participate in physics, and ``Isaac-Lift-Cable-Franka-Camera`` drops them when its
-  camera renderer has scene partitioning off.
-
-* **Disable scene partitioning.** Set
-  :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.enable_scene_partitioning` to
-  ``False`` to opt out of partitioning entirely, at the cost of the per-environment
-  culling.
+Environments beyond the cap are left without their own partition and end up sharing one
+with another environment, so their tiled camera views can render another environment's
+geometry instead of their own.
 
 Using instanceable assets for markers
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -240,6 +222,6 @@ GLIBCXX errors in conda environments
 
 Some workflows exit with an ``OSError`` indicating ``version 'GLIBCXX_3.4.30' not found``
 when running from a conda environment. The issue appears to stem from importing torch or
-torch-related packages, such as tensorboard, prior to launching ``AppLauncher``. As a
-workaround, ensure that all torch imports happen after the ``AppLauncher`` instance has been
-created, which should resolve the error.
+torch-related packages, such as tensorboard, before Isaac Sim starts. As a workaround, ensure
+that all torch imports happen inside :func:`~isaaclab.app.launch_simulation`, after the runtime has
+started, which should resolve the error.

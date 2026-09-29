@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for OVPhysX 0.5.11 / 0.6 lifecycle compatibility."""
+"""Tests for OVPhysX 0.5.11 / 0.6 lifecycle and dynamics compatibility."""
 
 from __future__ import annotations
 
@@ -29,32 +29,36 @@ if not _MISSING_MODULES:
         OVPHYSX_LIFECYCLE_ENTRY_POINTS,
         build_lifecycle_entry_points,
         detect_ovphysx_version,
+        requires_legacy_joint_sign_correction,
     )
 else:
     OVPHYSX_LIFECYCLE_ENTRY_POINTS = None
     build_lifecycle_entry_points = None
     detect_ovphysx_version = None
+    requires_legacy_joint_sign_correction = None
 
 _LEGACY_ENTRY_POINTS = {"warmup": "warmup_gpu", "destroy": "release"}
 _CURRENT_ENTRY_POINTS = {"warmup": "warmup", "destroy": "destroy"}
 
 
-def test_detect_ovphysx_version_reads_distribution_metadata(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(importlib.metadata, "version", lambda name: "0.5.11")
-    assert detect_ovphysx_version() == Version("0.5.11")
+def _missing_distribution(name: str) -> str:
+    raise importlib.metadata.PackageNotFoundError(name)
 
 
-def test_detect_ovphysx_version_returns_none_when_uninstalled(monkeypatch: pytest.MonkeyPatch):
-    def _missing(name: str) -> str:
-        raise importlib.metadata.PackageNotFoundError(name)
-
-    monkeypatch.setattr(importlib.metadata, "version", _missing)
-    assert detect_ovphysx_version() is None
-
-
-def test_detect_ovphysx_version_returns_none_for_unparseable_version(monkeypatch: pytest.MonkeyPatch):
-    monkeypatch.setattr(importlib.metadata, "version", lambda name: "internal-build")
-    assert detect_ovphysx_version() is None
+@pytest.mark.parametrize(
+    ("metadata_version", "expected"),
+    [
+        (lambda name: "0.5.11", Version("0.5.11")),
+        (_missing_distribution, None),
+        (lambda name: "internal-build", None),
+    ],
+    ids=["installed", "uninstalled", "unparsable"],
+)
+def test_detect_ovphysx_version_reads_distribution_metadata(
+    monkeypatch: pytest.MonkeyPatch, metadata_version, expected: Version | None
+):
+    monkeypatch.setattr(importlib.metadata, "version", metadata_version)
+    assert detect_ovphysx_version() == expected
 
 
 @pytest.mark.parametrize(
@@ -75,3 +79,17 @@ def test_lifecycle_entry_points(version: Version | None, expected: dict[str, str
 def test_published_entry_points_are_read_only():
     with pytest.raises(TypeError):
         OVPHYSX_LIFECYCLE_ENTRY_POINTS["warmup"] = "mutated"  # type: ignore[index]
+
+
+@pytest.mark.parametrize(
+    ("version", "expected"),
+    [
+        (None, True),
+        (Version("0.5.11"), True),
+        (Version("0.6.0.dev1+trunk.e15a64a2"), False),
+        (Version("0.6"), False),
+        (Version("1.0"), False),
+    ],
+)
+def test_reversed_joint_sign_correction_version_boundary(version: Version | None, expected: bool):
+    assert requires_legacy_joint_sign_correction(version) is expected

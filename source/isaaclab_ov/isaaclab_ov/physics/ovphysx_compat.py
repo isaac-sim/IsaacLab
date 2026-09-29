@@ -11,8 +11,8 @@ with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and
 the entry-point names are resolved once at import and published as
 :data:`OVPHYSX_LIFECYCLE_ENTRY_POINTS`.
 
-The public extras stay pinned to ``ovphysx==0.5.11``; a missing or unparsable
-install keeps the 0.5.11 entry points.
+Missing or invalid version metadata selects the 0.5 lifecycle API and
+reversed-joint correction.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def detect_ovphysx_version() -> Version | None:
     try:
         return Version(raw)
     except InvalidVersion:
-        logger.warning("Could not parse ovphysx version %r; assuming the OVPhysX 0.5.11 lifecycle API.", raw)
+        logger.warning("Could not parse ovphysx version %r; assuming OVPhysX 0.5.11 compatibility behavior.", raw)
         return None
 
 
@@ -63,6 +63,19 @@ def uses_current_lifecycle_api(version: Version | None) -> bool:
         Whether ``version`` is OVPhysX 0.6 or newer.
     """
     return version is not None and version.release[:2] >= _CURRENT_LIFECYCLE_RELEASE
+
+
+def requires_legacy_joint_sign_correction(version: Version | None) -> bool:
+    """Return whether dynamics tensors need the pre-0.6 reversed-joint correction.
+
+    Args:
+        version: Installed OVPhysX version, or ``None`` when unavailable or unparsable.
+
+    Returns:
+        Whether to preserve the legacy correction. The 0.6 release line, including
+        development builds, already returns tensors in the public joint basis.
+    """
+    return version is None or version.release[:2] < (0, 6)
 
 
 def build_lifecycle_entry_points(version: Version | None) -> Mapping[str, str]:

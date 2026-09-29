@@ -5,15 +5,13 @@
 
 from typing import TYPE_CHECKING, cast
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import BLUE_ARROW_X_MARKER_CFG, CONTACT_SENSOR_MARKER_CFG, RED_ARROW_X_MARKER_CFG
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 
 if TYPE_CHECKING:
-    from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-
+    from ...sim.spawners.from_files.from_files_cfg import UsdFileCfg
     from .contact_sensor import ContactSensor
 
 
@@ -119,21 +117,21 @@ class ContactSensorCfg(SensorBaseCfg):
     Matched against shape paths on the same terms as :attr:`sensor_shape_prim_expr`.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = CONTACT_SENSOR_MARKER_CFG.replace(prim_path="/Visuals/ContactSensor")
+    visualizer_cfg: VisualizationMarkersCfg = replace(CONTACT_SENSOR_MARKER_CFG, prim_path="/Visuals/ContactSensor")
     """The configuration object for the visualization markers. Defaults to CONTACT_SENSOR_MARKER_CFG.
 
     .. note::
         This attribute is only used when debug visualization is enabled.
     """
 
-    normal_force_visualizer_cfg: VisualizationMarkersCfg = BLUE_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/ContactSensor"
+    normal_force_visualizer_cfg: VisualizationMarkersCfg = replace(
+        BLUE_ARROW_X_MARKER_CFG, prim_path="/Visuals/ContactSensor"
     )
     """Configuration for net normal-force arrows."""
     cast("UsdFileCfg", normal_force_visualizer_cfg.markers["arrow"]).scale = (0.04, 0.04, 0.2)
 
-    friction_force_visualizer_cfg: VisualizationMarkersCfg = RED_ARROW_X_MARKER_CFG.replace(
-        prim_path="/Visuals/ContactSensor"
+    friction_force_visualizer_cfg: VisualizationMarkersCfg = replace(
+        RED_ARROW_X_MARKER_CFG, prim_path="/Visuals/ContactSensor"
     )
     """Configuration for net friction-force arrows."""
     cast("UsdFileCfg", friction_force_visualizer_cfg.markers["arrow"]).scale = (0.04, 0.04, 0.2)

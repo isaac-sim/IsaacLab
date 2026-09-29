@@ -130,6 +130,23 @@ def test_images_share_one_pinned_uv():
     assert not offenders, f"every image must pin {UV_PIN}; got {offenders}"
 
 
+def test_curobo_compiler_matches_torch_without_replacing_runtime_libraries():
+    """CUDA extensions use Torch's CUDA version while uv owns its runtime libraries."""
+    text = (DOCKER_DIR / "Dockerfile.curobo").read_text(encoding="utf-8")
+    with (REPO_ROOT / "uv.lock").open("rb") as file:
+        torch_versions = {package["version"] for package in tomllib.load(file)["package"] if package["name"] == "torch"}
+
+    toolkit = re.search(r"\bcuda-toolkit-(\d+)-(\d+)\b", text)
+    assert toolkit is not None
+    major, minor = toolkit.groups()
+    assert {version.partition("+cu")[2] for version in torch_versions} == {f"{major}{minor}"}
+    assert f"ENV CUDA_HOME=/usr/local/cuda-{major}.{minor}" in text
+    assert "ENV PATH=${CUDA_HOME}/bin:${PATH}" in text
+    # System CUDA libraries must not replace Kit's libraries or shadow the locked wheels.
+    assert not re.search(r"^ENV LD_LIBRARY_PATH=.*\$\{CUDA_HOME\}", text, re.MULTILINE)
+    assert not re.search(r"^\s+(?:libcudnn|libcusparselt|libnccl|libnvjitlink)\S*\s", text, re.MULTILINE)
+
+
 def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_sim():
     """The kit-less image installs its runtime features and importers without the full Isaac Sim runtime."""
     dockerfile_text = (DOCKER_DIR / "Dockerfile.kitless").read_text(encoding="utf-8")

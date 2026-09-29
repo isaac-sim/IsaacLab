@@ -1,3 +1,5 @@
+:orphan:
+
 Profiling Isaac Lab with Nsight Systems
 =======================================
 

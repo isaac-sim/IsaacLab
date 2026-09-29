@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions specific to the in-hand dexterous manipulation environments."""
+"""Termination terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 

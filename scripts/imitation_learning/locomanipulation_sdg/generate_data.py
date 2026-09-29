@@ -5,10 +5,12 @@
 
 """Script to replay demonstrations with Isaac Lab environments."""
 
+from __future__ import annotations
+
 import argparse
 import os
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation, scan
 
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
@@ -95,13 +97,13 @@ parser.add_argument(
     "--background_usd_path",
     type=str,
     default=None,
-    help="Path to the USD file for the background asset",
+    help="Path to the NuRec USD file.",
 )
 parser.add_argument(
     "--background_occupancy_yaml_file",
     type=str,
     default=None,
-    help="Path to the occupancy map YAML file for the background asset",
+    help="Path to the NuRec occupancy map YAML file.",
 )
 parser.add_argument(
     "--high_res_video",
@@ -122,28 +124,26 @@ parser.add_argument(
     help="Set the Sim GUI viewport to the robot_pov_cam sensor view at the start of each episode.",
 )
 
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # forward unrecognized args as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
 
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+args_cli.enable_cameras = True
+# the task config imports USD and the script uses Kit APIs directly, so the Kit runtime is always launched
+args_cli.require_kit = True
 
 import enum
 import random
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import gymnasium as gym
 import numpy as np
 import torch
 import warp as wp
 
-import omni.kit
-import omni.kit.viewport.utility
-import omni.usd
-
 from isaaclab.managers import DatasetExportMode
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed
@@ -156,18 +156,16 @@ from isaaclab_mimic.locomanipulation_sdg.data_classes import (
 if args_cli.seed is not None:
     configure_seed(args_cli.seed)
 
-from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
-from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
-    OccupancyMap,
-    OccupancyMapDataValue,
-    merge_occupancy_maps,
-    occupancy_map_add_to_stage,
-)
-from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
-from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 from isaaclab_mimic.locomanipulation_sdg.transform_utils import transform_inv, transform_mul, transform_relative_pose
 
 from isaaclab_tasks.utils import parse_env_cfg
+
+if TYPE_CHECKING:
+    # these modules load USD, so they are only imported at runtime once the simulation is launched
+    from isaaclab_mimic.locomanipulation_sdg.envs.locomanipulation_sdg_env import LocomanipulationSDGEnv
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import OccupancyMap
+    from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose
 
 
 class LocomanipulationSDGDataGenerationState(enum.IntEnum):
@@ -310,6 +308,8 @@ def sync_simulation_state(env: LocomanipulationSDGEnv):
 
 def _set_sensor_camera_view():
     """Set the Sim GUI viewport to display the robot_pov_cam sensor view."""
+    import omni.kit.viewport.utility
+
     viewport = omni.kit.viewport.utility.get_active_viewport()
     if viewport is not None:
         cam_prim_path = "/World/envs/env_0/Robot/torso_link/d435_link/camera"
@@ -358,7 +358,9 @@ def project_robot_state_into_env(env: LocomanipulationSDGEnv, input_episode_data
     )
     default_vel = env.scene["robot"].data.default_root_vel.torch.clone()
     default_vel[0] = torch.zeros(6, device=env.device)
-    env.scene["robot"].data.default_root_vel.warp.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+    env.scene["robot"].data.default_root_vel.warp.assign(
+        wp.from_torch(default_vel.to(env.device).contiguous()).view(wp.spatial_vectorf)
+    )
 
     robot_state = recording_initial_state["articulation"]["robot"]
     joint_position = robot_state["joint_position"][0].to(env.device)
@@ -409,7 +411,9 @@ def project_object_state_into_env(env: LocomanipulationSDGEnv, input_episode_dat
     )
     default_vel = env.scene["object"].data.default_root_vel.torch.clone()
     default_vel[0] = torch.zeros(6, device=env.device)
-    env.scene["object"].data.default_root_vel.warp.assign(wp.from_torch(default_vel.to(env.device).contiguous()))
+    env.scene["object"].data.default_root_vel.warp.assign(
+        wp.from_torch(default_vel.to(env.device).contiguous()).view(wp.spatial_vectorf)
+    )
 
     return new_object_pose
 
@@ -433,13 +437,20 @@ def setup_navigation_scene(
     Returns:
         NavigationScene or None if the navigation scene setup failed.
     """
+    from isaaclab_mimic.locomanipulation_sdg.occupancy_map_utils import (
+        OccupancyMap,
+        OccupancyMapDataValue,
+        merge_occupancy_maps,
+        occupancy_map_add_to_stage,
+    )
+    from isaaclab_mimic.locomanipulation_sdg.path_utils import ParameterizedPath, plan_path
+    from isaaclab_mimic.locomanipulation_sdg.scene_utils import RelativePose, place_randomly
 
     background_fixture = env.get_background_fixture()
     if background_fixture is not None:
         occupancy_map = background_fixture.get_occupancy_map()
         fixtures = [env.get_start_fixture(), env.get_end_fixture()] + env.get_obstacle_fixtures()
-        if not randomize_placement:
-            raise ValueError("randomize_placement needs to be True when background_usd_path is provided")
+        randomize_placement = True
     else:
         occupancy_map = merge_occupancy_maps(
             [
@@ -484,17 +495,20 @@ def setup_navigation_scene(
     env.obs_buf = env.observation_manager.compute(update_history=True)
 
     nav_map = occupancy_map.buffered_meters(0.15)
-    nav_fs = nav_map.freespace_mask()
-    start_pos = env.get_base().get_pose()[0, :2].detach().cpu().numpy()
-    start_px = nav_map.world_to_pixel_numpy(start_pos[None])[0].astype(int)
-    sx, sy = int(start_px[0]), int(start_px[1])
 
-    # Clear the buffer zone around the robot's start pixel if it falls inside it.
-    # The robot stands adjacent to the start table so its position sits within the 0.15m buffer.
-    if 0 <= sy < nav_fs.shape[0] and 0 <= sx < nav_fs.shape[1] and not nav_fs[sy, sx]:
+    def clear_nav_map_buffer(world_xy: torch.Tensor | np.ndarray):
+        nav_fs = nav_map.freespace_mask()
+        pixel_xy = nav_map.world_to_pixel_numpy(np.asarray(world_xy)[None])[0].astype(int)
+        x_px, y_px = int(pixel_xy[0]), int(pixel_xy[1])
+        if not (0 <= y_px < nav_fs.shape[0] and 0 <= x_px < nav_fs.shape[1]) or nav_fs[y_px, x_px]:
+            return
         clear_r = int(0.15 / nav_map.resolution)
         yy, xx = np.ogrid[: nav_map.data.shape[0], : nav_map.data.shape[1]]
-        nav_map.data[(xx - sx) ** 2 + (yy - sy) ** 2 <= clear_r**2] = OccupancyMapDataValue.FREESPACE
+        nav_map.data[(xx - x_px) ** 2 + (yy - y_px) ** 2 <= clear_r**2] = OccupancyMapDataValue.FREESPACE
+
+    # The robot start and approach goal can sit adjacent to their tables, inside the 0.15 m buffer.
+    clear_nav_map_buffer(env.get_base().get_pose()[0, :2].detach().cpu().numpy())
+    clear_nav_map_buffer(base_goal_approach.get_pose()[0, :2].detach().cpu().numpy())
 
     base_path = plan_path(start=env.get_base(), end=base_goal_approach, occupancy_map=nav_map)
 
@@ -511,7 +525,7 @@ def setup_navigation_scene(
     if draw_visualization:
         occupancy_map_add_to_stage(
             occupancy_map,
-            stage=omni.usd.get_context().get_stage(),
+            stage=env.sim.stage,
             path="/OccupancyMap",
             z_offset=0.01,
             draw_path=base_path_helper.points,
@@ -899,6 +913,11 @@ def replay(
         print("Failed to setup navigation scene", flush=True)
         return False
 
+    # Background placement can move fixtures and re-project robot/object root poses
+    # after reset_to records initial_state. Re-record from the projected scene.
+    env.recorder_manager.reset(env_ids=[0])
+    env.recorder_manager.record_post_reset(env_ids=[0])
+
     if sensor_camera_view:
         _set_sensor_camera_view()
 
@@ -909,7 +928,7 @@ def replay(
     recording_step = 0
 
     # Main simulation loop with state machine
-    while simulation_app.is_running() and not simulation_app.is_exiting():
+    while env.sim.is_running():
         if current_state != previous_state:
             print(f"State changed: {current_state.name}, Recording step: {recording_step}", flush=True)
             previous_state = current_state
@@ -987,7 +1006,8 @@ def replay(
 
 
 if __name__ == "__main__":
-    with torch.no_grad():
+    # the task config module imports USD, so the Kit runtime is launched before the config is parsed
+    with torch.no_grad(), launch_simulation(None, args_cli):
         # Create environment
         if args_cli.task is not None:
             env_name = args_cli.task.split(":")[-1]
@@ -995,13 +1015,25 @@ if __name__ == "__main__":
             raise ValueError("Task/env name was not specified nor found in the dataset.")
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
+        # resolve the config's automatic physics and renderer selections for the launched runtime
+        scan(env_cfg, args_cli)
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
         env_cfg.recorders.export_in_record_pre_reset = True
 
-        if args_cli.background_usd_path is not None and args_cli.background_occupancy_yaml_file is not None:
+        nurec_scene_used = (
+            args_cli.background_usd_path is not None or args_cli.background_occupancy_yaml_file is not None
+        )
+        if nurec_scene_used and (
+            args_cli.background_usd_path is None or args_cli.background_occupancy_yaml_file is None
+        ):
+            raise ValueError(
+                "Both --background_usd_path and --background_occupancy_yaml_file must be provided for NuRec scenes."
+            )
+
+        if nurec_scene_used:
             env_cfg.background_usd_path = args_cli.background_usd_path
             env_cfg.background_occupancy_yaml_file = args_cli.background_occupancy_yaml_file
 
@@ -1048,7 +1080,7 @@ if __name__ == "__main__":
                 following_offset=args_cli.following_offset,
                 angle_threshold=args_cli.angle_threshold,
                 approach_distance=args_cli.approach_distance,
-                randomize_placement=args_cli.randomize_placement,
+                randomize_placement=args_cli.randomize_placement or nurec_scene_used,
                 sensor_camera_view=args_cli.sensor_camera_view,
             )
 
@@ -1064,5 +1096,3 @@ if __name__ == "__main__":
         if getattr(env, "viewport_camera_controller", None) is not None:
             env.viewport_camera_controller.update_view_to_world()
         env.close()
-
-        simulation_app.close()

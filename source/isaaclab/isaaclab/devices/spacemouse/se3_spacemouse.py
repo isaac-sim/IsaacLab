@@ -77,7 +77,7 @@ class Se3SpaceMouse(DeviceBase):
         self._delta_pos = np.zeros(3)  # (x, y, z)
         self._delta_rot = np.zeros(3)  # (roll, pitch, yaw)
         # dictionary for additional callbacks
-        self._additional_callbacks = dict()
+        self._additional_callbacks = {}
         # run a thread for listening to device updates
         self._thread = threading.Thread(target=self._run_device)
         self._thread.daemon = True
@@ -85,7 +85,9 @@ class Se3SpaceMouse(DeviceBase):
 
     def __del__(self):
         """Destructor for the class."""
-        self._thread.join()
+        thread = getattr(self, "_thread", None)
+        if thread is not None and thread.is_alive():
+            thread.join()
 
     def __str__(self) -> str:
         """Returns: A string containing the information of joystick."""

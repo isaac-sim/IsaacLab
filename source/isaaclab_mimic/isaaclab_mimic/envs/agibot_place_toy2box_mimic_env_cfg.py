@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.place.config.agibot.place_toy2box_rmp_rel_env_cfg import (
     RmpFlowAgibotPlaceToy2BoxEnvCfg,
@@ -20,6 +20,8 @@ class RmpFlowAgibotPlaceToy2BoxMimicEnvCfg(RmpFlowAgibotPlaceToy2BoxEnvCfg, Mimi
     """
     Isaac Lab Mimic environment config class for Agibot Place Toy2Box env.
     """
+
+    class_type: type | str = "{DIR}.pick_place_mimic_env:PickPlaceRelMimicEnv"
 
     def __post_init__(self):
         # post init of parents

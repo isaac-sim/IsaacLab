@@ -200,6 +200,30 @@ runtime and cannot repair an unstable entry. The generated
 default; Newton's concept page explains the underlying algorithms.
 
 
+ADMM Contact Capacity
+^^^^^^^^^^^^^^^^^^^^^
+
+ADMM's internal contact buffers are independent of ``NewtonCfg.collision_cfg``.
+Increase ``CouplerAdmmCfg.contact_max_triangle_pairs`` for triangle-pair overflows,
+or ``contact_reduction_hashtable_size_factor`` for contact-reduction hash table
+warnings. Both default to ``None`` (Newton's defaults); explicit values require
+support in Newton's ``SolverCoupledADMM.Config``. Capacities cover all environments
+in one process, independently on each rank in multi-GPU jobs.
+
+With ``rigid_contact_matching="latest"`` or ``"sticky"``, triangle-pair capacity
+must be less than ``2**20``; larger values require ``"disabled"``. The hash table
+can grow independently while retaining matching:
+
+.. code-block:: python
+
+    coupling_cfg = CouplerAdmmCfg(
+        entries=entries,
+        rigid_contact_matching="latest",
+        contact_max_triangle_pairs=1_000_000,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
+
+
 Start from a maintained task
 ----------------------------
 

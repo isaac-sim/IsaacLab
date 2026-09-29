@@ -15,28 +15,18 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 
 """
 
-"""Launch Omniverse Toolkit first."""
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Pick and lift state machine for cabinet environments.")
 parser.add_argument(
     "--disable_fabric", action="store_true", default=False, help="Disable fabric and use USD I/O operations."
 )
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+add_launcher_args(parser)
 # parse the arguments, forwarding unrecognized ones as Hydra-style task config overrides
 args_cli, hydra_overrides = parser.parse_known_args()
-
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
-"""Rest everything else."""
 
 from collections.abc import Sequence
 
@@ -45,6 +35,7 @@ import torch
 import warp as wp
 
 from isaaclab.sensors import FrameTransformer
+from isaaclab.utils import index_fill_
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import CabinetEnvCfg
@@ -233,11 +224,9 @@ class OpenDrawerSm:
 
     def reset_idx(self, env_ids: Sequence[int] | None = None):
         """Reset the state machine."""
-        if env_ids is None:
-            env_ids = slice(None)
         # reset state machine
-        self.sm_state[env_ids] = 0
-        self.sm_wait_time[env_ids] = 0.0
+        index_fill_(self.sm_state, env_ids, 0)
+        index_fill_(self.sm_wait_time, env_ids, 0.0)
 
     def compute(self, ee_pose: torch.Tensor, handle_pose: torch.Tensor):
         """Compute the desired state of the robot's end-effector and the gripper."""
@@ -278,54 +267,54 @@ def main():
         use_fabric=not args_cli.disable_fabric,
         overrides=hydra_overrides,
     )
-    # create environment
-    env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
-    # reset environment at start
-    env.reset()
+    with launch_simulation(env_cfg, args_cli):
+        # create environment
+        env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
+        # reset environment at start
+        env.reset()
 
-    # create action buffers (position + quaternion)
-    actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
-    actions[:, 3] = 1.0
-    # desired object orientation (we only do position control of object)
-    desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
-    desired_orientation[:, 1] = 1.0
-    # create state machine
-    open_sm = OpenDrawerSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
+        # create action buffers (position + quaternion)
+        actions = torch.zeros(env.unwrapped.action_space.shape, device=env.unwrapped.device)
+        actions[:, 3] = 1.0
+        # desired object orientation (we only do position control of object)
+        desired_orientation = torch.zeros((env.unwrapped.num_envs, 4), device=env.unwrapped.device)
+        desired_orientation[:, 1] = 1.0
+        # create state machine
+        open_sm = OpenDrawerSm(env_cfg.sim.dt * env_cfg.decimation, env.unwrapped.num_envs, env.unwrapped.device)
 
-    while simulation_app.is_running():
-        # run everything in inference mode
-        with torch.inference_mode():
-            # step environment
-            dones = env.step(actions)[-2]
+        while env.unwrapped.sim.is_running():
+            # run everything in inference mode
+            with torch.inference_mode():
+                # step environment
+                dones = env.step(actions)[-2]
 
-            # observations
-            # -- end-effector frame
-            ee_frame_tf: FrameTransformer = env.unwrapped.scene["ee_frame"]
-            tcp_rest_position = ee_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            tcp_rest_orientation = ee_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
-            # -- handle frame
-            cabinet_frame_tf: FrameTransformer = env.unwrapped.scene["cabinet_frame"]
-            cabinet_position = (
-                cabinet_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
-            )
-            cabinet_orientation = cabinet_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
+                # observations
+                # -- end-effector frame
+                ee_frame_tf: FrameTransformer = env.unwrapped.scene["ee_frame"]
+                tcp_rest_position = (
+                    ee_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
+                )
+                tcp_rest_orientation = ee_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
+                # -- handle frame
+                cabinet_frame_tf: FrameTransformer = env.unwrapped.scene["cabinet_frame"]
+                cabinet_position = (
+                    cabinet_frame_tf.data.target_pos_w.torch[..., 0, :].clone() - env.unwrapped.scene.env_origins
+                )
+                cabinet_orientation = cabinet_frame_tf.data.target_quat_w.torch[..., 0, :].clone()
 
-            # advance state machine
-            actions = open_sm.compute(
-                torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
-                torch.cat([cabinet_position, cabinet_orientation], dim=-1),
-            )
+                # advance state machine
+                actions = open_sm.compute(
+                    torch.cat([tcp_rest_position, tcp_rest_orientation], dim=-1),
+                    torch.cat([cabinet_position, cabinet_orientation], dim=-1),
+                )
 
-            # reset state machine
-            if dones.any():
-                open_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
+                # reset state machine
+                if dones.any():
+                    open_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
 
-    # close the environment
-    env.close()
+        # close the environment
+        env.close()
 
 
 if __name__ == "__main__":
-    # run the main execution
     main()
-    # close sim app
-    simulation_app.close()
