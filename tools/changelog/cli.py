@@ -24,7 +24,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import legacy
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -34,6 +33,11 @@ TYPES = ("added", "changed", "deprecated", "removed", "fixed")
 ENTRY_RE = re.compile(rf"^[^./]+\.({'|'.join(TYPES)})\.rst$")
 MARKER_RE = re.compile(r"^[^./]+\.(skip|minor|major)$")
 RELEASE_NOTES_MARKER = ".. towncrier release notes start"
+
+
+# ---------------------------------------------------------------------------------------------------
+# shared helpers
+# ---------------------------------------------------------------------------------------------------
 
 
 def run(*cmd: str | Path, env: dict[str, str] | None = None) -> str:
@@ -46,6 +50,54 @@ def run(*cmd: str | Path, env: dict[str, str] | None = None) -> str:
 def packages() -> list[Path]:
     """Return the package directories that keep a ``docs/CHANGELOG.rst``."""
     return sorted(changelog.parent.parent for changelog in (REPO_ROOT / "source").glob("*/docs/CHANGELOG.rst"))
+
+
+# ---------------------------------------------------------------------------------------------------
+# legacy fragments (WAR): open PRs may still add pre-towncrier fragments, so check and compile split
+# them. Delete this section and its two ``# WAR`` callers once no open PR carries the old format.
+# ---------------------------------------------------------------------------------------------------
+
+LEGACY_RE = re.compile(r"^(?P<slug>[^./]+)(?:\.(?P<tier>minor|major))?\.rst$")
+LEGACY_HEADING_RE = re.compile(r"^(\S[^\n]*)\n\^+[ \t]*\n", re.MULTILINE)
+
+
+def split_legacy(path: Path) -> dict[str, str]:
+    """Return the towncrier fragments ``{name: text}`` equivalent to a legacy fragment.
+
+    A legacy ``<slug>[.minor|.major].rst`` holds ``^``-underlined Added/Changed/Deprecated/Removed/Fixed
+    sections. Each section becomes ``<slug>.<type>.rst`` and the tier an empty ``<slug>.minor``/``.major``.
+
+    Raises:
+        ValueError: If the file has no sections, or a section is unknown or repeated.
+    """
+    match = LEGACY_RE.match(path.name)
+    parts = LEGACY_HEADING_RE.split(path.read_text(encoding="utf-8"))
+    headings = [fragment_type.capitalize() for fragment_type in TYPES]
+    if parts[0].strip() or len(parts) < 3:
+        raise ValueError(f"expected sections {', '.join(headings)} underlined with ^")
+    fragments = {f"{match['slug']}.{match['tier']}": ""} if match["tier"] else {}
+    for heading, body in zip(parts[1::2], parts[2::2]):
+        name = f"{match['slug']}.{heading.lower()}.rst"
+        if heading not in headings or name in fragments:
+            raise ValueError(f"unknown or repeated section {heading!r}")
+        fragments[name] = body.strip("\n") + "\n"
+    return fragments
+
+
+def split_legacy_fragments(fragments: Path) -> None:
+    """Replace each legacy fragment in the ``fragments`` directory with its towncrier fragments.
+
+    Raises:
+        ValueError: If a legacy fragment is malformed or its split would overwrite another fragment.
+    """
+    for path in sorted(fragments.glob("*.rst")):
+        if LEGACY_RE.match(path.name):
+            for name, text in split_legacy(path).items():
+                # Another fragment with the same slug would otherwise lose its entry.
+                if (fragments / name).exists():
+                    raise ValueError(f"splitting {path.name} would overwrite {name}")
+                (fragments / name).write_text(text, encoding="utf-8")
+            path.unlink()
 
 
 # ---------------------------------------------------------------------------------------------------
@@ -72,9 +124,9 @@ def check_fragment(path: Path) -> list[str]:
         return []
     if ENTRY_RE.match(path.name):
         bodies = [path.read_text(encoding="utf-8")]
-    elif legacy.LEGACY_RE.match(path.name):  # WAR
+    elif LEGACY_RE.match(path.name):  # WAR
         try:
-            bodies = [text for name, text in legacy.split_legacy(path).items() if name.endswith(".rst")]
+            bodies = [text for name, text in split_legacy(path).items() if name.endswith(".rst")]
         except ValueError as e:
             return [f"{rel}: {e}"]
     else:
@@ -177,16 +229,7 @@ def compile_package(pkg: Path) -> str | None:
     fragments = pkg / "changelog.d"
     if not fragments.is_dir():
         return None
-    # WAR: split legacy multi-section fragments into towncrier's one-type-per-file fragments, so open PRs
-    # need no migration. Remove with legacy.py once they have merged.
-    for path in sorted(fragments.glob("*.rst")):
-        if legacy.LEGACY_RE.match(path.name):
-            for name, text in legacy.split_legacy(path).items():
-                # Another fragment with the same slug would otherwise lose its entry.
-                if (fragments / name).exists():
-                    raise ValueError(f"splitting {path.name} would overwrite {name}")
-                (fragments / name).write_text(text, encoding="utf-8")
-            path.unlink()
+    split_legacy_fragments(fragments)  # WAR
     names = [path.name for path in fragments.iterdir()]
     # No entries means no release: drop the .skip and tier files, so a stale tier cannot bump a later release.
     if not any(ENTRY_RE.match(name) for name in names):
@@ -265,7 +308,7 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 
 # ---------------------------------------------------------------------------------------------------
-# Entry point
+# entry point
 # ---------------------------------------------------------------------------------------------------
 
 

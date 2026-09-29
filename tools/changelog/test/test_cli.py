@@ -9,7 +9,6 @@ import shutil
 import subprocess
 
 import cli
-import legacy
 import pytest
 import tomllib
 
@@ -75,7 +74,7 @@ def check(include_worktree=False):
 def test_split_legacy_maps_sections_and_tier(tmp_path):
     path = tmp_path / "my-branch.minor.rst"
     path.write_text("Added\n^^^^^\n\n* Added x.\n  More on x.\n\nFixed\n^^^^^\n\n* Fixed y.\n")
-    assert legacy.split_legacy(path) == {
+    assert cli.split_legacy(path) == {
         "my-branch.minor": "",
         "my-branch.added.rst": "* Added x.\n  More on x.\n",
         "my-branch.fixed.rst": "* Fixed y.\n",
@@ -94,7 +93,7 @@ def test_split_legacy_rejects_malformed_fragments(tmp_path, text):
     path = tmp_path / "my-branch.rst"
     path.write_text(text)
     with pytest.raises(ValueError):
-        legacy.split_legacy(path)
+        cli.split_legacy(path)
 
 
 @pytest.mark.parametrize(
