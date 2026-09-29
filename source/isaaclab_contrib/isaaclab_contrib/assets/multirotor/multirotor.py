@@ -18,6 +18,7 @@ from isaaclab_physx.assets.articulation import Articulation
 from isaaclab_physx.assets.kernels import split_state_to_root_pose_and_vel
 
 import isaaclab.utils.string as string_utils
+from isaaclab.utils import instantiate
 
 from isaaclab_contrib.actuators import Thruster
 from isaaclab_contrib.utils.types import MultiRotorActions
@@ -29,6 +30,26 @@ if TYPE_CHECKING:
 
 # import logger
 logger = logging.getLogger(__name__)
+
+
+class _ThrusterCollection(dict):
+    """Name-keyed mapping of :class:`~isaaclab_contrib.actuators.Thruster` actuators.
+
+    Multirotors are controlled through thrusters rather than joint actuators, so
+    :class:`Multirotor` stores its actuators in this lightweight ``dict`` subclass instead of a
+    joint-based :class:`~isaaclab.actuators.ActuatorCollection`. Behaving as a plain ``dict`` keeps
+    the existing name-based access (``self.actuators["thrusters"]``, iteration, ``.values()``) while
+    exposing the :meth:`reset` entry point that :meth:`isaaclab.assets.Articulation.reset` invokes.
+    """
+
+    def reset(self, env_ids: Sequence[int] | slice | None = None) -> None:
+        """Reset every thruster actuator for the given environments.
+
+        Args:
+            env_ids: Environment indices to reset. Defaults to None (all environments).
+        """
+        for actuator in self.values():
+            actuator.reset(env_ids)
 
 
 class Multirotor(Articulation):
@@ -70,7 +91,7 @@ class Multirotor(Articulation):
 
             # Create multirotor configuration
             multirotor_cfg = MultirotorCfg(
-                prim_path="/World/envs/env_.*/Robot",
+                prim_path="{ENV_REGEX_NS}/Robot",
                 spawn=sim_utils.UsdFileCfg(usd_path="path/to/quadcopter.usd"),
                 actuators={"thrusters": thruster_cfg},
                 allocation_matrix=[  # 6x4 matrix for quadcopter (6 DOF, 4 thrusters)
@@ -84,7 +105,7 @@ class Multirotor(Articulation):
             )
 
             # Create the multirotor instance
-            multirotor = multirotor_cfg.class_type(multirotor_cfg)
+            multirotor = instantiate(multirotor_cfg)
 
     .. note::
         The allocation matrix maps individual thruster forces to a 6D wrench (3 forces + 3 torques)
@@ -245,7 +266,7 @@ class Multirotor(Articulation):
         # reset multirotor-specific data
         if env_ids is None:
             env_ids = self._ALL_INDICES
-        elif not isinstance(env_ids, torch.Tensor):
+        elif not isinstance(env_ids, (torch.Tensor, slice)):
             env_ids = torch.tensor(env_ids, dtype=torch.long, device=self.device)
 
         # reset thruster targets to default values
@@ -405,7 +426,7 @@ class Multirotor(Articulation):
     def _process_thruster_cfg(self):
         """Process and apply multirotor thruster properties."""
         # create actuators
-        self.actuators = dict()
+        self.actuators = _ThrusterCollection()
         self._has_implicit_actuators = False
 
         # Check for mixed configurations (same as before)
@@ -448,8 +469,8 @@ class Multirotor(Articulation):
             }
 
             # Create thruster actuator
-            actuator: Thruster = actuator_cfg.class_type(
-                cfg=actuator_cfg,
+            actuator: Thruster = instantiate(
+                actuator_cfg,
                 thruster_names=thruster_names,
                 thruster_ids=thruster_array_indices,
                 num_envs=self.num_instances,

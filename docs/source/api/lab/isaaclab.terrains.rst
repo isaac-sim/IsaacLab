@@ -228,6 +228,16 @@ Star terrain
     :show-inheritance:
     :exclude-members: __init__, function
 
+Mesh file terrain
+^^^^^^^^^^^^^^^^^
+
+.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.mesh_file_terrain
+
+.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFileTerrainCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, function
+
 Repeated Objects Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -259,3 +269,18 @@ Utilities
 .. automodule:: isaaclab.terrains.utils
     :members:
     :undoc-members:
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.terrains` API.
+
+.. currentmodule:: isaaclab.terrains
+
+.. autosummary::
+   :nosignatures:
+
+   FlatPatchSamplingCfg
+
+.. autoclass:: FlatPatchSamplingCfg
+   :show-inheritance:

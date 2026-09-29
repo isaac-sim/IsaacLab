@@ -91,15 +91,15 @@ def test_fragment_batch_collects_skip_files_separately(tmp_path):
 
 # ---------------------------------------------------------------------------
 # Package.discover — a package is "managed" iff it has both
-# config/extension.toml and docs/CHANGELOG.rst
+# pyproject.toml and docs/CHANGELOG.rst
 # ---------------------------------------------------------------------------
 
 
 def _make_pkg(root: Path, name: str, *, has_ext: bool = True, has_changelog: bool = True) -> None:
     pkg = root / name
     if has_ext:
-        (pkg / "config").mkdir(parents=True, exist_ok=True)
-        (pkg / "config" / "extension.toml").write_text('version = "0.0.0"\n', encoding="utf-8")
+        pkg.mkdir(parents=True, exist_ok=True)
+        (pkg / "pyproject.toml").write_text('[project]\nversion = "0.0.0"\n', encoding="utf-8")
     if has_changelog:
         (pkg / "docs").mkdir(parents=True, exist_ok=True)
         (pkg / "docs" / "CHANGELOG.rst").write_text("Changelog\n---------\n\n", encoding="utf-8")
@@ -119,7 +119,7 @@ def test_package_discover_excludes_packages_missing_changelog(tmp_path):
     assert [p.name for p in cli.Package.discover(tmp_path)] == ["complete"]
 
 
-def test_package_discover_excludes_packages_missing_extension_toml(tmp_path):
+def test_package_discover_excludes_packages_missing_pyproject_toml(tmp_path):
     _make_pkg(tmp_path, "complete")
     _make_pkg(tmp_path, "no_extension", has_ext=False)
     assert [p.name for p in cli.Package.discover(tmp_path)] == ["complete"]

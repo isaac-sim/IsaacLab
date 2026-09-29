@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Reward terms for the locomotion (ant and humanoid) environments."""
+
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
@@ -42,8 +44,7 @@ def move_to_target_bonus(
 class progress_reward(ManagerTermBase):
     """Reward for making progress towards the target."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        # initialize the base class
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
         # create history buffer
         self.potentials = torch.zeros(env.num_envs, device=env.device)
@@ -52,15 +53,13 @@ class progress_reward(ManagerTermBase):
     def reset(self, env_ids: torch.Tensor):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = self._env.scene["robot"]
-        # compute projection of current heading to desired heading vector
-        target_pos = torch.tensor(self.cfg.params["target_pos"], device=self.device)
-        to_target_pos = target_pos - asset.data.root_pos_w.torch[env_ids, :3]
+        # compute the planar distance to the target, matching __call__ so the first step scores no progress
+        to_target_pos = obs.walk_target_w(self._env, self.cfg.params["target_pos"])[env_ids]
+        to_target_pos = to_target_pos - asset.data.root_pos_w.torch[env_ids, :3]
+        to_target_pos[:, 2] = 0.0
         # reward terms
         self.potentials[env_ids] = -torch.linalg.norm(to_target_pos, ord=2, dim=-1) / self._env.step_dt
         self.prev_potentials[env_ids] = self.potentials[env_ids]
-        # flush survival success rate (survived = timed out without falling)
-        survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
 
     def __call__(
         self,
@@ -71,8 +70,7 @@ class progress_reward(ManagerTermBase):
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
         # compute vector to target
-        target_pos = torch.tensor(target_pos, device=env.device)
-        to_target_pos = target_pos - asset.data.root_pos_w.torch[:, :3]
+        to_target_pos = obs.walk_target_w(env, target_pos) - asset.data.root_pos_w.torch[:, :3]
         to_target_pos[:, 2] = 0.0
         # update history buffer and compute new potential
         self.prev_potentials[:] = self.potentials[:]
@@ -84,19 +82,11 @@ class progress_reward(ManagerTermBase):
 class joint_pos_limits_penalty_ratio(ManagerTermBase):
     """Penalty for violating joint position limits weighted by the gear ratio."""
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        # add default argument
-        asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
-        # extract the used quantities (to enable type-hinting)
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
         asset: Articulation = env.scene[asset_cfg.name]
-
-        # resolve the gear ratio for each joint
-        self.gear_ratio = torch.ones(env.num_envs, asset.num_joints, device=env.device)
-        index_list, _, value_list = string_utils.resolve_matching_names_values(
-            cfg.params["gear_ratio"], asset.joint_names
-        )
-        self.gear_ratio[:, index_list] = torch.tensor(value_list, device=env.device)
-        self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
+        self.gear_ratio_scaled = _resolve_scaled_gear_ratio(cfg.params["gear_ratio"], asset, env.device)
 
     def __call__(
         self,
@@ -121,31 +111,46 @@ class joint_pos_limits_penalty_ratio(ManagerTermBase):
 
 
 class power_consumption(ManagerTermBase):
-    """Penalty for the power consumed by the actions to the environment.
+    """Penalty for the power consumed by the joint actions.
 
-    This is computed as commanded torque times the joint velocity.
+    Computed as the action scaled by its gear ratio, normalized by the largest gear ratio, times the joint
+    velocity, summed over joints. The effort action terms scale the actions by the same gear ratios, so up
+    to that normalization and the effort clip this is the commanded effort times the joint velocity. It
+    matches the electricity cost of the direct locomotion environments.
     """
 
-    def __init__(self, env: ManagerBasedRLEnv, cfg: RewardTermCfg):
-        # add default argument
-        asset_cfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
-        # extract the used quantities (to enable type-hinting)
+    def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
+        super().__init__(cfg, env)
+        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("robot"))
         asset: Articulation = env.scene[asset_cfg.name]
-
-        # resolve the gear ratio for each joint
-        self.gear_ratio = torch.ones(env.num_envs, asset.num_joints, device=env.device)
-        index_list, _, value_list = string_utils.resolve_matching_names_values(
-            cfg.params["gear_ratio"], asset.joint_names
-        )
-        self.gear_ratio[:, index_list] = torch.tensor(value_list, device=env.device)
-        self.gear_ratio_scaled = self.gear_ratio / torch.max(self.gear_ratio)
+        self.gear_ratio_scaled = _resolve_scaled_gear_ratio(cfg.params["gear_ratio"], asset, env.device)
 
     def __call__(
         self, env: ManagerBasedRLEnv, gear_ratio: dict[str, float], asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
     ) -> torch.Tensor:
         # extract the used quantities (to enable type-hinting)
         asset: Articulation = env.scene[asset_cfg.name]
-        # return power = torque * velocity (here actions: joint torques)
+        # power = effort * velocity, with the effort taken as the gear-normalized action
         return torch.sum(
             torch.abs(env.action_manager.action * asset.data.joint_vel.torch * self.gear_ratio_scaled), dim=-1
         )
+
+
+def _resolve_scaled_gear_ratio(gear_ratio: dict[str, float], asset: Articulation, device: str) -> torch.Tensor:
+    """Resolve the per-joint gear ratios and normalize them by the largest one.
+
+    Joints that the ``gear_ratio`` table does not match keep a unit gear.
+
+    Args:
+        gear_ratio: Gear ratio per joint name expression.
+        asset: Articulation whose joint names the expressions are matched against.
+        device: Device of the returned tensor.
+
+    Returns:
+        Gear ratios divided by the maximum gear ratio, shape ``(num_joints,)``. Broadcasts against the
+        ``(num_envs, num_joints)`` joint tensors.
+    """
+    gears = torch.ones(asset.num_joints, device=device)
+    joint_ids, _, values = string_utils.resolve_matching_names_values(gear_ratio, asset.joint_names)
+    gears[joint_ids] = torch.tensor(values, device=device)
+    return gears / torch.max(gears)

@@ -16,13 +16,23 @@ This script supports two teleoperation stacks:
 The script automatically detects which stack to use based on the environment config.
 """
 
-"""Launch Isaac Sim Simulator first."""
+"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
+
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
+
+wp.config.enable_backward = False
 
 import argparse
+import sys
 from collections.abc import Callable
+from contextlib import ExitStack
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
+
+from isaaclab_tasks.utils import setup_preset_cli
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Teleoperation for Isaac Lab environments.")
@@ -42,10 +52,11 @@ parser.add_argument("--sensitivity", type=float, default=1.0, help="Sensitivity 
 parser.add_argument(
     "--cloudxr_env",
     type=str,
-    default="cloudxrjs",
+    default=None,
     help=(
-        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico, default) or 'avp' (Apple Vision Pro)."
-        " Set to 'none' to disable CloudXR auto-launch entirely."
+        "Path to a CloudXR .env file, or a shorthand: 'cloudxrjs' (Quest/Pico), 'avp' (Apple Vision Pro),"
+        " or 'standalone' (headless, no XR client). Set to 'none' to disable CloudXR auto-launch entirely."
+        " When unset, defaults to 'cloudxrjs' with --xr and 'standalone' without --xr."
     ),
 )
 parser.add_argument(
@@ -55,21 +66,39 @@ parser.add_argument(
     help="Auto-launch the CloudXR runtime when --cloudxr_env is set. Use --no-auto_launch_cloudxr to disable.",
 )
 parser.add_argument(
+    "--enable_debug_visualization",
+    action="store_true",
+    default=False,
+    help="Enable hand joint and controller aim debug visualization at session start (IsaacTeleop only).",
+)
+parser.add_argument(
     "--external_callback",
     default=None,
     help="Fully qualified path to an externally defined callback.",
 )
+parser.add_argument(
+    "--disable_external_cameras",
+    action="store_true",
+    default=False,
+    help=(
+        "Disable external camera rendering. External cameras render by default for teleoperation;"
+        " pass this flag to strip camera sensors from the environment (e.g. to reduce GPU contention"
+        " and improve XR performance)."
+    ),
+)
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
+args_cli, hydra_args = setup_preset_cli(parser)
 
-app_launcher_args = vars(args_cli)
-
-# launch omniverse app
-app_launcher = AppLauncher(app_launcher_args)
-simulation_app = app_launcher.app
+# Enable external camera rendering by default (``--disable_external_cameras`` turns it off). The
+# ``--enable_cameras`` CLI flag was removed in Isaac Lab 3.0 (see #6656), so pass the intent to
+# the launcher; this selects a camera-rendering experience that provides RTX/DLSS support.
+# Everywhere else we read ``args_cli.disable_external_cameras`` directly.
+args_cli.enable_cameras = not args_cli.disable_external_cameras
+# the teleop input devices and the RTX settings use Kit APIs directly
+args_cli.require_kit = True
 
 # Call an external callback if requested.
 remaining_args_env_registration = None
@@ -77,10 +106,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
 
 """Rest everything follows."""
 
@@ -90,11 +118,7 @@ import logging
 import gymnasium as gym
 import torch
 from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
-from isaaclab_physx.renderers.isaac_rtx_renderer_utils import (
-    apply_isaac_rtx_global_settings,
-)
 
-from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -102,31 +126,55 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.utils import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
 
 logger = logging.getLogger(__name__)
 
 _CLOUDXR_ENV_SHORTHANDS: dict[str, str] = {}
 
 
-def _resolve_cloudxr_env(value: str | None) -> str | None:
+def _resolve_cloudxr_env(value: str | None, xr_enabled: bool = False) -> str | None:
     """Resolve ``--cloudxr_env`` shorthands to absolute ``.env`` file paths.
 
     Accepts ``"cloudxrjs"`` (Quest/Pico), ``"avp"`` (Apple Vision Pro),
-    ``"none"`` / ``None`` (disable), or an arbitrary file path.
+    ``"standalone"`` (headless, no XR client), ``"none"`` (disable), or an
+    arbitrary file path. When *value* is ``None`` (flag unset), defaults to
+    ``"cloudxrjs"`` when *xr_enabled* else ``"standalone"`` -- so a run without
+    ``--xr`` uses the clientless headless profile.
     """
-    if value is None or value.strip() == "" or value.lower() == "none":
+    if value is None:
+        value = "cloudxrjs" if xr_enabled else "standalone"
+    if value.strip() == "" or value.lower() == "none":
         return None
     if not _CLOUDXR_ENV_SHORTHANDS:
-        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV
+        from isaaclab_teleop import CLOUDXR_AVP_ENV, CLOUDXR_JS_ENV, CLOUDXR_STANDALONE_ENV
 
         _CLOUDXR_ENV_SHORTHANDS["cloudxrjs"] = CLOUDXR_JS_ENV
         _CLOUDXR_ENV_SHORTHANDS["avp"] = CLOUDXR_AVP_ENV
+        _CLOUDXR_ENV_SHORTHANDS["standalone"] = CLOUDXR_STANDALONE_ENV
     return _CLOUDXR_ENV_SHORTHANDS.get(value.lower(), value)
+
+
+def _rtx_rendering_requested(args: argparse.Namespace) -> bool:
+    """Return whether the CLI selects a renderer that actually drives RTX rendering.
+
+    The RTX/DLSS global settings are only meaningful when something renders through RTX.
+    That happens when the Kit visualizer is enabled (``--viz kit``), when external cameras
+    are rendered (on by default; see ``--disable_external_cameras``), or in XR mode (``--xr``).
+    A pure-headless session with none of these renders nothing.
+
+    This reads the resolved namespace intent rather than any Kit/carb runtime state so the
+    check keeps working as these scripts grow support for other renderers and kitless runs.
+    """
+    visualizers = getattr(args, "visualizer", None) or []
+    external_cameras = not getattr(args, "disable_external_cameras", False)
+    return external_cameras or ("kit" in visualizers) or bool(getattr(args, "xr", False))
 
 
 def _create_builtin_device(device_name: str, sensitivity: float) -> object | None:
     """Create a built-in teleop device by name, or return None if unrecognized."""
+    from isaaclab.devices import Se3Gamepad, Se3GamepadCfg, Se3Keyboard, Se3KeyboardCfg, Se3SpaceMouse, Se3SpaceMouseCfg
+
     name = device_name.lower()
     if name == "keyboard":
         return Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.05 * sensitivity, rot_sensitivity=0.05 * sensitivity))
@@ -137,7 +185,55 @@ def _create_builtin_device(device_name: str, sensitivity: float) -> object | Non
     return None
 
 
-def main() -> None:
+def _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop: bool):
+    """Return ``(update, stop)`` callables driving controller haptics, or no-ops.
+
+    Keeps haptics opt-in without branching in the main loop: both callables are
+    no-ops unless the active device is an IsaacTeleop device and the env declares
+    a ``haptic_feedback`` config. ``update`` renders the current contact force;
+    ``stop`` zeroes it so a stale pulse does not persist while teleop is paused.
+    """
+    noop = lambda: None  # noqa: E731
+    if not use_isaac_teleop:
+        return noop, noop
+    from isaaclab_teleop import create_haptic_feedback_driver
+
+    driver = create_haptic_feedback_driver(env.unwrapped, teleop_interface, env_cfg)
+    if driver is None:
+        return noop, noop
+    return driver.update, driver.stop
+
+
+def _make_control_keyboard(teleop_interface, use_isaac_teleop: bool, has_window: bool):
+    """Create an optional keyboard for headset-free IsaacTeleop control.
+
+    Binds ``B`` / ``P`` / ``R`` to start-resume / pause / reset so a user can drive
+    the teleop state machine without an XR headset. Keys are captured through the app
+    window, so this returns ``None`` when there is no window or when IsaacTeleop is
+    not the active stack (a windowless run still auto-starts teleop). ``R`` is an operator
+    reset: :meth:`~isaaclab_teleop.IsaacTeleopDevice.reset` with ``pause=True`` injects a
+    single RESET pulse (the loop's control-event handler turns it into one environment
+    reset) and pauses the session (binding it straight to the reset callback would reset
+    the env twice). The returned device must be kept referenced by the caller so its carb
+    input subscription survives.
+    """
+    if not use_isaac_teleop or not has_window:
+        return None
+    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+
+    try:
+        keyboard = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.0, rot_sensitivity=0.0))
+        keyboard.add_callback("B", teleop_interface.request_start)
+        keyboard.add_callback("P", teleop_interface.request_stop)
+        keyboard.add_callback("R", lambda: teleop_interface.reset(pause=True))
+        print("IsaacTeleop control keys: [B] start/resume  [P] pause  [R] reset")
+        return keyboard
+    except Exception as e:
+        logger.warning(f"Control keyboard unavailable ({e}); teleop still auto-starts without --xr")
+        return None
+
+
+def main() -> None:  # noqa: C901
     """
     Run teleoperation with an Isaac Lab manipulation environment.
 
@@ -147,8 +243,10 @@ def main() -> None:
     Returns:
         None
     """
-    # parse configuration
-    env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
+    # Resolve the task configuration through Hydra so CLI presets are applied.
+    env_cfg, _ = resolve_task_config(args_cli.task, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = args_cli.num_envs
     env_cfg.env_name = args_cli.task
     if not isinstance(env_cfg, ManagerBasedRLEnvCfg):
         raise ValueError(
@@ -170,10 +268,47 @@ def main() -> None:
         not teleop_device_explicitly_set and hasattr(env_cfg, "isaac_teleop") and env_cfg.isaac_teleop is not None
     )
 
-    if use_isaac_teleop or args_cli.xr:
-        env_cfg = remove_camera_configs(env_cfg)
+    # XR-rendering setup (camera removal + DLSS) is only needed for the Kit XR
+    # path. Without --xr, IsaacTeleop runs standalone (I/O only) and renders
+    # normally, so gate on --xr alone.
+    if args_cli.xr:
+        # Keep camera configs when external cameras are enabled (defaulted on); otherwise
+        # strip them so the XR headset view is the sole render product.
+        if args_cli.disable_external_cameras:
+            env_cfg = remove_camera_configs(env_cfg)
+
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
+        run_teleoperation(env_cfg, use_isaac_teleop, cleanup)
+
+
+def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cleanup: ExitStack) -> None:  # noqa: C901
+    """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
+    from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
+    from isaaclab_teleop import XrCameraFeedSession
+
+    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+
+    teleop_device_explicitly_set = args_cli.teleop_device is not None
+
+    camera_feed_session = XrCameraFeedSession.prepare(
+        env_cfg,
+        enabled=args_cli.xr and use_isaac_teleop,
+        camera_rendering_enabled=not args_cli.disable_external_cameras,
+    )
+    cleanup.callback(camera_feed_session.close)
+
+    # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
+    # external cameras, or XR).
+    if _rtx_rendering_requested(args_cli):
         apply_isaac_rtx_global_settings(
-            IsaacRtxRendererGlobalSettingsCfg(antialiasing_mode="DLSS"),
+            IsaacRtxRendererGlobalSettingsCfg(
+                antialiasing_mode="DLSS",
+                carb_settings=(
+                    {"/rtx/dldenoiser/responsiveDenoising": True}
+                    if camera_feed_session.requires_responsive_denoising
+                    else None
+                ),
+            ),
         )
 
     try:
@@ -187,7 +322,6 @@ def main() -> None:
             )
     except Exception as e:
         logger.error(f"Failed to create environment: {e}")
-        simulation_app.close()
         return
 
     # Flags for controlling teleoperation flow
@@ -242,7 +376,10 @@ def main() -> None:
         "RESET": reset_recording_instance,
     }
 
-    # For XR devices (hand tracking or IsaacTeleop), default to inactive
+    # For XR devices (hand tracking or IsaacTeleop), default to inactive. Without
+    # --xr, teleop is started locally (see ``request_start`` below) rather than by
+    # a headset, so it still begins running -- but it flows through the same state
+    # machine, so keyboard/host pause/resume keeps working.
     if use_isaac_teleop or args_cli.xr:
         teleoperation_active = env_cfg.isaac_teleop.teleoperation_active_default if use_isaac_teleop else False
     else:
@@ -260,8 +397,11 @@ def main() -> None:
                 env_cfg.isaac_teleop,
                 sim_device=args_cli.device,
                 callbacks=teleoperation_callbacks,
-                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env),
+                cloudxr_env_file=_resolve_cloudxr_env(args_cli.cloudxr_env, args_cli.xr),
                 auto_launch_cloudxr=args_cli.auto_launch_cloudxr,
+                enable_debug_visualization=args_cli.enable_debug_visualization,
+                use_kit_xr_bridge=args_cli.xr,
+                haptic_cfg=getattr(env_cfg, "haptic_feedback", None),
             )
 
         elif teleop_device_explicitly_set:
@@ -281,7 +421,6 @@ def main() -> None:
                         " Built-in devices: keyboard, spacemouse, gamepad."
                     )
                     env.close()
-                    simulation_app.close()
                     return
                 for key, callback in teleoperation_callbacks.items():
                     try:
@@ -302,16 +441,25 @@ def main() -> None:
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
         env.close()
-        simulation_app.close()
         return
 
     if teleop_interface is None:
         logger.error("Failed to create teleop interface")
         env.close()
-        simulation_app.close()
         return
 
     print(f"Using teleop device: {teleop_interface}")
+
+    # Optional controller haptics: no-ops unless the env declares a
+    # ``haptic_feedback`` config and the device can render it (IsaacTeleop).
+    haptic_update, haptic_stop = _make_haptic_io(env, teleop_interface, env_cfg, use_isaac_teleop)
+
+    # Optional keyboard for headset-free IsaacTeleop control. Kept in a local so its
+    # carb input subscription is not garbage-collected; a headless run auto-starts
+    # (in ``run_loop``) without it.
+    # a local window exists (GUI or livestream) unless XR runs headless without a viewport
+    has_window = env.sim.has_gui and not env.sim.get_setting("/isaaclab/xr/auto_start")
+    control_keyboard = _make_control_keyboard(teleop_interface, use_isaac_teleop, has_window)  # noqa: F841
 
     def run_loop():
         """Inner function to run the teleop loop with access to nonlocal variables."""
@@ -321,11 +469,17 @@ def main() -> None:
         env.reset()
         teleop_interface.reset()
 
+        # Without --xr there is no headset to send START, so start locally ([B]/[P] can
+        # still pause/resume). The reset() above is a host reset (a pure pulse), so it does
+        # not cancel this start.
+        if use_isaac_teleop and not args_cli.xr:
+            teleop_interface.request_start()
+
         stack_name = "IsaacTeleop" if use_isaac_teleop else "native"
         print(f"{stack_name} teleoperation started. Press 'R' to reset the environment.")
 
         # simulate environment
-        while simulation_app.is_running():
+        while env.sim.is_running():
             try:
                 # run everything in inference mode
                 with torch.inference_mode():
@@ -343,17 +497,23 @@ def main() -> None:
                     # (e.g. waiting for user to click "Start AR")
                     if action is None:
                         env.sim.render()
+                        haptic_stop()
                     elif teleoperation_active:
                         # process actions
                         actions = action.repeat(env.num_envs, 1)
                         # apply actions
                         env.step(actions)
+                        # render controller haptics from post-step contact forces
+                        haptic_update()
                     else:
                         env.sim.render()
+                        # not stepping: zero haptics so a paused grip stops buzzing
+                        haptic_stop()
 
                     if should_reset_recording_instance:
                         env.reset()
                         teleop_interface.reset()
+                        camera_feed_session.refresh()
                         should_reset_recording_instance = False
                         print("Environment reset complete")
             except Exception as e:
@@ -363,10 +523,11 @@ def main() -> None:
     # Run the teleoperation loop
     # IsaacTeleop requires a context manager, native devices don't
     if use_isaac_teleop:
-        with teleop_interface:
+        with teleop_interface, camera_feed_session.bind(env):
             run_loop()
     else:
-        run_loop()
+        with camera_feed_session.bind(env):
+            run_loop()
 
     # close the simulator
     env.close()
@@ -376,7 +537,3 @@ def main() -> None:
 if __name__ == "__main__":
     # run the main function
     main()
-    # env.close() already closes the USD stage via sim.clear_instance().
-    # Pump the event loop so the viewport processes closure, then close the app.
-    simulation_app.update()
-    simulation_app.close()

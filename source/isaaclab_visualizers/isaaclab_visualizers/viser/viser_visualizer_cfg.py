@@ -7,16 +7,32 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from typing import TYPE_CHECKING
+
+from isaaclab_newton.renderers import NewtonWarpRendererCfg
+
+from isaaclab.renderers import RendererCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .viser_visualizer import ViserVisualizer
 
 
 @configclass
 class ViserVisualizerCfg(VisualizerCfg):
     """Configuration for Viser visualizer (web-based visualization)."""
 
+    class_type: type[ViserVisualizer] | str = "{DIR}.viser_visualizer:ViserVisualizer"
+    """Visualizer implementation class."""
+
     visualizer_type: str = "viser"
     """Type identifier for Viser visualizer."""
+
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
+
+    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
+    """Renderer configuration for the auto-created streaming camera."""
 
     port: int = 8080
     """Port of the local viser web server."""
@@ -39,9 +55,6 @@ class ViserVisualizerCfg(VisualizerCfg):
     The viewer URL is always logged during initialization. Set this to ``True`` to auto-launch it.
     """
 
-    label: str | None = "Isaac Lab Simulation"
-    """Optional label shown in the viewer page title."""
-
     verbose: bool = True
     """Whether to print viewer server startup information."""
 
@@ -50,3 +63,11 @@ class ViserVisualizerCfg(VisualizerCfg):
 
     record_to_viser: str | None = None
     """Path to save a .viser recording file. None = no recording."""
+
+    show_particles: bool = True
+    """Whether to render particle systems (MPM, VBD) in the Viser viewer.
+
+    Defaults to ``True`` so particle simulations (granular, cloth, soft-body) are
+    visible on startup.  Can also be toggled at runtime via the Visualization Markers
+    panel in the Viser sidebar.
+    """

@@ -10,7 +10,7 @@ from collections.abc import Callable
 from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     import numpy as np
@@ -87,6 +87,14 @@ class SubTerrainBaseCfg:
 
     In case the :class:`~isaaclab.terrains.TerrainImporterCfg` is used, this parameter gets overridden by
     :attr:`isaaclab.scene.TerrainImporterCfg.size` attribute.
+    """
+
+    convert_to_heightfield: bool = False
+    """Whether the sub-terrain should be converted to a heightfield. Defaults to False.
+
+    Conversion only happens if this flag is set for ALL sub-terrains, and is currently only supported by
+    the Newton backend. It is lossy for mesh sub-terrains, which may contain vertical faces (e.g. stair
+    risers) that a heightfield cannot represent.
     """
 
     flat_patch_sampling: dict[str, FlatPatchSamplingCfg] | None = None

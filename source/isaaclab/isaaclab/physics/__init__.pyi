@@ -8,7 +8,8 @@ __all__ = [
     "PhysicsEvent",
     "PhysicsManager",
     "PhysicsCfg",
+    "PhysxAutoCfg",
 ]
 
 from .physics_manager import CallbackHandle, PhysicsEvent, PhysicsManager
-from .physics_manager_cfg import PhysicsCfg
+from .physics_manager_cfg import PhysicsCfg, PhysxAutoCfg

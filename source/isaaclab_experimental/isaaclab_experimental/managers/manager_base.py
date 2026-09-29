@@ -26,17 +26,19 @@ from typing import TYPE_CHECKING, Any
 import warp as wp
 
 import isaaclab.utils.string as string_utils
-from isaaclab.utils import class_to_dict, string_to_callable
+from isaaclab.managers.manager_term_cfg import ManagerTermBaseCfg
+from isaaclab.utils import clone, string_to_callable, to_dict
 
 from isaaclab_experimental.utils.warp import is_warp_capturable
 
-from .manager_term_cfg import ManagerTermBaseCfg
 from .scene_entity_cfg import SceneEntityCfg
 
 # import omni.timeline
 
 
 if TYPE_CHECKING:
+    import torch
+
     from isaaclab.envs import ManagerBasedEnv
 
 # import logger
@@ -57,7 +59,7 @@ class ManagerTermBase(ABC):
 
     .. code-block:: python
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import configclass
         from isaaclab.utils.mdp import ManagerBase, ManagerTermBaseCfg
 
 
@@ -107,18 +109,24 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
-    def reset(self, env_mask: wp.array | None = None) -> None:
+    def reset(self, env_mask: wp.array | None = None) -> dict[str, torch.Tensor] | None:
         """Resets the manager term (mask-based).
 
         Args:
             env_mask: Boolean mask of shape (num_envs,) indicating which envs to reset.
                 If None, all envs are considered.
+
+        Returns:
+            An optional dictionary of logging values to merge into the owning manager's
+            reset extras. To stay CUDA-graph capturable, values must be persistent
+            tensor views over device buffers written by kernels (no host readback);
+            the same objects must be returned on every call.
         """
-        pass
+        return None
 
     def serialize(self) -> dict:
         """General serialization call. Includes the configuration dict."""
-        return {"cfg": class_to_dict(self.cfg)}
+        return {"cfg": to_dict(self.cfg)}
 
     def __call__(self, *args) -> Any:
         """Returns the value of the term required by the manager.
@@ -386,7 +394,7 @@ class ManagerBase(ABC):
             if param.default is inspect.Parameter.empty:
                 continue
             if param.name not in term_cfg.params and hasattr(param.default, "__dataclass_fields__"):
-                term_cfg.params[param.name] = param.default.copy()
+                term_cfg.params[param.name] = clone(param.default)
 
         # check statically if the term's arguments are matched by params
         term_params = list(term_cfg.params.keys())

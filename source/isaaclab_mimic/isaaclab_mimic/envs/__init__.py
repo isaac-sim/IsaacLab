@@ -7,6 +7,8 @@
 
 import gymnasium as gym
 
+import isaaclab_tasks  # noqa: F401 -- ensures base gym registrations exist before mimic overrides them
+
 ##
 # Inverse Kinematics - Relative Pose Control
 ##

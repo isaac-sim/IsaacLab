@@ -5,11 +5,6 @@
 
 """Test dataset generation with SkillGen for Isaac Lab Mimic workflow."""
 
-from isaaclab.app import AppLauncher
-
-# Launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
 import os
 import sys
 import tempfile
@@ -24,7 +19,7 @@ NUCLEUS_SKILLGEN_ANNOTATED_DATASET_PATH = os.path.join(
     ISAACLAB_NUCLEUS_DIR, "Mimic", "franka_stack_datasets", "annotated_dataset_skillgen.hdf5"
 )
 
-_SUBPROCESS_TIMEOUT = 5000
+_SUBPROCESS_TIMEOUT = 1500
 
 
 @pytest.fixture
@@ -69,7 +64,7 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
 
     output_file = os.path.join(DATASETS_DOWNLOAD_DIR, "generated_dataset_skillgen.hdf5")
 
-    # Run the script directly (bypassing isaaclab.sh) so that stdout is
+    # Run the script through the uv environment so that stdout is
     # properly captured (see _run_script docstring for details).
     command = [
         sys.executable,
@@ -84,8 +79,9 @@ def test_generate_dataset_skillgen(setup_skillgen_test_environment):
         "1",
         "--generation_num_trials",
         "1",
+        "--max_num_failures",
+        "10",
         "--use_skillgen",
-        "--headless",
         "--task",
         "IsaacContrib-Stack-Cube-Franka-IK-Rel-Skillgen",
     ]

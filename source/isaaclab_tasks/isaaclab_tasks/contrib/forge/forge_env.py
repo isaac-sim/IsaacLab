@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import warp as wp
 
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     axis_angle_from_quat,
     euler_xyz_from_quat,
@@ -38,8 +39,10 @@ class ForgeEnv(FactoryEnv):
         # Flip quaternions.
         self.flip_quats = torch.ones((self.num_envs,), dtype=torch.float32, device=self.device)
 
-        # Force sensor information.
-        self.force_sensor_body_idx = self._robot.body_names.index("force_sensor")
+        # Force sensor information. The index is resolved in backend view order because
+        # it is used to index `root_view.get_link_incoming_joint_force()`, which is a
+        # raw solver-view array (see `_compute_intermediate_values`).
+        self.force_sensor_body_idx = self._robot.backend_body_names.index("force_sensor")
         self.force_sensor_smooth = torch.zeros((self.num_envs, 6), device=self.device)
         self.force_sensor_world_smooth = torch.zeros((self.num_envs, 6), device=self.device)
 
@@ -80,7 +83,7 @@ class ForgeEnv(FactoryEnv):
         self.noisy_fingertip_quat = quat_mul(
             self.fingertip_midpoint_quat, quat_from_angle_axis(rot_noise_angle, rot_noise_axis)
         )
-        self.noisy_fingertip_quat[:, [0, 3]] = 0.0
+        self.noisy_fingertip_quat[:, ::3].zero_()
         self.noisy_fingertip_quat = self.noisy_fingertip_quat * self.flip_quats.unsqueeze(-1)
 
         # Repeat finite differencing with noisy fingertip positions.
@@ -150,7 +153,15 @@ class ForgeEnv(FactoryEnv):
         return {"policy": obs_tensors, "critic": state_tensors}
 
     def _apply_action(self):
-        """FORGE actions are defined as targets relative to the fixed asset."""
+        """Apply absolute FORGE pose targets relative to the fixed asset.
+
+        ``pos_action_bounds`` [m] maps translational actions onto the workspace and
+        ``rot_action_bounds`` [rad] maps rotational actions onto their allowable target range.
+        ``pos_action_threshold`` [m] and ``rot_action_threshold`` [rad] then clip per-step
+        target motion relative to the current end-effector pose. See :class:`ForgeCtrlCfg` for
+        the randomized action-scale semantics.
+        """
+
         if self.last_update_timestamp < self._robot._data._sim_timestamp:
             self._compute_intermediate_values(dt=self.physics_dt)
 
@@ -341,7 +352,7 @@ class ForgeEnv(FactoryEnv):
         super()._reset_buffers(env_ids)
         # Reset success pred metrics.
         for thresh in [0.5, 0.6, 0.7, 0.8, 0.9]:
-            self.first_pred_success_tx[thresh][env_ids] = 0
+            index_fill_(self.first_pred_success_tx[thresh], env_ids, 0)
 
     def _log_forge_metrics(self, rew_dict, policy_success_pred):
         """Log metrics to evaluate success prediction performance."""

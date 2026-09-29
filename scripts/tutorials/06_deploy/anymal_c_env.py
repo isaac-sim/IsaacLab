@@ -11,11 +11,8 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import ContactSensor, RayCaster
+from isaaclab.utils import index_fill_
 
 from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 from leapp import annotate  # isort: skip
@@ -26,6 +23,11 @@ class AnymalCEnv(DirectRLEnv):
 
     def __init__(self, cfg: AnymalCFlatEnvCfg | AnymalCRoughEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self._robot, self._contact_sensor, self._terrain = [
+            self.scene[name] for name in ("robot", "contact_sensor", "terrain")
+        ]
+        if isinstance(self.cfg, AnymalCRoughEnvCfg):
+            self._height_scanner = self.scene["height_scanner"]
 
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(
@@ -52,26 +54,6 @@ class AnymalCEnv(DirectRLEnv):
         self._base_id, _ = self._contact_sensor.find_sensors("base")
         self._feet_ids, _ = self._contact_sensor.find_sensors(".*FOOT")
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
-
-    def _setup_scene(self):
-        self._robot = Articulation(self.cfg.robot)
-        self.scene.articulations["robot"] = self._robot
-        self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
-        self.scene.sensors["contact_sensor"] = self._contact_sensor
-        if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            self._height_scanner = RayCaster(self.cfg.height_scanner)
-            self.scene.sensors["height_scanner"] = self._height_scanner
-        self.cfg.terrain.num_envs = self.scene.cfg.num_envs
-        self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
-        self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        plan = cloner.ClonePlan.from_env_0(src, dest, self.scene.num_envs, self.device, pos)
-        cloner.replicate(plan, stage=self.scene.stage)
-        if self.device == "cpu":
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
@@ -139,7 +121,7 @@ class AnymalCEnv(DirectRLEnv):
         yaw_rate_error_mapped = torch.exp(-yaw_rate_error / 0.25)
         z_vel_error = torch.square(self._robot.data.root_lin_vel_b.torch[:, 2])
         ang_vel_error = torch.sum(torch.square(self._robot.data.root_ang_vel_b.torch[:, :2]), dim=1)
-        joint_torques = torch.sum(torch.square(self._robot.data.applied_torque.torch), dim=1)
+        joint_torques = torch.sum(torch.square(self._robot.actuators.applied_effort.torch), dim=1)
         joint_accel = torch.sum(torch.square(self._robot.data.joint_acc.torch), dim=1)
         action_rate = torch.sum(torch.square(self._actions - self._previous_actions), dim=1)
         first_contact = self._contact_sensor.compute_first_contact(self.step_dt).torch[:, self._feet_ids]
@@ -147,7 +129,7 @@ class AnymalCEnv(DirectRLEnv):
         air_time = torch.sum((last_air_time - 0.5) * first_contact, dim=1) * (
             torch.linalg.norm(self._commands[:, :2], dim=1) > 0.1
         )
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         is_contact = (
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._undesired_contact_body_ids], dim=-1), dim=1)[0]
             > 1.0
@@ -174,7 +156,7 @@ class AnymalCEnv(DirectRLEnv):
 
     def _get_dones(self) -> tuple[torch.Tensor, torch.Tensor]:
         time_out = self.episode_length_buf >= self.max_episode_length - 1
-        net_contact_forces = self._contact_sensor.data.net_forces_w_history.torch
+        net_contact_forces = self._contact_sensor.data.net_normal_forces_w_history.torch
         died = torch.any(
             torch.max(torch.linalg.norm(net_contact_forces[:, :, self._base_id], dim=-1), dim=1)[0] > 1.0, dim=1
         )
@@ -188,8 +170,8 @@ class AnymalCEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
-        self._actions[env_ids] = 0.0
-        self._previous_actions[env_ids] = 0.0
+        index_fill_(self._actions, env_ids, 0.0)
+        index_fill_(self._previous_actions, env_ids, 0.0)
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         joint_pos = self._robot.data.default_joint_pos.torch[env_ids]
         joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
@@ -204,7 +186,7 @@ class AnymalCEnv(DirectRLEnv):
         for key in self._episode_sums.keys():
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
             extras["Episode_Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
-            self._episode_sums[key][env_ids] = 0.0
+            index_fill_(self._episode_sums[key], env_ids, 0.0)
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
         extras = dict()

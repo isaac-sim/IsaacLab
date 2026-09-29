@@ -1,0 +1,113 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+"""Direct-workflow Shadow Hand reorientation environment with camera observations."""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+import torch
+
+from isaaclab.utils.math import scale_transform
+
+from ...mdp.observations import compute_cube_keypoints
+from .feature_extractor import FeatureExtractor
+from .shadow_hand_direct_env import ShadowHandDirectEnv
+
+if TYPE_CHECKING:
+    from .shadow_hand_direct_camera_env_cfg import ShadowHandCameraEnvCfg
+
+
+class ShadowHandCameraEnv(ShadowHandDirectEnv):
+    """Shadow Hand reorientation whose policy sees CNN embeddings of a tiled camera instead of the object state."""
+
+    cfg: ShadowHandCameraEnvCfg
+
+    def __init__(self, cfg: ShadowHandCameraEnvCfg, render_mode: str | None = None, **kwargs):
+        super().__init__(cfg, render_mode, **kwargs)
+        self._tiled_camera = self.scene["tiled_camera"]
+        # the CNN input channels follow the resolved camera data types, so any camera preset
+        # (e.g. presets=rgb) configures the network without a separate environment config
+        self.feature_extractor = FeatureExtractor(
+            self.cfg.feature_extractor,
+            self.device,
+            self.cfg.scene.tiled_camera.data_types,
+            self.cfg.log_dir,
+            height=self.cfg.scene.tiled_camera.height,
+            width=self.cfg.scene.tiled_camera.width,
+        )
+        # hide goal cubes
+        self.goal_pos[:, :] = torch.tensor((-0.2, 0.1, 0.6), device=self.device)  # inside the tiled camera frustum
+        # keypoints buffer
+        self.gt_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
+        self.goal_keypoints = torch.ones(self.num_envs, 8, 3, dtype=torch.float32, device=self.device)
+
+    def _compute_image_observations(self) -> torch.Tensor:
+        # generate ground truth keypoints for in-hand cube
+        compute_cube_keypoints(pose=torch.cat((self.object_pos, self.object_rot), dim=1), out=self.gt_keypoints)
+
+        object_pose = torch.cat([self.object_pos, self.gt_keypoints.view(-1, 24)], dim=-1)
+
+        # train CNN to regress on keypoint positions
+        pose_loss, embeddings = self.feature_extractor.step(
+            self._tiled_camera.data.output,
+            object_pose,
+        )
+
+        self.embeddings = embeddings.clone().detach()
+        # compute keypoints for goal cube
+        compute_cube_keypoints(
+            pose=torch.cat((torch.zeros_like(self.goal_pos), self.goal_rot), dim=-1), out=self.goal_keypoints
+        )
+
+        obs = torch.cat(
+            (
+                self.embeddings,
+                self.goal_keypoints.view(-1, 24),
+            ),
+            dim=-1,
+        )
+
+        # log pose loss from CNN training (None when disabled or in inference mode)
+        if pose_loss is not None:
+            if "log" not in self.extras:
+                self.extras["log"] = dict()
+            self.extras["log"]["pose_loss"] = pose_loss
+
+        return obs
+
+    def _compute_proprio_observations(self) -> torch.Tensor:
+        """Proprioception observations from physics."""
+        return torch.cat(
+            (
+                # hand
+                scale_transform(self.hand_dof_pos, self.hand_dof_lower_limits, self.hand_dof_upper_limits),
+                self.cfg.vel_obs_scale * self.hand_dof_vel,
+                # goal
+                self.in_hand_pos,
+                self.goal_rot,
+                # fingertips
+                self.fingertip_pos.view(self.num_envs, self.num_fingertips * 3),
+                self.fingertip_rot.view(self.num_envs, self.num_fingertips * 4),
+                self.fingertip_velocities.view(self.num_envs, self.num_fingertips * 6),
+                # actions
+                self.actions,
+            ),
+            dim=-1,
+        )
+
+    def _compute_states(self) -> torch.Tensor:
+        """Asymmetric states for the critic."""
+        return torch.cat((self.compute_full_state(), self.embeddings), dim=-1)
+
+    def _get_observations(self) -> dict:
+        # proprioception observations
+        state_obs = self._compute_proprio_observations()
+        # vision observations from the CNN
+        image_obs = self._compute_image_observations()
+        obs = torch.cat((state_obs, image_obs), dim=-1)
+        self._update_fingertip_force_sensors()
+        return {"policy": obs, "critic": self._compute_states()}

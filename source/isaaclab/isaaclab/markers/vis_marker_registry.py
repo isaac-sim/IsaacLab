@@ -49,9 +49,17 @@ class VisMarkerRegistry:
         self._callbacks.pop(callback_id, None)
 
     def dispatch_callbacks(self, event: Any = None) -> None:
-        """Invoke all registered visualization marker callbacks."""
-        for callback in list(self._callbacks.values()):
-            callback(event)
+        """Invoke all registered visualization marker callbacks.
+
+        Callbacks hold a weak proxy to their owner. An owner collected without
+        deregistering leaves a stale entry whose proxy raises on use, so drop those
+        rather than letting one dead owner abort the whole dispatch.
+        """
+        for callback_id, callback in list(self._callbacks.items()):
+            try:
+                callback(event)
+            except ReferenceError:
+                self._callbacks.pop(callback_id, None)
 
     def set_group(self, group_id: str, state: Any) -> None:
         """Set or replace one visualization marker group state."""

@@ -8,7 +8,7 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .rnd_cfg import RslRlRndCfg
 from .symmetry_cfg import RslRlSymmetryCfg
@@ -214,6 +214,9 @@ class RslRlPpoAlgorithmCfg:
     share_cnn_encoders: bool = False
     """Whether to share the CNN networks between actor and critic, in case CNNModels are used. Defaults to False."""
 
+    use_mixed_precision: bool = False
+    """Whether to run the policy update in bfloat16 autocast. Defaults to False."""
+
     rnd_cfg: RslRlRndCfg | None = None
     """The RND configuration. Defaults to None, in which case RND is not used."""
 
@@ -238,6 +241,13 @@ class RslRlBaseRunnerCfg:
 
     num_steps_per_env: int = MISSING
     """The number of steps per environment per update."""
+
+    init_at_random_ep_len: bool = True
+    """Whether to randomize each environment's episode length before learning.
+
+    Defaults to True. Disable this for curricula whose first recorded outcomes must come from
+    complete episodes.
+    """
 
     max_iterations: int = MISSING
     """The maximum number of iterations."""
@@ -338,6 +348,9 @@ class RslRlOnPolicyRunnerCfg(RslRlBaseRunnerCfg):
 
     algorithm: RslRlPpoAlgorithmCfg = MISSING
     """The algorithm configuration."""
+
+    torch_compile_mode: Literal["default", "max-autotune-no-cudagraphs"] | None = None
+    """The :func:`torch.compile` mode for actor and critic. Defaults to None (disabled)."""
 
     policy: RslRlPpoActorCriticCfg = MISSING
     """The policy configuration.

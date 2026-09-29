@@ -55,14 +55,15 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
-from isaaclab.utils import class_to_dict
+from isaaclab.envs.utils.io_descriptors import _warn_io_descriptors_deprecated
+from isaaclab.managers.manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
+from isaaclab.utils import instantiate, to_dict
 
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
@@ -312,9 +313,17 @@ class ObservationManager(ManagerBase):
     def get_IO_descriptors(self, group_names_to_export: list[str] = ["policy"]):
         """Get the IO descriptors for the observation manager.
 
+        .. deprecated:: 3.0
+           IO descriptors will be removed in Isaac Lab 3.2.
+
         Returns:
             A dictionary with keys as the group names and values as the IO descriptors.
         """
+        _warn_io_descriptors_deprecated(stacklevel=3)
+        return self._collect_io_descriptors(group_names_to_export)
+
+    def _collect_io_descriptors(self, group_names_to_export: list[str] = ["policy"]):
+        """Collect IO descriptors without emitting a deprecation warning."""
         group_data: dict[str, list[dict[str, Any]]] = {}
 
         # Collect raw descriptor dicts (plus overloads).
@@ -568,7 +577,7 @@ class ObservationManager(ManagerBase):
                 term_name: (
                     term_cfg.func.serialize()
                     if isinstance(term_cfg.func, ManagerTermBase)
-                    else {"cfg": class_to_dict(term_cfg)}
+                    else {"cfg": to_dict(term_cfg)}
                 )
                 for term_name, term_cfg in zip(
                     self._group_obs_term_names[group_name],
@@ -679,6 +688,16 @@ class ObservationManager(ManagerBase):
                 # check noise settings
                 if not group_cfg.enable_corruption:
                     term_cfg.noise = None
+                elif term_cfg.noise is not None and not type(term_cfg.noise).__module__.startswith(
+                    "isaaclab_experimental."
+                ):
+                    raise TypeError(
+                        f"Observation term '{term_name}' uses noise cfg"
+                        f" '{type(term_cfg.noise).__module__}.{type(term_cfg.noise).__name__}', which the Warp"
+                        " observation manager would silently ignore. Use the warp-native noise cfgs from"
+                        " isaaclab_experimental.utils.noise (the warp frontend converts stable cfgs"
+                        " automatically)."
+                    )
                 # check group history params and override terms
                 if group_cfg.history_length is not None:
                     term_cfg.history_length = group_cfg.history_length
@@ -760,6 +779,10 @@ class ObservationManager(ManagerBase):
                                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                                 )
 
+                # plumb the shared per-env RNG state so Warp noise kernels can consume it
+                # (function-style NoiseCfg kernels read it off the cfg at call time)
+                if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseCfg):
+                    term_cfg.noise.rng_state_wp = self._env.rng_state_wp
                 # prepare noise model classes
                 if term_cfg.noise is not None and isinstance(term_cfg.noise, noise.NoiseModelCfg):
                     # plumb the shared per-env RNG state so Warp noise kernels can consume it
@@ -771,7 +794,7 @@ class ObservationManager(ManagerBase):
                             f" is not a subclass of 'NoiseModel'. Received: '{type(noise_model_cls)}'."
                         )
                     # initialize func to be the noise model class instance
-                    term_cfg.noise.func = noise_model_cls(
+                    term_cfg.noise.func = instantiate(
                         term_cfg.noise, num_envs=self._env.num_envs, device=self._env.device
                     )
                     self._group_obs_class_instances.append(term_cfg.noise.func)
@@ -922,11 +945,12 @@ class ObservationManager(ManagerBase):
 
         if isinstance(out_dim, str) and out_dim.startswith("body:"):
             per_body = int(out_dim.split(":")[1])
-            asset_cfg = term_cfg.params.get("asset_cfg")
-            body_ids = getattr(asset_cfg, "body_ids", None)
+            # Body selection may live on an asset (articulation) or a sensor entity.
+            entity_cfg = term_cfg.params.get("asset_cfg") or term_cfg.params.get("sensor_cfg")
+            body_ids = getattr(entity_cfg, "body_ids", None)
             if body_ids is None or body_ids == slice(None):
-                asset = self._env.scene[asset_cfg.name]
-                return per_body * len(asset.body_names)
+                entity = self._env.scene[entity_cfg.name]
+                return per_body * len(entity.body_names)
             return per_body * len(body_ids)
 
         if out_dim == "command":

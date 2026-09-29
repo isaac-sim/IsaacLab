@@ -47,9 +47,9 @@ def test_demo_compile_matches_changelog_after(tmp_path, demo, expected_version):
 
     # Build a minimal package layout the compiler will accept.
     pkg_root = tmp_path / "demo_pkg"
-    (pkg_root / "config").mkdir(parents=True)
+    pkg_root.mkdir(parents=True)
     (pkg_root / "docs").mkdir(parents=True)
-    (pkg_root / "config" / "extension.toml").write_text('version = "1.2.3"\n', encoding="utf-8")
+    (pkg_root / "pyproject.toml").write_text('[project]\nversion = "1.2.3"\n', encoding="utf-8")
     shutil.copy(demo_dir / "changelog_before.rst", pkg_root / "docs" / "CHANGELOG.rst")
 
     # Copy fragments into tmp_path so the compile's auto-clean doesn't

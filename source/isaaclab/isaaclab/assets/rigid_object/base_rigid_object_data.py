@@ -8,7 +8,7 @@ from abc import ABC, abstractmethod
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     POSE6_ELEMENT_NAMES,
     POSE7_ELEMENT_NAMES,
     QUAT_XYZW_ELEMENT_NAMES,
@@ -20,7 +20,8 @@ from isaaclab.utils.leapp import (
     body_xyz_resolver,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
+from ...utils.warp.launch_cache import _WarpLaunchCache
 
 
 class BaseRigidObjectData(ABC):
@@ -35,6 +36,7 @@ class BaseRigidObjectData(ABC):
     - Actor frame: The frame of reference of the rigid body prim. This typically corresponds to the Xform prim
       with the rigid body schema.
     - Center of mass frame: The frame of reference of the center of mass of the rigid body.
+
     Depending on the settings of the simulation, the actor frame and the center of mass frame may be the same.
     This needs to be taken into account when interpreting the data.
 
@@ -52,6 +54,7 @@ class BaseRigidObjectData(ABC):
         """
         # Set the parameters
         self.device = device
+        self._read_launch_cache = _WarpLaunchCache(device)
 
     @abstractmethod
     def update(self, dt: float) -> None:
@@ -662,6 +665,7 @@ class BaseRigidObjectData(ABC):
         raise NotImplementedError()
 
     def _create_buffers(self) -> None:
+        self._read_launch_cache.clear()
         # -- Default mass and inertia (Lazy allocation of default values)
         self._default_mass = None
         self._default_inertia = None

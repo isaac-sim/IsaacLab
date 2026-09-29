@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, to_dict
 
 
 @configclass
@@ -150,6 +150,17 @@ class NewtonCollisionPipelineCfg:
     Defaults to ``0.01`` (same as Newton's default).
     """
 
+    enable_rigid_soft_full_surface_contact: bool = False
+    """Whether to generate soft contacts against full-surface-capable rigid colliders.
+
+    When ``True``, Newton adds edge and triangle-interior soft contacts (in addition to the
+    per-vertex particle contacts) so rigid features that pass between soft vertices are caught.
+    Analytic shapes (boxes, capsules, spheres) are full-surface-capable without an SDF; any
+    participating mesh/convex collider must carry a volume SDF.
+
+    Defaults to ``False`` (same as Newton's default).
+    """
+
     requires_grad: bool | None = None
     """Whether to enable gradient computation for collision.
 
@@ -179,7 +190,7 @@ class NewtonCollisionPipelineCfg:
         """
         from newton.geometry import HydroelasticSDF
 
-        cfg_dict = self.to_dict()
+        cfg_dict = to_dict(self)
         hydro_cfg = cfg_dict.pop("sdf_hydroelastic_config", None)
         if hydro_cfg is not None:
             cfg_dict["sdf_hydroelastic_config"] = HydroelasticSDF.Config(**hydro_cfg)

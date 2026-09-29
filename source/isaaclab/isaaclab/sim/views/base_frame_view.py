@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 if TYPE_CHECKING:
     from .xform_space_writer import FrameViewLocalSpaceWriter, FrameViewSpaceWriterBase, FrameViewWorldSpaceWriter
@@ -61,6 +61,17 @@ class BaseFrameView(abc.ABC):
     def device(self) -> str:
         """Device where arrays are allocated (``"cpu"`` or ``"cuda:0"``)."""
         ...
+
+    def close(self) -> None:
+        """Release backend state authored by this view. The view must not be used afterwards.
+
+        The base implementation is a no-op; backends that author persistent
+        state (e.g. the Fabric backend's per-view index attributes) override it.
+        Backends also release best-effort when the view is garbage collected,
+        but only an explicit :meth:`close` is deterministic -- collection
+        timing is up to the interpreter.  Calling :meth:`close` more than once
+        is safe.
+        """
 
     # ------------------------------------------------------------------
     # Write scope -- recommended API for all transform writes.

@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 2 links joined by 1 fixed joint. The importer writes no PhysX-specific data for such an asset,
+     so its "Physics" variant set offers only "none" and "physics" - no "physx". -->
+<robot name="test_fixed_only">
+
+  <link name="base_link">
+    <inertial>
+      <mass value="1.0"/>
+      <inertia ixx="0.1" ixy="0.0" ixz="0.0" iyy="0.1" iyz="0.0" izz="0.1"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.2 0.2 0.2"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.2 0.2 0.2"/></geometry>
+    </collision>
+  </link>
+
+  <link name="tool_link">
+    <inertial>
+      <mass value="0.5"/>
+      <inertia ixx="0.01" ixy="0.0" ixz="0.0" iyy="0.01" iyz="0.0" izz="0.01"/>
+    </inertial>
+    <visual>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </visual>
+    <collision>
+      <geometry><box size="0.1 0.1 0.1"/></geometry>
+    </collision>
+  </link>
+
+  <joint name="tool_joint" type="fixed">
+    <parent link="base_link"/>
+    <child link="tool_link"/>
+    <origin xyz="0 0 0.15"/>
+  </joint>
+
+</robot>

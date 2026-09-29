@@ -76,6 +76,13 @@ class TeleopMessageProcessor(BaseRetargeter):
       uses ``run_toggle`` to reach PAUSED instead of STOPPED).
     * ``reset`` -- pulsed ``True`` for one frame on ``"reset"``.
 
+    An *operator* reset also pauses a running session (emits the RUNNING ->
+    PAUSED toggle edge) so teleop lands in a non-driving state, awaiting an
+    explicit start. Channel ``"reset"`` messages (from the XR client) are always
+    treated as operator resets. A *host* reset (e.g. the environment auto-reset
+    after task success) pulses ``reset`` without pausing so recording continues
+    into the next episode -- see :meth:`inject_reset`.
+
     The processor maintains a *shadow state* that mirrors
     ``DefaultTeleopStateManager``'s internal state so it can emit the
     correct toggle sequence for imperative commands.
@@ -88,28 +95,71 @@ class TeleopMessageProcessor(BaseRetargeter):
 
     2. **Plain text (fallback)**: raw UTF-8 string matched by word boundary
        (``"start"``, ``"stop"``, ``"reset"``).
-
-    Host-initiated resets (e.g. environment success) are injected via
-    :meth:`inject_reset`, which sets the ``reset`` output ``True`` on the
-    next compute call without requiring a message-channel payload.
     """
 
     INPUT_MESSAGES = "messages_tracked"
 
     def __init__(self, name: str) -> None:
         self._inject_reset_pending = False
+        self._inject_reset_pause = False
         self._shadow_state = _STOPPED
         self._run_toggle_queue: list[bool] = []
         self._prev_toggle_output = False
+        self._pending_commands: list[str] = []
         super().__init__(name=name)
 
-    def inject_reset(self) -> None:
+    def inject_reset(self, pause: bool = False) -> None:
         """Schedule a reset pulse on the next pipeline step.
 
         The ``reset`` output will be ``True`` for exactly one frame, then
         automatically cleared.
+
+        Args:
+            pause: When ``True``, also pause a running session (RUNNING ->
+                PAUSED), cancelling any in-flight toggle -- the behavior for an
+                *operator* reset (keyboard ``R``). Defaults to ``False`` for a
+                *host* reset (e.g. environment auto-reset after task success): a
+                pure pulse that keeps the session running into the next episode.
         """
         self._inject_reset_pending = True
+        if pause:
+            self._inject_reset_pause = True
+
+    def inject_command(self, command: str) -> None:
+        """Inject a local teleop command as if it arrived on the control channel.
+
+        Lets a host binding (e.g. a keyboard key) drive
+        :class:`~isaacteleop.teleop_session_manager.DefaultTeleopStateManager`
+        without an XR client: ``"start"`` / ``"stop"`` enqueue the matching
+        ``run_toggle`` sequence and ``"reset"`` pulses the reset output. Natural
+        language variants (e.g. ``"start teleop"``) are accepted -- the same
+        classifier the message channel uses is applied. Unrecognized commands are
+        ignored. The command is queued and applied on the next pipeline step, so
+        this is safe to call from another thread (mirrors :meth:`inject_reset`).
+
+        Args:
+            command: A teleop command string (``"start"``, ``"stop"``, or ``"reset"``).
+        """
+        kind = _classify_command(command)
+        if kind is not None:
+            self._pending_commands.append(kind)
+
+    def _apply_command_kind(self, kind: str | None) -> bool:
+        """Apply a classified command to the ``run_toggle`` queue.
+
+        Args:
+            kind: ``"start"``, ``"stop"``, ``"reset"``, or ``None``.
+
+        Returns:
+            ``True`` if the command requests a reset pulse this frame.
+        """
+        if kind == "start" and not self._run_toggle_queue:
+            self._run_toggle_queue = self._make_toggle_sequence(_START_TOGGLE_SEQUENCES[self._shadow_state])
+        elif kind == "stop" and not self._run_toggle_queue:
+            self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
+        elif kind == "reset":
+            return True
+        return False
 
     def _make_toggle_sequence(self, base_sequence: list[bool]) -> list[bool]:
         """Prepend a ``False`` frame if needed to guarantee a clean rising edge.
@@ -151,7 +201,12 @@ class TeleopMessageProcessor(BaseRetargeter):
         del context
 
         reset = self._inject_reset_pending
+        # ``pause_on_reset`` gates the RUNNING -> PAUSED edge below. Injected resets
+        # carry their own intent (``inject_reset(pause=...)``); channel and inject_command
+        # resets are operator-initiated and always pause.
+        pause_on_reset = self._inject_reset_pause
         self._inject_reset_pending = False
+        self._inject_reset_pause = False
 
         # Parse incoming messages and enqueue toggle sequences.
         messages_tracked = inputs[self.INPUT_MESSAGES][0]
@@ -170,13 +225,28 @@ class TeleopMessageProcessor(BaseRetargeter):
                 if command is None:
                     continue
 
-                kind = _classify_command(command)
-                if kind == "start" and not self._run_toggle_queue:
-                    self._run_toggle_queue = self._make_toggle_sequence(_START_TOGGLE_SEQUENCES[self._shadow_state])
-                elif kind == "stop" and not self._run_toggle_queue:
-                    self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
-                elif kind == "reset":
+                if self._apply_command_kind(_classify_command(command)):
                     reset = True
+                    pause_on_reset = True
+
+        # Apply locally injected commands (e.g. keyboard bindings) identically to
+        # channel messages, so a host can start/stop/reset without an XR client.
+        injected_commands = self._pending_commands
+        self._pending_commands = []
+        for injected_kind in injected_commands:
+            if self._apply_command_kind(injected_kind):
+                reset = True
+                pause_on_reset = True
+
+        # An operator reset pauses the session: replace the toggle queue with the stop
+        # toggle for the current shadow state (RUNNING -> PAUSED; a no-op from PAUSED/
+        # STOPPED), which also cancels any in-flight toggle. ``run_toggle`` and ``reset``
+        # are independent inputs to DefaultTeleopStateManager, so the pause edge and the
+        # reset pulse apply together. A host reset (e.g. task-success auto-reset) is a pure
+        # pulse -- it leaves the run state and any pending toggle untouched -- so a non-XR
+        # session that reset()s then request_start()s at startup still reaches RUNNING.
+        if reset and pause_on_reset:
+            self._run_toggle_queue = self._make_toggle_sequence(_STOP_TOGGLE_SEQUENCES[self._shadow_state])
 
         # Drain the toggle queue (one value per frame).
         if self._run_toggle_queue:

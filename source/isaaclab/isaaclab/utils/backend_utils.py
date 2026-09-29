@@ -10,7 +10,7 @@ import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from isaaclab.renderers.renderer_cfg import RendererCfg
+    from ..renderers.renderer_cfg import RendererCfg
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +52,7 @@ class FactoryBase:
         """Initializes a new factory subclass."""
         super().__init_subclass__(**kwargs)
         cls._registry = {}
-        # Determine the module subpath for dynamic loading.
-        # e.g., if factory is in 'isaaclab.assets.articulation.articulation',
-        # the subpath becomes 'assets.articulation'.
+        # Map e.g. isaaclab.assets.articulation.articulation to assets.articulation.
         module_parts = cls.__module__.split(".")
         if module_parts[0] != "isaaclab":
             raise ImportError(f"Factory class {cls.__name__} must be defined within the 'isaaclab' package.")
@@ -73,13 +71,16 @@ class FactoryBase:
     def _get_backend(cls, *args, **kwargs) -> str:
         """Return active backend name for this factory.
 
-        Falls back to ``"physx"`` for backward compatibility when no simulation
-        context is initialized yet.
+        Falls back to ``"newton"`` when no simulation context is initialized yet.
         """
         # Import lazily to avoid import cycles at module load time.
-        from isaaclab.sim.simulation_context import SimulationContext
+        from ..sim.simulation_context import SimulationContext
 
-        manager_name = SimulationContext.instance().physics_manager.__name__.lower()
+        sim_context = SimulationContext.instance()
+        if sim_context is None:
+            return "newton"
+
+        manager_name = sim_context.physics_manager.__name__.lower()
         if manager_name.startswith("newton"):
             return "newton"
         if manager_name.startswith("ovphysx"):
@@ -90,9 +91,14 @@ class FactoryBase:
             raise ValueError(f"Unknown physics manager: {manager_name}")
 
     @classmethod
+    def _get_package_name(cls, backend: str) -> str:
+        """Return the package that hosts a given backend key."""
+        return "isaaclab_ov" if backend == "ovphysx" else f"isaaclab_{backend}"
+
+    @classmethod
     def _get_module_name(cls, backend: str) -> str:
         """Return module path that hosts backend implementation for a given backend key."""
-        return f"isaaclab_{backend}.{cls._module_subpath}"
+        return f"{cls._get_package_name(backend)}.{cls._module_subpath}"
 
     @classmethod
     def resolve_class(cls, *args, **kwargs) -> type:
@@ -111,13 +117,11 @@ class FactoryBase:
         # If backend is not in registry, try to import it and register the class.
         # This is done to only import the module once.
         if backend not in cls._registry:
-            # Construct the module name from the backend and the determined subpath.
             module_name = cls._get_module_name(backend)
             try:
                 module = importlib.import_module(module_name)
                 class_name = getattr(cls, "_backend_class_names", {}).get(backend, cls.__name__)
                 module_class = getattr(module, class_name)
-                # Manually register the class
                 cls.register(backend, module_class)
 
             except ImportError as e:
@@ -131,7 +135,7 @@ class FactoryBase:
         try:
             impl = cls._registry[backend]
         except KeyError:
-            available = list(cls.get_registry_keys())
+            available = cls.get_registry_keys()
             raise ValueError(
                 f"Unknown backend {backend!r} for {cls.__name__}. "
                 f"A module was found at '{module_name}', but it did not contain a class with the name {class_name!r}.\n"
@@ -142,10 +146,9 @@ class FactoryBase:
     def __new__(cls, *args, **kwargs):
         """Create a new instance of an implementation based on the backend."""
         impl = cls.resolve_class(*args, **kwargs)
-        # Return an instance of the chosen class.
         return impl(*args, **kwargs)
 
     @classmethod
     def get_registry_keys(cls) -> list[str]:
         """Returns a list of registered backend names."""
-        return list(cls._registry.keys())
+        return list(cls._registry)

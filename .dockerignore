@@ -21,6 +21,8 @@ docker/.container.cfg
 recordings/
 # ignore __pycache__
 **/__pycache__/
+**/.pytest_cache/
+**/.ruff_cache/
 **/*.egg-info/
 # ignore isaac sim symlink
 _isaac_sim
@@ -28,4 +30,5 @@ _isaac_sim
 docker/.isaac-lab-docker-history
 # ignore uv environment
 env_isaaclab
+.venv/
 tools/wheel_builder/build/

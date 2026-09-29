@@ -30,7 +30,7 @@ Reference: https://www.gelsight.com/gelsightinc-products/
 """
 
 GELSIGHT_MINI_CFG = GelSightRenderCfg(
-    sensor_data_dir_name="gs_mini_data",
+    sensor_data_dir_name="gelsight_r15_data",
     background_path="bg.jpg",
     calib_path="polycalib.npz",
     real_background="real_bg.npy",

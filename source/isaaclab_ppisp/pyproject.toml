@@ -9,14 +9,20 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "isaaclab_ppisp"
-version = "0.3.0"
+version = "0.3.1"
 description = "Extension providing a renderer-backend-agnostic PPISP pipeline that converts HDR scene-linear color to LDR RGBA at the end of a render tick."
 license = {text = "BSD-3-Clause"}
 authors = [{name = "Isaac Lab Project Developers"}]
 maintainers = [{name = "Isaac Lab Project Developers"}]
 keywords = ["robotics", "simulation", "rendering", "isp", "ppisp"]
 requires-python = ">=3.12"
-dependencies = []
+# Only interpackage dependencies should go here.
+dependencies = [
+    "isaaclab",
+]
+
+[tool.uv.sources]
+isaaclab = { path = "../isaaclab", editable = true }
 
 [project.urls]
 Homepage = "https://github.com/isaac-sim/IsaacLab"

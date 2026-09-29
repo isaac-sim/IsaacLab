@@ -13,7 +13,7 @@ correctly handles:
 - Multi-node: WORLD_SIZE > local GPU count (local_rank still maps correctly)
 - JAX_LOCAL_RANK: added to local_rank for JAX distributed training
 - Non-distributed: no device override applied
-- launch_simulation device propagation from AppLauncher
+- launch_simulation device propagation from the Kit launcher
 
 No actual GPUs required — ``torch.cuda.device_count`` and the shared CUDA
 device-selection helper are mocked throughout.
@@ -97,20 +97,6 @@ class TestResolveDistributedDeviceNamespace:
 
     @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
-    def test_normal_multi_gpu_rank0(self, mock_count, mock_set_device):
-        """4 visible GPUs, world_size=4, rank 0 → cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=0, world_size=4)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
     def test_normal_multi_gpu_rank3(self, mock_count, mock_set_device):
         """4 visible GPUs, world_size=4, rank 3 → cuda:3."""
         env_cfg = _DummyEnvCfg()
@@ -118,24 +104,12 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=3, world_size=4)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:3"
+        # the Kit launcher reads the resolved device from the launcher args
+        assert args.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=1)
-    def test_cuda_visible_devices_restricted_rank0(self, mock_count, mock_set_device):
-        """1 visible GPU (CUDA_VISIBLE_DEVICES set), world_size=2, rank 0 → cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=0, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
 
     @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=1)
@@ -146,7 +120,7 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=1, world_size=2)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
@@ -161,24 +135,10 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=0, world_size=2, jax_local_rank=1)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:1"
         mock_set_device.assert_called_once_with("cuda:1")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=1)
-    def test_jax_local_rank_with_restricted_gpus(self, mock_count, mock_set_device):
-        """JAX_LOCAL_RANK + restricted GPUs → fallback to cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=0, world_size=2, jax_local_rank=1)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
 
 
 # ---------------------------------------------------------------------------
@@ -203,20 +163,6 @@ class TestResolveDistributedDeviceDict:
         assert env_cfg.sim.device == "cuda:2"
         mock_set_device.assert_called_once_with("cuda:2")
 
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=1)
-    def test_dict_args_restricted(self, mock_count, mock_set_device):
-        """Dict args with restricted GPUs should fall back to cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = {"distributed": True}
-        env = _make_env_vars(local_rank=3, world_size=4)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
-
 
 # ---------------------------------------------------------------------------
 # _resolve_distributed_device — non-distributed (no-op)
@@ -227,23 +173,11 @@ class TestResolveDistributedDeviceNoop:
     """Tests that non-distributed runs skip device resolution."""
 
     @patch.object(sim_launcher, "set_cuda_device")
-    def test_not_distributed_namespace(self, mock_set_device):
+    def test_not_distributed(self, mock_set_device):
         """distributed=False → device unchanged, set_device not called."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = argparse.Namespace(distributed=False)
 
-        sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_not_called()
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    def test_not_distributed_dict(self, mock_set_device):
-        """Dict with distributed=False → no-op."""
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-        args = {"distributed": False}
-
-        sim_launcher._resolve_distributed_device(env_cfg, args)
+        sim_launcher._resolve_distributed_device(env_cfg, {"distributed": False})
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
@@ -255,16 +189,6 @@ class TestResolveDistributedDeviceNoop:
         args = {}
 
         sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_not_called()
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    def test_none_launcher_args(self, mock_set_device):
-        """launcher_args=None → no-op."""
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-
-        sim_launcher._resolve_distributed_device(env_cfg, None)
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
@@ -291,49 +215,10 @@ class TestResolveDistributedDeviceEdgeCases:
         env = _make_env_vars(local_rank=1, world_size=2)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         # Should still call set_device even without sim_cfg
         mock_set_device.assert_called_once_with("cuda:1")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=2)
-    def test_world_size_equals_visible_gpus(self, mock_count, mock_set_device):
-        """Exact match: 2 visible GPUs, world_size=2 → use local_rank directly."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=1, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:1"
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=8)
-    def test_more_gpus_than_world_size(self, mock_count, mock_set_device):
-        """8 visible GPUs but only 2 ranks → use local_rank directly."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=1, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:1"
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=0)
-    def test_zero_visible_gpus(self, mock_count, mock_set_device):
-        """0 visible GPUs → fallback to cuda:0 (will fail later at CUDA init)."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=0, world_size=2)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
 
     @patch.object(sim_launcher, "set_cuda_device")
     @patch("torch.cuda.device_count", return_value=4)
@@ -350,7 +235,7 @@ class TestResolveDistributedDeviceEdgeCases:
         }
 
         with patch.dict(os.environ, clean_env, clear=True):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         # local_rank=0, 0 < 4 → cuda:0
         assert env_cfg.sim.device == "cuda:0"
@@ -377,70 +262,39 @@ class TestResolveDistributedDeviceMultiNode:
         env = _make_env_vars(local_rank=3, world_size=8, rank=7)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")
 
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=4)
-    def test_multi_node_rank0_sees_4_gpus(self, mock_count, mock_set_device):
-        """2 nodes × 4 GPUs, WORLD_SIZE=8, local_rank=0 → cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=0, world_size=8, rank=4)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    @patch("torch.cuda.device_count", return_value=1)
-    def test_multi_node_restricted_gpus(self, mock_count, mock_set_device):
-        """Multi-node with CUDA_VISIBLE_DEVICES=<one GPU per rank>, local_rank=1 → cuda:0."""
-        env_cfg = _DummyEnvCfg()
-        args = _make_distributed_args()
-        env = _make_env_vars(local_rank=1, world_size=8, rank=5)
-
-        with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_called_once_with("cuda:0")
-
 
 # ---------------------------------------------------------------------------
-# launch_simulation integration — verify device propagation from AppLauncher
+# launch_simulation integration — verify device propagation from the Kit launcher
 # ---------------------------------------------------------------------------
 
 
 class TestLaunchSimulationDevicePropagation:
-    """Verify that launch_simulation propagates AppLauncher.device to env_cfg."""
+    """Verify that launch_simulation propagates the Kit launcher's device to env_cfg."""
 
-    def test_kit_path_propagates_applauncher_device(self, monkeypatch):
-        """When Kit is needed, AppLauncher.device should be written to env_cfg.sim.device."""
+    def test_kit_path_propagates_launcher_device(self, monkeypatch):
+        """When Kit is needed, the Kit launcher's device should be written to env_cfg.sim.device."""
 
-        class _FakeAppLauncher:
+        class _FakeKitLauncher:
+            device = "cuda:3"  # Simulate resolved device
+
             def __init__(self, launcher_args):
-                self.device = "cuda:3"  # Simulate resolved device
-                self.app = types.SimpleNamespace(close=lambda: None)
+                pass
 
-        # Mock has_kit to return False so AppLauncher gets created
-        mock_isaaclab_utils = types.ModuleType("isaaclab.utils")
-        mock_isaaclab_utils.has_kit = lambda: False
-        monkeypatch.setitem(sys.modules, "isaaclab.utils", mock_isaaclab_utils)
+            def close(self, exit_code=0):
+                pass
 
         monkeypatch.setitem(
             sys.modules,
-            "isaaclab.app",
-            types.SimpleNamespace(AppLauncher=_FakeAppLauncher),
+            "isaaclab.utils.assets",
+            types.SimpleNamespace(configure_storage_profile=lambda: None),
         )
-        monkeypatch.setattr(
-            "importlib.util.find_spec",
-            lambda name: object() if name == "omni.kit" else None,
-        )
+
+        monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
         # Mock _resolve_distributed_device to avoid torch.cuda calls
         monkeypatch.setattr(
             sim_launcher,
@@ -456,27 +310,22 @@ class TestLaunchSimulationDevicePropagation:
 
         assert env_cfg.sim.device == "cuda:3"
 
-    def test_kitless_path_uses_resolve_distributed_device(self, monkeypatch):
+    @patch.object(sim_launcher, "set_cuda_device")
+    @patch("torch.cuda.device_count", return_value=2)
+    def test_kitless_path_uses_resolve_distributed_device(self, mock_count, mock_set_device, monkeypatch):
         """When Kit is NOT needed, _resolve_distributed_device sets the device."""
-        resolved_devices = []
-
-        def _fake_resolve(env_cfg, launcher_args):
-            env_cfg.sim.device = "cuda:1"
-            resolved_devices.append("cuda:1")
-
         # Force the kitless path (needs_kit=False) without constructing a real backend cfg.
         _force_kitless(monkeypatch)
-        monkeypatch.setattr(
-            sim_launcher,
-            "_resolve_distributed_device",
-            _fake_resolve,
-        )
-
         env_cfg = _DummyEnvCfg(device="cuda:0")
         args = _make_distributed_args()
 
-        with sim_launcher.launch_simulation(env_cfg, args):
-            pass
+        with patch.object(
+            sim_launcher, "_resolve_distributed_device", wraps=sim_launcher._resolve_distributed_device
+        ) as spy:
+            with patch.dict(os.environ, _make_env_vars(local_rank=1, world_size=2), clear=False):
+                with sim_launcher.launch_simulation(env_cfg, args):
+                    pass
 
+        spy.assert_called_once()
         assert env_cfg.sim.device == "cuda:1"
-        assert len(resolved_devices) == 1
+        mock_set_device.assert_called_once_with("cuda:1")

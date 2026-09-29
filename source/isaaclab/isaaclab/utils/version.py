@@ -8,6 +8,9 @@
 from __future__ import annotations
 
 import functools
+import importlib.machinery
+import sys
+from importlib import metadata
 
 from packaging.version import Version
 
@@ -18,7 +21,7 @@ def has_kit() -> bool:
     Returns True when running inside an Omniverse Kit application (e.g. Isaac Sim).
     Returns False in kitless mode (e.g. Newton physics backend without Kit).
 
-    Not cached with ``lru_cache`` because this may be called before ``AppLauncher``
+    Not cached with ``lru_cache`` because this may be called before the Kit launcher
     finishes starting Kit, which would permanently lock in a ``False`` result.
     The underlying ``get_app()`` call is cheap once the module is loaded.
 
@@ -27,8 +30,6 @@ def has_kit() -> bool:
     in ``sys.modules``, Kit is not running and we return ``False`` immediately without
     performing any import (which would be a forbidden side-effect during cfg-only loading).
     """
-    import sys
-
     mod = sys.modules.get("omni.kit.app")
     if mod is None:
         return False
@@ -36,6 +37,26 @@ def has_kit() -> bool:
         return mod.get_app() is not None
     except Exception:
         return False
+
+
+def standalone_importers_available() -> bool:
+    """Check whether the standalone URDF/MJCF importers can be imported in this environment.
+
+    Being installed is not enough: the ``isaacsim-asset-isolated`` wheel contributes
+    ``isaacsim.asset`` as a PEP 420 namespace portion, and the Isaac Sim runtime ships
+    ``isaacsim`` as a regular package, which discards every portion for that name. Resolving the
+    spec detects that without importing ``isaacsim``, so this stays safe before a launch decision.
+
+    Returns:
+        Whether the standalone importers are installed and reachable.
+    """
+    try:
+        metadata.distribution("isaacsim-asset-isolated")
+    except metadata.PackageNotFoundError:
+        return False
+    found = importlib.machinery.PathFinder().find_spec("isaacsim")
+    # ``origin`` is None only for a namespace package; a regular package reports its __init__.py
+    return found is not None and found.origin is None
 
 
 @functools.lru_cache(maxsize=1)
@@ -111,10 +132,4 @@ def compare_versions(v1: str, v2: str) -> int:
     """
     ver1 = Version(v1)
     ver2 = Version(v2)
-
-    if ver1 > ver2:
-        return 1
-    elif ver1 < ver2:
-        return -1
-    else:
-        return 0
+    return (ver1 > ver2) - (ver1 < ver2)

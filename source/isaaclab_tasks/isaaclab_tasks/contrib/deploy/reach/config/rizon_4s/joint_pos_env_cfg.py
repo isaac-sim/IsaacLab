@@ -8,7 +8,7 @@ import math
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.markers.config import FRAME_MARKER_CFG
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 import isaaclab_tasks.contrib.deploy.mdp as mdp
 from isaaclab_tasks.contrib.deploy.reach.reach_env_cfg import ReachEnvCfg
@@ -38,14 +38,14 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
         self.events.joint_friction.params["asset_cfg"].joint_names = ["joint[1-2]", "joint[3-4]", "joint[5-7]"]
 
         # switch robot to Flexiv Rizon 4s
-        self.scene.robot = FLEXIV_RIZON4S_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FLEXIV_RIZON4S_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Configure the end-effector frame relative to base frame for Rizon 4s
         self.rewards.end_effector_keypoint_tracking.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.rewards.end_effector_keypoint_tracking_exp.params["asset_cfg"] = SceneEntityCfg("ee_frame_wrt_base_frame")
         self.scene.ee_frame_wrt_base_frame = FrameTransformerCfg(
             prim_path="{ENV_REGEX_NS}/Robot/base_link",
-            visualizer_cfg=FRAME_MARKER_CFG.replace(prim_path="/Visuals/FrameTransformer"),
+            visualizer_cfg=replace(FRAME_MARKER_CFG, prim_path="/Visuals/FrameTransformer"),
             source_frame_offset=OffsetCfg(pos=(0.0, 0.0, 0.0), rot=(0.0, 0.0, 0.0, 1.0)),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
@@ -93,15 +93,3 @@ class Rizon4sReachEnvCfg(ReachEnvCfg):
             self.target_rot_centre[2] - self.target_rot_range[2],
             self.target_rot_centre[2] + self.target_rot_range[2],
         )
-
-
-@configclass
-class Rizon4sReachEnvCfg_PLAY(Rizon4sReachEnvCfg):
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        # make a smaller scene for play
-        self.scene.num_envs = 50
-        self.scene.env_spacing = 2.5
-        # disable randomization for play
-        self.observations.policy.enable_corruption = False

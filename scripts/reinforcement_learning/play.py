@@ -3,35 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unified play entrypoint for Isaac Lab reinforcement learning workflows."""
+"""Unified playback executable for Isaac Lab reinforcement learning workflows."""
 
-from __future__ import annotations
+# Warp captures ``enable_backward`` when a module is created, which happens at import
+# time, so it has to be set before importing anything that defines Warp kernels.
+# Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
+# time spent building kernels on a cold kernel cache.
+import warp as wp
 
-from pathlib import Path
+wp.config.enable_backward = False
 
-from common import dispatch_library_entrypoint
-
-SCRIPT_DIR = Path(__file__).resolve().parent
-
-LIBRARY_ENTRYPOINTS = {
-    "rl_games": SCRIPT_DIR / "rl_games" / "play_rl_games.py",
-    "rlinf": SCRIPT_DIR / "rlinf" / "play_rlinf.py",
-    "rsl_rl": SCRIPT_DIR / "rsl_rl" / "play_rsl_rl.py",
-    "sb3": SCRIPT_DIR / "sb3" / "play_sb3.py",
-    "skrl": SCRIPT_DIR / "skrl" / "play_skrl.py",
-}
+from isaaclab_rl.entrypoints import run_play_cli  # noqa: E402
 
 
 def main(argv: list[str] | None = None) -> int:
     """Run the selected reinforcement learning play library."""
-    return dispatch_library_entrypoint(
-        argv,
-        LIBRARY_ENTRYPOINTS,
-        action="play",
-        description="Play an RL agent with a selected reinforcement learning library.",
-        library_help="Training library used by the checkpoint.",
-        run_as_script=True,
-    )
+    return run_play_cli(argv)
 
 
 if __name__ == "__main__":

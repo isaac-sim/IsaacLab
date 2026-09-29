@@ -3,16 +3,18 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Direct-workflow Ant locomotion environment."""
+
 from __future__ import annotations
 
-from isaaclab_tasks.core.locomotion.ant.ant_direct_env_cfg import AntEnvCfg
-from isaaclab_tasks.core.locomotion.locomotion_direct_env import LocomotionDirectEnv
+from ..locomotion_direct_env import LocomotionDirectEnv
+from .ant_direct_env_cfg import AntEnvCfg
 
 
 class AntEnv(LocomotionDirectEnv):
-    """Direct-workflow Ant locomotion environment."""
+    """Direct-workflow Ant locomotion environment.
+
+    The behavior is fully defined by :class:`LocomotionDirectEnv` and :class:`AntEnvCfg`.
+    """
 
     cfg: AntEnvCfg
-
-    def __init__(self, cfg: AntEnvCfg, render_mode: str | None = None, **kwargs):
-        super().__init__(cfg, render_mode, **kwargs)

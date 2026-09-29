@@ -11,18 +11,19 @@ Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 * ``renderer=NAME``           -- typed selector for ``RendererCfg`` variants.
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
-:func:`setup_preset_cli` registers the preset-selection help description on the
-parser and runs ``parse_known_args``, returning the verbatim remainder. The
-tokens above are passed through unchanged; hydra's
+:func:`setup_preset_cli` registers preset-selection help, then runs
+``parse_known_args`` and returns the verbatim remainder. The preset tokens
+above are passed through unchanged; hydra's
 :func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
 the names as presets and enforcing that ``physics=``/``renderer=`` resolve
 against a config of that type). Callers simply assign the remainder to
 ``sys.argv``; no rewriting step is needed.
 
-No argparse arguments are registered for the typed selectors -- discoverability
-lives in the ``argument_group`` description, so the parsed Namespace gains no
-preset attributes and cannot shadow :class:`~isaaclab.app.AppLauncher`
-SimulationApp config keys (``renderer`` notably).
+No argparse arguments are registered for the typed selectors -- their
+discoverability lives in the ``argument_group`` description, so the parsed
+Namespace gains no preset attributes and cannot shadow
+:class:`~isaaclab_physx.app.KitLauncher` SimulationApp config keys (``renderer``
+notably).
 
 Typical script setup::
 
@@ -42,7 +43,7 @@ vocabulary::
         remaining = list_intersection(remaining, external_callback_function())
     sys.argv = [sys.argv[0]] + remaining
 
-``setup_preset_cli`` does NOT add AppLauncher flags itself -- callers add them
+``setup_preset_cli`` does NOT add launcher flags itself -- callers add them
 explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
 """
 
@@ -63,7 +64,7 @@ def setup_preset_cli(
 ) -> tuple[argparse.Namespace, list[str]]:
     """Register the preset-selection help description and parse argv.
 
-    Must be called *after* AppLauncher flags and script-specific arguments are
+    Must be called *after* launcher flags and script-specific arguments are
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
@@ -78,27 +79,29 @@ def setup_preset_cli(
 
     Args:
         parser: Caller's argument parser. An ``argument_group`` is attached
-            for help-time variant discovery; no ``add_argument`` calls are
-            made, so the Namespace gains no preset attributes.
+            for help-time variant discovery. No preset selector arguments are
+            added, so the Namespace gains no preset attributes.
         argv: Optional argument list to parse. When ``None`` (default),
             ``parse_known_args`` reads from ``sys.argv``. Provided primarily
             for in-process test paths that drive the parser with a synthetic
             argv. Help-time variant enumeration always reads ``sys.argv`` --
             the user's interactive command line is the only argv that
             triggers ``--help`` rendering.
-
     Returns:
         ``(args, remaining)`` where ``remaining`` is the verbatim output of
         ``parser.parse_known_args(argv)``, ready to hand to Hydra via
         ``sys.argv``.
+
+    Raises:
+        SystemExit: If ``argv`` requests help, after printing it.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
     # normal training runs cheap.
     argv_helper = _ArgvHelper(sys.argv)
-    actual_variants = (
-        _enumerate_variants(argv_helper.task_name) if (argv_helper.task_name and argv_helper.help_requested) else None
-    )
+    actual_variants = None
+    if argv_helper.task_name and argv_helper.help_requested:
+        actual_variants = _enumerate_variants(argv_helper.task_name)
 
     # Argparse's default HelpFormatter reflows description text into one wrapped
     # paragraph, which would collapse the per-variant bullets we emit. Use a
@@ -108,11 +111,16 @@ def setup_preset_cli(
         parser.formatter_class = _PresetHelpFormatter
 
     # Help-only group: no add_argument() calls means no preset attributes on
-    # the Namespace, so AppLauncher can't accidentally forward one (notably
+    # the Namespace, so the Kit launcher can't accidentally forward one (notably
     # ``renderer``) into SimulationApp config.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
-    return parser.parse_known_args(argv)
+    args_to_parse = sys.argv[1:] if argv is None else argv
+    if "-h" in args_to_parse or "--help" in args_to_parse:
+        parser.print_help()
+        raise SystemExit(0)
+
+    return parser.parse_known_args(args_to_parse)
 
 
 # ============================================================================
@@ -127,7 +135,7 @@ def enumerate_task_presets(task_name: str) -> dict[PresetTarget, list[str]] | No
     using the same logic that the CLI help-text renderer uses, so the returned
     view matches what ``--task=<name> --help`` shows at the command line.
 
-    This function is safe to call after :class:`~isaaclab.app.AppLauncher` has
+    This function is safe to call after :class:`~isaaclab_physx.app.KitLauncher` has
     booted (i.e. inside a running Isaac Sim session).
 
     Args:
@@ -238,9 +246,9 @@ class _DescriptionBuilder:
 
     @staticmethod
     def _description(target: PresetTarget) -> str:
-        """One-line description; for typed targets includes the cfg base class name."""
+        """One-line description of a selector's semantic target."""
         if target.base_classes:
-            return f"(typed) selects a {target.base_classes[0].__name__} variant"
+            return f"(typed) selects a {target.value} backend"
         return "broadcast: applied to every matching PresetCfg"
 
 
@@ -283,7 +291,7 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
     """Load env_cfg for *task_name* and bucket its variants by target.
 
     Uses the same walker hydra's resolver runs so help and resolve see one
-    view of the cfg tree. The env_cfg load is safe before AppLauncher boots
+    view of the cfg tree. The env_cfg load is safe before the simulation runtime starts
     because ``test_env_cfg_no_forbidden_imports`` blocks Kit-only imports at
     the top level of cfg modules. Exceptions from the loader propagate
     verbatim -- they surface as the natural error, not a buried help string.
@@ -298,14 +306,15 @@ def _enumerate_variants(task_name: str) -> dict[PresetTarget, set[str]]:
 def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     """Convert :func:`collect_presets` output into ``{target: set[name]}``.
 
-    Routes each ``(name, cfg)`` by ``isinstance(cfg, target.base_classes)``;
-    cfgs matching no typed target fall into ``DOMAIN``. The implicit
-    ``default`` field is filtered -- it's the fallback, not a selectable name.
+    Routes each ``(name, cfg)`` through :meth:`PresetTarget.matches`; cfgs
+    matching no typed target fall into ``DOMAIN``. The implicit ``default``
+    field is filtered -- it's the fallback, not a selectable name.
 
-    Routing by class hierarchy means new backends subclassing
+    Direct routing by class hierarchy means new backends subclassing
     :class:`~isaaclab.physics.PhysicsCfg` /
     :class:`~isaaclab.renderers.renderer_cfg.RendererCfg` bucket automatically
-    regardless of what name the env_cfg gives the field.
+    regardless of what name the env_cfg gives the field. Targets may also
+    recognize documented container shapes through :meth:`PresetTarget.matches`.
     """
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
@@ -314,7 +323,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
             if name == "default":
                 continue
             matched = next(
-                (t for t in typed_targets if isinstance(cfg, t.base_classes)),
+                (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
             result[matched].add(name)

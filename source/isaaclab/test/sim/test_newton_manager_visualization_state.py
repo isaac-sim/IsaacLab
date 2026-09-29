@@ -3,21 +3,20 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for ``NewtonManager.update_visualization_state`` and shadow-model build.
-
-When the active sim backend is PhysX and a Newton-native visualizer/renderer is in
-use, :meth:`NewtonManager._ensure_visualization_model` must build the manager's
-``_model`` / ``_state_0`` directly from the USD stage, and
-:meth:`NewtonManager.update_visualization_state` must copy fresh transforms into
-``_state_0.body_q`` via the new
-:class:`~isaaclab.scene_data.SceneDataProvider`.
-"""
+"""Clone-built, registry-owned Newton resources and native SDP publication."""
 
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
+import numpy as np
 import pytest
+
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import make_clone_plan
+from isaaclab.sim import SpawnerCfg
+from isaaclab.utils import replace
 
 pytestmark = pytest.mark.integration
 
@@ -25,203 +24,207 @@ pytestmark = pytest.mark.integration
 def _reset_newton_manager_state():
     from isaaclab_newton.physics import NewtonManager
 
-    NewtonManager._builder = None
-    NewtonManager._model = None
-    NewtonManager._state_0 = None
-    NewtonManager._num_envs = None
-    NewtonManager._scene_data = None
-    NewtonManager._scene_data_mapping = None
+    NewtonManager.clear()
 
 
-def _make_env_stage(num_envs: int = 1):
-    from pxr import Usd, UsdGeom
+def _add_api_schemas(prim, schemas: list[str]) -> None:
+    from pxr import Sdf
+
+    api_schemas = Sdf.TokenListOp()
+    api_schemas.explicitItems = schemas
+    prim.SetMetadata("apiSchemas", api_schemas)
+
+
+def _make_surface_cloth_stage(path: str = "/World/envs/env_0/Cloth"):
+    """Author a surface deformable mesh prim at ``path``."""
+    from pxr import Gf, Usd, UsdGeom
 
     stage = Usd.Stage.CreateInMemory()
-    UsdGeom.Xform.Define(stage, "/World")
-    UsdGeom.Xform.Define(stage, "/World/envs")
-    for env_id in range(num_envs):
-        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
+    # Ensure ancestor xforms exist.
+    parts = path.strip("/").split("/")
+    for i in range(1, len(parts)):
+        UsdGeom.Xform.Define(stage, "/" + "/".join(parts[:i]))
+    cloth = UsdGeom.Mesh.Define(stage, path)
+    _add_api_schemas(cloth.GetPrim(), ["OmniPhysicsDeformableBodyAPI", "OmniPhysicsSurfaceDeformableSimAPI"])
+    cloth.CreatePointsAttr([Gf.Vec3f(0.0, 0.0, 0.0), Gf.Vec3f(1.0, 0.0, 0.0), Gf.Vec3f(0.0, 1.0, 0.0)])
+    cloth.CreateFaceVertexCountsAttr([3])
+    cloth.CreateFaceVertexIndicesAttr([0, 1, 2])
     return stage
 
 
-def _set_sim_context(monkeypatch, nm, clone_plan=None, scene_data_provider=None):
-    clone_plan = clone_plan if clone_plan is not None else SimpleNamespace()
-    scene_data_provider = scene_data_provider if scene_data_provider is not None else SimpleNamespace()
-    sim = SimpleNamespace(
-        get_clone_plan=lambda: clone_plan,
-        get_scene_data_provider=lambda: scene_data_provider,
-    )
-    monkeypatch.setattr(nm.SimulationContext, "instance", classmethod(lambda cls: sim))
-    return sim
-
-
-def test_physics_manager_close_only_clears_active_manager_binding(monkeypatch):
-    """Only the active physics manager can clear shared SimulationContext state."""
-    from isaaclab.physics import PhysicsManager
-
-    class _ActiveManager(PhysicsManager):
-        _callbacks = {}
-
-    class _InactiveManager(PhysicsManager):
-        pass
-
-    _ActiveManager.close()
-    assert PhysicsManager._sim is None
-
-    active_sim = SimpleNamespace(physics_manager=_ActiveManager)
-    monkeypatch.setattr(PhysicsManager, "_sim", active_sim, raising=False)
-    monkeypatch.setattr(PhysicsManager, "_cfg", "active-cfg", raising=False)
-    monkeypatch.setattr(PhysicsManager, "_sim_time", 1.25, raising=False)
-
-    monkeypatch.setattr(PhysicsManager, "_callbacks", {1: (None, lambda _: None, 0, "stale", None)}, raising=False)
-    _InactiveManager.close()
-    assert PhysicsManager._callbacks == {}
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (active_sim, "active-cfg", 1.25)
-
-    _ActiveManager.close()
-    assert (PhysicsManager._sim, PhysicsManager._cfg, PhysicsManager._sim_time) == (None, None, 0.0)
-
-
-def test_ensure_visualization_model_noop_when_backend_is_newton(monkeypatch):
-    """When sim backend is Newton, the manager keeps its own model/state untouched."""
-    from isaaclab_newton.physics import NewtonManager
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
-    NewtonManager._ensure_visualization_model()
-    assert NewtonManager._model is None
-    assert NewtonManager._state_0 is None
-
-
-def test_ensure_visualization_model_builds_from_stage_when_backend_is_physx(monkeypatch):
-    """With a PhysX sim backend, the shadow Newton model is built directly from the stage."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    finalize_calls: list[str] = []
-
-    class _FakeBuilder:
-        body_count = 3
-
-        def finalize(self, device):
-            finalize_calls.append(device)
-            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
-
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _FakeBuilder())
-
-    NewtonManager._ensure_visualization_model()
-
-    assert finalize_calls == ["cpu"]
-    assert NewtonManager._model is not None
-    assert NewtonManager._state_0 is not None
-
-
-def test_ensure_visualization_model_empty_builder_logs_and_skips(monkeypatch, caplog):
-    """When the stage walk produces no bodies, model/state stay unset and an error is logged."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage())
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
-
-    class _EmptyBuilder:
-        body_count = 0
-
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _EmptyBuilder())
-
-    with caplog.at_level("ERROR"):
-        NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager._model is None
-    assert NewtonManager._state_0 is None
-    assert any("no Newton bodies" in r.message for r in caplog.records)
-
-
-def test_ensure_visualization_model_populates_num_envs_when_backend_is_physx(monkeypatch):
-    """Shadow-model build must populate ``_num_envs`` so ``get_num_envs`` is correct under PhysX."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: _make_env_stage(num_envs=4))
-    monkeypatch.setattr(nm.PhysicsManager, "_sim", None, raising=False)
-    _set_sim_context(monkeypatch, nm)
-    monkeypatch.setattr(nm.PhysicsManager, "_device", "cpu", raising=False)
-
-    class _FakeBuilder:
-        body_count = 3
-
-        def finalize(self, device):
-            return SimpleNamespace(state=lambda: SimpleNamespace(body_q=None))
-
-    monkeypatch.setattr(nm, "build_visualization_builder_from_stage_envs", lambda *args, **kwargs: _FakeBuilder())
-
-    NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager.get_num_envs() == 4
-    assert NewtonManager._model.num_envs == 4
-
-
-def test_ensure_visualization_model_missing_stage_leaves_state_unset(monkeypatch, caplog):
-    """When no USD stage is available, model/state stay unset and an error is logged."""
-    from isaaclab_newton.physics import NewtonManager
-    from isaaclab_newton.physics import newton_manager as nm
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: False))
-    monkeypatch.setattr(nm, "get_current_stage", lambda *args, **kwargs: None)
-
-    with caplog.at_level("ERROR"):
-        NewtonManager._ensure_visualization_model()
-
-    assert NewtonManager._model is None
-    assert NewtonManager._state_0 is None
-    assert any("No USD stage available" in r.message for r in caplog.records)
-
-
-def test_update_visualization_state_noop_when_backend_is_newton(monkeypatch):
-    """When sim backend is Newton, update_visualization_state is a no-op."""
-    from isaaclab_newton.physics import NewtonManager
-
-    _reset_newton_manager_state()
-    monkeypatch.setattr(NewtonManager, "_backend_is_newton", classmethod(lambda cls, scene_data_provider=None: True))
-    monkeypatch.setattr(NewtonManager, "get_scene_data_provider", classmethod(lambda cls: SimpleNamespace()))
-
-    # Pre-set sentinel values to ensure update doesn't touch them.
-    NewtonManager._model = "live-model"
-    NewtonManager._state_0 = "live-state"
-    NewtonManager.update_visualization_state()
-    assert NewtonManager._model == "live-model"
-    assert NewtonManager._state_0 == "live-state"
-
-
-def test_resolve_scene_data_body_paths_uses_joint_body_targets():
-    """PhysX visualization sync maps Newton joint labels to the actual body prim path."""
-    import pytest
-
-    pytest.importorskip("pxr")
-    from isaaclab_newton.physics import NewtonManager
+def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
+    """Consumers acquire a completed resource, including late consumers and replacement after close."""
+    from isaaclab_newton.cloner import NewtonReplicateContext
+    from isaaclab_newton.physics import NewtonBuilderCfg, NewtonManager
+    from isaaclab_newton.renderers import NewtonWarpRendererCfg
+    from newton import ModelBuilder
 
     from pxr import Usd, UsdGeom, UsdPhysics
 
-    stage = Usd.Stage.CreateInMemory()
-    body_prim = UsdGeom.Xform.Define(stage, "/World/envs/env_0/Robot/robot0_forearm").GetPrim()
-    UsdPhysics.RigidBodyAPI.Apply(body_prim)
-    joint = UsdPhysics.FixedJoint.Define(stage, "/World/envs/env_0/Robot/joints/robot0_forearm")
-    joint.GetBody1Rel().SetTargets([body_prim.GetPath()])
+    from isaaclab.physics import PhysicsCfg, PhysicsManager
+    from isaaclab.renderers import RenderContext
+    from isaaclab.sim import SimulationContext
 
-    body_paths = ["/World/envs/env_0/Robot/joints/robot0_forearm"]
-    resolved_paths = NewtonManager._resolve_scene_data_body_paths(body_paths, stage)
+    class Manager(PhysicsManager):
+        _callbacks = {}
 
-    assert resolved_paths == ["/World/envs/env_0/Robot/robot0_forearm"]
+    _reset_newton_manager_state()
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    asset = AssetBaseCfg(prim_path="/Scene/Copy_[^/]+/Cube", spawn=SpawnerCfg(spawn_path="/Scene/Source/Cube"))
+    plan = make_clone_plan((asset,), ((0,),), 2, env_template="/Scene/Copy_{}")
+    sim = object.__new__(SimulationContext)
+    sim.cfg = SimpleNamespace(physics=PhysicsCfg(), device="cpu")
+    sim.physics_manager = Manager
+    sim.stage = Usd.Stage.CreateInMemory()
+    UsdPhysics.RigidBodyAPI.Apply(UsdGeom.Cube.Define(sim.stage, "/Scene/Source/Cube").GetPrim())
+    sim._backend_registry = []
+    sim._render_context = RenderContext(sim._backend_registry)
+    sim.requires_usd_stage = sim.requires_newton_model = False
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    renderers = [sim.get_or_create_backend(NewtonWarpRendererCfg(enable_shadows=flag)) for flag in (False, True)]
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
+    declared_builder = sim.get_or_create_backend(builder_cfg)
+    assert sim.get_or_create_backend(replace(builder_cfg)) is declared_builder
+    finalized = []
+    original = ModelBuilder.finalize
+
+    def finalize(builder, *, device):
+        finalized.append(builder)
+        return original(builder, device=device)
+
+    monkeypatch.setattr(ModelBuilder, "finalize", finalize)
+    context = NewtonReplicateContext(sim)
+    builder, _, _ = context.replicate(plan, (0,))
+    assert builder is declared_builder
+    assert finalized == []
+    assert len(sim._backend_registry) == 3
+    assert not hasattr(sim, "newton_cfg") and not hasattr(sim, "fabric_cfg")
+    assert renderers[0].newton_cfg == renderers[1].newton_cfg
+    first = sim.get_or_create_backend(renderers[0].newton_cfg)
+    assert sim.get_or_create_backend(renderers[1].newton_cfg) is first
+    assert first.model.world_count == len(plan.topology.world_prototype_layout)
+    assert first.model.body_count == 2
+    assert first.model.body_label == ["/Scene/Copy_0/Cube", "/Scene/Copy_1/Cube"]
+    late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
+    assert sim.get_or_create_backend(late.newton_cfg) is first
+    assert finalized == [builder]
+    assert NewtonManager.backend is None
+    sim.close_backend(first)
+    assert len(sim._backend_registry) == 4
+    assert first.model is first.state_0 is None
+    assert sim.get_or_create_backend(builder_cfg) is builder
+    second = sim.get_or_create_backend(late.newton_cfg)
+    assert second is not first
+    assert all(sim.get_or_create_backend(renderer.newton_cfg) is second for renderer in (*renderers, late))
+    assert finalized == [builder, builder]
+    sim.close_backend(second)
+
+
+@pytest.mark.parametrize("invalidate", ["invalidate_body_state", "invalidate_fk"])
+def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
+    """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
+    import warp as wp
+    from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
+    from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
+
+    from isaaclab.physics import PhysicsManager
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+
+    _reset_newton_manager_state()
+    monkeypatch.setattr(PhysicsManager, "_device", "cpu")
+    state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
+    backend = NewtonSceneDataBackend()
+    provider = SceneDataProvider(backend)
+    monkeypatch.setattr(
+        NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
+    )
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
+    monkeypatch.setattr(NewtonManager, "_world_reset_mask", wp.zeros(2, dtype=wp.bool, device="cpu"))
+    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
+    # Fabric may bind between native allocation and the solver's FK-hook initialization.
+    assert backend.transforms.transforms is state.body_q
+    monkeypatch.setattr(NewtonManager, "_eval_fk", Mock())
+    monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
+    monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
+
+    output = SceneDataFormat.Matrix44()
+    assert provider.get_transforms(output)
+    matrices = output.matrices
+    NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_not_called()
+    assert provider.get_transforms(SceneDataFormat.Transform())
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    assert wp.launch.call_count == 1
+    NewtonManager._eval_fk.assert_not_called()
+
+    state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
+    getattr(NewtonXPBDManager, invalidate)()
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
+    NewtonManager._eval_fk.assert_called_once()
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    NewtonManager.pre_render()
+    NewtonManager._eval_fk.assert_called_once()
+    assert wp.launch.call_count == 2
+
+    replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
+    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    native = SceneDataFormat.Transform()
+    assert provider.get_transforms(native)
+    assert native.transforms is replacement
+    assert provider.get_transforms(output)
+    assert output.matrices is matrices
+    assert wp.launch.call_count == 3
+    np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [3, 2, 1])
+
+
+@pytest.mark.parametrize("global_path", ["/World/Assets/Cloth", "/World/Assets"])
+def test_clone_visualization_builder_imports_only_declared_global_deformables(monkeypatch, global_path):
+    """Global ancestors do not route excluded clone sources into the shadow model."""
+    from isaaclab_newton.cloner import NewtonReplicateContext
+    from isaaclab_newton.physics import NewtonBackendCfg
+    from newton import ModelBuilder
+
+    from pxr import Sdf, UsdGeom
+
+    from isaaclab.sim import SimulationContext
+
+    stage = _make_surface_cloth_stage(path="/World/Assets/Cloth")
+    Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), "/World/UnplannedCloth")
+    sources = ("/World/Assets/Selected", "/World/Assets/Excluded")
+    for source in sources:
+        UsdGeom.Xform.Define(stage, source)
+        Sdf.CopySpec(stage.GetRootLayer(), "/World/Assets/Cloth", stage.GetRootLayer(), f"{source}/Cloth")
+    assets = tuple(
+        AssetBaseCfg(prim_path=dst.format("[^/]+"), spawn=SpawnerCfg(spawn_path=src))
+        for src, dst in zip(sources, ("/Copies/env_{}/Selected", "/Copies/env_{}/Excluded"), strict=True)
+    )
+    assets += (AssetBaseCfg(prim_path=global_path),)
+    plan = make_clone_plan(assets, ((0, 1),), 2, shared_assets=(2,), env_template="/Copies/env_{}")
+    sim = object.__new__(SimulationContext)
+    sim.cfg = SimpleNamespace(physics=object(), device="cpu")
+    sim.physics_manager = SimpleNamespace(get_device=lambda: "cpu")
+    sim.stage, sim._backend_registry = stage, []
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    usd_imports = []
+    add_usd = ModelBuilder.add_usd
+
+    def import_usd(builder, *args, **kwargs):
+        usd_imports.append(kwargs)
+        return add_usd(builder, *args, **kwargs)
+
+    monkeypatch.setattr(ModelBuilder, "add_usd", import_usd)
+
+    context = NewtonReplicateContext(sim)
+    builder, _, _ = context.replicate(plan, (0, 2))
+    backend = sim.get_or_create_backend(NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device))
+    geometry = backend.geometry_offsets
+
+    assert sorted(kwargs["root_path"] for kwargs in usd_imports) == sorted([global_path, sources[0]])
+    assert set(geometry) == {"/World/Assets/Cloth", "/Copies/env_0/Selected/Cloth", "/Copies/env_1/Selected/Cloth"}
+    assert sorted(geometry.values()) == [0, 3, 6]
+    assert builder.particle_count == 9
+    backend.close()

@@ -3,16 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+from isaaclab.test.utils import launch_test_simulation
 
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-app_launcher = AppLauncher(headless=True)
-simulation_app = app_launcher.app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -24,8 +17,10 @@ import warp as wp
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
+from isaaclab.cloner import make_clone_plan
 from isaaclab.sensors import SensorBase, SensorBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.utils import configclass
 
 pytestmark = pytest.mark.integration
 
@@ -83,7 +78,7 @@ class DummySensor(SensorBase):
 class DummySensorCfg(SensorBaseCfg):
     class_type = DummySensor
 
-    prim_path = "/World/envs/env_.*/Cube/dummy_sensor"
+    prim_path = "{ENV_REGEX_NS}/Cube/dummy_sensor"
 
 
 def _populate_scene():
@@ -123,8 +118,6 @@ def create_dummy_sensor(request, device):
 
     sensor_cfg = DummySensorCfg()
 
-    sim_utils.update_stage()
-
     yield sensor_cfg, sim, dt
 
     # stop simulation and clean up
@@ -132,11 +125,14 @@ def create_dummy_sensor(request, device):
     sim.clear_instance()
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_sensor_init(create_dummy_sensor, device):
-    """Test that the sensor initializes, steps without update, and forces update."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+@pytest.mark.parametrize("planned", [False, True], ids=["standalone", "planned"])
+def test_sensor_init(create_dummy_sensor, device, planned):
+    """Initialize from topology without a USD clone context, or from a standalone stage."""
 
     sensor_cfg, sim, dt = create_dummy_sensor
+    if planned:
+        sim.set_clone_plan(make_clone_plan((sensor_cfg,), ((0,),), 5))
     sensor = DummySensor(cfg=sensor_cfg)
 
     # Play sim
@@ -168,7 +164,7 @@ def test_sensor_init(create_dummy_sensor, device):
         )
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_sensor_update_rate(create_dummy_sensor, device):
     """Test that the update_rate configuration parameter works by checking the value of the data is old for an update
     period of 2.
@@ -196,7 +192,7 @@ def test_sensor_update_rate(create_dummy_sensor, device):
         expected_value += i % 2
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
 def test_sensor_reset(create_dummy_sensor, device):
     """Test that sensor can be reset for all or partial env ids."""
     sensor_cfg, sim, dt = create_dummy_sensor
@@ -246,9 +242,9 @@ def test_sensor_reset(create_dummy_sensor, device):
         )
 
 
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_repeated_data_reads_update_backend_once(create_dummy_sensor, device):
-    """Test that repeated data reads update the backend once per sensor update."""
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
+    """Test that repeated reads refresh once per update and resets each invalidate cached data once."""
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor = DummySensor(cfg=sensor_cfg)
     sim.step()
@@ -258,18 +254,7 @@ def test_repeated_data_reads_update_backend_once(create_dummy_sensor, device):
     _ = sensor.data
     backend_update_count = sensor.backend_update_count
     _ = sensor.data
-
     assert sensor.backend_update_count == backend_update_count
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
-    """Test that full and partial resets each invalidate cached sensor data once."""
-    sensor_cfg, sim, _ = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-    _ = sensor.data
 
     sensor.reset()
     backend_update_count = sensor.backend_update_count
@@ -291,22 +276,6 @@ def test_reset_invalidates_cached_sensor_data(create_dummy_sensor, device):
     torch.testing.assert_close(
         sensor.data.count[continued_ids], torch.ones(len(continued_ids), dtype=torch.int32, device=device)
     )
-
-
-@pytest.mark.parametrize("device", ("cpu", "cuda"))
-def test_force_recompute_bypasses_sensor_data_cache(create_dummy_sensor, device):
-    """Test that forced recomputation bypasses a consumed freshness generation."""
-    sensor_cfg, sim, _ = create_dummy_sensor
-    sensor = DummySensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-    _ = sensor.data
-    backend_update_count = sensor.backend_update_count
-
-    sensor._update_outdated_buffers(force_recompute=True)
-    _ = sensor.data
-
-    assert sensor.backend_update_count == backend_update_count + 1
 
 
 @pytest.mark.parametrize("device", ("cuda",))
@@ -341,13 +310,12 @@ def test_rigid_body_ancestor_expr_trims_only_terminal_suffix(create_dummy_sensor
     sim_utils.create_prim(parent_path, "Xform")
     sim_utils.create_prim(child_path, "Xform")
     UsdPhysics.RigidBodyAPI.Apply(sim_utils.get_current_stage().GetPrimAtPath(parent_path))
-    sim_utils.update_stage()
 
-    sensor_cfg.prim_path = "/World/envs/env_.*/Robot/link/link"
+    sensor_cfg.prim_path = "{ENV_REGEX_NS}/Robot/link/link"
     sensor = DummySensor(cfg=sensor_cfg)
 
     rigid_parent_expr, fixed_pos_b, fixed_quat_b = sensor._resolve_rigid_body_ancestor_expr()
 
-    assert rigid_parent_expr == "/World/envs/env_.*/Robot/link"
+    assert rigid_parent_expr == "/World/envs/env_[^/]+/Robot/link"
     assert fixed_pos_b is not None
     assert fixed_quat_b is not None

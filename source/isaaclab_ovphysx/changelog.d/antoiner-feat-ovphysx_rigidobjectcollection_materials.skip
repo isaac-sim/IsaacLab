@@ -1,3 +1,0 @@
-Test-only: enable the rigid-object-collection shape-material test against the
-new ovphysx material binding. The public ``RIGID_BODY_SHAPE_FRICTION_AND_RESTITUTION``
-alias it relies on is documented by the sibling material PRs (#6239 / #6240).

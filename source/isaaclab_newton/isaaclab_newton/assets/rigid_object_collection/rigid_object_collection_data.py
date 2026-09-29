@@ -13,12 +13,13 @@ import numpy as np
 import warp as wp
 
 from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import BaseRigidObjectCollectionData
-from isaaclab.utils.buffers import TimestampedBufferWarp as TimestampedBuffer
-from isaaclab.utils.buffers import reset_timestamps
+from isaaclab.utils.buffers import TimestampedBuffer, reset_timestamps
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_newton.assets import kernels as shared_kernels
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+
+from ..kernels import vec13f
 
 if TYPE_CHECKING:
     from newton.selection import ArticulationView
@@ -69,11 +70,13 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         # Set initial time stamp
         self._sim_timestamp = 0.0
         self._is_primed = False
-        self._fk_timestamp = 0.0
 
         # Bind ``GRAVITY_VEC_W`` to Newton's per-env ``model.gravity`` (m/s^2); the
         # projected_gravity_b kernel broadcasts each env's vector across its bodies.
-        self.GRAVITY_VEC_W = ProxyArray(SimulationManager.get_model().gravity)
+        # The final entry is reserved for Newton's global world and is not an
+        # Isaac Lab environment.
+        model = SimulationManager.get_model()
+        self.GRAVITY_VEC_W = ProxyArray(model.gravity[: model.world_count])
         forward_vec = np.full((self.num_instances, self.num_bodies, 3), (1.0, 0.0, 0.0), dtype=np.float32)
         self.FORWARD_VEC_B = ProxyArray(wp.array(forward_vec, dtype=wp.vec3f, device=self.device))
 
@@ -110,26 +113,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         """
         # update the simulation timestamp
         self._sim_timestamp += dt
-        # FK is current after a sim step — keep fk_timestamp in sync unless it was explicitly invalidated
-        if self._fk_timestamp >= 0.0:
-            self._fk_timestamp = self._sim_timestamp
         # Trigger an update of the body com acceleration buffer at a higher frequency
         # since we do finite differencing.
         self.body_com_acc_w
-
-    def _ensure_fk_fresh(self) -> None:
-        """Run forward kinematics if the root state has changed since the last FK update.
-
-        Newton's ``state.body_q`` (per-body world transforms) is updated by ``eval_fk``,
-        invoked here through ``SimulationManager.forward()``. After a manual root write
-        that bypassed the sim step (``write_*_to_sim_*``), ``_fk_timestamp`` is set to
-        ``-1.0`` to force a refresh on the next read of any property that depends on
-        body poses (``body_link_pose_w``, ``body_com_pose_w`` and the composite body
-        state buffers).
-        """
-        if self._fk_timestamp < self._sim_timestamp:
-            SimulationManager.forward()
-            self._fk_timestamp = self._sim_timestamp
 
     def _reset_pose(
         self,
@@ -151,13 +137,19 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         reset_timestamps(
             [
                 self._body_com_pose_w if from_link else None,
+                self._body_link_vel_w,
+                self._projected_gravity_b,
+                self._heading_w,
+                self._body_link_lin_vel_b,
+                self._body_link_ang_vel_b,
+                self._body_com_lin_vel_b,
+                self._body_com_ang_vel_b,
                 # body com states
                 self._body_state_w,
                 self._body_link_state_w,
                 self._body_com_state_w,
             ]
         )
-        self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
         )
@@ -182,15 +174,35 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         reset_timestamps(
             [
                 self._body_link_vel_w if from_com else None,
+                self._body_link_lin_vel_b,
+                self._body_link_ang_vel_b,
+                self._body_com_lin_vel_b,
+                self._body_com_ang_vel_b,
                 # body com states
                 self._body_state_w,
                 self._body_link_state_w,
                 self._body_com_state_w,
             ]
         )
-        self._fk_timestamp = -1.0
         SimulationManager.invalidate_fk(
             env_mask=env_mask, env_ids=env_ids, articulation_ids=self._root_view.articulation_ids
+        )
+
+    def _reset_body_com_pose_b_dependents(self) -> None:
+        """Reset cached properties derived from body-frame center-of-mass offsets."""
+        reset_timestamps(
+            [
+                self._body_com_pose_b,
+                self._body_com_pose_w,
+                self._body_link_vel_w,
+                self._body_link_lin_vel_b,
+                self._body_link_ang_vel_b,
+                self._body_com_lin_vel_b,
+                self._body_com_ang_vel_b,
+                self._body_state_w,
+                self._body_link_state_w,
+                self._body_com_state_w,
+            ]
         )
 
     """
@@ -265,7 +277,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the pose of the actor frame of the rigid body relative to the world.
         The orientation is provided in (x, y, z, w) format.
         """
-        self._ensure_fk_fresh()
+        SimulationManager.forward()
         return self._body_link_pose_w_ta
 
     @property
@@ -278,7 +290,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         rigid body relative to the world.
         """
         if self._body_link_vel_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_link_vel_w",
                 shared_kernels.get_body_link_vel_from_body_com_vel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -289,7 +302,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_link_vel_w.data,
                 ],
-                device=self.device,
             )
             self._body_link_vel_w.timestamp = self._sim_timestamp
 
@@ -305,7 +317,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         The orientation is provided in (x, y, z, w) format.
         """
         if self._body_com_pose_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_pose_w",
                 shared_kernels.get_body_com_pose_from_body_link_pose,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -315,7 +328,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_com_pose_w.data,
                 ],
-                device=self.device,
             )
             self._body_com_pose_w.timestamp = self._sim_timestamp
 
@@ -330,7 +342,7 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity contains the linear and angular velocities of the root rigid body's center of mass frame
         relative to the world.
         """
-        self._ensure_fk_fresh()
+        SimulationManager.forward()
         return self._body_com_vel_w_ta
 
     @property
@@ -374,7 +386,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._body_com_pose_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_pose_b",
                 shared_kernels.make_dummy_body_com_pose_b,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -383,7 +396,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_com_pose_b.data,
                 ],
-                device=self.device,
             )
             self._body_com_pose_b.timestamp = self._sim_timestamp
         return self._body_com_pose_b_ta
@@ -428,12 +440,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         (num_instances, num_bodies, 3).
         """
         if self._projected_gravity_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "projected_gravity_b",
                 shared_kernels.projected_gravity_b_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.GRAVITY_VEC_W.warp, self.body_link_quat_w.warp],
                 outputs=[self._projected_gravity_b.data],
-                device=self.device,
             )
             self._projected_gravity_b.timestamp = self._sim_timestamp
         return self._projected_gravity_b_ta
@@ -449,12 +461,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             frame is along x-direction, i.e. :math:`(1, 0, 0)`.
         """
         if self._heading_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "heading_w",
                 shared_kernels.body_heading_w,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.FORWARD_VEC_B.warp, self.body_link_quat_w.warp],
                 outputs=[self._heading_w.data],
-                device=self.device,
             )
             self._heading_w.timestamp = self._sim_timestamp
         return self._heading_w_ta
@@ -469,12 +481,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         rigid body's actor frame.
         """
         if self._body_link_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_link_lin_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_lin_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_link_lin_vel_b.data],
-                device=self.device,
             )
             self._body_link_lin_vel_b.timestamp = self._sim_timestamp
         return self._body_link_lin_vel_b_ta
@@ -489,12 +501,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         rigid body's actor frame.
         """
         if self._body_link_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_link_ang_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_link_ang_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_link_ang_vel_b.data],
-                device=self.device,
             )
             self._body_link_ang_vel_b.timestamp = self._sim_timestamp
         return self._body_link_ang_vel_b_ta
@@ -509,12 +521,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         rigid body's actor frame.
         """
         if self._body_com_lin_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_lin_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_lin_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_com_lin_vel_b.data],
-                device=self.device,
             )
             self._body_com_lin_vel_b.timestamp = self._sim_timestamp
         return self._body_com_lin_vel_b_ta
@@ -529,12 +541,12 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         rigid body's actor frame.
         """
         if self._body_com_ang_vel_b.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_ang_vel_b",
                 shared_kernels.quat_apply_inverse_2D_kernel,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[self.body_com_ang_vel_w.warp, self.body_link_quat_w.warp],
                 outputs=[self._body_com_ang_vel_b.data],
-                device=self.device,
             )
             self._body_com_ang_vel_b.timestamp = self._sim_timestamp
         return self._body_com_ang_vel_b_ta
@@ -684,6 +696,9 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         per world) corresponds to the different body types. This gives us direct 2D bindings into
         Newton's state with no scatter/gather overhead.
         """
+        # A full reset replaces simulation arrays.
+        self._read_launch_cache.clear()
+
         state_0 = SimulationManager.get_state_0()
         model = SimulationManager.get_model()
 
@@ -695,6 +710,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         self._sim_bind_body_external_wrench = self._root_view.get_attribute("body_f", state_0)[:, :, 0]
         # -- Body mass: (num_envs, num_bodies, 1) float32 → squeeze to (num_envs, num_bodies)
         self._sim_bind_body_mass = self._root_view.get_attribute("body_mass", model)[:, :, 0]
+        self._sim_bind_body_inv_mass = self._root_view.get_attribute("body_inv_mass", model)[:, :, 0]
+        self._sim_bind_body_inv_inertia = self._root_view.get_attribute("body_inv_inertia", model)[:, :, 0]
         # -- Body inertia: (num_envs, num_bodies, 1) mat33f → squeeze, reinterpret as (N, B, 9) float32.
         # Each mat33f element is 9 contiguous float32 values (36 bytes), so the inner stride is 4.
         # The slice may be non-contiguous in the outer dims, so we preserve those strides.
@@ -716,44 +733,34 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
     def _create_buffers(self) -> None:
         """Create buffers for computing and caching derived quantities."""
         super()._create_buffers()
+        body_shape = (self.num_instances, self.num_bodies)
+        device = self.device
 
         # Initialize the lazy buffers.
         # -- link frame w.r.t. world frame (computed from com vel)
-        self._body_link_vel_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf
-        )
+        self._body_link_vel_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- com frame w.r.t. link frame
-        self._body_com_pose_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
+        self._body_com_pose_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
         # -- com frame w.r.t. world frame
-        self._body_com_pose_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.transformf)
-        self._body_com_acc_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.spatial_vectorf)
+        self._body_com_pose_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.transformf, device=device))
+        self._body_com_acc_w = TimestampedBuffer(wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device))
         # -- combined state (these are cached as they concatenate)
-        self._body_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
-        self._body_link_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
-        self._body_com_state_w = TimestampedBuffer(
-            (self.num_instances, self.num_bodies), self.device, shared_kernels.vec13f
-        )
+        self._body_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_link_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
+        self._body_com_state_w = TimestampedBuffer(wp.empty(body_shape, dtype=vec13f, device=device))
 
         # -- Default state
-        self._default_body_pose = wp.zeros(
-            (self.num_instances, self.num_bodies), dtype=wp.transformf, device=self.device
-        )
-        self._default_body_vel = wp.zeros(
-            (self.num_instances, self.num_bodies), dtype=wp.spatial_vectorf, device=self.device
-        )
+        self._default_body_pose = wp.zeros(body_shape, dtype=wp.transformf, device=device)
+        self._default_body_vel = wp.zeros(body_shape, dtype=wp.spatial_vectorf, device=device)
         self._default_body_state = None
 
         # -- Derived properties
-        self._projected_gravity_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._heading_w = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.float32)
-        self._body_link_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_link_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_lin_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
-        self._body_com_ang_vel_b = TimestampedBuffer((self.num_instances, self.num_bodies), self.device, wp.vec3f)
+        self._projected_gravity_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._heading_w = TimestampedBuffer(wp.empty(body_shape, dtype=wp.float32, device=device))
+        self._body_link_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_link_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_com_lin_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
+        self._body_com_ang_vel_b = TimestampedBuffer(wp.empty(body_shape, dtype=wp.vec3f, device=device))
 
         # -- Initialize history for finite differencing
         self._previous_body_com_vel = wp.clone(self._sim_bind_body_com_vel_w)
@@ -888,21 +895,14 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._default_body_state is None:
-            self._default_body_state = wp.zeros(
-                (self.num_instances, self.num_bodies), dtype=shared_kernels.vec13f, device=self.device
-            )
+            self._default_body_state = wp.zeros((self.num_instances, self.num_bodies), dtype=vec13f, device=self.device)
             self._default_body_state_ta = ProxyArray(self._default_body_state)
-        wp.launch(
+        self._read_launch_cache.launch(
+            "default_body_state",
             shared_kernels.concat_body_pose_and_vel_to_state,
             dim=(self.num_instances, self.num_bodies),
-            inputs=[
-                self._default_body_pose,
-                self._default_body_vel,
-            ],
-            outputs=[
-                self._default_body_state,
-            ],
-            device=self.device,
+            inputs=[self._default_body_pose, self._default_body_vel],
+            outputs=[self._default_body_state],
         )
         return self._default_body_state_ta
 
@@ -916,7 +916,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._body_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -926,7 +927,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_state_w.data,
                 ],
-                device=self.device,
             )
             self._body_state_w.timestamp = self._sim_timestamp
 
@@ -942,7 +942,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._body_link_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_link_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -952,7 +953,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_link_state_w.data,
                 ],
-                device=self.device,
             )
             self._body_link_state_w.timestamp = self._sim_timestamp
 
@@ -968,7 +968,8 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
             stacklevel=2,
         )
         if self._body_com_state_w.timestamp < self._sim_timestamp:
-            wp.launch(
+            self._read_launch_cache.launch(
+                "body_com_state_w",
                 shared_kernels.concat_body_pose_and_vel_to_state,
                 dim=(self.num_instances, self.num_bodies),
                 inputs=[
@@ -978,7 +979,6 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
                 outputs=[
                     self._body_com_state_w.data,
                 ],
-                device=self.device,
             )
             self._body_com_state_w.timestamp = self._sim_timestamp
 

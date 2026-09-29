@@ -8,11 +8,11 @@ __all__ = [
     "ui",
     "VecEnvObs",
     "VecEnvStepReturn",
-    "ViewerCfg",
     "DirectMARLEnv",
     "DirectMARLEnvCfg",
     "DirectRLEnv",
     "DirectRLEnvCfg",
+    "LeappDeploymentEnv",
     "ManagerBasedEnv",
     "ManagerBasedEnvCfg",
     "ManagerBasedRLEnv",
@@ -20,6 +20,8 @@ __all__ = [
     "ManagerBasedRLMimicEnv",
     "multi_agent_to_single_agent",
     "multi_agent_with_one_agent",
+    "VideoRecorderCfg",
+    "ViewerCfg",
     "DataGenConfig",
     "SubTaskConfig",
     "SubTaskConstraintType",
@@ -30,10 +32,12 @@ __all__ = [
 
 from . import mdp, ui
 from .common import VecEnvObs, VecEnvStepReturn, ViewerCfg
+from .utils.video_recorder_cfg import VideoRecorderCfg
 from .direct_marl_env import DirectMARLEnv
 from .direct_marl_env_cfg import DirectMARLEnvCfg
 from .direct_rl_env import DirectRLEnv
 from .direct_rl_env_cfg import DirectRLEnvCfg
+from .leapp_deployment_env import LeappDeploymentEnv
 from .manager_based_env import ManagerBasedEnv
 from .manager_based_env_cfg import ManagerBasedEnvCfg
 from .manager_based_rl_env import ManagerBasedRLEnv

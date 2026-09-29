@@ -1,0 +1,92 @@
+version = 1
+revision = 3
+requires-python = ">=3.12"
+
+[[package]]
+name = "isaaclab"
+version = "25.0.0"
+source = { editable = "../isaaclab" }
+
+[[package]]
+name = "isaaclab-assets"
+version = "1.0.0"
+source = { editable = "../isaaclab_assets" }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-contrib" },
+    { name = "isaaclab-newton" },
+    { name = "isaaclab-physx" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "../isaaclab" },
+    { name = "isaaclab-contrib", editable = "../isaaclab_contrib" },
+    { name = "isaaclab-newton", editable = "../isaaclab_newton" },
+    { name = "isaaclab-physx", editable = "../isaaclab_physx" },
+]
+
+[[package]]
+name = "isaaclab-contrib"
+version = "2.0.1"
+source = { editable = "../isaaclab_contrib" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
+name = "isaaclab-newton"
+version = "6.4.0"
+source = { editable = "../isaaclab_newton" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
+name = "isaaclab-physx"
+version = "7.1.4"
+source = { editable = "../isaaclab_physx" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
+name = "isaaclab-rl"
+version = "1.0.0"
+source = { editable = "." }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-assets" },
+    { name = "isaaclab-tasks" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "../isaaclab" },
+    { name = "isaaclab-assets", editable = "../isaaclab_assets" },
+    { name = "isaaclab-tasks", editable = "../isaaclab_tasks" },
+]
+
+[[package]]
+name = "isaaclab-tasks"
+version = "21.0.0"
+source = { editable = "../isaaclab_tasks" }
+dependencies = [
+    { name = "isaaclab" },
+    { name = "isaaclab-assets" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "isaaclab", editable = "../isaaclab" },
+    { name = "isaaclab-assets", editable = "../isaaclab_assets" },
+]

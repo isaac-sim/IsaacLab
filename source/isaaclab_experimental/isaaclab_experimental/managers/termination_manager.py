@@ -22,8 +22,9 @@ import torch
 import warp as wp
 from prettytable import PrettyTable
 
+from isaaclab.managers.manager_term_cfg import TerminationTermCfg
+
 from .manager_base import ManagerBase, ManagerTermBase
-from .manager_term_cfg import TerminationTermCfg
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
@@ -227,6 +228,16 @@ class TerminationManager(ManagerBase):
     def terminated_wp(self) -> wp.array:
         """The terminated signal (reaching a terminal state). Shape is (num_envs,)."""
         return self._terminated_wp
+
+    @property
+    def term_dones_wp(self) -> wp.array:
+        """The per-term done signals. Shape is (num_envs, num_terms).
+
+        Columns follow the order of :attr:`active_terms`. Reward terms that aggregate a
+        subset of terminations (e.g. :class:`~isaaclab_experimental.envs.mdp.is_terminated_term`)
+        read this buffer directly instead of the per-term views.
+        """
+        return self._term_dones_wp
 
     """
     Operations.

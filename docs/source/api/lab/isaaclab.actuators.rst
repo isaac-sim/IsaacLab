@@ -9,6 +9,10 @@
 
     ActuatorBase
     ActuatorBaseCfg
+    ActuatorTargetCommand
+    ActuatorCollection
+    ActuatorControl
+    ActuatorOutputCommand
     ImplicitActuator
     ImplicitActuatorCfg
     IdealPDActuator
@@ -24,6 +28,12 @@
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
 
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    resolve_joint_parameter
+
 Actuator Base
 -------------
 
@@ -31,10 +41,32 @@ Actuator Base
   :members:
   :inherited-members:
 
+.. autofunction:: resolve_joint_parameter
+
 .. autoclass:: ActuatorBaseCfg
   :members:
   :inherited-members:
   :exclude-members: __init__, class_type
+
+Actuator Collection
+-------------------
+
+.. autoclass:: ActuatorCollection
+  :members:
+  :inherited-members:
+
+.. autoclass:: ActuatorTargetCommand
+  :members:
+
+.. autoclass:: ActuatorOutputCommand
+  :members:
+
+Actuator Control
+----------------
+
+.. autoclass:: ActuatorControl
+  :members:
+  :inherited-members:
 
 Implicit Actuator
 -----------------
@@ -133,3 +165,19 @@ LSTM Network Actuator
   :inherited-members:
   :show-inheritance:
   :exclude-members: __init__, class_type
+
+Newton Actuator Access
+----------------------
+
+.. automodule:: isaaclab.actuators.newton
+
+  .. rubric:: Functions
+
+  .. autosummary::
+
+    read_group_parameter
+    write_group_parameter
+
+.. autofunction:: isaaclab.actuators.newton.read_group_parameter
+
+.. autofunction:: isaaclab.actuators.newton.write_group_parameter

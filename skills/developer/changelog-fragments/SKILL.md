@@ -1,0 +1,48 @@
+---
+name: isaaclab-writing-changelog-fragments
+description: Writes and validates Isaac Lab package changelog fragments using the repository fragment format and bump rules. Use when source package changes need release notes, migration guidance, or changelog validation.
+audience: developer
+status: stable
+owners:
+  - isaaclab-maintainers
+---
+
+# Writing Changelog Fragments
+
+## When To Use
+
+Use this skill when a PR changes code under `source/<package>/` and needs a changelog fragment, or when reviewing fragment formatting.
+
+Do not use this skill for pure docs, CI, tools, or skills changes unless they also modify `source/<package>/`.
+
+## Workflow
+
+1. Identify each changed package under `source/`.
+2. Add one fragment per touched package under `source/<package>/changelog.d/`.
+3. Follow the contribution guide's [changelog section](../../../docs/source/refs/contributing.rst#maintaining-package-changelogs-and-versions)
+   for fragment tiers, entry format, breaking-change labels, and migration guidance.
+
+## Validation
+
+Run the changelog gate:
+
+```bash
+uv run python tools/changelog/cli.py check develop
+```
+
+Then run the normal formatting gate:
+
+```bash
+uv run isaaclab -f
+```
+
+## Maintenance
+
+Keep this skill synchronized with `AGENTS.md`, `docs/source/refs/contributing.rst`, and `tools/changelog/cli.py`. If changelog policy changes, update those authoritative sources first and keep this skill focused on routing agents to the right workflow.
+
+## References
+
+- [Contributing guide](../../../docs/source/refs/contributing.rst)
+- [Changelog tool](../../../tools/changelog/cli.py)
+- [Integration examples](../../../tools/changelog/test/integration/README.md)
+- [Examples](examples.md)

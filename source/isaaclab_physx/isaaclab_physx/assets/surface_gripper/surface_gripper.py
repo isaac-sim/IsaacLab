@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 import logging
-import re
 import warnings
 from typing import TYPE_CHECKING
 
@@ -14,14 +13,10 @@ import numpy as np
 import torch
 import warp as wp
 
-from isaacsim.core.experimental.utils.app import enable_extension
-
 import isaaclab.sim as sim_utils
 from isaaclab.assets import AssetBase
-from isaaclab.cloner import queue_usd_replication
+from isaaclab.utils import clone
 from isaaclab.utils.version import get_isaac_sim_version, has_kit
-
-from isaaclab_physx.cloner import queue_physx_replication
 
 if TYPE_CHECKING:
     from isaacsim.robot.surface_gripper import GripperView
@@ -89,7 +84,7 @@ class SurfaceGripper(AssetBase):
             cfg: A configuration instance.
         """
         # copy the configuration
-        self._cfg = cfg.copy()
+        self._cfg = clone(cfg)
 
         # checks for Isaac Sim v5.0 to ensure that the surface gripper is supported
         if has_kit() and get_isaac_sim_version().major < 5:
@@ -101,9 +96,6 @@ class SurfaceGripper(AssetBase):
         # flag for whether the sensor is initialized
         self._is_initialized = False
         self._debug_vis_handle = None
-
-        queue_usd_replication(cfg)
-        queue_physx_replication(cfg)
 
         # register various callback functions
         self._register_callbacks()
@@ -457,7 +449,7 @@ class SurfaceGripper(AssetBase):
                 " `--device cpu` to run the simulation on CPU."
             )
 
-        enable_extension("isaacsim.robot.surface_gripper")
+        sim_utils.enable_extension("isaacsim.robot.surface_gripper")
         from isaacsim.robot.surface_gripper import GripperView
 
         def is_surface_gripper(prim) -> bool:
@@ -474,11 +466,7 @@ class SurfaceGripper(AssetBase):
                 f"found {len(gripper_matches)}: {matched}."
             )
         _, self._prim_expr = gripper_matches[0]
-        # ``GripperView`` (XformPrim.resolve_paths) requires explicit regex (".*") and rejects the
-        # legacy "*" wildcard that the clone-plan destination glob (e.g. "/World/envs/env_*") can
-        # carry. Convert any bare "*" to ".*" (a "*" already preceded by "." is left untouched).
-        self._prim_expr = re.sub(r"(?<!\.)\*", ".*", self._prim_expr)
-        env_prim_path_expr = self._prim_expr.rsplit("/", 1)[0]
+        env_prim_path_expr = "/".join(sim_utils.split_path_expr(self._prim_expr)[:-1])
         self._parent_prims = sim_utils.find_matching_prims(env_prim_path_expr)
         self._num_envs = len(self._parent_prims)
 
@@ -489,8 +477,11 @@ class SurfaceGripper(AssetBase):
         self._process_cfg()
 
         # Initialize gripper view and set properties.
+        # ``GripperView`` (XformPrim.resolve_paths) matches one regex per path segment, so a
+        # segment wildcard has to be spelled ``.*`` there: ``[^/]`` holds a separator and would
+        # be split across two segments.
         self._gripper_view = GripperView(
-            self._prim_expr,
+            sim_utils.path_expr_to_glob(self._prim_expr).replace("*", ".*"),
         )
         self.update_gripper_properties_index(
             max_grip_distance=wp.clone(self._max_grip_distance),
@@ -573,6 +564,8 @@ class SurfaceGripper(AssetBase):
         """
         if env_ids is None or env_ids == slice(None):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         elif isinstance(env_ids, list):
             return wp.array(env_ids, dtype=wp.int32, device=self._device)
         elif isinstance(env_ids, torch.Tensor):

@@ -6,14 +6,17 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable
-from typing import Any
-
-from IPython.display import display
-from ipywidgets import widgets
+from typing import TYPE_CHECKING, Any
 
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers import EventTermCfg
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
+
+if TYPE_CHECKING:
+    # ipywidgets ships with the ``mimic`` extra only, and is used by the interactive
+    # notebook helpers below. Keep it out of module scope so dataset generation, which
+    # imports this module for its path helpers, works without it.
+    from ipywidgets import widgets
 
 
 def get_nested_value(d: dict[str, Any], keys: list[str]) -> Any:
@@ -58,6 +61,8 @@ def get_parameter_input(
     event_term_name: str | None = None,
 ) -> widgets.FloatSlider | widgets.FloatRangeSlider:
     """Get parameter input using ipywidgets with immediate value updates."""
+    from IPython.display import display
+    from ipywidgets import widgets
 
     if isinstance(current_val, (tuple, list)):
         step_size = allowed_range[2] if len(allowed_range) > 2 else 0.01

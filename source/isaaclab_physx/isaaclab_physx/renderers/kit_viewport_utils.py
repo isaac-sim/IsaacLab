@@ -16,6 +16,29 @@ import logging
 logger = logging.getLogger(__name__)
 
 
+def _set_kit_camera_view(
+    eye: tuple[float, float, float] | list[float],
+    target: tuple[float, float, float] | list[float],
+    camera_prim_path: str,
+):
+    """Set a Kit camera pose without loading Isaac Sim's rendering manager."""
+    from omni.kit.viewport.utility import get_active_viewport
+    from omni.kit.viewport.utility.camera_state import ViewportCameraState
+    from pxr import Gf
+
+    viewport_api = get_active_viewport()
+    if viewport_api is None:
+        raise RuntimeError("No active Kit viewport is available.")
+
+    camera_state = ViewportCameraState(str(camera_prim_path), viewport_api)
+    # ``rotate=False`` avoids reading an unauthored
+    # ``omni:kit:centerOfInterest`` value from freshly-created perspective
+    # cameras. The target call below performs the look-at rotation and authors
+    # the center of interest as a side effect.
+    camera_state.set_position_world(Gf.Vec3d(*eye), False)
+    camera_state.set_target_world(Gf.Vec3d(*target), True)
+
+
 def set_kit_renderer_camera_view(
     eye: tuple[float, float, float] | list[float],
     target: tuple[float, float, float] | list[float],
@@ -26,13 +49,7 @@ def set_kit_renderer_camera_view(
     This does not broadcast to visualizers.
     """
     try:
-        from isaacsim.core.rendering_manager import ViewportManager
-
-        ViewportManager.set_camera_view(
-            str(camera_prim_path),
-            eye=list(eye),
-            target=list(target),
-        )
+        _set_kit_camera_view(eye, target, camera_prim_path)
     except (ImportError, ModuleNotFoundError) as exc:
         logger.debug("[kit_viewport] Renderer camera update skipped (no Kit): %s", exc)
     except Exception as exc:

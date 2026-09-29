@@ -1,144 +1,224 @@
-Population Based Training
+.. _population-based-training:
+
+Population-Based Training
 =========================
 
-What PBT Does
--------------
+Population-based training (PBT) is an online optimization loop around regular reinforcement learning (RL)
+training. Instead of choosing one set of hyperparameters and training one policy, PBT trains a population of
+independent policies on the same task. It periodically ranks them by a task-level objective. An underperforming
+learner copies a promising learner's checkpoint, mutates selected hyperparameters, and continues training from
+the copied weights.
 
-* Trains *N* policies in parallel (a "population") on the **same task**.
-* Every ``interval_steps``:
+This cycle combines two ideas:
 
-  #. Save each policy's checkpoint and objective.
-  #. Score the population and identify **leaders** and **underperformers**.
-  #. For underperformers, replace weights from a random leader and **mutate** selected hyperparameters.
-  #. Restart that process with the new weights/params automatically.
+* **Explore:** different seeds and hyperparameters let the learners discover different behaviors.
+* **Exploit:** checkpoint replacement redirects compute from stalled learners to behaviors that are already working.
 
-Leader / Underperformer Selection
----------------------------------
+Unlike a fixed random or grid search, PBT can change hyperparameters during training and reuse the weights from a
+successful run. The final artifact is still a normal policy checkpoint; PBT changes how it is trained, not how it
+is deployed.
 
-Let ``o_i`` be each initialized policy's objective, with mean ``μ`` and std ``σ``.
+.. seealso::
 
-Upper and lower performance cuts are::
+   If you are new to RL workflows in Isaac Lab, first read :ref:`tutorial-run-rl-training` and
+   :ref:`tutorial-configure-rl-training`.
 
-  upper_cut = max(μ + threshold_std * σ, μ + threshold_abs)
-  lower_cut = min(μ - threshold_std * σ, μ - threshold_abs)
+.. caution::
 
-* **Leaders**: ``o_i > upper_cut``
-* **Underperformers**: ``o_i < lower_cut``
+   Isaac Lab currently supports PBT only with the **RL-Games** library.
 
-The "Natural-Selection" rules:
 
-1. Only underperformers are acted on (mutated or replaced).
-2. If leaders exist, replace an underperformer with a random leader; otherwise, self-mutate.
+When to Use PBT
+---------------
 
-Mutation (Hyperparameters)
---------------------------
+PBT is most useful when:
 
-* Each param has a mutation function (e.g., ``mutate_float``, ``mutate_discount``, etc.).
-* A param is mutated with probability ``mutation_rate``.
-* When mutated, its value is perturbed within ``change_range = (min, max)``.
-* Only whitelisted keys (from the PBT config) are considered.
+* independent seeds frequently converge to very different results or stall in local optima;
+* a task has a stable scalar success metric that can rank policies while they train;
+* useful hyperparameters may need different values in early and late training; and
+* enough compute is available to train several policies concurrently.
 
-Example Config
---------------
+Start with ordinary single-policy training when a known configuration converges reliably, when compute only
+supports one or two runs, or when policies cannot be compared with a meaningful objective. PBT adds checkpoint
+I/O and coordination overhead, and a population of *N* learners consumes approximately the aggregate compute of
+*N* ordinary runs. A fair experiment therefore compares PBT with the same number of independent fixed-configuration
+runs, not with one run.
+
+PBT is also different from :doc:`multi-GPU training </source/features/multi_gpu>`. Distributed data-parallel
+training uses several devices to update one policy. PBT gives each learner its own policy, optimizer state,
+experience, and checkpoint, and only exchanges checkpoints during selection.
+
+
+Example Where PBT Was Enabling
+------------------------------
+
+The `DexPBT study`_ tested contact-rich manipulation tasks with large observation and action spaces, sparse task
+success, and many locally useful behaviors that did not lead to a complete solution. For its PBT-versus-PPO
+comparison, the authors held aggregate compute constant: the best learner in an eight-policy PBT population was
+compared with the best of eight independent PPO seeds, with every learner trained for five billion environment
+steps.
+
+.. list-table:: Single-arm object reorientation comparison reported in Figure 4 of the `DexPBT study`_
+   :header-rows: 1
+   :widths: 20 38 42
+
+   * - Condition
+     - Training behavior
+     - Outcome under the study budget
+   * - PPO without PBT
+     - Eight policies trained independently with fixed hyperparameters; discoveries were not shared.
+     - None of the eight runs reached the final 1 cm success tolerance.
+   * - PPO with PBT
+     - Eight learners periodically shared promising weights and explored mutated hyperparameters.
+     - The population reached the final tolerance and continued improving the number of consecutive successes.
+
+The study reported improvement in every tested scenario and found PBT to be an enabling factor for non-trivial
+performance in three of them. In the harder dual-arm reorientation task, its best PBT policy reached almost 40 of
+50 consecutive successes. See the paper's `training curves`_ and `supplementary policy videos`_ for the full
+comparison and learned behaviors.
+
+No task mathematically requires PBT. Here, "enabling" means that fixed PPO did not solve the task within the tested
+budget while PBT did. These experiments used the Isaac Gym DexPBT tasks; they motivate the Isaac Lab workflow below
+but are not benchmark results for the included Shadow Hand example.
+
+
+How Isaac Lab Selects Policies
+------------------------------
+
+Every ``interval_steps``, each learner saves its checkpoint and current objective to a shared workspace. For the
+initialized policies, let the objective mean and standard deviation be :math:`\mu` and :math:`\sigma`. Isaac Lab
+computes the leader and underperformer cuts as:
+
+.. math::
+
+   U = \max(\mu + \mathtt{threshold\_std}\,\sigma,\ \mu + \mathtt{threshold\_abs})
+
+.. math::
+
+   L = \min(\mu - \mathtt{threshold\_std}\,\sigma,\ \mu - \mathtt{threshold\_abs})
+
+Policies with an objective greater than :math:`U` are leaders; policies below :math:`L` are underperformers. Only
+an underperformer is changed. It copies a randomly selected leader and mutates each whitelisted hyperparameter with
+probability ``mutation_rate``. If there is no leader, it keeps its own checkpoint and mutates its hyperparameters.
+All other policies continue unchanged.
+
+The learners coordinate through checkpoint and YAML metadata files rather than a central process. They may progress
+asynchronously: a learner compares checkpoints from the latest PBT iteration available at or before its own. Every
+learner must still use the same ``num_policies`` and must see the shared directory at the same absolute path because
+checkpoint paths stored in the metadata are absolute.
+
+
+Choose the Ranking Objective
+----------------------------
+
+The objective controls selection pressure, so choose a metric that measures the behavior you ultimately want and
+is comparable across the population. Higher values are always considered better. A task-success metric is usually
+more suitable than a dense shaped reward whose scale changes during training.
+
+The included reorientation configuration uses:
 
 .. code-block:: yaml
 
-   pbt:
-     enabled: True
-     policy_idx: 0
-     num_policies: 8
-     directory: .
-     workspace: "pbt_workspace"
-     objective: episode.consecutive_successes
-     interval_steps: 50000000
-     threshold_std: 0.1
-     threshold_abs: 0.025
-     mutation_rate: 0.25
-     change_range: [1.1, 2.0]
-     mutation:
-       agent.params.config.learning_rate: "mutate_float"
-       agent.params.config.grad_norm: "mutate_float"
-       agent.params.config.entropy_coef: "mutate_float"
-       agent.params.config.critic_coef: "mutate_float"
-       agent.params.config.bounds_loss_coef: "mutate_float"
-       agent.params.config.kl_threshold: "mutate_float"
-       agent.params.config.gamma: "mutate_discount"
-       agent.params.config.tau: "mutate_discount"
+   objective: episode.consecutive_successes
+
+This dotted path resolves to ``infos["episode"]["consecutive_successes"]``. The RL-Games wrapper remaps
+``extras["log"]`` to ``infos["episode"]``, so use the ``episode.`` prefix even when the environment writes the
+metric to ``extras["log"]``.
+
+Before a long run, verify that the objective is present, scalar, and increases when policy behavior improves. A
+noisy or non-stationary objective can repeatedly replace useful policies. PBT population members also stop being
+independent after checkpoint exchange, so evaluate the selected checkpoint separately across held-out seeds and
+conditions.
 
 
-``objective: episode.consecutive_successes`` is a dotted expression that resolves to
-``infos["episode"]["consecutive_successes"]`` as the scalar to **rank policies** (higher is better).
-
-.. note::
-   The rl_games wrapper remaps ``extras["log"]`` to ``extras["episode"]``, so objectives
-   should use the ``episode.`` prefix even though the environment writes to ``extras["log"]``.
-
-With ``num_policies: 8``, launch eight processes sharing the same ``workspace`` and unique ``policy_idx`` (0-7).
-
-
-Launching PBT
+Configure PBT
 -------------
 
-You must start **one process per policy** and point them to the **same workspace**. Set a unique
-``policy_idx`` for each process and the common ``num_policies``.
+The ``Isaac-Reorient-Cube-Shadow-Direct`` RL-Games configuration provides a complete PBT example. PBT is disabled
+by default; the launch command in the next section enables it.
 
-Minimal flags you need:
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/agents/rl_games_ppo_cfg.yaml
+   :language: yaml
+   :start-at: pbt:
 
-* ``agent.pbt.enabled=True``
-* ``agent.pbt.directory=<path/to/shared_folder>``
-* ``agent.pbt.policy_idx=<0..num_policies-1>``
+The main controls are:
 
-.. note::
-   All processes must use the same ``agent.pbt.workspace`` so they can see each other's checkpoints.
+``directory`` and ``workspace``
+   Identify the shared storage root and the PBT run within that root. Use a new workspace for each population.
 
-.. caution::
-   PBT is currently supported **only** with the **rl_games** library. Other RL libraries are not supported yet.
+``num_policies`` and ``policy_idx``
+   Define the population size and this learner's unique zero-based index.
 
-Tips
-----
+``objective``
+   Selects the scalar from the environment info dictionary used to rank learners.
 
-* Keep checkpoints reasonable: reduce ``interval_steps`` only if you really need tighter PBT cadence.
-* Use larger ``threshold_std`` and ``threshold_abs`` for greater population diversity.
-* It is recommended to run 6+ workers to see benefit of pbt.
+``interval_steps``
+   Sets the number of environment steps between checkpoint comparisons. Shorter intervals react sooner but cause
+   more checkpoint I/O and give a mutated learner less time to adapt.
+
+``threshold_std`` and ``threshold_abs``
+   Control how far a policy must be from the population mean to be classified as a leader or underperformer. If no
+   policy crosses both effective margins, the population continues without replacement.
+
+``mutation_rate``, ``change_range``, and ``mutation``
+   Control which hyperparameters may change and how often. ``mutate_float`` multiplies or divides by a random factor
+   in ``change_range``; ``mutate_discount`` conservatively changes the distance from 1.0 for discount-like values.
+   Parameters absent from ``mutation`` remain fixed.
 
 
-Training Example
-----------------
+Launch the Population
+---------------------
 
-We provide a reference PPO config here for task:
-`Isaac-Reorient-Cube-Shadow-Direct <../../../source/isaaclab_tasks/isaaclab_tasks/core/reorient/config/shadow_hand/agents/rl_games_ppo_cfg.yaml>`_.
-For the best logging experience, we recommend using wandb for the logging in the script.
-
-Launch *N* workers, where *n* indicates each worker index:
+Start one process per policy. The example below launches policy 0 of the default eight-policy population. Run it in
+eight terminals or scheduler jobs, changing only ``PBT_POLICY_IDX`` from 0 through 7. Keep ``PBT_NUM_POLICIES``,
+``PBT_DIRECTORY``, and ``agent.pbt.workspace`` identical for every process.
 
 .. code-block:: bash
 
-   # Run this once per worker (n = 0..N-1), all pointing to the same directory/workspace
-   ./isaaclab.sh train --rl_library rl_games \
-     --seed=<n> \
-     --task=Isaac-Reorient-Cube-Shadow-Direct \
-     --num_envs=8192 \
-     --track \
-     --wandb-name=idx<n> \
-     --wandb-entity=<**entity**> \
-     --wandb-project-name=<**project**> \
-     agent.pbt.enabled=True \
-     agent.pbt.num_policies=<N> \
-     agent.pbt.policy_idx=<n> \
-     agent.pbt.workspace=<**pbt_workspace_name**> \
-     agent.pbt.directory=<**/path/to/shared_folder**>
+   export PBT_POLICY_IDX=0
+   export PBT_NUM_POLICIES=8
+   export PBT_DIRECTORY=/absolute/path/to/shared_folder
+
+   uv run --extra rl-games isaaclab train --rl_library rl_games \
+     --task Isaac-Reorient-Cube-Shadow-Direct \
+     --num_envs 8192 \
+     --seed="${PBT_POLICY_IDX}" \
+     agent.pbt.enabled=true \
+     agent.pbt.num_policies="${PBT_NUM_POLICIES}" \
+     agent.pbt.policy_idx="${PBT_POLICY_IDX}" \
+     agent.pbt.directory="${PBT_DIRECTORY}" \
+     agent.pbt.workspace=shadow_reorient_pbt
+
+Assign each process a GPU with your scheduler or ``CUDA_VISIBLE_DEVICES`` when running several workers on one
+host. Weights & Biases tracking is optional; if enabled, give each worker a unique run name while keeping the same
+project.
+
+During training, each policy writes numbered ``.pth`` checkpoints and matching ``.yaml`` metadata under its policy
+directory in the shared workspace. The metadata records the objective and mutated parameter values. At the end of
+the run, select the checkpoint with the best validated objective, then evaluate it as a normal RL-Games policy.
+
+
+Troubleshooting
+---------------
+
+* **No policies are replaced:** the population may not yet have crossed the configured margins. Inspect the
+  objectives before reducing the thresholds; identical low scores can also mean the ranking metric is uninformative.
+* **An objective lookup fails:** verify the dotted path against the keys emitted in ``infos["episode"]``.
+* **Workers cannot load one another's checkpoints:** confirm that every worker uses the same absolute shared path,
+  workspace name, and population size.
+* **Training spends too much time checkpointing:** increase ``interval_steps`` or place the workspace on faster
+  shared storage.
 
 
 References
 ----------
 
-This PBT implementation reimplements and is inspired by *Dexpbt: Scaling up dexterous manipulation for hand-arm systems with population based training* (Petrenko et al., 2023).
+* Jaderberg et al., `Population Based Training of Neural Networks`_ (2017).
+* Petrenko et al., `DexPBT: Scaling up Dexterous Manipulation for Hand-Arm Systems with Population Based Training`_
+  (2023).
 
-.. code-block:: bibtex
-
-   @article{petrenko2023dexpbt,
-     title={Dexpbt: Scaling up dexterous manipulation for hand-arm systems with population based training},
-     author={Petrenko, Aleksei and Allshire, Arthur and State, Gavriel and Handa, Ankur and Makoviychuk, Viktor},
-     journal={arXiv preprint arXiv:2305.12127},
-     year={2023}
-   }
+.. _Population Based Training of Neural Networks: https://arxiv.org/abs/1711.09846
+.. _DexPBT study: https://arxiv.org/abs/2305.12127
+.. _DexPBT\: Scaling up Dexterous Manipulation for Hand-Arm Systems with Population Based Training: https://arxiv.org/abs/2305.12127
+.. _training curves: https://arxiv.org/pdf/2305.12127#page=7
+.. _supplementary policy videos: https://sites.google.com/view/dexpbt

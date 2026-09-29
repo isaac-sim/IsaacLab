@@ -47,6 +47,13 @@ Operational Space controllers
 Pink IK Controller
 ------------------
 
+.. note::
+
+   The standard Isaac Lab installation provides Pink IK dependencies only on Linux x86_64 and aarch64.
+   Pink IK requires ``pin`` (Pinocchio), ``pin-pink``, and ``daqp``. The Windows uv/pip installation does not
+   provide Pinocchio, so Pink IK tasks cannot run with that installation. This is an installation limitation;
+   upstream Pinocchio supports Windows through other distribution methods.
+
 .. automodule:: isaaclab.controllers.pink_ik
 
 .. autoclass:: PinkIKController
@@ -64,3 +71,50 @@ Available Pink IK Tasks
 ^^^^^^^^^^^^^^^^^^^^^^^
 
 .. autoclass:: NullSpacePostureTask
+
+Additional Public Classes
+-------------------------
+
+The following classes are part of the public :mod:`isaaclab.controllers.pink_ik` API.
+
+.. currentmodule:: isaaclab.controllers.pink_ik
+
+.. autosummary::
+   :nosignatures:
+
+   DampingTask
+   DampingTaskCfg
+   FrameTask
+   FrameTaskCfg
+   LocalFrameTask
+   LocalFrameTaskCfg
+   NullSpacePostureTaskCfg
+   PinkIKTaskCfg
+   PinkKinematicsConfiguration
+
+.. autoclass:: DampingTask
+   :show-inheritance:
+
+.. autoclass:: DampingTaskCfg
+   :show-inheritance:
+
+.. autoclass:: FrameTask
+   :show-inheritance:
+
+.. autoclass:: FrameTaskCfg
+   :show-inheritance:
+
+.. autoclass:: LocalFrameTask
+   :show-inheritance:
+
+.. autoclass:: LocalFrameTaskCfg
+   :show-inheritance:
+
+.. autoclass:: NullSpacePostureTaskCfg
+   :show-inheritance:
+
+.. autoclass:: PinkIKTaskCfg
+   :show-inheritance:
+
+.. autoclass:: PinkKinematicsConfiguration
+   :show-inheritance:

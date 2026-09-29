@@ -16,13 +16,14 @@ import re
 import sys
 import xml.etree.ElementTree as ET
 
-# import logger
+from ..sim.utils import enable_extension, get_extension_path
+
 logger = logging.getLogger(__name__)
 
 # NOTE: As of Isaac Sim 6.0, ``isaacsim.robot_motion.lula`` (and ``isaacsim.robot_motion.motion_generation``)
 # are deprecated -- ``lula`` has been subsumed by cuMotion (``isaacsim.robot_motion.cumotion``), which is
 # built on the new experimental motion-generation API and is the long-term replacement for RMPFlow here.
-# ``lula`` is still shipped (under ``extsDeprecated`` in pip installs) so this controller keeps working,
+# ``lula`` is still shipped (under ``extsDeprecated`` in pip installs) so this controller keeps working.
 
 _LULA_EXT_NAME = "isaacsim.robot_motion.lula"
 _RMPFLOW_EXT_PREFIX = "rmpflow_ext:"
@@ -39,8 +40,6 @@ def convert_usd_to_urdf(usd_path: str, output_path: str, force_conversion: bool 
     Returns:
         A tuple containing the paths to the URDF file and the mesh directory.
     """
-    from isaacsim.core.experimental.utils.app import enable_extension
-
     enable_extension("isaacsim.asset.exporter.urdf")
 
     urdf_output_dir = os.path.join(output_path, "urdf")
@@ -120,28 +119,44 @@ def change_revolute_to_fixed_regex(urdf_path: str, fixed_joints: list[str], verb
         fixed_joints: List of regular expressions matching joint names to convert from revolute to fixed.
         verbose: Whether to print information about the changes being made.
     """
-
     with open(urdf_path) as file:
         content = file.read()
-
-    # Find all revolute joints in the URDF
     revolute_joints = re.findall(r'<joint name="([^"]+)" type="revolute">', content)
+    # convert the revolute joints that match any of the fixed joint patterns
+    matched_joints = [joint for joint in revolute_joints if any(re.match(pattern, joint) for pattern in fixed_joints)]
+    change_revolute_to_fixed(urdf_path, matched_joints, verbose)
 
-    for joint in revolute_joints:
-        # Check if this joint matches any of the fixed joint patterns
-        should_fix = any(re.match(pattern, joint) for pattern in fixed_joints)
 
-        if should_fix:
-            old_str = f'<joint name="{joint}" type="revolute">'
-            new_str = f'<joint name="{joint}" type="fixed">'
-            if verbose:
-                logger.warning(f"Replacing {joint} with fixed joint")
-                logger.warning(old_str)
-                logger.warning(new_str)
-            content = content.replace(old_str, new_str)
+def _isaac_path() -> str | None:
+    """Return the Isaac Sim install directory, importing ``isaacsim`` to populate ``ISAAC_PATH`` if needed."""
+    isaac_path = os.environ.get("ISAAC_PATH")
+    if not isaac_path:
+        with contextlib.suppress(ImportError):
+            import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
+        isaac_path = os.environ.get("ISAAC_PATH")
+    return isaac_path or None
 
-    with open(urdf_path, "w") as file:
-        file.write(content)
+
+def _find_rmpflow_extension_dir() -> str | None:
+    """Locate the extension directory shipping RMPFlow motion policy configs."""
+    isaac_path = _isaac_path()
+    if isaac_path is None:
+        return None
+
+    candidates = [
+        os.path.join(isaac_path, "exts", _RMPFLOW_EXT_NAME),
+        os.path.join(isaac_path, "extsDeprecated", _RMPFLOW_EXT_NAME),
+    ]
+    for parent in ("extscache", "exts", "extsDeprecated"):
+        candidates.extend(sorted(glob.glob(os.path.join(isaac_path, parent, f"{_RMPFLOW_EXT_NAME}*"))))
+    candidates.extend(
+        sorted(glob.glob(os.path.join(isaac_path, "kit", "data", "Kit", "*", "exts", "*", f"{_RMPFLOW_EXT_NAME}*")))
+    )
+
+    for ext_dir in candidates:
+        if os.path.isdir(os.path.join(ext_dir, "motion_policy_configs")):
+            return ext_dir
+    return None
 
 
 def resolve_rmpflow_path(path: str) -> str:
@@ -154,11 +169,26 @@ def resolve_rmpflow_path(path: str) -> str:
     """
     if path.startswith(_RMPFLOW_EXT_PREFIX):
         rel = path[len(_RMPFLOW_EXT_PREFIX) :]
-        # imported lazily so the module loads without Kit (e.g. the kitless Newton visualizer)
-        from isaacsim.core.experimental.utils.app import get_extension_path
+        # Isaac Sim 6.0 ships motion-generation configs in an extension directory,
+        # but the deprecated extension may not be resolvable by Kit's extension
+        # manager in trimmed apps. Prefer direct filesystem discovery so path
+        # resolution does not require loading Isaac Sim's motion-generation stack.
+        ext_dir = _find_rmpflow_extension_dir()
+        if ext_dir is not None:
+            return os.path.join(ext_dir, rel)
 
-        ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
-        return os.path.join(ext_dir, rel)
+        # Last resort for binary installs where Kit can still enable the extension
+        # and expose its path through the extension manager.
+        with contextlib.suppress(Exception):
+            enable_extension(_RMPFLOW_EXT_NAME)
+            ext_dir = get_extension_path(_RMPFLOW_EXT_NAME)
+            resolved_path = os.path.join(ext_dir, rel)
+            if os.path.exists(resolved_path):
+                return resolved_path
+
+        raise FileNotFoundError(
+            f"Could not resolve '{path}' because the '{_RMPFLOW_EXT_NAME}' extension directory was not found."
+        )
     return path
 
 
@@ -172,12 +202,8 @@ def find_lula_prebundle_dir() -> str | None:
     ``extsDeprecated/<name>`` for the Isaac Sim 6.0 pip packages (where the Kit resolver reports it as
     unavailable even though the prebundled module is present). All layouts are searched.
     """
-    isaac_path = os.environ.get("ISAAC_PATH")
-    if not isaac_path:
-        with contextlib.suppress(ImportError):
-            import isaacsim  # noqa: F401  (sets ``os.environ["ISAAC_PATH"]`` as a side effect)
-        isaac_path = os.environ.get("ISAAC_PATH")
-    if not isaac_path:
+    isaac_path = _isaac_path()
+    if isaac_path is None:
         return None
     candidates = [os.path.join(isaac_path, "exts", _LULA_EXT_NAME, "pip_prebundle")]
     for parent in ("extscache", "extsDeprecated", "exts"):
@@ -220,11 +246,7 @@ def import_lula():
             pass
 
     # Last resort: under a running Kit app, enabling the owning extension registers its prebundle.
-    try:
-        from isaacsim.core.experimental.utils.app import enable_extension
-    except (ImportError, ModuleNotFoundError):
-        pass
-    else:
+    with contextlib.suppress(ImportError, ModuleNotFoundError, RuntimeError):
         enable_extension(_LULA_EXT_NAME)
         try:
             import lula

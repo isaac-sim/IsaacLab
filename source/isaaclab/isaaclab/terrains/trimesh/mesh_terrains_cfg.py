@@ -7,8 +7,7 @@ import warnings
 from dataclasses import MISSING
 from typing import Literal
 
-from isaaclab.utils.configclass import configclass
-
+from ...utils import configclass
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
@@ -184,6 +183,19 @@ class MeshStarTerrainCfg(SubTerrainBaseCfg):
 
     platform_width: float = 1.0
     """The width of the cylindrical platform at the center of the terrain. Defaults to 1.0."""
+
+
+@configclass
+class MeshFileTerrainCfg(SubTerrainBaseCfg):
+    """Configuration for a terrain loaded from a mesh file."""
+
+    function: str = "{DIR}.mesh_terrains:mesh_file_terrain"
+
+    mesh_path: str = MISSING
+    """The path to the mesh file, in any format that ``trimesh`` can load (for example, OBJ, STL, or PLY).
+
+    The mesh must be Z-up with coordinates in meters, and its footprint should fit within :attr:`size`.
+    """
 
 
 @configclass

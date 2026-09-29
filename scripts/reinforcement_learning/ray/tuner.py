@@ -42,20 +42,20 @@ Usage:
 
 .. code-block:: bash
 
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py -h
+    uv run python scripts/reinforcement_learning/ray/tuner.py -h
 
     # Examples
     # Local
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py --run_mode local \
+    uv run python scripts/reinforcement_learning/ray/tuner.py --run_mode local \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg
     # Local with a custom progress reporter
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/tuner.py \
+    uv run python scripts/reinforcement_learning/ray/tuner.py \
     --cfg_file scripts/reinforcement_learning/ray/hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg \
     --progress_reporter CustomCartpoleProgressReporter
     # Remote (run grok cluster or create config file mentioned in :file:`submit_job.py`)
-    ./isaaclab.sh -p scripts/reinforcement_learning/ray/submit_job.py \
+    uv run python scripts/reinforcement_learning/ray/submit_job.py \
     --aggregate_jobs tuner.py \
     --cfg_file hyperparameter_tuning/vision_cartpole_cfg.py \
     --cfg_class CartpoleTheiaJobCfg --mlflow_uri <MLFLOW_URI_FROM_GROK_OR_MANUAL>
@@ -65,7 +65,7 @@ Usage:
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
 PYTHON_EXEC = "./isaaclab.sh -p"
-WORKFLOW = "scripts/reinforcement_learning/rl_games/train.py"
+WORKFLOW = "scripts/reinforcement_learning/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
 MAX_LINES_TO_SEARCH_EXPERIMENT_LOGS = 1000  # maximum number of lines to read from the training process logs
@@ -358,10 +358,10 @@ class JobCfg:
         """
         Runner args include command line arguments passed to the task.
         For example:
-        cfg["runner_args"]["headless_singleton"] = "--headless"
-        cfg["runner_args"]["enable_cameras_singleton"] = "--enable_cameras"
+        cfg["runner_args"]["video_singleton"] = "--video"
         """
         assert "runner_args" in cfg, "No runner arguments specified."
+        cfg["runner_args"].setdefault("--rl_library", "rsl_rl")
         """
         Task is the desired task to train on. For example:
         cfg["runner_args"]["--task"] = tune.choice(["Isaac-Cartpole-Camera"])
@@ -396,10 +396,7 @@ if __name__ == "__main__":
         "--run_mode",
         choices=["local", "remote"],
         default="remote",
-        help=(
-            "Set to local to use ./isaaclab.sh -p python, set to "
-            "remote to use /workspace/isaaclab/isaaclab.sh -p python"
-        ),
+        help=("Set to local to use uv run python, set to remote to use /workspace/isaaclab/isaaclab.sh -p python"),
     )
     parser.add_argument(
         "--workflow",

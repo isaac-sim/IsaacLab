@@ -6,15 +6,9 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
+from isaaclab.test.utils import launch_test_simulation
 
-"""Launch Isaac Sim Simulator first."""
-
-from isaaclab.app import AppLauncher
-
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import sys
 
@@ -96,7 +90,7 @@ def generate_cubes_scene(
         )
     # Create deformable object
     cube_object_cfg = DeformableObjectCfg(
-        prim_path="/World/Table_.*/Object",
+        prim_path="/World/Table_[^/]*/Object",
         spawn=spawn_cfg,
         init_state=DeformableObjectCfg.InitialStateCfg(pos=(0.0, 0.0, height), rot=initial_rot),
     )

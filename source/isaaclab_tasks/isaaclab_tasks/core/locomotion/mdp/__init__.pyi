@@ -23,4 +23,7 @@ from .rewards import (
     progress_reward,
     upright_posture_bonus,
 )
+
+# shared terms that used to live in this package, re-exported for backwards compatibility
+from isaaclab.envs.mdp import survival_success_rate, terminated_penalty
 from isaaclab.envs.mdp import *

@@ -5,11 +5,12 @@
 
 import tempfile
 
+from isaaclab_teleop.haptic_feedback import GloveHapticFeedbackCfg
 from isaaclab_teleop.isaac_teleop_cfg import IsaacTeleopCfg
 from isaaclab_teleop.xr_cfg import XrCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from .pickplace_gr1t2_env_cfg import (
     ActionsCfg,
@@ -17,7 +18,7 @@ from .pickplace_gr1t2_env_cfg import (
     ObjectTableSceneCfg,
     ObservationsCfg,
     TerminationsCfg,
-    _build_gr1t2_pickplace_pipeline,
+    build_gr1t2_pickplace_pipeline,
 )
 
 
@@ -66,7 +67,16 @@ class PickPlaceGR1T2WaistEnabledEnvCfg(ManagerBasedRLEnvCfg):
             anchor_rot=(0.0, 0.0, 0.0, 1.0),
         )
         self.isaac_teleop = IsaacTeleopCfg(
-            pipeline_builder=lambda: _build_gr1t2_pickplace_pipeline()[0],
+            pipeline_builder=lambda: build_gr1t2_pickplace_pipeline()[0],
             sim_device=self.sim.device,
             xr_cfg=self.xr,
+        )
+
+        # Per-finger haptic glove feedback: vibrate each finger of the operator's
+        # glove in proportion to how tightly it grips the object. The session
+        # always requests the push-tensor extension the glove device needs, so
+        # this stays inert (no glove connected) rather than failing.
+        self.haptic_feedback = GloveHapticFeedbackCfg(
+            left_sensor_name="left_hand_contact",
+            right_sensor_name="right_hand_contact",
         )

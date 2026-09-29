@@ -18,18 +18,19 @@ from newton.selection import ArticulationView
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.string as string_utils
+from isaaclab import cloner
 from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.cloner import resolve_clone_plan_source
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_, instantiate
 
-from isaaclab_newton.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
+from isaaclab_newton.controllers.ik.newton_ik_objectives_cfg import NewtonIKPoseObjectiveCfg
 from isaaclab_newton.physics import NewtonManager
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
     from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
 
-    from isaaclab_newton.ik.newton_ik_objectives import NewtonIKPoseObjective
+    from isaaclab_newton.controllers.ik.newton_ik_objectives import NewtonIKPoseObjective
 
     from .newton_ik_actions_cfg import NewtonInverseKinematicsActionCfg
 
@@ -167,33 +168,27 @@ class NewtonInverseKinematicsAction(ActionTerm):
         if not self._asset.is_fixed_base:
             raise ValueError("NewtonInverseKinematicsAction currently supports fixed-base articulations only.")
 
-        self._joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names)
-        self._joint_ids_warp = wp.array(self._joint_ids, dtype=wp.int32, device=self.device)
+        joint_ids, self._joint_names = self._asset.find_joints(self.cfg.joint_names, as_proxy=True)
+        self._joint_ids = joint_ids.warp
 
         pose_cfgs = [obj for obj in self.cfg.objectives if isinstance(obj, NewtonIKPoseObjectiveCfg)]
         if not pose_cfgs:
             raise ValueError("NewtonInverseKinematicsAction requires at least one pose objective.")
 
-        # Resolve the controlled asset to its clone-plan source and finalize the
-        # single-env prototype builder the cloner already retained -- the same
-        # source resolution other Newton consumers use, no bespoke registry.
+        # Finalize the controlled asset's retained prototype builder.
         plan = sim_utils.SimulationContext.instance().get_clone_plan()
-        source_path, _, asset_suffix = resolve_clone_plan_source(self._asset.cfg.prim_path, plan)
-        # The proto builder is keyed by the bare clone source; the articulation
-        # lives at the asset suffix below it (e.g. ".../env_0" + "/Robot").
-        self._source_path = source_path + asset_suffix
-        prototype_model = NewtonManager._cl_protos[source_path].finalize(device=NewtonManager.get_model().device)
+        asset_ids = cloner.path.get_asset_prototypes(plan, self._asset.cfg.prim_path)
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        self._source_path = next(sources[index] for index in asset_ids if sources[index] is not None)
+        prototype_model = NewtonManager._cl_protos[self._source_path].finalize(device=NewtonManager.get_model().device)
         prototype_view = ArticulationView(
-            prototype_model,
-            self._source_path,
-            verbose=False,
-            exclude_joint_types=[JointType.FREE, JointType.FIXED],
+            prototype_model, self._source_path, verbose=False, exclude_joint_types=[JointType.FREE, JointType.FIXED]
         )
         coord_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._asset.joint_names)
         controlled_ids = self._resolve_prototype_joint_coord_ids(prototype_view, self._joint_names)
 
         # The solver resolves each pose objective's body via the prototype view.
-        self._ik_solver = self.cfg.controller.class_type(
+        self._ik_solver = instantiate(
             self.cfg.controller,
             model=prototype_model,
             num_envs=self.num_envs,
@@ -321,11 +316,10 @@ class NewtonInverseKinematicsAction(ActionTerm):
             inputs=[solved, self._controlled_ids, self._joint_pos_des],
             device=self.device,
         )
-        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids_warp)
+        self._asset.set_joint_position_target_index(target=self._joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        env_ids = slice(None) if env_ids is None else env_ids
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     def _validate_matching_root_orientations(self) -> None:
         """Guard the prototype-frame IK assumption for replicated fixed-base roots."""

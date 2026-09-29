@@ -3,53 +3,61 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Launch Isaac Sim Simulator first."""
+"""Run the converter from the standalone importer wheel when installed; otherwise launch the default runtime."""
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils.version import standalone_importers_available
 
-# launch omniverse app
-simulation_app = AppLauncher(headless=True).app
+# The standalone importers need no runtime; without them the default runtime provides the importer.
+_USE_RUNTIME = not standalone_importers_available()
+if _USE_RUNTIME:
+    try:
+        launch_test_simulation()
+    except SystemExit:
+        # the launcher exits when its runtime is not installed; without either importer there is nothing to test
+        import pytest
 
-"""Rest everything follows."""
+        pytest.skip(
+            "Needs the MJCF importer: install isaacsim-asset-isolated or the Isaac Sim runtime.",
+            allow_module_level=True,
+        )
 
 import os
+import sys
+from types import SimpleNamespace
 
+import newton
 import pytest
-
-import omni.kit.app
 
 import isaaclab.sim as sim_utils
 from isaaclab.sim import SimulationCfg, SimulationContext
 from isaaclab.sim.converters import MjcfConverter, MjcfConverterCfg
 
-pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
+# The Kit-less container mounts the checkout read-only, so ``usd_dir`` goes under ``tmp_path``.
+pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci, pytest.mark.kitless]
 
-_MJCF_IMPORTER_EXTENSION = "isaacsim.asset.importer.mjcf"
 
+_MJCF_IMPORTER_MODULE = "isaacsim.asset.importer.mjcf"
 
-def _get_extension_path_without_enabling(extension_name: str) -> str:
-    """Get the path for an extension without enabling it."""
-    manager = omni.kit.app.get_app().get_extension_manager()
-    for extension in manager.get_extensions():
-        if extension["name"] == extension_name:
-            return extension["path"]
-    raise RuntimeError(f"Extension not found: {extension_name}")
+# Portable NVIDIA Ant MJCF; ``newton`` is a base dependency of every environment.
+_PORTABLE_MJCF = os.path.join(os.path.dirname(newton.__file__), "examples", "assets", "nv_ant.xml")
 
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
     """Setup and teardown for each test."""
     # Setup: Create a new stage
-    sim_utils.create_new_stage()
-
-    # Setup: Create simulation context
-    dt = 0.01
-    sim = SimulationContext(SimulationCfg(dt=dt))
+    stage = sim_utils.create_new_stage()
+    if _USE_RUNTIME:
+        sim = SimulationContext(SimulationCfg(dt=0.01))
+    else:
+        # Spawning and inspecting prims needs a USD stage but no physics, so the plain stage
+        # stands in for the simulation context.
+        sim = SimpleNamespace(stage=stage)
 
     # Setup: Create MJCF config
-    extension_path = _get_extension_path_without_enabling(_MJCF_IMPORTER_EXTENSION)
     config = MjcfConverterCfg(
-        asset_path=f"{extension_path}/data/mjcf/nv_ant.xml",
+        asset_path=_PORTABLE_MJCF,
         self_collision=False,
     )
 
@@ -57,22 +65,26 @@ def test_setup_teardown():
     yield sim, config
 
     # Teardown: Cleanup simulation
-    sim._disable_app_control_on_stop_handle = True  # prevent timeout
-    sim.stop()
-    sim.clear_instance()
+    if _USE_RUNTIME:
+        sim._disable_app_control_on_stop_handle = True  # prevent timeout
+        sim.stop()
+        sim.clear_instance()
 
 
-def test_converter_enables_importer_extension(test_setup_teardown):
-    """Call conversion with the MJCF importer disabled. This should enable the importer extension."""
+def test_converter_loads_importer(test_setup_teardown):
+    """Converting loads the importer module on the active runtime."""
     _, mjcf_config = test_setup_teardown
-
-    manager = omni.kit.app.get_app().get_extension_manager()
-    if manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION):
-        pytest.skip("MJCF importer extension was already enabled before constructing MjcfConverter.")
+    # the importer is loaded lazily during conversion, which is skipped when a matching USD
+    # already exists, so force it to run
+    mjcf_config.force_usd_conversion = True
 
     MjcfConverter(mjcf_config)
 
-    assert manager.is_extension_enabled(_MJCF_IMPORTER_EXTENSION)
+    module_path = sys.modules[_MJCF_IMPORTER_MODULE].__file__
+    assert module_path is not None
+    if not _USE_RUNTIME:
+        # without a runtime the importer must come from the installed wheel
+        assert "site-packages" in module_path, f"expected a wheel-provided importer, got {module_path}"
 
 
 def test_no_change(test_setup_teardown):
@@ -124,7 +136,7 @@ def test_create_prim_from_usd(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_self_collision(test_setup_teardown):
+def test_self_collision(test_setup_teardown, tmp_path):
     """Verify that ``self_collision=True`` enables self-collisions on the Newton articulation root.
 
     The Isaac Sim importer's ``enable_self_collision`` writes the ``newton:selfCollisionEnabled``
@@ -132,8 +144,7 @@ def test_self_collision(test_setup_teardown):
     ``PhysicsArticulationRootAPI``, or ``NewtonArticulationRootAPI``).
     """
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_self_collision")
+    output_dir = os.path.join(str(tmp_path), "mjcf_self_collision")
     os.makedirs(output_dir, exist_ok=True)
 
     config.self_collision = True
@@ -165,31 +176,10 @@ def test_self_collision(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_collision_from_visuals(test_setup_teardown):
-    """Verify that ``collision_from_visuals=True`` runs successfully and produces a spawnable USD."""
+def test_collision_from_visuals(test_setup_teardown, tmp_path):
+    """Verify that ``collision_from_visuals=True`` with a non-default collision type produces a spawnable USD."""
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_collision_visuals")
-    os.makedirs(output_dir, exist_ok=True)
-
-    config.collision_from_visuals = True
-    config.force_usd_conversion = True
-    config.usd_dir = output_dir
-    mjcf_converter = MjcfConverter(config)
-
-    assert os.path.exists(mjcf_converter.usd_path), "USD file should exist after conversion"
-
-    prim_path = "/World/Robot"
-    sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
-    assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.isaacsim_ci
-def test_collision_type_convex_decomposition(test_setup_teardown):
-    """Verify that ``collision_type='Convex Decomposition'`` runs without error."""
-    sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_convex_decomp")
+    output_dir = os.path.join(str(tmp_path), "mjcf_collision_visuals")
     os.makedirs(output_dir, exist_ok=True)
 
     config.collision_from_visuals = True
@@ -206,15 +196,14 @@ def test_collision_type_convex_decomposition(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_link_density(test_setup_teardown):
-    """Verify that ``link_density`` applies density without errors.
+def test_link_density(test_setup_teardown, tmp_path):
+    """Verify that ``link_density`` applies density to bodies without an explicit mass.
 
-    ``nv_ant.xml`` has explicit inertial data on most bodies, so density is only applied where
-    mass is unspecified. This test ensures the pipeline runs and the output is spawnable.
+    ``nv_ant.xml`` derives body masses from its geoms, so the bodies carry no explicit mass and get the
+    configured density.
     """
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_link_density")
+    output_dir = os.path.join(str(tmp_path), "mjcf_link_density")
     os.makedirs(output_dir, exist_ok=True)
 
     config.link_density = 500.0
@@ -225,8 +214,10 @@ def test_link_density(test_setup_teardown):
     from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(mjcf_converter.usd_path)
-    mass_prims = [p for p in stage.Traverse() if p.HasAPI(UsdPhysics.MassAPI)]
-    assert len(mass_prims) > 0, "Expected prims with MassAPI"
+    # bodies without an explicit mass get the configured density
+    torso = next(p for p in stage.Traverse() if p.GetName() == "torso")
+    assert torso.HasAPI(UsdPhysics.MassAPI)
+    assert torso.GetAttribute("physics:density").Get() == pytest.approx(500.0)
 
     prim_path = "/World/Robot"
     sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
@@ -234,11 +225,10 @@ def test_link_density(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_merge_mesh(test_setup_teardown):
+def test_merge_mesh(test_setup_teardown, tmp_path):
     """Verify that ``merge_mesh=True`` runs successfully and still produces a spawnable USD."""
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_merge_mesh")
+    output_dir = os.path.join(str(tmp_path), "mjcf_merge_mesh")
     os.makedirs(output_dir, exist_ok=True)
 
     config.merge_mesh = True
@@ -254,11 +244,10 @@ def test_merge_mesh(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_import_physics_scene(test_setup_teardown):
-    """Verify that ``import_physics_scene=True`` still produces a spawnable USD."""
+def test_import_physics_scene(test_setup_teardown, tmp_path):
+    """Verify that ``import_physics_scene=True`` writes the MJCF physics scene into the converted asset."""
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_physics_scene")
+    output_dir = os.path.join(str(tmp_path), "mjcf_physics_scene")
     os.makedirs(output_dir, exist_ok=True)
 
     config.import_physics_scene = True
@@ -268,13 +257,27 @@ def test_import_physics_scene(test_setup_teardown):
 
     assert os.path.exists(mjcf_converter.usd_path), "USD file should exist after conversion"
 
+    # the imported scene is authored into the asset's layers (it is not composed under the default prim)
+    from pxr import Usd
+
+    stage = Usd.Stage.Open(mjcf_converter.usd_path)
+    scene_paths = []
+    for layer in stage.GetUsedLayers():
+
+        def _collect(path, layer=layer):
+            spec = layer.GetPrimAtPath(path) if path.IsPrimPath() else None
+            if spec and spec.typeName == "PhysicsScene":
+                scene_paths.append(path)
+
+        layer.Traverse(layer.pseudoRoot.path, _collect)
+    assert scene_paths, "Expected the converted asset layers to define a PhysicsScene"
+
 
 @pytest.mark.isaacsim_ci
-def test_run_asset_transformer_disabled(test_setup_teardown):
+def test_run_asset_transformer_disabled(test_setup_teardown, tmp_path):
     """Verify that ``run_asset_transformer=False`` produces a flat USD that is still spawnable."""
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_no_transformer")
+    output_dir = os.path.join(str(tmp_path), "mjcf_no_transformer")
     os.makedirs(output_dir, exist_ok=True)
 
     config.run_asset_transformer = False
@@ -290,7 +293,7 @@ def test_run_asset_transformer_disabled(test_setup_teardown):
 
 
 @pytest.mark.isaacsim_ci
-def test_override_actuator_gains(test_setup_teardown):
+def test_override_actuator_gains(test_setup_teardown, tmp_path):
     """Verify that actuator gain overrides are written to ``MjcActuator`` prims.
 
     ``nv_ant.xml`` defines ``MjcActuator`` prims, so setting ``override_gain_type``,
@@ -298,8 +301,7 @@ def test_override_actuator_gains(test_setup_teardown):
     corresponding ``mjc:*`` attributes on every actuator.
     """
     sim, config = test_setup_teardown
-    test_dir = os.path.dirname(os.path.abspath(__file__))
-    output_dir = os.path.join(test_dir, "output", "mjcf_actuator_gains")
+    output_dir = os.path.join(str(tmp_path), "mjcf_actuator_gains")
     os.makedirs(output_dir, exist_ok=True)
 
     kp = 50.0

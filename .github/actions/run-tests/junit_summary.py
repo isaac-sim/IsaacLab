@@ -23,7 +23,7 @@ except OSError as exc:
     print(f"🔴 Failed to read test report: {exc}")
     sys.exit(0)
 
-passed, failed, errored, skipped = [], [], [], []
+passed, failed, errored, skipped, unreliable = [], [], [], [], []
 # Keyed by (test_name, label) -> {"diff_pct": str, "ssim": str, "passed": bool}
 comparison_scores = {}
 total_time = 0.0
@@ -49,7 +49,11 @@ for tc in root.iter("testcase"):
     elif tc_errored:
         errored.append((name, t, tc.find("error").get("message", "")))
     elif (skip_el := tc.find("skipped")) is not None:
-        skipped.append((name, t, skip_el.get("message", "")))
+        result = (name, t, skip_el.get("message", ""))
+        if skip_el.get("type") == "pytest.xfail":
+            unreliable.append(result)
+        else:
+            skipped.append(result)
     else:
         passed.append((name, t))
 
@@ -93,7 +97,7 @@ def fmt_name(name):
 
 if failed or errored:
     print(f"🔴 {len(failed) + len(errored)} FAILED, {len(passed)} PASSED ({time_str})")
-elif not passed and not skipped:
+elif not passed and not skipped and not unreliable:
     print("🟠 No test cases found in report")
 
 if failed or errored:
@@ -125,6 +129,18 @@ if skipped:
     print("| Test | Reason |")
     print("|------|--------|")
     for name, t, msg in skipped:
+        print(f"| {fmt_name(name)} | {sanitize_msg(msg)} |")
+    print("")
+    print("</details>")
+
+if unreliable:
+    print(f"\n<details><summary>🟡 {len(unreliable)} UNRELIABLE (XFAIL)</summary>")
+    print("")
+    print("<br>")
+    print("")
+    print("| Test | Reason |")
+    print("|------|--------|")
+    for name, t, msg in unreliable:
         print(f"| {fmt_name(name)} | {sanitize_msg(msg)} |")
     print("")
     print("</details>")
