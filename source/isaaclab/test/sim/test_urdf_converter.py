@@ -153,7 +153,21 @@ def test_lazy_conversion_converts_again_for_stale_record(sim_config, tmp_path):
     shutil.rmtree(os.path.dirname(second_path))
     converter = UrdfConverter(config)
     assert os.path.isfile(converter.usd_path)
+    assert converter.usd_path != first_path
     assert os.path.dirname(os.path.dirname(converter.usd_path)) == converter.usd_dir
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_another_requested_file(sim_config, tmp_path):
+    """Convert again when the record matches the hash but names another requested USD file."""
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_requested_file")
+    # the same bytes under another file name hash the same but request another USD file
+    for name in ("robot_a", "robot_b"):
+        config.asset_path = os.path.join(str(tmp_path), f"{name}.urdf")
+        shutil.copy(_MERGE_JOINTS_URDF, config.asset_path)
+        usd_path = UrdfConverter(config).usd_path
+    assert os.path.relpath(usd_path, config.usd_dir) == os.path.join("robot_b", "robot_b.usda")
 
 
 @pytest.mark.isaacsim_ci

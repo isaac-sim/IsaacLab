@@ -270,8 +270,9 @@ is derived automatically from the robot name in the URDF):
    overwriting the previous output. :attr:`~sim.converters.UrdfConverter.usd_path` reflects
    whichever folder the importer actually used, and later lazy conversions with the same
    configuration load that folder again until another conversion, of any asset or
-   configuration, is written into the same ``usd_dir``. Delete stale subdirectories manually
-   (or wipe ``usd_dir``) if you do not want them to accumulate on disk.
+   configuration, is written into the same ``usd_dir``. Because this script forces the
+   conversion, later lazy conversions convert again rather than reuse its output. Delete stale
+   subdirectories manually (or wipe ``usd_dir``) if you do not want them to accumulate on disk.
 
 .. _import-new-asset-preview:
 
@@ -426,8 +427,9 @@ Executing the above script will create the USD file inside the
    the previous output. :attr:`~sim.converters.MjcfConverter.usd_path` reflects whichever
    folder the importer actually used, and later lazy conversions with the same configuration
    load that folder again until another conversion, of any asset or configuration, is written
-   into the same ``usd_dir``. Delete stale subdirectories manually (or wipe ``usd_dir``) if you
-   do not want them to accumulate on disk.
+   into the same ``usd_dir``. Because this script forces the conversion, later lazy conversions
+   convert again rather than reuse its output. Delete stale subdirectories manually (or wipe
+   ``usd_dir``) if you do not want them to accumulate on disk.
 
 See :ref:`Previewing converted assets <import-new-asset-preview>` for the ``--viz`` options.
 
