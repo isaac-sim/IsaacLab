@@ -30,6 +30,7 @@ launch_test_simulation()
 
 import math
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -410,7 +411,7 @@ def _author_branching_robot(
 
 def _in_user_order(values: dict[str, float], names: list[str], device: str) -> torch.Tensor:
     """Return per-name values as a ``(num_envs, len(names))`` tensor in the given name order."""
-    return torch.tensor([[values[name] for name in names]] * _NUM_ENVS, device=device)
+    return torch.tensor([values[name] for name in names], device=device).repeat(_NUM_ENVS, 1)
 
 
 def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
@@ -854,7 +855,7 @@ class _ArticulationScene:
     @property
     def islands(self) -> dict[str, Articulation]:
         """All articulations keyed by island name."""
-        return {name: getattr(self, name) for name in ("ordered", "floating", "reordered", "tendon")}
+        return {"ordered": self.ordered, "floating": self.floating, "reordered": self.reordered, "tendon": self.tendon}
 
     def step(self, num_steps: int = 1) -> None:
         """Write, step, and update every articulation."""
@@ -881,7 +882,7 @@ def _spawn_island(name: str, y_offset: float, cfg: ArticulationCfg, **authoring)
 
 
 @pytest.fixture(scope="module", params=test_devices())
-def articulation_scene(request) -> _ArticulationScene:
+def articulation_scene(request) -> Iterator[_ArticulationScene]:
     """Initialize every composite-scene articulation once for this module."""
     device = request.param
     with build_simulation_context(device=device, gravity_enabled=False) as sim:
@@ -932,7 +933,7 @@ def articulation_scene(request) -> _ArticulationScene:
         )
 
 
-def test_articulation_initialization_and_ordering(articulation_scene: _ArticulationScene):
+def test_articulation_initialization_and_ordering(articulation_scene: _ArticulationScene) -> None:
     """Resolve the configured structure, orderings, gains, and limits of every real island."""
     scene = articulation_scene
     device = scene.device
@@ -943,7 +944,7 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
         assert scene.refcounts[name] < 10, name
         for actuator_name, actuator in articulation.actuators.items():
             is_implicit_model_cfg = isinstance(articulation.cfg.actuators[actuator_name], ImplicitActuatorCfg)
-            assert getattr(actuator, "is_implicit_model", False) == is_implicit_model_cfg
+            assert actuator.is_implicit_model == is_implicit_model_cfg
     assert scene.ordered.is_fixed_base and scene.tendon.is_fixed_base
     assert not scene.floating.is_fixed_base and not scene.reordered.is_fixed_base
     # The floating root is discovered on the base link below the spawned robot prim; the reordered root is
@@ -980,27 +981,27 @@ def test_articulation_initialization_and_ordering(articulation_scene: _Articulat
     ):
         expected = _in_user_order(usd_values, ordered.joint_names, device)
         torch.testing.assert_close(public, expected)
-        torch.testing.assert_close(_to_device_tensor(raw, device), expected[:, joint_backend_to_user])
+        torch.testing.assert_close(wp.to_torch(raw).to(device), expected[:, joint_backend_to_user])
     torch.testing.assert_close(ordered.data.joint_stiffness.torch, ordered.actuators["joints"].stiffness)
     torch.testing.assert_close(ordered.data.joint_damping.torch, ordered.actuators["joints"].damping)
     # Configured gains and limits override USD and reach the solver.
-    for attribute, raw, values in (
-        ("stiffness", floating.root_view.get_dof_stiffnesses(), (6.0, 4.0)),
-        ("damping", floating.root_view.get_dof_dampings(), (0.6, 0.4)),
+    for public, raw, values in (
+        (floating.actuators["joints"].stiffness, floating.root_view.get_dof_stiffnesses(), (6.0, 4.0)),
+        (floating.actuators["joints"].damping, floating.root_view.get_dof_dampings(), (0.6, 0.4)),
     ):
         per_joint = {name: values[0] if name.endswith("shoulder") else values[1] for name in floating.joint_names}
         expected = _in_user_order(per_joint, floating.joint_names, device)
-        torch.testing.assert_close(getattr(floating.actuators["joints"], attribute), expected)
-        torch.testing.assert_close(_to_device_tensor(raw, device), expected)
+        torch.testing.assert_close(public, expected)
+        torch.testing.assert_close(wp.to_torch(raw).to(device), expected)
     for public, raw, limit in (
         (floating.data.joint_vel_limits.torch, floating.root_view.get_dof_max_velocities(), 7.0),
         (floating.data.joint_effort_limits.torch, floating.root_view.get_dof_max_forces(), 30.0),
     ):
         torch.testing.assert_close(public, torch.full((_NUM_ENVS, 4), limit, device=device))
-        torch.testing.assert_close(_to_device_tensor(raw, device), public)
+        torch.testing.assert_close(wp.to_torch(raw).to(device), public)
 
 
-def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _ArticulationScene):
+def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _ArticulationScene) -> None:
     """Joint state writes reach PhysX in backend order and reads return public order."""
     scene = articulation_scene
     device = scene.device
@@ -1023,7 +1024,7 @@ def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _Ar
         (articulation.root_view.get_dof_velocities(), joint_vel),
         (articulation.root_view.get_dof_stiffnesses(), joint_stiffness),
     ):
-        torch.testing.assert_close(_to_device_tensor(raw, device), written[:, joint_backend_to_user])
+        torch.testing.assert_close(wp.to_torch(raw).to(device), written[:, joint_backend_to_user])
 
     # A joint write refreshes the body state without stepping.
     body_link_pose_w = articulation.data.body_link_pose_w.torch
@@ -1051,7 +1052,7 @@ def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _Ar
         (articulation.data.body_link_pose_w.torch, articulation.root_view.get_link_transforms(), body_user_to_backend),
         (articulation.data.body_com_pose_b.torch, articulation.root_view.get_coms(), body_user_to_backend),
     ):
-        torch.testing.assert_close(public, _to_device_tensor(raw, device)[:, user_to_backend])
+        torch.testing.assert_close(public, wp.to_torch(raw).to(device)[:, user_to_backend])
     # The split accessors must be sliced from the reordered public poses, not from a stale backend-order cache.
     data = articulation.data
     torch.testing.assert_close(data.body_com_pos_b.torch, data.body_com_pose_b.torch[..., :3])
@@ -1074,18 +1075,18 @@ def test_articulation_joint_state_writes_follow_ordering(articulation_scene: _Ar
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
     torch.testing.assert_close(
-        _to_device_tensor(articulation.root_view.get_dof_positions(), device),
+        wp.to_torch(articulation.root_view.get_dof_positions()).to(device),
         expected_position[:, joint_backend_to_user],
     )
     torch.testing.assert_close(
-        _to_device_tensor(articulation.root_view.get_dof_velocities(), device),
+        wp.to_torch(articulation.root_view.get_dof_velocities()).to(device),
         expected_velocity[:, joint_backend_to_user],
     )
     # Restore the USD gains for the following tests.
     articulation.write_joint_stiffness_to_sim_index(stiffness=initial_stiffness, full_data=True)
 
 
-def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _ArticulationScene):
+def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _ArticulationScene) -> None:
     """Selected joint and body properties reach the selected PhysX entries and read back in public order."""
     scene = articulation_scene
     device = scene.device
@@ -1094,17 +1095,15 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     # buffer (identity order), and after the next update once the buffer is primed (non-identity order).
     cpu_env_ids = wp.array(list(range(_NUM_ENVS)), dtype=wp.int32, device="cpu")
 
-    def write_backend_mass_inertia(articulation: Articulation, delta_mass: float, delta_inertia: float):
+    def write_backend_mass_inertia(
+        articulation: Articulation, delta_mass: float, delta_inertia: float
+    ) -> tuple[torch.Tensor, torch.Tensor]:
         """Write distinct backend-order masses/inertias straight through the tensor view."""
         backend_masses = wp.to_torch(articulation.root_view.get_masses()).clone() + delta_mass
         backend_inertias = wp.to_torch(articulation.root_view.get_inertias()).clone()
         backend_inertias[..., [0, 4, 8]] += delta_inertia
-        articulation.root_view.set_masses(
-            wp.from_torch(backend_masses.contiguous(), dtype=wp.float32), indices=cpu_env_ids
-        )
-        articulation.root_view.set_inertias(
-            wp.from_torch(backend_inertias.contiguous(), dtype=wp.float32), indices=cpu_env_ids
-        )
+        articulation.root_view.set_masses(wp.from_torch(backend_masses, dtype=wp.float32), indices=cpu_env_ids)
+        articulation.root_view.set_inertias(wp.from_torch(backend_inertias, dtype=wp.float32), indices=cpu_env_ids)
         return backend_masses.to(device), backend_inertias.to(device)
 
     backend_masses, backend_inertias = write_backend_mass_inertia(scene.tendon, 0.293, 0.023)
@@ -1190,11 +1189,19 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         (articulation.data.body_com_pose_b.torch, articulation.root_view.get_coms()),
         (articulation.data.body_inertia.torch, articulation.root_view.get_inertias()),
     ):
-        torch.testing.assert_close(_to_device_tensor(raw, device), public[:, body_backend_to_user])
+        torch.testing.assert_close(wp.to_torch(raw).to(device), public[:, body_backend_to_user])
 
 
 def _rotate_z(angle: torch.Tensor, vector: tuple[float, float, float] | torch.Tensor) -> torch.Tensor:
-    """Rotate vectors about the world z axis by per-environment angles [rad]."""
+    """Rotate vectors about the world z axis.
+
+    Args:
+        angle: Rotation angles [rad], shape [N].
+        vector: Vector to rotate, shape [3] or [N, 3].
+
+    Returns:
+        Rotated vectors, shape [N, 3].
+    """
     vector = torch.as_tensor(vector, dtype=angle.dtype, device=angle.device).expand(*angle.shape, 3)
     cos, sin = torch.cos(angle), torch.sin(angle)
     return torch.stack(
@@ -1203,15 +1210,34 @@ def _rotate_z(angle: torch.Tensor, vector: tuple[float, float, float] | torch.Te
 
 
 def _cross_z(rate: torch.Tensor, vector: torch.Tensor) -> torch.Tensor:
-    """Return ``(rate * z) x vector`` for per-environment angular rates about the world z axis."""
+    """Return ``(rate * z) x vector``, the velocity induced by a rotation about the world z axis.
+
+    Args:
+        rate: Angular rates about the world z axis [rad/s], shape [N].
+        vector: Lever arms in the world frame [m], shape [N, 3].
+
+    Returns:
+        Induced linear velocities [m/s], shape [N, 3].
+    """
     return torch.stack((-rate * vector[..., 1], rate * vector[..., 0], torch.zeros_like(rate)), -1)
 
 
-def _expected_fixed_branching_state(articulation: Articulation, origins: torch.Tensor, com_b: torch.Tensor) -> dict:
+def _expected_fixed_branching_state(
+    articulation: Articulation, origins: torch.Tensor, com_b: torch.Tensor
+) -> dict[str, torch.Tensor]:
     """Compute link and center-of-mass kinematics of a fixed branching island from its joint state.
 
     Every joint rotates about +z and is anchored at its child link origin, so the expected state follows from
     the literal fixture geometry, the joint state, and the body-frame center-of-mass offsets.
+
+    Args:
+        articulation: Fixed-base branching articulation.
+        origins: World position of each environment [m], shape [N, 3].
+        com_b: Center-of-mass offsets in the link frames [m], shape [N, B, 3], in public body order.
+
+    Returns:
+        World-frame link x axes (``heading``), link and center-of-mass positions [m], angular velocities
+        [rad/s], and link and center-of-mass linear velocities [m/s], each of shape [N, B, 3].
     """
     q = dict(zip(articulation.joint_names, articulation.data.joint_pos.torch.unbind(-1)))
     qd = dict(zip(articulation.joint_names, articulation.data.joint_vel.torch.unbind(-1)))
@@ -1241,20 +1267,21 @@ def _expected_fixed_branching_state(articulation: Articulation, origins: torch.T
     return {key: torch.stack(values, dim=1) for key, values in expected.items()}
 
 
-def _assert_jacobian_contract(articulation: Articulation, generalized_velocity: torch.Tensor):
-    """Check the link and center-of-mass Jacobians against body velocities and the mass-matrix contract."""
+def _assert_jacobian_contract(articulation: Articulation, generalized_velocity: torch.Tensor) -> None:
+    """Check the link and center-of-mass Jacobians against body velocities and the mass-matrix contract.
+
+    Args:
+        articulation: Articulation whose state was just written.
+        generalized_velocity: Base and joint velocities, shape [N, num_base_dofs + num_joints].
+    """
     data = articulation.data
     num_dofs = articulation.num_joints + articulation.num_base_dofs
     first_body = 1 if articulation.is_fixed_base else 0
     num_jacobian_bodies = articulation.num_bodies - first_body
     # Read the body state first: it refreshes forward kinematics after the joint write.
-    body_velocities = {
-        "body_link_jacobian_w": data.body_link_lin_vel_w.torch.clone(),
-        "body_com_jacobian_w": data.body_com_lin_vel_w.torch.clone(),
-    }
+    lin_vels = (data.body_link_lin_vel_w.torch.clone(), data.body_com_lin_vel_w.torch.clone())
     ang_vel = data.body_link_ang_vel_w.torch.clone()
-    for jacobian_name, lin_vel in body_velocities.items():
-        jacobian = getattr(data, jacobian_name).torch
+    for jacobian, lin_vel in zip((data.body_link_jacobian_w.torch, data.body_com_jacobian_w.torch), lin_vels):
         # Shape contract: fixed-base Jacobians omit the root body; floating-base ones prepend the base DoFs.
         assert jacobian.shape == (_NUM_ENVS, num_jacobian_bodies, 6, num_dofs)
         predicted = torch.einsum("nbij,nj->nbi", jacobian, generalized_velocity)
@@ -1281,7 +1308,7 @@ def _assert_jacobian_contract(articulation: Articulation, generalized_velocity: 
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-4)
 
 
-def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene):
+def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene) -> None:
     """Drive targets and efforts move the selected joints; dynamics quantities match the live state."""
     scene = articulation_scene
     device = scene.device
@@ -1309,11 +1336,11 @@ def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene)
     expected_efforts = zeros.clone()
     expected_efforts[1, right_shoulder] = 10.0
     torch.testing.assert_close(
-        _to_device_tensor(articulation.root_view.get_dof_position_targets(), device),
+        wp.to_torch(articulation.root_view.get_dof_position_targets()).to(device),
         expected_targets[:, joint_backend_to_user],
     )
     torch.testing.assert_close(
-        _to_device_tensor(articulation.root_view.get_dof_actuation_forces(), device),
+        wp.to_torch(articulation.root_view.get_dof_actuation_forces()).to(device),
         expected_efforts[:, joint_backend_to_user],
     )
     # The effort must reach the solver, not only its staging buffer.
@@ -1388,7 +1415,7 @@ def _place_at_rest(articulation: Articulation, root_pose: torch.Tensor) -> None:
     articulation.reset()
 
 
-def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _ArticulationScene, monkeypatch):
+def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _ArticulationScene, monkeypatch) -> None:
     """Root writes and external wrenches reach the selected floating roots in the frames they are given in."""
     scene = articulation_scene
     device = scene.device
@@ -1408,7 +1435,7 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     floating.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=[1])
     expected_pose = torch.cat((rest_pose[:1], target_pose))
     torch.testing.assert_close(floating.data.root_link_pose_w.torch, expected_pose)
-    torch.testing.assert_close(_to_device_tensor(floating.root_view.get_root_transforms(), device), expected_pose)
+    torch.testing.assert_close(wp.to_torch(floating.root_view.get_root_transforms()).to(device), expected_pose)
 
     # Root writers are invariant to a public body order that moves the root link.
     assert reordered.body_ordering is not None
@@ -1422,8 +1449,8 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     reordered_user_to_backend = list(reordered.body_ordering.user_to_backend_indices)
     floating.set_coms_index(coms=backend_coms, full_data=True)
     reordered.set_coms_index(coms=backend_coms[:, reordered_user_to_backend], full_data=True)
-    torch.testing.assert_close(_to_device_tensor(floating.root_view.get_coms(), device), backend_coms)
-    torch.testing.assert_close(_to_device_tensor(reordered.root_view.get_coms(), device), backend_coms)
+    torch.testing.assert_close(wp.to_torch(floating.root_view.get_coms()).to(device), backend_coms)
+    torch.testing.assert_close(wp.to_torch(reordered.root_view.get_coms()).to(device), backend_coms)
     root_com_pose = rest_pose.clone()
     root_com_pose[:, :3] += torch.tensor([0.5, 0.25, 0.75], device=device)
     root_com_pose[:, 3:] = torch.tensor(_yaw_quat(0.6), device=device)
@@ -1436,14 +1463,12 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         articulation.write_root_link_velocity_to_sim_index(root_velocity=root_link_velocity)
         torch.testing.assert_close(articulation.data.root_com_pose_w.torch, pose)
         torch.testing.assert_close(articulation.data.root_link_vel_w.torch, root_link_velocity)
-    reordered_transforms = _to_device_tensor(reordered.root_view.get_root_transforms(), device).clone()
+    reordered_transforms = wp.to_torch(reordered.root_view.get_root_transforms()).to(device).clone()
     reordered_transforms[:, :3] -= island_offset
+    torch.testing.assert_close(reordered_transforms, wp.to_torch(floating.root_view.get_root_transforms()).to(device))
     torch.testing.assert_close(
-        reordered_transforms, _to_device_tensor(floating.root_view.get_root_transforms(), device)
-    )
-    torch.testing.assert_close(
-        _to_device_tensor(reordered.root_view.get_root_velocities(), device),
-        _to_device_tensor(floating.root_view.get_root_velocities(), device),
+        wp.to_torch(reordered.root_view.get_root_velocities()).to(device),
+        wp.to_torch(floating.root_view.get_root_velocities()).to(device),
     )
     torch.testing.assert_close(reordered.data.root_com_vel_w.torch, floating.data.root_com_vel_w.torch)
     # The derived root link pose carries the written center-of-mass pose at the root's center-of-mass offset.
@@ -1536,7 +1561,7 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     actuator_reset = actuator.reset
     reset_env_ids = []
 
-    def record_actuator_reset(env_ids=None):
+    def record_actuator_reset(env_ids=None) -> None:
         reset_env_ids.append(env_ids)
         actuator_reset(env_ids)
 
