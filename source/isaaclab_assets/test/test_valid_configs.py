@@ -35,9 +35,9 @@ def test_franka_legacy_configs_warn_and_keep_their_contract() -> None:
     assert high_pd_cfg.actuators["panda_shoulder"].stiffness == 400.0
     assert high_pd_cfg.actuators["panda_forearm"].stiffness == 400.0
 
-    with pytest.warns(DeprecationWarning, match="franka_panda_nestedInstance.usda"):
+    with pytest.warns(DeprecationWarning, match="FRANKA_PANDA_MENAGERIE_CFG.*removed in Isaac Lab 4.0"):
         menagerie_cfg = franka_assets.FRANKA_PANDA_MENAGERIE_CFG
-    assert menagerie_cfg.spawn.usd_path.endswith("/franka_panda_nestedInstance.usda")
+    assert menagerie_cfg.spawn.usd_path.endswith("/franka_panda.usda")
     assert set(menagerie_cfg.actuators) == {"panda_arm", "panda_hand"}
 
 

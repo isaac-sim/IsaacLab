@@ -11,12 +11,12 @@ The following configurations are available:
 * :obj:`FRANKA_PANDA_FLAT_HIGH_PD_CFG`: Flat asset with stiffer PD control
 * :obj:`FRANKA_PANDA_CFG`: Deprecated alias retaining the legacy asset and actuators
 * :obj:`FRANKA_PANDA_HIGH_PD_CFG`: Deprecated legacy high-PD configuration
-* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Deprecated nested-instance Menagerie configuration
+* :obj:`FRANKA_PANDA_MENAGERIE_CFG`: Deprecated Menagerie actuator configuration
 * :obj:`FRANKA_ROBOTIQ_GRIPPER_CFG`: Franka robot with Robotiq_2f_85 gripper
 
 The old public names remain available during deprecation. Use ``FRANKA_PANDA_FLAT_CFG`` for new code
-and select its ``Physics`` variant for the chosen backend. The former Menagerie asset was relocated to
-``franka_panda_nestedInstance.usda``; the flat asset now occupies ``franka_panda.usda``.
+and select its ``Physics`` variant for the chosen backend. The published ``franka_panda.usda`` is now
+the flat asset; the former nested-instance file remains available as an explicit USD-path override.
 
 Reference: https://github.com/frankaemika/franka_ros
 """
@@ -211,11 +211,9 @@ for actuator in ("panda_shoulder", "panda_forearm"):
     _FRANKA_PANDA_LEGACY_HIGH_PD_CFG.actuators[actuator].damping = 80.0
 
 
-_FRANKA_PANDA_NESTED_MENAGERIE_CFG = clone(_FRANKA_PANDA_LEGACY_CFG)
-_FRANKA_PANDA_NESTED_MENAGERIE_CFG.spawn.usd_path = (
-    f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda_nestedInstance.usda"
-)
-_FRANKA_PANDA_NESTED_MENAGERIE_CFG.actuators = {
+_FRANKA_PANDA_MENAGERIE_COMPAT_CFG = clone(_FRANKA_PANDA_LEGACY_CFG)
+_FRANKA_PANDA_MENAGERIE_COMPAT_CFG.spawn.usd_path = f"{ISAACLAB_NUCLEUS_DIR}/Robots/FrankaEmika/franka_panda.usda"
+_FRANKA_PANDA_MENAGERIE_COMPAT_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
         joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
@@ -233,7 +231,7 @@ _FRANKA_PANDA_NESTED_MENAGERIE_CFG.actuators = {
 _DEPRECATED_FRANKA_CFGS = {
     "FRANKA_PANDA_CFG": (_FRANKA_PANDA_LEGACY_CFG, "FRANKA_PANDA_FLAT_CFG"),
     "FRANKA_PANDA_HIGH_PD_CFG": (_FRANKA_PANDA_LEGACY_HIGH_PD_CFG, "FRANKA_PANDA_FLAT_HIGH_PD_CFG"),
-    "FRANKA_PANDA_MENAGERIE_CFG": (_FRANKA_PANDA_NESTED_MENAGERIE_CFG, "FRANKA_PANDA_FLAT_CFG"),
+    "FRANKA_PANDA_MENAGERIE_CFG": (_FRANKA_PANDA_MENAGERIE_COMPAT_CFG, "FRANKA_PANDA_FLAT_CFG"),
 }
 
 if TYPE_CHECKING:
@@ -247,8 +245,6 @@ def __getattr__(name: str) -> ArticulationCfg:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     cfg, replacement = _DEPRECATED_FRANKA_CFGS[name]
     message = f"{name} is deprecated and will be removed in Isaac Lab 4.0. Use {replacement}."
-    if name == "FRANKA_PANDA_MENAGERIE_CFG":
-        message += " The nested asset moved from franka_panda.usda to franka_panda_nestedInstance.usda."
     warnings.warn(message, DeprecationWarning, stacklevel=2)
     return cfg
 
