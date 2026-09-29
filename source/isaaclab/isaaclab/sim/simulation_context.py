@@ -28,7 +28,7 @@ from ..utils import instantiate
 from ..utils.string import clear_resolve_matching_names_cache
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
-from ..visualizers.visualizer_cfg import _VISUALIZER_TYPES, _get_visualizer_install_hint
+from ..visualizers.visualizer_cfg import _get_visualizer_install_hint
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -158,6 +158,17 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
+        # a launch without a SimulationCfg leaves its visualizer selection for the config built afterwards
+        pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
+        max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
+        if pending_visualizers or (max_visible_envs is not None and max_visible_envs >= 0):
+            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
+
+            self.cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+                self.cfg.visualizer_cfgs,
+                _parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
+                max_visible_envs if max_visible_envs is not None and max_visible_envs >= 0 else None,
+            )
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -307,9 +318,7 @@ class SimulationContext:
 
     def has_active_visualizers(self) -> bool:
         """Return whether any visualizer path is active for rendering/camera control."""
-        return bool(self.get_setting("/isaaclab/visualizer/types")) or bool(
-            self.get_setting("/isaaclab/video/auto_start_kit")
-        )
+        return self._has_continuous_visualizers() or bool(self.get_setting("/isaaclab/video/auto_start_kit"))
 
     def is_running(self) -> bool:
         """Return whether the simulation should keep running.
@@ -371,55 +380,6 @@ class SimulationContext:
         """Returns a monotonic counter for render() executions."""
         return self._render_generation
 
-    def _create_default_visualizer_configs(self, requested_visualizers: list[str]) -> list:
-        """Create default visualizer configs for requested types.
-
-        Loads only the requested visualizer submodule (e.g. isaaclab_visualizers.rerun)
-        so dependencies for other backends are not imported.
-        """
-        import importlib
-
-        default_configs = []
-        cfg_class_names = {
-            "kit": "KitVisualizerCfg",
-            "newton_gl": "NewtonGLVisualizerCfg",
-            "newton_rtx": "NewtonRTXVisualizerCfg",
-            "rerun": "RerunVisualizerCfg",
-            "viser": "ViserVisualizerCfg",
-        }
-        # newton_gl and newton_rtx both live in the isaaclab_visualizers.newton package.
-        module_overrides = {"newton_gl": "isaaclab_visualizers.newton", "newton_rtx": "isaaclab_visualizers.newton"}
-        for viz_type in requested_visualizers:
-            try:
-                if viz_type not in _VISUALIZER_TYPES:
-                    logger.warning(
-                        f"[SimulationContext] Unknown visualizer type '{viz_type}' requested. "
-                        f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. Skipping."
-                    )
-                    continue
-                mod = importlib.import_module(module_overrides.get(viz_type, f"isaaclab_visualizers.{viz_type}"))
-                cfg_cls = getattr(mod, cfg_class_names[viz_type])
-                cfg = cfg_cls()
-                self._apply_default_visualizer_cfg(cfg)
-                default_configs.append(cfg)
-            except (ImportError, ModuleNotFoundError) as exc:
-                # isaaclab_visualizers is optional; log once at warning level
-                if "isaaclab_visualizers" in str(exc):
-                    logger.warning(
-                        "[SimulationContext] Visualizer '%s' skipped: isaaclab_visualizers is not installed. %s",
-                        viz_type,
-                        _get_visualizer_install_hint(viz_type),
-                    )
-                else:
-                    logger.error(
-                        "[SimulationContext] Failed to create default config for visualizer '%s': %s",
-                        viz_type,
-                        exc,
-                    )
-            except Exception as exc:
-                logger.error(f"[SimulationContext] Failed to create default config for visualizer '{viz_type}': {exc}")
-        return default_configs
-
     def _apply_default_visualizer_cfg(self, cfg: Any) -> None:
         """Apply shared default visualizer settings to a backend-specific config.
 
@@ -446,41 +406,6 @@ class SimulationContext:
                 continue
             setattr(cfg, field.name, default_val)
 
-    def _get_cli_visualizer_types(self) -> list[str]:
-        """Return list of visualizer types requested via CLI (setting)."""
-        requested = self.get_setting("/isaaclab/visualizer/types")
-        if not isinstance(requested, str) or not requested.strip():
-            return []
-        # App launcher writes this as a single string; accept comma and/or whitespace separators.
-        return [value for chunk in requested.split(",") for value in chunk.split() if value]
-
-    def _apply_visualizer_cli_overrides(self, visualizer_cfgs: list[Any]) -> None:
-        """Apply ``--max_visible_envs`` to every resolved visualizer cfg when set in settings.
-
-        :func:`~isaaclab.app.launch_simulation` stores ``/isaaclab/visualizer/max_visible_envs`` as ``-1``
-        when the flag was omitted; any non-negative int overrides :attr:`VisualizerCfg.max_visible_envs`
-        on each cfg.
-        """
-        raw = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        try:
-            max_visible = int(raw) if raw is not None else -1
-        except (TypeError, ValueError):
-            logger.warning("[SimulationContext] Invalid /isaaclab/visualizer/max_visible_envs: %r", raw)
-            return
-        if max_visible < 0:
-            return
-        for cfg in visualizer_cfgs:
-            if hasattr(cfg, "max_visible_envs"):
-                cfg.max_visible_envs = max_visible
-
-    def _is_cli_visualizer_explicit(self) -> bool:
-        """Return ``True`` when visualizers were explicitly provided via CLI."""
-        return bool(self.get_setting("/isaaclab/visualizer/explicit"))
-
-    def _is_cli_visualizer_disable_all(self) -> bool:
-        """Return ``True`` when CLI requested ``--viz none`` semantics."""
-        return bool(self.get_setting("/isaaclab/visualizer/disable_all"))
-
     def _configured_visualizer_cfgs(self) -> list[Any]:
         """Return :attr:`SimulationCfg.visualizer_cfgs` as a list."""
         visualizer_cfgs = self.cfg.visualizer_cfgs
@@ -489,86 +414,23 @@ class SimulationContext:
         return visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
 
     def resolve_visualizer_types(self) -> list[str]:
-        """Resolve visualizer types from config or CLI settings."""
-        if self._is_cli_visualizer_disable_all():
-            return []
-        if self._is_cli_visualizer_explicit():
-            return self._get_cli_visualizer_types()
-        visualizer_cfgs = self._configured_visualizer_cfgs()
-        return [cfg.visualizer_type for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None)]
+        """Return the types of the visualizers in :attr:`SimulationCfg.visualizer_cfgs`."""
+        return [
+            cfg.visualizer_type for cfg in self._configured_visualizer_cfgs() if getattr(cfg, "visualizer_type", None)
+        ]
 
     def _has_continuous_visualizers(self) -> bool:
-        """Return whether the resolved visualizers require per-step updates."""
-        visualizer_types = self.resolve_visualizer_types()
-        if not visualizer_types:
-            return False
-
-        visualizer_cfgs = self._configured_visualizer_cfgs()
-        if self._is_cli_visualizer_explicit():
-            for visualizer_type in visualizer_types:
-                matching_cfgs = [
-                    cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) == visualizer_type
-                ]
-                if not matching_cfgs or any(not getattr(cfg, "headless", False) for cfg in matching_cfgs):
-                    return True
-            return False
-
+        """Return whether the configured visualizers require per-step updates."""
         return any(
-            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False) for cfg in visualizer_cfgs
+            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False)
+            for cfg in self._configured_visualizer_cfgs()
         )
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
-        """Resolve final visualizer configs from cfg and optional CLI override.
-
-        When visualizers are explicitly requested via ``--visualizer`` CLI flag,
-        a :class:`RuntimeError` is raised if any requested type cannot be
-        resolved (unknown type or missing package).
-        """
-        visualizer_cfgs = self._configured_visualizer_cfgs()
-        cli_requested = self._get_cli_visualizer_types()
-        cli_explicit = self._is_cli_visualizer_explicit()
-        cli_disable_all = self._is_cli_visualizer_disable_all()
-
-        if cli_disable_all:
-            resolved = []
-        elif not cli_explicit:
-            for cfg in visualizer_cfgs:
-                self._apply_default_visualizer_cfg(cfg)
-            self._apply_visualizer_cli_overrides(visualizer_cfgs)
-            resolved = visualizer_cfgs
-        elif not visualizer_cfgs:
-            resolved = self._create_default_visualizer_configs(cli_requested) if cli_requested else []
-            self._apply_visualizer_cli_overrides(resolved)
-        else:
-            # CLI selection is explicit: keep only requested cfg types, then add defaults for missing.
-            resolved = [cfg for cfg in visualizer_cfgs if getattr(cfg, "visualizer_type", None) in cli_requested]
-            for cfg in resolved:
-                self._apply_default_visualizer_cfg(cfg)
-            existing_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
-            for viz_type in cli_requested:
-                if viz_type not in existing_types:
-                    resolved.extend(self._create_default_visualizer_configs([viz_type]))
-                    existing_types.add(viz_type)
-            self._apply_visualizer_cli_overrides(resolved)
-
-        # When visualizers were explicitly requested via CLI, verify all
-        # requested types were resolved.  This catches unknown types and
-        # missing packages that _create_default_visualizer_configs silently
-        # skips.
-        if cli_explicit and cli_requested:
-            resolved_types = {getattr(cfg, "visualizer_type", None) for cfg in resolved}
-            missing = [t for t in cli_requested if t not in resolved_types]
-            if missing:
-                install_hints = " ".join(
-                    _get_visualizer_install_hint(visualizer_type)
-                    for visualizer_type in missing
-                    if visualizer_type in _VISUALIZER_TYPES
-                )
-                raise RuntimeError(
-                    f"Explicitly requested visualizer(s) {missing} could not be configured. "
-                    f"Valid types: {', '.join(repr(t) for t in _VISUALIZER_TYPES)}. "
-                    f"{install_hints}"
-                )
+        """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""
+        resolved = list(self._configured_visualizer_cfgs())
+        for cfg in resolved:
+            self._apply_default_visualizer_cfg(cfg)
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
         if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
@@ -1052,8 +914,8 @@ def build_simulation_context(
         visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton_gl", "rerun"]``).
             Valid types: ``"kit"``, ``"newton_gl"``, ``"newton_rtx"``, ``"rerun"``, ``"viser"``.
             ``"newton"`` is a deprecated alias for ``"newton_gl"``.
-            When provided, sets the ``/isaaclab/visualizer/types`` setting so the
-            existing visualizer resolution machinery picks them up. Defaults to None.
+            When provided, :attr:`SimulationCfg.visualizer_cfgs` keeps exactly these types, as with
+            ``--visualizer`` in :func:`~isaaclab.app.launch_simulation`. Defaults to None.
 
     Yields:
         The simulation context to use for the simulation.
@@ -1079,9 +941,11 @@ def build_simulation_context(
             sim_cfg.device = device
 
         if visualizers:
-            from ..app.sim_launcher import _parse_visualizer_csv  # noqa: PLC0415
+            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
 
-            get_settings_manager().set("/isaaclab/visualizer/types", " ".join(_parse_visualizer_csv(visualizers) or ()))
+            sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+                sim_cfg.visualizer_cfgs, _parse_visualizer_csv(visualizers)
+            )
 
         sim = SimulationContext(sim_cfg)
 

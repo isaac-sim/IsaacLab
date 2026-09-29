@@ -238,22 +238,13 @@ def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch
     assert args.device == "cuda:1"
 
 
-@pytest.mark.parametrize(
-    ("cli_device", "expected_device", "policy"),
-    [
-        # a task-required device is not replaced with the CLI default
-        (None, "cpu", "zero"),
-        # an explicit CLI device overrides the task default
-        ("cuda:1", "cuda:1", "random"),
-    ],
-)
-def test_simple_agents_resolve_simulation_device(
+@pytest.mark.parametrize(("cli_device", "policy"), [(None, "zero"), ("cuda:1", "random")])
+def test_simple_agents_leave_the_device_to_the_launch(
     cli_device: str | None,
-    expected_device: str,
     policy: simple_agents.PolicyName,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checkpoint-free agents keep the task device unless the CLI selects one."""
+    """Checkpoint-free agents pass the CLI device, or None to keep the task's, to the launch that resolves it."""
 
     class _ExpectedStop(Exception):
         pass
@@ -273,8 +264,8 @@ def test_simple_agents_resolve_simulation_device(
     )
 
     def launch_simulation(cfg, launcher_args):
-        assert cfg.sim.device == expected_device
-        assert launcher_args.device == expected_device
+        assert cfg.sim.device == "cpu"
+        assert launcher_args.device == cli_device
         raise _ExpectedStop
 
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)

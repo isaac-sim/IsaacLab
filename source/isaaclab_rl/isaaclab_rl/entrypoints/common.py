@@ -28,7 +28,7 @@ import torch
 import warp as wp
 from PIL import Image
 
-from isaaclab.app import LoadingScreen, scan
+from isaaclab.app import LoadingScreen
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -44,8 +44,8 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 
 _MISSING = object()
-_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
-_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
+_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx"}
+_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer"}
 # streaming visualizers do not expose a local frame-capture API
 _NO_CAPTURE_VISUALIZERS = frozenset({"rerun", "viser"})
 
@@ -297,22 +297,18 @@ Environment configuration.
 """
 
 
-def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_device: bool = True) -> None:
+def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     """Apply the common environment overrides from the command line.
 
-    Every override is read with a default so parsers that omit an argument are supported.
+    Every override is read with a default so parsers that omit an argument are supported. The
+    ``--device`` override is applied by :func:`~isaaclab.app.launch_simulation`.
 
     Args:
         args_cli: Parsed command-line arguments.
         env_cfg: Isaac Lab environment config.
-        apply_device: Whether to apply the ``--device`` override for non-distributed runs.
     """
     if getattr(args_cli, "num_envs", None) is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
-    if apply_device and not getattr(args_cli, "distributed", False):
-        device = getattr(args_cli, "device", None)
-        if device is not None:
-            env_cfg.sim.device = device
     if getattr(args_cli, "disable_fabric", False):
         env_cfg.sim.use_fabric = False
     if getattr(args_cli, "export_io_descriptors", False):
@@ -418,55 +414,33 @@ def show_run_summary(
     library: str,
     action: str,
 ) -> None:
-    """Print a summary of the backends and scale a run is about to use.
+    """Print a summary of the backends and scale a run uses.
 
-    Every row names the backend that will run. An automatic launcher choice is shown as
-    ``<automatic> (<concrete>)``.
-
-    Resolving automatic backend configurations mutates *env_cfg* in place, exactly as the following
-    :func:`~isaaclab.app.launch_simulation` call would; call this after every other pre-launch
-    config change, in particular :func:`pre_launch_video_config`.
+    Call this inside :func:`~isaaclab.app.launch_simulation`, which resolves the backends, visualizers,
+    and device into *env_cfg*.
 
     Args:
         screen: Loading screen that owns the console.
         args_cli: Parsed command-line arguments.
-        env_cfg: Concrete Isaac Lab environment config.
+        env_cfg: Isaac Lab environment config resolved by the launch.
         library: Reinforcement learning library running the workflow.
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
-    device = getattr(args_cli, "device", None) or env_cfg.sim.device
-    num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
-
-    # read the names before the scan resolves the automatic selectors so a row can report the
-    # family the run asked for next to the backend that family resolved to
-    requested_physics = _physics_backend_name(env_cfg.sim.physics)
-    requested_renderer = _renderer_name(env_cfg)
-    scan(env_cfg, args_cli)
-    physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
-
+    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
     screen.summary(
         f"Isaac Lab · {action}",
         {
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _backend_label(requested_physics, physics),
-            "Renderer": (
-                "n/a (no camera sensors)"
-                if renderer is None
-                else _backend_label(requested_renderer or renderer, renderer)
-            ),
-            "Visualizer": _visualizer_name(args_cli, env_cfg),
-            "Device": str(device),
-            "Environments": str(num_envs),
+            "Physics": _physics_backend_name(env_cfg.sim.physics),
+            "Renderer": "n/a (no camera sensors)" if renderer is None else renderer,
+            "Visualizer": ", ".join(visualizers) or "none (headless)",
+            "Device": env_cfg.sim.device,
+            "Environments": str(getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs),
         },
     )
-
-
-def _backend_label(requested: str, concrete: str) -> str:
-    """Return the concrete backend name, prefixed by its automatic selector when they differ."""
-    return concrete if requested == concrete else f"{requested} ({concrete})"
 
 
 def _workflow_name(env_cfg: Any) -> str:
@@ -504,19 +478,6 @@ def _renderer_name(env_cfg: Any) -> str | None:
             if isinstance(renderer_cfg, RendererCfg):
                 return _RENDERER_BACKEND_NAMES.get(renderer_cfg.renderer_type, renderer_cfg.renderer_type)
     return None
-
-
-def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
-    """Return the visualizers selected on the command line or by *env_cfg*."""
-    selected = getattr(args_cli, "visualizer", None)
-    if isinstance(selected, str):
-        selected = selected.split(",")
-    if not selected:
-        visualizer_cfgs = env_cfg.sim.visualizer_cfgs
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
-        selected = [cfg.visualizer_type for cfg in visualizer_cfgs if cfg is not None]
-    return ", ".join(str(name).strip() for name in selected) if selected else "none (headless)"
 
 
 """

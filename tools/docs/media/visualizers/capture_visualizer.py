@@ -870,8 +870,8 @@ def _run_combined_capture(args: argparse.Namespace) -> None:
         args.task,
         "--checkpoint",
         "pretrained",
-        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: SimulationContext
-        # ._resolve_visualizer_cfgs() filters to only the CLI-requested types otherwise.
+        # Must list all 3 types env_cfg.sim.visualizer_cfgs attaches: launch_simulation
+        # keeps only the CLI-requested types otherwise.
         "--num_envs",
         "1",
         "--viz",

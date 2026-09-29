@@ -72,8 +72,6 @@ def run(argv: list[str] | None = None, *, policy: PolicyName) -> None:
 
     env_cfg, _ = resolve_task_config(args_cli.task, "")
     apply_env_overrides(args_cli, env_cfg)
-    # pass the resolved task device through to the launcher
-    args_cli.device = env_cfg.sim.device
     # configure recorders before validation so invalid clip settings fail before the launch
     log_dir = os.path.abspath(os.path.join("logs", f"{policy}_agent", normalize_task_name(args_cli.task)))
     apply_video_recording(env_cfg, log_dir, args_cli, subdir="play")

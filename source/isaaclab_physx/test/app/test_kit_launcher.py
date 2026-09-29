@@ -716,23 +716,15 @@ def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch)
     sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
 
     assert settings.values == {
-        "/isaaclab/visualizer/types": "viser rerun",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
+        "/isaaclab/visualizer/types": "viser,rerun",
         "/isaaclab/visualizer/max_visible_envs": 0,
     }
+    assert sim_launcher._parse_visualizer_csv(settings.values["/isaaclab/visualizer/types"]) == ["viser", "rerun"]
 
 
-def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def _unexpected_settings_manager():
-        raise AssertionError("settings manager should not be queried for invalid values")
-
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", _unexpected_settings_manager)
-
+def test_normalize_launcher_args_rejects_negative_max_visible_envs():
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
+        _normalize_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():

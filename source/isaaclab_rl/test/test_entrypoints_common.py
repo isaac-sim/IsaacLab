@@ -257,11 +257,11 @@ class _RecordingScreen:
 @pytest.mark.parametrize(
     "selectors, expected_physics, expected_renderer",
     [
-        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "rtx (ovrtx)"),
-        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "rtx (isaacsim_rtx)"),
-        (["physics=physx", "renderer=rtx"], "physx (ovphysx)", "rtx (ovrtx)"),
+        (["physics=ovphysx", "renderer=rtx"], "ovphysx", "ovrtx"),
+        (["physics=isaacsim_physx", "renderer=rtx"], "isaacsim_physx", "isaacsim_rtx"),
+        (["physics=physx", "renderer=rtx"], "ovphysx", "ovrtx"),
         ([], "newton_mjwarp", "newton_renderer"),
-        (["physics=physx", "presets=depth"], "physx (ovphysx)", "newton_renderer"),
+        (["physics=physx", "presets=depth"], "ovphysx", "newton_renderer"),
     ],
 )
 def test_run_summary_reports_concrete_backends(
@@ -270,7 +270,9 @@ def test_run_summary_reports_concrete_backends(
     expected_renderer: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The summary reports concrete backends and launcher-owned automatic choices."""
+    """The summary reports the backends the launch resolved."""
+    from isaaclab.app import scan
+
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.utils import resolve_task_config
 
@@ -279,12 +281,34 @@ def test_run_summary_reports_concrete_backends(
     env_cfg, _ = resolve_task_config(task, "rsl_rl_cfg_entry_point")
     screen = _RecordingScreen()
     args_cli = argparse.Namespace(task=task, device=None, num_envs=None, visualizer=None)
+    # resolve the automatic selections as the launch does, without starting a runtime
+    scan(env_cfg, args_cli)
 
     rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
 
     assert screen.fields["Physics"] == expected_physics
     assert screen.fields["Renderer"] == expected_renderer
     assert "Presets" not in screen.fields
+
+
+def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> None:
+    """``--viz none`` shows no visualizer, and the device is the one the launch resolved (e.g. per rank)."""
+    from isaaclab_visualizers.kit import KitVisualizerCfg
+
+    from isaaclab.app import launch_simulation
+
+    sim_cfg = SimpleNamespace(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg()], device="cuda:0")
+    env_cfg = SimpleNamespace(sim=sim_cfg, scene=SimpleNamespace(num_envs=4))
+    args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=["none"])
+    screen = _RecordingScreen()
+
+    with launch_simulation(env_cfg, args_cli):
+        # stands in for a distributed rank, whose device the launch resolves after parsing
+        sim_cfg.device = "cuda:1"
+        rl_common.show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
+
+    assert screen.fields["Visualizer"] == "none (headless)"
+    assert screen.fields["Device"] == "cuda:1"
 
 
 def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -300,13 +324,13 @@ def test_apply_env_overrides_records_the_deterministic_request(monkeypatch: pyte
     assert env_cfg.sim.physics.deterministic is False
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=False)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert env_cfg.sim.physics.deterministic is False
     assert wp.config.deterministic == wp.DeterministicMode.NOT_GUARANTEED
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert env_cfg.sim.physics.deterministic is True
     assert env_cfg.sim.physics.deterministic_mode == "not_guaranteed"
@@ -335,7 +359,7 @@ def test_apply_env_overrides_raises_warp_determinism_to_the_configured_mode(
     env_cfg = ManagerBasedRLEnvCfg(sim=SimulationCfg(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert wp.config.deterministic == getattr(wp.DeterministicMode, expected)
 
@@ -350,7 +374,7 @@ def test_apply_env_overrides_records_the_request_for_unknown_backend(monkeypatch
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=physics))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert physics.deterministic is True
 
@@ -363,6 +387,6 @@ def test_apply_env_overrides_tolerates_a_config_without_physics(monkeypatch: pyt
     env_cfg = SimpleNamespace(sim=SimpleNamespace(physics=None))
 
     args_cli = argparse.Namespace(num_envs=None, device=None, deterministic=True)
-    rl_common.apply_env_overrides(args_cli, env_cfg, apply_device=False)
+    rl_common.apply_env_overrides(args_cli, env_cfg)
 
     assert env_cfg.sim.physics is None

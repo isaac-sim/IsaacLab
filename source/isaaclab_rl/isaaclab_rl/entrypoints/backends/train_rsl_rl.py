@@ -119,9 +119,9 @@ def _run(args_cli: argparse.Namespace) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             apply_env_overrides(args_cli, env_cfg)

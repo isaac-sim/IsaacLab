@@ -33,7 +33,12 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import _VISUALIZER_ALIASES, _VISUALIZER_TYPES, VisualizerCfg
+from ..visualizers.visualizer_cfg import (
+    _VISUALIZER_ALIASES,
+    _VISUALIZER_TYPES,
+    VisualizerCfg,
+    _get_visualizer_install_hint,
+)
 from .logging_utils import apply_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -224,6 +229,9 @@ def _normalize_launcher_args(args: dict) -> None:
     livestream = int(livestream)
     if livestream not in (0, 1, 2):
         raise ValueError(f"Invalid livestream mode: {livestream}. Expected 0 (disabled), 1, or 2.")
+    max_visible_envs = args.get("max_visible_envs")
+    if max_visible_envs is not None and int(max_visible_envs) < 0:
+        raise ValueError(f"Invalid value for --max_visible_envs: {max_visible_envs}. Expected non-negative int.")
     visualizers = args.get("visualizer")
     if visualizers:
         try:
@@ -239,17 +247,65 @@ def _normalize_launcher_args(args: dict) -> None:
     args["visualizer"] = visualizers
 
 
-def _sync_visualizer_cli_settings(args: dict) -> None:
-    """Write the normalized visualizer selection and ``--max_visible_envs`` to the settings."""
-    max_visible_envs = args.get("max_visible_envs")
-    if max_visible_envs is not None and int(max_visible_envs) < 0:
-        raise ValueError(f"Invalid value for --max_visible_envs: {max_visible_envs}. Expected non-negative int.")
-    visualizers = args.get("visualizer")
+def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
+    """Construct the default config of a visualizer type, importing only its backend package."""
+    import importlib
+
+    module = {"newton_gl": "newton", "newton_rtx": "newton"}.get(visualizer_type, visualizer_type)
+    class_name = {
+        "kit": "KitVisualizerCfg",
+        "newton_gl": "NewtonGLVisualizerCfg",
+        "newton_rtx": "NewtonRTXVisualizerCfg",
+        "rerun": "RerunVisualizerCfg",
+        "viser": "ViserVisualizerCfg",
+    }[visualizer_type]
+    try:
+        return getattr(importlib.import_module(f"isaaclab_visualizers.{module}"), class_name)()
+    except ImportError as exc:
+        raise RuntimeError(
+            f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "
+            f"{_get_visualizer_install_hint(visualizer_type)}"
+        ) from exc
+
+
+def _resolve_visualizer_cfgs(
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None, visualizers: list[str] | None, max_visible_envs=None
+) -> list[VisualizerCfg]:
+    """Return the visualizers a run uses: the configured ones, narrowed by a ``--visualizer`` selection.
+
+    Args:
+        visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+        visualizers: Normalized selection (see :func:`_normalize_launcher_args`): None keeps the configured
+            visualizers, an empty list (``--viz none``) disables all, and names keep exactly those types, reusing
+            a configured visualizer of each type (with its settings) or else its default config.
+        max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
+    """
+    if visualizer_cfgs is None:
+        visualizer_cfgs = []
+    elif not isinstance(visualizer_cfgs, list):
+        visualizer_cfgs = [visualizer_cfgs]
+    if visualizers is not None:
+        visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
+        configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
+        visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
+    if max_visible_envs is not None:
+        for cfg in visualizer_cfgs:
+            cfg.max_visible_envs = int(max_visible_envs)
+    return visualizer_cfgs
+
+
+def _sync_visualizer_cli_settings(args: dict | None) -> None:
+    """Leave the visualizer selection in the settings for a :class:`~isaaclab.sim.SimulationCfg` built after launch.
+
+    A launch whose config holds no ``SimulationCfg`` (e.g. a bare physics config) cannot write the selection
+    into one, so :class:`~isaaclab.sim.SimulationContext` applies it instead. *args* is None when the launch
+    already resolved it into the config, which clears any selection left by an earlier launch.
+    """
+    visualizers = None if args is None else args.get("visualizer")
+    max_visible_envs = None if args is None else args.get("max_visible_envs")
     settings = get_settings_manager()
-    settings.set("/isaaclab/visualizer/types", " ".join(visualizers or ()))
-    settings.set("/isaaclab/visualizer/explicit", visualizers is not None)
-    settings.set("/isaaclab/visualizer/disable_all", visualizers == [])
-    # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
+    # ``none`` round-trips through ``_parse_visualizer_csv`` as ``--viz none``; empty means no selection
+    settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
 
@@ -525,8 +581,8 @@ def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
     )
 
 
-def _resolve_distributed_device(cfg, args: dict) -> None:
-    """Set ``cfg.sim.device`` and the launcher ``device`` for distributed training.
+def _resolve_distributed_device(args: dict) -> None:
+    """Set the launcher ``device`` to this rank's GPU for distributed training.
 
     When ``--distributed`` restricts each process to one GPU, ``local_rank`` may exceed
     the visible device count, so the process falls back to the one GPU it can see.
@@ -541,9 +597,6 @@ def _resolve_distributed_device(cfg, args: dict) -> None:
     # Compare against the local device count (not WORLD_SIZE) so multi-node runs work.
     device_str = f"cuda:{local_rank}" if local_rank < num_visible_gpus else "cuda:0"
 
-    sim_cfg = getattr(cfg, "sim", None)
-    if sim_cfg is not None:
-        sim_cfg.device = device_str
     args["device"] = device_str
     set_cuda_device(device_str)
     logger.info(
@@ -552,6 +605,25 @@ def _resolve_distributed_device(cfg, args: dict) -> None:
         local_rank,
         num_visible_gpus,
     )
+
+
+def _resolve_device(sim_cfg, args: dict, launchers: list[SimulationLauncher]) -> None:
+    """Write the run's device to ``sim_cfg.device`` and the ``device`` launcher argument, once.
+
+    Starts from the ``device`` launcher argument resolved before launch; a started runtime may refine it
+    (e.g. XR selects the CPU), and a bare ``"cuda"`` is pinned to the physics GPU index.
+    """
+    device = args.get("device")
+    for launcher in launchers:
+        device = launcher.device or device
+    if device == "cuda":
+        cuda_device = get_settings_manager().get("/physics/cudaDevice")
+        device = f"cuda:{max(0, int(cuda_device) if cuda_device is not None else 0)}"
+    if device is None:
+        return
+    args["device"] = device
+    if sim_cfg is not None:
+        sim_cfg.device = device
 
 
 @contextmanager
@@ -565,6 +637,10 @@ def launch_simulation(
     physics/renderer/visualizer combination, and deciding whether Isaac Sim Kit is
     needed), then starts the launcher each required runtime's config names (closed on exit) or
     does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
+
+    The run's visualizers and device are decided here, once: they are written to the
+    :class:`~isaaclab.sim.SimulationCfg` in *cfg* (``visualizer_cfgs`` and ``device``), which
+    every later consumer reads.
 
     Yields the resolved physics config, so a script can pass a bare placeholder and
     pick the backend from the command line::
@@ -616,8 +692,21 @@ def launch_simulation(
             )
             args["enable_cameras"] = True
 
-    # Resolve distributed device early, before any launcher or physics init.
-    _resolve_distributed_device(effective_cfg, args)
+    # The SimulationCfg the simulation is built from: an env config holds it in ``sim``; a physics config or
+    # None holds none.
+    sim_cfg = getattr(effective_cfg, "sim", effective_cfg if hasattr(effective_cfg, "visualizer_cfgs") else None)
+
+    # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
+    _resolve_distributed_device(args)
+    if not args.get("device") and getattr(sim_cfg, "device", None):
+        args["device"] = sim_cfg.device
+
+    # Decide the visualizers once, into the SimulationCfg.
+    has_visualizer_cfgs = hasattr(sim_cfg, "visualizer_cfgs")
+    if has_visualizer_cfgs:
+        sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+            sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs")
+        )
 
     # Start the launchers the resolved config names, plus Kit and OVRTX for needs that no config names
     # (e.g. a default-renderer camera, ``--viz kit`` or ``--viz newton_rtx``); Kit starts first.
@@ -627,13 +716,9 @@ def launch_simulation(
         # validated above: OVRTX never shares the process with Kit
         launcher_types.append(OVRTXRendererCfg.launcher_type)
     launchers = [string_to_callable(launcher_type)(args) for launcher_type in dict.fromkeys(launcher_types)]
-    for launcher in launchers:
-        # the runtime may refine the device choice made by _resolve_distributed_device
-        sim_cfg = getattr(effective_cfg, "sim", None)
-        if sim_cfg is not None and launcher.device is not None:
-            sim_cfg.device = launcher.device
     # after the launchers, so a started Kit already backs the settings
-    _sync_visualizer_cli_settings(args)
+    _resolve_device(sim_cfg, args, launchers)
+    _sync_visualizer_cli_settings(None if has_visualizer_cfgs else args)
 
     exit_code = 0
     try:
