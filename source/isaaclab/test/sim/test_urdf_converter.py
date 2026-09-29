@@ -24,6 +24,7 @@ if _USE_RUNTIME:
 
 import math
 import os
+import shutil
 import warnings
 from types import SimpleNamespace
 
@@ -126,6 +127,33 @@ def test_config_change(sim_config, tmp_path):
     lazy_urdf_converter = UrdfConverter(new_config)
     assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
     assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
+
+
+@pytest.mark.isaacsim_ci
+def test_lazy_conversion_converts_again_for_stale_record(sim_config, tmp_path):
+    """Convert again when the record comes from an earlier version or its generated file is missing.
+
+    Each new output is a numbered folder next to the earlier ones, and later lazy conversions reuse it.
+    """
+    sim, config = sim_config
+    config.usd_dir = os.path.join(str(tmp_path), "urdf_stale_record")
+    first_path = UrdfConverter(config).usd_path
+
+    # a record of an earlier version holds only the hash
+    record_path = os.path.join(config.usd_dir, ".asset_hash")
+    with open(record_path, encoding="utf-8") as f:
+        asset_hash = f.readline().strip()
+    with open(record_path, "w", encoding="utf-8") as f:
+        f.write(asset_hash)
+    second_path = UrdfConverter(config).usd_path
+    assert second_path != first_path
+    assert UrdfConverter(config).usd_path == second_path
+
+    # a missing generated file converts again, into a folder next to the first one
+    shutil.rmtree(os.path.dirname(second_path))
+    converter = UrdfConverter(config)
+    assert os.path.isfile(converter.usd_path)
+    assert os.path.dirname(os.path.dirname(converter.usd_path)) == converter.usd_dir
 
 
 @pytest.mark.isaacsim_ci

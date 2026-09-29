@@ -97,12 +97,13 @@ class AssetConverterBase(abc.ABC):
         except FileNotFoundError:
             record = []
         self._is_same_asset = len(record) == 3 and record[:2] == [self._asset_hash, requested_usd_file_name]
-        if self._is_same_asset:
-            self._usd_file_name = record[2]
-        self._usd_file_exists = os.path.isfile(self.usd_path)
+        cached_usd_file_name = record[2] if self._is_same_asset else requested_usd_file_name
+        self._usd_file_exists = os.path.isfile(os.path.join(self.usd_dir, cached_usd_file_name))
 
-        # convert the asset to USD if the hash is different or USD file does not exist
-        if cfg.force_usd_conversion or not self._usd_file_exists or not self._is_same_asset:
+        # reuse the recorded USD file, or convert the asset if the hash differs or the file does not exist
+        if self._is_same_asset and self._usd_file_exists and not cfg.force_usd_conversion:
+            self._usd_file_name = cached_usd_file_name
+        else:
             # convert the asset to USD
             self._convert_asset(cfg)
             # importers put the physics payloads behind a "Physics" variant set and disagree on
