@@ -134,6 +134,10 @@ def test_rigid_object_collection_real_ovphysx_seams(scene: _CollectionScene) -> 
 
     # The fused OVPhysX bindings are body-major; the public data is environment-major.
     cpu_env_ids, cpu_body_ids = env_ids.cpu(), body_ids.cpu()
+    raw_pose = wp.to_torch(collection.root_view.get_attribute(TT.RIGID_BODY_POSE))
+    expected_pose = initial_pose.clone()
+    expected_pose[env_ids[:, None].long(), body_ids[None, :].long()] = target_pose
+    torch.testing.assert_close(raw_pose.reshape(_NUM_BODIES, _NUM_ENVS, 7).transpose(0, 1).to(device), expected_pose)
     initial_mass = collection.data.body_mass.torch.clone()
     raw_mass_before = wp.to_torch(collection.root_view.get_attribute(TT.BODY_MASS)).reshape(3, 2).T.clone()
     masses = torch.tensor([[5.0, 6.0], [7.0, 8.0]], device=device)
