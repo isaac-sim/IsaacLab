@@ -17,6 +17,9 @@ import warp as wp  # noqa: E402
 from isaaclab_ov.assets.deformable_object.views import OvPhysxDeformableBodyView  # noqa: E402
 from ovphysx.types import TensorType  # noqa: E402
 
+pytestmark = pytest.mark.unit
+
+
 wp.init()
 wp.set_device("cpu")
 
