@@ -482,8 +482,8 @@ def test_composed_wrench_emits_deprecation_warning(deprecated_name: str, name: s
     with pytest.warns(DeprecationWarning, match=f"{deprecated_name}.*is deprecated"):
         result = getattr(composer, deprecated_name)
 
-    # Should return the same data as the new output property
-    assert np.allclose(result.warp.numpy(), getattr(composer, name).warp.numpy(), atol=1e-7)
+    # The deprecated property aliases the new output property.
+    assert result is getattr(composer, name)
     _assert_vectors(result, _grid({(1, 0): (1.0, 2.0, 3.0)}))
 
 

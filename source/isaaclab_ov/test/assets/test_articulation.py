@@ -9,14 +9,17 @@
 """Real OVPhysX articulation coverage on one module-scoped composite scene per device.
 
 Each device builds one scene of isolated articulation islands from the local branching fixture,
-resets it once, and keeps it alive for every test in the module. Each island belongs to one test
-unless noted, so the tests do not depend on each other's order. Partial writes target the last
-environment and prove the other environments keep their real backend state.
+resets it once, and keeps it alive for every test that uses it. Each island belongs to one test
+unless noted, so those tests do not depend on each other's order. Partial writes select a subset of
+environments, joints, or bodies and prove the unselected entries keep their real backend state.
 
 The CPU scene covers the host-resident property path, where CPU-only OVPhysX bindings are read and
 written directly, and the host actuator path. The CUDA scene covers the rest, including pinned-host
-staging of CPU-only bindings and the native Newton actuator path. Initialization failures need their own
-scenes, so those tests run first and build them.
+staging of CPU-only bindings and the native Newton actuator path.
+
+Initialization failures need their own scenes. A second simulation context cannot start while a shared
+scene is alive, so these tests must run before any shared-scene test in the same session; they are
+defined first and pytest runs them before it creates the module-scoped scenes.
 """
 
 from __future__ import annotations

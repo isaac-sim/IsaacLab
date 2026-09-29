@@ -48,7 +48,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 _api_backends = contract_backend("api")
 _data_backends = contract_backend("data")
 _writes_backends = contract_backend("writes")
-_index_resolution_backends = contract_backend("index_resolution")
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 
 
@@ -206,7 +205,7 @@ class TestCollectionIndexResolution:
             assert resolved.data_ptr() == cached[selection].data_ptr()
             assert resolved.stride() == cached[selection].stride()
 
-    @_index_resolution_backends
+    @_api_backends
     def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
         obj, _ = get_rigid_object_collection(backend, num_bodies=4, device="cpu")
 

@@ -9,7 +9,8 @@
 """Kitless real-Newton rigid-object coverage on one persistent two-environment scene per device.
 
 The cubes are locally spawned shapes. Scene gravity is off; a test that needs gravity applies it to every world for
-its own duration. Configurations that fail initialization and the single-instance case build their own scenes.
+its own duration. Configurations that fail initialization and the single-instance case build their own scenes. Only
+one simulation context can be alive, so those tests come first and fail if selected after a shared-scene test.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -76,6 +77,7 @@ def _cube_cfg(height: float = 1.0) -> RigidObjectCfg:
 ##
 
 
+@pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("api", ["none", "articulation"])
 def test_initialization_rejects_non_rigid_body_prims(api: str) -> None:
     """Initialization fails unless the prim path holds exactly one rigid body.
@@ -187,6 +189,7 @@ def scene(shared_scene: _Scene) -> _Scene:
     return shared_scene
 
 
+@pytest.mark.isaacsim_ci
 def test_external_force_on_single_body(scene: _Scene) -> None:
     """Test initialization and external forces on the base of the object.
 
@@ -307,6 +310,7 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
             assert torch.all(cube_object.data.root_pos_w.torch[1::2, 2] < 1.0)
 
 
+@pytest.mark.isaacsim_ci
 def test_rigid_body_set_material_properties(scene: _Scene) -> None:
     """Material randomization writes friction and restitution into the Newton model shapes of the selected envs."""
     cube_object = scene.cube
@@ -351,6 +355,7 @@ def test_rigid_body_set_material_properties(scene: _Scene) -> None:
         np.testing.assert_array_equal(restitution[shapes], original_restitution[shapes])
 
 
+@pytest.mark.isaacsim_ci
 def test_rigid_body_set_mass(scene: _Scene) -> None:
     """Test that selected mass writes update inverse mass and inertia across static transitions."""
     cube_object = scene.cube
@@ -406,6 +411,7 @@ def test_rigid_body_set_mass(scene: _Scene) -> None:
     torch.testing.assert_close(masses, cube_object.data.body_mass.torch[env_ids][:, body_ids])
 
 
+@pytest.mark.isaacsim_ci
 def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
 
@@ -458,6 +464,7 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.projected_gravity_b.torch, expected, atol=1e-5, rtol=1e-5)
 
 
+@pytest.mark.isaacsim_ci
 def test_body_root_state_properties(scene: _Scene) -> None:
     """Test the root_com_state_w, root_link_state_w, body_com_state_w, and body_link_state_w properties."""
     cube_object = scene.cube
@@ -536,6 +543,7 @@ def test_body_root_state_properties(scene: _Scene) -> None:
         torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
 
+@pytest.mark.isaacsim_ci
 def test_write_root_state(scene: _Scene) -> None:
     """Test the root state setters in the center-of-mass frame, the link frame, and the default root frames.
 
@@ -648,6 +656,7 @@ def test_write_root_state(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, written_com_vel_w, rtol=1e-1, atol=1e-1)
 
 
+@pytest.mark.isaacsim_ci
 def test_body_link_pose_w_fresh_after_root_pose_write(scene: _Scene) -> None:
     """Regression: ``body_link_pose_w`` must reflect a freshly written root pose without an intervening sim step.
 

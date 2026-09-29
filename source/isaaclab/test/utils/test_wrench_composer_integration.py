@@ -19,11 +19,12 @@ import math
 import pytest
 import torch
 import warp as wp
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObject, RigidObjectCfg
 from isaaclab.sim import build_simulation_context
-from isaaclab.test.utils import DeviceScope, test_devices
+from isaaclab.test.utils import test_devices
 
 pytestmark = pytest.mark.integration
 
@@ -37,9 +38,12 @@ def _make_cube(name: str, position: tuple[float, float, float], rotation: tuple[
     """Spawn a free, undamped unit-mass cube with a rotated initial pose."""
     spawn = sim_utils.CuboidCfg(
         size=(0.2, 0.2, 0.2),
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=True, linear_damping=0.0, angular_damping=0.0),
-        mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-        collision_props=sim_utils.CollisionPropertiesCfg(),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(disable_gravity=True, linear_damping=0.0, angular_damping=0.0),
+        ],
+        mass_props=sim_utils.MassCfg(mass=1.0),
+        collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
     )
     cfg = RigidObjectCfg(
         prim_path=f"/World/{name}", spawn=spawn, init_state=RigidObjectCfg.InitialStateCfg(pos=position, rot=rotation)
@@ -47,7 +51,7 @@ def _make_cube(name: str, position: tuple[float, float, float], rotation: tuple[
     return RigidObject(cfg=cfg)
 
 
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 def test_composed_wrenches_reach_physx_in_the_frame_they_are_delivered(device: str) -> None:
     """Match raw PhysX for a world force at an offset, and world-frame physics for a world wrench at the CoM."""
     with build_simulation_context(

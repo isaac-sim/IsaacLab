@@ -139,7 +139,7 @@ def test_initialization_on_device_cpu() -> None:
         # Check that the framework doesn't hold excessive strong references.
         assert sys.getrefcount(deformable) < 10
 
-        with pytest.raises(RuntimeError):
+        with pytest.raises(RuntimeError, match="Failed to create deformable body at"):
             sim.reset()
 
 
@@ -176,6 +176,7 @@ def deformable_scene(request) -> Iterator[_DeformableScene]:
         yield _DeformableScene(sim=sim, device=device, volume=volume, surface=surface, refcounts=refcounts)
 
 
+@pytest.mark.isaacsim_ci
 def test_deformable_initialization(deformable_scene: _DeformableScene) -> None:
     """Resolve the volume and surface views, their materials, and their nodal buffers."""
     scene = deformable_scene
@@ -203,6 +204,7 @@ def test_deformable_initialization(deformable_scene: _DeformableScene) -> None:
         scene.surface.write_nodal_kinematic_target_to_sim_index(dummy_targets)
 
 
+@pytest.mark.isaacsim_ci
 def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene) -> None:
     """Partial nodal state writes reach only the selected environment of each real view."""
     scene = deformable_scene
@@ -238,9 +240,11 @@ def test_deformable_nodal_state_writes(deformable_scene: _DeformableScene) -> No
     nodal_state[..., :3] = nodal_pos
     nodal_state[..., 3:] = 0.0
     volume.write_nodal_state_to_sim_index(nodal_state)
-    torch.testing.assert_close(volume.data.root_pos_w.torch, nodal_pos.mean(dim=1))
+    raw_nodal_pos = wp.to_torch(volume.root_view.get_simulation_nodal_positions()).to(device)
+    torch.testing.assert_close(raw_nodal_pos.reshape(nodal_pos.shape), nodal_pos)
 
 
+@pytest.mark.isaacsim_ci
 def test_volume_kinematic_targets_hold_selected_nodes(deformable_scene: _DeformableScene) -> None:
     """Kinematic targets of environment 0 hold its nodes while environment 1 keeps moving freely."""
     scene = deformable_scene

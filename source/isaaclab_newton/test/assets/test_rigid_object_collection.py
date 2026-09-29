@@ -11,7 +11,8 @@
 Every environment holds three locally spawned cubes in the collection and an unrelated rigid body beside them,
 so the collection view must select exactly its configured bodies. Scene gravity is off; a test that needs gravity
 applies it to every world for its own duration. Configurations that fail initialization and the single-instance
-case build their own scenes.
+case build their own scenes. Only one simulation context can be alive, so those tests come first and fail if
+selected after a shared-scene test.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -147,7 +148,7 @@ class _Scene:
             self.collection.update(self.sim.cfg.dt)
 
     def rest(self) -> None:
-        """Put the cubes at rest at their configured poses."""
+        """Put the cubes and the sibling body at rest at their configured poses."""
         body_pose = self.collection.data.default_body_pose.torch.clone()
         body_pose[..., :3] += self.origins.unsqueeze(1)
         self.collection.write_body_link_pose_to_sim_index(body_poses=body_pose)
@@ -155,6 +156,13 @@ class _Scene:
             body_velocities=torch.zeros_like(self.collection.data.default_body_vel.torch)
         )
         self.collection.reset()
+        sibling_pose = self.sibling.data.default_root_pose.torch.clone()
+        sibling_pose[:, :3] += self.origins
+        self.sibling.write_root_pose_to_sim_index(root_pose=sibling_pose)
+        self.sibling.write_root_velocity_to_sim_index(
+            root_velocity=torch.zeros_like(self.sibling.data.default_root_vel.torch)
+        )
+        self.sibling.reset()
 
 
 @pytest.fixture(scope="module", params=test_devices())
@@ -368,6 +376,7 @@ def test_external_force_on_single_body(scene: _Scene) -> None:
             assert torch.all(object_collection.data.body_link_pos_w.torch[:, 1::2, 2] < 1.0)
 
 
+@pytest.mark.isaacsim_ci
 def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
 
@@ -581,6 +590,7 @@ def test_write_object_state(scene: _Scene) -> None:
         torch.testing.assert_close(cube_object.data.body_com_vel_w.torch, written_com_vel_w, rtol=1e-1, atol=1e-1)
 
 
+@pytest.mark.isaacsim_ci
 def test_body_pose_write_marks_fk_reset_mask(scene: _Scene) -> None:
     """Regression: ``write_body_{link,com}_pose_to_sim_{index,mask}`` must mark FK dirty.
 

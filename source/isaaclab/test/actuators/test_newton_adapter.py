@@ -54,7 +54,8 @@ class _PickleMarker:
         return _write_pickle_marker, (self.marker_path,)
 
 
-def _make_actuator_stage() -> Usd.Stage:
+def _make_robot_stage() -> Usd.Stage:
+    """Create a robot with one revolute joint per entry of ``_JOINT_NAMES`` and no actuators."""
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/Robot")
 
@@ -65,7 +66,11 @@ def _make_actuator_stage() -> Usd.Stage:
     joints = [UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}") for name in _JOINT_NAMES]
     for joint, body in zip(joints, bodies, strict=True):
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
+    return stage
 
+
+def _make_actuator_stage() -> Usd.Stage:
+    stage = _make_robot_stage()
     author_actuator_prims(
         stage,
         "/World/Robot",
@@ -176,6 +181,35 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
         tuple(next(c for c in actuator.clamping if type(c) is ClampingPositionBased).lookup_efforts.numpy())
         for actuator in remotized
     } == {(10.0, 20.0), (11.0, 21.0)}
+
+
+def test_is_stateful_only_with_delay_state():
+    """Report the adapter as stateful when an actuator keeps a delay buffer, and stateless otherwise."""
+    stateless_stage = _make_robot_stage()
+    author_actuator_prims(
+        stateless_stage,
+        "/World/Robot",
+        {
+            "dc": DCMotorCfg(
+                joint_names_expr=[".*"],
+                stiffness=1.0,
+                damping=0.1,
+                actuator_effort_limit=2.0,
+                actuator_velocity_limit=3.0,
+                saturation_effort=4.0,
+            )
+        },
+    )
+    for stage, expected in ((_make_actuator_stage(), True), (stateless_stage, False)):
+        adapter = NewtonActuatorAdapter.from_usd(
+            stage=stage,
+            joint_names=_JOINT_NAMES,
+            num_envs=2,
+            num_joints=len(_JOINT_NAMES),
+            device="cpu",
+            articulation_prim_path="/World/Robot",
+        )
+        assert adapter.is_stateful is expected
 
 
 @pytest.mark.parametrize(

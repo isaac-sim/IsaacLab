@@ -14,7 +14,7 @@ created, and a new simulation context would replace the composite stage.
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-from isaaclab.test.utils import DeviceScope, launch_test_simulation, test_devices
+from isaaclab.test.utils import launch_test_simulation, test_devices
 
 launch_test_simulation()
 
@@ -113,7 +113,7 @@ def sim(request) -> Iterator[SimulationContext]:
 
 
 @pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 def test_initialization_with_no_rigid_body(sim, num_cubes, device) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     object_collection, _ = generate_cubes_scene(num_cubes=num_cubes, has_api=False)
@@ -189,7 +189,7 @@ def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device
 
 @pytest.mark.parametrize("num_envs", [3])
 @pytest.mark.parametrize("num_cubes", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 def test_gravity_vec_w(sim, num_envs, num_cubes, device, gravity_enabled) -> None:
     """Test that gravity vector direction is set correctly for the rigid object."""
@@ -374,6 +374,14 @@ def test_collection_state_writes(collection_scene: _CollectionScene) -> None:
                 collection.write_body_link_velocity_to_sim_index(body_velocities=rand_state[..., 7:], **ids)
                 torch.testing.assert_close(rand_state[..., :7], collection.data.body_link_pose_w.torch)
                 torch.testing.assert_close(rand_state[..., 7:], collection.data.body_link_vel_w.torch)
+                # PhysX holds the center-of-mass velocity: the link velocity plus the angular velocity crossed
+                # with the world-frame center-of-mass offset.
+                com_offset_w = quat_apply(rand_state[..., 3:7], offset)
+                expected_com_velocity = rand_state[..., 7:].clone()
+                expected_com_velocity[..., :3] += torch.linalg.cross(rand_state[..., 10:], com_offset_w, dim=-1)
+                raw_velocity = wp.to_torch(collection.root_view.get_velocities()).to(device)
+                raw_velocity = raw_velocity.reshape(_NUM_CUBES, _NUM_ENVS, 6).transpose(0, 1)
+                torch.testing.assert_close(raw_velocity, expected_com_velocity)
             else:
                 collection.write_body_link_pose_to_sim_index(body_poses=rand_state[..., :7], **ids)
                 collection.write_body_com_velocity_to_sim_index(body_velocities=rand_state[..., 7:], **ids)
@@ -394,6 +402,8 @@ def test_collection_state_writes(collection_scene: _CollectionScene) -> None:
             torch.testing.assert_close(
                 collection.data.body_com_vel_w.torch[..., 3:], collection.data.body_link_vel_w.torch[..., 3:]
             )
+            # Move away from the written state so that the next pass writes it again.
+            scene.step()
 
     # Spinning about the center of mass keeps it in place while the link frame orbits it.
     scene.place_cubes_at_rest(_rest_poses(scene))
@@ -449,23 +459,29 @@ def test_collection_wrench_delivery_and_reset(collection_scene: _CollectionScene
     device = scene.device
     collection = scene.cubes
     rest_poses = _rest_poses(scene, yaw=0.5 * math.pi)
-    # Give every body the same inertial properties so that their responses are comparable.
-    for setter, kwarg, name in (
-        (collection.set_coms_index, "coms", "body_com_pose_b"),
-        (collection.set_inertias_index, "inertias", "body_inertia"),
-    ):
-        value = getattr(collection.data, name).torch[:1, :1]
-        setter(**{kwarg: value.expand(_NUM_ENVS, _NUM_CUBES, *value.shape[2:]).contiguous()})
+    # Give every body a 1 kg mass and the center of mass and inertia of the first body so that their responses are
+    # comparable.
+    collection.set_masses_index(masses=torch.ones((_NUM_ENVS, _NUM_CUBES), device=device))
+    coms = collection.data.body_com_pose_b.torch[:1, :1]
+    collection.set_coms_index(coms=coms.expand(_NUM_ENVS, _NUM_CUBES, 7).contiguous())
+    inertias = collection.data.body_inertia.torch[:1, :1]
+    collection.set_inertias_index(inertias=inertias.expand(_NUM_ENVS, _NUM_CUBES, 9).contiguous())
 
     # A body-frame force on bodies 0 and 2 accelerates only those bodies, along the rotated force direction; the
     # same force given in the world frame produces the same response.
     object_ids, _ = collection.find_bodies(".*")
-    for local_wrench, global_wrench, response in (
-        ({"forces": [[6.0, 0.0, 0.0]]}, {"forces": [[0.0, 6.0, 0.0]]}, "body_com_lin_vel_w"),
+    for local_wrench, global_wrench, response, is_linear in (
+        (
+            {"forces": [[6.0, 0.0, 0.0]]},
+            {"forces": [[0.0, 6.0, 0.0]]},
+            lambda: collection.data.body_com_lin_vel_w,
+            True,
+        ),
         (
             {"forces": [[0.0, 0.0, 6.0]], "positions": [[0.0, 0.1, 0.0]]},
             {"forces": [[0.0, 0.0, 6.0]], "positions": [[-0.1, 0.0, 0.0]]},
-            "body_com_ang_vel_b",
+            lambda: collection.data.body_com_ang_vel_b,
+            False,
         ),
     ):
         scene.place_cubes_at_rest(rest_poses)
@@ -478,11 +494,15 @@ def test_collection_wrench_delivery_and_reset(collection_scene: _CollectionScene
                 body_ids=object_ids[0::2], env_ids=[env_id], is_global=is_global, **wrench
             )
         scene.step()
-        response_value = getattr(collection.data, response).torch
+        response_value = response().torch
         torch.testing.assert_close(response_value[0], response_value[1], atol=1e-4, rtol=1e-3)
         torch.testing.assert_close(response_value[:, 1], torch.zeros_like(response_value[:, 1]), atol=1e-5, rtol=0)
-        if response == "body_com_lin_vel_w":
+        if is_linear:
             assert torch.all(response_value[:, 0::2, 1] > 1e-2), response_value
+            # The permanent force persists across steps, so a second step doubles the velocity.
+            first_step_value = response_value.clone()
+            scene.step()
+            torch.testing.assert_close(response().torch, 2.0 * first_step_value, atol=1e-4, rtol=1e-3)
     # An upward force 0.1 m along the body y-axis rolls the cube about its x-axis.
     assert torch.all(collection.data.body_com_ang_vel_b.torch[:, 0::2, 0] > 0.1)
     heading = quat_apply(

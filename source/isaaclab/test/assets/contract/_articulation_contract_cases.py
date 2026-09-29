@@ -47,7 +47,6 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 _api_backends = contract_backend("api")
 _data_backends = contract_backend("data")
 _writes_backends = contract_backend("writes")
-_index_resolution_backends = contract_backend("index_resolution")
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
 # One fixture with distinct instance, joint, and body counts so any swapped axis shows up.
 _NUM_INSTANCES, _NUM_JOINTS, _NUM_BODIES = 2, 6, 7
@@ -80,7 +79,7 @@ class TestArticulationIndexResolution:
             assert resolved.data_ptr() == cached[selection].data_ptr()
             assert resolved.stride() == cached[selection].stride()
 
-    @_index_resolution_backends
+    @_api_backends
     def test_resolve_joint_ids_handles_tensor_view_shape(self, backend):
         art, _ = get_articulation(backend, num_joints=4, device="cpu")
 
@@ -91,7 +90,7 @@ class TestArticulationIndexResolution:
         assert resolved_full.shape[0] == 4
         assert resolved_view.shape[0] == 2
 
-    @_index_resolution_backends
+    @_api_backends
     def test_resolve_body_ids_handles_tensor_view_shape(self, backend):
         art, _ = get_articulation(backend, num_bodies=4, device="cpu")
 
@@ -1489,7 +1488,6 @@ class TestArticulationWritersTendon:
     )
     def test_tendon_writer(
         self,
-        request,
         backend,
         device,
         selection,
@@ -1504,16 +1502,6 @@ class TestArticulationWritersTendon:
         num_spatial_tendons,
     ):
         require_backend_capability(backend, _TENDON_FAMILIES[_TENDON_PROPERTY_FAMILY[getter]][1])
-        if backend == "newton" and selection == "mask":
-            # Product bug: Newton's fixed-tendon mask setters slice full data without validating its shape, so an
-            # oversized input is silently truncated. Every assertion before the negative shape checks still runs.
-            request.applymarker(
-                pytest.mark.xfail(
-                    raises=pytest.fail.Exception,
-                    strict=True,
-                    reason="Newton fixed-tendon mask setters accept data with extra environments",
-                )
-            )
         num_tendons = num_fixed_tendons if kind == "fixed" else num_spatial_tendons
         art, _ = get_articulation(
             backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, device
@@ -1551,12 +1539,36 @@ class TestArticulationWritersTendon:
                 method(**{kwarg: 1.0})
         else:
             method(**{kwarg: 1.0})
-        # negative: bad torch shape
+
+    # Shape validation runs before any kernel launch, so one device covers it.
+    @_tendon_backends
+    @pytest.mark.parametrize("array_kind", ["torch", "warp"])
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("kind, method_base, kwarg, getter", _TENDON_METHODS, ids=[m[1] for m in _TENDON_METHODS])
+    def test_tendon_writer_rejects_extra_environments(
+        self, request, backend, selection, array_kind, kind, method_base, kwarg, getter
+    ):
+        require_backend_capability(backend, _TENDON_FAMILIES[_TENDON_PROPERTY_FAMILY[getter]][1])
+        if backend == "newton" and selection == "mask":
+            # Product bug: Newton's fixed-tendon mask setters slice full data without validating its shape, so an
+            # oversized input is silently truncated.
+            request.applymarker(
+                pytest.mark.xfail(
+                    raises=pytest.fail.Exception,
+                    strict=True,
+                    reason="Newton fixed-tendon mask setters accept data with extra environments",
+                )
+            )
+        num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons = _TENDON_DIMS[1]
+        art, _ = get_articulation(
+            backend, num_instances, num_joints, num_bodies, num_fixed_tendons, num_spatial_tendons, "cpu"
+        )
+        full_shape = (num_instances, num_fixed_tendons if kind == "fixed" else num_spatial_tendons)
+        wp_dtype = wp.vec2f if getter == "fixed_tendon_pos_limits" else wp.float32
+        make_bad_data = _make_bad_data_torch if array_kind == "torch" else _make_bad_data_warp
+
         with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_bad_data_torch(full_shape, device, wp_dtype)})
-        # negative: bad warp shape
-        with pytest.raises((AssertionError, RuntimeError)):
-            method(**{kwarg: _make_bad_data_warp(full_shape, device, wp_dtype)})
+            getattr(art, f"{method_base}_{selection}")(**{kwarg: make_bad_data(full_shape, "cpu", wp_dtype)})
 
     @_tendon_backends
     @_devices
