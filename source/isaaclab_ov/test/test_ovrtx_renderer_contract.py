@@ -247,19 +247,22 @@ def test_ovrtx_render_batch_empty_sequence_does_not_require_initialized_backend(
 
 @pytest.mark.integration
 @pytest.mark.rendering
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, tmp_path):
-    """Check independent camera batches and save RGB/depth frames under pytest's temporary directory.
-
-    Use ``--basetemp=/tmp/ovrtx-camera-frames`` to choose where pytest writes the captures.
-    Depth PNGs use a shared 0-8 m range (near is white); NPY files retain the raw depths [m].
-    """
-    from PIL import Image
-
+@pytest.mark.parametrize(
+    "use_ovstage, asynchronous, geometry",
+    [
+        (False, False, "rigid"),
+        (True, False, "rigid"),
+        *[(False, True, kind) for kind in ("mesh", "particles", "cable")],
+    ],
+    ids=["legacy", "ovstage", "async-mesh", "async-particles", "async-cable"],
+)
+def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstage, asynchronous, geometry):
+    """Cameras preserve independent captures, GPU input lifetimes, and reset/cleanup boundaries."""
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.cloner import make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
 
@@ -273,23 +276,52 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     if not use_ovstage:
         UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    batches, initial_points = [], []
     for index, x in enumerate((0.0, 2.0)):
         camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
         camera.CreateProjectionAttr("orthographic")
         camera.CreateHorizontalApertureAttr(20.0)
         camera.CreateVerticalApertureAttr(20.0)
         camera.AddTranslateOp().Set(Gf.Vec3d(x, 0, 5))
-        cube = UsdGeom.Cube.Define(stage, f"/World/envs/env_0/cube{index}")
-        cube.CreateSizeAttr(1.0)
-        cube.CreateDisplayColorAttr([(0.8, 0.1, 0.1) if index == 0 else (0.1, 0.8, 0.1)])
-        cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
+        path = f"/World/envs/env_0/object{index}"
+        if geometry == "rigid":
+            cube = UsdGeom.Cube.Define(stage, path)
+            cube.CreateSizeAttr(1.0)
+            cube.CreateDisplayColorAttr([(0.8, 0.1, 0.1) if index == 0 else (0.1, 0.8, 0.1)])
+            cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
+            continue
+        if geometry == "mesh":
+            prim = UsdGeom.Mesh.Define(stage, path)
+            prim.CreateFaceVertexCountsAttr([4])
+            prim.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+            vertices = [(x + dx, dy, index + 0.5) for dx, dy in ((-0.5, -0.5), (0.5, -0.5), (0.5, 0.5), (-0.5, 0.5))]
+        elif geometry == "particles":
+            prim = UsdGeom.Points.Define(stage, path)
+            prim.CreateWidthsAttr([1.0])
+            vertices = [(x, 0, index)]
+        else:
+            prim = UsdGeom.BasisCurves.Define(stage, path)
+            prim.CreateTypeAttr("linear")
+            prim.CreateWrapAttr("nonperiodic")
+            prim.CreateCurveVertexCountsAttr([3])
+            prim.CreateWidthsAttr([1.0])
+            prim.SetWidthsInterpolation("constant")
+            vertices = [(x, y, index) for y in (-0.5, 0, 0.5)]
+        prim.CreatePointsAttr(vertices)
+        initial_points.append(np.asarray(vertices, dtype=np.float32))
+        source = SceneDataFormat.Points()
+        source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
+        batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
 
-    renderer = OVRTXRenderer(OVRTXRendererCfg())
+    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=asynchronous))
+    publication = types.SimpleNamespace(
+        transform_paths=[], geometry_timestamp=0, get_geometry_batches=lambda _format: batches
+    )
+    renderer._sdp = SceneDataProvider(publication)
     renderer._exported_usd_string = stage.ExportToString()
-    plan = make_clone_plan(
+    renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
     )
-    renderer._clone_plan = plan
     cameras = []
 
     def camera_scope_exists(rd):
@@ -302,16 +334,8 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
                 return query.result().total_prim_count > 0
         return any(path.startswith(scope) for path in renderer.backend.renderer.query_prims())
 
-    def check_depth(rd, data, expected, label):
+    def check_depth(rd, data, expected):
         depth = data.output["distance_to_image_plane"].torch
-        for env_id in range(rd.num_envs):
-            prefix = tmp_path / f"{label}_env{env_id}"
-            rgb = data.output["rgb"].torch[env_id].cpu().numpy()
-            depth_m = depth[env_id, ..., 0].cpu().numpy()
-            Image.fromarray(rgb).save(f"{prefix}_rgb.png")
-            np.save(f"{prefix}_depth.npy", depth_m)
-            preview = ((1.0 - np.clip(depth_m / 8.0, 0.0, 1.0)) * 255).astype(np.uint8)
-            Image.fromarray(preview).save(f"{prefix}_depth.png")
         assert depth.shape == (2, rd.height, rd.width, 1)
         torch.testing.assert_close(
             depth[:, rd.height // 2, rd.width // 2, 0],
@@ -345,8 +369,10 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
             renderer.set_outputs(rd, data.output)
             cameras.append((rd, data))
             # Register the next camera after rendering has already started.
+            renderer.update_geometries()
             renderer.render(rd)
-            check_depth(rd, data, 5.0 - index - 0.5, f"initial_cam{index}")
+            renderer.read_output(rd, data)
+            check_depth(rd, data, 5.0 - index - 0.5)
             if index == 1:
                 normals = data.output["normals"].torch[:, height // 2, width // 2, :3]
                 torch.testing.assert_close(
@@ -361,55 +387,61 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
         orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
         renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
         renderer.render_batch([rd for rd, _ in cameras])
-        check_depth(*cameras[0], 4.5, "after_move_cam0")
-        check_depth(*cameras[1], 5.5, "after_move_cam1")
+        for rd, data in cameras:
+            renderer.read_output(rd, data)
+        check_depth(*cameras[0], 4.5)
+        check_depth(*cameras[1], 3.5 if asynchronous else 5.5)
+
+        if asynchronous:
+            renderer.render_batch([rd for rd, _ in cameras])
+            for rd, data in cameras:
+                renderer.read_output(rd, data)
+            check_depth(*cameras[1], 5.5)
+            # Reuse camera buffers across producer streams without advancing the other camera.
+            for height in (6.0, 8.0, 9.0):
+                with wp.ScopedStream(wp.Stream("cuda:0")):
+                    positions = ProxyArray(wp.array([[0.0, 0, height]] * 2, dtype=wp.vec3f, device="cuda:0"))
+                    renderer.update_camera(cameras[0][0], positions, orientations, cameras[0][1].intrinsic_matrices)
+                    renderer.render(cameras[0][0])
+                    renderer.read_output(*cameras[0])
+                    wp.synchronize_stream()
+                check_depth(*cameras[1], 5.5)
+            check_depth(*cameras[0], 7.5)
+            renderer.reset(cameras[0][0])
+            renderer.render(cameras[0][0])
+            renderer.read_output(*cameras[0])
+            check_depth(*cameras[0], 8.5)
+            for height in (1.0, 2.0, 3.0):
+                with wp.ScopedStream(wp.Stream("cuda:0")):
+                    for (source, _), vertices in zip(batches, initial_points, strict=True):
+                        source.points.assign(vertices + (0, 0, height))
+                    publication.geometry_timestamp += 1
+                    renderer.update_geometries()
+                    # Physics may overwrite its storage immediately after SDP snapshots it.
+                    for source, _ in batches:
+                        source.points.fill_(wp.vec3f(-100))
+                    renderer.render_batch([rd for rd, _ in cameras])
+                    for rd, data in cameras:
+                        renderer.read_output(rd, data)
+                    wp.synchronize_stream()
+                check_depth(*cameras[0], 8.5 - (height - 1))
+                check_depth(*cameras[1], 5.5 - (height - 1))
+            renderer.reset(cameras[1][0], [0])
+            renderer.render(cameras[1][0])
+            renderer.read_output(*cameras[1])
+            check_depth(*cameras[1], 2.5)
         assert all(camera_scope_exists(rd) for rd, _ in cameras)
         renderer.cleanup(cameras[0][0])
         assert not camera_scope_exists(cameras[0][0])
         renderer.render(cameras[1][0])
-        check_depth(*cameras[1], 5.5, "after_cleanup_cam1")
+        renderer.read_output(*cameras[1])
+        check_depth(*cameras[1], 2.5 if asynchronous else 5.5)
         renderer.cleanup(cameras[1][0])
         renderer.cleanup(cameras[1][0])
         assert not camera_scope_exists(cameras[1][0])
     finally:
         renderer.close()
         SimulationContext.instance().close_backend(renderer.backend)
-
-
-@pytest.mark.parametrize("failure", ["render", "write"])
-def test_cleanup_completes_when_a_queued_operation_fails(monkeypatch, failure):
-    """Failed native operations must not abort the remaining release and camera bookkeeping."""
-    renderer = _make_ovrtx_renderer_without_backend()
-    renderer._render_product_paths = []
-    render_data = _make_ovrtx_camera_render_data()
-    render_data.render_product_path = "/RenderCamera_0/RenderProduct"
-    renderer._camera_render_data.append(render_data)
-    renderer._render_product_paths.append(render_data.render_product_path)
-
-    class _FailingOp:
-        def wait(self):
-            raise RuntimeError("device lost")
-
-    released = MagicMock()
-    render_data.resources.callback(released)
-    if failure == "render":
-        render_data.pending = (_FailingOp(), {})
-    else:
-        render_data.camera_writes = _AsyncWriteBuffers((object(), object()))
-        binding = MagicMock()
-        binding.write_async.side_effect = [MagicMock(), _FailingOp()]
-        stream = types.SimpleNamespace(cuda_stream=0)
-        operations = [render_data.camera_writes.submit(binding, object(), stream) for _ in range(2)]
-        monkeypatch.setattr(wp, "synchronize_stream", lambda _stream: None)
-    with pytest.raises(ExceptionGroup if failure == "render" else RuntimeError):
-        renderer.cleanup(render_data)
-
-    released.assert_called_once_with()
-    if failure == "write":
-        operations[0].wait.assert_called_once_with()
-    assert render_data not in renderer._camera_render_data
-    assert render_data.render_product_path not in renderer._render_product_paths
-    assert render_data.pending is render_data.ready is None
 
 
 @pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
@@ -497,195 +529,6 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
     renderer.cleanup(cameras[1])
     assert all(operation.wait.called for operation in operations)
     assert renderer._camera_render_data == []
-
-
-@pytest.mark.integration
-@pytest.mark.rendering
-@pytest.mark.parametrize(
-    "geometry, batch",
-    [("rigid", False), ("rigid", True), ("mesh", False), ("particles", True), ("cable", True)],
-    ids=["rigid-lazy", "rigid-batched", "mesh-lazy", "particles-batched", "cable-batched"],
-)
-def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch, geometry):
-    """Two asynchronous cameras keep their own capture cadence, input buffers and reset boundary."""
-    from pxr import Gf, Usd, UsdGeom, UsdLux
-
-    from isaaclab.assets import AssetBaseCfg
-    from isaaclab.cloner import make_clone_plan
-    from isaaclab.renderers.camera_render_spec import CameraRenderSpec
-    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-    from isaaclab.utils.math import convert_camera_frame_orientation_convention
-    from isaaclab.utils.warp import ProxyArray
-
-    if not torch.cuda.is_available():
-        pytest.skip("OVRTX rendering requires CUDA")
-    monkeypatch.setenv("ISAAC_LAB_OVRTX_USE_OVSTAGE", "0")
-    stage = Usd.Stage.CreateInMemory()
-    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
-    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
-    UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
-    UsdGeom.Xform.Define(stage, "/World/envs/env_0")
-    UsdGeom.Xform.Define(stage, "/World/envs/env_1")
-    batches, initial_points = [], []
-    for index, x in enumerate((0.0, 2.0)):
-        camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
-        camera.CreateProjectionAttr("orthographic")
-        camera.CreateHorizontalApertureAttr(20.0)
-        camera.CreateVerticalApertureAttr(20.0)
-        camera.AddTranslateOp().Set(Gf.Vec3d(x, 0, 5))
-        path = f"/World/envs/env_0/object{index}"
-        if geometry == "rigid":
-            cube = UsdGeom.Cube.Define(stage, path)
-            cube.CreateSizeAttr(1.0)
-            cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
-            continue
-        if geometry == "mesh":
-            prim = UsdGeom.Mesh.Define(stage, path)
-            prim.CreateFaceVertexCountsAttr([4])
-            prim.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
-            vertices = [
-                (x - 0.5, -0.5, index + 0.5),
-                (x + 0.5, -0.5, index + 0.5),
-                (x + 0.5, 0.5, index + 0.5),
-                (x - 0.5, 0.5, index + 0.5),
-            ]
-        elif geometry == "particles":
-            prim = UsdGeom.Points.Define(stage, path)
-            prim.CreateWidthsAttr([1.0])
-            vertices = [(x, 0, index)]
-        else:
-            prim = UsdGeom.BasisCurves.Define(stage, path)
-            prim.CreateTypeAttr("linear")
-            prim.CreateWrapAttr("nonperiodic")
-            prim.CreateCurveVertexCountsAttr([3])
-            prim.CreateWidthsAttr([1.0])
-            prim.SetWidthsInterpolation("constant")
-            vertices = [(x, -0.5, index), (x, 0, index), (x, 0.5, index)]
-        prim.CreatePointsAttr(vertices)
-        initial_points.append(np.asarray(vertices, dtype=np.float32))
-        source = SceneDataFormat.Points()
-        source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
-        batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
-
-    renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=True))
-    publication = types.SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _format: batches)
-    renderer._sdp = SceneDataProvider(publication)
-    publication.transform_paths = []
-    renderer._exported_usd_string = stage.ExportToString()
-    renderer._clone_plan = make_clone_plan(
-        (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
-    )
-
-    def center_depth(rd, data):
-        return data.output["distance_to_image_plane"].torch[:, rd.height // 2, rd.width // 2, 0]
-
-    def assert_depth(rd, data, expected):
-        torch.testing.assert_close(
-            center_depth(rd, data), torch.full((2,), expected, device="cuda:0"), atol=0.02, rtol=0
-        )
-
-    cameras = []
-    try:
-        for index in range(2):
-            cfg = _make_camera_cfg(["rgb", "distance_to_image_plane"])
-            cfg.height, cfg.width = 480, 640
-            spec = CameraRenderSpec(
-                cfg=cfg,
-                device="cuda:0",
-                num_instances=2,
-                camera_prim_paths=tuple(f"/World/envs/env_{i}/cam{index}" for i in range(2)),
-                view_count=2,
-            )
-            rd = renderer.create_render_data(spec)
-            data = CameraData.allocate(
-                data_types=cfg.data_types,
-                height=cfg.height,
-                width=cfg.width,
-                num_views=2,
-                device="cuda:0",
-                supported_specs=renderer.supported_output_types(),
-            )
-            renderer.set_outputs(rd, data.output)
-            cameras.append((rd, data))
-
-        renderer.update_geometries()
-        # Each camera's first frame is primed, so the first read is already valid and independent.
-        for index, (rd, data) in enumerate(cameras):
-            renderer.render(rd)
-            renderer.read_output(rd, data)
-            assert_depth(rd, data, 5.0 - index - 0.5)
-
-        # Move cam1 up. Each camera returns its own previous capture, independent of call order.
-        quats = convert_camera_frame_orientation_convention(
-            torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
-        )
-        orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
-        poses = [
-            ProxyArray(wp.array([[0.0, 0, 5]] * 2, dtype=wp.vec3f, device="cuda:0")),
-            ProxyArray(wp.array([[2.0, 0, 7]] * 2, dtype=wp.vec3f, device="cuda:0")),
-        ]
-
-        def step():
-            for (rd, data), positions in zip(cameras, poses):
-                renderer.update_camera(rd, positions, orientations, data.intrinsic_matrices)
-                if not batch:
-                    renderer.render(rd)
-            if batch:
-                renderer.render_batch([rd for rd, _ in cameras])
-            for rd, data in cameras:
-                renderer.read_output(rd, data)
-
-        step()
-        assert_depth(*cameras[0], 4.5)
-        assert_depth(*cameras[1], 3.5)
-
-        # The next capture exposes the moved view.
-        step()
-        assert_depth(*cameras[0], 4.5)
-        assert_depth(*cameras[1], 5.5)
-
-        # Reuse the two camera input slots repeatedly across captures.
-        # A producer-stream switch must also preserve the previous write's borrowed inputs.
-        for height in (6.0, 8.0, 9.0):
-            with wp.ScopedStream(wp.Stream("cuda:0")):
-                poses[0] = ProxyArray(wp.array([[0.0, 0, height]] * 2, dtype=wp.vec3f, device="cuda:0"))
-                renderer.update_camera(cameras[0][0], poses[0], orientations, cameras[0][1].intrinsic_matrices)
-                renderer.render(cameras[0][0])
-                renderer.read_output(*cameras[0])
-                wp.synchronize_stream()
-            assert_depth(*cameras[1], 5.5)
-        assert_depth(*cameras[0], 7.5)
-        renderer.reset(cameras[0][0])
-        renderer.render(cameras[0][0])
-        renderer.read_output(*cameras[0])
-        assert_depth(*cameras[0], 8.5)
-        if batches:
-            for height in (1.0, 2.0, 3.0):
-                with wp.ScopedStream(wp.Stream("cuda:0")):
-                    for (source, _), vertices in zip(batches, initial_points, strict=True):
-                        source.points.assign(vertices + (0, 0, height))
-                    publication.geometry_timestamp += 1
-                    renderer.update_geometries()
-                    # Physics can immediately reuse its live storage while OVRTX reads its snapshot.
-                    for source, _ in batches:
-                        source.points.fill_(wp.vec3f(-100))
-                    step()
-                    wp.synchronize_stream()
-                assert_depth(*cameras[0], 8.5 - (height - 1))
-                assert_depth(*cameras[1], 5.5 - (height - 1))
-            renderer.reset(cameras[1][0], [0])
-            renderer.render(cameras[1][0])
-            renderer.read_output(*cameras[1])
-            assert_depth(*cameras[1], 2.5)
-        renderer.cleanup(cameras[0][0])
-        renderer.render(cameras[1][0])
-        renderer.read_output(*cameras[1])
-        assert_depth(*cameras[1], 2.5 if batches else 5.5)
-    finally:
-        try:
-            renderer.close()
-        finally:
-            SimulationContext.instance().close_backend(renderer.backend)
 
 
 def test_ovrtx_set_outputs_wraps_caller_torch_zero_copy():
@@ -1017,10 +860,13 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
     assert render_var.ordering == [expected]
 
 
-@pytest.mark.parametrize("cleanup_directly", [False, True])
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use_ovstage):
-    """Release one camera's pose and calibration resources once, keeping other cameras usable."""
+@pytest.mark.parametrize(
+    "use_ovstage, cleanup_directly, failure",
+    [(stage, direct, None) for stage in (False, True) for direct in (False, True)]
+    + [(False, False, "render"), (False, False, "write")],
+)
+def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_directly, use_ovstage, failure):
+    """Release only the given camera, even if its pending native operations fail."""
     events = []
     renderer = (
         _make_ovstage_renderer_with_backend(events) if use_ovstage else _make_legacy_renderer_with_backend(events)
@@ -1043,6 +889,24 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use
         render_data.intrinsic_bindings = [_RecordingBinding(events, "intrinsics")]
         render_data.resources.callback(render_data.intrinsic_bindings[0].unbind)
 
+    operations = [MagicMock(), MagicMock()]
+    operations[-1].wait.side_effect = RuntimeError("device lost")
+    if failure == "render":
+        render_data.pending = (operations[-1], {})
+    elif failure == "write":
+        render_data.camera_writes = _AsyncWriteBuffers((object(), object()))
+        binding = MagicMock()
+        binding.write_async.side_effect = operations
+        stream = types.SimpleNamespace(cuda_stream=0)
+        for _ in operations:
+            render_data.camera_writes.submit(binding, object(), stream)
+        monkeypatch.setattr(wp, "synchronize_stream", lambda _stream: None)
+    if failure:
+        with pytest.raises(ExceptionGroup if failure == "render" else RuntimeError):
+            renderer.cleanup(render_data)
+        if failure == "write":
+            operations[0].wait.assert_called_once_with()
+
     if cleanup_directly:
         render_data.cleanup()
     renderer.cleanup(None)
@@ -1062,6 +926,7 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(cleanup_directly, use
     assert render_data.warp_buffers == {}
     assert render_data.renderer_info == {}
     assert render_data.ppisp_pipeline is None
+    assert render_data.pending is render_data.ready is None
     assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True
 

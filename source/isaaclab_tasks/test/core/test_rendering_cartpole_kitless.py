@@ -10,7 +10,6 @@ from pathlib import Path
 import pytest
 from rendering_test_utils import (
     MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
-    _make_sensor_data_type_params,
     group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
@@ -20,28 +19,17 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-# Async variants of the synchronous combinations, so they must match the same golden images: the
-# frame of latency is absorbed by the tolerances, and the harness's warm-up frames prime the pipeline.
-# Restricted to the legacy stage path: the ovstage path renders synchronously even when async is
-# requested, so an ovstage lane here would only duplicate the synchronous ovstage coverage.
-_ASYNC_COMBINATIONS = [
-    param
-    for param in group_rendering_params(
-        make_kitless_rendering_params(
-            [
-                *_make_sensor_data_type_params("ovphysx", "ovrtx", ["rgb"]),
-                *_make_sensor_data_type_params("newton", "ovrtx", ["rgb"]),
-            ]
-        )
-    )
-    if param.values[0] == "legacy"
-]
-
 pytestmark = pytest.mark.arm_ci
 
-_RENDERING_PARAMS = group_rendering_params(
-    make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
-)
+_RENDERING_PARAMS = [
+    pytest.param(*param.values, False, marks=param.marks, id=param.id)
+    for param in group_rendering_params(
+        make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    )
+] + [
+    pytest.param("legacy", physics, "ovrtx_renderer", ["rgb"], True, id=f"legacy-{physics}-ovrtx-async")
+    for physics in ("newton", "ovphysx")
+]
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -51,16 +39,10 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_types", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+    "ovstage_variant,physics_backend,renderer,data_types,async_rendering",
+    _RENDERING_PARAMS,
+    indirect=["ovstage_variant"],
 )
-def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_types):
+def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_types, async_rendering):
     """Camera output must match golden images (Cartpole camera presets env)."""
-    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES)
-
-
-@pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_types", _ASYNC_COMBINATIONS, indirect=["ovstage_variant"]
-)
-def test_rendering_cartpole_kitless_async(ovstage_variant, physics_backend, renderer, data_types):
-    """OVRTX async-rendered camera output must match the synchronous golden images (within tolerance)."""
-    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES, async_rendering=True)
+    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES, async_rendering=async_rendering)
