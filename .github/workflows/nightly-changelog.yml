@@ -15,9 +15,9 @@
 # cron to register. See ``.github/workflows/README.md``.
 #
 # Scheduled runs combine ``env.CRON_BRANCHES`` with every remote
-# ``release/*`` branch that carries ``tools/changelog/cli.py``. This picks up
-# new compiler-enabled release branches automatically while leaving historical
-# branches that predate the fragment system untouched.
+# ``release/*`` branch that carries ``tools/changelog/towncrier.toml``. This picks
+# up release branches as they take the towncrier tooling (by backport) and
+# leaves older branches untouched.
 #
 # The push uses a short-lived GitHub App installation token minted from
 # ``CHANGELOG_APP_ID`` + ``CHANGELOG_APP_PRIVATE_KEY`` (repo secrets). The
@@ -32,7 +32,7 @@
 name: Nightly Changelog Compilation
 
 # Static branches the nightly cron compiles. The resolver also discovers every
-# remote ``release/*`` branch that carries ``tools/changelog/cli.py``. Every
+# remote ``release/*`` branch that carries ``tools/changelog/towncrier.toml``. Every
 # resolved branch must allow the isaaclab-bot App to bypass its ruleset.
 env:
   CRON_BRANCHES: develop
@@ -47,9 +47,9 @@ on:
         # Manual trigger is always a single branch. Free-text on purpose
         # — scales to any branch (e.g. a new ``release/*`` cut from
         # develop) without needing to update the workflow. A branch
-        # that lacks ``tools/changelog/cli.py`` fails the verify step
+        # that lacks ``tools/changelog/towncrier.toml`` fails the verify step
         # below with a clear error, which is the desired failure mode.
-        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/cli.py.'
+        description: 'Branch to compile (e.g. develop, release/3.0.0). Must carry tools/changelog/towncrier.toml.'
         required: true
         type: string
       dry_run:
@@ -95,10 +95,10 @@ jobs:
                 --header "Authorization: Bearer $API_TOKEN" \
                 --header 'Accept: application/vnd.github+json' \
                 --header 'X-GitHub-Api-Version: 2022-11-28' \
-                "https://api.github.com/repos/$REPOSITORY/contents/tools/changelog/cli.py?ref=$encoded_branch")
+                "https://api.github.com/repos/$REPOSITORY/contents/tools/changelog/towncrier.toml?ref=$encoded_branch")
               case "$http_status" in
                 200) branches=$(printf '%s\n%s\n' "$branches" "$branch") ;;
-                404) echo "::notice::Skipping $branch because it predates the changelog compiler." ;;
+                404) echo "::notice::Skipping $branch because it predates the towncrier changelog tooling." ;;
                 *)
                   echo "::error::GitHub Contents API returned HTTP $http_status for $branch."
                   exit 1
@@ -166,8 +166,7 @@ jobs:
           # ``isaaclab-bot`` — the bypass identity — and downstream CI
           # workflows DO trigger on the resulting commit.
           token: ${{ steps.app-token.outputs.token }}
-          # Full history for the rebase before push, and for branches whose older
-          # compiler orders fragments by merge time (``git log --first-parent``).
+          # Full history for the rebase before push.
           fetch-depth: 0
 
       - name: Verify changelog tooling exists on target branch
@@ -176,18 +175,18 @@ jobs:
         run: |
           # Loud-fail this matrix entry (not the whole run — ``fail-fast:
           # false`` keeps siblings going) when the target branch lacks
-          # ``tools/changelog/cli.py``. A red tile is the desired signal:
+          # ``tools/changelog/towncrier.toml``. A red tile is the desired signal:
           # a branch in the nightly set without the compile tooling is a
           # configuration error, not a "no-op" condition.
-          if [ ! -f tools/changelog/cli.py ]; then
-            echo "::error::Branch '$TARGET_BRANCH' is missing tools/changelog/cli.py — drop it from env.CRON_BRANCHES (or the dispatch input) or restore the tooling on that branch."
+          if [ ! -f tools/changelog/towncrier.toml ]; then
+            echo "::error::Branch '$TARGET_BRANCH' is missing tools/changelog/towncrier.toml — drop it from env.CRON_BRANCHES (or the dispatch input) or backport the tooling to that branch."
             exit 1
           fi
 
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
-          # Pinned so ``uv lock`` only rewrites package version lines; another uv
-          # release can re-serialize the whole lockfile.
+          # Keep equal to the uv in docker/Dockerfile.*: another uv release can
+          # re-serialize the whole lockfile, which ``compile`` then refuses.
           version: "0.12.9"
 
       - name: Compile fragments
@@ -200,8 +199,8 @@ jobs:
         continue-on-error: true
         # A dry run compiles in this throwaway checkout; the commit step below is skipped.
         run: |
-          python3 tools/changelog/cli.py compile --all
-          git diff --stat
+          python3 tools/changelog/cli.py compile
+          git diff HEAD --stat
 
       - name: Commit and push if fragments were compiled
         # ``always()`` lets this step run even when the compile step above
@@ -223,8 +222,7 @@ jobs:
           # them correctly. ID 282401363 is isaaclab-bot[bot]'s user ID.
           git config user.name "isaaclab-bot[bot]"
           git config user.email "282401363+isaaclab-bot[bot]@users.noreply.github.com"
-          # The checkout is fresh, so every change is compile output (incl. uv.lock).
-          git add -A
+          # ``compile`` staged exactly its outputs (fragments, CHANGELOG.rst, pyproject.toml, uv.lock).
           if git diff --staged --quiet; then
             echo "No changelog fragments found — nothing to commit."
           else

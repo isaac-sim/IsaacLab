@@ -12,7 +12,7 @@ entry. An empty ``<slug>.minor`` or ``<slug>.major`` raises the version bump abo
 Usage::
 
     cli.py check [<base-branch>] [--include-worktree]   # PR gate, run by pre-commit and CI
-    cli.py compile --all                                # nightly: bump, build CHANGELOG.rst, re-lock
+    cli.py compile                                      # nightly: bump, build CHANGELOG.rst, re-lock
 """
 
 from __future__ import annotations
@@ -24,12 +24,16 @@ import subprocess
 import sys
 from pathlib import Path
 
+import legacy
+import tomllib
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG = Path(__file__).resolve().parent / "towncrier.toml"
 TOWNCRIER = ("uvx", "--from", "towncrier==26.9.0", "towncrier")
 TYPES = ("added", "changed", "deprecated", "removed", "fixed")
 ENTRY_RE = re.compile(rf"^[^./]+\.({'|'.join(TYPES)})\.rst$")
 MARKER_RE = re.compile(r"^[^./]+\.(skip|minor|major)$")
+RELEASE_NOTES_MARKER = ".. towncrier release notes start"
 
 
 def run(*cmd: str | Path, env: dict[str, str] | None = None) -> str:
@@ -44,36 +48,41 @@ def packages() -> list[Path]:
     return sorted(changelog.parent.parent for changelog in (REPO_ROOT / "source").glob("*/docs/CHANGELOG.rst"))
 
 
-# WAR: pre-towncrier fragments ``<slug>[.minor|.major].rst`` with ``^``-underlined sections are still
-# accepted by ``check`` and split by ``compile``, so open PRs need no migration. Delete this block and
-# its two uses once no open PR carries them.
-LEGACY_RE = re.compile(r"^(?P<slug>[^./]+)(?:\.(?P<tier>minor|major))?\.rst$")
-HEADING_RE = re.compile(r"^(\S[^\n]*)\n\^+[ \t]*\n", re.MULTILINE)
-ORPHAN_RE = re.compile(r"^(?!\*|\s|$)", re.MULTILINE)
+# ---------------------------------------------------------------------------------------------------
+# check: the PR gate
+# ---------------------------------------------------------------------------------------------------
 
 
-def split_legacy(path: Path) -> dict[str, str]:
-    """Return the towncrier fragments ``{name: text}`` equivalent to a legacy fragment.
+def check_bullet_list(text: str) -> str | None:
+    """Return why a fragment body is not a ``* `` bullet list, or ``None``.
 
-    Raises:
-        ValueError: If a section is unknown, repeated, or not a ``* `` bullet list.
+    A flush-left line after a bullet ends the RST list and splits the entry.
     """
-    match = LEGACY_RE.match(path.name)
-    parts = HEADING_RE.split(path.read_text(encoding="utf-8"))
-    if parts[0].strip() or len(parts) < 3:
-        raise ValueError(f"expected sections {', '.join(t.title() for t in TYPES)} underlined with ^")
-    fragments = {f"{match['slug']}.{match['tier']}": ""} if match["tier"] else {}
-    for heading, body in zip(parts[1::2], parts[2::2]):
-        name = f"{match['slug']}.{heading.lower()}.rst"
-        if heading.lower() not in TYPES or name in fragments:
-            raise ValueError(f"unknown or repeated section {heading!r}")
-        if not re.search(r"^\s*\*", body, re.MULTILINE) or ORPHAN_RE.search(body):
-            raise ValueError(f"section {heading!r} must be a ``* `` bullet list")
-        fragments[name] = body.strip("\n") + "\n"
-    return fragments
+    if not re.search(r"^\s*\*", text, re.MULTILINE):
+        return "has no ``* `` bullet"
+    if re.search(r"^(?!\*|\s|$)", text, re.MULTILINE):
+        return "has a line that is neither a ``* `` bullet nor an indented continuation"
+    return None
 
 
-def evaluate(changed: set[str], added: set[str]) -> list[str]:
+def check_fragment(path: Path) -> list[str]:
+    """Return the errors of one added fragment, named relative to the repository."""
+    rel = path.relative_to(REPO_ROOT)
+    if MARKER_RE.match(path.name):
+        return []
+    if ENTRY_RE.match(path.name):
+        bodies = [path.read_text(encoding="utf-8")]
+    elif legacy.LEGACY_RE.match(path.name):  # WAR
+        try:
+            bodies = [text for name, text in legacy.split_legacy(path).items() if name.endswith(".rst")]
+        except ValueError as e:
+            return [f"{rel}: {e}"]
+    else:
+        return [f"{rel}: name it <slug>.<type>.rst, <slug>.skip, <slug>.minor or <slug>.major"]
+    return [f"{rel}: {error}" for body in bodies if (error := check_bullet_list(body))]
+
+
+def check_changed_packages(changed: set[str], added: set[str]) -> list[str]:
     """Return the fragment errors for a branch that changed, and newly added, the given repo paths."""
     errors = []
     for pkg in packages():
@@ -81,14 +90,7 @@ def evaluate(changed: set[str], added: set[str]) -> list[str]:
         fragment_dir = f"{rel}/changelog.d/"
         fragments = sorted(f for f in added if f.startswith(fragment_dir) and not f.endswith("/.gitkeep"))
         for fragment in fragments:
-            name = fragment.removeprefix(fragment_dir)
-            if LEGACY_RE.match(name):  # WAR
-                try:
-                    split_legacy(REPO_ROOT / fragment)
-                except ValueError as e:
-                    errors.append(f"{fragment}: {e}")
-            elif not (ENTRY_RE.match(name) or MARKER_RE.match(name)):
-                errors.append(f"{fragment}: name it <slug>.<type>.rst, <slug>.skip, <slug>.minor or <slug>.major")
+            errors += check_fragment(REPO_ROOT / fragment)
         entries = [f for f in fragments if not f.endswith((".minor", ".major"))]
         if not entries and any(f.startswith(f"{rel}/") and not f.startswith(fragment_dir) for f in changed):
             errors.append(
@@ -97,15 +99,58 @@ def evaluate(changed: set[str], added: set[str]) -> list[str]:
     return errors
 
 
+def check_markers() -> list[str]:
+    """Return an error for each ``CHANGELOG.rst`` missing the line towncrier writes new entries after."""
+    return [
+        f"{pkg.relative_to(REPO_ROOT)}/docs/CHANGELOG.rst: missing the {RELEASE_NOTES_MARKER!r} line"
+        for pkg in packages()
+        if RELEASE_NOTES_MARKER not in (pkg / "docs/CHANGELOG.rst").read_text(encoding="utf-8")
+    ]
+
+
+def check_lock_pins() -> list[str]:
+    """Return an error for each local package whose ``uv.lock`` version differs from its ``pyproject.toml``.
+
+    Only these pins are compared; the rest of ``uv.lock`` is not resolved.
+    """
+    errors = []
+    for package in tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))["package"]:
+        path = package.get("source", {}).get("editable")
+        if path:
+            project = tomllib.loads((REPO_ROOT / path / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+            if project.get("version") != package["version"]:
+                errors.append(
+                    f"uv.lock pins {package['name']} {package['version']}, but {path}/pyproject.toml is"
+                    f" {project.get('version')}; run `uv lock`"
+                )
+    return errors
+
+
 def cmd_check(args: argparse.Namespace) -> int:
     base = run("git", "merge-base", f"origin/{args.base_ref}", "HEAD").strip()
     target = [] if args.include_worktree else ["HEAD"]
     changed = run("git", "diff", "--name-only", "--no-renames", base, *target).splitlines()
     added = run("git", "diff", "--name-only", "--no-renames", "--diff-filter=A", base, *target).splitlines()
-    errors = evaluate(set(changed), set(added))
+    errors = check_changed_packages(set(changed), set(added)) + check_markers() + check_lock_pins()
     for error in errors:
         print(f"::error::{error}")
     return int(bool(errors))
+
+
+# ---------------------------------------------------------------------------------------------------
+# compile: the nightly
+# ---------------------------------------------------------------------------------------------------
+
+
+def outputs(pkg: Path) -> list[Path]:
+    """Return the paths ``compile`` may change in ``pkg``."""
+    return [pkg / "pyproject.toml", pkg / "docs/CHANGELOG.rst", pkg / "changelog.d"]
+
+
+def restore(pkg: Path) -> None:
+    """Roll ``pkg``'s compile outputs back to ``HEAD``."""
+    run("git", "checkout", "HEAD", "--", *outputs(pkg))
+    run("git", "clean", "-fdq", "--", pkg / "changelog.d")
 
 
 def compile_package(pkg: Path) -> str | None:
@@ -118,8 +163,8 @@ def compile_package(pkg: Path) -> str | None:
     if not fragments.is_dir():
         return None
     for path in sorted(fragments.glob("*.rst")):  # WAR
-        if LEGACY_RE.match(path.name):
-            for name, text in split_legacy(path).items():
+        if legacy.LEGACY_RE.match(path.name):
+            for name, text in legacy.split_legacy(path).items():
                 (fragments / name).write_text(text, encoding="utf-8")
             path.unlink()
     names = [path.name for path in fragments.iterdir()]
@@ -148,23 +193,39 @@ def sync_lock() -> None:
 
 def cmd_compile(args: argparse.Namespace) -> int:
     failed = False
+    bumped = []
     for pkg in packages():
         try:
             version = compile_package(pkg)
         except (subprocess.CalledProcessError, ValueError) as e:
             # Per-package isolation: roll this package back; the nightly commits the others.
-            run("git", "checkout", "HEAD", "--", pkg / "pyproject.toml", pkg / "docs/CHANGELOG.rst")
+            restore(pkg)
             print(f"::error::{pkg.name}: {getattr(e, 'stderr', None) or e}", file=sys.stderr)
             failed = True
         else:
             if version:
+                bumped.append(pkg)
                 print(f"{pkg.name} -> {version}")
     try:
         sync_lock()
     except (subprocess.CalledProcessError, RuntimeError) as e:
+        # Versions must not move without their lock pins, so hold every bump until the lock is fixed.
+        for pkg in bumped:
+            restore(pkg)
         print(f"::error::uv.lock: {getattr(e, 'stderr', None) or e}", file=sys.stderr)
         failed = True
+    # Stage exactly the compile outputs; anything else changed in the checkout is reported, not committed.
+    run("git", "add", "-A", "--", "uv.lock", *(path for pkg in packages() for path in outputs(pkg) if path.exists()))
+    unexpected = run("git", "ls-files", "--modified", "--others", "--exclude-standard").splitlines()
+    if unexpected:
+        print("::error::compile changed files outside its outputs:\n" + "\n".join(unexpected), file=sys.stderr)
+        failed = True
     return int(failed)
+
+
+# ---------------------------------------------------------------------------------------------------
+# Entry point
+# ---------------------------------------------------------------------------------------------------
 
 
 def main() -> None:
@@ -175,8 +236,6 @@ def main() -> None:
     check.add_argument("--include-worktree", action="store_true", help="Include uncommitted tracked changes.")
     check.set_defaults(func=cmd_check)
     compile_parser = sub.add_parser("compile", help="Bump versions, build CHANGELOG.rst entries and re-lock.")
-    # The nightly passes ``--all`` to every branch; pre-towncrier branches still require it.
-    compile_parser.add_argument("--all", action="store_true", help="Compile every package (the only mode).")
     compile_parser.set_defaults(func=cmd_compile)
     args = parser.parse_args()
     sys.exit(args.func(args))
