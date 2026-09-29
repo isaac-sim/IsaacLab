@@ -77,7 +77,8 @@ Heterogeneous cloning
 OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
 numeric environment order so indexed resets, actions and observations address
 the correct variant. Variants may differ in geometry but must preserve body,
-joint and tendon layout, validated by OVPhysX when articulation metadata is bound.
+joint and tendon layout. Isaac Lab checks prototype rotation axes and tendon layouts;
+OVPhysX checks body and joint metadata when binding articulations.
 
 The clone context compiles the plan's prototypes and world assignments once.
 The physics manager attaches one exported stage, replays the native copies, and
@@ -86,7 +87,7 @@ declarations; there is no separate consumable queue. Binding paths come from the
 plan's world layout and environment template, not from native clone order.
 
 Authored sources all receive native environment ID zero. Every world containing
-a source therefore imports all its declared assets as originals. Other worlds
+a source or USD-only physics therefore imports all its declared assets as originals. Other worlds
 clone their assets from a complete original world of the same composition,
 using one native environment ID per destination world. This keeps a robot,
 table and object able to contact one another without destination placeholders.

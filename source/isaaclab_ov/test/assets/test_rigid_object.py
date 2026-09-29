@@ -137,17 +137,16 @@ class HeterogeneousRigidSceneCfg(InteractiveSceneCfg):
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("filter_collisions", [False, True])
-@pytest.mark.parametrize("author_targets", [False, True])
-def test_heterogeneous_clone_contacts(device, filter_collisions, author_targets):
+@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd"])
+def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning):
     """Sources and clones from different variants contact their own support."""
     with _ovphysx_sim_context(device=device, dt=1.0 / 120.0) as sim:
         cfg = HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=2.0, filter_collisions=filter_collisions)
-        if author_targets:
+        if support_cloning != "native":
             cfg.clone_cfg.clone_template = "/Scenes/World_{}"
-            cfg.support.cloning_contexts = (
-                "isaaclab.cloner:UsdReplicateContext",
-                "isaaclab_ov.cloner:OvPhysxReplicateContext",
-            )
+            cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
+            if support_cloning == "usd_and_native":
+                cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
         scene = InteractiveScene(cfg)
         sim.reset()
         for _ in range(240):

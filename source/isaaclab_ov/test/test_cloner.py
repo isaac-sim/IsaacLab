@@ -263,7 +263,8 @@ def test_raw_replicate_validates_sources_and_pose_arrays():
 
 @pytest.mark.parametrize("full_stage", [False, True])
 @pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/Scenes/World_{}"])
-def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template):
+@pytest.mark.parametrize("independent_physics", [False, True])
+def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics):
     """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
     stage = Usd.Stage.CreateInMemory()
     for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
@@ -271,7 +272,16 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
         prim = stage.DefinePrim(root + "/Object", "Xform")
         prim.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
     stage.DefinePrim("/Shared/Ground", "Xform")
-    stage.DefinePrim(env_template.format(3) + "/Independent", "Xform")
+    for world in (1, 3):
+        independent = stage.DefinePrim(env_template.format(world) + "/Independent", "Xform")
+        if independent_physics:
+            UsdPhysics.RigidBodyAPI.Apply(independent)
+    assets = tuple(
+        AssetBaseCfg(prim_path=env_template.format("[^/]+") + name)
+        for name in ("/Object", "/Object", "/Support", "/Independent")
+    )
+    worlds = ((0, 2), (1, 2, 3))
+    plan = make_clone_plan(assets, worlds, 4, env_template=env_template, clone_strategy=lambda _, n: np.arange(n) % 2)
     object_paths = [env_template.format(i) + "/Object" for i in range(4)]
     recipes = [(object_paths[i], [object_paths[i], object_paths[i + 2]], [], [i, i + 2], i) for i in range(2)]
     # A target can also be inside a world which retains a different prototype.
@@ -284,7 +294,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
 
     for _ in range(2):
         layer = Sdf.Layer.CreateAnonymous("export.usda")
-        serialized, native = _serialize_stage(stage, recipes, full_stage)
+        serialized, native = _serialize_stage(stage, recipes, full_stage, plan)
         assert layer.ImportFromString(serialized)
         exported = Usd.Stage.Open(layer)
         for env_id, variant in enumerate(("cube", "sphere")):
@@ -295,7 +305,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
         assert bool(exported.GetPrimAtPath(env_template.format(2))) is full_stage
         for world, target in enumerate(targets):
             prim = exported.GetPrimAtPath(target)
-            assert bool(prim) is (full_stage or world < 2)
+            assert bool(prim) is (full_stage or world < 2 or (independent_physics and world == 3))
             if prim:
                 assert prim.GetAttribute("test:physics").Get()
         if full_stage:
@@ -307,6 +317,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
                 (env_template.format(i) + name, env_template.format(i + 2) + name, i + 2)
                 for i in range(2)
                 for name in ("/Object", "/Support")
+                if not independent_physics or i == 0
             }
         assert stage.GetRootLayer().ExportToString() == before
         assert len(recipes) == 3

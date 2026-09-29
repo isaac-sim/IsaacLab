@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
@@ -42,6 +42,37 @@ def _clone_recipes(
         if len(columns) and columns[0] != -1:
             grouped.setdefault(pair, []).append(columns)
     copies = [(pair, np.unique(np.concatenate(columns))) for pair, columns in grouped.items()]
+
+    # OVPhysX's native metatype omits effective D6 axes and tendon layout. Check only variant sources.
+    variants, layouts = {}, {}
+    for source, template in grouped:
+        variants.setdefault(template, []).append(source)
+    for sources in variants.values():
+        if len(sources) < 2:
+            continue
+        for source in sources:
+            if source not in layouts:
+                root = stage.GetPrimAtPath(source)
+                if not root:
+                    raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
+                layout = layouts[source] = {}
+                for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+                    relative = str(prim.GetPath().MakeRelativePath(root.GetPath()))
+                    if prim.GetTypeName() == "PhysicsJoint":
+                        # Native articulations always lock translation, regardless of authored limits.
+                        axes = []
+                        for axis in ("rotX", "rotY", "rotZ"):
+                            limit = UsdPhysics.LimitAPI(prim, axis)
+                            if not limit or limit.GetLowAttr().Get() <= limit.GetHighAttr().Get():
+                                axes.append(axis)
+                        layout[relative, "rotation axes"] = tuple(axes)
+                    for schema in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+                        if schema.startswith(("PhysxTendonAxisRootAPI:", "PhysxTendonAttachmentRootAPI:")):
+                            layout[relative, schema] = None
+            if layouts[source] != layouts[sources[0]]:
+                raise ValueError(
+                    f"OvPhysX variants {sources[0]!r} and {source!r} have incompatible rotation axes or tendon layouts."
+                )
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
@@ -107,7 +138,7 @@ class OvPhysxReplicateContext:
 
         Raises:
             ValueError: If positions are malformed, a source or source anchor is invalid, or variants
-                for one destination differ in body/joint topology or effective DOF axes.
+                for one destination differ in effective rotation axes or tendon layout.
         """
         sources = cloner.path.get_asset_prototype_paths(plan)
         templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
@@ -166,7 +197,7 @@ def ovphysx_replicate(
 
 
 def _serialize_stage(
-    stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool
+    stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool, plan: ClonePlan | None = None
 ) -> tuple[str, list[CloneRecipe]]:
     """Export complete original worlds once and compile copies from those originals.
 
@@ -175,8 +206,20 @@ def _serialize_stage(
     CPU and features without native cloning import every declared world instead.
     """
     # Group worlds by their declared asset memberships, not by completed-stage discovery.
+    sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     memberships = {}
     originals = {world for _, _, _, _, world in recipes if world is not None}
+    if plan is not None and not full_stage:
+        # USD-only physics keeps native ID zero, so its worlds cannot mix originals with native copies.
+        for asset, source in enumerate(cloner.path.get_asset_prototype_paths(plan)):
+            if source is None or any(Sdf.Path(source).HasPrefix(root) for root in sources):
+                continue
+            prim = stage.GetPrimAtPath(source)
+            if prim and any(
+                child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
+                for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
+            ):
+                originals.update(cloner.query.get_asset_prototype_unique_world_index(plan.topology, asset)[0])
     for index, (_, _, _, world_ids, _) in enumerate(recipes):
         for world in world_ids or ():
             memberships.setdefault(world, []).append(index)
@@ -190,7 +233,6 @@ def _serialize_stage(
     layer = stage.Flatten()
     exported = Usd.Stage.Open(layer)
     xforms = UsdGeom.XformCache()
-    sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
     native = {}
     for recipe in sorted(recipes, key=lambda recipe: recipe[0].count("/")):
         source, targets, transforms, world_ids, source_world = recipe

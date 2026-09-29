@@ -60,7 +60,7 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -301,9 +301,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("joint_type", [UsdPhysics.RevoluteJoint, UsdPhysics.PrismaticJoint])
-def test_heterogeneous_articulation_clone_indexed_state(device, joint_type, tmp_path):
-    """Native bindings validate joint layout and preserve environment-indexed state."""
+@pytest.mark.parametrize("variant", ["geometry", "joint_type", "d6_rotation", "d6_translation", "fixed_tendon"])
+def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_path):
+    """Compatible variants preserve indexed state; incompatible action/tendon layouts are rejected."""
     variants = []
     for shape in (UsdGeom.Cube, UsdGeom.Sphere):
         stage = Usd.Stage.CreateInMemory()
@@ -320,11 +320,28 @@ def test_heterogeneous_articulation_clone_indexed_state(device, joint_type, tmp_
             UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
         fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed")
         fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
-        joint_schema = UsdPhysics.RevoluteJoint if shape is UsdGeom.Cube else joint_type
+        joint_schema = UsdPhysics.RevoluteJoint
+        if variant.startswith("d6_"):
+            joint_schema = UsdPhysics.Joint
+        elif variant == "joint_type" and shape is UsdGeom.Sphere:
+            joint_schema = UsdPhysics.PrismaticJoint
         joint = joint_schema.Define(stage, "/Robot/Joint")
         joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
         joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
         joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+        if variant.startswith("d6_"):
+            free_axis = "rotY" if variant == "d6_rotation" and shape is UsdGeom.Sphere else "rotX"
+            for axis in ("transX", "transY", "transZ", "rotX", "rotY", "rotZ"):
+                if axis == free_axis or (axis == "transX" and variant == "d6_translation" and shape is UsdGeom.Sphere):
+                    continue
+                limit = UsdPhysics.LimitAPI.Apply(joint.GetPrim(), axis)
+                limit.CreateLowAttr(1.0)
+                limit.CreateHighAttr(-1.0)
+        elif variant == "fixed_tendon" and shape is UsdGeom.Sphere:
+            prim = joint.GetPrim()
+            prim.AddAppliedSchema("PhysxTendonAxisRootAPI:tendon")
+            prim.CreateAttribute("physxTendon:tendon:stiffness", Sdf.ValueTypeNames.Float).Set(123.0)
+            prim.CreateAttribute("physxTendon:tendon:gearing", Sdf.ValueTypeNames.FloatArray).Set([1.0])
         path = str(tmp_path / f"{shape.__name__}.usda")
         stage.Export(path)
         variants.append(sim_utils.UsdFileCfg(usd_path=path))
@@ -334,10 +351,14 @@ def test_heterogeneous_articulation_clone_indexed_state(device, joint_type, tmp_
         cfg.robot = ArticulationCfg(
             prim_path="{ENV_REGEX_NS}/Robot",
             spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=variants),
-            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint"], stiffness=0.0, damping=0.0)},
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint.*"], stiffness=0.0, damping=0.0)},
         )
+        if variant in ("d6_rotation", "fixed_tendon"):
+            with pytest.raises(ValueError, match="incompatible.*(rotation axes|tendon)"):
+                InteractiveScene(cfg)
+            return
         scene = InteractiveScene(cfg)
-        if joint_type is UsdPhysics.PrismaticJoint:
+        if variant == "joint_type":
             with pytest.raises(RuntimeError, match="heterogeneous or empty view"):
                 sim.reset()
             return

@@ -768,7 +768,7 @@ class OvPhysxManager(PhysicsManager):
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
         full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage)
+        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage, plan)
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend
