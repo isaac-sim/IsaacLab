@@ -69,9 +69,9 @@ from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, 
 from isaaclab_assets import ANYMAL_C_CFG, FRANKA_PANDA_FLAT_CFG, FRANKA_PANDA_FLAT_HIGH_PD_CFG  # isort:skip
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_NEWTON_CFG
 
-_FRANKA_PANDA_NEWTON_CFG = FRANKA_PANDA_FLAT_CFG.copy()
+_FRANKA_PANDA_NEWTON_CFG = clone(FRANKA_PANDA_FLAT_CFG)
 _FRANKA_PANDA_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
-_FRANKA_PANDA_HIGH_PD_NEWTON_CFG = FRANKA_PANDA_FLAT_HIGH_PD_CFG.copy()
+_FRANKA_PANDA_HIGH_PD_NEWTON_CFG = clone(FRANKA_PANDA_FLAT_HIGH_PD_CFG)
 _FRANKA_PANDA_HIGH_PD_NEWTON_CFG.spawn.variants = {"Physics": "mujoco", "Colliders": "gripper_only"}
 
 SIM_CFGs = {

@@ -9,6 +9,8 @@ Deprecated
 ^^^^^^^^^^
 
 * Deprecated ``FRANKA_PANDA_CFG``, ``FRANKA_PANDA_HIGH_PD_CFG``, and
-  ``FRANKA_PANDA_MENAGERIE_CFG``. Their previous asset and actuator contracts remained available
-  during the deprecation window. Use the corresponding ``FRANKA_PANDA_FLAT_*`` configuration to
-  migrate to the shared flat asset, and replace shoulder/forearm actuator overrides with ``panda_arm``.
+  ``FRANKA_PANDA_MENAGERIE_CFG`` for removal in Isaac Lab 4.0. The legacy Panda USD and actuator
+  groups remain available through the first two names. **Breaking:** the nested Menagerie USD moved
+  from ``franka_panda.usda`` to ``franka_panda_nestedInstance.usda``; code that reads or overrides
+  its path must use the new filename. Migrate to the corresponding ``FRANKA_PANDA_FLAT_*`` config,
+  replace shoulder/forearm actuator overrides with ``panda_arm``, and select the backend's ``Physics`` variant.

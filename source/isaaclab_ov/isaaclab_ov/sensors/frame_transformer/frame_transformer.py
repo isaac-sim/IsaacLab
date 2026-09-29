@@ -178,7 +178,6 @@ class FrameTransformer(BaseFrameTransformer):
             matches = resolve_matching_prims_from_source(
                 prim_path,
                 predicate=has_rigid_body_api,
-                expected_num_matches=1 if frame_type == "source" else None,
                 raise_if_no_matches=False,
                 prefer_direct_matches=True,
             )
@@ -186,6 +185,11 @@ class FrameTransformer(BaseFrameTransformer):
                 raise ValueError(
                     f"Failed to create frame transformer for frame '{frame}' with path '{prim_path}'."
                     " No matching rigid-body prims were found."
+                )
+            if frame_type == "source" and len(matches) != 1:
+                raise ValueError(
+                    f"Expected one source rigid-body prim for frame '{frame}' with path '{prim_path}',"
+                    f" found {len(matches)}."
                 )
             for prim, matching_prim_path in matches:
                 # Get the name of the body: use relative prim path for unique identification

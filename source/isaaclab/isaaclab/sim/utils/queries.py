@@ -471,6 +471,7 @@ def resolve_matching_prims_from_source(
                 path = prim.GetPath().pathString
                 if path == instance_root or path.startswith(instance_root + "/"):
                     results.append((prim, instance_expr + path[len(instance_root) :]))
+    direct_source_paths = {source.GetPath().pathString for source, _ in results} if prefer_direct_matches else set()
     if predicate is not None:
         # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
         unique_matches = {}
@@ -485,7 +486,7 @@ def resolve_matching_prims_from_source(
         results = list(unique_matches.values())
 
     if prefer_direct_matches:
-        direct_matches = [pair for pair in results if re.fullmatch(path_expr, pair[0].GetPath().pathString)]
+        direct_matches = [pair for pair in results if pair[0].GetPath().pathString in direct_source_paths]
         if direct_matches:
             results = direct_matches
 

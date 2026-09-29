@@ -530,7 +530,7 @@ def generate_articulation(
 
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("gravity_enabled", [False])
-def test_franka_newton_mimic_constraint_tracks_passive_finger(sim, device, gravity_enabled):
+def test_franka_ovphysx_mimic_constraint_tracks_passive_finger(sim, device, gravity_enabled):
     """Drive only the Franka leader finger and preserve mimic tracking in every clone."""
     articulation, _ = generate_articulation(FRANKA_PANDA_FLAT_CFG, 2, device)
     sim.reset()
