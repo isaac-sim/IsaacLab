@@ -204,9 +204,9 @@ class KitVisualizer(BaseVisualizer):
                     # Keep app pumping for viewport/UI updates only; physics is owned by SimulationContext.
                     # Disable playSimulations around app.update() so Kit does not advance its own physics here.
                     settings = get_settings_manager()
-                    settings.set_bool("/app/player/playSimulations", False)
+                    settings.set("/app/player/playSimulations", False)
                     app.update()
-                    settings.set_bool("/app/player/playSimulations", True)
+                    settings.set("/app/player/playSimulations", True)
                     self._app_pumped_this_step = True
             except (ImportError, AttributeError) as exc:
                 logger.debug("[KitVisualizer] App update skipped: %s", exc)
@@ -288,9 +288,9 @@ class KitVisualizer(BaseVisualizer):
         if not self._app_pumped_this_step:
             settings = get_settings_manager()
             play_flag = settings.get("/app/player/playSimulations")
-            settings.set_bool("/app/player/playSimulations", False)
+            settings.set("/app/player/playSimulations", False)
             omni.kit.app.get_app().update()
-            settings.set_bool("/app/player/playSimulations", bool(play_flag))
+            settings.set("/app/player/playSimulations", bool(play_flag))
 
         raw = self._rgb_annotator.get_data()
         if isinstance(raw, dict):
