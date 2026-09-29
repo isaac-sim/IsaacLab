@@ -6,61 +6,57 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""Shared mocked articulation backend factories for interface tests."""
+"""Shared mocked articulation backend factories for the contract tests."""
 
 from unittest.mock import MagicMock
 
-import _iface_test_boot  # noqa: F401  (starts the runtime)
-
 import numpy as np
-import torch
 import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from isaaclab.utils.wrench_composer import WrenchComposer
 
-BACKENDS: list[str] = []
-BACKEND_UNAVAILABLE_REASONS: dict[str, str] = {}
+from ._manager_patch_scope import patch_contract_manager
+from ._mock_backends import install_physx_recording_setters, patch_ovphysx_manager, patch_physx_manager
+from .capabilities import available_backends
 
-try:
+BACKENDS = available_backends()
+
+if "physx" in BACKENDS:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
-    from isaaclab_physx.physics import PhysxManager as SimulationManager
-    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
-else:
-    # PhysX data classes need gravity even though interface tests do not create a physics scene.
-    _mock_physics_sim_view = MagicMock()
-    _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
-    SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
-    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
-    BACKENDS.append("physx")
-
-try:
+if "newton" in BACKENDS:
     from isaaclab_newton.assets.articulation.articulation import Articulation as NewtonArticulation
     from isaaclab_newton.assets.articulation.articulation_data import ArticulationData as NewtonArticulationData
     from isaaclab_newton.test.fixtures.views import MockNewtonArticulationView as NewtonMockArticulationView
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["newton"] = f"{type(error).__name__}: {error}"
-else:
-    BACKENDS.append("newton")
 
-try:
-    import ovphysx  # noqa: F401
-
+if "ovphysx" in BACKENDS:
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
-    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
-except ImportError as error:
-    BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
-else:
-    # Writers bump the scene-data transform version that ``initialize()`` would normally create.
-    OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
-    BACKENDS.append("ovphysx")
+
+_PHYSX_ARTICULATION_STORAGE = {
+    "set_root_transforms": "_root_transforms",
+    "set_root_velocities": "_root_velocities",
+    "set_dof_positions": "_dof_positions",
+    "set_dof_velocities": "_dof_velocities",
+    "set_dof_position_targets": "_dof_position_targets",
+    "set_dof_velocity_targets": "_dof_velocity_targets",
+    "set_dof_actuation_forces": "_dof_actuation_forces",
+    "set_dof_limits": "_dof_limits",
+    "set_dof_stiffnesses": "_dof_stiffnesses",
+    "set_dof_dampings": "_dof_dampings",
+    "set_dof_max_forces": "_dof_max_forces",
+    "set_dof_max_velocities": "_dof_max_velocities",
+    "set_dof_armatures": "_dof_armatures",
+    "set_dof_friction_coefficients": "_dof_friction_coefficients",
+    "set_dof_friction_properties": "_dof_friction_properties",
+    "set_masses": "_masses",
+    "set_coms": "_coms",
+    "set_inertias": "_inertias",
+}
 
 
 def create_physx_articulation(
@@ -75,6 +71,7 @@ def create_physx_articulation(
     body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test Articulation instance with mocked dependencies."""
+    patch_physx_manager()
     joint_names = [f"joint_{i}" for i in range(num_joints)]
     body_names = [f"body_{i}" for i in range(num_bodies)]
     fixed_tendon_names = [f"fixed_tendon_{i}" for i in range(num_fixed_tendons)]
@@ -102,7 +99,7 @@ def create_physx_articulation(
         max_spatial_tendons=num_spatial_tendons,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    install_physx_recording_setters(mock_view, _PHYSX_ARTICULATION_STORAGE)
 
     # Set up the mock view's metatype for accessing names/counts
     mock_metatype = MagicMock()
@@ -119,7 +116,7 @@ def create_physx_articulation(
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
 
-    # Create ArticulationData instance (SimulationManager already mocked at module level)
+    # Create ArticulationData instance (the PhysX manager is patched for this test above)
     data = PhysXArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
@@ -194,7 +191,9 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_sim_env_ids_views", {})
     cpu_env_ids = wp.array(np.arange(N, dtype=np.int32), device="cpu")
     object.__setattr__(articulation, "_cpu_env_ids_all", cpu_env_ids)
-    object.__setattr__(articulation, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=True))
+    object.__setattr__(
+        articulation, "_cpu_env_ids", wp.empty(N, dtype=wp.int32, device="cpu", pinned=wp.is_cuda_available())
+    )
     object.__setattr__(articulation, "_cpu_env_ids_views", {})
     object.__setattr__(articulation, "_cpu_joint_stiffness", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
     object.__setattr__(articulation, "_cpu_joint_damping", wp.zeros((N, J), dtype=wp.float32, device="cpu"))
@@ -224,6 +223,7 @@ def create_ovphysx_articulation(
     body_ordering: tuple[str, ...] | None = None,
 ):
     """Create a test OvPhysX Articulation instance with mocked tensor bindings."""
+    patch_ovphysx_manager()
     joint_names = [f"joint_{i}" for i in range(num_joints)]
     body_names = [f"body_{i}" for i in range(num_bodies)]
 
@@ -300,8 +300,12 @@ def create_ovphysx_articulation(
     from isaaclab_ov import tensor_types as TT
 
     object.__setattr__(articulation, "_can_write_effort", articulation._get_binding(TT.DOF_ACTUATION_FORCE) is not None)
-    object.__setattr__(articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None)
-    object.__setattr__(articulation, "_can_write_vel_target", articulation._get_binding(TT.DOF_VELOCITY_TARGET) is not None)
+    object.__setattr__(
+        articulation, "_can_write_pos_target", articulation._get_binding(TT.DOF_POSITION_TARGET) is not None
+    )
+    object.__setattr__(
+        articulation, "_can_write_vel_target", articulation._get_binding(TT.DOF_VELOCITY_TARGET) is not None
+    )
 
     return articulation, mock_bindings
 
@@ -329,6 +333,7 @@ def create_newton_articulation(
         num_instances=num_instances,
         num_bodies=num_bodies,
         num_joints=num_joints,
+        num_tendons=num_fixed_tendons,
         device=device,
         is_fixed_base=is_fixed_base,
         joint_names=joint_names,
@@ -336,7 +341,16 @@ def create_newton_articulation(
         tendon_names=fixed_tendon_names,
     )
     mock_view.set_random_mock_data()
-    mock_view._noop_setters = True
+    # MuJoCo tendon properties the data binds when the articulation has fixed tendons, with distinct values.
+    tendon_shape = (num_instances, 1, num_fixed_tendons)
+    tendon_values = np.arange(1, num_instances * num_fixed_tendons + 1, dtype=np.float32).reshape(tendon_shape)
+    tendon_range = np.stack((-tendon_values, tendon_values), axis=-1)
+    for name, values, dtype in (
+        ("mujoco.tendon_stiffness", tendon_values, wp.float32),
+        ("mujoco.tendon_damping", tendon_values + 0.5, wp.float32),
+        ("mujoco.tendon_range", tendon_range, wp.vec2f),
+    ):
+        mock_view._attributes[name] = wp.array(values, dtype=dtype, device=device)
 
     # Mock NewtonManager (aliased as SimulationManager in Newton modules)
     mock_model = MagicMock()
@@ -365,15 +379,9 @@ def create_newton_articulation(
     mock_manager.get_state_1.return_value = mock_state
     mock_manager.get_control.return_value = mock_control
 
-    # Patch SimulationManager in the Newton data module
-    original_sim_manager = newton_data_module.SimulationManager
-    newton_data_module.SimulationManager = mock_manager
-
-    try:
-        data = NewtonArticulationData(mock_view, device)
-    finally:
-        newton_data_module.SimulationManager = original_sim_manager
-    mock_view._tendon_count = num_fixed_tendons
+    # Patch SimulationManager in the Newton data module until the test finishes.
+    patch_contract_manager(newton_data_module, "SimulationManager", mock_manager)
+    data = NewtonArticulationData(mock_view, device)
 
     # Create Articulation shell (bypass __init__)
     articulation = object.__new__(NewtonArticulation)
@@ -447,7 +455,6 @@ def create_newton_articulation(
     articulation._process_actuators_cfg()
 
     return articulation, mock_view
-
 
 
 def get_articulation(
