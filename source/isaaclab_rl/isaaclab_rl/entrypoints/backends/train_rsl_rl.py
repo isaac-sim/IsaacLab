@@ -40,6 +40,7 @@ from ..common import (
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
+    release_process_group,
     resolve_checkpoint_selector,
     scoped_torch_backend_flags,
     set_hydra_args,
@@ -185,3 +186,4 @@ def _run(args_cli: argparse.Namespace) -> None:
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                release_process_group()

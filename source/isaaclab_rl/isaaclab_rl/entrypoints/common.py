@@ -777,6 +777,16 @@ def dump_train_configs(log_dir: str, env_cfg: Any, agent_cfg: Any) -> None:
     dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
 
+def release_process_group() -> None:
+    """Destroy the distributed process group the RL library initialized, if any.
+
+    The RL libraries never destroy it, which torch reports at exit. Call only after training has
+    completed, where every rank reaches the teardown; interrupted runs skip it.
+    """
+    if torch.distributed.is_initialized():
+        torch.distributed.destroy_process_group()
+
+
 class CaptureEnvSensors(gym.Wrapper):
     """Capture image-like environment sensor outputs during training."""
 

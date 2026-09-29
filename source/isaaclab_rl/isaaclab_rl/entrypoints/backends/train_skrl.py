@@ -41,6 +41,7 @@ from ..common import (
     enable_cameras_for_video,
     pre_launch_video_config,
     preserve_attribute,
+    release_process_group,
     resolve_checkpoint_selector,
     resolve_seed,
     set_hydra_args,
@@ -184,3 +185,4 @@ def _run(args_cli: argparse.Namespace) -> None:
                 os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
                 runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
                 print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
+                release_process_group()

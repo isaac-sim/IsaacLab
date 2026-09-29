@@ -38,6 +38,7 @@ from ..common import (
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
+    release_process_group,
     resolve_checkpoint_selector,
     resolve_seed,
     set_hydra_args,
@@ -209,3 +210,4 @@ def run(argv: list[str]) -> None:
             with contextlib.suppress(KeyboardInterrupt):
                 runner.run(run_args)
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
+                release_process_group()
