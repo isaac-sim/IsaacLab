@@ -255,7 +255,7 @@ def test_setting_invalid_articulation_root_prim_path(sim, device) -> None:
 
 
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("device", test_devices())
 def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device) -> None:
     """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
 
@@ -1343,6 +1343,17 @@ def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationS
             **{name: torch.tensor([[value]], device=device), "env_ids": env_ids}
         )
         values[name][1] = value
+        torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
+    articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
+    for name, getter in getters.items():
+        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
+
+    # Unsorted int64 selectors write each row to the environment it names.
+    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
+    for name, value in partial.items():
+        rows = torch.tensor([[value + 1.0], [value + 2.0]], device=device)
+        getattr(articulation, f"set_spatial_tendon_{name}_index")(**{name: rows, "env_ids": env_ids})
+        values[name][env_ids] = rows
         torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
     articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
     for name, getter in getters.items():
