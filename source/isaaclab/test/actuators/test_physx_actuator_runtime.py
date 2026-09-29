@@ -60,8 +60,10 @@ def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.Mo
     """A graphable adapter whose capture fails still computes the current command eagerly."""
 
     class _FailingCapture:
+        capture_count = 0
+
         def __init__(self, *args, **kwargs) -> None:
-            pass
+            type(self).capture_count += 1
 
         def __enter__(self):
             raise RuntimeError("capture unavailable")
@@ -81,6 +83,7 @@ def test_compute_runs_eagerly_after_graph_capture_failure(monkeypatch: pytest.Mo
     runtime.compute(collection, 0.01)
 
     # The failed capture is not retried, and every step falls back to the eager kernels.
+    assert _FailingCapture.capture_count == 1
     assert runtime.native_actuator_graphs == ()
     assert eager_compute.call_count == 2
     eager_compute.assert_called_with(collection, 0.01)
