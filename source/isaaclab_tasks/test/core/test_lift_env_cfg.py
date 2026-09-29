@@ -3,10 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Behavioral tests for the unified dexterous Lift and Reorient tasks."""
+"""Behavioral tests for the dexterous Lift tasks."""
 
 from types import SimpleNamespace
 
+import gymnasium as gym
 import pytest
 import torch
 import warp as wp
@@ -18,7 +19,7 @@ from isaaclab.sim import select_usd_variants
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -65,10 +66,14 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
 
 
-@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
+def test_franka_reorient_is_not_registered() -> None:
+    """The unsupported core Franka reorientation task is absent from the task registry."""
+    assert "Isaac-Reorient-Franka" not in gym.registry
+
+
+def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
     """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
-    cfg = cfg_type()
+    cfg = FrankaLiftEnvCfg()
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
