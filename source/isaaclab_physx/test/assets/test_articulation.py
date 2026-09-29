@@ -24,8 +24,6 @@ from isaaclab.test.utils.articulation_ordering import (
 )
 from isaaclab.utils import clone, replace
 
-HEADLESS = True
-
 launch_test_simulation()
 
 import math
@@ -37,18 +35,14 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
-from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
-from isaaclab.managers import SceneEntityCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
-from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.utils.math import (
     combine_frame_transforms,
     compute_pose_error,
@@ -57,251 +51,12 @@ from isaaclab.utils.math import (
     quat_inv,
     subtract_frame_transforms,
 )
-from isaaclab.utils.version import get_isaac_sim_version, has_kit
 
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import (  # isort:skip
-    ANYMAL_C_CFG,
-    FRANKA_PANDA_CFG,
-    FRANKA_PANDA_HIGH_PD_CFG,
-)
-from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
-
-
-def generate_articulation_cfg(
-    articulation_type: str,
-    stiffness: float | None = 10.0,
-    damping: float | None = 2.0,
-    actuator_velocity_limit: float | None = None,
-    actuator_effort_limit: float | None = None,
-    joint_velocity_limit: float | None = None,
-    joint_effort_limit: float | None = None,
-) -> ArticulationCfg:
-    """Generate an articulation configuration.
-
-    Args:
-        articulation_type: Type of articulation to generate.
-            It should be one of: "humanoid", "panda", "anymal", "shadow_hand", "single_joint_implicit",
-            "single_joint_explicit".
-        stiffness: Stiffness value for the articulation's actuators. Only currently used for "humanoid".
-            Defaults to 10.0.
-        damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
-            Defaults to 2.0.
-        actuator_velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
-            and "single_joint_explicit".
-        actuator_effort_limit: Effort limit for explicit actuators. Only currently used for
-            "single_joint_explicit".
-        joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
-            Only currently used for "single_joint_implicit" and "single_joint_explicit".
-        joint_effort_limit: Effort limit for the actuators (set into the simulation).
-            Only currently used for "single_joint_implicit" and "single_joint_explicit".
-
-    Returns:
-        The articulation configuration for the requested articulation type.
-
-    """
-    if articulation_type == "humanoid":
-        articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/Humanoid/humanoid_instanceable.usd"
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.34)),
-            actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
-        )
-    elif articulation_type == "panda":
-        articulation_cfg = FRANKA_PANDA_CFG
-    elif articulation_type == "anymal":
-        articulation_cfg = ANYMAL_C_CFG
-    elif articulation_type == "shadow_hand":
-        articulation_cfg = SHADOW_HAND_PHYSX_CFG
-    elif articulation_type == "single_joint_implicit":
-        articulation_cfg = ArticulationCfg(
-            # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
-            ),
-            actuators={
-                "joint": ImplicitActuatorCfg(
-                    joint_names_expr=[".*"],
-                    joint_effort_limit=joint_effort_limit,
-                    joint_velocity_limit=joint_velocity_limit,
-                    actuator_velocity_limit=actuator_velocity_limit,
-                    stiffness=2000.0,
-                    damping=100.0,
-                ),
-            },
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.0),
-                joint_pos=({"RevoluteJoint": 1.5708}),
-                rot=(0.7071081, 0, 0, 0.7071055),
-            ),
-        )
-    elif articulation_type == "single_joint_explicit":
-        # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
-        articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
-            ),
-            actuators={
-                "joint": IdealPDActuatorCfg(
-                    joint_names_expr=[".*"],
-                    joint_effort_limit=joint_effort_limit,
-                    joint_velocity_limit=joint_velocity_limit,
-                    actuator_effort_limit=actuator_effort_limit,
-                    actuator_velocity_limit=actuator_velocity_limit,
-                    stiffness=0.0,
-                    damping=10.0,
-                ),
-            },
-        )
-    elif articulation_type == "spatial_tendon_test_asset":
-        # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
-        articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/IsaacLab/Tests/spatial_tendons.usd",
-            ),
-            actuators={
-                "joint": ImplicitActuatorCfg(
-                    joint_names_expr=[".*"],
-                    stiffness=2000.0,
-                    damping=100.0,
-                ),
-            },
-        )
-    else:
-        raise ValueError(
-            f"Invalid articulation type: {articulation_type}, valid options are 'humanoid', 'panda', 'anymal',"
-            " 'shadow_hand', 'single_joint_implicit', 'single_joint_explicit' or 'spatial_tendon_test_asset'."
-        )
-
-    return articulation_cfg
-
-
-def generate_articulation(
-    articulation_cfg: ArticulationCfg, num_articulations: int, device: str
-) -> tuple[Articulation, torch.tensor]:
-    """Generate an articulation from a configuration.
-
-    Handles the creation of the articulation, the environment prims and the articulation's environment
-    translations
-
-    Args:
-        articulation_cfg: Articulation configuration.
-        num_articulations: Number of articulations to generate.
-        device: Device to use for the tensors.
-
-    Returns:
-        The articulation and environment translations.
-
-    """
-    # Generate translations of 2.5 m in x for each articulation
-    translations = torch.zeros(num_articulations, 3, device=device)
-    translations[:, 0] = torch.arange(num_articulations) * 2.5
-
-    # Create Top-level Xforms, one for each articulation
-    for i in range(num_articulations):
-        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
-    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
-
-    return articulation, translations
-
-
-# ---------------------------------------------------------------------------
-# Franka task-space tracking helpers for the IK test.
-# Mirrors the helpers in ``isaaclab_newton/test/assets/test_articulation.py``.
-# ---------------------------------------------------------------------------
-
-
-def _setup_franka_at_home_pose(sim):
-    """Build a Franka articulation at its configured home pose.
-
-    See the Newton-side mirror for full docs. Standalone tests skip the
-    env reset path that normally pushes ``default_joint_pos`` to sim,
-    so we teleport explicitly to avoid the URDF-neutral
-    near-singular pose where the Franka wrist axes nearly align.
-
-    Args:
-        sim: The simulation context to use.
-
-    Returns:
-        Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
-    """
-    cfg = replace(clone(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
-    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
-    robot = Articulation(cfg)
-    sim.reset()
-    assert robot.is_initialized
-
-    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
-    ee_jacobi_idx = ee_frame_idx - 1
-    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
-
-    robot.write_joint_state_to_sim(
-        position=robot.data.default_joint_pos.torch[:, :].clone(),
-        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
-    )
-    return robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids
-
-
-def _compute_ee_pose_root(robot, ee_frame_idx):
-    """Return ``(ee_pos_b, ee_quat_b, root_pose_w)`` in the root frame."""
-    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
-    root_pose_w = robot.data.root_pose_w.torch
-    ee_pos_b, ee_quat_b = subtract_frame_transforms(
-        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
-    )
-    return ee_pos_b, ee_quat_b, root_pose_w
-
-
-def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
-    """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
-    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
-    base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
-    jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
-    jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
-    return jacobian
-
-
-def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
-    """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
-    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
-    target_pos_b = initial_ee_pos_b + torch.tensor([list(delta_xyz)], device=device, dtype=initial_ee_pos_b.dtype)
-    return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
-
-
-def _summarize_history(history, tail: int = 200):
-    """Return ``(min, mean)`` over the last ``tail`` samples."""
-    tail_slice = history[-tail:]
-    return min(tail_slice), sum(tail_slice) / len(tail_slice)
-
-
-def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
-    """Convert a Warp array to a torch tensor on :paramref:`device`."""
-    return wp.to_torch(array).to(device=device)
-
-
-@pytest.fixture
-def sim(request):
-    """Create simulation context with the specified device."""
-    device = request.getfixturevalue("device")
-    if "gravity_enabled" in request.fixturenames:
-        gravity_enabled = request.getfixturevalue("gravity_enabled")
-    else:
-        gravity_enabled = True  # default to gravity enabled
-    if "add_ground_plane" in request.fixturenames:
-        add_ground_plane = request.getfixturevalue("add_ground_plane")
-    else:
-        add_ground_plane = False  # default to no ground plane
-    with build_simulation_context(
-        device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled, add_ground_plane=add_ground_plane
-    ) as sim:
-        sim._app_control_on_stop_handle = None
-        yield sim
-
+from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_HIGH_PD_CFG  # isort:skip
+from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG  # isort:skip
 
 _FIXTURE = Path(__file__).parent / "data" / "articulation_ordering_branching.usda"
 _NUM_ENVS = 2
@@ -408,6 +163,11 @@ def _author_branching_robot(
         leaf.CreateUpperLimitAttr(2.0)
 
 
+def _to_device_tensor(array: wp.array, device: str) -> torch.Tensor:
+    """Convert a Warp array to a torch tensor on :paramref:`device`."""
+    return wp.to_torch(array).to(device=device)
+
+
 def _in_user_order(values: dict[str, float], names: list[str], device: str) -> torch.Tensor:
     """Return per-name values as a ``(num_envs, len(names))`` tensor in the given name order."""
     return torch.tensor([[values[name] for name in names]] * _NUM_ENVS, device=device)
@@ -418,20 +178,86 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
     return (0.0, 0.0, math.sin(0.5 * angle), math.cos(0.5 * angle))
 
 
+@pytest.fixture
+def sim(request):
+    """Create a function-scoped simulation context for tests that own their scene."""
+    device = request.getfixturevalue("device")
+    gravity_enabled = request.getfixturevalue("gravity_enabled") if "gravity_enabled" in request.fixturenames else True
+    with build_simulation_context(device=device, auto_add_lighting=True, gravity_enabled=gravity_enabled) as sim:
+        sim._app_control_on_stop_handle = None
+        yield sim
+
+
 ##
 # Tests that own their simulation context. Keep them above the composite scene.
 ##
 
 
+def generate_articulation(
+    articulation_cfg: ArticulationCfg, num_articulations: int, device: str
+) -> tuple[Articulation, torch.Tensor]:
+    """Spawn ``num_articulations`` copies of an articulation 2.5 m apart along x.
+
+    Args:
+        articulation_cfg: Articulation configuration.
+        num_articulations: Number of articulations to generate.
+        device: Device to use for the tensors.
+
+    Returns:
+        The articulation and environment translations.
+    """
+    translations = torch.zeros(num_articulations, 3, device=device)
+    translations[:, 0] = torch.arange(num_articulations) * 2.5
+    for i in range(num_articulations):
+        sim_utils.create_prim(f"/World/Env_{i}", "Xform", translation=translations[i][:3])
+    articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
+    return articulation, translations
+
+
+@pytest.mark.parametrize(
+    ("init_state", "message"),
+    [
+        ({"joint_pos": {"left_shoulder": 1.0}}, "default positions out of the limits"),
+        ({"joint_vel": {"left_elbow": 10.0}}, "default velocities out of the limits"),
+    ],
+)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_out_of_range_default_joint_state_raises(sim, device, init_state, message):
+    """Initialization rejects configured default joint states outside the solver limits."""
+    articulation = Articulation(_branching_cfg(init_state=ArticulationCfg.InitialStateCfg(**init_state)))
+    # Limits of +-30 deg and the USD velocity limits keep the configured defaults out of range.
+    _author_branching_robot("/World/Robot", fixed_base=True, joint_limits_deg=(-30.0, 30.0))
+
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
+
+    with pytest.raises(ValueError, match=message):
+        sim.reset()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_setting_invalid_articulation_root_prim_path(sim, device):
+    """A configured articulation root path that does not exist fails initialization."""
+    articulation = Articulation(_branching_cfg(articulation_root_prim_path="/non_existing_prim_path"))
+    _author_branching_robot("/World/Robot")
+
+    # Check that the framework doesn't hold excessive strong references.
+    assert sys.getrefcount(articulation) < 10
+
+    with pytest.raises(RuntimeError, match="Failed to create articulation at"):
+        sim.reset()
+
+
 @pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, device):
     """A tendon length target lands in the simulation as ``rest_length - target`` on the selected cells only.
 
     The index form commands every tendon of environment 0; the mask form commands tendon 0 of
-    environment 1. Every other cell must keep its initial offset.
+    environment 1. Every other cell must keep its initial offset. The Shadow Hand is the shipped asset whose
+    native PhysX fixed tendons these writers command.
     """
-    articulation_cfg = generate_articulation_cfg(articulation_type="shadow_hand")
+    articulation_cfg = SHADOW_HAND_PHYSX_CFG
     articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
 
     sim.reset()
@@ -473,233 +299,10 @@ def test_fixed_tendon_position_target_writes_offset(sim, num_articulations, devi
     torch.testing.assert_close(articulation.data.fixed_tendon_offset.torch, expected)
 
 
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_out_of_range_default_joint_pos(sim, num_articulations, device, add_ground_plane):
-    """Test that the default joint position from configuration is out of range.
-
-    This test verifies that:
-    1. The articulation fails to initialize when joint positions are out of range
-    2. The error is properly handled
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-    """
-    # Create articulation
-    articulation_cfg = clone(generate_articulation_cfg(articulation_type="panda"))
-    articulation_cfg.init_state.joint_pos = {
-        "panda_joint1": 10.0,
-        "panda_joint[2, 4]": -20.0,
-    }
-
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    with pytest.raises(ValueError):
-        sim.reset()
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_out_of_range_default_joint_vel(sim, device):
-    """Test that the default joint velocity from configuration is out of range.
-
-    This test verifies that:
-    1. The articulation fails to initialize when joint velocities are out of range
-    2. The error is properly handled
-    """
-    articulation_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Robot")
-    articulation_cfg.init_state.joint_vel = {
-        "panda_joint1": 100.0,
-        "panda_joint[2, 4]": -60.0,
-    }
-    articulation = Articulation(articulation_cfg)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    with pytest.raises(ValueError):
-        sim.reset()
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("add_ground_plane", [True])
-def test_joint_effort_limits(sim, num_articulations, device, add_ground_plane):
-    """Validate joint effort limits via joint_effort_out_of_limit()."""
-    # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="panda")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device)
-
-    # Minimal env wrapper exposing scene["robot"]
-    class _Env:
-        def __init__(self, art):
-            self.scene = {"robot": art}
-
-    env = _Env(articulation)
-    robot_all = SceneEntityCfg(name="robot")
-
-    sim.reset()
-    assert articulation.is_initialized
-
-    # Case A: no clipping → should NOT terminate
-    articulation._data.computed_torque.torch.zero_()
-    articulation._data.applied_torque.torch.zero_()
-    out = joint_effort_out_of_limit(env, robot_all)  # [N]
-    assert torch.all(~out)
-
-    # Case B: simulate clipping → should terminate
-    articulation._data.computed_torque.torch.fill_(100.0)  # pretend controller commanded 100
-    articulation._data.applied_torque.torch.fill_(50.0)  # pretend actuator clipped to 50
-    out = joint_effort_out_of_limit(env, robot_all)  # [N]
-    assert torch.all(out)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_setting_articulation_root_prim_path(sim, device):
-    """Test that the articulation root prim path can be set explicitly."""
-    sim._app_control_on_stop_handle = None
-    # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    articulation_cfg.articulation_root_prim_path = "/torso"
-    articulation, _ = generate_articulation(articulation_cfg, 1, device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation._is_initialized
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_setting_invalid_articulation_root_prim_path(sim, device):
-    """Test that the articulation root prim path can be set explicitly."""
-    sim._app_control_on_stop_handle = None
-    # Create articulation
-    articulation_cfg = generate_articulation_cfg(articulation_type="humanoid")
-    articulation_cfg.articulation_root_prim_path = "/non_existing_prim_path"
-    articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    with pytest.raises(RuntimeError):
-        sim.reset()
-
-
-@pytest.mark.parametrize("num_articulations", [2])
-@pytest.mark.parametrize("device", test_devices())
-def test_spatial_tendons(sim, num_articulations, device):
-    """Test spatial tendons apis.
-
-    This test verifies that:
-    1. The articulation is properly initialized
-    2. The articulation has spatial tendons
-    3. All buffers have correct shapes
-    4. Spatial tendon properties reach the simulation for the right environments
-    5. Joint state writes accept int64 environment and joint selectors
-
-    Args:
-        sim: The simulation fixture
-        num_articulations: Number of articulations to test
-        device: The device to run the simulation on
-    """
-    # skip test if Isaac Sim version is less than 5.0
-    if has_kit() and get_isaac_sim_version().major < 5:
-        pytest.skip("Spatial tendons are not supported in Isaac Sim < 5.0. Please update to Isaac Sim 5.0 or later.")
-        return
-    articulation_cfg = generate_articulation_cfg(articulation_type="spatial_tendon_test_asset")
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-
-    # Check that the framework doesn't hold excessive strong references.
-    assert sys.getrefcount(articulation) < 10
-
-    # Play sim
-    sim.reset()
-    # Check if articulation is initialized
-    assert articulation.is_initialized
-    # Check that fixed base
-    assert articulation.is_fixed_base
-    # Check buffers that exists and have correct shapes
-    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
-    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
-    assert articulation.data.joint_pos.torch.shape == (num_articulations, 3)
-    assert articulation.data.body_mass.torch.shape == (num_articulations, articulation.num_bodies)
-    assert articulation.data.body_inertia.torch.shape == (num_articulations, articulation.num_bodies, 9)
-    assert articulation.num_spatial_tendons == 1
-
-    # Distinct per-environment values so that an environment mix-up cannot pass
-    env_offset = torch.arange(num_articulations, dtype=torch.float32, device=device).unsqueeze(1)
-    stiffness, limit_stiffness, damping, offset = (10.0 + env_offset, 20.0 + env_offset, 3.0 + env_offset, env_offset)
-    articulation.set_spatial_tendon_stiffness_index(stiffness=stiffness)
-    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=limit_stiffness)
-    articulation.set_spatial_tendon_damping_index(damping=damping)
-    articulation.set_spatial_tendon_offset_index(offset=offset)
-    articulation.write_spatial_tendon_properties_to_sim_index()
-
-    root_view = articulation.root_view
-    torch.testing.assert_close(_to_device_tensor(root_view.get_spatial_tendon_stiffnesses(), device), stiffness)
-    torch.testing.assert_close(
-        _to_device_tensor(root_view.get_spatial_tendon_limit_stiffnesses(), device), limit_stiffness
-    )
-    torch.testing.assert_close(_to_device_tensor(root_view.get_spatial_tendon_dampings(), device), damping)
-    torch.testing.assert_close(_to_device_tensor(root_view.get_spatial_tendon_offsets(), device), offset)
-
-    # Joint state writes accept int64 selectors (regression)
-    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
-    joint_ids = torch.tensor([articulation.num_joints - 1, 0], dtype=torch.int64, device=device)
-    position = torch.tensor([[0.21, 0.11], [0.22, 0.12]], device=device)
-    velocity = torch.tensor([[1.21, 1.11], [1.22, 1.12]], device=device)
-
-    expected_position = articulation.data.joint_pos.torch.clone()
-    expected_velocity = articulation.data.joint_vel.torch.clone()
-
-    articulation.write_joint_state_to_sim_index(
-        position=position, velocity=velocity, env_ids=env_ids, joint_ids=joint_ids
-    )
-    expected_position[env_ids[:, None], joint_ids[None, :]] = position
-    expected_velocity[env_ids[:, None], joint_ids[None, :]] = velocity
-    torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
-    torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
-
-
 @pytest.mark.parametrize("num_articulations", [1])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda", "anymal"])
-@pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-def test_dynamics_refresh_after_manual_joint_write(sim, num_articulations, device, articulation_type, gravity_enabled):
-    """Each Jacobian and mass-matrix read independently reflects a manual joint write without stepping."""
-    articulation_cfg = generate_articulation_cfg(articulation_type=articulation_type)
-    articulation, _ = generate_articulation(articulation_cfg, num_articulations, device=device)
-    sim.reset()
-    sim.step()
-    articulation.update(sim.cfg.dt)
-
-    q_initial = articulation.data.joint_pos.torch.clone()
-    env_ids = wp.array([0], dtype=wp.int32, device=device)
-    for property_name in ("body_link_jacobian_w", "body_com_jacobian_w", "mass_matrix"):
-        articulation.write_joint_position_to_sim_index(position=q_initial, env_ids=env_ids)
-        before = getattr(articulation.data, property_name).torch.clone()
-        # A separate write for each getter prevents another getter from refreshing FK on its behalf.
-        articulation.write_joint_position_to_sim_index(position=q_initial + 0.5, env_ids=env_ids)
-        after = getattr(articulation.data, property_name).torch.clone()
-        assert not torch.allclose(before, after, atol=1e-3), f"{property_name} stayed stale after a joint write"
-
-
-@pytest.mark.parametrize("num_articulations", [1])
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
-@pytest.mark.isaacsim_ci
-def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device, articulation_type):
+def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulations, device):
     """PhysX accuracy: ``τ_gc`` must hold the manipulator in static equilibrium.
 
     The contract is the EOM identity ``M(q) q̈ + C(q,q̇) q̇ + g(q) = τ_input``.
@@ -713,13 +316,14 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     Newton-side variant of the same name lives in
     ``isaaclab_newton/test/assets/test_articulation.py`` (backend parity).
     """
-    base_cfg = generate_articulation_cfg(articulation_type=articulation_type)
     # Replace default Franka actuators with a passthrough implicit actuator
     # (stiffness = 0, damping = 0). With both gains zero the effort target
     # we set IS the joint torque applied — no PD spring-damper masks the
     # gravity-comp signal. Default Franka cfg has stiffness=80 / damping=4
     # which would absorb gravity through PD bias and hide accessor bugs.
-    cfg = replace(base_cfg, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)})
+    cfg = replace(
+        FRANKA_PANDA_CFG, actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)}
+    )
     # FRANKA_PANDA_CFG has rigid_props.disable_gravity=False already, but be
     # defensive — gravity must be ON for τ_gc to have anything to cancel.
     cfg = replace(cfg, spawn=replace(cfg.spawn, rigid_props=replace(cfg.spawn.rigid_props, disable_gravity=False)))
@@ -769,11 +373,79 @@ def test_get_gravity_compensation_forces_static_equilibrium(sim, num_articulatio
     )
 
 
+# ---------------------------------------------------------------------------
+# Franka task-space tracking helpers for the IK test.
+# Mirrors the helpers in ``isaaclab_newton/test/assets/test_articulation.py``.
+# ---------------------------------------------------------------------------
+
+
+def _setup_franka_at_home_pose(sim):
+    """Build a Franka articulation at its configured home pose.
+
+    See the Newton-side mirror for full docs. Standalone tests skip the
+    env reset path that normally pushes ``default_joint_pos`` to sim,
+    so we teleport explicitly to avoid the URDF-neutral
+    near-singular pose where the Franka wrist axes nearly align.
+
+    Args:
+        sim: The simulation context to use.
+
+    Returns:
+        Tuple of ``(robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids)``.
+    """
+    cfg = replace(clone(FRANKA_PANDA_HIGH_PD_CFG), prim_path="/World/Env_[^/]*/Robot")
+    sim_utils.create_prim("/World/Env_0", "Xform", translation=(0.0, 0.0, 0.0))
+    robot = Articulation(cfg)
+    sim.reset()
+    assert robot.is_initialized
+
+    ee_frame_idx = robot.find_bodies("panda_hand")[0][0]
+    ee_jacobi_idx = ee_frame_idx - 1
+    arm_joint_ids = robot.find_joints(["panda_joint.*"])[0]
+
+    robot.write_joint_state_to_sim(
+        position=robot.data.default_joint_pos.torch[:, :].clone(),
+        velocity=robot.data.default_joint_vel.torch[:, :].clone(),
+    )
+    return robot, ee_frame_idx, ee_jacobi_idx, arm_joint_ids
+
+
+def _compute_ee_pose_root(robot, ee_frame_idx):
+    """Return ``(ee_pos_b, ee_quat_b, root_pose_w)`` in the root frame."""
+    ee_pose_w = robot.data.body_pose_w.torch[:, ee_frame_idx]
+    root_pose_w = robot.data.root_pose_w.torch
+    ee_pos_b, ee_quat_b = subtract_frame_transforms(
+        root_pose_w[:, 0:3], root_pose_w[:, 3:7], ee_pose_w[:, 0:3], ee_pose_w[:, 3:7]
+    )
+    return ee_pos_b, ee_quat_b, root_pose_w
+
+
+def _compute_jacobian_root_frame(robot, ee_jacobi_idx, arm_joint_ids):
+    """Return the EE Jacobian sliced to ``arm_joint_ids`` and rotated to the root frame."""
+    jacobian = robot.data.body_link_jacobian_w.torch[:, ee_jacobi_idx, :, :][:, :, arm_joint_ids]
+    base_rot_matrix = matrix_from_quat(quat_inv(robot.data.root_pose_w.torch[:, 3:7]))
+    jacobian[:, :3, :] = torch.bmm(base_rot_matrix, jacobian[:, :3, :])
+    jacobian[:, 3:, :] = torch.bmm(base_rot_matrix, jacobian[:, 3:, :])
+    return jacobian
+
+
+def _build_relative_pose_target(robot, ee_frame_idx, delta_xyz, device):
+    """Build a target pose = (current EE pose) + ``delta_xyz``, preserving orientation."""
+    initial_ee_pos_b, initial_ee_quat_b, _ = _compute_ee_pose_root(robot, ee_frame_idx)
+    target_pos_b = initial_ee_pos_b + torch.tensor([list(delta_xyz)], device=device, dtype=initial_ee_pos_b.dtype)
+    return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
+
+
+def _summarize_history(history, tail: int = 200):
+    """Return ``(min, mean)`` over the last ``tail`` samples."""
+    tail_slice = history[-tail:]
+    return min(tail_slice), sum(tail_slice) / len(tail_slice)
+
+
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("articulation_type", ["panda"])
 @pytest.mark.parametrize("gravity_enabled", [False])
 @pytest.mark.isaacsim_ci
-def test_franka_ik_tracking_accuracy(sim, device, articulation_type, gravity_enabled):
+def test_franka_ik_tracking_accuracy(sim, device, gravity_enabled):
     """PhysX-side IK convergence sentinel — backend parity with the Newton test.
 
     Mirrors :func:`isaaclab_newton.test.assets.test_articulation.test_franka_ik_tracking_accuracy`
@@ -1378,6 +1050,18 @@ def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene)
     )
     _assert_jacobian_contract(scene.floating, floating_velocity)
 
+    # Each Jacobian and mass-matrix read independently reflects a manual joint write without stepping.
+    for island in (articulation, scene.floating):
+        q_initial = island.data.joint_pos.torch.clone()[:1]
+        env_ids = wp.array([0], dtype=wp.int32, device=device)
+        for property_name in ("body_link_jacobian_w", "body_com_jacobian_w", "mass_matrix"):
+            island.write_joint_position_to_sim_index(position=q_initial, env_ids=env_ids)
+            before = getattr(island.data, property_name).torch.clone()
+            # A separate write for each getter prevents another getter from refreshing FK on its behalf.
+            island.write_joint_position_to_sim_index(position=q_initial + 0.5, env_ids=env_ids)
+            after = getattr(island.data, property_name).torch.clone()
+            assert not torch.allclose(before, after, atol=1e-3), f"{property_name} stayed stale after a joint write"
+
 
 def _place_at_rest(articulation: Articulation, root_pose: torch.Tensor) -> None:
     """Teleport a floating island to ``root_pose`` with zero root and joint velocities and no external wrench."""
@@ -1558,3 +1242,41 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         assert not composer.active
         assert torch.count_nonzero(composer.out_force_b.torch) == 0
         assert torch.count_nonzero(composer.out_torque_b.torch) == 0
+
+
+def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationScene):
+    """A locally authored spatial tendon is discovered and its selected properties reach PhysX."""
+    device = articulation_scene.device
+    articulation = articulation_scene.tendon
+    assert articulation.is_fixed_base
+    assert articulation.num_spatial_tendons == 1
+    root_view = articulation.root_view
+    getters = {
+        "stiffness": root_view.get_spatial_tendon_stiffnesses,
+        "limit_stiffness": root_view.get_spatial_tendon_limit_stiffnesses,
+        "damping": root_view.get_spatial_tendon_dampings,
+        "offset": root_view.get_spatial_tendon_offsets,
+    }
+
+    # Distinct per-environment values so that an environment mix-up cannot pass
+    env_offset = torch.arange(_NUM_ENVS, dtype=torch.float32, device=device).unsqueeze(1)
+    values = {"stiffness": 10.0 + env_offset, "limit_stiffness": 20.0 + env_offset, "damping": 3.0 + env_offset}
+    values["offset"] = env_offset
+    for name, value in values.items():
+        getattr(articulation, f"set_spatial_tendon_{name}_index")(**{name: value})
+    articulation.write_spatial_tendon_properties_to_sim_index()
+    for name, getter in getters.items():
+        torch.testing.assert_close(_to_device_tensor(getter(), device), values[name])
+
+    # Partial writes change environment 1 in the data and in the solver and preserve environment 0.
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    partial = {"stiffness": 12.0, "limit_stiffness": 3.0, "damping": 1.5, "offset": 0.1}
+    for name, value in partial.items():
+        getattr(articulation, f"set_spatial_tendon_{name}_index")(
+            **{name: torch.tensor([[value]], device=device), "env_ids": env_ids}
+        )
+        values[name][1] = value
+        torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
+    articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
+    for name, getter in getters.items():
+        torch.testing.assert_close(_to_device_tensor(getter(), device), values[name])
