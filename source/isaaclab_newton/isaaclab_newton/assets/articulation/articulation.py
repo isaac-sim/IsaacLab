@@ -271,7 +271,7 @@ class Articulation(BaseArticulation):
 
     @property
     def num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in public body-name order.
+        """Number of shapes per body in public body-name order.
 
         Each element corresponds to the body at the same index in
         :attr:`body_names`. Backend-order counts are cached; a nonidentity body
@@ -287,11 +287,11 @@ class Articulation(BaseArticulation):
 
     @property
     def backend_num_shapes_per_body(self) -> list[int]:
-        """Number of collision shapes per body in active backend solver-view order.
+        """Number of shapes per body in active backend solver-view order.
 
         Each element corresponds to the body at the same index in
-        :attr:`backend_body_names`, matching the shape axis of the backend
-        solver arrays. The counts are cached on first access. Use
+        :attr:`backend_body_names`. Shapes belonging to one body need not be
+        contiguous in the backend shape arrays. The counts are cached on first access. Use
         :attr:`num_shapes_per_body` for public body order.
 
         Returns:
