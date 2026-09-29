@@ -60,7 +60,7 @@ def test_ui_window_follows_has_gui_gate(has_gui: bool):
     TrackingManagerBasedRLEnvWindow.construction_count = 0
 
     try:
-        settings.set_bool(_HAS_GUI_SETTING, has_gui)
+        settings.set(_HAS_GUI_SETTING, has_gui)
         sim_utils.create_new_stage()
         env = ManagerBasedRLEnv(cfg=make_empty_manager_based_rl_env_ui_cfg())
 
@@ -69,4 +69,4 @@ def test_ui_window_follows_has_gui_gate(has_gui: bool):
     finally:
         if env is not None:
             env.close()
-        settings.set_bool(_HAS_GUI_SETTING, previous_has_gui)
+        settings.set(_HAS_GUI_SETTING, previous_has_gui)

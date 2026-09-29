@@ -35,7 +35,7 @@ Done when each lane plan names its retired tests, its keeper per contract, the a
 
 ## 5. Cutover
 
-Edit lane by lane. Serialize changes to shared fixtures and test utilities through one owner. With each lane, remove the test-only production seams it unlocks. Update `tools/test_settings.py` entries (timeouts, skips, quarantines) for renamed or removed files. Put durable test-ownership rules in the relevant `AGENTS.md`, drawn from mistakes this campaign actually found.
+Edit lane by lane. Serialize changes to shared fixtures and test utilities through one owner. With each lane, remove the test-only production seams it unlocks. Update `tools/test_settings.py` entries (timeouts, skips, quarantines) for renamed or removed files. Update the test-audit guidance when the campaign establishes a reusable testing principle; keep implementation-specific ownership in the relevant test documentation.
 
 Done when every lane plan is applied and each lane's keepers pass.
 

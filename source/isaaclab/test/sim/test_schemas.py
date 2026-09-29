@@ -988,3 +988,51 @@ def _validate_joint_drive_properties_on_prim(prim_path: str, joint_cfg, verbose:
                     )
             elif verbose:
                 print(f"Skipping prim {joint_prim.GetPrimPath()} as it is not a joint drive api.")
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.parametrize("kind", ["volume", "surface"])
+def test_physx_deformable_fragments(setup_simulation, kind):
+    """Create OmniPhysics rest/bind poses and compose PhysX body and material fragments."""
+    from isaaclab_physx.physics import PhysxManager
+    from isaaclab_physx.sim.schemas import PhysxDeformableBodyCfg, PhysxSurfaceDeformableBodyCfg
+    from isaaclab_physx.sim.spawners.materials import PhysxDeformableMaterialCfg, PhysxSurfaceDeformableMaterialCfg
+
+    from pxr import Usd, UsdGeom
+
+    from isaaclab.sim.spawners.materials import spawn_physics_material_from_fragments
+
+    stage = Usd.Stage.CreateInMemory()
+    body = UsdGeom.Xform.Define(stage, "/Body").GetPrim()
+    visual = UsdGeom.Mesh.Define(stage, "/Body/visual")
+    visual.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0)])
+    mesh = UsdGeom.TetMesh.Define(stage, "/Body/sim") if kind == "volume" else UsdGeom.Mesh.Define(stage, "/Body/sim")
+    mesh.CreatePointsAttr([(0, 0, 0), (1, 0, 0), (0, 1, 0), (0, 0, 1)])
+    if kind == "volume":
+        mesh.CreateTetVertexIndicesAttr([(0, 1, 2, 3)])
+    else:
+        mesh.CreateFaceVertexIndicesAttr([0, 1, 2])
+        mesh.CreateFaceVertexCountsAttr([3])
+    PhysxManager.setup_deformable_body(body, kind, mesh.GetPrim(), visual.GetPrim())
+    assert body.HasAPI("OmniPhysicsDeformableBodyAPI")
+    assert mesh.GetPrim().HasAPI(f"OmniPhysics{kind.title()}DeformableSimAPI")
+    assert mesh.GetPrim().GetAttribute("omniphysics:restShapePoints").Get() == mesh.GetPointsAttr().Get()
+    rest_indices = "restTetVtxIndices" if kind == "volume" else "restTriVtxIndices"
+    assert len(mesh.GetPrim().GetAttribute("omniphysics:" + rest_indices).Get()) == 1
+    assert (
+        visual.GetPrim().GetAttribute("deformablePose:default:omniphysics:points").Get() == visual.GetPointsAttr().Get()
+    )
+    body_cfg = PhysxDeformableBodyCfg(solver_position_iteration_count=32, linear_damping=0.1)
+    assert body_cfg.func(body_cfg, "/Body", stage)
+    assert body.GetAttribute("physxDeformableBody:solverPositionIterationCount").Get() == 32
+    assert body.GetAttribute("physxDeformableBody:linearDamping").Get() == pytest.approx(0.1)
+    materials = [PhysxDeformableMaterialCfg(elasticity_damping=0.005)]
+    if kind == "surface":
+        surface_cfg = PhysxSurfaceDeformableBodyCfg(collision_pair_update_frequency=2)
+        assert surface_cfg.func(surface_cfg, "/Body", stage)
+        assert body.GetAttribute("physxDeformableBody:collisionPairUpdateFrequency").Get() == 2
+        materials.append(PhysxSurfaceDeformableMaterialCfg(bend_damping=0.1))
+    material = spawn_physics_material_from_fragments("/Material", materials, stage)
+    assert material.GetAttribute("physxDeformableMaterial:elasticityDamping").Get() == pytest.approx(0.005)
+    if kind == "surface":
+        assert material.GetAttribute("physxDeformableMaterial:bendDamping").Get() == pytest.approx(0.1)
