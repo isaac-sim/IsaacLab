@@ -33,15 +33,11 @@ from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import VisualizerCfg
+from ..visualizers.visualizer_cfg import _VISUALIZER_ALIASES, _VISUALIZER_TYPES, VisualizerCfg
 from .logging_utils import apply_python_logging_level
 from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
-
-_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser", "none")
-_VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
 
 _KIT_LAUNCHER = "isaaclab_physx.app:KitLauncher"
 """Launcher for Kit needs that no config names, e.g. a default-renderer camera or ``--viz kit``."""
@@ -168,29 +164,34 @@ Launcher Argument Helpers.
 """
 
 
-def _parse_visualizer_csv(value: str) -> list[str]:
-    """Parse the ``--visualizer`` comma-separated list into canonical names; ``none`` yields an empty list."""
-    token = (value or "").strip()
-    if not token:
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
-        )
-    if " " in token:
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: spaces are not allowed. "
-            "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
-        )
-    names = [item.strip().lower() for item in token.split(",")]
+def _parse_visualizer_csv(value: str | list[str]) -> list[str]:
+    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
+
+    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
+    """
+    if isinstance(value, str):
+        token = value.strip()
+        if not token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
+            )
+        if " " in token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: spaces are not allowed. "
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
+            )
+        value = token.split(",")
+    names = [str(item).strip().lower() for item in value]
     if any(not name for name in names):
         raise argparse.ArgumentTypeError(
             "Invalid --visualizer value: empty visualizer entry detected. "
             "Use a comma-separated list without empty items."
         )
-    invalid = [name for name in names if name not in _VISUALIZER_TYPES and name not in _VISUALIZER_ALIASES]
+    invalid = [name for name in names if name not in (*_VISUALIZER_TYPES, *_VISUALIZER_ALIASES, "none")]
     if invalid:
         raise argparse.ArgumentTypeError(
             f"Invalid --visualizer value(s): {', '.join(invalid)}. "
-            f"Valid options: {', '.join(sorted(_VISUALIZER_TYPES))}."
+            f"Valid options: {', '.join(sorted((*_VISUALIZER_TYPES, 'none')))}."
         )
     for name in names:
         if name in _VISUALIZER_ALIASES:
@@ -224,8 +225,6 @@ def _normalize_launcher_args(args: dict) -> None:
     if livestream not in (0, 1, 2):
         raise ValueError(f"Invalid livestream mode: {livestream}. Expected 0 (disabled), 1, or 2.")
     visualizers = args.get("visualizer")
-    if visualizers and not isinstance(visualizers, str):
-        visualizers = ",".join(str(visualizer).strip() for visualizer in visualizers)
     if visualizers:
         try:
             visualizers = _parse_visualizer_csv(visualizers)
