@@ -13,7 +13,7 @@ pipeline, and bundled `NVIDIA CloudXR`_ streaming for immersive XR-based teleope
 
 This guide walks you through setting up CloudXR, connecting an XR device, and running your first
 teleoperation session. For additional details see the `Isaac Teleop Quick Start
-<https://nvidia.github.io/IsaacTeleop/main/getting_started/quick_start.html>`_.
+<https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html>`_.
 
 .. tip::
 
@@ -400,7 +400,7 @@ choose the tab that matches your hardware.
          start automatically.
 
       #. Open the browser on your headset and navigate to the hosted CloudXR.js client:
-         `<https://nvidia.github.io/IsaacTeleop/client/release-1.4.x>`_.
+         `<https://nvidia.github.io/IsaacCapture/client/release-1.4.x/>`_.
 
          .. note::
 
@@ -992,5 +992,5 @@ For a fully headless experience, replace ``--visualizer kit`` with ``--visualize
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
 .. _`CloudXR Network Setup`: https://docs.nvidia.com/cloudxr-sdk/latest/requirement/network_setup.html
 .. _`CloudXR.js`: https://docs.nvidia.com/cloudxr-sdk/latest/usr_guide/cloudxr_js/index.html
-.. _`Manus plugin documentation`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html
-.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacTeleop/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking
+.. _`Manus plugin documentation`: https://nvidia.github.io/IsaacCapture/main/device/manus.html
+.. _`Wrist Positioning -- Controllers vs Optical Hand Tracking`: https://nvidia.github.io/IsaacCapture/main/device/manus.html#wrist-positioning-controllers-vs-optical-hand-tracking
