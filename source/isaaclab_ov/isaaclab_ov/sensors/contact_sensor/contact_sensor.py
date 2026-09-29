@@ -273,6 +273,7 @@ class ContactSensor(BaseContactSensor):
             self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
             self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
             self._timestamp_last_update = wp.zeros_like(self._timestamp)
+            self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.
         # ovphysx fnmatch does not brace-expand, so we cannot match multiple

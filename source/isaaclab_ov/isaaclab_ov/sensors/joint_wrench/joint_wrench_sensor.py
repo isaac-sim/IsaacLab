@@ -154,6 +154,7 @@ class JointWrenchSensor(BaseJointWrenchSensor):
             self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
             self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
             self._timestamp_last_update = wp.zeros_like(self._timestamp)
+            self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
 
         # Wrench storage as (N, L) spatial_vectorf, read each step via the view. The view
         # reinterprets this structured buffer off the binding's flat float32 shape and caches

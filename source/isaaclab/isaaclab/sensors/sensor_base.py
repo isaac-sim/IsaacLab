@@ -189,7 +189,13 @@ class SensorBase(ABC):
         wp.launch(
             reset_envs_kernel,
             dim=self._num_envs,
-            inputs=[env_mask, self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[
+                env_mask,
+                self._is_outdated,
+                self._timestamp,
+                self._timestamp_last_update,
+                self._elapsed_since_update,
+            ],
             device=self._device,
         )
         self._data_dirty = True
@@ -203,7 +209,13 @@ class SensorBase(ABC):
         wp.launch(
             update_timestamp_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, dt, self.cfg.update_period],
+            inputs=[
+                self._is_outdated,
+                self._timestamp,
+                self._elapsed_since_update,
+                dt,
+                self.cfg.update_period - 1e-6,
+            ],
             device=self._device,
         )
         # Update the buffers
@@ -269,6 +281,7 @@ class SensorBase(ABC):
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
         self._timestamp_last_update = wp.zeros_like(self._timestamp)
+        self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
         self._data_dirty = True
 
         # Initialize debug visualization handle
@@ -429,7 +442,7 @@ class SensorBase(ABC):
         wp.launch(
             update_outdated_envs_kernel,
             dim=self._num_envs,
-            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update],
+            inputs=[self._is_outdated, self._timestamp, self._timestamp_last_update, self._elapsed_since_update],
             device=self._device,
         )
         self._data_dirty = False
