@@ -80,15 +80,22 @@ def _python(source: str) -> list[str]:
 # Script contracts.
 
 
-@pytest.mark.parametrize("script_name", ["material_parameters", "rigid_body_equivalence", "g1_coupling"])
-def test_mpm_tuning_preserves_concurrent_visualizer_selection(script_name):
+@pytest.mark.parametrize(
+    "script_path",
+    [
+        "scripts/tutorials/08_mpm/material_parameters.py",
+        "scripts/tutorials/08_mpm/rigid_body_equivalence.py",
+        "examples/mpm/g1_coupling.py",
+    ],
+)
+def test_mpm_programs_preserve_concurrent_visualizer_selection(script_path):
     """Selecting both Newton viewers must preserve each requested configuration."""
     pytest.importorskip("isaaclab_newton")
     pytest.importorskip("isaaclab_visualizers")
-    if script_name == "g1_coupling":
+    if script_path.endswith("g1_coupling.py"):
         pytest.importorskip("isaaclab_tasks")
         pytest.importorskip("isaaclab_contrib")
-    script = script_cases.ROOT / "scripts" / "tutorials" / "08_mpm" / f"{script_name}.py"
+    script = script_cases.ROOT / script_path
     code = """
 import runpy
 import sys

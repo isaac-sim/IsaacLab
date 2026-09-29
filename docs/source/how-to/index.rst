@@ -122,7 +122,7 @@ How-to Guides
 
          :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
 
-         Run source-checkout tutorials for material response, rigid comparison, G1 coupling, and water surfaces.
+         Run MPM study tutorials and the packaged G1 coupling example.
 
    .. container:: guide-group
 

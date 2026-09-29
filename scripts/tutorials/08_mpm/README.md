@@ -12,8 +12,8 @@ and slide overlays remain outside this directory.
 
 ## Quick start
 
-Kit is the default for the material, rigid-equivalence, and G1 examples. The
-surface example defaults to Newton GL; Newton RTX requires the `ovrtx` extra.
+Kit is the default for the material and rigid-equivalence tutorials. The
+surface tutorial defaults to Newton GL; Newton RTX requires the `ovrtx` extra.
 
 ```bash
 # Controlled material comparison
@@ -24,17 +24,13 @@ uv run python scripts/tutorials/08_mpm/material_parameters.py \
 uv run python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
   --visualizer kit
 
-# Published G1 policy with particle reaction forces
-uv run --extra rsl-rl python scripts/tutorials/08_mpm/g1_coupling.py \
-  --coupling two_way --visualizer kit
-
 # Water surface reconstruction
 uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
   --surface_preset balanced --visualizer newton_gl
 ```
 
-Run any script with `--help` for its complete CLI. G1 needs the `rsl-rl`
-extra and a policy checkpoint.
+Run any script with `--help` for its complete CLI. For the packaged G1
+comparison, run `uv run isaaclab example mpm-g1-coupling --help`.
 
 ## Material parameters
 
@@ -67,19 +63,6 @@ inclines. MJWarp rigid bodies run on the left and high-stiffness MPM
 discretizations run on the right. The default Kit view preserves each object's
 authored comparison color. The example uses public solver and scene APIs only;
 it does not apply a demo-specific post-step particle correction.
-
-## G1 particle coupling
-
-`g1_coupling.py` deploys the published `Isaac-Velocity-Flat-G1` policy across
-successive sand, snow, and clay strips. The robot starts on a rigid runway before
-reaching the particles. `one_way` lets the robot move particles without
-receiving their reaction forces; `two_way` enables feedback.
-
-The default uses the complete G1 collision asset, 40 mm MPM voxels, two
-particles per voxel axis, and 1.2 m by 1.5 m by 0.16 m material strips. Use
-`--proxy_bodies feet` or `--proxy_bodies lower_legs` only for focused coupling
-experiments. Use `--checkpoint` to make a local checkpoint explicit instead of
-downloading the published policy.
 
 ## Surface reconstruction
 

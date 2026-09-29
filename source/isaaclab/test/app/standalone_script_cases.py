@@ -225,7 +225,7 @@ OVERRIDES = {
         visualizers=("none", "kit", "newton_gl", "newton_rtx"),
         required_modules=("isaaclab_contrib",),
     ),
-    "scripts/tutorials/08_mpm/g1_coupling.py": ScriptOverride(
+    "examples/mpm/g1_coupling.py": ScriptOverride(
         args=("--max_steps", "2"),
         skip_reason="downloads a published policy",
         readiness_pattern=r"G1 .* playback ready",
