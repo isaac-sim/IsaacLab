@@ -82,7 +82,7 @@ def _manager_bindings() -> dict[str, object]:
 def test_contract_factories_scope_manager_patches_to_one_test(reverse: bool) -> None:
     """Factories patch backend managers only inside a test scope and restore the production bindings after it."""
     original = _manager_bindings()
-    # Collection alone must not patch a manager: the production bindings are in place before any factory runs.
+    # Importing the contract modules must not patch a manager: production bindings precede every factory call.
     if "physx" in available_backends():
         assert isinstance(original["physx.get_physics_sim_view"], classmethod)
     if "newton" in available_backends():

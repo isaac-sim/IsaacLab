@@ -791,14 +791,18 @@ _PARTIAL_WRITES = {
 def _read_backend_rows(backend: str, raw_backend, quantity: str) -> torch.Tensor:
     """Read one rigid-object quantity from backend storage as one row per environment."""
     if backend == "physx":
-        getter = {"root_pose": "get_transforms", "root_velocity": "get_velocities", "mass": "get_masses"}[quantity]
-        values = getattr(raw_backend, getter)()
+        getter = {
+            "root_pose": raw_backend.get_transforms,
+            "root_velocity": raw_backend.get_velocities,
+            "mass": raw_backend.get_masses,
+        }
+        values = getter[quantity]()
     elif backend == "newton":
         if quantity == "mass":
             values = raw_backend.get_attribute("body_mass", None)
         else:
-            getter = {"root_pose": "get_root_transforms", "root_velocity": "get_root_velocities"}[quantity]
-            values = getattr(raw_backend, getter)(None)
+            getter = {"root_pose": raw_backend.get_root_transforms, "root_velocity": raw_backend.get_root_velocities}
+            values = getter[quantity](None)
     else:
         from isaaclab_ov import tensor_types as TT
 
