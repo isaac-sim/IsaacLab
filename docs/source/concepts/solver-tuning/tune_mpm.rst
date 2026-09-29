@@ -34,42 +34,15 @@ Tune one group at a time in this order:
    not repair an unstable timestep, invalid reset, or incorrect collider.
 
 
-Run Controlled Tuning Experiments
----------------------------------
+Material Comparisons
+--------------------
 
-The ``mpm-*`` tuning examples are controlled experiments rather than
-general-purpose scenes. They keep the geometry, initial particles, camera,
-and solver configuration fixed while changing one quantity. Run them from a
-source checkout with ``uv run isaaclab example <name>`` or from an installed
-wheel with ``uvx isaaclab example <name>``. Reusable solver and material APIs
-remain in ``isaaclab_newton``.
+The recordings below hold the scene and solver configuration fixed within
+each comparison while varying one material parameter. The annotated values
+are examples for observing different responses, not calibrated material
+recommendations.
 
-.. grid:: 1 1 2 2
-   :gutter: 2
-
-   .. grid-item-card:: Material response
-
-      Compare up to three specimens while changing one constitutive parameter.
-
-      .. code-block:: bash
-
-         uv run isaaclab example mpm-material-tuning \
-           --preset young_modulus --visualizer kit
-
-   .. grid-item-card:: Rigid-body limit
-
-      Compare matched MJWarp rigid primitives with nearly rigid MPM particles.
-
-      .. code-block:: bash
-
-         uv run isaaclab example mpm-rigid-equivalence \
-           --visualizer kit
-
-The material runner includes the following presentation presets. Use
-``--variant_index`` to render one member of a comparison, or omit it for the
-side-by-side view.
-
-.. list-table:: Material tuning presets
+.. list-table:: Values shown in the material recordings
    :header-rows: 1
    :widths: 21 35 44
 
@@ -111,7 +84,7 @@ side-by-side view.
 Design a Useful Parameter Study
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use these practices when adapting the examples:
+Use these practices when designing a comparison:
 
 * Change one physical quantity at a time. Use the same generated positions,
   particle mass, collider, timestep, and camera for every variant.
@@ -145,7 +118,7 @@ Interpret the Comparisons
 
 * **Elastic response:** Poisson's ratio changes both bulk and shear moduli at
   fixed Young's modulus. Values close to 0.5 approach incompressibility; this
-  is not an independent sweep of volume stiffness. The preset uses 50 kPa
+  is not an independent sweep of volume stiffness. The recording uses 50 kPa
   Young's modulus and a gentler drop so the impact produces visible strain
   without obscuring the comparison through loss of the specimen silhouette.
 * **Plastic response:** yielding, hardening, friction, and dilatancy interact.
@@ -156,8 +129,8 @@ Interpret the Comparisons
   and plastic flow but do not impose rigid-body constraints. Residual shape
   drift, contact differences, and particle sampling error can remain. Compare
   silhouettes and mass as well as motion; increase resolution only after
-  checking timestep and convergence. The default three-particle-per-axis
-  comparison is intentionally more expensive than the other examples.
+  checking timestep and convergence. Higher particle density is more
+  expensive than a coarse comparison.
 
 
 Example Recordings
@@ -170,8 +143,8 @@ Material Response
 ~~~~~~~~~~~~~~~~~
 
 The selected material clips were recorded in Kit at 1920 × 1080. Their
-annotations belong to those recordings; use the CLI and recorded configuration
-to reproduce a comparison rather than treating video duration as simulation time.
+annotations belong to those recordings; do not treat video duration as
+simulation time.
 
 .. grid:: 1 1 2 2
    :gutter: 2
@@ -186,7 +159,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Plate compression at 100 kPa, 300 kPa, and 1 MPa.
 
-      Run ``isaaclab example mpm-material-tuning --preset young_modulus --press_spheres --visualizer kit``.
 
    .. grid-item-card:: Compressibility
 
@@ -198,7 +170,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Plate compression at Poisson ratios 0.05, 0.30, and 0.499 with E = 50 kPa.
 
-      Run ``isaaclab example mpm-material-tuning --preset poisson_ratio --press_spheres --visualizer kit``.
 
    .. grid-item-card:: Granular friction
 
@@ -210,7 +181,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Runout for internal friction 0, 0.68, and 2.0; cohesion is unchanged.
 
-      Run ``isaaclab example mpm-material-tuning --preset friction --visualizer kit``.
 
    .. grid-item-card:: Tensile cohesion
 
@@ -222,7 +192,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Tensile yield ratios 0, 0.01, and 0.05.
 
-      Run ``isaaclab example mpm-material-tuning --preset tensile_yield_ratio --visualizer kit``.
 
    .. grid-item-card:: Pressure yielding
 
@@ -234,7 +203,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Stronger impact reveals compression at 100 kPa, 1 MPa, and 4 MPa.
 
-      Run ``isaaclab example mpm-material-tuning --preset yield_pressure --visualizer kit``.
 
    .. grid-item-card:: Plastic hardening
 
@@ -246,7 +214,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Fixed strength (0) versus slow (0.05) and rapid (5) strength buildup.
 
-      Run ``isaaclab example mpm-material-tuning --preset hardening --visualizer kit``.
 
    .. grid-item-card:: Shear dilatancy
 
@@ -258,7 +225,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Spreading and packing for dilatancy 0, 0.1, and 1.
 
-      Run ``isaaclab example mpm-material-tuning --preset dilatancy --visualizer kit``.
 
    .. grid-item-card:: Cohesive yield stress
 
@@ -270,7 +236,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Retained shape at 0, 10 kPa, and 20 kPa.
 
-      Run ``isaaclab example mpm-material-tuning --preset yield_stress --visualizer kit``.
 
    .. grid-item-card:: Plastic viscosity
 
@@ -282,7 +247,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Rate of plastic flow at 0, 10 Pa·s, and 500 Pa·s.
 
-      Run ``isaaclab example mpm-material-tuning --preset viscosity --visualizer kit``.
 
    .. grid-item-card:: Initial packing
 
@@ -294,7 +258,6 @@ to reproduce a comparison rather than treating video duration as simulation time
 
       Aligned sampling versus deterministic 30% particle-spacing jitter.
 
-      Run ``isaaclab example mpm-material-tuning --preset particle_jitter --visualizer kit``.
 
 Nearly Rigid Limit
 ~~~~~~~~~~~~~~~~~~

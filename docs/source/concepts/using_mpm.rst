@@ -200,20 +200,11 @@ material behavior. Run the teapot demo to compare the available modes:
    uv run --extra ovrtx isaaclab demo teapot-fill --device cuda:0 \
      --visualizer newton_rtx --fluid_render_mode surface
 
-The teapot demo defaults to particles. This keeps the source MPM state visible
-in Kit and avoids making a reconstruction choice on behalf of the user. Select
-``surface`` or ``both`` explicitly for Newton GL or Newton RTX.
+The teapot demo defaults to the reconstructed surface. Select ``particles`` or
+``both`` to inspect the source MPM state in Newton GL or Newton RTX.
 
 Surface rendering is available in the Newton GL and Newton RTX visualizers.
 The Kit visualizer continues to render the MPM particles directly.
-
-Use the focused reconstruction comparison to keep the water simulation fixed
-while changing only surface extraction parameters:
-
-.. code-block:: bash
-
-   uv run isaaclab example mpm-surface-reconstruction \
-     --device cuda:0 --surface_preset balanced --visualizer newton_gl
 
 .. raw:: html
 
@@ -221,16 +212,13 @@ while changing only surface extraction parameters:
      <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_surface_reconstruction.mp4" type="video/mp4">
    </video>
 
-The balanced Newton RTX recording demonstrates rendering appearance, not a
-different constitutive model.
+This recording demonstrates rendering appearance, not a different
+constitutive model.
 
-To reconstruct a surface in another Newton MPM script, configure a
-``newton.geometry.ParticleSurface`` after ``sim.reset()`` and pass it with the
-active viewers to :class:`~isaaclab_visualizers.newton.ParticleSurfaceRenderer`.
-Call ``update()`` before ``sim.render()``. The helper captures extraction on CUDA
-when enabled and stages the latest dynamic mesh inside the viewer's frame
-lifecycle. The teapot and falling-blob examples show different surface settings
-using the same helper.
+The teapot demo configures ``newton.geometry.ParticleSurface`` after
+``sim.reset()`` and updates the mesh before ``sim.render()``. Its renderer
+captures extraction on CUDA when enabled and stages the dynamic mesh inside
+the viewer's frame lifecycle.
 
 Tune reconstruction independently from the simulation:
 
@@ -243,15 +231,15 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The demo handles CUDA graph capture, empty surfaces, inactive particles, and
-dynamic topology in one reusable helper:
+The teapot demo handles CUDA graph capture, empty surfaces, inactive particles,
+and dynamic topology:
 
-.. dropdown:: ``ParticleSurfaceRenderer`` implementation
+.. dropdown:: Teapot surface renderer implementation
    :icon: code
 
-   .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/particle_surface.py
+   .. literalinclude:: ../../../examples/demos/teapot_fill.py
       :language: python
-      :pyobject: ParticleSurfaceRenderer
+      :pyobject: FluidSurfaceRenderer
 
 
 Next Steps

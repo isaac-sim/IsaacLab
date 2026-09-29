@@ -27,9 +27,7 @@ For example, run ``uvx isaaclab demo zoo --viz newton_gl`` to explore the catalo
 Programs whose required modules are unavailable, hardware-dependent teleoperation, and
 Kit-only demos are not shown.
 
-For controlled particle-material experiments, see :ref:`newton-tuning-mpm`.
-The MPM examples cover material response, nearly rigid particles, G1 coupling,
-and surface reconstruction.
+For particle-material comparisons and solver guidance, see :ref:`newton-tuning-mpm`.
 
 Command Builder
 ---------------
