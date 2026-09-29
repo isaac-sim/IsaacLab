@@ -805,6 +805,10 @@ class _ArticulationScene:
     """World position of every environment of each island, keyed by island name."""
     refcounts: dict[str, int]
     """Reference count of each articulation right after construction."""
+    cold_inertial_view_values: tuple[torch.Tensor, torch.Tensor]
+    """Masses and inertias written through the floating island's view before any read."""
+    cold_inertial_reads: tuple[torch.Tensor, torch.Tensor]
+    """Masses and inertias of the floating island on their first read after that write."""
 
     @property
     def islands(self) -> dict[str, Articulation]:
@@ -866,11 +870,31 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
             islands[name], origins[name] = _spawn_island(name.capitalize(), 3.0 * index, cfg, **authoring)
             refcounts[name] = sys.getrefcount(islands[name])
         sim.reset()
+        # Write inertial properties through the tensor view of the floating island, whose identity body order keeps
+        # the construction-time buffer timestamps, and read them once before any test steps the scene or reads these
+        # buffers. Restore the view afterwards.
+        floating_view = islands["floating"].root_view
+        cpu_env_ids = wp.array(list(range(_NUM_ENVS)), dtype=wp.int32, device="cpu")
+        view_masses = wp.to_torch(floating_view.get_masses()).clone()
+        view_inertias = wp.to_torch(floating_view.get_inertias()).clone()
+        cold_masses = view_masses + 0.293
+        cold_inertias = view_inertias.clone()
+        cold_inertias[..., [0, 4, 8]] += 0.023
+        floating_view.set_masses(wp.from_torch(cold_masses, dtype=wp.float32), indices=cpu_env_ids)
+        floating_view.set_inertias(wp.from_torch(cold_inertias, dtype=wp.float32), indices=cpu_env_ids)
+        cold_reads = (
+            islands["floating"].data.body_mass.torch.clone(),
+            islands["floating"].data.body_inertia.torch.clone(),
+        )
+        floating_view.set_masses(wp.from_torch(view_masses, dtype=wp.float32), indices=cpu_env_ids)
+        floating_view.set_inertias(wp.from_torch(view_inertias, dtype=wp.float32), indices=cpu_env_ids)
         yield _ArticulationScene(
             sim=sim,
             device=device,
             origins={name: value.to(device) for name, value in origins.items()},
             refcounts=refcounts,
+            cold_inertial_view_values=(cold_masses, cold_inertias),
+            cold_inertial_reads=cold_reads,
             **islands,
         )
 
@@ -1034,8 +1058,9 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     device = scene.device
 
     # Direct tensor-view mass and inertia writes become visible on the lazy read: on the first read of a cold
-    # buffer, and after the next update once the buffer is primed. No other test reads the inertial buffers of
-    # the reordered island, so its first read here is cold regardless of test order.
+    # buffer, taken by the fixture before any test step, and after the next update once the buffer is primed.
+    for cold_read, view_values in zip(scene.cold_inertial_reads, scene.cold_inertial_view_values):
+        torch.testing.assert_close(cold_read, view_values.to(device))
     cpu_env_ids = wp.array(list(range(_NUM_ENVS)), dtype=wp.int32, device="cpu")
 
     def write_backend_mass_inertia(
@@ -1048,12 +1073,6 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         articulation.root_view.set_masses(wp.from_torch(backend_masses, dtype=wp.float32), indices=cpu_env_ids)
         articulation.root_view.set_inertias(wp.from_torch(backend_inertias, dtype=wp.float32), indices=cpu_env_ids)
         return backend_masses.to(device), backend_inertias.to(device)
-
-    reordered_user_to_backend = list(scene.reordered.body_ordering.user_to_backend_indices)
-    backend_masses, backend_inertias = write_backend_mass_inertia(scene.reordered, 0.293, 0.023)
-    torch.testing.assert_close(scene.reordered.data.body_mass.torch, backend_masses[:, reordered_user_to_backend])
-    torch.testing.assert_close(scene.reordered.data.body_inertia.torch, backend_inertias[:, reordered_user_to_backend])
-    write_backend_mass_inertia(scene.reordered, -0.293, -0.023)
 
     articulation = scene.ordered
     body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
