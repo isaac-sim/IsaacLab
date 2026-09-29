@@ -333,14 +333,12 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     assert OvPhysxManager.kinematics_dirty
 
 
-@pytest.mark.parametrize(
-    ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
-    [("cpu", True, None), ("cuda:2", False, "2")],
-)
-def test_manager_supports_pinned_runtime_api(
-    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus
-):
-    """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
+@pytest.mark.parametrize(("device", "expected_active_cuda_gpus"), [("cpu", None), ("cuda:2", "2")])
+def test_manager_supports_pinned_runtime_api(monkeypatch, tmp_path, device, expected_active_cuda_gpus):
+    """The pinned OVPhysX wheel keeps its constructor, step, and reset API.
+
+    The runtime never enters the wheel's sticky process-wide CPU-only mode, which would block later CUDA scenes.
+    """
     import isaaclab_ov.physics.ovphysx_manager as module
     from isaaclab_ov.physics import OvPhysxBackendCfg, OvPhysxManager
 
@@ -393,7 +391,7 @@ def test_manager_supports_pinned_runtime_api(
     OvPhysxManager.step()
     OvPhysxManager._prepare_physx_for_stage_reuse()
 
-    assert PinnedPhysX.cpu_mode is expected_cpu_mode
+    assert PinnedPhysX.cpu_mode is None
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir

@@ -24,6 +24,9 @@ from isaaclab_ov.assets.deformable_object.deformable_object_data import (  # noq
 from isaaclab_ov.assets.deformable_object.kernels import vec6f  # noqa: E402
 from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend  # noqa: E402
 
+pytestmark = pytest.mark.unit
+
+
 wp.init()
 wp.set_device("cpu")
 
