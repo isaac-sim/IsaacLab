@@ -1319,50 +1319,58 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
         assert torch.count_nonzero(composer.out_torque_b.torch) == 0
 
 
+def _set_spatial_tendon_properties(
+    articulation: Articulation, values: dict[str, torch.Tensor], env_ids: torch.Tensor | None = None
+) -> None:
+    """Set every spatial tendon property of the selected environments without writing it to the simulation."""
+    articulation.set_spatial_tendon_stiffness_index(stiffness=values["stiffness"], env_ids=env_ids)
+    articulation.set_spatial_tendon_limit_stiffness_index(limit_stiffness=values["limit_stiffness"], env_ids=env_ids)
+    articulation.set_spatial_tendon_damping_index(damping=values["damping"], env_ids=env_ids)
+    articulation.set_spatial_tendon_offset_index(offset=values["offset"], env_ids=env_ids)
+
+
 def test_spatial_tendon_properties_round_trip(articulation_scene: _ArticulationScene) -> None:
     """A locally authored spatial tendon is discovered and its selected properties reach PhysX."""
     device = articulation_scene.device
     articulation = articulation_scene.tendon
     assert articulation.is_fixed_base
     assert articulation.num_spatial_tendons == 1
+    data = articulation.data
     root_view = articulation.root_view
-    getters = {
-        "stiffness": root_view.get_spatial_tendon_stiffnesses,
-        "limit_stiffness": root_view.get_spatial_tendon_limit_stiffnesses,
-        "damping": root_view.get_spatial_tendon_dampings,
-        "offset": root_view.get_spatial_tendon_offsets,
+    # Readers of the Lab data and of the solver for each property.
+    readers = {
+        "stiffness": (lambda: data.spatial_tendon_stiffness.torch, root_view.get_spatial_tendon_stiffnesses),
+        "limit_stiffness": (
+            lambda: data.spatial_tendon_limit_stiffness.torch,
+            root_view.get_spatial_tendon_limit_stiffnesses,
+        ),
+        "damping": (lambda: data.spatial_tendon_damping.torch, root_view.get_spatial_tendon_dampings),
+        "offset": (lambda: data.spatial_tendon_offset.torch, root_view.get_spatial_tendon_offsets),
     }
 
     # Distinct per-environment values so that an environment mix-up cannot pass
     env_offset = torch.arange(_NUM_ENVS, dtype=torch.float32, device=device).unsqueeze(1)
     values = {"stiffness": 10.0 + env_offset, "limit_stiffness": 20.0 + env_offset, "damping": 3.0 + env_offset}
     values["offset"] = env_offset
-    for name, value in values.items():
-        getattr(articulation, f"set_spatial_tendon_{name}_index")(**{name: value})
+    _set_spatial_tendon_properties(articulation, values)
     articulation.write_spatial_tendon_properties_to_sim_index()
-    for name, getter in getters.items():
-        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
+    for name, (_, read_view) in readers.items():
+        torch.testing.assert_close(wp.to_torch(read_view()).to(device), values[name])
 
-    # Partial writes change environment 1 in the data and in the solver and preserve environment 0.
-    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
-    partial = {"stiffness": 12.0, "limit_stiffness": 3.0, "damping": 1.5, "offset": 0.1}
-    for name, value in partial.items():
-        getattr(articulation, f"set_spatial_tendon_{name}_index")(
-            **{name: torch.tensor([[value]], device=device), "env_ids": env_ids}
-        )
-        values[name][1] = value
-        torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
-    articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
-    for name, getter in getters.items():
-        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
-
-    # Unsorted int64 selectors write each row to the environment it names.
-    env_ids = torch.tensor([1, 0], dtype=torch.int64, device=device)
-    for name, value in partial.items():
-        rows = torch.tensor([[value + 1.0], [value + 2.0]], device=device)
-        getattr(articulation, f"set_spatial_tendon_{name}_index")(**{name: rows, "env_ids": env_ids})
-        values[name][env_ids] = rows
-        torch.testing.assert_close(getattr(articulation.data, f"spatial_tendon_{name}").torch, values[name])
-    articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
-    for name, getter in getters.items():
-        torch.testing.assert_close(wp.to_torch(getter()).to(device), values[name])
+    # Partial writes, first to environment 1 alone and then through unsorted int64 selectors with distinct rows,
+    # change the selected environments in the data and in the solver and preserve the others.
+    for env_ids, row_offsets in (
+        (torch.tensor([1], dtype=torch.int32, device=device), (0.0,)),
+        (torch.tensor([1, 0], dtype=torch.int64, device=device), (1.0, 2.0)),
+    ):
+        partial = {
+            name: torch.tensor([[value + row_offset] for row_offset in row_offsets], device=device)
+            for name, value in (("stiffness", 12.0), ("limit_stiffness", 3.0), ("damping", 1.5), ("offset", 0.1))
+        }
+        _set_spatial_tendon_properties(articulation, partial, env_ids=env_ids)
+        for name, (read_data, _) in readers.items():
+            values[name][env_ids.long()] = partial[name]
+            torch.testing.assert_close(read_data(), values[name])
+        articulation.write_spatial_tendon_properties_to_sim_index(env_ids=env_ids)
+        for name, (_, read_view) in readers.items():
+            torch.testing.assert_close(wp.to_torch(read_view()).to(device), values[name])
