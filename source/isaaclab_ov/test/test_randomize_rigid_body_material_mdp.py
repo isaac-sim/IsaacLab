@@ -11,8 +11,7 @@ OVPhysX :class:`~isaaclab_ov.assets.RigidObject`, so the backend dispatch itself
 friction/restitution through the asset's ``OvPhysxView``. The ``cfg`` / ``env`` / ``asset_cfg`` inputs
 are stubbed: the term only reads ``cfg.params``, ``env.scene[...]`` and ``env.sim.physics_manager``.
 
-Kitless; run once per device (``-k cpu`` / ``-k 'cuda:0'``) -- the ovphysx runtime binds the
-device mode process-globally (see the asset tests' module docstring).
+Kitless; the CPU and CUDA cases run in one process.
 """
 
 from __future__ import annotations
@@ -35,28 +34,6 @@ from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 
 wp.init()
-
-pytestmark = pytest.mark.device_split
-
-_LOCKED_DEVICE: list[str | None] = [None]
-
-
-@pytest.fixture(autouse=True)
-def _ovphysx_skip_other_device(request):
-    """Skip parametrized tests on the device the session is not pinned to (process-global lock)."""
-    callspec = getattr(request.node, "callspec", None)
-    device = callspec.params.get("device") if callspec is not None else None
-    if device is None:
-        return
-    locked = _LOCKED_DEVICE[0]
-    if locked is None:
-        _LOCKED_DEVICE[0] = device
-        return
-    if device != locked:
-        pytest.skip(
-            f"ovphysx process-global device lock is held by '{locked}'; cannot run '{device}' "
-            "tests in the same session.  Run pytest twice (once per device) for full coverage."
-        )
 
 
 def _ovphysx_sim_context(device: str, **kwargs):
