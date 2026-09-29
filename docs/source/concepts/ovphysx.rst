@@ -123,13 +123,13 @@ Then run a small backend smoke test:
 
       .. code-block:: bash
 
-          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          uv run --extra ovphysx --extra test python -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
-          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_initialization -k cpu
+          ./isaaclab.sh -p -m pytest source/isaaclab_ov/test/assets/test_rigid_object.py::test_rigid_object_real_ovphysx_seams -k cpu
 
 To try a task that declares an OvPhysX physics preset, use the same preset CLI
 syntax as the other backends:
