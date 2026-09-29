@@ -3,15 +3,13 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""PD actuator equivalence tests on ANYmal-C (floating-base quadruped) — PhysX backend.
+"""Newton-native actuator seams on the PhysX backend, driven on ANYmal-C (floating-base quadruped).
 
-Compares IsaacLab-native actuators against Newton-native actuators (created
-from the same Lab configs via USD authoring, stepped via
-:class:`PhysxActuatorWrapper`) on the PhysX physics backend.  Both paths
-must produce identical joint trajectories within tolerance.
-
-Using ANYmal-C — a 12-DOF quadruped on a floating base — exercises the
-full Lab-to-Newton config translation pipeline on a real-world robot.
+Compares IsaacLab-native actuators against Newton-native actuators (created from the same Lab configs via USD
+authoring, stepped via :class:`PhysxActuatorWrapper`) on the PhysX physics backend. The translation of each
+actuator model is backend independent and owned by the Newton backend suite; these tests keep the PhysX seams:
+wrapper efforts next to implicit PhysX drives, stateful actuators with ping-pong CUDA graphs, non-identity joint
+ordering, per-articulation adapters, per-environment resets, gain randomization, and network actuators.
 """
 
 from isaaclab.test.utils import launch_test_simulation
@@ -22,22 +20,18 @@ launch_test_simulation()
 import functools
 import os
 import unittest
-from types import SimpleNamespace
 
-import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
-from isaaclab_physx.assets.articulation.actuator_control import PhysxActuatorControl
 from isaaclab_physx.physics import PhysxCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import IdealPDActuatorCfg
 from isaaclab.actuators.newton import read_group_parameter
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils.actuator_equivalence import (
     CARTPOLE_EXPLICIT_ACTUATORS,
-    DC_MOTOR_ACTUATORS,
     DELAYED_PD_ACTUATORS,
     IDEAL_PD_ACTUATORS,
     IMPLICIT_ONLY_ACTUATORS,
@@ -52,7 +46,6 @@ from isaaclab.test.utils.actuator_equivalence import (
 from isaaclab.test.utils.articulation_ordering import assert_articulation_ordering_trace_matches
 
 from isaaclab_assets import ANYMAL_C_CFG
-from isaaclab_assets.robots.spot import joint_parameter_lookup as SPOT_KNEE_LOOKUP
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -78,70 +71,6 @@ _ANYMAL_C_PHYSX_JOINT_NAMES = (
 )
 
 
-def test_prepare_native_actuators_does_not_zero_solver_gains(monkeypatch):
-    """Leave solver gains untouched until collection construction resolves actuator defaults."""
-    from isaaclab_physx.assets.articulation import actuator_control
-
-    from isaaclab.actuators.newton import NewtonActuatorAdapter, PhysxActuatorWrapper
-
-    joint_buffer = SimpleNamespace(warp=wp.zeros((1, 1), dtype=wp.float32, device="cpu"))
-    collection = SimpleNamespace(
-        target_command=SimpleNamespace(position=joint_buffer, velocity=joint_buffer, effort=joint_buffer)
-    )
-    gain_writes = []
-    articulation = SimpleNamespace(
-        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
-        cfg=SimpleNamespace(prim_path="/World/Robot"),
-        joint_names=["joint"],
-        num_instances=1,
-        num_joints=1,
-        device="cpu",
-        _data=SimpleNamespace(joint_pos=joint_buffer, joint_vel=joint_buffer),
-        write_joint_stiffness_to_sim_index=lambda **_: gain_writes.append("stiffness"),
-        write_joint_damping_to_sim_index=lambda **_: gain_writes.append("damping"),
-    )
-    wrapper = SimpleNamespace()
-    adapter = SimpleNamespace(joint_indices=wp.array([0], dtype=wp.int32), finalize=lambda _: None)
-    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
-    monkeypatch.setattr(PhysxActuatorWrapper, "create", lambda **_: wrapper)
-    monkeypatch.setattr(NewtonActuatorAdapter, "from_usd", lambda **_: adapter)
-
-    native_groups = PhysxActuatorControl(articulation).prepare_native_actuators(
-        collection,
-        {"explicit": IdealPDActuatorCfg(joint_names_expr=["joint"], stiffness=None, damping=None)},
-    )
-
-    assert native_groups == {"explicit"}
-    assert gain_writes == []
-
-
-def test_prepare_native_actuators_leaves_implicit_only_articulation_on_standard_path(monkeypatch):
-    """Keep implicit-only articulations on the unchanged solver-drive path."""
-    from isaaclab_physx.assets.articulation import actuator_control
-
-    runtime_prepare_calls = []
-    runtime = SimpleNamespace(
-        prepare=lambda *args, **kwargs: runtime_prepare_calls.append(True), wrapper=None, adapter=None
-    )
-    articulation = SimpleNamespace(
-        _sim_cfg=SimpleNamespace(use_newton_actuators=True),
-        cfg=SimpleNamespace(prim_path="/World/Robot"),
-    )
-    monkeypatch.setattr(actuator_control, "PhysxActuatorRuntime", lambda *args, **kwargs: runtime)
-    monkeypatch.setattr(actuator_control, "find_first_matching_prim", lambda _: None)
-
-    control = PhysxActuatorControl(articulation)
-    native_groups = control.prepare_native_actuators(
-        collection=None,
-        actuator_cfgs={"implicit": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=10.0, damping=1.0)},
-    )
-
-    assert native_groups == set()
-    assert not control.native_actuator_path_active
-    assert not articulation._has_newton_actuators
-    assert runtime_prepare_calls == []
-
-
 # ---------------------------------------------------------------------------
 # Simulation runner
 # ---------------------------------------------------------------------------
@@ -152,10 +81,8 @@ def _run_simulation(
     use_newton_actuators: bool,
     *,
     num_steps: int = NUM_STEPS,
-    feedforward: float | None = None,
     joint_ordering: tuple[str, ...] | None = None,
     permutation_sensitive_commands: bool = False,
-    capture_first_compute: bool = False,
 ) -> dict:
     """Run ANYmal-C on PhysX and return recorded trajectories + telemetry.
 
@@ -165,11 +92,9 @@ def _run_simulation(
         actuators: Actuator configuration replacing ANYmal-C defaults.
         use_newton_actuators: Whether to use the Newton actuator fast path.
         num_steps: Number of simulation steps to record.
-        feedforward: Optional constant effort target for every joint.
         joint_ordering: Optional explicit public joint-name order.
         permutation_sensitive_commands: Whether to command distinct position, velocity, and effort values by
             physical joint name.
-        capture_first_compute: Whether to invoke the first actuator computation inside an outer CUDA capture.
 
     Returns:
         Recorded joint-name metadata, commands, public trajectories and torque telemetry, and adapter effort traces.
@@ -219,7 +144,7 @@ def _run_simulation(
         else:
             target_pos = init_pos + TARGET_OFFSET
             target_vel = torch.zeros_like(init_pos)
-            effort_target = None if feedforward is None else torch.full_like(init_pos, feedforward)
+            effort_target = None
 
         articulation.set_joint_position_target_index(target=target_pos)
         articulation.set_joint_velocity_target_index(target=target_vel)
@@ -229,9 +154,6 @@ def _run_simulation(
         recorded_pos, recorded_vel = [], []
         recorded_computed_effort, recorded_applied_effort = [], []
         recorded_adapter_applied = []
-        if capture_first_compute:
-            with wp.ScopedCapture(device=articulation.device, force_module_load=True):
-                articulation.actuators.compute(DT)
         for _ in range(num_steps):
             articulation.write_data_to_sim()
             sim.step()
@@ -259,43 +181,6 @@ def _run_simulation(
         "effort_target": None if effort_target is None else effort_target.clone(),
         "native_actuator_graph_count": native_actuator_graph_count,
     }
-
-
-def test_newton_actuator_graph_capture_failure_falls_back_to_eager(monkeypatch: pytest.MonkeyPatch) -> None:
-    class FailingCapture:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            raise RuntimeError("capture unavailable")
-
-        def __exit__(self, exc_type, exc_value, traceback):
-            return False
-
-    monkeypatch.setattr(wp, "ScopedCapture", FailingCapture)
-
-    result = _run_simulation(
-        DC_MOTOR_ACTUATORS,
-        use_newton_actuators=True,
-        num_steps=2,
-        feedforward=1.0,
-    )
-
-    assert result["native_actuator_graph_count"] == 0
-    assert len(result["joint_pos"]) == 2
-    assert all(torch.isfinite(joint_pos).all() for joint_pos in result["joint_pos"])
-    assert all(torch.any(effort != 0.0) for effort in result["applied_effort"])
-    assert all(torch.any(effort != 0.0) for effort in result["adapter_applied_effort"])
-
-
-def test_stateful_newton_actuators_reject_outer_cuda_capture() -> None:
-    with pytest.raises(RuntimeError, match="stateful Newton actuators cannot run inside an outer CUDA graph capture"):
-        _run_simulation(
-            DELAYED_PD_ACTUATORS,
-            use_newton_actuators=True,
-            num_steps=0,
-            capture_first_compute=True,
-        )
 
 
 def test_newton_actuator_rollout_matches_reversed_joint_ordering() -> None:
@@ -436,20 +321,6 @@ class _EquivalenceTestBase(EquivalenceAssertionsMixin, unittest.TestCase):
 # ---------------------------------------------------------------------------
 # Equivalence tests with different actuator types
 # ---------------------------------------------------------------------------
-
-
-class TestIdealPDEquivalence(_EquivalenceTestBase):
-    """IdealPDActuator on all 12 joints: Lab vs Newton (PhysX backend)."""
-
-    __test__ = True
-    actuators = IDEAL_PD_ACTUATORS
-
-
-class TestDCMotorEquivalence(_EquivalenceTestBase):
-    """DCMotor actuator on all 12 joints: Lab vs Newton (PhysX backend)."""
-
-    __test__ = True
-    actuators = DC_MOTOR_ACTUATORS
 
 
 class TestDelayedPDEquivalence(_EquivalenceTestBase):
@@ -721,43 +592,6 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
 
     def _get_adapter(self, articulation):
         return articulation.newton_actuator_adapter
-
-
-# ---------------------------------------------------------------------------
-# RemotizedPD equivalence: PD + delay + position-based clamping lookup table
-# ---------------------------------------------------------------------------
-
-
-class TestRemotizedPDEquivalence(_EquivalenceTestBase):
-    """RemotizedPD (PD + delay + position-based clamping): Lab vs Newton (PhysX).
-
-    Uses the Spot knee lookup table on ANYmal's KFE joints with IdealPD
-    on HAA and HFE.
-    """
-
-    __test__ = True
-
-    @classmethod
-    def setUpClass(cls):
-        from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
-
-        cls.actuators = {
-            "hips": IdealPDActuatorCfg(
-                joint_names_expr=[".*HAA", ".*HFE"],
-                stiffness=40.0,
-                damping=5.0,
-                actuator_effort_limit=80.0,
-            ),
-            "knees": RemotizedPDActuatorCfg(
-                joint_names_expr=[".*KFE"],
-                stiffness=60.0,
-                damping=1.5,
-                actuator_effort_limit=80.0,
-                max_delay=3,
-                joint_parameter_lookup=SPOT_KNEE_LOOKUP,
-            ),
-        }
-        super().setUpClass()
 
 
 # ---------------------------------------------------------------------------
