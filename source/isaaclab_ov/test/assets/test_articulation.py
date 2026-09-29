@@ -1468,7 +1468,7 @@ _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
 _ROTATED_JOINT_NAMES = (*BRANCHING_PHYSX_JOINT_NAMES[1:], BRANCHING_PHYSX_JOINT_NAMES[0])
 
 
-def _implicit(**kwargs) -> dict:
+def _implicit(**kwargs) -> dict[str, ImplicitActuatorCfg]:
     return {"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=_STIFFNESS, damping=_DAMPING, **kwargs)}
 
 
@@ -1587,13 +1587,6 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_ArticulationScene]:
         yield _ArticulationScene(sim=sim, device=device, native_actuators=native_actuators, islands=islands)
 
 
-def _backend_to_user(articulation: Articulation) -> list[int]:
-    """Return the public joint index of every backend joint column."""
-    if articulation.joint_ordering is None:
-        return list(range(articulation.num_joints))
-    return list(articulation.joint_ordering.backend_to_user_indices)
-
-
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
 def test_articulation_initialization_and_partial_state(scene: _ArticulationScene) -> None:
     """Prove ordering and indexed state writes against the real OVPhysX view."""
@@ -1623,7 +1616,7 @@ def test_articulation_initialization_and_partial_state(scene: _ArticulationScene
     )
     torch.testing.assert_close(articulation.data.joint_pos.torch, expected_position)
     torch.testing.assert_close(articulation.data.joint_vel.torch, expected_velocity)
-    backend_to_user = _backend_to_user(articulation)
+    backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
     torch.testing.assert_close(
         wp.to_torch(articulation.root_view.get_attribute(TT.DOF_POSITION)),
         expected_position[:, backend_to_user],
@@ -1884,7 +1877,7 @@ def test_computed_dynamics_follow_public_order_and_model_writes(scene: _Articula
     data.gravity_compensation_forces
     coms = data.body_com_pose_b.torch.clone()
     coms[:, -1, 0] += 0.01
-    articulation.set_coms_index(coms=wp.from_torch(coms.contiguous(), dtype=wp.transformf))
+    articulation.set_coms_index(coms=wp.from_torch(coms, dtype=wp.transformf))
     assert data._body_com_jacobian_w.timestamp < data._sim_timestamp
     assert data._mass_matrix.timestamp < data._sim_timestamp
     assert data._gravity_compensation_forces.timestamp < data._sim_timestamp
@@ -1977,7 +1970,7 @@ def test_floating_articulation_root_state_dynamics_wrench_and_reset(scene: _Arti
     # A written root frame moves the other frame through the root-body COM offset.
     com = _read_binding_to_torch(articulation, TT.BODY_COM_POSE, device)
     com[:, 0, :3] = torch.tensor([1.0, 0.0, 0.0], device=device)
-    articulation.set_coms_index(coms=wp.from_torch(com.contiguous(), dtype=wp.transformf))
+    articulation.set_coms_index(coms=wp.from_torch(com, dtype=wp.transformf))
     com_pos_b, com_quat_b = com[:, 0, :3], com[:, 0, 3:7]
     link_pos_in_com, link_quat_in_com = math_utils.subtract_frame_transforms(com_pos_b, com_quat_b)
     rand_state = torch.zeros(num_articulations, 13, device=device)
