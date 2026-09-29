@@ -15,11 +15,13 @@ environment and prove the other environments keep their real backend state.
 
 The CPU scene covers the host-resident property path, where CPU-only OVPhysX bindings are read and
 written directly, and the host actuator path. The CUDA scene covers the rest, including pinned-host
-staging of CPU-only bindings and the native Newton actuator path.
+staging of CPU-only bindings and the native Newton actuator path. Initialization failures need their own
+scenes, so those tests run first and build them.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
@@ -85,6 +87,7 @@ class _IslandCfg:
     reversed_elbow: bool = False
     collision_shapes: bool = False
     tendons: bool = False
+    articulation_root_prim_path: str | None = None
     devices: DeviceScope = DeviceScope.ALL
 
 
@@ -158,6 +161,16 @@ _ISLANDS: dict[str, _IslandCfg] = {
         joint_ordering=_ROTATED_JOINT_NAMES,
     ),
     "staging": _IslandCfg({}, num_envs=4, drives=False, devices=DeviceScope.CUDA),
+    # Unset gains, so the actuators adopt the gains of the authored drives.
+    "usd_gains": _IslandCfg(
+        {"joints": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=None, damping=None)},
+        devices=DeviceScope.CUDA,
+    ),
+    # A floating articulation whose root API sits on a rigid body below the asset prim.
+    "non_root": _IslandCfg(
+        _implicit(), fixed_base=False, articulation_root_prim_path="/base", devices=DeviceScope.CUDA
+    ),
+    "pos_limits": _IslandCfg(_implicit(), devices=DeviceScope.CUDA),
     "com_order": _IslandCfg(
         _implicit(), num_envs=1, body_ordering=_ROOT_PRESERVING_REVERSED_BODY_NAMES, distinct_coms=True
     ),
@@ -255,11 +268,15 @@ def _spawn_island(name: str, cfg: _IslandCfg, y_offset: float) -> Articulation:
             actuators=cfg.actuators,
             joint_ordering=cfg.joint_ordering,
             body_ordering=cfg.body_ordering,
+            articulation_root_prim_path=cfg.articulation_root_prim_path,
         )
     )
     stage = sim_utils.get_current_stage()
     for env_index in range(cfg.num_envs):
         prim_path = f"{island_path}/Env_{env_index}/Robot"
+        if cfg.articulation_root_prim_path is not None:
+            stage.GetPrimAtPath(prim_path).RemoveAPI(UsdPhysics.ArticulationRootAPI)
+            UsdPhysics.ArticulationRootAPI.Apply(stage.GetPrimAtPath(prim_path + cfg.articulation_root_prim_path))
         for joint_name in BRANCHING_PHYSX_JOINT_NAMES:
             joint_prim = stage.GetPrimAtPath(f"{prim_path}/{joint_name}")
             if cfg.drives:
@@ -327,6 +344,51 @@ def _backend_to_user(articulation: Articulation) -> list[int]:
     if articulation.joint_ordering is None:
         return list(range(articulation.num_joints))
     return list(articulation.joint_ordering.backend_to_user_indices)
+
+
+def _spawn_own_articulation(**cfg) -> Articulation:
+    """Spawn one branching articulation for a test that needs its own scene."""
+    return Articulation(
+        ArticulationCfg(
+            prim_path="/World/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=str(_FIXTURE), joint_drive_props=list(_LIMIT_DRIVE_PROPS)),
+            actuators=_implicit(),
+            **cfg,
+        )
+    )
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+@pytest.mark.parametrize(
+    ("init_state", "match"),
+    [
+        (ArticulationCfg.InitialStateCfg(joint_pos={"left_shoulder": 10.0}), "default positions out of the limits"),
+        (ArticulationCfg.InitialStateCfg(joint_vel={"left_shoulder": 100.0}), "default velocities out of the limits"),
+    ],
+    ids=["position", "velocity"],
+)
+def test_out_of_range_default_joint_state(device, init_state, match):
+    """Reject default joint positions outside the joint limits and default velocities above the velocity limits."""
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
+        articulation = _spawn_own_articulation(init_state=init_state)
+        joint = UsdPhysics.RevoluteJoint.Get(sim.stage, "/World/Robot/left_shoulder")
+        joint.CreateLowerLimitAttr(-90.0)
+        joint.CreateUpperLimitAttr(90.0)
+        with pytest.raises(ValueError, match=match):
+            sim.reset()
+        assert not articulation.is_initialized
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
+def test_setting_invalid_articulation_root_prim_path(device):
+    """Reject an explicit articulation root path that matches no prim."""
+    sim_cfg = SimulationCfg(physics=OvPhysxCfg(), device=device)
+    with build_simulation_context(device=device, sim_cfg=sim_cfg, auto_add_lighting=False) as sim:
+        articulation = _spawn_own_articulation(articulation_root_prim_path="/non_existing_prim_path")
+        with pytest.raises(RuntimeError, match="Failed to find articulation root prim"):
+            sim.reset()
+        assert not articulation.is_initialized
 
 
 @pytest.mark.parametrize("scene", _ALL_DEVICES, indirect=True)
@@ -656,6 +718,65 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
         articulation.data.body_inertia.torch[:, public_body_id : public_body_id + 1],
         expected_rotated_inertia,
     )
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+def test_loading_gains_from_usd(scene: _ArticulationScene) -> None:
+    """Adopt the authored drive gains when the actuator config leaves stiffness and damping unset."""
+    articulation = scene["usd_gains"]
+    actuator = articulation.actuators["joints"]
+    # Angular drive gains are authored per degree and exposed per radian.
+    expected_stiffness = torch.full_like(actuator.stiffness, math.degrees(_STIFFNESS))
+    expected_damping = torch.full_like(actuator.damping, math.degrees(_DAMPING))
+    torch.testing.assert_close(actuator.stiffness, expected_stiffness)
+    torch.testing.assert_close(actuator.damping, expected_damping)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_STIFFNESS, scene.device), expected_stiffness)
+    torch.testing.assert_close(_read_binding_to_torch(articulation, TT.DOF_DAMPING, scene.device), expected_damping)
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+def test_explicit_articulation_root_on_a_floating_base_body(scene: _ArticulationScene) -> None:
+    """Initialize and simulate a floating articulation from an explicit root path to a rigid body below the asset."""
+    articulation = scene["non_root"]
+    num_articulations = articulation.num_instances
+    assert articulation.is_initialized
+    assert not articulation.is_fixed_base
+    assert articulation.root_view.prim_paths == [
+        f"/World/non_root/Env_{index}/Robot/base" for index in range(num_articulations)
+    ]
+    assert articulation.data.root_pos_w.torch.shape == (num_articulations, 3)
+    assert articulation.data.root_quat_w.torch.shape == (num_articulations, 4)
+    assert articulation.data.joint_pos.torch.shape == (num_articulations, articulation.num_joints)
+    for tt in (TT.DOF_POSITION, TT.DOF_VELOCITY, TT.DOF_STIFFNESS):
+        assert articulation.root_view.binding_for(tt).shape[1] == articulation.num_joints
+    for tt in (TT.BODY_MASS, TT.BODY_COM_POSE):
+        assert articulation.root_view.binding_for(tt).shape[1] == articulation.num_bodies
+    for actuator in articulation.actuators.values():
+        assert actuator.is_implicit_model
+        assert actuator.joint_indices == slice(None)
+    scene.step(articulation, count=10)
+    assert torch.isfinite(articulation.data.root_link_pose_w.torch).all()
+
+
+@pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
+def test_joint_position_limits_clamp_default_joint_positions(scene: _ArticulationScene) -> None:
+    """Write partial joint position limits and clamp only the selected default joint positions into them."""
+    articulation = scene["pos_limits"]
+    device = scene.device
+    default_before = articulation.data.default_joint_pos.torch.clone()
+    env_ids = torch.tensor([1], dtype=torch.int32, device=device)
+    joint_ids = torch.tensor([0, 2], dtype=torch.int32, device=device)
+    # The default positions are zero, so both new ranges exclude them.
+    limits = torch.tensor([[[0.2, 0.3], [0.25, 0.35]]], device=device)
+    articulation.write_joint_position_limit_to_sim_index(limits=limits, env_ids=env_ids, joint_ids=joint_ids)
+
+    torch.testing.assert_close(articulation.data.joint_pos_limits.torch[env_ids][:, joint_ids], limits)
+    default_joint_pos = articulation.data.default_joint_pos.torch
+    selected = default_joint_pos[env_ids][:, joint_ids]
+    assert torch.all((selected >= limits[..., 0]) & (selected <= limits[..., 1]))
+    unselected = torch.ones_like(default_joint_pos, dtype=torch.bool)
+    unselected[env_ids[:, None].long(), joint_ids.long()] = False
+    torch.testing.assert_close(default_joint_pos[unselected], default_before[unselected])
 
 
 @pytest.mark.parametrize("scene", _CUDA_DEVICES, indirect=True)
