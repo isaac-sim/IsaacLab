@@ -150,6 +150,8 @@ def test_rigid_object_real_ovphysx_seams(scene: _RigidScene) -> None:
     rigid_object.write_root_link_pose_to_sim_index(root_pose=target_pose, env_ids=[1])
     torch.testing.assert_close(rigid_object.data.root_link_pose_w.torch[1:2], target_pose)
     torch.testing.assert_close(rigid_object.data.root_link_pose_w.torch[0:1], initial_pose[0:1])
+    raw_pose = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_POSE)).to(device)
+    torch.testing.assert_close(raw_pose, torch.cat((initial_pose[0:1], target_pose)))
 
     raw_mass_before = wp.to_torch(rigid_object.root_view.get_attribute(TT.RIGID_BODY_MASS)).clone()
     rigid_object.set_masses_index(masses=wp.array([[3.0]], dtype=wp.float32, device=device), env_ids=[1])
