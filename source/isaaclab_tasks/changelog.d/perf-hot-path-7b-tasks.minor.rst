@@ -21,6 +21,6 @@ Changed
   :func:`~isaaclab_tasks.core.lift.mdp.contact_count` take one norm per call instead of one per sensor.
 * Precomputed the ANYmal symmetry augmentation as one cached column permutation and sign tensor per
   transform, removing the per-minibatch index and sign uploads (about 1.5 ms to 0.15 ms per call).
-* Sent only the marker indices to Lift success markers on static assets each step, cached the locomotion
-  walk-target offset and the Lift reset position bounds on the device, and read the Reorient goal directly
+* Cached the locomotion walk-target offset and the Lift reset position bounds on the device,
+  and read the Reorient goal directly
   from the command buffers instead of concatenating the command on every access.

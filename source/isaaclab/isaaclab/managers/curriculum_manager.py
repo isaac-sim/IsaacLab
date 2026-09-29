@@ -162,12 +162,12 @@ class CurriculumManager(ManagerBase):
                     # each key is a separate state to log
                     for key, value in term_state.items():
                         if isinstance(value, torch.Tensor):
-                            value = value.detach().clone()
+                            value = value.item()
                         data.append(value)
                 else:
                     # log directly if not a dict
                     if isinstance(term_state, torch.Tensor):
-                        term_state = term_state.detach().clone()
+                        term_state = term_state.item()
                     data.append(term_state)
                 terms.append((term_name, data))
 

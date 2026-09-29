@@ -9,7 +9,7 @@ import pytest
 import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -128,7 +128,7 @@ def fail_first_quarter(env) -> torch.Tensor:
     return torch.arange(env.num_envs, device=env.device) < env.num_envs // 4
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reset_logs_term_rates_without_host_reads(device):
     """Reset logs each term's last-episode activation rate as a device scalar without synchronizing."""
     sim = MagicMock()

@@ -62,15 +62,10 @@ def test_episode_error_recorder_reports_threshold_independent_statistics():
 
 
 def test_episode_error_recorder_skips_episodes_without_samples():
-    """Verify initial resets do not emit non-finite diagnostic values."""
-    recorder = reorient_utils.EpisodeErrorRecorder(num_envs=2, device="cpu")
-
-    assert recorder.reset(torch.tensor([0, 1])) == {}
-
-
-def test_episode_error_recorder_reset_excludes_episodes_without_samples():
-    """Verify reset statistics cover only sampled episodes, and are NaN when none of them is."""
+    """Initial resets are empty; later statistics exclude unsampled episodes."""
     recorder = reorient_utils.EpisodeErrorRecorder(num_envs=5, device="cpu")
+    assert recorder.reset(torch.arange(5)) == {}
+
     nan = float("nan")
     # envs 1 and 4 only see non-finite errors, so they have no sample
     recorder.update(torch.tensor([0.3, nan, 0.1, 0.4, torch.inf]))

@@ -401,6 +401,11 @@ def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_de
     torch.testing.assert_close(env.data.pos_w, source)
     torch.testing.assert_close(result, expected)
 
+    manager.cfg["policy"].position.noise.func = in_place_noise
+    result = manager.compute()["policy"]
+    torch.testing.assert_close(env.data.pos_w, source)
+    torch.testing.assert_close(result, (source + 0.2).clip(0.0, 0.5) * 2.0)
+
 
 def test_compute_with_2d_history(setup_env):
     env = setup_env

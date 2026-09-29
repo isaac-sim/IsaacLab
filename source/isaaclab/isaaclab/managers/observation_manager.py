@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -425,10 +425,10 @@ class ObservationManager(ManagerBase):
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]
-        obs_terms = zip(group_term_names, term_cfgs)
+        obs_terms = zip(group_term_names, term_cfgs, self._group_obs_term_safe_noise_funcs[group_name])
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for term_name, term_cfg in obs_terms:
+        for term_name, term_cfg, safe_noise_func in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
             if output_spec is not None:
@@ -451,7 +451,7 @@ class ObservationManager(ManagerBase):
                     else:
                         obs = modifier.func(obs, **modifier.params)
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                if term_cfg.noise.func in _OUT_OF_PLACE_NOISE_FUNCS:
+                if term_cfg.noise.func is safe_noise_func:
                     noisy_obs = term_cfg.noise.func(obs, term_cfg.noise)
                     # a new result is owned; a returned input keeps its ownership
                     owned = owned or noisy_obs is not obs
@@ -565,6 +565,7 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_names: dict[str, list[str]] = {}
         self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
+        self._group_obs_term_safe_noise_funcs: dict[str, list[Callable | str | None]] = {}
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
@@ -604,6 +605,7 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_names[group_name] = []
             self._group_obs_term_dim[group_name] = []
             self._group_obs_term_cfgs[group_name] = []
+            self._group_obs_term_safe_noise_funcs[group_name] = []
             self._group_obs_class_term_cfgs[group_name] = []
 
             # history buffers
@@ -664,6 +666,12 @@ class ObservationManager(ManagerBase):
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
+                # Keep custom noise isolated even if its function is replaced after setup.
+                self._group_obs_term_safe_noise_funcs[group_name].append(
+                    term_cfg.noise.func
+                    if isinstance(term_cfg.noise, noise.NoiseCfg) and term_cfg.noise.func in _OUT_OF_PLACE_NOISE_FUNCS
+                    else None
+                )
 
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)

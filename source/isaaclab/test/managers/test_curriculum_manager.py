@@ -12,7 +12,7 @@ import pytest
 import torch
 
 from isaaclab.managers import CurriculumManager, CurriculumTermCfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -28,7 +28,7 @@ def advance_scalar(env, env_ids):
     return env.level
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reset_logs_state_snapshots_without_host_reads(device):
     """Reset logs tensor states as device snapshots, so later in-place term updates do not change them."""
     sim = MagicMock()
@@ -60,3 +60,6 @@ def test_reset_logs_state_snapshots_without_host_reads(device):
     ):
         assert extras[key].device == torch.device(device)
         assert extras[key].item() == expected
+
+    assert manager.get_active_iterable_terms(0) == [("dict_term", [2.0, 1.0, "stage"]), ("scalar_term", [2.0])]
+    assert isinstance(manager.get_active_iterable_terms(0)[1][1][0], float)

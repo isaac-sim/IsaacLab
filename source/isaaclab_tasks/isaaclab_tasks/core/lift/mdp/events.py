@@ -82,7 +82,7 @@ def _xyz_ranges(ranges: dict[str, tuple[float, float]], device: str | torch.devi
     return _cached_xyz_ranges(bounds, str(device))
 
 
-@functools.cache
+@functools.lru_cache(maxsize=128)
 def _cached_xyz_ranges(bounds: tuple[tuple[float, float], ...], device: str) -> torch.Tensor:
     return torch.tensor(bounds, device=device)
 

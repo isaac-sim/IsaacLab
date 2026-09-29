@@ -135,31 +135,18 @@ class ObjectUniformPoseCommand(CommandTerm):
         if not self.cfg.position_only:
             self.metrics["orientation_error"] = torch.linalg.norm(rot_error, dim=-1)
             success_id &= self.metrics["orientation_error"] < 0.5
-        self._visualize_success(success_id)
+        if self.success_vis_asset is not None:
+            self.success_visualizer.visualize(
+                self._get_success_vis_pos_w(),
+                marker_indices=success_id.int(),
+                environment_ids=self._env.scene._ALL_INDICES,
+            )
 
     def _get_success_vis_pos_w(self) -> torch.Tensor:
         """Return the success visualization positions in the world frame."""
         if self._static_success_vis_pos_w is not None:
             return self._static_success_vis_pos_w
         return self.success_vis_asset.data.root_pos_w.torch
-
-    def _visualize_success(self, success: torch.Tensor) -> None:
-        """Show each environment's success marker.
-
-        Args:
-            success: Per-environment success flags, shape ``(num_envs,)``.
-        """
-        if self.success_vis_asset is None:
-            return
-        if self._static_success_vis_pos_w is not None:
-            # positions and environment ids were set at construction; resending them copies to the host
-            self.success_visualizer.visualize(marker_indices=success.int())
-            return
-        self.success_visualizer.visualize(
-            self._get_success_vis_pos_w(),
-            marker_indices=success.int(),
-            environment_ids=self._env.scene._ALL_INDICES,
-        )
 
     def _resample_command(self, env_ids: Sequence[int]):
         # sample new pose targets
@@ -261,8 +248,15 @@ class DeformableUniformPoseCommand(ObjectUniformPoseCommand):
         com_w = self.object.data.root_pos_w.torch
         self.metrics["position_error"] = torch.linalg.norm(self.pose_command_w[:, :3] - com_w, dim=-1)
 
+        if self.success_vis_asset is None:
+            return
         # same success radius as the goal markers of the base class
-        self._visualize_success(self.metrics["position_error"] < 0.05)
+        success_id = (self.metrics["position_error"] < 0.05).int()
+        self.success_visualizer.visualize(
+            self._get_success_vis_pos_w(),
+            marker_indices=success_id,
+            environment_ids=self._env.scene._ALL_INDICES,
+        )
 
 
 class CableUniformPoseCommand(ObjectUniformPoseCommand):
@@ -294,7 +288,14 @@ class CableUniformPoseCommand(ObjectUniformPoseCommand):
         segment_pos_w = self._segment_position_w()
         self.metrics["position_error"] = torch.linalg.norm(self.pose_command_w[:, :3] - segment_pos_w, dim=-1)
 
-        self._visualize_success(self.metrics["position_error"] < 0.05)
+        if self.success_vis_asset is None:
+            return
+        success_id = (self.metrics["position_error"] < 0.05).int()
+        self.success_visualizer.visualize(
+            self._get_success_vis_pos_w(),
+            marker_indices=success_id,
+            environment_ids=self._env.scene._ALL_INDICES,
+        )
 
     def _debug_vis_callback(self, event):
         if not self.robot.is_initialized:

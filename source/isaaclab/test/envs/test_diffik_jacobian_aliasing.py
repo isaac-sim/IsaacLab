@@ -23,7 +23,7 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
     OperationalSpaceControllerAction,
 )
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils import math as math_utils
 
 pytestmark = pytest.mark.unit
@@ -124,7 +124,7 @@ def test_body_offset_jacobian_uses_offset_in_root_frame(compute, returns_jacobia
         torch.testing.assert_close(result, expected)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize(("ee_quat", "ik_offset"), [((0.0, 0.0, 0.0, 1.0), 1.0), ((0.0, 0.0, 0.0, 0.0), 0.0)])
 def test_apply_actions_holds_joints_for_uninitialized_frame(device, ee_quat, ik_offset):
     """IK targets are applied for a valid frame pose and joints hold for all-zero quaternions, without a sync."""

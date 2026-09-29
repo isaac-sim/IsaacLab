@@ -196,24 +196,33 @@ def _make_pose_command(
     return ObjectUniformPoseCommand(cfg, env), root_pos_w
 
 
-def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("static", [False, True])
+def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch, static: bool) -> None:
     """Every lift pose, goal, and success marker should retain its environment ownership."""
     num_envs = 3
     environment_ids = torch.arange(num_envs)
     success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=torch.zeros((num_envs, 3)))))
+    if static:
+        success_asset = object.__new__(Asset)
+        success_asset.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
     command, root_pos_w = _make_pose_command(monkeypatch, num_envs, success_asset)
     command._set_debug_vis_impl(True)
     command._debug_vis_callback(None)
     command.cfg.position_only = False
     command._debug_vis_callback(None)
+    # Discard construction-time placement, as happens before a backend is active.
+    command.success_visualizer.calls.clear()
+    command.cfg.position_only = True
+    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
     command._update_metrics()
+    assert torch.equal(command.success_visualizer.calls[0][1]["marker_indices"], torch.tensor([0, 1, 0]))
     DeformableUniformPoseCommand._update_metrics(command)
     command._segment_position_w = lambda: root_pos_w
     CableUniformPoseCommand._update_metrics(command)
     CableUniformPoseCommand._debug_vis_callback(command, None)
 
     expected_call_counts = {
-        command.success_visualizer: 4,
+        command.success_visualizer: 3,
         command.goal_visualizer: 3,
         command.curr_visualizer: 3,
     }
@@ -221,28 +230,9 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         assert len(visualizer.calls) == expected_count
         for _, kwargs in visualizer.calls:
             assert torch.equal(kwargs["environment_ids"], environment_ids)
-
-
-def test_lift_static_success_markers_update_only_marker_indices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Success markers on a static asset are placed once; per-step updates only switch the prototype."""
-    num_envs = 3
-    static_table = object.__new__(Asset)
-    static_table.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
-    command, _ = _make_pose_command(monkeypatch, num_envs, static_table)
-    # env 1 is at the goal, the others are not
-    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
-
-    command._update_metrics()
-
-    calls = command.success_visualizer.calls
-    placement_args, placement_kwargs = calls[0]
-    assert torch.equal(placement_args[0], torch.tensor([[0.5, 0.0, 0.0]] * num_envs))
-    assert torch.equal(placement_kwargs["environment_ids"], torch.arange(num_envs))
-    assert len(calls) == 2
-    for args, kwargs in calls[1:]:
-        assert args == ()
-        assert kwargs.keys() == {"marker_indices"}
-        assert torch.equal(kwargs["marker_indices"], torch.tensor([0, 1, 0], dtype=torch.int32))
+    if static:
+        for args, _ in command.success_visualizer.calls:
+            torch.testing.assert_close(args[0], torch.tensor([[0.5, 0.0, 0.0]] * num_envs))
 
 
 def test_lift_contact_terms_match_per_sensor_reference() -> None:

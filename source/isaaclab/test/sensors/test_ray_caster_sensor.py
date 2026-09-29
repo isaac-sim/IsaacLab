@@ -181,19 +181,24 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
 
     sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
     cfg = _ray_caster_cfg("/World/Sensor", "world")
-    cfg.drift_range = (0.01, 0.05)  # force non-zero drift
-    cfg.ray_cast_drift_range = {"x": (0.1, 0.2), "y": (-0.2, -0.1)}
     sensor = RayCaster(cfg)
     sim.reset()
-    # sim.reset() initializes the sensor with zero drift; call sensor.reset() to resample
-    # from the configured drift_range before we capture the baseline.
+    get_rng_state = torch.cuda.get_rng_state if torch.device(sensor.device).type == "cuda" else torch.get_rng_state
+    rng_state = get_rng_state()
+    sensor.reset()
+    assert torch.equal(get_rng_state(), rng_state)
+    assert (sensor.drift.torch == 0.0).all()
+    assert (sensor.ray_cast_drift.torch == 0.0).all()
+
+    sensor.cfg.drift_range = (0.01, 0.05)
+    sensor.cfg.ray_cast_drift_range = {"x": (0.1, 0.2), "y": (-0.2, -0.1)}
     sensor.reset()
 
     dt = 0.01
     sensor.update(dt)
     drift_before = sensor.drift.clone()  # (1, 3) torch tensor
 
-    lo, hi = cfg.drift_range
+    lo, hi = sensor.cfg.drift_range
 
     # After sensor.reset(), drift should be within the configured range
     assert drift_before.shape == (1, 3), f"Drift shape should be (1, 3), got {drift_before.shape}"
@@ -223,21 +228,15 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     assert ((ray_cast_drift[:, 1] >= -0.2) & (ray_cast_drift[:, 1] <= -0.1)).all()
     assert (ray_cast_drift[:, 2] == 0.0).all()
 
-
-@pytest.mark.isaacsim_ci
-def test_ray_caster_reset_skips_zero_drift_sampling(sim_ground):
-    """reset() with the default zero drift ranges leaves drift at zero without consuming random numbers."""
-    sim = sim_ground
-
-    sim_utils.create_prim("/World/Sensor", "Xform", translation=(0.0, 0.0, 2.0))
-    sensor = RayCaster(_ray_caster_cfg("/World/Sensor", "world"))
-    sim.reset()
-
-    get_rng_state = torch.cuda.get_rng_state if torch.device(sensor.device).type == "cuda" else torch.get_rng_state
-    rng_state = get_rng_state()
-    sensor.reset()
-    assert torch.equal(get_rng_state(), rng_state), "reset() must not sample drift when all drift ranges are zero"
+    # Disabling either drift clears its old sample.
+    sensor.cfg.drift_range = (0.0, 0.0)
+    sensor.reset(env_ids=[0])
     assert (sensor.drift.torch == 0.0).all()
+    assert (sensor.ray_cast_drift.torch[:, 0] >= 0.1).all()
+    sensor.cfg.ray_cast_drift_range = {}
+    rng_state = get_rng_state()
+    sensor.reset(env_ids=[0])
+    assert torch.equal(get_rng_state(), rng_state)
     assert (sensor.ray_cast_drift.torch == 0.0).all()
 
 

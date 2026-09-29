@@ -9,3 +9,8 @@ Changed
   are zero, and uploaded the ray-cast drift ranges to the device only when they change.
 * Changed :meth:`~isaaclab.markers.VisualizationMarkers.visualize` to return without validating
   or processing inputs when no visualizer backend is active, such as in headless runs.
+
+Fixed
+^^^^^
+
+* Cleared previously sampled ray-caster drift on reset when its configured range was changed to zero.

@@ -69,6 +69,7 @@ class BaseRayCaster(SensorBase):
         BaseRayCaster._instance_count += 1
         super().__init__(cfg)
         self._data = RayCasterData()
+        self._drift_sampled = False
         self._ray_cast_drift_range_list: tuple[tuple[float, float], ...] | None = None
         self._ray_cast_drift_ranges: torch.Tensor | None = None
 
@@ -112,7 +113,8 @@ class BaseRayCaster(SensorBase):
             tuple(self.cfg.ray_cast_drift_range.get(key, (0.0, 0.0))) for key in ("x", "y", "z")
         )
         sample_ray_cast_drift = any(any(axis_range) for axis_range in ray_cast_range_list)
-        if not (sample_drift or sample_ray_cast_drift):
+        self._drift_sampled |= sample_drift or sample_ray_cast_drift
+        if not self._drift_sampled:
             return
         # determine the selected batch size
         if env_ids is not None:
@@ -127,6 +129,8 @@ class BaseRayCaster(SensorBase):
         if sample_drift:
             r = torch.empty(num_envs_ids, 3, device=self.device)
             self.drift.torch[env_ids] = r.uniform_(*self.cfg.drift_range)
+        else:
+            self.drift.torch[env_ids] = 0.0
         # resample the ray cast drift
         if sample_ray_cast_drift:
             # Upload the ranges to the device only when the configuration changes.
@@ -137,6 +141,8 @@ class BaseRayCaster(SensorBase):
             self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
                 ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
             )
+        else:
+            self.ray_cast_drift.torch[env_ids] = 0.0
 
     """
     Implementation.

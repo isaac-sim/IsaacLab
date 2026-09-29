@@ -91,20 +91,33 @@ def test_config_equivalence(env):
     assert rew_man_from_dict._term_cfgs == rew_man_from_cfg._term_cfgs
 
 
-def test_compute(env):
-    """Test the computation of reward."""
+def test_compute():
+    """A partial reset reports each term's accumulated reward and preserves other environments."""
+    num_envs, dt, max_episode_length_s = 3, 0.25, 2.0
+    sim = MagicMock()
+    sim.is_playing.return_value = False
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", sim=sim, max_episode_length_s=max_episode_length_s, step=0)
     cfg = {
-        "term_1": RewardTermCfg(func=grilled_chicken, weight=10),
-        "term_2": RewardTermCfg(func=grilled_chicken_with_curry, weight=0.0, params={"hot": False}),
+        "scaled": RewardTermCfg(func=env_index_scaled, weight=-2.0, params={"factor": 1.0}),
+        "scalar": RewardTermCfg(func=grilled_chicken, weight=4.0),
+        "disabled": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.0, params={"bbq": True}),
     }
     rew_man = RewardManager(cfg, env)
-    # compute expected reward
-    expected_reward = cfg["term_1"].weight * env.dt
-    # compute reward using manager
-    rewards = rew_man.compute(dt=env.dt)
-    # check the reward for environment index 0
-    assert float(rewards[0]) == expected_reward
-    assert tuple(rewards.shape) == (env.num_envs,)
+
+    for step, expected in ((1, [1.0, 0.5, 0.0]), (2, [1.0, 0.0, -1.0])):
+        env.step = step
+        torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor(expected))
+
+    reset_env_2 = rew_man.reset(torch.tensor([2]))
+    assert {name: value.item() for name, value in reset_env_2.items()} == {
+        "Episode_Reward/scaled": -1.5,
+        "Episode_Reward/scalar": 1.0,
+        "Episode_Reward/disabled": 0.0,
+    }
+    reset_env_1 = rew_man.reset(torch.tensor([1]))
+    assert reset_env_1["Episode_Reward/scaled"].item() == -0.75
+    assert reset_env_1["Episode_Reward/scalar"].item() == 1.0
+    assert all(value.item() == 0.0 for value in rew_man.reset(torch.tensor([2])).values())
 
 
 def test_config_empty(env):
@@ -167,32 +180,3 @@ def test_invalid_reward_config(env):
 
 def env_index_scaled(env, factor: float):
     return factor * env.step * torch.arange(env.num_envs, dtype=torch.float, device=env.device)
-
-
-def test_compute_and_reset_match_reference():
-    """A partial reset reports each term's accumulated reward and preserves other environments."""
-    num_envs, dt, max_episode_length_s = 3, 0.25, 2.0
-    sim = MagicMock()
-    sim.is_playing.return_value = False
-    env = SimpleNamespace(num_envs=num_envs, device="cpu", sim=sim, max_episode_length_s=max_episode_length_s, step=0)
-    cfg = {
-        "scaled": RewardTermCfg(func=env_index_scaled, weight=-2.0, params={"factor": 1.0}),
-        "scalar": RewardTermCfg(func=grilled_chicken, weight=4.0),
-        "disabled": RewardTermCfg(func=grilled_chicken_with_bbq, weight=0.0, params={"bbq": True}),
-    }
-    rew_man = RewardManager(cfg, env)
-
-    for step, expected in ((1, [1.0, 0.5, 0.0]), (2, [1.0, 0.0, -1.0])):
-        env.step = step
-        torch.testing.assert_close(rew_man.compute(dt=dt), torch.tensor(expected))
-
-    reset_env_2 = rew_man.reset(torch.tensor([2]))
-    assert {name: value.item() for name, value in reset_env_2.items()} == {
-        "Episode_Reward/scaled": -1.5,
-        "Episode_Reward/scalar": 1.0,
-        "Episode_Reward/disabled": 0.0,
-    }
-    reset_env_1 = rew_man.reset(torch.tensor([1]))
-    assert reset_env_1["Episode_Reward/scaled"].item() == -0.75
-    assert reset_env_1["Episode_Reward/scalar"].item() == 1.0
-    assert all(value.item() == 0.0 for value in rew_man.reset(torch.tensor([2])).values())

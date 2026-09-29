@@ -186,7 +186,8 @@ def test_sensor_update_rate(create_dummy_sensor, device):
     """
     sensor_cfg, sim, dt = create_dummy_sensor
     sensor_cfg.update_period = 2 * dt
-    sensor = DummySensor(cfg=sensor_cfg)
+    sensor_cfg.debug_vis = True
+    sensor = DummyVisSensor(cfg=sensor_cfg)
 
     # Play sim
     sim.step()
@@ -205,6 +206,14 @@ def test_sensor_update_rate(create_dummy_sensor, device):
             torch.tensor(expected_value, device=device, dtype=torch.int32).repeat(sensor.num_instances),
         )
         expected_value += i % 2
+
+    backend_update_count = sensor.backend_update_count
+    for _ in range(3):
+        sensor.update(dt=dt)
+    assert sensor.backend_update_count == backend_update_count
+    sim.vis_marker_registry.dispatch_callbacks()
+    assert sensor.backend_update_count == backend_update_count + 1
+    torch.testing.assert_close(sensor.visualized_counts[-1], sensor.data.count)
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
@@ -313,28 +322,6 @@ def test_repeated_data_reads_are_graph_safe(create_dummy_sensor, device):
 
     assert sensor.backend_update_count == backend_update_count + 1
     wp.capture_launch(capture.graph)
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
-def test_debug_vis_refreshes_lazily_from_callback(create_dummy_sensor, device):
-    """Debug visualization does not force per-step refreshes; its callback sees current data."""
-    sensor_cfg, sim, dt = create_dummy_sensor
-    sensor_cfg.debug_vis = True
-    sensor = DummyVisSensor(cfg=sensor_cfg)
-    sim.step()
-    sim.reset()
-    assert sensor._debug_vis_handle is not None
-
-    backend_update_count = sensor.backend_update_count
-    for _ in range(3):
-        sensor.update(dt=dt)
-    assert sensor.backend_update_count == backend_update_count
-
-    sim.vis_marker_registry.dispatch_callbacks()
-    assert sensor.backend_update_count == backend_update_count + 1
-    torch.testing.assert_close(
-        sensor.visualized_counts[-1], torch.ones(sensor.num_instances, dtype=torch.int32, device=device)
-    )
 
 
 @pytest.mark.parametrize("device", ("cpu",))

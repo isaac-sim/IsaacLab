@@ -14,7 +14,7 @@ import pytest
 import torch
 
 from isaaclab.envs.mdp import UniformVelocityCommand, UniformVelocityCommandCfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -60,7 +60,7 @@ def _make_command(device: str, num_envs: int) -> tuple[UniformVelocityCommand, S
     return UniformVelocityCommand(cfg, env), robot_data
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_heading_control_updates_only_heading_envs(device):
     """Heading envs track the wrapped, clipped heading error without a sync; others keep their sampled yaw rate."""
     heading_target = [3.0, 0.5, -3.0, 0.2, 1.0, -0.1]
@@ -86,7 +86,7 @@ def test_heading_control_updates_only_heading_envs(device):
     torch.testing.assert_close(command.command[:, :2].cpu(), torch.full((len(heading), 2), 0.25))
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reset_logs_metrics_without_host_reads(device):
     """Reset logs episode metrics as device scalars without synchronizing the stream."""
     command, robot_data = _make_command(device, 4)

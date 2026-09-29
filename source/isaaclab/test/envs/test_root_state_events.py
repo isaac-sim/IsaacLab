@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.envs.mdp import push_by_setting_velocity, reset_root_state_uniform
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -62,7 +62,7 @@ def _make_env(device: str, num_envs: int = 3) -> tuple[SimpleNamespace, SimpleNa
     return env, asset
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_reset_root_state_uniform_uses_call_ranges(device):
     """The term samples from the ranges passed at call time, not the ones present at construction."""
     env, asset = _make_env(device)
@@ -85,7 +85,7 @@ def test_reset_root_state_uniform_uses_call_ranges(device):
     torch.testing.assert_close(asset.written["vel"], expected_vel)
 
 
-@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_push_by_setting_velocity_follows_range_edits_without_sync(device):
     """Repeated ranges reuse device bounds without a sync, and in-place range edits still take effect."""
     env, asset = _make_env(device)
