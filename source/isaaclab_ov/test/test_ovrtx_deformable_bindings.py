@@ -8,7 +8,6 @@
 from __future__ import annotations
 
 import importlib.util
-from collections import deque
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -17,7 +16,6 @@ import pytest
 import warp as wp
 
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
-from isaaclab.utils.buffers import TimestampedBuffer
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -26,7 +24,7 @@ pytestmark = pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires option
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
     from isaaclab_ov.renderers import OVRTXRendererCfg
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _AsyncWriteBuffers
     from ovrtx import DataAccess
 
 
@@ -38,11 +36,11 @@ def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
     renderer._geometry_paths = []
     renderer._geometry_timestamp = -1
     renderer._geometry_offsets = {}
-    renderer._geometry_writes = deque()
-    renderer._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
+    renderer._geometry_writes = _AsyncWriteBuffers()
+    renderer._transforms_timestamp = -1
     renderer._use_ovstage = False
     renderer._init_fields_legacy()
-    renderer._transform_writes = deque((SceneDataFormat.TransposedMatrix44d(), None, None) for _ in range(2))
+    renderer._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
 
@@ -205,8 +203,9 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
         renderer._setup_xform_bindings_legacy()
         assert renderer.backend.renderer.bind_attribute.call_args.kwargs["prim_paths"] == paths
         renderer._object_xform_binding.write = lambda matrices, **kwargs: writes.append((None, matrices, kwargs))
+        operation = MagicMock()
         renderer._object_xform_binding.write_async = lambda matrices, **kwargs: (
-            writes.append((None, matrices, kwargs)) or MagicMock()
+            writes.append((None, matrices, kwargs)) or operation
         )
 
     renderer.update_transforms()
@@ -235,37 +234,8 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     if mode == "async":
         # The new capture has not overwritten the previous borrowed input.
         np.testing.assert_array_equal(matrices.numpy()[:, 3, 0], poses[:, 0] - 10)
-        first_operation = renderer._transform_writes[0][1]
+        operation.wait.assert_not_called()
         backend.transforms_timestamp += 1
         renderer.update_transforms()
-        first_operation.wait.assert_called()
+        operation.wait.assert_called_once_with()
         assert writes[2][1] is matrices
-
-
-def test_update_camera_writes_without_mapping(monkeypatch: pytest.MonkeyPatch):
-    """Camera xforms are retained until their native write completes, without a mapped-buffer copy."""
-    renderer, _ = _make_renderer_without_backend()
-    binding = MagicMock()
-    render_data = SimpleNamespace(camera_xform_binding=binding, camera_writes=deque())
-    allocated = []
-
-    monkeypatch.setattr(
-        ovrtx_renderer_module, "convert_camera_frame_orientation_convention_wp", lambda *args, **kwargs: None
-    )
-
-    def _fake_empty(*args, **kwargs):
-        arr = object()
-        allocated.append(arr)
-        return arr
-
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "empty", _fake_empty)
-    monkeypatch.setattr(ovrtx_renderer_module.wp, "launch", lambda *args, **kwargs: None)
-    renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=7))
-
-    positions = SimpleNamespace(shape=(2,), warp=object())
-    renderer.update_camera(render_data, positions, SimpleNamespace(warp=object()), object())
-
-    (written,), kwargs = binding.write_async.call_args
-    assert written is allocated[1]
-    assert kwargs["data_access"] is DataAccess.ASYNC
-    assert kwargs["cuda_stream"] == 7

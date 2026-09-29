@@ -30,8 +30,7 @@ import sys
 import weakref
 from builtins import ExceptionGroup
 from collections import deque
-from collections.abc import Iterator, Sequence
-from itertools import chain
+from collections.abc import Iterable, Iterator, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -77,7 +76,6 @@ from isaaclab.cloner import path as cloner_path
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.scene_data import SceneDataFormat
 from isaaclab.sim import SimulationContext
-from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
@@ -343,7 +341,7 @@ class OVRTXCameraRenderData:
         self.num_rows = math.ceil(self.num_envs / self.num_cols)
         self.warp_buffers: dict[str, wp.array] = {}
         self.intrinsic_bindings: list[AttributeBinding] = []
-        self.camera_writes: deque[tuple[wp.array, wp.array, Operation, wp.Stream]] = deque()
+        self.camera_writes = _AsyncWriteBuffers()
         self.pending: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.ready: tuple[Operation[PendingFetch[RenderProductSetOutputs]], dict | None] | None = None
         self.capture: dict[str, ProxyArray] = {}
@@ -369,12 +367,9 @@ class OVRTXCameraRenderData:
         is closed. The product path remains as an identifier for renderer bookkeeping.
         """
         try:
-            with self.resources, contextlib.ExitStack() as writes:
-                for _, _, operation, producer in self.camera_writes:
-                    writes.callback(wp.synchronize_stream, producer)
-                    writes.callback(operation.wait)
+            with self.resources:
+                self.camera_writes.close()
         finally:
-            self.camera_writes.clear()
             self.pending = self.ready = None
             self.capture = {}
             self.camera_xform_binding = None
@@ -409,13 +404,13 @@ class OVRTXRenderer(BaseRenderer):
         self._camera_render_data: list[OVRTXCameraRenderData] = []
         self._next_camera_id = 0
         self._sdp = SimulationContext.instance().get_scene_data_provider()
-        self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
-        self._transform_writes = deque((SceneDataFormat.TransposedMatrix44d(), None, None) for _ in range(2))
+        self._transforms_timestamp = -1
+        self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
         self._geometry_offsets: dict[str, int] = {}
-        self._geometry_writes = deque()
+        self._geometry_writes = _AsyncWriteBuffers()
         self._geometry_timestamp = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
@@ -754,9 +749,7 @@ class OVRTXRenderer(BaseRenderer):
             for path, array in points.items():
                 self._geometry_offsets[path] = count
                 count += len(array)
-            self._geometry_writes = deque(
-                (wp.empty(count, dtype=wp.vec3f, device=self._device), None, None) for _ in range(2)
-            )
+            self._geometry_writes = _AsyncWriteBuffers(wp.empty(count, wp.vec3f, device=self._device) for _ in range(2))
         prim_count = len(self._geometry_paths)
         # Published points are world-space; do not apply inherited transforms a second time.
         self.backend.renderer.write_attribute(
@@ -814,6 +807,10 @@ class OVRTXRenderer(BaseRenderer):
             else:
                 self._register_camera(spec, render_data)
             if not self._use_ovstage:
+                render_data.camera_writes = _AsyncWriteBuffers(
+                    tuple(wp.empty(spec.num_instances, dtype, device=self._device) for dtype in (wp.quatf, wp.mat44d))
+                    for _ in range(2 if self.cfg.async_rendering else 1)
+                )
                 for name in _CAMERA_INTRINSIC_ATTRIBUTES:
                     binding = self.backend.renderer.bind_attribute(
                         prim_paths=camera_paths,
@@ -958,27 +955,13 @@ class OVRTXRenderer(BaseRenderer):
         """Update camera transforms in OVRTX binding."""
         if render_data.camera_xform_binding is None:
             return
-        num_envs = positions.shape[0]
         stream = self._warp_device.stream
-        retained_writes = 2 if self.cfg.async_rendering else 1
-        if len(render_data.camera_writes) == retained_writes:
-            converted, matrices, operation, producer = render_data.camera_writes[0]
-            operation.wait()
-            if producer != stream:
-                stream.wait_stream(producer)
-        else:
-            converted = wp.empty(num_envs, dtype=wp.quatf, device=self._device)
-            matrices = wp.empty(num_envs, dtype=wp.mat44d, device=self._device)
+        converted, matrices = render_data.camera_writes.acquire(stream)
         convert_camera_frame_orientation_convention_wp(orientations, converted, "world", "opengl", device=self._device)
         wp.launch(
-            create_camera_transforms_kernel, num_envs, inputs=[positions, converted, matrices], device=self._device
+            create_camera_transforms_kernel, len(matrices), inputs=[positions, converted, matrices], device=self._device
         )
-        operation = render_data.camera_xform_binding.write_async(
-            matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream
-        )
-        if len(render_data.camera_writes) == retained_writes:
-            render_data.camera_writes.popleft()
-        render_data.camera_writes.append((converted, matrices, operation, stream))
+        operation = render_data.camera_writes.submit(render_data.camera_xform_binding, matrices, stream)
         if not self.cfg.async_rendering:
             operation.wait()
 
@@ -1516,17 +1499,11 @@ class OVRTXRenderer(BaseRenderer):
         if binding is None:
             return
         timestamp = self._sdp.backend.transforms_timestamp
-        if self._transforms.timestamp == timestamp:
+        if self._transforms_timestamp == timestamp:
             return
         stream = self._warp_device.stream
-        output = self._transforms.data
         asynchronous = self.cfg.async_rendering and not self._use_ovstage
-        if asynchronous:
-            output, operation, producer = self._transform_writes[0]
-            if operation is not None:
-                operation.wait()
-                if producer != stream:
-                    stream.wait_stream(producer)
+        output = self._transform_writes.acquire(stream)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
             return
         matrices = output.matrices
@@ -1543,12 +1520,10 @@ class OVRTXRenderer(BaseRenderer):
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
         elif asynchronous:
-            operation = binding.write_async(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
-            self._transform_writes[0] = (output, operation, stream)
-            self._transform_writes.rotate(-1)
+            self._transform_writes.submit(binding, matrices, stream)
         else:
             binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
-        self._transforms.timestamp = timestamp
+        self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
         """Write changed SDP geometry to OVRTX."""
@@ -1556,12 +1531,9 @@ class OVRTXRenderer(BaseRenderer):
         if binding is None:
             return
         stream = self._warp_device.stream
-        if self._geometry_writes:
-            output, operation, producer = self._geometry_writes[0]
-            if operation is not None:
-                operation.wait()
-                if producer != stream:
-                    stream.wait_stream(producer)
+        asynchronous = self.cfg.async_rendering and not self._use_ovstage
+        if asynchronous:
+            output = self._geometry_writes.acquire(stream)
             self._sdp.get_geometry_points(output=output, offsets=self._geometry_offsets)
             offsets = list(self._geometry_offsets.values())
             points = [output[start:end] for start, end in zip(offsets, [*offsets[1:], len(output)], strict=True)]
@@ -1581,12 +1553,8 @@ class OVRTXRenderer(BaseRenderer):
                 semantic=ovstage.AttributeSemantic.POINT,
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
-        elif self._geometry_writes:
-            operation = binding.write_async(
-                cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream
-            )
-            self._geometry_writes[0] = (output, operation, stream)
-            self._geometry_writes.rotate(-1)
+        elif asynchronous:
+            self._geometry_writes.submit(binding, points, stream)
         else:
             binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
         self._geometry_timestamp = timestamp
@@ -1689,17 +1657,14 @@ class OVRTXRenderer(BaseRenderer):
                 resources.callback(self._close_ovstage if self._use_ovstage else self._close_legacy)
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
-                for _, operation, producer in chain(self._transform_writes, self._geometry_writes):
-                    if operation is not None:
-                        resources.callback(wp.synchronize_stream, producer)
-                        resources.callback(operation.wait)
+                resources.callback(self._transform_writes.close)
+                resources.callback(self._geometry_writes.close)
         finally:
-            self._transform_writes = deque((SceneDataFormat.TransposedMatrix44d(), None, None) for _ in range(2))
-            self._geometry_writes.clear()
+            self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
-            self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())
+            self._transforms_timestamp = -1
             self._render_product_paths.clear()
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
@@ -1978,3 +1943,35 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales = None
         self._object_scales_by_path = {}
         self._current_ordinal = 0
+
+
+class _AsyncWriteBuffers:
+    """Retain GPU buffers until native writes finish; reuse them in submission order."""
+
+    def __init__(self, buffers: Iterable[Any] = ()):
+        self._writes = deque((buffer, None, None) for buffer in buffers)
+
+    def acquire(self, stream: wp.Stream) -> Any:
+        """Wait until the next buffer is writable on the given stream."""
+        buffer, operation, producer = self._writes[0]
+        if operation is not None:
+            operation.wait()
+            if producer != stream:
+                stream.wait_stream(producer)
+        return buffer
+
+    def submit(self, binding: AttributeBinding, values: Any, stream: wp.Stream) -> Operation:
+        """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
+        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+        self._writes[0] = (self._writes[0][0], operation, stream)
+        self._writes.rotate(-1)
+        return operation
+
+    def close(self) -> None:
+        """Complete every pending write before releasing storage, including on failure."""
+        with contextlib.ExitStack() as writes:
+            writes.callback(self._writes.clear)
+            for _, operation, producer in self._writes:
+                if operation is not None:
+                    writes.callback(wp.synchronize_stream, producer)
+                    writes.callback(operation.wait)

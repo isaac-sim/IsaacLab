@@ -11,7 +11,6 @@ import importlib.util
 import sys
 import types
 from builtins import ExceptionGroup
-from collections import deque
 from unittest.mock import MagicMock
 
 import numpy as np
@@ -44,6 +43,7 @@ if not _MISSING_MODULES:
         OVRTXBackend,
         OVRTXCameraRenderData,
         OVRTXRenderer,
+        _AsyncWriteBuffers,
         _gpu_side_render_var_sync_enabled,
         ovrtx_use_ovstage_enabled,
     )
@@ -88,8 +88,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.backend._resources = contextlib.ExitStack()
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
-    renderer._transform_writes = deque()
-    renderer._geometry_writes = deque()
+    renderer._transform_writes = _AsyncWriteBuffers()
+    renderer._geometry_writes = _AsyncWriteBuffers()
     renderer._geometry_offsets = {}
     renderer._use_ovstage = False
     return renderer
@@ -395,12 +395,18 @@ def test_cleanup_completes_when_a_queued_operation_fails(monkeypatch, failure):
     if failure == "render":
         render_data.pending = (_FailingOp(), {})
     else:
-        render_data.camera_writes.append((None, None, _FailingOp(), None))
+        render_data.camera_writes = _AsyncWriteBuffers((object(), object()))
+        binding = MagicMock()
+        binding.write_async.side_effect = [MagicMock(), _FailingOp()]
+        stream = types.SimpleNamespace(cuda_stream=0)
+        operations = [render_data.camera_writes.submit(binding, object(), stream) for _ in range(2)]
         monkeypatch.setattr(wp, "synchronize_stream", lambda _stream: None)
     with pytest.raises(ExceptionGroup if failure == "render" else RuntimeError):
         renderer.cleanup(render_data)
 
     released.assert_called_once_with()
+    if failure == "write":
+        operations[0].wait.assert_called_once_with()
     assert render_data not in renderer._camera_render_data
     assert render_data.render_product_path not in renderer._render_product_paths
     assert render_data.pending is render_data.ready is None
