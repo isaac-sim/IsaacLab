@@ -98,7 +98,7 @@
             ["IsaacContrib-Open-Drawer-Franka-IK-Abs", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
             ["IsaacContrib-Open-Drawer-Franka-IK-Rel", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", ""],
             ["IsaacContrib-Open-Drawer-OpenArm", "rl_games,rsl_rl", "", "", "", "tasks/manipulation/openarm_uni_open_drawer.jpg"],
-            ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "", "", "", "", "tasks/manipulation/g1_pick_place_fixed_base.jpg"],
+            ["IsaacContrib-PickPlace-FixedBaseUpperBodyIK-G1-Abs", "", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "tasks/manipulation/g1_pick_place_fixed_base.jpg"],
             ["IsaacContrib-PickPlace-G1-InspireFTP-Abs", "", "", "", "", "tasks/manipulation/g1_pick_place.jpg"],
             ["IsaacContrib-PickPlace-GR1T2-Abs", "", "", "isaacsim_rtx,newton_renderer,ovrtx", "", "tasks/manipulation/gr-1_pick_place.jpg"],
             ["IsaacContrib-PickPlace-GR1T2-WaistEnabled-Abs", "", "", "", "", "tasks/manipulation/gr-1_pick_place_waist.jpg"],
