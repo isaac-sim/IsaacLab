@@ -425,6 +425,9 @@ override-dependencies = [
 python-preference = "only-managed"
 package = false
 
+[tool.uv.extra-build-variables]
+egl-probe = { CMAKE_POLICY_VERSION_MINIMUM = "3.5" }
+
 [tool.uv.sources]
 omniverseclient = { index = "pypi-public" }
 ovphysx = { index = "pypi-public" }
