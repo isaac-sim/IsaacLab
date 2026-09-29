@@ -264,6 +264,7 @@ def run(argv: list[str]) -> BenchmarkResult | None:
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, agent_cfg_entry_point)
     algorithm = resolve_skrl_algorithm(agent_cfg, args_cli.algorithm)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()

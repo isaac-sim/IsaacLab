@@ -59,11 +59,7 @@ def test_launch_simulation_passes_kit_visualizer_to_kit_launcher(monkeypatch):
             captured["closed"] = True
 
     monkeypatch.setitem(sys.modules, "isaaclab.utils", types.SimpleNamespace(has_kit=lambda: False))
-    monkeypatch.setitem(
-        sys.modules,
-        "isaaclab.utils.assets",
-        types.SimpleNamespace(configure_storage_profile=lambda: None),
-    )
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: None)
     monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
 
     env_cfg = _DummyEnvCfg(

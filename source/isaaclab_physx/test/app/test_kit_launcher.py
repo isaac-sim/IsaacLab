@@ -17,7 +17,6 @@ import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
 
 import isaaclab.app.sim_launcher as sim_launcher
-import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
 from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
@@ -831,7 +830,7 @@ def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_
 def test_constructor_reports_missing_isaac_sim(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(kit_launcher_module, "SimulationApp", None)
 
-    monkeypatch.setattr(utils_module, "has_kit", lambda: False)
+    monkeypatch.setattr(kit_launcher_module, "has_kit", lambda: False)
     with pytest.raises(SystemExit):
         KitLauncher()
 

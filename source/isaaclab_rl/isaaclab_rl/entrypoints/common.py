@@ -29,7 +29,7 @@ import warp as wp
 from PIL import Image
 
 from isaaclab.app import LoadingScreen
-from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg, multi_agent_to_single_agent
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
 from isaaclab.utils.assets import retrieve_file_path
@@ -511,9 +511,6 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-        # concrete environment modules load simulation modules, so import them after the launch
-        from isaaclab.envs import multi_agent_to_single_agent
-
         env = multi_agent_to_single_agent(env)
     return env
 
@@ -870,11 +867,12 @@ Video recording.
 
 
 def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
-    """Pre-inject a headless Kit visualizer into *env_cfg* so the launcher includes the Kit runtime.
+    """Add a headless Kit visualizer to *env_cfg* for ``--video`` to record from when it names none.
 
-    Must be called before :func:`~isaaclab.app.launch_simulation`. Only acts when ``--video`` is set
-    and neither the environment config nor the command line names a visualizer or a video recorder
-    to record from; :func:`apply_video_recording` wires the recorder itself after the launch.
+    Must be called before :func:`~isaaclab.app.launch_simulation`, so the launch includes the Kit runtime.
+    Only acts when ``--video`` is set and neither the environment config nor the command line names a
+    visualizer or a video recorder to record from; :func:`apply_video_recording` wires the recorder after
+    the launch.
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
@@ -882,16 +880,27 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     """
     if not getattr(args_cli, "video", False) or getattr(env_cfg, "video_recorders", None):
         return
-    if _cli_visualizers(args_cli):
+    # ``--viz`` (including ``--viz none``) decides the visualizers itself
+    if getattr(args_cli, "visualizer", None) is not None:
         return
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None or _configured_visualizer_cfgs(sim_cfg):
+    sim_cfg = env_cfg.sim
+    visualizer_cfgs = (
+        sim_cfg.visualizer_cfgs if isinstance(sim_cfg.visualizer_cfgs, list) else [sim_cfg.visualizer_cfgs]
+    )
+    # a base ``VisualizerCfg`` without a ``visualizer_type`` is a hint-only placeholder
+    if any(cfg.visualizer_type for cfg in visualizer_cfgs):
         return
-    if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
-            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
-        )
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+    except ImportError:
+        # isaaclab_visualizers is optional; apply_video_recording reports the missing visualizer
+        return
+    sim_cfg.visualizer_cfgs = [*visualizer_cfgs, KitVisualizerCfg(headless=True)]
+    print(
+        "[INFO] --video specified without --viz: adding a headless Kit visualizer to record from. Pass "
+        "--viz <type> to choose a different visualizer, or set video_recorders in your env config to record "
+        "from a scene sensor instead."
+    )
 
 
 def apply_video_recording(
@@ -903,6 +912,9 @@ def apply_video_recording(
     checkpoint_path: str | None = None,
 ) -> None:
     """Configure internal video recording on the environment config.
+
+    Call this inside :func:`~isaaclab.app.launch_simulation`, which resolves the visualizers to record from,
+    after :func:`pre_launch_video_config` before it.
 
     Recorders already declared by the environment config are kept, preserving user-set fields such
     as ``output_dir``, ``source`` and ``fps``; only the fields controlled by CLI flags are
@@ -940,7 +952,7 @@ def apply_video_recording(
         )
 
     if not getattr(env_cfg, "video_recorders", None):
-        source = _resolve_video_source(env_cfg, args_cli)
+        source = _resolve_video_source(env_cfg)
         env_cfg.video_recorders = [VideoRecorderCfg(source=source, video_interval=2000)]
 
     video_length = getattr(args_cli, "video_length", None)
@@ -969,79 +981,27 @@ def apply_video_recording(
         )
 
 
-def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
+def _resolve_video_source(env_cfg: Any) -> str:
     """Return the recorder source for a run that declares no video recorders.
 
-    A visualizer requested with ``--viz`` wins, then a concrete visualizer configured on the
-    environment; otherwise a headless Kit visualizer is injected so there is something to record.
+    Records from the first capture-capable visualizer of the launch-resolved
+    :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
 
     Raises:
-        ValueError: If ``--viz none`` or only streaming visualizers were requested.
+        ValueError: If the run has no visualizer (e.g. ``--viz none``) or only streaming visualizers.
     """
-    # ``--viz none`` parses to an empty list
-    if getattr(args_cli, "visualizer", None) == []:
+    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    if not visualizers:
         raise ValueError(
-            "--video is not compatible with --viz none: there is no active visualizer to record from. "
+            "--video needs a visualizer to record from, but the run has none (e.g. --viz none). "
             "Remove --viz none so that video recording can auto-create a visualizer, "
             "pass --viz kit (or another capture-capable type), "
             "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
         )
-    cli_visualizers = _cli_visualizers(args_cli)
-    if cli_visualizers:
-        capture_capable = [name for name in cli_visualizers if name not in _NO_CAPTURE_VISUALIZERS]
-        if not capture_capable:
-            raise ValueError(_no_capture_visualizer_message(cli_visualizers))
-        return f"visualizer:{capture_capable[0]}"
-
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None:
-        return "visualizer"
-    configured = _configured_visualizer_cfgs(sim_cfg)
-    if configured:
-        # prefer capture-capable visualizers over streaming-only ones
-        configured.sort(key=lambda cfg: cfg.visualizer_type in _NO_CAPTURE_VISUALIZERS)
-        return f"visualizer:{configured[0].visualizer_type}"
-    if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
-            "for video recording. Pass --viz <type> to choose a different visualizer, or "
-            "set video_recorders in your env config to record from a scene sensor instead."
-        )
-        return "visualizer:kit"
-    return "visualizer"
-
-
-def _cli_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return the visualizers requested with ``--viz``, ignoring ``"none"`` entries."""
-    selected = getattr(args_cli, "visualizer", None) or []
-    if isinstance(selected, str):
-        selected = [selected]
-    return [name for name in selected if name != "none"]
-
-
-def _configured_visualizer_cfgs(sim_cfg: Any) -> list[Any]:
-    """Return the concrete visualizer configs of a simulation config.
-
-    A base ``VisualizerCfg`` with ``visualizer_type=None`` is a hint-only placeholder that cannot
-    create a visualizer, so it does not count.
-    """
-    cfgs = list(getattr(sim_cfg, "visualizer_cfgs", None) or [])
-    default_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
-    if default_cfg is not None:
-        cfgs.append(default_cfg)
-    return [cfg for cfg in cfgs if getattr(cfg, "visualizer_type", None) is not None]
-
-
-def _inject_headless_kit_visualizer(sim_cfg: Any) -> bool:
-    """Append a headless Kit visualizer to *sim_cfg*; returns False when the visualizers package is missing."""
-    try:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-    except ImportError:
-        return False
-    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
-        sim_cfg.visualizer_cfgs = []
-    sim_cfg.visualizer_cfgs.append(KitVisualizerCfg(headless=True))
-    return True
+    capture_capable = [name for name in visualizers if name not in _NO_CAPTURE_VISUALIZERS]
+    if not capture_capable:
+        raise ValueError(_no_capture_visualizer_message(visualizers))
+    return f"visualizer:{capture_capable[0]}"
 
 
 def _no_capture_visualizer_message(names: list[str]) -> str:

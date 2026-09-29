@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, Any, ClassVar
 
 import torch
 import warp as wp
+from isaaclab_physx.physics import PhysxCfg
 
 from .. import sim as sim_utils
 from ..app.settings_manager import get_settings_manager
+from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs
 from ..markers.vis_marker_registry import VisMarkerRegistry
 from ..physics import PhysicsCfg, PhysicsEvent, PhysicsManager
 from ..physics.physics_manager_cfg import _resolve_physx_auto_cfg
@@ -46,8 +48,6 @@ logger = logging.getLogger(__name__)
 def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
-        from isaaclab_physx.physics import PhysxCfg
-
         physics_cfg = PhysxCfg()
     elif not isinstance(physics_cfg, PhysicsCfg):
         raise TypeError(f"SimulationCfg.physics must be a concrete PhysicsCfg, got {type(physics_cfg).__name__}.")
@@ -158,17 +158,15 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # a launch without a SimulationCfg leaves its visualizer selection for the config built afterwards
+        # Normalize the visualizers to a list, applying the selection a launch without a SimulationCfg
+        # left for the config built afterwards.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        if pending_visualizers or (max_visible_envs is not None and max_visible_envs >= 0):
-            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
-
-            self.cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
-                self.cfg.visualizer_cfgs,
-                _parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
-                max_visible_envs if max_visible_envs is not None and max_visible_envs >= 0 else None,
-            )
+        self.cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+            self.cfg.visualizer_cfgs,
+            _parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
+            None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
+        )
 
         # Initialize USD physics scene and physics manager
         self._init_usd_physics_scene()
@@ -391,11 +389,7 @@ class SimulationContext:
         default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
         if default_cfg is None:
             return
-        try:
-            source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
-        except Exception:
-            # Without factory defaults, explicit choices cannot be distinguished.
-            return
+        source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
         for field in fields(default_cfg):
             if field.name in ("class_type", "visualizer_type") or not hasattr(cfg, field.name):
                 continue
@@ -406,49 +400,39 @@ class SimulationContext:
                 continue
             setattr(cfg, field.name, default_val)
 
-    def _configured_visualizer_cfgs(self) -> list[Any]:
-        """Return :attr:`SimulationCfg.visualizer_cfgs` as a list."""
-        visualizer_cfgs = self.cfg.visualizer_cfgs
-        if visualizer_cfgs is None:
-            return []
-        return visualizer_cfgs if isinstance(visualizer_cfgs, list) else [visualizer_cfgs]
-
     def resolve_visualizer_types(self) -> list[str]:
         """Return the types of the visualizers in :attr:`SimulationCfg.visualizer_cfgs`."""
-        return [
-            cfg.visualizer_type for cfg in self._configured_visualizer_cfgs() if getattr(cfg, "visualizer_type", None)
-        ]
+        return [cfg.visualizer_type for cfg in self.cfg.visualizer_cfgs if cfg.visualizer_type]
 
     def _has_continuous_visualizers(self) -> bool:
         """Return whether the configured visualizers require per-step updates."""
-        return any(
-            getattr(cfg, "visualizer_type", None) and not getattr(cfg, "headless", False)
-            for cfg in self._configured_visualizer_cfgs()
-        )
+        # only the Kit and Newton configs have ``headless``
+        return any(cfg.visualizer_type and not getattr(cfg, "headless", False) for cfg in self.cfg.visualizer_cfgs)
 
     def _resolve_visualizer_cfgs(self) -> list[Any]:
         """Return the configured visualizers with the shared defaults applied, plus a Kit visualizer for XR."""
-        resolved = list(self._configured_visualizer_cfgs())
+        resolved = list(self.cfg.visualizer_cfgs)
         for cfg in resolved:
             self._apply_default_visualizer_cfg(cfg)
 
         # XR auto-start needs a Kit visualizer to publish SDP transforms before pumping the app.
-        if self._xr_enabled and bool(self.get_setting("/isaaclab/xr/auto_start")):
-            has_kit = any(getattr(cfg, "visualizer_type", None) == "kit" for cfg in resolved)
-            if not has_kit:
-                try:
-                    import importlib
-
-                    mod = importlib.import_module("isaaclab_visualizers.kit")
-                    kit_cfg_cls = getattr(mod, "KitVisualizerCfg")
-                    resolved.append(kit_cfg_cls())
-                    logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
-                except (ImportError, ModuleNotFoundError, AttributeError) as exc:
-                    logger.warning(
-                        "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
-                        exc,
-                        _get_visualizer_install_hint("kit"),
-                    )
+        if (
+            self._xr_enabled
+            and self.get_setting("/isaaclab/xr/auto_start")
+            and not any(cfg.visualizer_type == "kit" for cfg in resolved)
+        ):
+            try:
+                # isaaclab_visualizers is optional
+                from isaaclab_visualizers.kit import KitVisualizerCfg
+            except ImportError as exc:
+                logger.warning(
+                    "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
+                    exc,
+                    _get_visualizer_install_hint("kit"),
+                )
+            else:
+                resolved.append(KitVisualizerCfg())
+                logger.info("[SimulationContext] Auto-injecting KitVisualizer for XR app-update pumping.")
 
         return resolved
 
@@ -941,8 +925,6 @@ def build_simulation_context(
             sim_cfg.device = device
 
         if visualizers:
-            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
-
             sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
                 sim_cfg.visualizer_cfgs, _parse_visualizer_csv(visualizers)
             )

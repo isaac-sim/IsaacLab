@@ -10,6 +10,8 @@ Changed
   :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` as given, and
   :meth:`~isaaclab.sim.SimulationContext.has_active_visualizers` counts configured non-headless visualizers.
   :func:`~isaaclab.sim.build_simulation_context` applies ``visualizers`` to the config the same way.
+* :class:`~isaaclab.sim.SimulationContext` normalizes :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` to a
+  list, so a single config becomes a one-element list and None becomes ``[]``.
 
 Removed
 ^^^^^^^

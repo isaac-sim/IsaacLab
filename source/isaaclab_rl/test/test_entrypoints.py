@@ -343,18 +343,17 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
 
 @pytest.mark.parametrize(
     ("video_length", "max_steps", "expected_steps"),
-    [(None, None, 55), (None, 40, 40), (0, None, None)],
-    ids=["last_recorder_clip", "max_steps_caps_clip", "invalid_length_fails_before_launch"],
+    [(None, None, 55), (None, 40, 40)],
+    ids=["last_recorder_clip", "max_steps_caps_clip"],
 )
 def test_simple_agent_video_step_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     video_length: int | None,
     max_steps: int | None,
-    expected_steps: int | None,
+    expected_steps: int,
 ) -> None:
-    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``;
-    an invalid ``--video_length`` fails config validation before the simulation launches."""
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     recorders = [
@@ -388,13 +387,8 @@ def test_simple_agent_video_step_budget(
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    if expected_steps is None:
-        with pytest.raises(SystemExit, match=f"video_length={video_length}"):
-            simple_agents.run([], policy="random")
-        launched.assert_not_called()
-    else:
-        simple_agents.run([], policy="random")
-        assert env.step.call_count == expected_steps
+    simple_agents.run([], policy="random")
+    assert env.step.call_count == expected_steps
 
 
 def test_simple_agent_request_forwards_video(monkeypatch) -> None:

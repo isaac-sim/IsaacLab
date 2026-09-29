@@ -19,7 +19,7 @@ torch.jit._state.disable()
 
 import gymnasium as gym
 
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -90,11 +90,9 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, env_cfg: Any, log_root_pat
 
 def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict) -> bool:
     """Export a skrl agent; returns whether a graph was written."""
-    # concrete environment classes and the LEAPP runtime load simulation modules, so import them
-    # only after launch_simulation has initialized the selected backend
+    # the LEAPP runtime loads simulation modules, so import it only after launch_simulation has
+    # initialized the selected backend
     from leapp import annotate
-
-    from isaaclab.envs import multi_agent_to_single_agent
 
     check_skrl_version()
     runner_cls = import_skrl_runner("torch")

@@ -13,15 +13,18 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
+import importlib
 import logging
 import os
 import sys
+import traceback
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+import torch
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -31,6 +34,7 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import (
@@ -249,8 +253,6 @@ def _normalize_launcher_args(args: dict) -> None:
 
 def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
     """Construct the default config of a visualizer type, importing only its backend package."""
-    import importlib
-
     module = {"newton_gl": "newton", "newton_rtx": "newton"}.get(visualizer_type, visualizer_type)
     class_name = {
         "kit": "KitVisualizerCfg",
@@ -590,8 +592,6 @@ def _resolve_distributed_device(args: dict) -> None:
     if not args.get("distributed", False):
         return
 
-    import torch
-
     local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
     num_visible_gpus = torch.cuda.device_count()
     # Compare against the local device count (not WORLD_SIZE) so multi-node runs work.
@@ -722,10 +722,8 @@ def launch_simulation(
 
     exit_code = 0
     try:
-        # The import stays after the Kit launch decision. With no selected profile this is a
-        # no-op; with one, it installs process-wide OmniClient routing before user code runs.
-        from ..utils.assets import configure_storage_profile
-
+        # With no selected profile this is a no-op; with one, it installs process-wide OmniClient
+        # routing before user code runs.
         configure_storage_profile()
         yield physics_cfg
     except KeyboardInterrupt:
@@ -737,8 +735,6 @@ def launch_simulation(
         raise
     except Exception:
         exit_code = 1
-        import traceback
-
         traceback.print_exc()
         raise
     finally:

@@ -31,11 +31,13 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
+from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
@@ -146,8 +148,6 @@ class KitLauncher(SimulationLauncher):
 
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
-        from isaaclab.utils import has_kit
-
         self._app = None
         if has_kit():
             # a Kit app already runs in this process; it is owned (and closed) by whoever started it
@@ -208,8 +208,6 @@ class KitLauncher(SimulationLauncher):
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
-
         _deprioritize_prebundle_paths()
 
         # Hide the stop button in the toolbar
@@ -633,15 +631,13 @@ class KitLauncher(SimulationLauncher):
         # under certain install layouts), derive it from the installed isaacsim package.
         kit_app_exp_path = os.environ.get("EXP_PATH")
         if not kit_app_exp_path:
-            try:
-                import isaacsim as _isaacsim_for_paths
-            except ImportError as e:
+            if isaacsim is None:
                 raise RuntimeError(
                     "EXP_PATH is not set and the 'isaacsim' package is not importable."
                     " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
                     " before launching KitLauncher."
-                ) from e
-            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+                )
+            kit_app_exp_path = os.path.join(os.path.dirname(isaacsim.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
 
@@ -869,7 +865,7 @@ def _share_stage_context() -> None:
         from isaacsim.core.experimental.utils import stage as sim_stage
     except ImportError:
         return
-    from isaaclab.sim.utils import stage as stage_utils
+    from isaaclab.sim.utils import stage as stage_utils  # imports pxr; must load after Kit starts
 
     # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = stage_utils._context

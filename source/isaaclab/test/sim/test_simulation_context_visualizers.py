@@ -815,7 +815,7 @@ def _make_context_with_settings(
         "Cfg",
         (),
         {
-            "visualizer_cfgs": visualizer_cfgs,
+            "visualizer_cfgs": [] if visualizer_cfgs is None else visualizer_cfgs,
             "default_visualizer_cfg": default_visualizer_cfg,
             "physics": type("PhysicsCfg", (), {"dt": 0.01})(),
             "dt": 0.01,

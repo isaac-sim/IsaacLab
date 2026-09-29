@@ -23,7 +23,6 @@ import isaaclab_physx.app as physx_app
 import pytest
 
 import isaaclab.app.sim_launcher as sim_launcher
-import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
@@ -53,7 +52,7 @@ def test_default_stays_kitless_for_a_kitless_config(kit_branch_taken):
 def test_kitless_launch_configures_storage_before_user_code(kit_branch_taken, monkeypatch: pytest.MonkeyPatch):
     """A direct OmniClient read inside a kitless runtime must see profile routing."""
     events = []
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: events.append("configured"))
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: events.append("configured"))
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args={}):
         events.append("user-code")
@@ -74,7 +73,7 @@ def test_storage_profile_failure_closes_started_kit(monkeypatch: pytest.MonkeyPa
         raise RuntimeError("profile rejected")
 
     monkeypatch.setattr(physx_app, "KitLauncher", FakeKitLauncher)
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", reject_profile)
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", reject_profile)
 
     with pytest.raises(RuntimeError, match="profile rejected"):
         with launch_simulation(cfg=PhysicsCfg(), launcher_args={"require_kit": True}):
@@ -134,7 +133,7 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
-    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
+    monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: calls.append("storage"))
     cfg = argparse.Namespace(
         physics=sim_launcher.NewtonCfg(),
         visualizer_cfgs=VisualizerCfg(visualizer_type="newton_rtx"),

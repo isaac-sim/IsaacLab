@@ -14,15 +14,31 @@ from types import SimpleNamespace
 import pytest
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
+from isaaclab.app.sim_launcher import _resolve_visualizer_cfgs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
-from isaaclab_rl.entrypoints.common import apply_video_recording, video_playback_steps, wrap_record_video
+from isaaclab_rl.entrypoints.common import (
+    apply_video_recording,
+    pre_launch_video_config,
+    video_playback_steps,
+    wrap_record_video,
+)
 
 
 def _args(**kwargs: object) -> SimpleNamespace:
     defaults = dict(video=True, video_length=None, video_interval=None)
     return SimpleNamespace(**{**defaults, **kwargs})
+
+
+def _launched_env_cfg(args: SimpleNamespace) -> ManagerBasedRLEnvCfg:
+    """Return an env config whose visualizers are resolved as ``pre_launch_video_config`` and the launch do."""
+    env_cfg = ManagerBasedRLEnvCfg()
+    pre_launch_video_config(env_cfg, args)
+    env_cfg.sim.visualizer_cfgs = _resolve_visualizer_cfgs(
+        env_cfg.sim.visualizer_cfgs, getattr(args, "visualizer", None)
+    )
+    return env_cfg
 
 
 def test_apply_video_recording_noop_when_video_false():
@@ -44,10 +60,9 @@ def test_apply_video_recording_creates_default_recorder(
     video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int
 ):
     """Without declared recorders, one headless Kit recorder is created, taking CLI values over defaults."""
-    env_cfg = ManagerBasedRLEnvCfg()
-    apply_video_recording(
-        env_cfg, "/my/log", _args(video_length=video_length, video_interval=video_interval), subdir="play"
-    )
+    args = _args(video_length=video_length, video_interval=video_interval)
+    env_cfg = _launched_env_cfg(args)
+    apply_video_recording(env_cfg, "/my/log", args, subdir="play")
     assert len(env_cfg.video_recorders) == 1
     recorder = env_cfg.video_recorders[0]
     assert recorder.source == "visualizer:kit"
@@ -105,15 +120,17 @@ def test_apply_video_recording_patches_existing_recorders():
 @pytest.mark.parametrize(
     ("visualizer_args", "message"),
     [
-        (dict(visualizer=[]), "--video is not compatible with --viz none"),
+        (dict(visualizer=[]), "--video needs a visualizer"),
         (dict(visualizer=["rerun"]), "--video is not supported"),
         (dict(visualizer=["viser"]), "--video is not supported"),
     ],
 )
 def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_args: dict, message: str):
     """Video recording rejects a disabled visualizer and visualizers without frame capture."""
+    args = _args(**visualizer_args)
+    env_cfg = _launched_env_cfg(args)
     with pytest.raises(ValueError, match=message):
-        apply_video_recording(ManagerBasedRLEnvCfg(), "/my/log", _args(**visualizer_args))
+        apply_video_recording(env_cfg, "/my/log", args)
 
 
 @pytest.mark.parametrize(
@@ -122,9 +139,10 @@ def test_apply_video_recording_rejects_visualizers_without_capture(visualizer_ar
 )
 def test_apply_video_recording_uses_requested_capture_visualizer(visualizers: list[str], expected_source: str) -> None:
     """Video recording selects the first capture-capable visualizer."""
-    env_cfg = ManagerBasedRLEnvCfg()
+    args = _args(visualizer=visualizers)
+    env_cfg = _launched_env_cfg(args)
 
-    apply_video_recording(env_cfg, "/my/log", _args(visualizer=visualizers))
+    apply_video_recording(env_cfg, "/my/log", args)
 
     assert len(env_cfg.video_recorders) == 1
     assert env_cfg.video_recorders[0].source == expected_source

@@ -19,6 +19,8 @@ from isaaclab.managers.recorder_manager import RecorderManagerBaseCfg
 from isaaclab_mimic.datagen.data_generator import DataGenerator
 from isaaclab_mimic.datagen.datagen_info_pool import DataGenInfoPool
 
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
 # global variable to keep track of the data generation statistics
 num_success = 0
 num_failures = 0
@@ -193,8 +195,6 @@ def setup_env_config(
     Raises:
         NotImplementedError: If no success termination term found
     """
-    from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-
     if env_cfg is None:
         env_cfg = parse_env_cfg(env_name, device=device, num_envs=num_envs)
 

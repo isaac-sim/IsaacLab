@@ -276,11 +276,7 @@ class TestLaunchSimulationDevicePropagation:
             def close(self, exit_code=0):
                 pass
 
-        monkeypatch.setitem(
-            sys.modules,
-            "isaaclab.utils.assets",
-            types.SimpleNamespace(configure_storage_profile=lambda: None),
-        )
+        monkeypatch.setattr(sim_launcher, "configure_storage_profile", lambda: None)
 
         monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
         # Mock _resolve_distributed_device to avoid torch.cuda calls
