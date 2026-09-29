@@ -152,6 +152,42 @@ def test_subset_write_reaches_selected_view_entry(sim, device, gravity_enabled):
     torch.testing.assert_close(object_collection.data.body_link_pose_w.torch, expected_pose)
 
 
+@pytest.mark.parametrize("device", test_devices())
+def test_inertial_property_subset_writes_reach_selected_view_entries(sim, device):
+    """COM and inertia writes to a subset of (env, body) cells must reach only those PhysX view entries."""
+    num_envs, num_cubes = 2, 3
+    object_collection, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, device=device)
+    sim.reset()
+
+    def read_view(values: wp.array, data_dim: int) -> torch.Tensor:
+        # The view is body-major, (num_cubes * num_envs, data_dim); return it as (num_envs, num_cubes, data_dim)
+        return wp.to_torch(values).reshape(num_cubes, num_envs, data_dim).transpose(0, 1).cpu()
+
+    # Write in non-sorted env order so that a wrong env/body to view index mapping cannot pass
+    env_ids = [1, 0]
+    body_ids = [2]
+
+    initial_coms = read_view(object_collection.root_view.get_coms().view(wp.float32), 7)
+    coms = initial_coms[env_ids][:, body_ids].clone()
+    coms[0, 0, :3] = torch.tensor([0.02, 0.03, 0.04])
+    coms[1, 0, :3] = torch.tensor([-0.01, 0.01, 0.02])
+    object_collection.set_coms_index(coms=coms.to(device), env_ids=env_ids, body_ids=body_ids)
+    expected_coms = initial_coms.clone()
+    expected_coms[env_ids, 2] = coms[:, 0]
+    torch.testing.assert_close(read_view(object_collection.root_view.get_coms().view(wp.float32), 7), expected_coms)
+    torch.testing.assert_close(object_collection.data.body_com_pose_b.torch.cpu(), expected_coms)
+
+    initial_inertias = read_view(object_collection.root_view.get_inertias(), 9)
+    inertias = initial_inertias[env_ids][:, body_ids].clone()
+    inertias[0, 0, [0, 4, 8]] *= 1.5
+    inertias[1, 0, [0, 4, 8]] *= 2.0
+    object_collection.set_inertias_index(inertias=inertias.to(device), env_ids=env_ids, body_ids=body_ids)
+    expected_inertias = initial_inertias.clone()
+    expected_inertias[env_ids, 2] = inertias[:, 0]
+    torch.testing.assert_close(read_view(object_collection.root_view.get_inertias(), 9), expected_inertias)
+    torch.testing.assert_close(object_collection.data.body_inertia.torch.cpu(), expected_inertias)
+
+
 @pytest.mark.parametrize("num_envs", [2])
 @pytest.mark.parametrize("num_cubes", [3])
 @pytest.mark.parametrize("device", test_devices())
