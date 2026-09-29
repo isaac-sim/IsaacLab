@@ -327,7 +327,7 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, i
         close=close,
     )
     getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
-    args = SimpleNamespace(max_steps=None, task="Example", device=None)
+    args = SimpleNamespace(max_steps=None, task="Example", device=None, num_envs=None)
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
     monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
@@ -378,7 +378,13 @@ def test_simple_agent_video_step_budget(
         close=mock.Mock(),
     )
     args = SimpleNamespace(
-        max_steps=max_steps, task="Example", device=None, video=True, video_length=video_length, video_interval=None
+        max_steps=max_steps,
+        task="Example",
+        device=None,
+        num_envs=None,
+        video=True,
+        video_length=video_length,
+        video_interval=None,
     )
     launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)

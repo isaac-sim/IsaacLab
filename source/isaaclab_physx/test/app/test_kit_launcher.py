@@ -21,6 +21,7 @@ from isaaclab.app import SimulationLauncher, add_launcher_args
 from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 
 def _launcher_after_output_resolution(**state) -> KitLauncher:
@@ -407,6 +408,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     scan = Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
@@ -492,6 +494,7 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
@@ -520,6 +523,7 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=True,
@@ -714,7 +718,7 @@ def test_normalize_launcher_args_rejects_negative_max_visible_envs():
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
     with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        sim_launcher._parse_visualizer_csv("kit, newton_gl")
+        parse_visualizer_csv("kit, newton_gl")
 
 
 def test_normalize_visualizers_rejects_none_with_others():

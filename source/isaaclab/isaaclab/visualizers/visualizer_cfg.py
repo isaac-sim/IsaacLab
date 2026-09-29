@@ -7,19 +7,29 @@
 
 from __future__ import annotations
 
+import argparse
+import warnings
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
+from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
     from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
-_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
-"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`."""
+VISUALIZER_TYPES = {
+    "kit": "isaaclab_visualizers.kit:KitVisualizerCfg",
+    "newton_gl": "isaaclab_visualizers.newton:NewtonGLVisualizerCfg",
+    "newton_rtx": "isaaclab_visualizers.newton:NewtonRTXVisualizerCfg",
+    "rerun": "isaaclab_visualizers.rerun:RerunVisualizerCfg",
+    "viser": "isaaclab_visualizers.viser:ViserVisualizerCfg",
+}
+"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`, mapped to
+the ``module:Class`` of their default config."""
 
-_VISUALIZER_ALIASES = {"newton": "newton_gl"}
+VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
 
 _VISUALIZER_EXTRAS = {
@@ -29,12 +39,96 @@ _VISUALIZER_EXTRAS = {
 }
 
 
-def _get_visualizer_install_hint(visualizer_type: str) -> str:
+def get_visualizer_install_hint(visualizer_type: str) -> str:
     """Return the uv command needed to run a visualizer backend."""
     extra = _VISUALIZER_EXTRAS.get(visualizer_type)
     if extra is None:
         return "Run your command with: uv run <command>."
     return f"Run your command with: uv run --extra {extra} <command>."
+
+
+def parse_visualizer_csv(value: str | list[str]) -> list[str]:
+    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
+
+    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
+    """
+    if isinstance(value, str):
+        token = value.strip()
+        if not token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
+            )
+        if " " in token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: spaces are not allowed. "
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
+            )
+        value = token.split(",")
+    names = [str(item).strip().lower() for item in value]
+    if any(not name for name in names):
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty visualizer entry detected. "
+            "Use a comma-separated list without empty items."
+        )
+    invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES, "none")]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"Invalid --visualizer value(s): {', '.join(invalid)}. "
+            f"Valid options: {', '.join(sorted((*VISUALIZER_TYPES, 'none')))}."
+        )
+    for name in names:
+        if name in VISUALIZER_ALIASES:
+            warnings.warn(
+                f"--viz '{name}' is deprecated. Use '--viz {VISUALIZER_ALIASES[name]}' instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+    names = [VISUALIZER_ALIASES.get(name, name) for name in names]
+    if "none" in names:
+        if len(names) > 1:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
+            )
+        return []
+    return list(dict.fromkeys(names))
+
+
+def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
+    """Construct the default config of a visualizer type, importing only its backend package."""
+    try:
+        cfg_class = string_to_callable(VISUALIZER_TYPES[visualizer_type])
+    except (ImportError, ValueError) as exc:  # string_to_callable reports a missing module as ValueError
+        raise RuntimeError(
+            f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "
+            f"{get_visualizer_install_hint(visualizer_type)}"
+        ) from exc
+    return cfg_class()
+
+
+def resolve_visualizer_cfgs(
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None, visualizers: list[str] | None, max_visible_envs=None
+) -> list[VisualizerCfg]:
+    """Return the visualizers a run uses: the configured ones, narrowed by a ``--visualizer`` selection.
+
+    Args:
+        visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+        visualizers: Selection in canonical names (see :func:`parse_visualizer_csv`): None keeps the configured
+            visualizers, an empty list (``--viz none``) disables all, and names keep exactly those types, reusing
+            a configured visualizer of each type (with its settings) or else its default config.
+        max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
+    """
+    if visualizer_cfgs is None:
+        visualizer_cfgs = []
+    elif not isinstance(visualizer_cfgs, list):
+        visualizer_cfgs = [visualizer_cfgs]
+    if visualizers is not None:
+        visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
+        configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
+        visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
+    if max_visible_envs is not None:
+        for cfg in visualizer_cfgs:
+            cfg.max_visible_envs = int(max_visible_envs)
+    return visualizer_cfgs
 
 
 @configclass

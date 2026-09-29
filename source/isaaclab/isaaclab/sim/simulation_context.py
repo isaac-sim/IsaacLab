@@ -28,7 +28,7 @@ from ..utils import instantiate
 from ..utils.string import clear_resolve_matching_names_cache
 from ..utils.version import has_kit
 from ..visualizers.base_visualizer import BaseVisualizer
-from ..visualizers.visualizer_cfg import _get_visualizer_install_hint
+from ..visualizers.visualizer_cfg import get_visualizer_install_hint, parse_visualizer_csv, resolve_visualizer_cfgs
 from .utils import create_new_stage
 from .utils import stage as stage_utils
 
@@ -163,12 +163,9 @@ class SimulationContext:
         # left for the config built afterwards.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
-        # sim_launcher loads the backend configs; keep it out of this module's import
-        from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
-
-        self.cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+        self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
             self.cfg.visualizer_cfgs,
-            _parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
+            parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
             None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
         )
 
@@ -432,7 +429,7 @@ class SimulationContext:
                 logger.warning(
                     "[SimulationContext] XR mode could not auto-inject a KitVisualizer: %s. %s",
                     exc,
-                    _get_visualizer_install_hint("kit"),
+                    get_visualizer_install_hint("kit"),
                 )
             else:
                 resolved.append(KitVisualizerCfg())
@@ -929,11 +926,8 @@ def build_simulation_context(
             sim_cfg.device = device
 
         if visualizers:
-            # sim_launcher loads the backend configs; keep it out of this module's import
-            from ..app.sim_launcher import _parse_visualizer_csv, _resolve_visualizer_cfgs  # noqa: PLC0415
-
-            sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
-                sim_cfg.visualizer_cfgs, _parse_visualizer_csv(visualizers)
+            sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
+                sim_cfg.visualizer_cfgs, parse_visualizer_csv(visualizers)
             )
 
         sim = SimulationContext(sim_cfg)

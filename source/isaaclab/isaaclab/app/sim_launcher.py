@@ -13,12 +13,10 @@ the launcher inputs, then validate and launch.
 from __future__ import annotations
 
 import argparse
-import importlib
 import logging
 import os
 import sys
 import traceback
-import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
 from dataclasses import dataclass, field
@@ -34,15 +32,11 @@ from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
+from ..sim.simulation_cfg import SimulationCfg
 from ..utils.assets import configure_storage_profile
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
-from ..visualizers.visualizer_cfg import (
-    _VISUALIZER_ALIASES,
-    _VISUALIZER_TYPES,
-    VisualizerCfg,
-    _get_visualizer_install_hint,
-)
+from ..visualizers.visualizer_cfg import VisualizerCfg, parse_visualizer_csv, resolve_visualizer_cfgs
 from .logging_utils import apply_python_logging_level
 from .settings_manager import get_settings_manager
 
@@ -173,52 +167,6 @@ Launcher Argument Helpers.
 """
 
 
-def _parse_visualizer_csv(value: str | list[str]) -> list[str]:
-    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
-
-    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
-    """
-    if isinstance(value, str):
-        token = value.strip()
-        if not token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
-            )
-        if " " in token:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: spaces are not allowed. "
-                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
-            )
-        value = token.split(",")
-    names = [str(item).strip().lower() for item in value]
-    if any(not name for name in names):
-        raise argparse.ArgumentTypeError(
-            "Invalid --visualizer value: empty visualizer entry detected. "
-            "Use a comma-separated list without empty items."
-        )
-    invalid = [name for name in names if name not in (*_VISUALIZER_TYPES, *_VISUALIZER_ALIASES, "none")]
-    if invalid:
-        raise argparse.ArgumentTypeError(
-            f"Invalid --visualizer value(s): {', '.join(invalid)}. "
-            f"Valid options: {', '.join(sorted((*_VISUALIZER_TYPES, 'none')))}."
-        )
-    for name in names:
-        if name in _VISUALIZER_ALIASES:
-            warnings.warn(
-                f"--viz '{name}' is deprecated. Use '--viz {_VISUALIZER_ALIASES[name]}' instead.",
-                DeprecationWarning,
-                stacklevel=3,
-            )
-    names = [_VISUALIZER_ALIASES.get(name, name) for name in names]
-    if "none" in names:
-        if len(names) > 1:
-            raise argparse.ArgumentTypeError(
-                "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
-            )
-        return []
-    return list(dict.fromkeys(names))
-
-
 def _normalize_launcher_args(args: dict) -> None:
     """Resolve the livestream mode and the visualizer selection in place, once for every consumer.
 
@@ -239,7 +187,7 @@ def _normalize_launcher_args(args: dict) -> None:
     visualizers = args.get("visualizer")
     if visualizers:
         try:
-            visualizers = _parse_visualizer_csv(visualizers)
+            visualizers = parse_visualizer_csv(visualizers)
         except argparse.ArgumentTypeError as error:
             raise ValueError(str(error)) from error
     if livestream > 0:
@@ -249,51 +197,6 @@ def _normalize_launcher_args(args: dict) -> None:
             visualizers = [*(visualizers or []), "kit"]
     args["livestream"] = livestream
     args["visualizer"] = visualizers
-
-
-def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
-    """Construct the default config of a visualizer type, importing only its backend package."""
-    module = {"newton_gl": "newton", "newton_rtx": "newton"}.get(visualizer_type, visualizer_type)
-    class_name = {
-        "kit": "KitVisualizerCfg",
-        "newton_gl": "NewtonGLVisualizerCfg",
-        "newton_rtx": "NewtonRTXVisualizerCfg",
-        "rerun": "RerunVisualizerCfg",
-        "viser": "ViserVisualizerCfg",
-    }[visualizer_type]
-    try:
-        return getattr(importlib.import_module(f"isaaclab_visualizers.{module}"), class_name)()
-    except ImportError as exc:
-        raise RuntimeError(
-            f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "
-            f"{_get_visualizer_install_hint(visualizer_type)}"
-        ) from exc
-
-
-def _resolve_visualizer_cfgs(
-    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None, visualizers: list[str] | None, max_visible_envs=None
-) -> list[VisualizerCfg]:
-    """Return the visualizers a run uses: the configured ones, narrowed by a ``--visualizer`` selection.
-
-    Args:
-        visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
-        visualizers: Normalized selection (see :func:`_normalize_launcher_args`): None keeps the configured
-            visualizers, an empty list (``--viz none``) disables all, and names keep exactly those types, reusing
-            a configured visualizer of each type (with its settings) or else its default config.
-        max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
-    """
-    if visualizer_cfgs is None:
-        visualizer_cfgs = []
-    elif not isinstance(visualizer_cfgs, list):
-        visualizer_cfgs = [visualizer_cfgs]
-    if visualizers is not None:
-        visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
-        configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
-        visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
-    if max_visible_envs is not None:
-        for cfg in visualizer_cfgs:
-            cfg.max_visible_envs = int(max_visible_envs)
-    return visualizer_cfgs
 
 
 def _resolve_python_logging_level(args: dict) -> int:
@@ -346,6 +249,7 @@ class Scan:
 
     resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
     effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
+    sim_cfg: SimulationCfg | None  # first simulation config in walk order, e.g. an env config's ``sim``
     visualizer_intent: dict[str, bool]
     has_ovrtx: bool
     has_kit_camera: bool
@@ -386,6 +290,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     physics_cfgs: list[PhysicsCfg] = []
     concrete_physics_cfgs: list[PhysicsCfg] = []
     effective_cfg: Any = cfg
+    sim_cfg: SimulationCfg | None = None
     has_ovrtx = "newton_rtx" in (args["visualizer"] or ())
     has_auto_rtx = False
     has_auto_physx = False
@@ -401,7 +306,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
             launcher_types.append(node.launcher_type)
 
     def visit(node, parent, key):
-        nonlocal effective_cfg, has_ovrtx, has_auto_rtx, has_auto_physx, has_kit_camera
+        nonlocal effective_cfg, sim_cfg, has_ovrtx, has_auto_rtx, has_auto_physx, has_kit_camera
         if isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
             has_auto_rtx = True
             auto_rtx_locations.append((parent, key, isinstance(parent, CameraCfg) and key == "renderer_cfg"))
@@ -426,6 +331,8 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
                 concrete_physics_cfgs.append(node)
         elif isinstance(node, VisualizerCfg):
             visualizer_cfgs.append(node)
+        elif isinstance(node, SimulationCfg):
+            sim_cfg = sim_cfg or node
         elif isinstance(node, RendererCfg) and node.renderer_type == "ovrtx":
             has_ovrtx = True
         elif _is_kit_camera(node):
@@ -455,6 +362,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     config_scan = Scan(
         resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
         effective_cfg=effective_cfg,
+        sim_cfg=sim_cfg,
         visualizer_intent=_get_visualizer_intent(visualizer_cfgs, args),
         has_ovrtx=has_ovrtx,
         has_kit_camera=has_kit_camera,
@@ -662,7 +570,6 @@ def launch_simulation(
     # The single walk: collect every signal, apply the --physics override, and
     # resolve the automatic PhysX and RTX placeholders.
     config_scan = scan(cfg, args)
-    effective_cfg = config_scan.effective_cfg
     physics_cfg = config_scan.resolved_physics_cfg
 
     kit_sources = _get_kit_runtime_sources(config_scan, args)
@@ -681,19 +588,16 @@ def launch_simulation(
             )
             args["enable_cameras"] = True
 
-    # The SimulationCfg the simulation is built from: an env config holds it in ``sim``; a physics config or
-    # None holds none.
-    sim_cfg = getattr(effective_cfg, "sim", effective_cfg if hasattr(effective_cfg, "visualizer_cfgs") else None)
+    # The SimulationCfg the simulation is built from, e.g. an env config's ``sim``; a physics config or None
+    # holds none.
+    sim_cfg = config_scan.sim_cfg
 
     # Resolve the device before any launcher or physics init: --device, else this rank's GPU, else the config's.
     _resolve_distributed_device(args)
-    if not args.get("device") and getattr(sim_cfg, "device", None):
-        args["device"] = sim_cfg.device
-
-    # Decide the visualizers once, into the SimulationCfg.
-    has_visualizer_cfgs = hasattr(sim_cfg, "visualizer_cfgs")
-    if has_visualizer_cfgs:
-        sim_cfg.visualizer_cfgs = _resolve_visualizer_cfgs(
+    if sim_cfg is not None:
+        args["device"] = args.get("device") or sim_cfg.device
+        # Decide the visualizers once, into the SimulationCfg.
+        sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
             sim_cfg.visualizer_cfgs, args["visualizer"], args.get("max_visible_envs")
         )
 
@@ -709,9 +613,9 @@ def launch_simulation(
     _resolve_device(sim_cfg, args, launchers)
     # A config without a SimulationCfg (e.g. a bare physics config) leaves the selection for the
     # SimulationContext built after launch; otherwise clear one left by an earlier launch. ``none``
-    # round-trips through ``_parse_visualizer_csv`` as ``--viz none``; empty means no selection.
-    visualizers = None if has_visualizer_cfgs else args.get("visualizer")
-    max_visible_envs = None if has_visualizer_cfgs else args.get("max_visible_envs")
+    # round-trips through ``parse_visualizer_csv`` as ``--viz none``; empty means no selection.
+    visualizers = None if sim_cfg is not None else args.get("visualizer")
+    max_visible_envs = None if sim_cfg is not None else args.get("max_visible_envs")
     settings = get_settings_manager()
     settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))

@@ -101,6 +101,7 @@ def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
     config_scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=True,
         has_kit_camera=False,

@@ -297,7 +297,7 @@ def test_run_summary_reports_the_launch_resolved_visualizers_and_device() -> Non
 
     from isaaclab.app import launch_simulation
 
-    sim_cfg = SimpleNamespace(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg()], device="cuda:0")
+    sim_cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg()], device="cuda:0")
     env_cfg = SimpleNamespace(sim=sim_cfg, scene=SimpleNamespace(num_envs=4))
     args_cli = argparse.Namespace(task="Isaac-Test", device="cuda:0", num_envs=None, visualizer=["none"])
     screen = _RecordingScreen()

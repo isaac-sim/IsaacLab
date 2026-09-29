@@ -300,14 +300,15 @@ Environment configuration.
 def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     """Apply the common environment overrides from the command line.
 
-    Every override is read with a default so parsers that omit an argument are supported. The
-    ``--device`` override is applied by :func:`~isaaclab.app.launch_simulation`.
+    ``--disable_fabric`` (play parsers only) and ``--export_io_descriptors`` (train parsers only) are read
+    with a default, since each parser defines only one of them. The ``--device`` override is applied by
+    :func:`~isaaclab.app.launch_simulation`.
 
     Args:
         args_cli: Parsed command-line arguments.
         env_cfg: Isaac Lab environment config.
     """
-    if getattr(args_cli, "num_envs", None) is not None:
+    if args_cli.num_envs is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
     if getattr(args_cli, "disable_fabric", False):
         env_cfg.sim.use_fabric = False

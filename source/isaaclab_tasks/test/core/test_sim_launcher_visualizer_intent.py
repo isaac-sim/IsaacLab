@@ -19,6 +19,7 @@ from isaaclab_ov.physics import OvPhysxCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, get_settings_manager
+from isaaclab.sim import SimulationCfg
 from isaaclab.visualizers import VisualizerCfg
 
 
@@ -32,11 +33,6 @@ def _force_kitless(monkeypatch):
         return result
 
     monkeypatch.setattr(sim_launcher, "scan", fake_scan)
-
-
-class _DummySimCfg:
-    def __init__(self, visualizer_cfgs):
-        self.visualizer_cfgs = visualizer_cfgs
 
 
 class _DummyEnvCfg:
@@ -63,7 +59,9 @@ def test_launch_simulation_passes_kit_visualizer_to_kit_launcher(monkeypatch):
     monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
 
     env_cfg = _DummyEnvCfg(
-        _DummySimCfg([VisualizerCfg(visualizer_type="kit"), VisualizerCfg(visualizer_type="newton_gl")])
+        SimulationCfg(
+            visualizer_cfgs=[VisualizerCfg(visualizer_type="kit"), VisualizerCfg(visualizer_type="newton_gl")]
+        )
     )
     launcher_args = argparse.Namespace()
 
@@ -100,7 +98,7 @@ def test_caller_visualizer_intent_requests_kit_visualizer(kit_launcher_args):
 @pytest.mark.parametrize("physics_cfg", [NewtonCfg(), OvPhysxCfg()], ids=["newton", "ovphysx"])
 def test_cli_visualizer_selection_overrides_config_kit_visualizer(kit_launcher_args, physics_cfg):
     """``--viz rerun`` drops a configured Kit visualizer, so the run stays kitless."""
-    cfg = argparse.Namespace(physics=physics_cfg, visualizer_cfgs=[VisualizerCfg(visualizer_type="kit")])
+    cfg = SimulationCfg(physics=physics_cfg, visualizer_cfgs=[VisualizerCfg(visualizer_type="kit")])
     launcher_args = argparse.Namespace(visualizer=["rerun"])
 
     with sim_launcher.launch_simulation(cfg, launcher_args):
@@ -113,7 +111,7 @@ def test_cli_visualizer_selection_overrides_config_kit_visualizer(kit_launcher_a
 def test_cli_visualizer_selection_drops_configured_kit_streaming_view():
     """A Kit visualizer that ``--viz`` drops does not request its streaming view."""
     kit_cfg = VisualizerCfg(visualizer_type="kit", streaming_view=True)
-    cfg = argparse.Namespace(physics=NewtonCfg(), visualizer_cfgs=[kit_cfg])
+    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[kit_cfg])
 
     assert sim_launcher.scan(cfg, {"visualizer": ["rerun"]}).visualizer_intent["has_kit_streaming_view"] is False
 
@@ -125,7 +123,7 @@ def test_cli_visualizer_selection_drops_configured_newton_rtx(kit_launcher_args,
     monkeypatch.setattr(
         sim_launcher, "string_to_callable", lambda name: started.append(name) or real_string_to_callable(name)
     )
-    cfg = argparse.Namespace(physics=NewtonCfg(), visualizer_cfgs=[VisualizerCfg(visualizer_type="newton_rtx")])
+    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[VisualizerCfg(visualizer_type="newton_rtx")])
 
     with sim_launcher.launch_simulation(cfg, {"visualizer": ["kit"]}):
         pass
@@ -156,9 +154,14 @@ def test_launch_simulation_writes_max_visible_envs_without_visualizer(kit_launch
 )
 def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, visualizer, expected_types):
     """The launch writes the run's visualizers into the config; an explicit selection keeps configured settings."""
-    newton_cfg = VisualizerCfg(visualizer_type="newton_gl", max_visible_envs=7)
-    sim_cfg = _DummySimCfg([VisualizerCfg(visualizer_type="kit"), newton_cfg])
-    sim_cfg.physics = NewtonCfg()
+    sim_cfg = SimulationCfg(
+        physics=NewtonCfg(),
+        visualizer_cfgs=[
+            VisualizerCfg(visualizer_type="kit"),
+            VisualizerCfg(visualizer_type="newton_gl", max_visible_envs=7),
+        ],
+    )
+    newton_cfg = sim_cfg.visualizer_cfgs[1]
 
     with sim_launcher.launch_simulation(_DummyEnvCfg(sim_cfg), {"visualizer": visualizer, "require_kit": True}):
         pass
@@ -176,7 +179,7 @@ def test_launch_simulation_leaves_selection_for_a_config_built_after_launch(kit_
 
     with sim_launcher.launch_simulation(NewtonCfg(), {"visualizer": ["none"], "require_kit": True}):
         assert settings.get("/isaaclab/visualizer/types") == "none"
-    with sim_launcher.launch_simulation(_DummyEnvCfg(_DummySimCfg([])), {"require_kit": True}):
+    with sim_launcher.launch_simulation(_DummyEnvCfg(SimulationCfg(visualizer_cfgs=[])), {"require_kit": True}):
         assert settings.get("/isaaclab/visualizer/types") == ""
     settings.set("/isaaclab/visualizer/max_visible_envs", -1)
 
@@ -191,7 +194,7 @@ def test_launch_simulation_kitless_applies_python_logging_level(monkeypatch):
     _force_kitless(monkeypatch)
     monkeypatch.setattr(sim_launcher, "apply_python_logging_level", fake_apply)
 
-    env_cfg = _DummyEnvCfg(_DummySimCfg(None))
+    env_cfg = _DummyEnvCfg(SimulationCfg(visualizer_cfgs=None))
     launcher_args = argparse.Namespace(visualizer=["none"], verbose=True)
     with sim_launcher.launch_simulation(env_cfg, launcher_args):
         pass

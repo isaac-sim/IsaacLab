@@ -14,9 +14,9 @@ from types import SimpleNamespace
 import pytest
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
-from isaaclab.app.sim_launcher import _resolve_visualizer_cfgs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
+from isaaclab.visualizers.visualizer_cfg import resolve_visualizer_cfgs
 
 from isaaclab_rl.entrypoints.common import (
     apply_video_recording,
@@ -35,7 +35,7 @@ def _launched_env_cfg(args: SimpleNamespace) -> ManagerBasedRLEnvCfg:
     """Return an env config whose visualizers are resolved as ``pre_launch_video_config`` and the launch do."""
     env_cfg = ManagerBasedRLEnvCfg()
     pre_launch_video_config(env_cfg, args)
-    env_cfg.sim.visualizer_cfgs = _resolve_visualizer_cfgs(
+    env_cfg.sim.visualizer_cfgs = resolve_visualizer_cfgs(
         env_cfg.sim.visualizer_cfgs, getattr(args, "visualizer", None)
     )
     return env_cfg
