@@ -1,6 +1,40 @@
 Changelog
 ---------
 
+4.0.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added filtered contact-position and friction-force tracking to the OvPhysX contact
+  sensor, including friction-force history and selective reset. Both tracking options
+  required non-empty filters and a positive ``max_contact_data_count_per_prim``.
+  Truncated SDK contact buffers were bounded before aggregation.
+  Contact positions and friction forces were aggregated in a single kernel launch
+  while retaining independent raw-data buffers. Aggregate friction reporting and the
+  existing normal-only force aliases remained unchanged.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Changed :attr:`~isaaclab_ov.physics.OvPhysxCfg.enable_external_forces_every_iteration`
+  to default to ``True``, matching the PhysX backend's TGS force integration setting.
+  This changed the default velocity updates and contact-force response of OvPhysX simulations.
+  Set ``enable_external_forces_every_iteration=False`` explicitly in ``OvPhysxCfg`` to retain
+  the previous behavior.
+
+Fixed
+^^^^^
+
+* Fixed a large rendering slowdown in the OVRTX renderer by submitting every registered
+  render product on each step instead of only the requested ones. OVRTX batches products
+  within a step, so naming a subset made every product that re-entered the set on a later
+  step far more expensive. Only the requested cameras are read back, so products left out
+  of a request keep their previous outputs. Both the legacy and ``ovstage`` submission
+  paths were updated.
+
+
 3.5.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 
