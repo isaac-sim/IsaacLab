@@ -19,7 +19,7 @@ from isaaclab_tasks.contrib.lift.lift_env_cfg import LiftEnvCfg
 # Pre-defined configs
 ##
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
-from isaaclab_assets.robots.franka import FRANKA_PANDA_CFG  # isort: skip
+from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_CFG  # isort: skip
 
 
 @configclass
@@ -29,7 +29,7 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         super().__post_init__()
 
         # Set Franka as robot
-        self.scene.robot = replace(FRANKA_PANDA_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -67,12 +67,12 @@ class FrankaCubeLiftEnvCfg(LiftEnvCfg):
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/panda_link0",
+            prim_path="{ENV_REGEX_NS}/Robot/(Geometry/)?panda_link0",
             debug_vis=False,
             visualizer_cfg=marker_cfg,
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/panda_hand",
+                    prim_path="{ENV_REGEX_NS}/Robot/(Geometry/.*/)?panda_hand",
                     name="end_effector",
                     offset=OffsetCfg(
                         pos=[0.0, 0.0, 0.1034],

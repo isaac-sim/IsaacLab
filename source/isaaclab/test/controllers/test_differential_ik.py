@@ -31,7 +31,7 @@ from isaaclab.utils.math import (  # isort:skip
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_FLAT_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 pytestmark = pytest.mark.integration
 
@@ -441,7 +441,7 @@ def test_franka_ik_pose_abs(sim):
     sim_context, num_envs, ee_pose_b_des_set = sim
 
     # Create robot instance
-    robot_cfg = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+    robot_cfg = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot = Articulation(cfg=robot_cfg)
 
     # Create IK controller

@@ -53,7 +53,7 @@ if TYPE_CHECKING:
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import FRANKA_PANDA_HIGH_PD_CFG, UR10_CFG  # isort:skip
+from isaaclab_assets import FRANKA_PANDA_FLAT_HIGH_PD_CFG, UR10_CFG  # isort:skip
 
 
 @configclass
@@ -82,7 +82,7 @@ class TableTopSceneCfg(InteractiveSceneCfg):
 
     # articulation
     if args_cli.robot == "franka_panda":
-        robot = replace(FRANKA_PANDA_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     elif args_cli.robot == "ur10":
         robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     else:
