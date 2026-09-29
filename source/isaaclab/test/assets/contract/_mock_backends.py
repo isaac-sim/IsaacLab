@@ -37,7 +37,7 @@ def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]
     """Replace PhysX view setters with TensorAPI-faithful ones that apply the selected rows to view storage.
 
     The PhysX TensorAPI receives full-size data and applies only the rows named by ``indices``. The fixture view
-    setters either drop writes or expect compact data, so the contract installs setters that accept both layouts
+    setters either drop writes or expect compact data, so the contract installs setters that require full-size data
     and leave every unselected row untouched.
 
     Args:
@@ -56,11 +56,10 @@ def install_physx_recording_setters(mock_view, storage_by_method: dict[str, str]
             if indices is None:
                 stored_np[...] = values_np.reshape(stored_np.shape)
             else:
+                if values_np.size != stored_np.size:
+                    raise ValueError(f"{storage_name}: expected full-size data of shape {stored_np.shape}")
                 rows = indices.numpy().astype(np.int64)
-                if values_np.size == stored_np.size:
-                    stored_np[rows] = values_np.reshape(stored_np.shape)[rows]
-                else:
-                    stored_np[rows] = values_np.reshape(len(rows), *stored_np.shape[1:])
+                stored_np[rows] = values_np.reshape(stored_np.shape)[rows]
             if stored.device.is_cuda:
                 stored.assign(wp.array(stored_np, dtype=stored.dtype, device=stored.device))
 
