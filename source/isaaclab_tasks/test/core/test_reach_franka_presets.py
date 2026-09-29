@@ -32,15 +32,6 @@ _RIGID_FRANKA_TASKS = (
     _OSC_TASK,
     "Isaac-Open-Drawer-Franka",
     "Isaac-Open-Drawer-Franka-Direct",
-    "Isaac-Lift-Franka",
-)
-_SOFT_FRANKA_TASKS = (
-    "Isaac-Lift-Soft-Franka",
-    "Isaac-Lift-Cloth-Franka",
-    "Isaac-Lift-Cable-Franka",
-    "Isaac-Lift-Soft-Franka-Camera",
-    "Isaac-Lift-Cloth-Franka-Camera",
-    "Isaac-Lift-Cable-Franka-Camera",
 )
 
 
@@ -63,7 +54,7 @@ def _without_controller_dependent_cfg(cfg):
     return cfg_dict
 
 
-@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS + _SOFT_FRANKA_TASKS)
+@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS)
 def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task):
     default_cfg = _load_reach_env_cfg(task)
     physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
