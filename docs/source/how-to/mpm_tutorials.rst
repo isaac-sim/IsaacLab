@@ -18,15 +18,15 @@ each accepts ``--help`` for its options.
 .. code-block:: bash
 
    # Compare material parameters with a fixed scene and seeded particles.
-   uv run python scripts/tutorials/08_mpm/material_parameters.py \
+   uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
      --preset young_modulus --visualizer kit
 
    # Compare nearly rigid MPM particles with MJWarp rigid bodies.
-   uv run python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+   uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
      --visualizer kit
 
    # Compare one-way and two-way coupling using the published G1 policy.
-   uv run isaaclab example mpm-g1-coupling \
+   uv run --extra isaacsim isaaclab example mpm-g1-coupling \
      --coupling two_way --visualizer kit
 
    # Change only the reconstruction settings of a falling water blob.

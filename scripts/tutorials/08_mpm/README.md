@@ -3,7 +3,7 @@
 These standalone tutorials provide reproducible experiments
 for Newton implicit MPM. Each script owns a complete scene and changes one
 controlled dimension. The maintained methodology, parameter interpretation,
-and example videos are documented in the MPM solver guide proposed in PR #7897.
+and example videos are documented in the [MPM solver guide](../../../docs/source/concepts/using_mpm.rst).
 
 Run these scripts from a source checkout. Reusable
 simulation configuration belongs in `isaaclab_newton`; task-specific learning
@@ -17,11 +17,11 @@ surface tutorial defaults to Newton GL; Newton RTX requires the `ovrtx` extra.
 
 ```bash
 # Controlled material comparison
-uv run python scripts/tutorials/08_mpm/material_parameters.py \
+uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
   --preset young_modulus --visualizer kit
 
 # Matched MJWarp rigid and nearly rigid MPM primitives
-uv run python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
   --visualizer kit
 
 # Water surface reconstruction
@@ -30,7 +30,12 @@ uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
 ```
 
 Run any script with `--help` for its complete CLI. For the packaged G1
-comparison, run `uv run isaaclab example mpm-g1-coupling --help`.
+comparison with Kit, run:
+
+```bash
+uv run --extra isaacsim isaaclab example mpm-g1-coupling \
+  --coupling two_way --visualizer kit
+```
 
 ## Material parameters
 
