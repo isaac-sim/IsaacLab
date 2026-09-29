@@ -28,12 +28,12 @@ repository root, use one of:
 # Public framework (the installer default):
 bash scripts/visual_dr/install_cosmos.sh
 
-# Existing GitLab checkout, on mingxinz/guided_generation_distilled:
+# Existing git checkout
 bash scripts/visual_dr/install_cosmos.sh /path/to/cosmos-framework
 
 # Or a Git source pinned to the branch (substitute your GitLab URL):
 bash scripts/visual_dr/install_cosmos.sh \
-  'ssh://git@<host>:<port>/<group>/cosmos-framework.git@mingxinz/guided_generation_distilled'
+  'ssh://<path>/cosmos-framework.git@<branch name>'
 ```
 
 The installer adds the `isaaclab_contrib[cosmos-runtime]` dependencies and installs
@@ -74,7 +74,7 @@ weights in Cosmos export format. Older local exports missing the four modality
 embedding flags are loaded through a temporary config view with legacy defaults;
 the original config and weight files are unchanged.
 
-## Custom and distilled checkpoints
+## Custom checkpoints
 
 Use `--checkpoint` to select a custom or distilled Cosmos export, with sampling
 and resolution settings appropriate for that checkpoint. For example, run a
