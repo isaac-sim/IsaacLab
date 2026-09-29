@@ -13,7 +13,7 @@ import torch
 
 from isaaclab.managers import SceneEntityCfg
 
-from .rewards import _pelvis_clearance
+from .rewards import pelvis_terrain_clearance
 
 if TYPE_CHECKING:
     from isaaclab.assets import RigidObject
@@ -66,4 +66,4 @@ def pelvis_below_terrain_clearance_after_warmup(
     """
     if env.common_step_counter < warmup_steps:
         return torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
-    return _pelvis_clearance(env, asset_cfg, sensor_cfg) < minimum_height
+    return pelvis_terrain_clearance(env, asset_cfg, sensor_cfg) < minimum_height

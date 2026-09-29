@@ -179,7 +179,9 @@ def joint_deviation_l2(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg) -> tor
     )
 
 
-def _pelvis_clearance(env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg) -> torch.Tensor:
+def pelvis_terrain_clearance(
+    env: ManagerBasedRLEnv, asset_cfg: SceneEntityCfg, sensor_cfg: SceneEntityCfg
+) -> torch.Tensor:
     """Return root height above the median of the nine nearest valid terrain hits [m]."""
     hits = env.scene[sensor_cfg.name].data.ray_hits_w.torch
     root_pos = env.scene[asset_cfg.name].data.root_pos_w.torch
@@ -201,7 +203,7 @@ def pelvis_height_deficit_l2(
     approximating local terrain rather than foot contact height. Heights above
     the target incur no penalty.
     """
-    return torch.clamp(target_height - _pelvis_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
+    return torch.clamp(target_height - pelvis_terrain_clearance(env, asset_cfg, sensor_cfg), min=0.0).square()
 
 
 def feet_flight(env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg) -> torch.Tensor:

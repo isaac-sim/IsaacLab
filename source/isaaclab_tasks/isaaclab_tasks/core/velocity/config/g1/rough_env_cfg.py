@@ -10,7 +10,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.utils import configclass
 
-from isaaclab_assets.robots.unitree import G1_29DOF_VELOCITY_CFG
+from isaaclab_assets import G1_29DOF_LOCOMOTION_CFG
 
 from ... import mdp
 from ...velocity_env_cfg import (
@@ -112,7 +112,7 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         # physics
         self.sim.physics.newton_mjwarp.solver_cfg.njmax = 300
         # scene
-        self.scene.robot = G1_29DOF_VELOCITY_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = G1_29DOF_LOCOMOTION_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/torso_link"
         # actions and observations
         self.actions.joint_pos.scale = {
@@ -132,10 +132,12 @@ class G1RoughEnvCfg(LocomotionVelocityRoughEnvCfg):
             ".*_wrist_yaw_joint": 0.0313,
         }
         self.actions.joint_pos.joint_names = list(self.actions.joint_pos.scale)
-        for term in ("joint_pos", "joint_vel"):
-            getattr(self.observations.policy, term).params["asset_cfg"] = SceneEntityCfg(
-                "robot", joint_names=list(self.actions.joint_pos.joint_names)
-            )
+        self.observations.policy.joint_pos.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.actions.joint_pos.joint_names
+        )
+        self.observations.policy.joint_vel.params["asset_cfg"] = SceneEntityCfg(
+            "robot", joint_names=self.actions.joint_pos.joint_names
+        )
         # commands
         self.commands.base_velocity.vel_yaw_success_threshold = 0.8
         self.commands.base_velocity.marker_pos_offset = (0.0, 0.0, 0.75)

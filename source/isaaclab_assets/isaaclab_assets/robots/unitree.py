@@ -14,8 +14,8 @@ The following configurations are available:
 * :obj:`H1_MINIMAL_CFG`: H1 humanoid robot with minimal collision bodies
 * :obj:`G1_CFG`: G1 humanoid robot
 * :obj:`G1_MINIMAL_CFG`: G1 humanoid robot with minimal collision bodies
-* :obj:`G1_29DOF_VELOCITY_CFG`: G1 humanoid with 29 controlled body joints and passive fingers
 * :obj:`G1_29DOF_CFG`: G1 humanoid robot configured for locomanipulation tasks
+* :obj:`G1_29DOF_LOCOMOTION_CFG`: G1 29-DoF humanoid for locomotion with sole plates and passive fingers
 * :obj:`G1_INSPIRE_FTP_CFG`: G1 29DOF humanoid robot with Inspire 5-finger hand
 
 Reference: https://github.com/unitreerobotics/unitree_ros
@@ -460,61 +460,6 @@ def spawn_g1_with_sole_plates(
     return prim
 
 
-G1_29DOF_VELOCITY_CFG = G1_CFG.replace(
-    spawn=G1_CFG.spawn.replace(
-        func=spawn_g1_with_sole_plates,
-        usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
-    ),
-    init_state=G1_CFG.init_state.replace(
-        pos=(0.0, 0.0, 0.793),
-        joint_pos={
-            ".*_hip_pitch_joint": -0.20,
-            ".*_knee_joint": 0.42,
-            ".*_ankle_pitch_joint": -0.23,
-            ".*_elbow_joint": 0.87,
-            "left_shoulder_roll_joint": 0.16,
-            "left_shoulder_pitch_joint": 0.35,
-            "right_shoulder_roll_joint": -0.16,
-            "right_shoulder_pitch_joint": 0.35,
-        },
-    ),
-    actuators={
-        "legs": G1_CFG.actuators["legs"].replace(
-            joint_names_expr=[".*_hip_.*_joint", ".*_knee_joint", "waist_yaw_joint"],
-            stiffness={
-                ".*_hip_yaw_joint": 150.0,
-                ".*_hip_roll_joint": 150.0,
-                ".*_hip_pitch_joint": 200.0,
-                ".*_knee_joint": 200.0,
-                "waist_yaw_joint": 200.0,
-            },
-            damping=5.0,
-            armature=0.01,
-        ),
-        "feet": G1_CFG.actuators["feet"].copy(),
-        "waist": ImplicitActuatorCfg(
-            joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
-            joint_effort_limit=50.0,
-            stiffness=200.0,
-            damping=5.0,
-            armature=0.01,
-        ),
-        "arms": G1_CFG.actuators["arms"].replace(
-            joint_names_expr=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"],
-            armature=0.01,
-        ),
-        "hands": ImplicitActuatorCfg(
-            joint_names_expr=[".*_hand_.*_joint"],
-            joint_effort_limit=300,
-            stiffness=0.0,
-            damping=0.1,
-            armature=0.001,
-        ),
-    },
-)
-"""G1 locomotion configuration with 29 controlled body joints, sole boxes, and passive Dex3 fingers."""
-
-
 G1_29DOF_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Unitree/G1/g1.usd",
@@ -686,6 +631,82 @@ Usage examples:
     # For mobile scenarios (locomotion + manipulation)
     mobile_cfg = G1_29DOF_CFG.copy()
     mobile_cfg.spawn.fix_root_link = False
+"""
+
+
+G1_29DOF_LOCOMOTION_CFG = G1_29DOF_CFG.replace(
+    spawn=G1_29DOF_CFG.spawn.replace(
+        func=spawn_g1_with_sole_plates,
+        activate_contact_sensors=True,
+        fix_root_link=None,
+    ),
+    init_state=G1_29DOF_CFG.init_state.replace(
+        pos=(0.0, 0.0, 0.793),
+        rot=(0.0, 0.0, 0.0, 1.0),
+        joint_pos={
+            ".*_hip_pitch_joint": -0.20,
+            ".*_knee_joint": 0.42,
+            ".*_ankle_pitch_joint": -0.23,
+            ".*_elbow_joint": 0.87,
+            "left_shoulder_roll_joint": 0.16,
+            "left_shoulder_pitch_joint": 0.35,
+            "right_shoulder_roll_joint": -0.16,
+            "right_shoulder_pitch_joint": 0.35,
+        },
+    ),
+    # Implicit PD on every group, unlike the DC-motor legs/feet and stiff arms/waist of G1_29DOF_CFG.
+    actuators={
+        "legs": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hip_.*_joint", ".*_knee_joint", "waist_yaw_joint"],
+            joint_effort_limit=300,
+            stiffness={
+                ".*_hip_yaw_joint": 150.0,
+                ".*_hip_roll_joint": 150.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 200.0,
+                "waist_yaw_joint": 200.0,
+            },
+            damping=5.0,
+            armature=0.01,
+        ),
+        "feet": ImplicitActuatorCfg(
+            joint_names_expr=[".*_ankle_pitch_joint", ".*_ankle_roll_joint"],
+            joint_effort_limit=20,
+            stiffness=20.0,
+            damping=2.0,
+            armature=0.01,
+        ),
+        "waist": ImplicitActuatorCfg(
+            joint_names_expr=["waist_roll_joint", "waist_pitch_joint"],
+            joint_effort_limit=50.0,
+            stiffness=200.0,
+            damping=5.0,
+            armature=0.01,
+        ),
+        "arms": ImplicitActuatorCfg(
+            joint_names_expr=[".*_shoulder_.*_joint", ".*_elbow_joint", ".*_wrist_.*_joint"],
+            joint_effort_limit=300,
+            stiffness=40.0,
+            damping=10.0,
+            armature=0.01,
+        ),
+        "hands": ImplicitActuatorCfg(
+            joint_names_expr=[".*_hand_.*_joint"],
+            joint_effort_limit=300,
+            stiffness=0.0,
+            damping=0.1,
+            armature=0.001,
+        ),
+    },
+)
+"""G1 29-DoF locomotion configuration derived from :obj:`G1_29DOF_CFG`.
+
+It keeps the USD, rigid-body, and articulation properties of :obj:`G1_29DOF_CFG`, and changes:
+
+* sole collision boxes (:func:`spawn_g1_with_sole_plates`) and contact sensors,
+* an upright standing pose without the 90 degree yaw,
+* implicit PD walking gains on the 29 body joints, with ``waist_yaw_joint`` grouped with the legs,
+* passive Dex3 fingers (zero stiffness, light damping).
 """
 
 """
