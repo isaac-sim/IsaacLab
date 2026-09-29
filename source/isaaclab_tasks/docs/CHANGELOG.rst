@@ -1,6 +1,57 @@
 Changelog
 ---------
 
+20.0.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Kuka Allegro Lift camera observations to use the shared
+  :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`, and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` terms and to emit raw camera images, uint8 for
+  color. The spatial-softmax policy model now applies the fixed-range normalization, including in
+  exported JIT and ONNX policies, which cuts rollout image memory 4x. Existing RGB and depth checkpoints loaded
+  unchanged; policies exported before this change expect normalized images. Albedo observations
+  now discard the unused alpha channel; keep ``vision_camera`` for existing four-channel albedo
+  policies, or retrain with the three-channel observation.
+* Disabled the RSL-RL per-step NaN check for the Kuka Allegro camera runners.
+* Enabled the calibrated ``robot_pov_cam`` as a head-locked XR picture-in-picture
+  panel for the G1 locomanipulation and fixed-base upper-body IK tasks. Fixed-base
+  G1 gained a camera sensor for PiP without changing its policy observations.
+  XR runs with enabled PiP now require ``--num_envs 1``. To retain multi-environment
+  XR operation, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP without
+  removing the camera sensor or recorded observations.
+* **Breaking:** Changed the canonical render task's unset ``BENCHMARK_MODE`` default to
+  ``None``, disabling benchmark animation and scope profiling. Set ``BENCHMARK_MODE=render``
+  to retain direct posing or ``BENCHMARK_MODE=physics_render`` for actuator tracking;
+  scope timings remained opt-in through their profiling flags. Renderer sweep users must
+  also set an explicit benchmark mode to collect timings.
+
+Removed
+^^^^^^^
+
+* Removed the ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene
+  entries from ``Isaac-Lift-Cable-Franka`` and ``Isaac-Lift-Cable-Franka-Camera``. Those
+  millimetre-scale cubes pinned each Isaac RTX scene partition to the workspace as a
+  workaround for Kit RTX not refreshing animated ``UsdGeom.BasisCurves`` bounding boxes
+  (OMPE-105749 / NVBug 6602254). Custom environments that copied the markers can drop
+  them; ``test_franka_cable_partition_bounds.py`` remains as the regression guard.
+* **Breaking:** Removed ``isaaclab_tasks.utils.hydra_task_config``. Call
+  :func:`~isaaclab_tasks.utils.resolve_task_config` and pass the returned ``(env_cfg, agent_cfg)`` to your
+  entry function.
+* **Breaking:** Removed ``isaaclab_tasks.utils.hydra.parse_overrides`` and
+  ``isaaclab_tasks.utils.hydra.apply_overrides``. Pass the same command-line tokens to
+  :func:`~isaaclab_tasks.utils.resolve_task_config` through its ``overrides`` argument.
+
+Fixed
+^^^^^
+
+* Added the missing ``ovphysx`` physics preset to ``Isaac-RenderBenchmark-Franka-Cabinet``
+  and enabled automatic ``physx`` selection to use OvPhysX when running without Kit.
+
+
 19.3.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~~
 

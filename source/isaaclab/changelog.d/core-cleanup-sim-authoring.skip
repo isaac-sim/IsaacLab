@@ -1,1 +1,0 @@
-Deduplicated the spawner, mesh converter, and schema writer helpers; the authored USD is unchanged.
