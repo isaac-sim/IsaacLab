@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom
 
 from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
@@ -22,66 +22,6 @@ from isaaclab_ov._clone import CloneRecipe
 if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
-
-
-def _physics_topology(source_prim: Usd.Prim) -> tuple[tuple, ...]:
-    """Describe body/joint identities, connectivity and DOF axes, ignoring geometry."""
-    source_path = source_prim.GetPath()
-    topology = []
-    for prim in Usd.PrimRange(source_prim, Usd.TraverseInstanceProxies()):
-        relative_path = str(prim.GetPath().MakeRelativePath(source_path))
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
-            topology.append(("body", relative_path, UsdPhysics.RigidBodyAPI(prim).GetRigidBodyEnabledAttr().Get()))
-        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
-            enabled = prim.GetAttribute("physxArticulation:articulationEnabled").Get() is not False
-            topology.append(("articulation", relative_path, enabled))
-        schemas = prim.GetPrimTypeInfo().GetAppliedAPISchemas()
-        tendons = tuple(sorted(schema for schema in schemas if schema.startswith("PhysxTendon")))
-        if tendons:
-            topology.append(("tendon", relative_path, tendons))
-        if prim.IsA(UsdPhysics.Joint):
-            joint = UsdPhysics.Joint(prim)
-            axes = ()
-            if prim.GetTypeName() == "PhysicsJoint":
-                # Articulations lock D6 translation; only free rotational axes add tensor DOFs.
-                axes = tuple(
-                    axis
-                    for axis in ("rotX", "rotY", "rotZ")
-                    if not prim.HasAPI(UsdPhysics.LimitAPI, axis)
-                    or UsdPhysics.LimitAPI(prim, axis).GetLowAttr().Get()
-                    <= UsdPhysics.LimitAPI(prim, axis).GetHighAttr().Get()
-                )
-            topology.append(
-                (
-                    "joint",
-                    relative_path,
-                    prim.GetTypeName(),
-                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody0Rel().GetTargets()),
-                    tuple(str(path.MakeRelativePath(source_path)) for path in joint.GetBody1Rel().GetTargets()),
-                    joint.GetJointEnabledAttr().Get(),
-                    joint.GetExcludeFromArticulationAttr().Get(),
-                    prim.GetAttribute("physics:axis").Get(),
-                    axes,
-                )
-            )
-    return tuple(sorted(topology))
-
-
-def _validate_variant_topology(stage: Usd.Stage, sources: Sequence[str], destinations: Sequence[str]) -> None:
-    """Reject variant sources whose body/joint topology or DOF layout differs."""
-    reference_by_destination: dict[str, tuple[str, tuple[tuple, ...]]] = {}
-    for source, destination in zip(sources, destinations):
-        source_prim = stage.GetPrimAtPath(source)
-        if not source_prim.IsValid():
-            raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
-        topology = _physics_topology(source_prim)
-        reference = reference_by_destination.setdefault(destination, (source, topology))
-        if topology != reference[1]:
-            raise ValueError(
-                f"OvPhysX clone variants {reference[0]!r} and {source!r} for {destination!r} have incompatible "
-                "rigid-body or joint topology. Geometry may vary, but body counts and joint type/DOF structure "
-                "must match."
-            )
 
 
 def _clone_recipes(
@@ -102,7 +42,6 @@ def _clone_recipes(
         if len(columns) and columns[0] != -1:
             grouped.setdefault(pair, []).append(columns)
     copies = [(pair, np.unique(np.concatenate(columns))) for pair, columns in grouped.items()]
-    _validate_variant_topology(stage, [pair[0] for pair, _ in copies], [pair[1] for pair, _ in copies])
 
     xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
     recipes = []
@@ -113,6 +52,8 @@ def _clone_recipes(
         self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
         source_prim = stage.GetPrimAtPath(source)
+        if not source_prim.IsValid():
+            raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
         source_world = xform_cache.GetLocalToWorldTransform(source_prim).RemoveScaleShear()
         if self_env_id is None:
             source_anchor_world = Gf.Matrix4d(1.0)
@@ -206,8 +147,7 @@ def ovphysx_replicate(
     Raises:
         RuntimeError: If no simulation context is active.
         ValueError: If source/destination lengths or mapping/transform shapes are inconsistent,
-            an active source or source anchor is invalid, or variants for one destination differ
-            in body/joint topology or effective DOF axes.
+            or an active source or source anchor is invalid.
     """
     if len(sources) != len(destinations):
         raise ValueError(f"Expected one destination per source, got {len(sources)} and {len(destinations)}.")
@@ -303,10 +243,3 @@ def _serialize_stage(
                     spec = parent
 
     return layer.ExportToString(), list(native.values())
-
-
-def _replay_clones(physx, recipes: Sequence[CloneRecipe]) -> None:
-    """Apply compiled operations after native stage attachment and before warmup."""
-    for source, targets, transforms, env_ids, _ in recipes:
-        if targets:
-            physx.wait_op(physx.clone(source, targets, transforms or None, env_ids=env_ids))

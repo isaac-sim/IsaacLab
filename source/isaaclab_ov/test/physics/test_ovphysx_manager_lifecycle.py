@@ -83,33 +83,6 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
-def test_runtime_clone_replay_preserves_targets_and_ids(manager_module):
-    import isaaclab_ov.cloner.replicate as cloner_module
-
-    manager = manager_module.OvPhysxManager
-    env_ids = list(range(1, 514))
-    targets = [f"/World/envs/env_{env_id}/Robot" for env_id in env_ids]
-    transforms = [(float(env_id), 0.0, 0.0, 0.0, 0.0, 0.0, 1.0) for env_id in env_ids]
-    manager._clone_recipes = [
-        ("/World/envs/env_0/Robot", targets, transforms, env_ids, 0),
-        ("/World/envs/env_0/table", ["/World/envs/env_1/table"], [], [1], 0),
-    ]
-    clone_calls = []
-    waits = []
-
-    def record_clone(source, target_paths, target_transforms, env_ids):
-        clone_calls.append((source, target_paths, target_transforms, env_ids))
-        return len(clone_calls)
-
-    physx = SimpleNamespace(wait_op=waits.append, clone=record_clone)
-    cloner_module._replay_clones(physx, manager._clone_recipes)
-
-    assert clone_calls[0] == ("/World/envs/env_0/Robot", targets, transforms, env_ids)
-    assert clone_calls[-1] == ("/World/envs/env_0/table", ["/World/envs/env_1/table"], None, [1])
-    assert waits == [1, 2]
-    assert len(manager._clone_recipes) == 2
-
-
 def test_initialize_defers_native_resource_until_warmup(monkeypatch, manager_module):
     from isaaclab.physics import PhysicsManager
 

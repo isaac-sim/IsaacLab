@@ -226,18 +226,18 @@ class ContactSensor(BaseContactSensor):
         # not share a parent. IsaacLab path forms map to ovphysx fnmatch globs the same way
         # Articulation does.
         sensor_patterns = [path_expr_to_glob(re.sub(r"\{ENV_REGEX_NS\}", "*", expr)) for _, expr in body_matches]
-        pose_pattern = sensor_patterns[0]
-
         plan = OvPhysxManager._sim.get_clone_plan()
         sensor_patterns = [path for pattern in sensor_patterns for path in _expand_env_pattern(pattern, plan)]
         filter_globs = [path_expr_to_glob(expr) for expr in self.cfg.filter_prim_paths_expr]
         filters_per_sensor = len(filter_globs)
+        filter_worlds = [None] * filters_per_sensor
+        if plan is not None:
+            filter_worlds = [cloner.path.match(pattern, plan.env_template) for pattern in filter_globs]
         filter_patterns = []
         # Each sensor sees the filters in its own world; shared filters keep their native pattern.
         for sensor_path in sensor_patterns:
             sensor_world = None if plan is None else cloner.path.match(sensor_path, plan.env_template)
-            for pattern in filter_globs:
-                filter_world = None if plan is None else cloner.path.match(pattern, plan.env_template)
+            for pattern, filter_world in zip(filter_globs, filter_worlds, strict=True):
                 if (
                     sensor_world is not None
                     and filter_world is not None
@@ -255,7 +255,7 @@ class ContactSensor(BaseContactSensor):
             max_contact_data_count=max_count,
         )
         # Contact discovery is lexical; keep the same body-major, numeric env order as asset views.
-        paths = list(getattr(self._contact_binding, "sensor_paths", []))
+        paths = list(self._contact_binding.sensor_paths)
         expected_paths = {path for path in sensor_patterns if not any(char in path for char in "*?[")}
         if missing := expected_paths.difference(paths):
             raise RuntimeError(f"Contact binding omitted sensor bodies {sorted(missing)}; check their filter paths.")
@@ -306,14 +306,13 @@ class ContactSensor(BaseContactSensor):
                     f"under '{self.cfg.prim_path}').  Workaround: create one ContactSensor "
                     "per body."
                 )
-            single_pose_pattern = pose_pattern
-            pose_paths = _expand_env_pattern(single_pose_pattern, plan)
+            pose_paths = self._contact_binding.sensor_paths
             self._root_view = OvPhysxView(physx_instance, prim_paths=pose_paths, device=self._device)
             self._pose_binding = self._root_view.binding_for(TT.RIGID_BODY_POSE)
             if self._pose_binding.count != self._contact_binding.sensor_count:
                 raise RuntimeError(
                     "RIGID_BODY_POSE binding count mismatch."
-                    f"\n\tPattern: {single_pose_pattern}"
+                    f"\n\tPattern: {self.cfg.prim_path}"
                     f"\n\tBound  : {self._pose_binding.count}"
                     f"\n\tExpect : {self._contact_binding.sensor_count}"
                 )

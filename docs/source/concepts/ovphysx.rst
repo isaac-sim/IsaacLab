@@ -64,8 +64,7 @@ validated at the time of writing. The following pieces are available on
 * :class:`~isaaclab.assets.DeformableObject` — experimental volume- and
   surface-deformable support on CUDA simulation devices.
 * Fast-path cloning of heterogeneous rigid-body and articulation geometry
-  variants with matching body/joint names, connectivity and effective DOF axes,
-  including the enabled axes of D6 joints.
+  variants with matching native tensor layouts.
 
 Additional OvPhysX work remains in flight. IMU, Frame Transformer, Joint Wrench,
 PVA, Ray Caster, and rendering support are not documented as supported here
@@ -78,7 +77,7 @@ Heterogeneous cloning
 OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
 numeric environment order so indexed resets, actions and observations address
 the correct variant. Variants may differ in geometry but must preserve body,
-joint and tendon layout.
+joint and tendon layout, validated by OVPhysX when articulation metadata is bound.
 
 The clone context compiles the plan's prototypes and world assignments once.
 The physics manager attaches one exported stage, replays the native copies, and

@@ -40,7 +40,7 @@ from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab_ov._clone import CloneRecipe, clone_transforms_from_positions
 from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
-from isaaclab_ov.cloner.replicate import _replay_clones, _serialize_stage
+from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
@@ -791,7 +791,8 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        _replay_clones(cls.backend.physx, native_clones)
+        for source, targets, transforms, env_ids, _ in native_clones:
+            cls.backend.physx.wait_op(cls.backend.physx.clone(source, targets, transforms or None, env_ids=env_ids))
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)

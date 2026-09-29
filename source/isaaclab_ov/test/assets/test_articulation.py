@@ -301,8 +301,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_heterogeneous_articulation_clone_indexed_state(device, tmp_path):
-    """Different link geometries retain identical DOFs and environment-indexed state."""
+@pytest.mark.parametrize("joint_type", [UsdPhysics.RevoluteJoint, UsdPhysics.PrismaticJoint])
+def test_heterogeneous_articulation_clone_indexed_state(device, joint_type, tmp_path):
+    """Native bindings validate joint layout and preserve environment-indexed state."""
     variants = []
     for shape in (UsdGeom.Cube, UsdGeom.Sphere):
         stage = Usd.Stage.CreateInMemory()
@@ -319,7 +320,8 @@ def test_heterogeneous_articulation_clone_indexed_state(device, tmp_path):
             UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
         fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed")
         fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
-        joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/Joint")
+        joint_schema = UsdPhysics.RevoluteJoint if shape is UsdGeom.Cube else joint_type
+        joint = joint_schema.Define(stage, "/Robot/Joint")
         joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
         joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
         joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
@@ -335,6 +337,10 @@ def test_heterogeneous_articulation_clone_indexed_state(device, tmp_path):
             actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint"], stiffness=0.0, damping=0.0)},
         )
         scene = InteractiveScene(cfg)
+        if joint_type is UsdPhysics.PrismaticJoint:
+            with pytest.raises(RuntimeError, match="heterogeneous or empty view"):
+                sim.reset()
+            return
         sim.reset()
         robot = scene["robot"]
         assert robot.num_joints == 1

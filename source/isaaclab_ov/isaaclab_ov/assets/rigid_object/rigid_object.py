@@ -959,19 +959,16 @@ class RigidObject(BaseRigidObject):
         # (or a KeyError) at first writer call.
         paths = _expand_env_pattern(pattern, OvPhysxManager._sim.get_clone_plan())
         self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
-        eager_types = (
+        for tt in (
             TT.RIGID_BODY_POSE,
             TT.RIGID_BODY_VELOCITY,
             TT.RIGID_BODY_WRENCH,
             TT.RIGID_BODY_MASS,
             TT.RIGID_BODY_COM_POSE,
             TT.RIGID_BODY_INERTIA,
-        )
-        for tt in eager_types:
+        ):
             try:
                 self._root_view.binding_for(tt)
-                if tt == TT.RIGID_BODY_POSE:
-                    self._root_view._use_resolved_prim_paths()
             except Exception as e:
                 raise RuntimeError(
                     f"OVPhysX could not create rigid-body binding {tt!r}. "

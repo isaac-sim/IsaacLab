@@ -589,11 +589,6 @@ class OvPhysxView:
         """USD paths of the prims matched by this view."""
         return list(self._sample().prim_paths)
 
-    def _use_resolved_prim_paths(self) -> None:
-        """Reuse the first binding's ordered prims instead of repeating a stage-wide glob."""
-        self._prim_paths = self.prim_paths
-        self._pattern = None
-
     @property
     def dof_names(self) -> list[str]:
         """Per-articulation DOF names (articulation views only)."""
@@ -662,7 +657,12 @@ class OvPhysxView:
             return binding
         create_type = self._key_aliases.get(tensor_type, tensor_type)
         kwargs: dict[str, Any] = {"tensor_type": create_type}
-        if self._prim_paths is not None:
+        # Reuse resolved paths within each native family; rigid bodies and articulations may differ.
+        prefix = create_type.name.partition("_")[0] + "_"
+        previous = next((b for b in self._bindings.values() if b.tensor_type.name.startswith(prefix)), None)
+        if previous is not None and prefix in ("RIGID_", "ARTICULATION_"):
+            kwargs["prim_paths"] = previous.prim_paths
+        elif self._prim_paths is not None:
             kwargs["prim_paths"] = self._prim_paths
         else:
             kwargs["pattern"] = self._pattern
@@ -691,7 +691,7 @@ class OvPhysxView:
             )
         # Variant batches are discovered in clone order, not environment order.
         # Rebind only when needed; explicit path lists also preserve collection body order.
-        patterns = self._prim_paths if self._prim_paths is not None else [self._pattern]
+        patterns = kwargs.get("prim_paths", [self._pattern])
         paths = list(binding.prim_paths) if create_type.name.startswith(("RIGID_BODY_", "ARTICULATION_")) else []
 
         ordered_paths = ordered_clone_paths(paths, patterns)

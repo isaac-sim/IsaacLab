@@ -2,7 +2,6 @@ Added
 ^^^^^
 
 * Added plan-driven OvPhysX cloning for heterogeneous rigid-body and articulation geometry variants. GPU cloning imported complete original worlds and assigned one native environment ID per copied world; CPU imported full USD copies with collision grouping.
-* Validated variant body/joint connectivity, articulation enablement, tendon layouts, and effective D6 rotational axes before cloning.
 
 Fixed
 ^^^^^

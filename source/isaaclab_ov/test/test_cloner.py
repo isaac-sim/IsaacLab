@@ -6,7 +6,6 @@
 """Tests for OvPhysX cloning."""
 
 import math
-from contextlib import nullcontext
 from types import SimpleNamespace
 
 import numpy as np
@@ -222,60 +221,6 @@ def test_raw_replicate_preserves_articulation_geometry_variants_and_env_ids(monk
         ("/World/envs/env_0/Robot", ["/World/envs/env_0/Robot", "/World/envs/env_2/Robot"], [0, 2]),
         ("/World/envs/env_1/Robot", ["/World/envs/env_1/Robot", "/World/envs/env_3/Robot"], [1, 3]),
     ]
-
-
-@pytest.mark.parametrize("difference", ["joint", "fixed_tendon", "spatial_tendon", "articulation_enabled"])
-def test_raw_replicate_rejects_incompatible_articulation_dof_structure(difference):
-    """Variants cannot change the body, joint or tendon rows exposed by tensor bindings."""
-    stage = Usd.Stage.CreateInMemory()
-    for env_id in range(2):
-        UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}")
-        robot = UsdGeom.Xform.Define(stage, f"/World/envs/env_{env_id}/Robot").GetPrim()
-        UsdPhysics.ArticulationRootAPI.Apply(robot)
-        joint_count = 2 if env_id == 1 and difference == "joint" else 1
-        for joint_id in range(joint_count):
-            joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/envs/env_{env_id}/Robot/Joint_{joint_id}").GetPrim()
-        if env_id == 1:
-            if difference in ("fixed_tendon", "spatial_tendon"):
-                schema = "PhysxTendonAxisRootAPI" if difference == "fixed_tendon" else "PhysxTendonAttachmentRootAPI"
-                joint.AddAppliedSchema(schema + ":tendon")
-            elif difference == "articulation_enabled":
-                robot.CreateAttribute("physxArticulation:articulationEnabled", Sdf.ValueTypeNames.Bool).Set(False)
-
-    with pytest.raises(ValueError, match="incompatible rigid-body or joint topology"):
-        ovphysx_replicate(
-            stage,
-            sources=["/World/envs/env_0/Robot", "/World/envs/env_1/Robot"],
-            destinations=["/World/envs/env_{}/Robot", "/World/envs/env_{}/Robot"],
-            env_ids=np.arange(4, dtype=np.int64),
-            mapping=np.array([[True, False, True, False], [False, True, False, True]], dtype=np.bool_),
-        )
-
-
-@pytest.mark.parametrize("changed_axis", ["rotX", "rotY", "transX"])
-def test_raw_replicate_validates_d6_rotation_layout(monkeypatch, changed_axis):
-    """D6 rotation changes tensor DOFs; translation is locked by the articulation runtime."""
-    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(physics_manager=SimpleNamespace(_clone_recipes=[])))
-    stage = Usd.Stage.CreateInMemory()
-    sources = [f"/World/envs/env_{i}/Robot" for i in range(2)]
-    for source, unlocked in zip(sources, ["rotZ", changed_axis]):
-        robot = UsdGeom.Xform.Define(stage, source).GetPrim()
-        UsdPhysics.ArticulationRootAPI.Apply(robot)
-        joint = UsdPhysics.Joint.Define(stage, source + "/Joint").GetPrim()
-        for axis in ("rotX", "rotY", "rotZ", "transX", "transY", "transZ"):
-            if axis != unlocked and not (unlocked == "transX" and axis == "rotZ"):
-                limit = UsdPhysics.LimitAPI.Apply(joint, axis)
-                limit.CreateLowAttr(1.0)
-                limit.CreateHighAttr(-1.0)
-    expectation = pytest.raises(ValueError, match="incompatible rigid-body or joint topology")
-    with expectation if changed_axis != "transX" else nullcontext():
-        ovphysx_replicate(
-            stage,
-            sources=sources,
-            destinations=["/World/envs/env_{}/Robot"] * 2,
-            env_ids=np.arange(4),
-            mapping=np.array([[True, False, True, False], [False, True, False, True]]),
-        )
 
 
 def test_register_clone_preserves_translation_only_compatibility(monkeypatch):

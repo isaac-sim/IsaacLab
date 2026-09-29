@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Version compatibility between the legacy OVPhysX 0.5.11 API and OVPhysX 0.6 and later.
+"""Version compatibility between the public OVPhysX 0.5.11 API and OVPhysX 0.6 and later.
 
 OVPhysX 0.5.11 warms GPU state with ``warmup_gpu()`` and tears the runtime down
 with ``release()``, while 0.6 replaces those entry points with ``warmup()`` and

@@ -199,7 +199,8 @@ def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") 
     return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device=device)
 
 
-def test_variant_bindings_preserve_environment_and_collection_order():
+@pytest.mark.parametrize("explicit", [False, True])
+def test_variant_bindings_preserve_environment_and_collection_order(explicit):
     """Numeric environment order is restored within each requested collection body."""
     paths = [f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 4, 3, 10, 5)]
 
@@ -210,26 +211,20 @@ def test_variant_bindings_preserve_environment_and_collection_order():
             return binding
 
     physx = VariantPhysX(n=len(paths))
-    view = OvPhysxView(physx, prim_paths=["/World/env_*/sphere", "/World/env_*/cube"])
+    patterns = ["/World/env_*/sphere", "/World/env_*/cube"]
+    selection = {"prim_paths": patterns} if explicit else {"pattern": "/World/env_*/*"}
+    view = OvPhysxView(physx, **selection)
     try:
         view.binding_for(TensorType.RIGID_BODY_POSE)
-        assert view.prim_paths == [
-            f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 3, 4, 5, 10)
-        ]
-    finally:
-        view.close()
-
-
-def test_resolved_paths_reuse_binding_order_without_rematching_stage():
-    physx = _FakePhysX(n=3)
-    view = OvPhysxView(physx, pattern="/World/env_*/body")
-    try:
-        view.binding_for(TensorType.RIGID_BODY_POSE)
-        view._use_resolved_prim_paths()
+        expected = [f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 3, 4, 5, 10)]
+        if not explicit:
+            expected = [f"/World/env_{i}/{body}" for i in (0, 1, 2, 3, 4, 5, 10) for body in ("cube", "sphere")]
+        assert view.prim_paths == expected
         view.binding_for(TensorType.RIGID_BODY_VELOCITY)
-
-        assert physx.created[0][1:] == ("/World/env_*/body", None)
-        assert physx.created[1][1:] == (None, view.prim_paths)
+        assert physx.created[-1][1:] == (None, expected)
+        # A different family must still resolve its own prims, not reuse rigid-body paths.
+        view.binding_for(TensorType.ARTICULATION_ROOT_POSE)
+        assert physx.created[-2][1:] == (selection.get("pattern"), selection.get("prim_paths"))
     finally:
         view.close()
 
