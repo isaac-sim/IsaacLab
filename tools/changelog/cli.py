@@ -53,8 +53,9 @@ def packages() -> list[Path]:
 
 
 # ---------------------------------------------------------------------------------------------------
-# legacy fragments (WAR): open PRs may still add pre-towncrier fragments, so check and compile split
-# them. Delete this section and its two ``# WAR`` callers once no open PR carries the old format.
+# legacy fragments (WAR): the check rejects the pre-towncrier format, but fragments merged before it, or
+# without re-running CI, still reach the nightly, so compile splits them. Delete this section and its
+# ``# WAR`` caller once no pending fragment uses the old format.
 # ---------------------------------------------------------------------------------------------------
 
 LEGACY_RE = re.compile(r"^(?P<slug>[^./]+)(?:\.(?P<tier>minor|major))?\.rst$")
@@ -122,16 +123,13 @@ def check_fragment(path: Path) -> list[str]:
     rel = path.relative_to(REPO_ROOT)
     if MARKER_RE.match(path.name):
         return []
-    if ENTRY_RE.match(path.name):
-        bodies = [path.read_text(encoding="utf-8")]
-    elif LEGACY_RE.match(path.name):  # WAR
-        try:
-            bodies = [text for name, text in split_legacy(path).items() if name.endswith(".rst")]
-        except ValueError as e:
-            return [f"{rel}: {e}"]
-    else:
-        return [f"{rel}: name it <slug>.<type>.rst, <slug>.skip, <slug>.minor or <slug>.major"]
-    return [f"{rel}: {error}" for body in bodies if (error := check_bullet_list(body))]
+    if not ENTRY_RE.match(path.name):
+        return [
+            f"{rel}: expected <slug>.<{'|'.join(TYPES)}>.rst holding * bullets, or an empty <slug>.skip,"
+            " <slug>.minor or <slug>.major; see skills/developer/changelog-fragments/SKILL.md"
+        ]
+    error = check_bullet_list(path.read_text(encoding="utf-8"))
+    return [f"{rel}: {error}"] if error else []
 
 
 def check_changed_packages(changed: set[str], added: set[str]) -> list[str]:

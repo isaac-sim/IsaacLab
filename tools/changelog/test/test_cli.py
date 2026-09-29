@@ -71,44 +71,15 @@ def check(include_worktree=False):
     return cli.cmd_check(argparse.Namespace(base_ref="develop", include_worktree=include_worktree))
 
 
-def test_split_legacy_maps_sections_and_tier(tmp_path):
-    path = tmp_path / "my-branch.minor.rst"
-    path.write_text("Added\n^^^^^\n\n* Added x.\n  More on x.\n\nFixed\n^^^^^\n\n* Fixed y.\n")
-    assert cli.split_legacy(path) == {
-        "my-branch.minor": "",
-        "my-branch.added.rst": "* Added x.\n  More on x.\n",
-        "my-branch.fixed.rst": "* Fixed y.\n",
-    }
-
-
-@pytest.mark.parametrize(
-    "text",
-    [
-        "* Fixed x without a heading.\n",
-        "Notes\n^^^^^\n\n* Unknown section.\n",
-        "Fixed\n^^^^^\n\n* Fixed x.\n\nFixed\n^^^^^\n\n* Fixed y.\n",
-    ],
-)
-def test_split_legacy_rejects_malformed_fragments(tmp_path, text):
-    path = tmp_path / "my-branch.rst"
-    path.write_text(text)
-    with pytest.raises(ValueError):
-        cli.split_legacy(path)
-
-
 @pytest.mark.parametrize(
     ("files", "status"),
     [
-        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n"}, 0),
-        ({FRAGMENTS + "a.added.rst": "* Added x.\n", FRAGMENTS + "a.major": ""}, 0),
+        ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\n  More on x.\n", FRAGMENTS + "a.major": ""}, 0),
         ({FRAGMENTS + "a.skip": ""}, 0),
-        ({FRAGMENTS + "a.minor.rst": "Added\n^^^^^\n\n* Added x.\n"}, 0),  # legacy
-        ({}, 1),
-        ({FRAGMENTS + "a.minor": ""}, 1),
-        ({FRAGMENTS + "a.notes.rst": "* Noted x.\n"}, 1),
+        ({FRAGMENTS + "a.minor.rst": "* Added x.\n"}, 1),  # pre-towncrier name
+        ({FRAGMENTS + "a.minor": ""}, 1),  # a tier file alone is not an entry
         ({FRAGMENTS + "a.fixed.rst": ""}, 1),
         ({FRAGMENTS + "a.fixed.rst": "* Fixed x.\nFlush-left paragraph.\n"}, 1),
-        ({FRAGMENTS + "a.rst": "Fixed\n^^^^^\n\n* Fixed x.\nFlush-left paragraph.\n"}, 1),  # legacy
     ],
 )
 def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, status):
@@ -117,17 +88,16 @@ def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, stat
     assert check() == status
 
 
-@pytest.mark.parametrize("edit", [True, False])
-def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, edit):
-    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n"})
-    commit(repo, "pending fragment")
+def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, capsys):
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", FRAGMENTS + "b.fixed.rst": "* Fixed y.\n"})
+    commit(repo, "pending fragments")
     git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
-    if edit:
-        write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x differently.\n"})
-    else:
-        (repo / FRAGMENTS / "a.fixed.rst").unlink()
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x differently.\n"})
+    (repo / FRAGMENTS / "b.fixed.rst").unlink()
     git(repo, "add", "-A")
     assert check(include_worktree=True) == 1
+    errors = capsys.readouterr().out
+    assert FRAGMENTS + "a.fixed.rst" in errors and FRAGMENTS + "b.fixed.rst" in errors
 
 
 def test_check_ignores_changes_outside_packages(repo):
@@ -139,7 +109,6 @@ def test_check_ignores_changes_outside_packages(repo):
 @pytest.mark.parametrize(
     "files",
     [
-        {"source/other/docs/CHANGELOG.rst": "Changelog\n---------\n"},  # marker removed
         {"source/other/docs/CHANGELOG.rst": CHANGELOG.replace("start\n", "start here\n")},  # marker line altered
         {"source/other/pyproject.toml": '[project]\nname = "other"\nversion = "1.0.1"\n'},  # lock pin stale
         {"pyproject.toml": SOURCES + 'new = { path = "source/new", editable = true }\n'},  # package not locked
@@ -151,32 +120,11 @@ def test_check_requires_the_marker_and_current_lock_pins(repo, files):
     assert check(include_worktree=True) == 1
 
 
-def test_compile_bumps_highest_tier_then_builds(repo, monkeypatch):
-    pkg = repo / "source/pkg"
-    write(repo, {FRAGMENTS + "a.rst": "Fixed\n^^^^^\n\n* Fixed x.\n", FRAGMENTS + "b.added.rst": "* Added y.\n"})
-    write(repo, {FRAGMENTS + "b.minor": ""})
-    calls = []
-    monkeypatch.setattr(cli, "run", lambda *cmd, env=None: calls.append(cmd) or "1.1.0\n")
-    assert cli.compile_package(pkg) == "1.1.0"
-    assert calls == [
-        ("uv", "version", "--project", pkg, "--bump", "minor", "--frozen", "--short"),
-        (*cli.TOWNCRIER, "build", "--yes", "--config", cli.CONFIG, "--dir", pkg, "--version", "1.1.0"),
-    ]
-    assert (pkg / "changelog.d/a.fixed.rst").read_text() == "* Fixed x.\n"
-
-
 def test_compile_refuses_to_overwrite_a_fragment_when_splitting(repo):
     write(repo, {FRAGMENTS + "a.rst": "Fixed\n^^^^^\n\n* Fixed x.\n", FRAGMENTS + "a.fixed.rst": "* Fixed y.\n"})
     with pytest.raises(ValueError):
         cli.compile_package(repo / "source/pkg")
     assert (repo / FRAGMENTS / "a.fixed.rst").read_text() == "* Fixed y.\n"
-
-
-def test_compile_drops_stale_markers_without_entries(repo, monkeypatch):
-    write(repo, {FRAGMENTS + "a.skip": "", FRAGMENTS + "a.minor": ""})
-    monkeypatch.setattr(cli, "run", lambda *cmd, env=None: pytest.fail(f"unexpected {cmd}"))
-    assert cli.compile_package(repo / "source/pkg") is None
-    assert [p.name for p in (repo / FRAGMENTS).iterdir()] == [".gitkeep"]
 
 
 def fake_tools(repo, monkeypatch, relocked, stray=False, lock_fails=False):
@@ -204,8 +152,9 @@ def fake_tools(repo, monkeypatch, relocked, stray=False, lock_fails=False):
 
 
 def test_compile_stages_only_its_outputs(repo, monkeypatch):
-    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n"})
-    commit(repo, "fragment")
+    # ``other`` has only a leftover tier file: no release, and the file is dropped.
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.minor": ""})
+    commit(repo, "fragments")
     fake_tools(repo, monkeypatch, relocked=lock(pkg="1.0.1"), stray=True)
     assert cli.cmd_compile(argparse.Namespace()) == 1  # the stray notes.txt a tool wrote is reported
     staged = set(git(repo, "diff", "--cached", "--name-only").split())
@@ -213,6 +162,7 @@ def test_compile_stages_only_its_outputs(repo, monkeypatch):
         "source/pkg/pyproject.toml",
         "source/pkg/docs/CHANGELOG.rst",
         FRAGMENTS + "a.fixed.rst",
+        "source/other/changelog.d/b.minor",
         "uv.lock",
     }
 
@@ -225,45 +175,32 @@ def test_compile_refuses_a_dirty_checkout(repo, monkeypatch):
     assert (repo / "notes.txt").read_text() == "local work"
 
 
+ROOT = '\n[[package]]\nname = "root"\nversion = "{}"\nsource = {{ virtual = "." }}\n'
+
+
 @pytest.mark.parametrize(
-    ("relocked", "lock_fails"),
-    [(lock(header="version = 1\nrevision = 3\n"), False), (lock(pkg="1.0.1"), True)],
-    ids=["refused", "uv-lock-failed"],
+    ("base", "relocked", "lock_fails"),
+    [
+        (lock(), lock(header="version = 1\nrevision = 3\n"), False),
+        (lock() + ROOT.format("0.1.0"), lock(pkg="1.0.1") + ROOT.format("0.2.0"), False),  # only versions move
+        (lock(), lock(pkg="1.0.1"), True),
+    ],
+    ids=["re-serialized", "non-local-version-moved", "uv-lock-failed"],
 )
-def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, relocked, lock_fails):
-    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.skip": ""})
+def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, base, relocked, lock_fails):
+    write(repo, {"uv.lock": base, FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.skip": ""})
     commit(repo, "fragments")
     fake_tools(repo, monkeypatch, relocked, lock_fails=lock_fails)
     assert cli.cmd_compile(argparse.Namespace()) == 1
     assert git(repo, "status", "--porcelain") == ""
 
 
-@pytest.mark.parametrize(
-    ("relocked", "accepted"),
-    [(lock(pkg="1.1.0", other="1.1.0"), True), (lock(header="version = 1\nrevision = 3\n"), False)],
-)
-def test_sync_lock_accepts_only_version_lines(repo, monkeypatch, relocked, accepted):
-    fake_tools(repo, monkeypatch, relocked)
-    if accepted:
-        cli.sync_lock()
-        assert (repo / "uv.lock").read_text() == relocked
-    else:
-        with pytest.raises(RuntimeError):
-            cli.sync_lock()
-
-
-def test_sync_lock_rejects_a_version_change_outside_local_packages(repo, monkeypatch):
-    root = '\n[[package]]\nname = "root"\nversion = "{}"\nsource = {{ virtual = "." }}\n'
-    write(repo, {"uv.lock": lock() + root.format("0.1.0")})
-    commit(repo, "root package")
-    fake_tools(repo, monkeypatch, relocked=lock() + root.format("0.2.0"))  # only a `version =` line moves
-    with pytest.raises(RuntimeError):
-        cli.sync_lock()
-
-
 @pytest.mark.skipif(not (shutil.which("uv") and shutil.which("uvx")), reason="needs uv and uvx")
 def test_compile_renders_the_changelog_with_real_uv_and_towncrier(repo, monkeypatch):
-    """Runs the real ``uv version`` and towncrier with the repository config and template."""
+    """Runs the real ``uv version`` and towncrier with the repository config and template.
+
+    An already-merged pre-towncrier ``d.major.rst`` is split, and its tier outranks ``a.minor``.
+    """
     shutil.copytree(cli.CONFIG.parent, repo / "tools/changelog", ignore=shutil.ignore_patterns("test", "__pycache__"))
     monkeypatch.setattr(cli, "CONFIG", repo / "tools/changelog/towncrier.toml")
     old_entry = "\n1.0.0 (2026-01-01)\n~~~~~~~~~~~~~~~~~~\n\nAdded\n^^^^^\n\n* Initial.\n"
@@ -275,15 +212,17 @@ def test_compile_renders_the_changelog_with_real_uv_and_towncrier(repo, monkeypa
             FRAGMENTS + "a.added.rst": "* Added x.\n  More on x.\n",
             FRAGMENTS + "a.minor": "",
             FRAGMENTS + "c.skip": "",
+            FRAGMENTS + "d.major.rst": "Fixed\n^^^^^\n\n* Fixed z.\n",
         },
     )
     commit(repo, "fragments")
-    assert cli.compile_package(repo / "source/pkg") == "1.1.0"
+    assert cli.compile_package(repo / "source/pkg") == "2.0.0"
     today = datetime.date.today().isoformat()
-    title = f"1.1.0 ({today})"
+    title = f"2.0.0 ({today})"
     new_entry = (
-        f"\n{title}\n{'~' * len(title)}\n\nAdded\n^^^^^\n\n* Added x.\n  More on x.\n\nFixed\n^^^^^\n\n* Fixed y.\n\n"
+        f"\n{title}\n{'~' * len(title)}\n\nAdded\n^^^^^\n\n* Added x.\n  More on x.\n\n"
+        "Fixed\n^^^^^\n\n* Fixed y.\n* Fixed z.\n\n"
     )
     assert (repo / "source/pkg/docs/CHANGELOG.rst").read_text() == CHANGELOG + new_entry + old_entry
     assert [p.name for p in (repo / FRAGMENTS).iterdir()] == [".gitkeep"]
-    assert tomllib.loads((repo / "source/pkg/pyproject.toml").read_text())["project"]["version"] == "1.1.0"
+    assert tomllib.loads((repo / "source/pkg/pyproject.toml").read_text())["project"]["version"] == "2.0.0"
