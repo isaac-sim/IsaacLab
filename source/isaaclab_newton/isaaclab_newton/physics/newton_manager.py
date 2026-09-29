@@ -509,6 +509,13 @@ class NewtonManager(PhysicsManager):
 
     # Newton actuator adapter (owns actuators and double-buffered states)
     _adapter: NewtonActuatorAdapter | None = None
+    # One-shot hooks invoked once the solver exists and before any graph capture,
+    # in registration order. Consumed (cleared) by the dispatch.
+    _solver_init_callbacks: list[Callable[[], None]] = []
+    # In-graph hooks invoked before the actuator step, in registration order.
+    # Used to publish solver quantities of the previous substep into the arrays
+    # the actuators read on this iteration.
+    _pre_actuator_callbacks: list[Callable[[], None]] = []
     # In-graph hooks invoked after the actuator step and before the solver
     # substeps, in registration order. Multiple articulations register their
     # implicit-DOF telemetry / FF-routing kernels here.
@@ -748,6 +755,8 @@ class NewtonManager(PhysicsManager):
             PhysicsManager._sim_time += physics_dt * cls._decimation
         else:
             # --- Some actuators not graph-safe: step them eagerly, graph solver only ---
+            for cb in cls._pre_actuator_callbacks:
+                cb()
             if cls._adapter is not None:
                 cls._adapter.step(cls.backend.state_0, cls.backend.control, physics_dt)
             for cb in cls._post_actuator_callbacks:
@@ -822,6 +831,8 @@ class NewtonManager(PhysicsManager):
         NewtonManager._report_contacts = False
         NewtonManager._supports_contact_sensors = True
         NewtonManager._adapter = None
+        NewtonManager._solver_init_callbacks = []
+        NewtonManager._pre_actuator_callbacks = []
         NewtonManager._post_actuator_callbacks = []
         NewtonManager._state_force_callbacks = []
         NewtonManager._post_step_callbacks = []
@@ -1610,6 +1621,11 @@ class NewtonManager(PhysicsManager):
                 )
             cls._initialize_contacts()
 
+        # One-shot consumers of the concrete solver (index mappings, device model handles).
+        pending_solver_init, NewtonManager._solver_init_callbacks = cls._solver_init_callbacks, []
+        for cb in pending_solver_init:
+            cb()
+
         # Picking callbacks must be registered after the concrete solver has
         # published its force-input capability, but before CUDA graph capture.
         sim = PhysicsManager._sim
@@ -1724,6 +1740,8 @@ class NewtonManager(PhysicsManager):
             if cls._needs_collision_pipeline:
                 cls._collision_pipeline.collide(cls.backend.state_0, cls._contacts)
 
+            for cb in cls._pre_actuator_callbacks:
+                cb()
             if cls._adapter is not None:
                 cls._adapter.step(
                     cls.backend.state_0,
@@ -1872,6 +1890,31 @@ class NewtonManager(PhysicsManager):
             device=PhysicsManager._device,
         )
         cls._adapter.finalize(cls.backend.control)
+
+    @classmethod
+    def register_solver_init_callback(cls, callback: Callable[[], None]) -> None:
+        """Append a one-shot hook invoked once the solver exists.
+
+        Assets initialize while the model is being built, before
+        :meth:`initialize_solver` runs, so anything that needs the concrete
+        solver -- its device model, its index mappings -- has to be deferred to
+        this hook. It fires before the first step and therefore before any CUDA
+        graph capture, which is what lets a deferred binding still register
+        in-graph callbacks. The list is consumed by the dispatch.
+        """
+        cls._solver_init_callbacks.append(callback)
+
+    @classmethod
+    def register_pre_actuator_callback(cls, callback: Callable[[], None]) -> None:
+        """Append a hook to the list invoked before the actuator step on every iteration.
+
+        Runs in the same captured region as
+        :meth:`register_post_actuator_callback`, one position earlier in the
+        decimation loop. Use it to publish solver quantities that the actuators
+        consume on the *same* iteration; a hook registered on the post-actuator
+        list would instead be read one solver step later.
+        """
+        cls._pre_actuator_callbacks.append(callback)
 
     @classmethod
     def register_post_actuator_callback(cls, callback: Callable[[], None]) -> None:

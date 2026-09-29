@@ -14,6 +14,9 @@ __all__ = [
     "ActuatorNetMLP",
     "ActuatorNetLSTMCfg",
     "ActuatorNetMLPCfg",
+    "BAM_XL330_M6_PARAMS_FILE",
+    "BamActuatorCfg",
+    "BamMotorParams",
     "DCMotor",
     "DelayedPDActuator",
     "IdealPDActuator",
@@ -27,6 +30,7 @@ __all__ = [
     "resolve_joint_parameter",
 ]
 
+from .actuator_bam_cfg import BamActuatorCfg
 from .actuator_base import ActuatorBase, resolve_joint_parameter
 from .actuator_base_cfg import ActuatorBaseCfg
 from .actuator_collection import ActuatorCollection, ActuatorTargetCommand, ActuatorOutputCommand
@@ -47,3 +51,4 @@ from .actuator_pd_cfg import (
     ImplicitActuatorCfg,
     RemotizedPDActuatorCfg,
 )
+from .bam_model import BAM_XL330_M6_PARAMS_FILE, BamMotorParams

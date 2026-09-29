@@ -1,0 +1,27 @@
+Added
+^^^^^
+
+* Added :class:`~isaaclab.actuators.BamActuatorCfg` and
+  :class:`~isaaclab.actuators.newton.ControllerBam`, a voltage-domain servo model implemented as
+  Newton Warp kernels. The controller required Newton with
+  :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` enabled. It modeled firmware control,
+  current limiting, motor back-EMF, supply sag, stochastic command delay and load-dependent gearbox
+  friction. On MJWarp it published dry-friction and viscous-damping values to the solver and read
+  external loads from the solver's generalized forces. Other native Newton solvers retained the
+  controller's torque-level friction clip and momentum-based load estimate. PhysX, OVPhysX and
+  the Isaac Lab actuator loop rejected this configuration.
+* Added :class:`~isaaclab.actuators.BamMotorParams` and
+  :data:`~isaaclab.actuators.BAM_XL330_M6_PARAMS_FILE` for loading the vendored Dynamixel XL330
+  ``m6`` identification. Recorded upstream motor and friction samples checked controller behavior
+  without requiring an upstream BAM installation for routine tests.
+* Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
+  Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
+  :func:`~isaaclab.actuators.newton.read_group_parameter` and
+  :func:`~isaaclab.actuators.newton.write_group_parameter` for event-driven randomization.
+  Controller resets preserved the sampled parameters.
+* Added :attr:`~isaaclab.actuators.BamActuatorCfg.stiff_frictionloss` to reduce static-friction
+  creep on MJWarp with a stiff solver reference. Documented that, on this solver,
+  :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reported motor torque only and
+  ``data.joint_friction`` reported the authored seed; the controller's ``friction_budget`` field
+  exposed the live dry-friction budget. Inherited PD stiffness and damping were unused; the
+  firmware gain was configured with :attr:`~isaaclab.actuators.BamActuatorCfg.kp_fw`.
