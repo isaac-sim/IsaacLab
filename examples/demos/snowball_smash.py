@@ -106,7 +106,7 @@ CAMERA_TARGET = (0.0, 0.0, 0.9)
 
 
 @configclass
-class VisualizersCfg(MultiBackendVisualizerCfg):
+class VisualizerCfg(MultiBackendVisualizerCfg):
     """Show snow particles in either Newton viewer."""
 
     newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=SNOW_COLOR)
@@ -198,7 +198,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=VisualizersCfg(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(
             solver_cfg=solver_cfg,
             num_substeps=1,

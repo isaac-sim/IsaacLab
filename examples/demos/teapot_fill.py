@@ -214,7 +214,7 @@ SURFACE_PATH = "/fluid_surface"
 
 
 @configclass
-class VisualizersCfg(MultiBackendVisualizerCfg):
+class VisualizerCfg(MultiBackendVisualizerCfg):
     """Configure the fluid particle display for either Newton viewer."""
 
     newton_gl = NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)
@@ -558,7 +558,7 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=VisualizersCfg(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,

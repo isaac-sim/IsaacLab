@@ -77,9 +77,11 @@ def test_non_distributed_device_is_unchanged(selected_devices, args):
         assert values["kit_visualizer"] is False
 
 
-@pytest.mark.parametrize("args_type", [dict, argparse.Namespace])
-@pytest.mark.parametrize("nested", [False, True], ids=["simulation", "environment"])
-def test_runtime_device_overrides_distributed_selection(monkeypatch, selected_devices, args_type, nested):
+@pytest.mark.parametrize(
+    ("args_type", "cfg_type"),
+    [(dict, "simulation"), (argparse.Namespace, "environment"), (dict, "dictionary"), (argparse.Namespace, "nested")],
+)
+def test_runtime_device_overrides_distributed_selection(monkeypatch, selected_devices, args_type, cfg_type):
     """A runtime may refine the device, after rank selection but before simulation construction."""
     monkeypatch.setenv("LOCAL_RANK", "1")
     monkeypatch.setattr(torch.cuda, "device_count", lambda: 2)
@@ -97,7 +99,12 @@ def test_runtime_device_overrides_distributed_selection(monkeypatch, selected_de
 
     monkeypatch.setattr(physx_app, "KitLauncher", KitRuntime)
     sim_cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[], device="cuda:7")
-    cfg = SimpleNamespace(sim=sim_cfg) if nested else sim_cfg
+    cfg = {
+        "simulation": sim_cfg,
+        "environment": SimpleNamespace(sim=sim_cfg),
+        "dictionary": {"sim": sim_cfg},
+        "nested": SimpleNamespace(scene=[{"runtime": sim_cfg}]),
+    }[cfg_type]
     with launch_simulation(cfg, args_type(distributed=True, require_kit=True)):
         assert sim_cfg.device == "cuda:3"
     assert selected_devices == received == ["cuda:1"]

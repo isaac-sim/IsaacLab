@@ -78,7 +78,7 @@ Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 
 
 @configclass
-class VisualizersCfg(MultiBackendVisualizerCfg):
+class VisualizerCfg(MultiBackendVisualizerCfg):
     """Show the granular particles in either Newton viewer."""
 
     newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
@@ -95,7 +95,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=VisualizersCfg(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,

@@ -10,5 +10,5 @@ Changed
 Fixed
 ^^^^^
 
-* Applied distributed and runtime-selected devices to standalone ``SimulationCfg`` inputs as well
-  as environment configs in ``launch_simulation``.
+* Applied distributed and runtime-selected devices to the ``SimulationCfg`` found in the config tree,
+  including standalone configs and configs nested in dictionaries or lists, in ``launch_simulation``.

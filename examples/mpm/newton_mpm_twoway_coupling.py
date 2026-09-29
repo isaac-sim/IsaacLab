@@ -94,7 +94,7 @@ def _spawn_colored_shape(
 
 
 @configclass
-class VisualizersCfg(MultiBackendVisualizerCfg):
+class VisualizerCfg(MultiBackendVisualizerCfg):
     """Show the coupled particles in either Newton viewer."""
 
     newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
@@ -146,7 +146,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=VisualizersCfg(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(solver_cfg=solver_cfg),
     )
 
