@@ -30,24 +30,18 @@ from unittest.mock import patch
 import pytest
 
 import isaaclab.app.sim_launcher as sim_launcher
+from isaaclab.sim.simulation_cfg import SimulationCfg
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 
 
-class _DummySimCfg:
-    """Minimal sim config stub with a mutable ``device`` attribute."""
-
-    def __init__(self, device: str = "cuda:0"):
-        self.device = device
-
-
 class _DummyEnvCfg:
     """Minimal env config stub wrapping a sim config."""
 
     def __init__(self, device: str = "cuda:0"):
-        self.sim = _DummySimCfg(device)
+        self.sim = SimulationCfg(device=device)
 
 
 def _make_distributed_args(**overrides) -> argparse.Namespace:
