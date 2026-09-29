@@ -296,21 +296,6 @@ def _resolve_visualizer_cfgs(
     return visualizer_cfgs
 
 
-def _sync_visualizer_cli_settings(args: dict | None) -> None:
-    """Leave the visualizer selection in the settings for a :class:`~isaaclab.sim.SimulationCfg` built after launch.
-
-    A launch whose config holds no ``SimulationCfg`` (e.g. a bare physics config) cannot write the selection
-    into one, so :class:`~isaaclab.sim.SimulationContext` applies it instead. *args* is None when the launch
-    already resolved it into the config, which clears any selection left by an earlier launch.
-    """
-    visualizers = None if args is None else args.get("visualizer")
-    max_visible_envs = None if args is None else args.get("max_visible_envs")
-    settings = get_settings_manager()
-    # ``none`` round-trips through ``_parse_visualizer_csv`` as ``--viz none``; empty means no selection
-    settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
-    settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
-
-
 def _resolve_python_logging_level(args: dict) -> int:
     """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current root level."""
     if args.get("verbose", False) or "--verbose" in sys.argv:
@@ -718,7 +703,14 @@ def launch_simulation(
     launchers = [string_to_callable(launcher_type)(args) for launcher_type in dict.fromkeys(launcher_types)]
     # after the launchers, so a started Kit already backs the settings
     _resolve_device(sim_cfg, args, launchers)
-    _sync_visualizer_cli_settings(None if has_visualizer_cfgs else args)
+    # A config without a SimulationCfg (e.g. a bare physics config) leaves the selection for the
+    # SimulationContext built after launch; otherwise clear one left by an earlier launch. ``none``
+    # round-trips through ``_parse_visualizer_csv`` as ``--viz none``; empty means no selection.
+    visualizers = None if has_visualizer_cfgs else args.get("visualizer")
+    max_visible_envs = None if has_visualizer_cfgs else args.get("max_visible_envs")
+    settings = get_settings_manager()
+    settings.set("/isaaclab/visualizer/types", "" if visualizers is None else ",".join(visualizers) or "none")
+    settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
     exit_code = 0
     try:

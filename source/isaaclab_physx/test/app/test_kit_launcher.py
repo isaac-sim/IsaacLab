@@ -708,19 +708,6 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
-    settings = _DummySettings()
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", lambda: settings)
-
-    sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
-
-    assert settings.values == {
-        "/isaaclab/visualizer/types": "viser,rerun",
-        "/isaaclab/visualizer/max_visible_envs": 0,
-    }
-    assert sim_launcher._parse_visualizer_csv(settings.values["/isaaclab/visualizer/types"]) == ["viser", "rerun"]
-
-
 def test_normalize_launcher_args_rejects_negative_max_visible_envs():
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
         _normalize_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})

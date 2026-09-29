@@ -99,8 +99,6 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
     algorithm = resolve_skrl_algorithm(agent_cfg)
     env_cfg.scene.num_envs = 1
     env_cfg.seed = agent_cfg["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     experiment_cfg = agent_cfg["agent"]["experiment"]
     log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))

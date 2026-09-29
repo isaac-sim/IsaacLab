@@ -105,8 +105,6 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
     params = agent_cfg["params"]
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
