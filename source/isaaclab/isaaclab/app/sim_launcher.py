@@ -3,12 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Utilities for detecting and launching the appropriate simulation backend.
-
-The flow is intentionally simple: walk the config tree **once** to collect its
-signals into a :class:`Scan`, resolve the Kit runtime sources from that scan and
-the launcher inputs, then validate and launch.
-"""
+"""Resolve configured consumers, then launch their required process runtimes."""
 
 from __future__ import annotations
 
@@ -16,9 +11,9 @@ import argparse
 import logging
 import os
 import sys
-from collections.abc import Generator
+from collections.abc import Generator, Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, field, is_dataclass
+from dataclasses import is_dataclass
 from types import SimpleNamespace
 from typing import Any
 
@@ -28,13 +23,14 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
 
 from ..physics.physics_manager_cfg import PhysicsCfg, PhysxAutoCfg, _resolve_physx_auto_cfg
 from ..renderers.renderer_cfg import RendererCfg
 from ..sensors.camera.camera_cfg import CameraCfg
 from ..sim.simulation_cfg import SimulationCfg
 from ..utils.device import set_cuda_device
-from ..utils.presets import resolve_presets
+from ..utils.presets import PresetCfg, resolve_presets
 from ..utils.string import string_to_callable
 from ..visualizers import VisualizerCfg
 from .logging_utils import apply_python_logging_level
@@ -153,252 +149,176 @@ def _resolve_python_logging_level(args: dict) -> int:
     return logging.WARNING if level == logging.NOTSET else level
 
 
-"""
-The Single Scan.
-"""
+def _iter_runtime_configs(cfg: Any) -> Iterator[Any]:
+    """Visit active config objects once, excluding inactive backend choices and viewer defaults."""
+    visited = set()
 
-
-@dataclass
-class Scan:
-    """Resolved configurations and runtime requirements returned by :func:`scan`."""
-
-    resolved_physics_cfg: PhysicsCfg | None  # first physics config in walk order (post --physics override)
-    effective_cfg: Any  # the input config, or its replacement when the config itself was an overridden physics config
-    visualizer_cfgs: list[VisualizerCfg]
-    has_ovrtx: bool
-    has_kit_camera: bool
-    has_kit_physics: bool  # PhysX (Kit-based)
-    has_ovphysx_physics: bool
-    needs_kit: bool
-    launcher_types: list[str] = field(default_factory=list)  # named by the physics and renderer configs
-    simulation_cfg: SimulationCfg | None = None
-    """Simulation config found in the tree, used to apply the runtime's device choice."""
-
-
-def _refresh_physics_scan_flags(config_scan: Scan, concrete_physics_cfgs: list[PhysicsCfg], has_physics: bool) -> None:
-    """Refresh physics-derived launch signals from concrete physics configs."""
-    config_scan.has_kit_physics = any(isinstance(cfg, PhysxCfg) for cfg in concrete_physics_cfgs)
-    config_scan.has_ovphysx_physics = any(isinstance(cfg, OvPhysxCfg) for cfg in concrete_physics_cfgs)
-    config_scan.needs_kit = config_scan.has_kit_camera or config_scan.has_kit_physics or not has_physics
-
-
-def _resolve_launch_cfg(cfg, launcher_args: dict):
-    """Compose presets and streaming requirements before choosing the runtime."""
-    max_visible = launcher_args.get("max_visible_envs")
-    if max_visible is not None and max_visible < 0:
-        raise ValueError("--max_visible_envs must be non-negative.")
-    visualizer = launcher_args.get("visualizer")
-    explicit = launcher_args.get("visualizer_explicit", False)
-    livestream = launcher_args.get("livestream", -1)
-    if livestream is None or int(livestream) < 0:
-        livestream = os.environ.get("LIVESTREAM", 0)
-    livestream = int(livestream)
-    if livestream not in (0, 1, 2):
-        raise ValueError(f"Invalid livestream mode: {livestream}. Expected 0 (disabled), 1, or 2.")
-    launcher_args["livestream"] = livestream
-    if cfg is None:
-        cfg = SimulationCfg()
-    selectors = {}
-    if visualizer is not None or explicit:
-        names = [name.strip() for name in visualizer.split(",")] if isinstance(visualizer, str) else visualizer
-        names = names or ["none"]
-        selectors[lambda value: isinstance(value, VisualizerCfg)] = names[0] if len(names) == 1 else names
-    cfg = resolve_presets(cfg, selectors=selectors)
-    if selectors:
-        launcher_args.pop("visualizer", None)
-        launcher_args.pop("visualizer_explicit", None)
-    return cfg
-
-
-def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
-    """Resolve presets and collect runtime requirements from a config tree.
-
-    Walk dataclass and namespace fields, dictionaries, lists, and tuples. Backend overrides
-    replace nested configs in place; a replaced root is returned in :attr:`Scan.effective_cfg`.
-    Automatic PhysX and RTX choices resolve after the walk, using all declared runtime needs.
-    """
-    launcher_args = {} if launcher_args is None else launcher_args
-    launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
-    root = {"cfg": _resolve_launch_cfg(cfg, launcher_args)}
-    max_visible = launcher_args.get("max_visible_envs")
-
-    physics_str = launcher_args.get("physics")
-    physics_cfgs: list[PhysicsCfg] = []
-    concrete_physics_cfgs: list[PhysicsCfg] = []
-    simulation_cfg: SimulationCfg | None = None
-    visualizer_cfgs: list[VisualizerCfg] = []
-    has_ovrtx = False
-    has_kit_camera = False
-    auto_rtx_locations: list[tuple[Any, Any, bool]] = []  # (parent, key, is_cam_renderer) for each auto RTX placeholder
-    auto_physx_locations: list[tuple[PhysicsCfg, Any, Any, bool]] = []  # (node, parent, key, is_first_physics)
-    launcher_types: list[str] = []
-    visited: set[int] = set()
-
-    def visit(node, parent, key):
-        nonlocal simulation_cfg, has_ovrtx, has_kit_camera
-        if callable(node) or (isinstance(parent, SimulationCfg) and key == "default_visualizer_cfg"):
-            return
-        if not is_dataclass(node) and not isinstance(node, (dict, list, tuple, argparse.Namespace, SimpleNamespace)):
-            return
-        owner = parent if isinstance(parent, (dict, list, tuple)) else vars(parent)
-        if isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
-            auto_rtx_locations.append((owner, key, isinstance(parent, CameraCfg) and key == "renderer_cfg"))
-
-        if id(node) in visited:
+    def visit(node):
+        if callable(node) or id(node) in visited:
             return
         visited.add(id(node))
-
-        if isinstance(node, SimulationCfg):
-            simulation_cfg = node
-            if node.physics is None and physics_str:
-                node.physics = PhysicsCfg()
-            if launcher_args["livestream"] or launcher_args.get("xr", False):
-                viewers = node.visualizer_cfgs
-                viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
-                if launcher_args["livestream"] and node.visualizer_cfgs == []:
-                    raise ValueError("Livestreaming requires the Kit visualizer; visualizer=none disables it.")
-                if not any(viewer.launcher_type == _KIT_LAUNCHER for viewer in viewers):
-                    node.visualizer_cfgs = [*viewers, KitVisualizerCfg(headless=bool(launcher_args.get("xr", False)))]
-        elif isinstance(node, PhysicsCfg):
-            if physics_str:
-                owner[key] = node = _make_physics_cfg(physics_str)
-            physics_cfgs.append(node)
-            if isinstance(node, PhysxAutoCfg):
-                auto_physx_locations.append((node, owner, key, len(physics_cfgs) == 1))
+        if is_dataclass(node) or isinstance(node, (argparse.Namespace, SimpleNamespace)):
+            if isinstance(node, (SimulationCfg, PhysicsCfg, RendererCfg, VisualizerCfg, CameraCfg)):
+                yield node
+            if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
                 return
-            concrete_physics_cfgs.append(node)
-        elif isinstance(node, RendererCfg):
-            has_ovrtx |= node.renderer_type == "ovrtx"
-        elif isinstance(node, CameraCfg):
-            renderer = node.renderer_cfg
-            has_kit_camera |= renderer is None or renderer.renderer_type in ("default", "isaac_rtx")
-        elif isinstance(node, VisualizerCfg):
-            visualizer_cfgs.append(node)
-            has_ovrtx |= node.launcher_type == OVRTXRendererCfg.launcher_type
-            if max_visible is not None:
-                node.max_visible_envs = max_visible
-        if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)) and (launcher_type := node.launcher_type):
-            launcher_types.append(launcher_type)
+            children = (value for name, value in vars(node).items() if name != "default_visualizer_cfg")
+        elif isinstance(node, dict):
+            children = node.values()
+        elif isinstance(node, (list, tuple)):
+            children = node
+        else:
+            return
+        for child in children:
+            yield from visit(child)
 
-        fields = node if isinstance(node, (dict, list, tuple)) else vars(node)
-        children = enumerate(fields) if isinstance(fields, (list, tuple)) else fields.items()
-        for name, child in children:
-            visit(child, node, name)
-
-    visit(root["cfg"], root, "cfg")
-
-    has_physics = bool(physics_cfgs)
-    config_scan = Scan(
-        resolved_physics_cfg=physics_cfgs[0] if physics_cfgs else None,
-        effective_cfg=root["cfg"],
-        visualizer_cfgs=visualizer_cfgs,
-        has_ovrtx=has_ovrtx,
-        has_kit_camera=has_kit_camera,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-        launcher_types=launcher_types,
-        simulation_cfg=simulation_cfg,
-    )
-    _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
-
-    # RTX selection depends on the resolved physics backend.
-    if auto_physx_locations:
-        use_isaac_sim = bool(_get_kit_runtime_sources(config_scan, launcher_args))
-        for node, owner, key, is_first_physics in auto_physx_locations:
-            physics_cfg = _resolve_physx_auto_cfg(node, use_isaac_sim)
-            concrete_physics_cfgs.append(physics_cfg)
-            if launcher_type := physics_cfg.launcher_type:
-                launcher_types.append(launcher_type)
-            owner[key] = physics_cfg
-            if is_first_physics:
-                config_scan.resolved_physics_cfg = physics_cfg
-
-        _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
-
-    # Resolve recorded auto RTX renderer placeholders.
-    use_isaac_sim = bool(_get_kit_runtime_sources(config_scan, launcher_args))
-    renderer_factory = IsaacRtxRendererCfg if use_isaac_sim else OVRTXRendererCfg
-
-    # Resolve every auto RTX placeholder in place, tracking camera renderers that may require Kit.
-    for owner, key, is_camera in auto_rtx_locations:
-        if owner is root:
-            raise ValueError("Automatic RTX renderer placeholders cannot be resolved as the root config.")
-        renderer_cfg = renderer_factory()
-        if launcher_type := renderer_cfg.launcher_type:
-            launcher_types.append(launcher_type)
-        owner[key] = renderer_cfg
-        config_scan.has_kit_camera |= use_isaac_sim and is_camera
-
-    # Update the scan with the resolved auto RTX renderer type and Kit-camera status.
-    config_scan.has_ovrtx |= not use_isaac_sim and bool(auto_rtx_locations)
-    _refresh_physics_scan_flags(config_scan, concrete_physics_cfgs, has_physics)
-    config_scan.effective_cfg = root["cfg"]
-
-    return config_scan
+    yield from visit(cfg)
 
 
-"""
-Launch Decisions (derived purely from a scan).
-"""
+def _livestream_mode(args: dict) -> int:
+    """Read the CLI/environment streaming choice without changing the caller's arguments."""
+    mode = args.get("livestream", -1)
+    mode = int(os.environ.get("LIVESTREAM", 0) if mode is None or int(mode) < 0 else mode)
+    if mode not in (0, 1, 2):
+        raise ValueError(f"Invalid livestream mode: {mode}. Expected 0 (disabled), 1, or 2.")
+    return mode
 
 
-def _get_kit_runtime_sources(config_scan: Scan, launcher_args: dict) -> tuple[str, ...]:
-    """Return the config and launcher components that require Isaac Sim / Kit."""
-    kit_sources = []
-    if config_scan.has_kit_physics:
-        kit_sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")
-    if config_scan.has_kit_camera:
-        kit_sources.append('a Kit-based renderer (`IsaacRtxRendererCfg`, `renderer_type="isaac_rtx"`)')
-    if any(cfg.launcher_type == _KIT_LAUNCHER for cfg in config_scan.visualizer_cfgs):
-        kit_sources.append('the Kit visualizer (`--visualizer kit` / `visualizer_type="kit"`)')
-    if launcher_args.get("experience"):
-        kit_sources.append("an explicit Kit experience")
-    if launcher_args.get("livestream", 0) > 0:
-        kit_sources.append("livestreaming")
-    if launcher_args.get("require_kit", False):
-        kit_sources.append("the caller's explicit Kit requirement")
-    if config_scan.needs_kit and not kit_sources:
-        kit_sources.append("the default Isaac Sim / Kit runtime")
+def _kit_runtime_sources(configs: tuple, args: dict) -> tuple[str, ...]:
+    """Name the declared requirements that select Kit, before resolving automatic backends."""
+    sources = []
+    if not any(isinstance(cfg, PhysicsCfg) for cfg in configs):
+        sources.append("the default Isaac Sim / Kit runtime")
+    for cfg in configs:
+        if isinstance(cfg, PhysxCfg) or isinstance(cfg, PhysxAutoCfg) and cfg.ovphysx is None:
+            sources.append("Isaac Sim PhysX physics (PhysxCfg)")
+        elif isinstance(cfg, CameraCfg) and (
+            cfg.renderer_cfg is None or cfg.renderer_cfg.renderer_type in ("default", "isaac_rtx")
+        ):
+            sources.append("a Kit-based renderer (IsaacRtxRendererCfg)")
+        elif isinstance(cfg, (PhysicsCfg, RendererCfg, VisualizerCfg)) and cfg.launcher_type == _KIT_LAUNCHER:
+            sources.append("the Kit visualizer" if isinstance(cfg, VisualizerCfg) else type(cfg).__name__)
+    for enabled, source in (
+        (args.get("experience"), "an explicit Kit experience"),
+        (_livestream_mode(args), "livestreaming"),
+        (args.get("require_kit"), "the caller's explicit Kit requirement"),
+    ):
+        if enabled:
+            sources.append(source)
+    return tuple(dict.fromkeys(sources))
 
-    return tuple(kit_sources)
+
+def _replace_configs(cfg: Any, replacements: dict[int, Any]) -> Any:
+    """Replace selected config objects in place, preserving aliases and tuple-held references."""
+    resolved = {}
+
+    def replace(node):
+        if id(node) in resolved:
+            return resolved[id(node)]
+        if id(node) in replacements:
+            replacement = replacements[id(node)]
+            if replacement is not node:
+                resolved[id(node)] = replace(replacement)
+                return resolved[id(node)]
+        if callable(node) or isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)):
+            return node
+        if is_dataclass(node) or isinstance(node, (argparse.Namespace, SimpleNamespace)):
+            fields = vars(node)
+        elif isinstance(node, (dict, list)):
+            fields = node
+        elif isinstance(node, tuple):
+            replacement = tuple(replace(child) for child in node)
+            resolved[id(node)] = replacement
+            return replacement
+        else:
+            return node
+        resolved[id(node)] = node
+        for name, child in enumerate(fields) if isinstance(fields, list) else fields.items():
+            if name != "default_visualizer_cfg":
+                fields[name] = replace(child)
+        return node
+
+    return replace(cfg)
 
 
-def _validate_runtime(scan: Scan, kit_sources: tuple[str, ...]) -> None:
-    """Raise if the scan and resolved Kit sources form an unsupported combination.
+def resolve_simulation_cfg(cfg: Any, launcher_args: argparse.Namespace | dict | None = None) -> Any:
+    """Apply CLI choices and resolve automatic backends before starting any runtime.
 
-    OVRTX is kitless and cannot share a process with Kit-based runtimes (PhysX physics
-    or any other Kit source); OvPhysX physics is subject to the same process boundary.
+    Config objects are updated in place; return the selected config when the root itself changes.
+    Launcher arguments are read-only. Calling this again preserves selected visualizer settings.
+
+    Args:
+        cfg: Simulation config or a tree containing physics, renderer, and visualizer configs.
+        launcher_args: Parsed launcher arguments.
+
+    Returns:
+        The config tree with concrete backend and visualizer choices.
     """
-    if scan.has_ovphysx_physics and kit_sources:
-        # both would initialize Carbonite in one process; without this guard OvPhysX fails
-        # deep inside its own library with "Failed to initialize Carbonite and load PhysX plugins"
-        raise ValueError(
-            "Invalid backend combination: OvPhysX physics (`OvPhysxCfg`) is kitless and cannot be used together "
-            f"with Isaac Sim / Kit ({', '.join(kit_sources)}).\n"
-            "\n"
-            "To fix this, pick one of the following supported combinations:\n"
-            "  * Keep OvPhysX physics and switch to a kitless renderer/visualizer:\n"
-            "      use `OvPhysxCfg` with `OVRTXRendererCfg`\n"
-            "    (and use `--visualizer newton`, `--visualizer rerun`, or `--visualizer viser`, or omit\n"
-            "    the visualizer argument for headless execution.)\n"
-            "  * Keep Isaac Sim / Kit and switch to a Kit-compatible physics backend:\n"
-            "      use `PhysxCfg` with `IsaacRtxRendererCfg`\n"
-        )
+    args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args or {}
+    max_visible = args.get("max_visible_envs")
+    if max_visible is not None and max_visible < 0:
+        raise ValueError("--max_visible_envs must be non-negative.")
+    livestream = _livestream_mode(args)
+    cfg = SimulationCfg() if cfg is None else cfg
+    physics = _make_physics_cfg(args["physics"]) if args.get("physics") else None
+    selection = args.get("visualizer")
+    if isinstance(selection, str):
+        selection = [name.strip() for name in selection.split(",")]
 
-    if not scan.has_ovrtx or not kit_sources:
-        return
+    for node in _iter_runtime_configs(cfg):
+        if not isinstance(node, SimulationCfg):
+            continue
+        if node.physics is None and physics is not None:
+            node.physics = physics
+        if args.get("device"):
+            node.device = args["device"]
+        if selection is not None or args.get("visualizer_explicit", False):
+            choices = node.visualizer_cfgs
+            if not isinstance(choices, PresetCfg):
+                # CLI choices override concrete configs too; preserve settings of reselected viewers.
+                choices = MultiBackendVisualizerCfg()
+                viewers = node.visualizer_cfgs
+                for viewer in viewers if isinstance(viewers, list) else [viewers] if viewers else []:
+                    vars(choices)[viewer.visualizer_type] = viewer
+            node.visualizer_cfgs = resolve_presets(choices, overrides={"": selection or "none"})
+        else:
+            node.visualizer_cfgs = resolve_presets(node.visualizer_cfgs)
+        if livestream or args.get("xr", False):
+            viewers = node.visualizer_cfgs
+            if livestream and viewers == []:
+                raise ValueError("Livestreaming requires the Kit visualizer; visualizer=none disables it.")
+            viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
+            if not any(viewer.launcher_type == _KIT_LAUNCHER for viewer in viewers):
+                node.visualizer_cfgs = [*viewers, KitVisualizerCfg(headless=bool(args.get("xr", False)))]
 
-    raise ValueError(
-        "Invalid backend combination: the OVRTX runtime (`OVRTXRendererCfg` or the"
-        " `newton_rtx` visualizer) cannot be used together"
-        f" with Isaac Sim / Kit ({', '.join(kit_sources)}).\n"
-        "\n"
-        "To fix this, pick one of the following supported combinations:\n"
-        "  * Keep Isaac Sim / Kit and switch the renderer:\n"
-        "      use `IsaacRtxRendererCfg`, the Kit-compatible renderer\n"
-        "  * Keep OVRTX (`OVRTXRendererCfg` or `--visualizer newton_rtx`) and remove every Kit source\n"
-    )
+    cfg = resolve_presets(cfg)
+    configs = tuple(_iter_runtime_configs(cfg))
+    replacements = {id(node): physics for node in configs if isinstance(node, PhysicsCfg) and physics is not None}
+    configs = tuple(replacements.get(id(node), node) for node in configs)
+    kit_sources = _kit_runtime_sources(configs, args)
+    for node in configs:
+        if isinstance(node, PhysxAutoCfg):
+            replacements[id(node)] = _resolve_physx_auto_cfg(node, bool(kit_sources))
+        elif isinstance(node, RendererCfg) and node.renderer_type == "auto_rtx":
+            replacements[id(node)] = IsaacRtxRendererCfg() if kit_sources else OVRTXRendererCfg()
+        elif isinstance(node, VisualizerCfg) and max_visible is not None:
+            node.max_visible_envs = max_visible
+
+    cfg = _replace_configs(cfg, replacements)
+    if kit_sources:
+        for node in _iter_runtime_configs(cfg):
+            if isinstance(node, OvPhysxCfg):
+                conflict = "OvPhysX physics (OvPhysxCfg)"
+            elif isinstance(node, RendererCfg | VisualizerCfg) and node.launcher_type == OVRTXRendererCfg.launcher_type:
+                conflict = "the OVRTX runtime (OVRTXRendererCfg or the newton_rtx visualizer)"
+            else:
+                continue
+            raise ValueError(
+                f"Invalid backend combination: {conflict} cannot be used together with Isaac Sim / Kit "
+                f"({', '.join(kit_sources)}). Use Kit-compatible physics with IsaacRtxRendererCfg, "
+                "or remove the Kit requirements and use a kitless renderer/visualizer."
+            )
+    return cfg
 
 
 def _resolve_distributed_device(sim_cfg: SimulationCfg | None, launcher_args: dict) -> None:
@@ -436,10 +356,8 @@ def launch_simulation(
 ) -> Generator[PhysicsCfg | None, None, None]:
     """Context manager that launches the appropriate simulation runtime for *cfg*.
 
-    Walks the config tree once (resolving ``--physics``, validating the
-    physics/renderer/visualizer combination, and deciding whether Isaac Sim Kit is
-    needed), then starts the launcher each required runtime's config names (closed on exit) or
-    does nothing for kitless ones. Cameras are auto-enabled for Kit-renderer sensors.
+    Resolves configured consumers before starting their required runtimes. Each runtime starts
+    once and closes on exit. Cameras are auto-enabled for Kit-renderer sensors.
 
     Resolve viewer and physics choices on the same config used to construct the simulation::
 
@@ -450,7 +368,7 @@ def launch_simulation(
     Yields the resolved physics config when a caller needs to adjust solver settings before construction.
 
     Args:
-        cfg: Config tree to scan for backend, renderer, and sensor requirements.
+        cfg: Config tree declaring backend, renderer, and sensor requirements.
         launcher_args: Parsed launcher arguments, typically the script's ``args_cli``. Besides the
             arguments added by :func:`add_launcher_args`, the following keys are read when a script
             contributes them:
@@ -464,36 +382,32 @@ def launch_simulation(
     """
     launcher_args = {} if launcher_args is None else launcher_args
     launcher_args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
+    cfg = resolve_simulation_cfg(cfg, launcher_args)
+    configs = tuple(_iter_runtime_configs(cfg))
+    sim_cfg = next((node for node in configs if isinstance(node, SimulationCfg)), None)
+    physics_cfg = next((node for node in configs if isinstance(node, PhysicsCfg)), None)
+    kit_viewers = [node for node in configs if isinstance(node, KitVisualizerCfg)]
+    launcher_args["livestream"] = _livestream_mode(launcher_args)
+    launcher_args["kit_visualizer"] = any(not viewer.headless for viewer in kit_viewers)
+    launcher_args["enable_cameras"] = (
+        launcher_args.get("enable_cameras", False)
+        or any(
+            isinstance(node, CameraCfg)
+            and (node.renderer_cfg is None or node.renderer_cfg.renderer_type in ("default", "isaac_rtx"))
+            for node in configs
+        )
+        or any(viewer.streaming_view for viewer in kit_viewers)
+    )
 
-    # The single walk: collect every signal, apply the --physics override, and
-    # resolve the automatic PhysX and RTX placeholders.
-    config_scan = scan(cfg, launcher_args)
-    sim_cfg = config_scan.simulation_cfg
-    physics_cfg = config_scan.resolved_physics_cfg
-
-    kit_sources = _get_kit_runtime_sources(config_scan, launcher_args)
-    _validate_runtime(config_scan, kit_sources)
-    needs_kit = bool(kit_sources)
-    kit_viewers = [cfg for cfg in config_scan.visualizer_cfgs if cfg.launcher_type == _KIT_LAUNCHER]
-    launcher_args["kit_visualizer"] = any(not cfg.headless for cfg in kit_viewers)
-
-    # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.
     apply_python_logging_level(_resolve_python_logging_level(launcher_args))
-
-    if needs_kit and (config_scan.has_kit_camera or any(cfg.streaming_view for cfg in kit_viewers)):
-        if not launcher_args.get("enable_cameras", False):
-            logger.info(
-                "Auto-enabling camera rendering because the scene contains Kit camera sensors "
-                "or a Kit visualizer with streaming_view=True."
-            )
-            launcher_args["enable_cameras"] = True
-
-    # Resolve distributed device early, before any launcher or physics init.
     _resolve_distributed_device(sim_cfg, launcher_args)
 
-    # Configs name their runtime; add Kit for requirements without a config-owned launcher.
-    launcher_types = [_KIT_LAUNCHER] if needs_kit else []
-    launcher_types += config_scan.launcher_types
+    launcher_types = [_KIT_LAUNCHER] if _kit_runtime_sources(configs, launcher_args) else []
+    launcher_types += [
+        node.launcher_type
+        for node in configs
+        if isinstance(node, (PhysicsCfg, RendererCfg, VisualizerCfg)) and node.launcher_type
+    ]
     launchers = [string_to_callable(launcher_type)(launcher_args) for launcher_type in dict.fromkeys(launcher_types)]
     for launcher in launchers:
         # the runtime may refine the device choice made by _resolve_distributed_device

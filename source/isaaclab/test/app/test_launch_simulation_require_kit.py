@@ -99,21 +99,10 @@ def test_require_kit_reads_from_a_namespace(kit_branch_taken):
     assert kit_branch_taken == [True]
 
 
-def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
-    config_scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        visualizer_cfgs=[],
-        has_ovrtx=True,
-        has_kit_camera=False,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-    )
-    monkeypatch.setattr(sim_launcher, "scan", lambda _cfg, _launcher_args: config_scan)
-
+def test_require_kit_rejects_ovrtx_runtime():
+    cfg = argparse.Namespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg())
     with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
+        with launch_simulation(cfg, {"require_kit": True}):
             pass
 
 

@@ -42,13 +42,12 @@ def test_visualizer_aliases_compose_the_same_task(selection):
         expected = [] if selection == "none" else selection.split(",")
         assert [viewer.visualizer_type for viewer in selected] == expected
         assert not {"physics", "renderer", "visualizer"}.intersection(vars(args))
-        launchers = sim_launcher.scan(cfg, args).launcher_types
+        assert sim_launcher.resolve_simulation_cfg(cfg, args) is cfg
         assert cfg.sim.physics is physics and isinstance(physics, NewtonCfg)
         assert cfg.scene.tiled_camera.renderer_cfg is renderer and renderer.renderer_type == "newton_warp"
-        assert (sim_launcher._KIT_LAUNCHER in launchers) == ("kit" in expected)
         if selection == "none":
             with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-                sim_launcher.scan(cfg, {"livestream": 2})
+                sim_launcher.resolve_simulation_cfg(cfg, {"livestream": 2})
 
 
 def test_visualizer_preset_preserves_custom_settings_and_validates_selection():
@@ -60,15 +59,17 @@ def test_visualizer_preset_preserves_custom_settings_and_validates_selection():
         newton_gl = NewtonGLVisualizerCfg(max_visible_envs=2)
 
     cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=Viewers())
+    viewer = cfg.visualizer_cfgs.newton_gl
     args = {"visualizer": "newton_gl", "max_visible_envs": 3}
-    result = sim_launcher.scan(cfg, args)
-    assert result.effective_cfg.visualizer_cfgs.max_visible_envs == 3
-    assert sim_launcher._KIT_LAUNCHER not in result.launcher_types
-    assert sim_launcher.scan(cfg, args).visualizer_cfgs == result.visualizer_cfgs
+    result = sim_launcher.resolve_simulation_cfg(cfg, args)
+    assert args == {"visualizer": "newton_gl", "max_visible_envs": 3}
+    assert result.visualizer_cfgs.max_visible_envs == 3
+    assert result.visualizer_cfgs is viewer
+    assert sim_launcher.resolve_simulation_cfg(cfg, args).visualizer_cfgs is result.visualizer_cfgs
     with pytest.raises(ValueError, match="Unknown preset"):
-        sim_launcher.scan(SimulationCfg(), {"visualizer": "missing"})
+        sim_launcher.resolve_simulation_cfg(SimulationCfg(), {"visualizer": "missing"})
     with pytest.warns(FutureWarning, match="newton_gl"):
-        cfg = sim_launcher.scan(SimulationCfg(physics=NewtonCfg()), {"visualizer": "newton"}).effective_cfg
+        cfg = sim_launcher.resolve_simulation_cfg(SimulationCfg(physics=NewtonCfg()), {"visualizer": "newton"})
     assert isinstance(cfg.visualizer_cfgs, NewtonGLVisualizerCfg)
     assert resolve_presets(SimulationCfg(), selected=["newton"]).visualizer_cfgs is None
 

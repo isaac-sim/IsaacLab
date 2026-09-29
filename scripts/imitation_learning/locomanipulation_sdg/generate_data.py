@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation, resolve_simulation_cfg
 
 parser = argparse.ArgumentParser(description="Locomanipulation SDG")
 parser.add_argument("--task", type=str, help="The Isaac Lab locomanipulation SDG task to load for data generation.")
@@ -1016,7 +1016,7 @@ if __name__ == "__main__":
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
         # resolve the config's automatic physics and renderer selections for the launched runtime
-        scan(env_cfg, args_cli)
+        resolve_simulation_cfg(env_cfg, args_cli)
         env_cfg.sim.device = "cpu"
         env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.output_file)
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)

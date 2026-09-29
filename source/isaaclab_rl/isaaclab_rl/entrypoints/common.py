@@ -29,7 +29,7 @@ import warp as wp
 from isaaclab_visualizers.kit import KitVisualizerCfg
 from PIL import Image
 
-from isaaclab.app import LoadingScreen, scan
+from isaaclab.app import LoadingScreen, resolve_simulation_cfg
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -439,11 +439,11 @@ def show_run_summary(
     device = getattr(args_cli, "device", None) or env_cfg.sim.device
     num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
 
-    # read the names before the scan resolves the automatic selectors so a row can report the
+    # Read the names before resolving the automatic selectors so a row can report the
     # family the run asked for next to the backend that family resolved to
     requested_physics = _physics_backend_name(env_cfg.sim.physics)
     requested_renderer = _renderer_name(env_cfg)
-    scan(env_cfg, args_cli)
+    resolve_simulation_cfg(env_cfg, args_cli)
     physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
     visualizers = ", ".join(cfg.visualizer_type for cfg in _configured_visualizer_cfgs(env_cfg.sim))
