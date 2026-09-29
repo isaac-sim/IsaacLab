@@ -8,12 +8,18 @@
 import subprocess
 import sys
 from types import SimpleNamespace
+from unittest.mock import MagicMock
 
 import pytest
 
+from isaaclab.assets import BaseArticulation
 from isaaclab.envs import ManagerBasedEnvCfg
 from isaaclab.envs.mdp import (
+    randomize_actuator_gains,
+    randomize_fixed_tendon_parameters,
+    randomize_joint_parameters,
     randomize_physics_scene_gravity,
+    randomize_rigid_body_inertia,
     randomize_rigid_body_mass,
     randomize_visual_color,
     randomize_visual_shape,
@@ -78,33 +84,113 @@ def test_replicator_event_rejects_kitless_runtime() -> None:
 
 
 @pytest.mark.parametrize(
-    "distribution,params,error",
+    "term,distribution,params,error",
     [
         # gaussian parameters are (mean, std), so a std below the mean is valid
-        pytest.param("gaussian", (0.5, 0.1), None, id="gaussian-std-below-mean"),
-        pytest.param("gaussian", (1.0, -0.1), "standard deviation must be ≥ 0", id="gaussian-negative-std"),
-        pytest.param("gaussian", (0.0, 0.1), "mean must be > 0", id="gaussian-zero-mean"),
-        pytest.param("uniform", (0.5, 0.1), "upper bound", id="uniform-reversed-range"),
+        pytest.param(
+            randomize_rigid_body_mass,
+            "gaussian",
+            {"mass_distribution_params": (0.5, 0.1)},
+            None,
+            id="mass-gaussian-std-below-mean",
+        ),
+        pytest.param(
+            randomize_rigid_body_mass,
+            "gaussian",
+            {"mass_distribution_params": (1.0, -0.1)},
+            "standard deviation must be ≥ 0",
+            id="mass-gaussian-negative-std",
+        ),
+        pytest.param(
+            randomize_rigid_body_mass,
+            "gaussian",
+            {"mass_distribution_params": (0.0, 0.1)},
+            "mean must be > 0",
+            id="mass-gaussian-zero-mean",
+        ),
+        # without a distribution the term falls back to uniform, whose (low, high) range must be ordered
+        pytest.param(
+            randomize_rigid_body_mass,
+            None,
+            {"mass_distribution_params": (0.5, 0.1)},
+            "upper bound",
+            id="mass-default-reversed-range",
+        ),
+        # every scale check of a term receives the term's distribution
+        pytest.param(
+            randomize_rigid_body_inertia,
+            "gaussian",
+            {"inertia_distribution_params": (0.5, 0.1)},
+            None,
+            id="inertia-gaussian",
+        ),
+        pytest.param(
+            randomize_actuator_gains,
+            "gaussian",
+            {"stiffness_distribution_params": (0.5, 0.1), "damping_distribution_params": (0.5, 0.1)},
+            None,
+            id="actuator-gains-gaussian",
+        ),
+        pytest.param(
+            randomize_joint_parameters,
+            "gaussian",
+            {"friction_distribution_params": (0.5, 0.1), "armature_distribution_params": (0.5, 0.1)},
+            None,
+            id="joint-parameters-gaussian",
+        ),
+        pytest.param(
+            randomize_fixed_tendon_parameters,
+            "gaussian",
+            {
+                "stiffness_distribution_params": (0.5, 0.1),
+                "damping_distribution_params": (0.5, 0.1),
+                "limit_stiffness_distribution_params": (0.5, 0.1),
+            },
+            None,
+            id="fixed-tendon-gaussian",
+        ),
+        # tendon damping allows a zero mean, tendon stiffness does not
+        pytest.param(
+            randomize_fixed_tendon_parameters,
+            "gaussian",
+            {"damping_distribution_params": (0.0, 0.1)},
+            None,
+            id="fixed-tendon-gaussian-zero-damping-mean",
+        ),
+        pytest.param(
+            randomize_fixed_tendon_parameters,
+            "gaussian",
+            {"stiffness_distribution_params": (0.0, 0.1)},
+            "stiffness_distribution_params: mean must be > 0",
+            id="fixed-tendon-gaussian-zero-stiffness-mean",
+        ),
+        # a field that allows a zero mean still rejects a negative std
+        pytest.param(
+            randomize_actuator_gains,
+            "gaussian",
+            {"stiffness_distribution_params": (0.5, 0.1), "damping_distribution_params": (0.5, -0.1)},
+            "damping_distribution_params: standard deviation must be ≥ 0",
+            id="actuator-gains-gaussian-negative-damping-std",
+        ),
     ],
 )
-def test_scale_range_validation_follows_distribution(distribution, params, error) -> None:
+def test_scale_range_validation_follows_distribution(term, distribution, params, error) -> None:
     """Scale parameters are checked as (mean, std) for gaussian and as (low, high) for uniform."""
-    env = SimpleNamespace(scene={"robot": SimpleNamespace()})
+    # the spec passes the inertia type check; device and actuators are read before validation
+    asset = MagicMock(spec=BaseArticulation)
+    asset.device = "cpu"
+    asset.actuators = {}
+    env = SimpleNamespace(scene={"robot": asset})
+    if distribution is not None:
+        params = {"distribution": distribution, **params}
     cfg = EventTermCfg(
-        func=randomize_rigid_body_mass,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot"),
-            "mass_distribution_params": params,
-            "operation": "scale",
-            "distribution": distribution,
-        },
+        func=term, mode="startup", params={"asset_cfg": SceneEntityCfg("robot"), "operation": "scale", **params}
     )
     if error is None:
-        randomize_rigid_body_mass(cfg, env)
+        term(cfg, env)
     else:
         with pytest.raises(ValueError, match=error):
-            randomize_rigid_body_mass(cfg, env)
+            term(cfg, env)
 
 
 def test_unknown_physics_configuration_fails_at_term_construction():
