@@ -339,8 +339,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
         with launch_simulation(env_cfg, vars(cli_args)):
-            get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+            get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
+            get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
             checkpoint_path = create_initialized_checkpoint(
                 backend_id,
                 task_name,

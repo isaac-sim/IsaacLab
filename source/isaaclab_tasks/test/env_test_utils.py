@@ -123,7 +123,7 @@ def setup_environment(
     registered_tasks.sort()
 
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
@@ -310,7 +310,7 @@ def _check_random_actions(
         sim_utils.create_new_stage()
 
     # reset the rtx sensors setting to False
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
         # Parse the requested physics preset before resolving the config. ``parse_env_cfg`` resolves every preset to

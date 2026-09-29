@@ -65,7 +65,7 @@ def _parse_as_training_script(child_argv: list[str], monkeypatch: pytest.MonkeyP
 
 
 class TestAddAppLauncherArgsNormalization:
-    """Integration tests for the ``sys.argv`` normalization in ``add_app_launcher_args``."""
+    """Integration tests for the ``sys.argv`` normalization in ``add_launcher_args``."""
 
     def test_unknown_leftovers_are_preserved(self, monkeypatch):
         monkeypatch.setattr(sys, "argv", ["prog", "--task", "X", "--kit_args", "--foo=/bar", "env.param=1"])

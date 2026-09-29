@@ -777,9 +777,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     monkeypatch.setattr(context_module, "has_kit", lambda: False)
     monkeypatch.setattr(context_module, "SceneDataProvider", lambda backend: _FakeProvider())
     monkeypatch.setattr(
-        context_module.SettingsManager,
-        "instance",
-        lambda: SimpleNamespace(get=settings.get, set_bool=settings.__setitem__),
+        context_module, "get_settings_manager", lambda: SimpleNamespace(get=settings.get, set=settings.__setitem__)
     )
     monkeypatch.setattr(SimulationContext, "_init_usd_physics_scene", lambda self: None)
     monkeypatch.setattr(SimulationContext, "_instance", None)

@@ -63,7 +63,7 @@ class Se3Gamepad(DeviceBase):
             cfg: Configuration object for gamepad settings.
         """
         # turn off simulator gamepad control
-        get_settings_manager().set_bool("/persistent/app/omniverse/gamepadCameraControl", False)
+        get_settings_manager().set("/persistent/app/omniverse/gamepadCameraControl", False)
         # store inputs
         self.pos_sensitivity = cfg.pos_sensitivity
         self.rot_sensitivity = cfg.rot_sensitivity
