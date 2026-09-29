@@ -45,7 +45,6 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
-    validate_distributed_device,
     wrap_sensor_capture,
     write_run_manifest,
 )
@@ -125,7 +124,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             apply_env_overrides(args_cli, env_cfg)
-            validate_distributed_device(args_cli)
             if args_cli.max_iterations is not None:
                 agent_cfg.max_iterations = args_cli.max_iterations
             if args_cli.distributed:

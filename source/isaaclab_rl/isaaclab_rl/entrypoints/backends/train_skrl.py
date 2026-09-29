@@ -46,7 +46,6 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
-    validate_distributed_device,
     wrap_sensor_capture,
     write_run_manifest,
 )
@@ -104,7 +103,6 @@ def _run(args_cli: argparse.Namespace) -> None:
             show_run_summary(screen, args_cli, env_cfg, library="skrl", action="train")
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             apply_env_overrides(args_cli, env_cfg)
-            validate_distributed_device(args_cli)
 
             if args_cli.max_iterations:
                 agent_cfg["trainer"]["timesteps"] = args_cli.max_iterations * agent_cfg["agent"]["rollouts"]

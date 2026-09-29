@@ -528,11 +528,11 @@ class KitLauncher(SimulationLauncher):
             self._xr = bool(xr_env)
 
         # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
+        # When XR is enabled but the run has no Kit visualizer (from the config or
+        # --viz), we auto-inject one so that app.update() and forward() are pumped
         # each frame -- the XR runtime needs both to receive updated hand/joint
         # transforms.
-        self._xr_auto_start = self._xr and "kit" not in (launcher_args.get("visualizer") or ())
+        self._xr_auto_start = self._xr and not self._kit_visualizer
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""

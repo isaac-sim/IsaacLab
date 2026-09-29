@@ -447,10 +447,10 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
 @pytest.mark.parametrize(
     "launcher_args, headless_env, livestream, expected_headless",
     [
-        # XR with no CLI visualizer: headless even though the task config asks for a window.
-        ({"xr": True}, 0, 0, True),
-        # An explicit '--viz kit' is the only way to get a viewport alongside XR.
+        # XR keeps the window of the Kit visualizer the task config declares, as with '--viz kit'.
+        ({"xr": True}, 0, 0, False),
         (_XR_KIT, 0, 0, False),
+        # XR without a Kit visualizer auto-starts headless.
         ({"xr": True, "visualizer": ["none"]}, 0, 0, True),
         # ...but an explicit '--viz kit' cannot override HEADLESS=1.
         (_XR_KIT, 1, 0, True),
@@ -461,19 +461,18 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
         ({}, 0, 0, False),
     ],
 )
-def test_xr_without_explicit_windowed_visualizer_forces_headless(
+def test_xr_without_kit_visualizer_forces_headless(
     launcher_args: dict,
     headless_env: int,
     livestream: int,
     expected_headless: bool,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Test that enabling XR runs headless unless a windowed visualizer is explicitly requested.
+    """Test that enabling XR runs headless unless the run has a Kit visualizer.
 
-    A task config declaring a windowed visualizer must not leave ``--xr`` opening a window nobody
-    asked for, and ``HEADLESS=1`` / livestreaming must keep forcing headless even when one was
-    explicitly requested. Resolution is exercised directly to avoid launching Isaac Sim; what the
-    resolved state then publishes is asserted by
+    A Kit visualizer declared by the task config keeps its window like ``--viz kit``, while
+    ``HEADLESS=1`` / livestreaming keep forcing headless even with one. Resolution is exercised
+    directly to avoid launching Isaac Sim; what the resolved state then publishes is asserted by
     :func:`test_load_extensions_publishes_has_gui_setting`.
     """
     args = {**launcher_args, "livestream": livestream}

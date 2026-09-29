@@ -110,6 +110,31 @@ def test_cli_visualizer_selection_overrides_config_kit_visualizer(kit_launcher_a
     assert launcher_args.kit_visualizer is False
 
 
+def test_cli_visualizer_selection_drops_configured_kit_streaming_view():
+    """A Kit visualizer that ``--viz`` drops does not request its streaming view."""
+    kit_cfg = VisualizerCfg(visualizer_type="kit", streaming_view=True)
+    cfg = argparse.Namespace(physics=NewtonCfg(), visualizer_cfgs=[kit_cfg])
+
+    assert sim_launcher.scan(cfg, {"visualizer": ["rerun"]}).visualizer_intent["has_kit_streaming_view"] is False
+
+
+def test_cli_visualizer_selection_drops_configured_newton_rtx(kit_launcher_args, monkeypatch):
+    """``--viz kit`` drops a configured newton_rtx visualizer, so OVRTX neither conflicts with Kit nor starts."""
+    started = []
+    real_string_to_callable = sim_launcher.string_to_callable
+    monkeypatch.setattr(
+        sim_launcher, "string_to_callable", lambda name: started.append(name) or real_string_to_callable(name)
+    )
+    cfg = argparse.Namespace(physics=NewtonCfg(), visualizer_cfgs=[VisualizerCfg(visualizer_type="newton_rtx")])
+
+    with sim_launcher.launch_simulation(cfg, {"visualizer": ["kit"]}):
+        pass
+
+    assert len(kit_launcher_args) == 1
+    assert sim_launcher.OVRTXRendererCfg.launcher_type not in started
+    assert [cfg.visualizer_type for cfg in cfg.visualizer_cfgs] == ["kit"]
+
+
 @pytest.mark.parametrize("require_kit", [False, True], ids=["kitless", "kit"])
 def test_launch_simulation_writes_max_visible_envs_without_visualizer(kit_launcher_args, require_kit):
     """``--max_visible_envs`` reaches the settings with or without Kit, even when no visualizer is selected."""

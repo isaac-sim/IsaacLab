@@ -198,7 +198,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             if args_cli.max_iterations is not None:
                 agent_cfg["params"]["config"]["max_epochs"] = args_cli.max_iterations
 
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.

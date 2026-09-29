@@ -191,7 +191,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
             env_cfg.seed = agent_cfg.seed
 
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # Mirror the regular training entrypoint: the launcher pinned this rank to its own
                 # device, and offsetting the seed by the rank decorrelates exploration across ranks.

@@ -367,23 +367,6 @@ def request_warp_determinism(physics_cfg: Any) -> None:
         wp.config.deterministic = mode
 
 
-def validate_distributed_device(args_cli: argparse.Namespace) -> None:
-    """Reject distributed training on a CPU device.
-
-    Args:
-        args_cli: Parsed command-line arguments.
-
-    Raises:
-        ValueError: If distributed training is requested with a CPU device.
-    """
-    device = getattr(args_cli, "device", None)
-    if getattr(args_cli, "distributed", False) and device is not None and "cpu" in device:
-        raise ValueError(
-            "Distributed training is not supported when using CPU device. "
-            "Please use GPU device (e.g., --device cuda) for distributed training."
-        )
-
-
 """
 Startup reporting.
 """

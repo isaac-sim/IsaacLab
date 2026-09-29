@@ -309,18 +309,20 @@ def _resolve_python_logging_level(args: dict) -> int:
 def _get_visualizer_intent(visualizer_cfgs: list[VisualizerCfg], args: dict) -> dict[str, bool]:
     """Compute the intent of the config's visualizers, OR-ed with a caller's ``visualizer_intent``.
 
-    An explicit ``--visualizer`` selection overrides whether the config's Kit visualizer is used.
+    An explicit ``--visualizer`` selection overrides whether the config's Kit visualizer, and its streaming
+    view, is used.
     """
     kit_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type == "kit"]
-    caller_intent = args.get("visualizer_intent") or {}
     if args["visualizer"] is not None:
         has_kit_visualizer = "kit" in args["visualizer"]
+        # the selection drops a configured Kit visualizer it does not name
+        kit_cfgs = kit_cfgs if has_kit_visualizer else []
     else:
+        caller_intent = args.get("visualizer_intent") or {}
         has_kit_visualizer = bool(kit_cfgs) or bool(caller_intent.get("has_kit_visualizer"))
-    has_kit_streaming_view = any(cfg.streaming_view for cfg in kit_cfgs)
     return {
         "has_kit_visualizer": has_kit_visualizer,
-        "has_kit_streaming_view": has_kit_streaming_view or bool(caller_intent.get("has_kit_streaming_view")),
+        "has_kit_streaming_view": any(cfg.streaming_view for cfg in kit_cfgs),
     }
 
 
@@ -445,7 +447,9 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
             visit(child, node, name)
 
     visit(cfg, None, None)
-    has_ovrtx = has_ovrtx or any(visualizer_cfg.visualizer_type == "newton_rtx" for visualizer_cfg in visualizer_cfgs)
+    if args["visualizer"] is None:
+        # an explicit --visualizer selection drops configured visualizers it does not name, as for Kit
+        has_ovrtx = has_ovrtx or any(cfg.visualizer_type == "newton_rtx" for cfg in visualizer_cfgs)
 
     has_physics = bool(physics_cfgs)
     config_scan = Scan(
@@ -648,8 +652,8 @@ def launch_simulation(
               a tool that reaches a Kit-only extension API. This is additive -- it can only turn a
               kitless launch into a Kit one, never the reverse, so a config that already needs Kit
               still launches it when the key is absent or ``False``.
-            * ``visualizer_intent``: Visualizer intent the config cannot express, e.g.
-              ``{"has_kit_visualizer": True}``; it is combined with the intent of *cfg*.
+            * ``visualizer_intent``: ``{"has_kit_visualizer": True}`` requests the Kit visualizer when *cfg*
+              configures none and no ``visualizer`` selection is given.
     """
     # writes to ``args`` reach the caller's namespace or dict
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args

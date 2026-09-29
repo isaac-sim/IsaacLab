@@ -43,7 +43,6 @@ from ..common import (
     set_hydra_args,
     show_run_summary,
     startup_screen,
-    validate_distributed_device,
     wrap_sensor_capture,
     write_run_manifest,
 )
@@ -110,7 +109,6 @@ def run(argv: list[str]) -> None:
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="train")
             apply_env_overrides(args_cli, env_cfg)
-            validate_distributed_device(args_cli)
 
             params = agent_cfg["params"]
             config = params["config"]

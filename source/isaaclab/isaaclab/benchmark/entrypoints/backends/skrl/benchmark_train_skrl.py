@@ -290,7 +290,6 @@ def run(argv: list[str]) -> BenchmarkResult | None:
             agent_cfg["trainer"]["close_environment_at_exit"] = False
 
             agent_cfg["seed"] = args_cli.seed if args_cli.seed is not None else agent_cfg.get("seed", 0)
-            common.validate_distributed_device(args_cli)
             if distributed.enabled:
                 # skrl reads the rank environment itself and pins the device; offsetting the seed by
                 # the rank decorrelates exploration across ranks, as in regular skrl training.
