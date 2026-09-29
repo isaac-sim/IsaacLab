@@ -562,20 +562,26 @@ def test_scene_external_forces_every_iteration(monkeypatch, manager_module, devi
 
 
 @pytest.mark.parametrize(("device", "gpu_dynamics", "broadphase"), [("cpu", False, "MBP"), ("gpu", True, "GPU")])
-def test_scene_authors_device_dynamics_and_broadphase(monkeypatch, manager_module, device, gpu_dynamics, broadphase):
-    """Each scene selects its own dynamics device, since CPU and GPU scenes share one process."""
+def test_scenes_author_device_dynamics_and_broadphase(monkeypatch, manager_module, device, gpu_dynamics, broadphase):
+    """Every physics scene selects the simulation device, since CPU and GPU scenes share one process."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
-    from pxr import Usd
+    from pxr import Sdf, Usd, UsdPhysics
 
     from isaaclab.physics import PhysicsManager
 
     monkeypatch.setattr(PhysicsManager, "_sim", None)
     stage = Usd.Stage.CreateInMemory()
-    prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
-    manager_module.OvPhysxManager._configure_physx_scene_prim(prim, OvPhysxCfg(), device)
-    assert prim.GetAttribute("physxScene:enableGPUDynamics").Get() is gpu_dynamics
-    assert prim.GetAttribute("physxScene:broadphaseType").Get() == broadphase
+    UsdPhysics.Scene.Define(stage, "/World/PhysicsScene")
+    # An asset's own scene, authored for the other device.
+    asset_scene = UsdPhysics.Scene.Define(stage, "/World/Asset/PhysicsScene").GetPrim()
+    asset_scene.CreateAttribute("physxScene:enableGPUDynamics", Sdf.ValueTypeNames.Bool).Set(not gpu_dynamics)
+    manager_module.OvPhysxManager._configure_physics_scenes(stage, "/World/PhysicsScene", OvPhysxCfg(), device)
+    for path in ("/World/PhysicsScene", "/World/Asset/PhysicsScene"):
+        prim = stage.GetPrimAtPath(path)
+        assert "PhysxSceneAPI" in prim.GetMetadata("apiSchemas").GetAddedOrExplicitItems()
+        assert prim.GetAttribute("physxScene:enableGPUDynamics").Get() is gpu_dynamics
+        assert prim.GetAttribute("physxScene:broadphaseType").Get() == broadphase
 
 
 def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):
