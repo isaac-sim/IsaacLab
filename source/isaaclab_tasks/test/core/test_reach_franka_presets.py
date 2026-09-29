@@ -145,7 +145,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
 
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
-    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda_nestedInstance.usda")
 
     # Native SE(3) command convention: one relative 6-DoF pose objective.
     pose_objectives = [
