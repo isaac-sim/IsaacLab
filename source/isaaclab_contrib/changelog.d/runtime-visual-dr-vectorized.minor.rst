@@ -34,3 +34,7 @@ Changed
   Set ``CameraDRCfg.composite_foreground=True`` to retain source pixels exactly.
   Simplified the custom/distilled checkpoint setup instructions and documented
   zero boundary dilation and source projection through the final step as defaults.
+
+* Consolidated the visual DR entry point around ``run_rollout.py``. Removed the
+  redundant demo and moved exploratory timing and inference scripts out of the
+  repository. Updated the setup guide to use the retained rollout entry point.

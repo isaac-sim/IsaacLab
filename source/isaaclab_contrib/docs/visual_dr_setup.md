@@ -62,9 +62,9 @@ uv run --inexact python scripts/visual_dr/run_rollout.py \
   --recipe scripts/visual_dr/recipes/cosmos_nano.yaml --no-mask_guidance
 ```
 
-Both `run_demo.py` and `run_rollout.py` accept `--recipe`; explicit CLI settings
-apply after the recipe. `apply_visual_dr_recipe()` can also apply the YAML to a
-task's `VisualDRCfg` in Python. It retains task prompts, semantic classes, and
+`run_rollout.py` accepts `--recipe`; explicit CLI settings apply after the recipe.
+`apply_visual_dr_recipe()` can also apply the YAML to a task's `VisualDRCfg` in
+Python. It retains task prompts, semantic classes, and
 camera names. Unknown fields are rejected.
 
 `checkpoint` accepts `nvidia/Cosmos3-Nano`, registered Cosmos names, local export
@@ -147,15 +147,3 @@ uv run --inexact python -m pytest source/isaaclab_contrib/test/visual_dr -q
 
 The tests cover scheduling, mask construction, compositing, recipes, and sampler
 projection. GPU inference and simulator rollouts remain separate integration checks.
-
-For a GPU check without Kit, pass a trusted recorded `DRFrame` tensor file:
-
-```bash
-uv run --inexact python scripts/visual_dr/smoke_cosmos_transfer.py \
-  --frame /path/to/frame.pt --recipe scripts/visual_dr/recipes/cosmos_nano.yaml
-```
-
-The file contains `rgb`, `depth`, `preserve`, and (for segmentation control)
-`segmentation`. Its preserve mask is used as recorded; camera erosion is performed
-upstream during observation collection. The smoke script saves generated pixels
-without compositing.
