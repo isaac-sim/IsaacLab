@@ -91,6 +91,12 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
         for name, cfg in resolved_cfgs.items():
             resolve_limit_aliases(name, cfg, resolved_group_joints[name][1])
         self._native_group_names = self._control.prepare_native_actuators(self, resolved_cfgs)
+        # The backend has now declared what it executes itself, which is the earliest point at
+        # which a config with no Isaac Lab-executed implementation can be told it is about to be
+        # run by one. Imported here because the schema module reaches back into this package.
+        from isaaclab.sim.schemas.schemas_actuators import _validate_native_only_actuator_cfgs  # noqa: PLC0415
+
+        _validate_native_only_actuator_cfgs(resolved_cfgs, self._native_group_names)
         self._build_groups(resolved_cfgs, resolved_group_joints)
         self._newton_selection = self._control.finalize_native_actuators(self)
         if self._native_group_names:

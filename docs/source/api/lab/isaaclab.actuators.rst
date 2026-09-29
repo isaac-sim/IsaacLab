@@ -27,6 +27,8 @@
     ActuatorNetMLPCfg
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
+    BamActuatorCfg
+    BamMotorParams
 
   .. rubric:: Functions
 
@@ -166,10 +168,32 @@ LSTM Network Actuator
   :show-inheritance:
   :exclude-members: __init__, class_type
 
+BAM Servo Model
+---------------
+
+.. autoclass:: BamActuatorCfg
+  :members:
+  :inherited-members:
+  :show-inheritance:
+  :exclude-members: __init__, class_type
+
+.. autoclass:: BamMotorParams
+  :members:
+  :exclude-members: __init__
+
+.. autodata:: BAM_XL330_M6_PARAMS_FILE
+  :no-value:
+
 Newton Actuator Access
 ----------------------
 
 .. automodule:: isaaclab.actuators.newton
+
+  .. rubric:: Classes
+
+  .. autosummary::
+
+    ControllerBam
 
   .. rubric:: Functions
 
@@ -177,7 +201,14 @@ Newton Actuator Access
 
     read_group_parameter
     write_group_parameter
+    apply_bam_startup_sampling
+
+.. autoclass:: isaaclab.actuators.newton.ControllerBam
+    :members:
+    :show-inheritance:
 
 .. autofunction:: isaaclab.actuators.newton.read_group_parameter
 
 .. autofunction:: isaaclab.actuators.newton.write_group_parameter
+
+.. autofunction:: isaaclab.actuators.newton.apply_bam_startup_sampling
