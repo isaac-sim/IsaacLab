@@ -11,7 +11,6 @@ import argparse
 import contextlib
 import os
 import time
-from datetime import datetime
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
@@ -37,11 +36,14 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
+    distributed_rank,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
+    rank_log_dir,
     release_process_group,
     resolve_checkpoint_selector,
+    run_timestamp,
     scoped_torch_backend_flags,
     set_hydra_args,
     show_run_summary,
@@ -129,23 +131,27 @@ def _run(args_cli: argparse.Namespace) -> None:
             validate_distributed_device(args_cli)
             if args_cli.max_iterations is not None:
                 agent_cfg.max_iterations = args_cli.max_iterations
-            if args_cli.distributed:
+            rank = distributed_rank(args_cli)
+            if rank is not None:
                 agent_cfg.device = env_cfg.sim.device
-                agent_cfg.seed += int(os.getenv("RANK", "0"))
+                agent_cfg.seed += rank
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            run_name = run_timestamp()
             print(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, run_name)
-            write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
+            rank_dir = rank_log_dir(log_dir, rank)
+            # All ranks share the run folder, so its manifest is written once.
+            if rank in (None, 0):
+                write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
 
             resume_path = _resolve_checkpoint(args_cli, agent_cfg, log_root_path)
-            env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli)
+            env_cfg.log_dir = rank_dir
+            apply_video_recording(env_cfg, rank_dir, args_cli)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -155,7 +161,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
             cleanup.callback(lambda: close_env(env))
-            env = wrap_sensor_capture(env, log_dir, args_cli)
+            env = wrap_sensor_capture(env, rank_dir, args_cli)
 
             screen.stage("Preparing agent")
             start_time = time.time()
@@ -174,7 +180,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             if resume_path is not None:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 runner.load(resume_path)
-            dump_train_configs(log_dir, env_cfg, agent_cfg)
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if agent_cfg.logger == "wandb":
                 announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())

@@ -8,7 +8,8 @@
 Setup:
     - none; each test launches a real multi-rank training run as a subprocess
 Tests:
-    - physics-only task on 2 GPUs -> verify training completes
+    - physics-only task on 2 GPUs -> verify training completes, writes one run directory with each
+      rank's settings, and releases the process group
     - each of the seven runnable backend stacks on 4 GPUs, in the host's device
       order and exposed as ``3,1,2,0`` -> verify training completes
 
@@ -29,6 +30,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 # Small on purpose: Kit boot dominates the runtime at this size, and the defect these guard
 # reproduces at any env count. Sized for the CI pool's 23 GiB A10G rather than the 48 GiB L40S
@@ -36,6 +38,8 @@ import pytest
 # 864 MiB more.
 _NUM_ENVS = "512"
 _MAX_ITERATIONS = "3"
+# Not the agent default, so the saved settings can only match it if they came from the launch.
+_SEED = 7
 
 # A hung run goes silent while a slow one keeps logging, so silence is the signal -- nothing here
 # gates on how long a run takes, only on it having stopped. Startup and steady state have very
@@ -203,6 +207,8 @@ def _run_training(
         _NUM_ENVS,
         "--max_iterations",
         _MAX_ITERATIONS,
+        "--seed",
+        str(_SEED),
     ]
 
     started = time.monotonic()
@@ -301,13 +307,31 @@ class TestMultiGpuTrainingSmoke:
     """Multi-rank training coverage across the supported backend stacks."""
 
     def test_physics_only_trains(self) -> None:
-        """Physics-only multi-GPU training completes with no device mask.
+        """Physics-only multi-GPU training completes with no device mask and writes one run.
 
         The cheapest signal that the launcher and NCCL are healthy before any renderer is
         involved. Needs only two devices, so it still runs on hosts too small for the rest.
+
+        Each rank offsets the seed by its rank, so each rank's settings must sit under its own
+        ``rank_<rank>`` folder in one shared run directory, with rank 0 holding the launch seed.
         """
-        _require_devices(2)
-        _assert_training_passed(*_run_training(None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=2))
+        num_gpus = 2
+        _require_devices(num_gpus)
+        runs_root = _repo_root() / "logs" / "rsl_rl"
+        runs_before = set(runs_root.glob("*/*"))
+        outcome, output, gpu_processes = _run_training(None, _PHYSICS_ONLY_TASK, "isaacsim_physx", num_gpus=num_gpus)
+        _assert_training_passed(outcome, output, gpu_processes)
+
+        new_runs = set(runs_root.glob("*/*")) - runs_before
+        assert len(new_runs) == 1, f"expected one run directory, found {sorted(map(str, new_runs))}"
+        (run_dir,) = new_runs
+        assert not (run_dir / "params").exists(), "multi-GPU settings belong under rank_<rank>/params only"
+        for rank in range(num_gpus):
+            for name in ("agent.yaml", "env.yaml"):
+                path = run_dir / f"rank_{rank}" / "params" / name
+                saved = yaml.full_load(path.read_text(encoding="utf-8"))
+                assert saved["seed"] == _SEED + rank, f"{path} saved seed {saved['seed']}, expected {_SEED + rank}"
+        assert "destroy_process_group() was not called" not in output
 
     @pytest.mark.rendering
     @pytest.mark.parametrize("devices", _DEVICE_ORDERS)

@@ -12,7 +12,6 @@ import contextlib
 import os
 import re
 import time
-from datetime import datetime
 from distutils.util import strtobool
 
 from rl_games.common.algo_observer import IsaacAlgoObserver
@@ -35,12 +34,15 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
+    distributed_rank,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
+    rank_log_dir,
     release_process_group,
     resolve_checkpoint_selector,
     resolve_seed,
+    run_timestamp,
     set_hydra_args,
     show_run_summary,
     startup_screen,
@@ -120,8 +122,9 @@ def run(argv: list[str]) -> None:
                 params["seed"] = args_cli.seed
             if args_cli.max_iterations is not None:
                 config["max_epochs"] = args_cli.max_iterations
-            if args_cli.distributed:
-                params["seed"] += int(os.getenv("RANK", "0"))
+            rank = distributed_rank(args_cli)
+            if rank is not None:
+                params["seed"] += rank
                 config["device"] = env_cfg.sim.device
                 config["device_name"] = env_cfg.sim.device
                 config["multi_gpu"] = True
@@ -141,16 +144,19 @@ def run(argv: list[str]) -> None:
                 params["load_path"] = resume_path
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
 
-            run_name = config.get("full_experiment_name", datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+            run_name = config.get("full_experiment_name", run_timestamp())
             config["train_dir"] = log_root_path
             config["full_experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
-            dump_train_configs(log_dir, env_cfg, agent_cfg)
+            rank_dir = rank_log_dir(log_dir, rank)
+            # All ranks share the run folder, so its manifest is written once.
+            if rank in (None, 0):
+                write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
             print(f"Exact experiment name requested from command line: {log_dir}")
 
-            env_cfg.log_dir = log_dir
-            apply_video_recording(env_cfg, log_dir, args_cli)
+            env_cfg.log_dir = rank_dir
+            apply_video_recording(env_cfg, rank_dir, args_cli)
 
             screen.stage("Creating environment")
             env = create_isaaclab_env(
@@ -160,7 +166,7 @@ def run(argv: list[str]) -> None:
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
             cleanup.callback(lambda: close_env(env))
-            env = wrap_sensor_capture(env, log_dir, args_cli)
+            env = wrap_sensor_capture(env, rank_dir, args_cli)
 
             screen.stage("Preparing agent")
             start_time = time.time()
@@ -183,7 +189,7 @@ def run(argv: list[str]) -> None:
             runner.load(agent_cfg)
             runner.reset()
 
-            if args_cli.track and int(os.getenv("RANK", "0")) == 0:
+            if args_cli.track and rank in (None, 0):
                 if args_cli.wandb_entity is None:
                     raise ValueError("Weights and Biases entity must be specified for tracking.")
                 # wandb is an optional dependency of experiment tracking
