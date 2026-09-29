@@ -8,8 +8,8 @@
 Exploring MPM Materials and Coupling
 ====================================
 
-The `MPM tutorial scripts <https://github.com/isaac-sim/IsaacLab/tree/develop/scripts/tutorials/08_mpm>`_
-are source-checkout examples, not packaged ``isaaclab example`` programs. Run
+The MPM tutorial scripts in ``scripts/tutorials/08_mpm/`` are source-checkout
+examples, not packaged ``isaaclab example`` programs. Run
 them from the repository root. Each script accepts ``--help`` and can be
 changed to study a different scene or parameter range.
 
@@ -38,6 +38,6 @@ policy checkpoint unless you provide ``--checkpoint``; it requires a CUDA
 device and the ``rsl-rl`` extra. Newton RTX additionally requires
 ``--extra ovrtx``.
 
-Read the `tutorial README <https://github.com/isaac-sim/IsaacLab/blob/develop/scripts/tutorials/08_mpm/README.md>`_
-for the controlled settings and interpretation limits. For scene authoring
+Read ``scripts/tutorials/08_mpm/README.md`` for the controlled settings and
+interpretation limits. For scene authoring
 and solver configuration, see :ref:`newton-using-mpm`.
