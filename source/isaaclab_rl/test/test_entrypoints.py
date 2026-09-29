@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import signal
 import subprocess
 import sys
 import types
@@ -307,10 +308,17 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
         simple_agents.run([], policy="zero")
 
 
-def test_random_agent_closes_environment_after_keyboard_interrupt(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Ctrl+C must stop a checkpoint-free agent cleanly and close its environment."""
+@pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
+def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
+    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
+    closed = []
+    previous_handler = signal.getsignal(signal.SIGINT)
+
+    def close():
+        signal.raise_signal(signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
+        closed.append(True)
+
     cfg = SimpleNamespace(
         scene=SimpleNamespace(num_envs=1),
         sim=SimpleNamespace(device="cpu", use_fabric=True),
@@ -323,10 +331,11 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
             sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
-        reset=lambda: None,
-        step=mock.Mock(side_effect=KeyboardInterrupt),
-        close=mock.Mock(),
+        reset=mock.Mock(),
+        step=mock.Mock(),
+        close=close,
     )
+    getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
     args = SimpleNamespace(max_steps=None, task="Example", device=None)
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
@@ -334,10 +343,11 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    simple_agents.run([], policy="random")
+    with pytest.raises(KeyboardInterrupt):
+        simple_agents.run([], policy="random")
 
-    env.close.assert_called_once_with()
-    assert "Random agent stopped." in capsys.readouterr().out
+    assert closed == [True]
+    assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
 @pytest.mark.parametrize(

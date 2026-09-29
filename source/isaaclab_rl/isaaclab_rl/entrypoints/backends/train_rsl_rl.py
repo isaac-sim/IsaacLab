@@ -35,6 +35,7 @@ from ..common import (
     add_common_train_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
@@ -120,7 +121,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             apply_env_overrides(args_cli, env_cfg)
@@ -152,6 +153,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
             env = wrap_sensor_capture(env, log_dir, args_cli)
 
             screen.stage("Preparing agent")
@@ -183,4 +185,3 @@ def _run(args_cli: argparse.Namespace) -> None:
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-            env.close()
