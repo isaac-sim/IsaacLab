@@ -90,12 +90,19 @@ def test_push_by_setting_velocity_follows_range_edits_without_sync(device):
     """Repeated ranges reuse device bounds without a sync, and in-place range edits still take effect."""
     env, asset = _make_env(device)
     env_ids = torch.arange(env.num_envs, device=device)
-    velocity_range = {"x": (1.0, 1.0)}
+    # Dictionary insertion order differs from the command's component order.
+    velocity_range = {"yaw": (-0.2, 0.8), "x": (-2.0, 1.0)}
     push_by_setting_velocity(env, env_ids, velocity_range)
 
-    with _raise_on_cuda_sync(device):
-        push_by_setting_velocity(env, env_ids, velocity_range)
-    torch.testing.assert_close(asset.written["vel"][:, 0], torch.ones(env.num_envs, device=device))
+    lower = torch.tensor([-2.0, 0.0, 0.0, 0.0, 0.0, -0.2], device=device)
+    upper = torch.tensor([1.0, 0.0, 0.0, 0.0, 0.0, 0.8], device=device)
+    torch.manual_seed(7)
+    expected = [torch.rand(env.num_envs, 6, device=device) * (upper - lower) + lower for _ in range(2)]
+    torch.manual_seed(7)
+    for sample in expected:
+        with _raise_on_cuda_sync(device):
+            push_by_setting_velocity(env, env_ids, velocity_range)
+        torch.testing.assert_close(asset.written["vel"], sample, rtol=0, atol=0)
 
     # a curriculum may edit the range dictionary in place
     velocity_range["x"] = (-2.0, -2.0)
