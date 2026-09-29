@@ -18,7 +18,6 @@
 
       add_launcher_args
       launch_simulation
-      make_physics_cfg
       report_activity
       scan
 
@@ -35,8 +34,6 @@ Simulation Launcher
 
 .. autoclass:: AppLauncher
    :members:
-
-.. autofunction:: make_physics_cfg
 
 .. autofunction:: scan
 

@@ -28,7 +28,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():
     """Set up settings to prevent simulation getting stuck."""
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.fixture
