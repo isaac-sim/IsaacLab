@@ -47,6 +47,12 @@ class _FakeScene(dict):
         self.env_origins = torch.zeros((len(environment_ids), 3))
 
 
+def _initialize_command_term(command, command_cfg, command_env) -> None:
+    command.cfg = command_cfg
+    command._env = command_env
+    command.metrics = {}
+
+
 @pytest.mark.parametrize(
     ("selected_presets", "expected_physics"),
     [
@@ -178,17 +184,13 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         object_name="object",
         success_vis_asset_name="table",
         success_visualizer_cfg=object(),
+        success_vis_material_name=None,
         goal_pose_visualizer_cfg=object(),
         curr_pose_visualizer_cfg=object(),
         position_only=True,
         cmd_kind=None,
         element_names=None,
     )
-
-    def _initialize_command_term(command, command_cfg, command_env) -> None:
-        command.cfg = command_cfg
-        command._env = command_env
-        command.metrics = {}
 
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
     monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
@@ -213,6 +215,83 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         assert len(visualizer.calls) == expected_count
         for _, kwargs in visualizer.calls:
             assert torch.equal(kwargs["environment_ids"], environment_ids)
+
+
+def test_lift_success_material_colors_each_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The success material shows the failure color until an environment's object reaches its goal."""
+    num_envs = 3
+    identity_quat = torch.zeros((num_envs, 4))
+    identity_quat[:, 3] = 1.0
+    root_pos_w = torch.zeros((num_envs, 3))
+    # the goals sit at the robot root, which only the first object is within 0.05 m of
+    object_pos_w = torch.tensor([[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
+    robot = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=root_pos_w),
+            root_quat_w=SimpleNamespace(torch=identity_quat),
+        ),
+    )
+    object_asset = SimpleNamespace(
+        data=SimpleNamespace(root_link_pose_w=SimpleNamespace(torch=torch.cat((object_pos_w, identity_quat), dim=-1)))
+    )
+    material = SimpleNamespace(is_per_env=True)
+    scene = _FakeScene(torch.arange(num_envs), robot=robot, object=object_asset, table_material=material)
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
+    failure_color, success_color = (0.8, 0.5, 0.5), (0.5, 0.8, 0.5)
+    cfg = SimpleNamespace(
+        asset_name="robot",
+        object_name="object",
+        success_vis_asset_name=None,
+        success_vis_material_name="table_material",
+        success_vis_colors=(failure_color, success_color),
+        position_only=True,
+        cmd_kind=None,
+        element_names=None,
+    )
+    writes = []
+
+    def _record_write(materials, channels, env_ids=None) -> None:
+        writes.append((materials, channels, env_ids))
+
+    monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
+    monkeypatch.setattr(pose_commands.VisualMaterial, "write_channels", _record_write)
+
+    command = ObjectUniformPoseCommand(cfg, env)
+    command.pose_command_b[:, :3] = 0.0
+    command._update_metrics()
+
+    assert command.success_visualizer is None
+    expected_colors = (
+        torch.tensor([failure_color] * num_envs),
+        torch.tensor([success_color, failure_color, failure_color]),
+    )
+    assert len(writes) == len(expected_colors)
+    for (materials, channels, env_ids), colors in zip(writes, expected_colors, strict=True):
+        assert len(materials) == 1 and materials[0] is material
+        assert env_ids is None
+        torch.testing.assert_close(channels["color"], colors.unsqueeze(0))
+
+
+def test_lift_success_material_must_be_per_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A material shared by all environments cannot show per-environment success."""
+    scene = _FakeScene(
+        torch.arange(2),
+        robot=SimpleNamespace(),
+        object=SimpleNamespace(),
+        table_material=SimpleNamespace(is_per_env=False),
+    )
+    env = SimpleNamespace(num_envs=2, device="cpu", scene=scene)
+    cfg = SimpleNamespace(
+        asset_name="robot",
+        object_name="object",
+        success_vis_asset_name=None,
+        success_vis_material_name="table_material",
+        success_vis_colors=((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+    )
+    monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
+
+    with pytest.raises(ValueError, match="per-environment"):
+        ObjectUniformPoseCommand(cfg, env)
 
 
 def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:

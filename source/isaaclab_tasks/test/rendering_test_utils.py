@@ -1961,11 +1961,8 @@ def rendering_test_lift_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
-    # The success and failure markers are placed exactly at the same location. If both markers are
-    # visible, the rendering order will determine which one is visible in the camera output. Hide
-    # both markers to avoid this nondeterministic behavior.
-    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
-        marker_cfg.visible = False
+    # The goldens predate the visible table, so keep it hidden until they are regenerated.
+    env_cfg.scene.table.spawn.visible = False
 
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
@@ -2169,17 +2166,11 @@ def _configure_franka_camera_test_env_cfg(
     Args:
         env_cfg: Resolved Franka camera environment config to mutate in place.
         data_types: Camera data types the golden capture requests.
-        command_name: Name of the pose command term whose success visualizer is disabled.
+        command_name: Name of the pose command term whose debug visualization is disabled.
         reset_event_name: Name of the reset event term whose position range is pinned to zero.
     """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    command_cfg = getattr(env_cfg.commands, command_name)
-    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
-    # that visualizer, so paint the table itself with the marker material instead of replacing the
-    # spawn, which would drop task-specific physics overrides.
-    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
-    env_cfg.scene.table.spawn.visible = True
-    command_cfg.debug_vis = False
+    getattr(env_cfg.commands, command_name).debug_vis = False
     getattr(env_cfg.events, reset_event_name).params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
@@ -2225,7 +2216,6 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2302,7 +2292,6 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
 

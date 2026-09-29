@@ -22,7 +22,7 @@ from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, VisualMaterialCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
@@ -33,7 +33,6 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg, FrameTransformerCfg
@@ -63,9 +62,9 @@ POISSONS_RATIO = 0.3
 TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     size=(1.3, 0.9, 1.05),
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-    visible=False,
+    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
 )
-"""Table collider whose top surface sits at z = 0, drawn by the command term's success markers."""
+"""Table whose top surface sits at z = 0, tinted by the command term once the goal is reached."""
 
 FRANKA_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Camera",
@@ -215,11 +214,14 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static table collider drawn by the command term's success markers (see CommandsCfg)
+    # static table
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
         spawn=TABLE_SPAWN_CFG,
+    )
+    table_material: VisualMaterialCfg = VisualMaterialCfg(
+        prim_path="{ENV_REGEX_NS}/Table/geometry/material", spawn=None
     )
 
     # ground plane
@@ -322,23 +324,9 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        # the invisible table is drawn by these markers, tinted green once the goal is reached
-        success_vis_asset_name="table",
-        success_visualizer_cfg=VisualizationMarkersCfg(
-            prim_path="/Visuals/SuccessMarkers",
-            markers={
-                "failure": replace(
-                    TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
-                    visible=True,
-                ),
-                "success": replace(
-                    TABLE_SPAWN_CFG,
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
-                    visible=True,
-                ),
-            },
-        ),
+        # the table turns green once the goal is reached
+        success_vis_material_name="table_material",
+        success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
 
 

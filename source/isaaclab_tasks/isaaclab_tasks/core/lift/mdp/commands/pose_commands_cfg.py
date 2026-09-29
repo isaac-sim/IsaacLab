@@ -94,14 +94,30 @@ class ObjectUniformPoseCommandCfg(CommandTermCfg):
     )
     """The configuration for the current pose visualization marker. Defaults to FRAME_MARKER_CFG."""
 
-    success_vis_asset_name: str = MISSING
-    """Name of the asset in the environment for which the success color are indicated."""
+    success_vis_asset_name: str | None = None
+    """Name of the asset at whose position the :attr:`success_visualizer_cfg` markers are drawn.
+
+    Defaults to None, in which case no success markers are drawn.
+    """
 
     # success markers
     success_visualizer_cfg: VisualizationMarkersCfg = VisualizationMarkersCfg(
         prim_path="/Visuals/SuccessMarkers", markers={}
     )
     """The configuration for the success visualization marker. User needs to add the markers"""
+
+    success_vis_material_name: str | None = None
+    """Name of the per-environment :class:`~isaaclab.assets.VisualMaterial` whose color indicates success.
+
+    Unlike the success markers, a material bound to scene geometry is drawn by every camera renderer.
+    Defaults to None, in which case no material is tinted.
+    """
+
+    success_vis_colors: tuple[tuple[float, float, float], tuple[float, float, float]] = (
+        (0.25, 0.15, 0.15),
+        (0.15, 0.25, 0.15),
+    )
+    """RGB colors in [0, 1] written to :attr:`success_vis_material_name`, as ``(failure, success)``."""
 
 
 @configclass
