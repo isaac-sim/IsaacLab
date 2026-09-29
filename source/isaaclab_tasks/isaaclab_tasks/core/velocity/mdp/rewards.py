@@ -80,12 +80,26 @@ def feet_air_time_variance(
 
     Durations are clipped at ``max_time`` so a single long stand does not dominate. The penalty is
     zero for near-zero commands, matching the gate on the air-time term it balances.
+
+    Raises:
+        RuntimeError: If ``sensor_cfg`` resolves to fewer than two bodies. A variance across feet is
+            undefined for a single foot: :func:`torch.var` returns ``nan`` there, and the zero-command
+            gate below multiplies rather than masks, so the ``nan`` would spread through the total
+            reward and into the loss instead of failing loudly.
     """
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
     # compute the penalty
     last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
     last_contact_time = contact_sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids]
+    # ``body_ids`` may be a slice, so count the bodies the selection actually resolved to
+    num_feet = last_air_time.shape[1]
+    if num_feet < 2:
+        raise RuntimeError(
+            f"'feet_air_time_variance' needs at least two bodies to take a variance across feet, but"
+            f" '{sensor_cfg.name}' resolved to {num_feet}. Widen 'body_names' on its 'sensor_cfg' to"
+            " cover every foot."
+        )
     penalty = torch.var(torch.clip(last_air_time, max=max_time), dim=1) + torch.var(
         torch.clip(last_contact_time, max=max_time), dim=1
     )
