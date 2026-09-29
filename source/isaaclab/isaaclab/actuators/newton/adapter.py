@@ -93,6 +93,12 @@ class NewtonActuatorAdapter:
         for act in actuators:
             all_indices = act.indices.numpy()
             num_per_act = len(all_indices) // num_envs
+            # Controllers whose law couples the DOFs of one environment (a shared power
+            # supply, for instance) cannot infer that grouping from their flat parameter
+            # arrays; this is the first object that knows the environment count.
+            declare_stride = getattr(act.controller, "set_env_dof_stride", None)
+            if declare_stride is not None:
+                declare_stride(num_per_act)
             for global_dof in all_indices[:num_per_act]:
                 local_dof = global_dof - dof_offset
                 if 0 <= local_dof < num_joints:
