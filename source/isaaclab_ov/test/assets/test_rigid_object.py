@@ -34,6 +34,7 @@ import isaaclab.sim as sim_utils  # noqa: E402
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context  # noqa: E402
 from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
+from isaaclab.utils.math import quat_apply_inverse, quat_mul  # noqa: E402
 
 pytestmark = pytest.mark.integration
 
@@ -114,6 +115,7 @@ class _RigidScene:
     dynamic: RigidObject
     kinematic: RigidObject
     resettable: RigidObject
+    spinning: RigidObject
 
 
 @pytest.fixture(scope="module")
@@ -124,8 +126,11 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_RigidScene]:
         dynamic = _spawn_cubes("Dynamic", y_offset=0.0, disable_gravity=True)
         kinematic = _spawn_cubes("Kinematic", y_offset=2.0, kinematic_enabled=True)
         resettable = _spawn_cubes("Resettable", y_offset=4.0, disable_gravity=True)
+        spinning = _spawn_cubes("Spinning", y_offset=6.0, disable_gravity=True)
         sim.reset()
-        yield _RigidScene(sim=sim, device=device, dynamic=dynamic, kinematic=kinematic, resettable=resettable)
+        yield _RigidScene(
+            sim=sim, device=device, dynamic=dynamic, kinematic=kinematic, resettable=resettable, spinning=spinning
+        )
 
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
@@ -193,7 +198,8 @@ def test_initialization_with_kinematic_enabled(scene: _RigidScene) -> None:
 
     # SDP bindings must be ready on CPU and GPU before any asset pose read.
     provider = sim.get_scene_data_provider()
-    expected_paths = {f"/World/{name}/Env_{i}/Cube" for name in ("Dynamic", "Kinematic", "Resettable") for i in (0, 1)}
+    names = ("Dynamic", "Kinematic", "Resettable", "Spinning")
+    expected_paths = {f"/World/{name}/Env_{i}/Cube" for name in names for i in (0, 1)}
     assert provider.transform_count == len(expected_paths)
     assert set(provider.backend.transform_paths) == expected_paths
 
@@ -235,3 +241,77 @@ def test_reset_clears_active_wrench_composers(scene: _RigidScene) -> None:
     assert torch.count_nonzero(cube_object._instantaneous_wrench_composer.composed_torque.torch) == 0
     assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_force.torch) == 0
     assert torch.count_nonzero(cube_object._permanent_wrench_composer.composed_torque.torch) == 0
+
+
+@pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
+def test_body_root_state_properties(scene: _RigidScene) -> None:
+    """Test the root and body link and COM states of cubes spinning about an offset center of mass."""
+    cube_object, sim, device = scene.spinning, scene.sim, scene.device
+    env_pos = cube_object.data.root_link_pos_w.torch.clone()
+
+    # change center of mass offset from link frame
+    offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(_NUM_CUBES, 1)
+    com = cube_object.data.body_com_pose_b.torch.clone()  # shape (N, 1, 7)
+    com[..., :3] = offset.unsqueeze(1)
+    cube_object.set_coms_index(coms=wp.from_torch(com.contiguous(), dtype=wp.transformf))
+    torch.testing.assert_close(cube_object.data.body_com_pose_b.torch, com)
+
+    # z spin velocity
+    spin_twist = torch.zeros(6, device=device)
+    spin_twist[5] = 2.0
+
+    for _ in range(10):
+        # spin the object around Z axis (com)
+        cube_object.write_root_velocity_to_sim_index(root_velocity=spin_twist.repeat(_NUM_CUBES, 1))
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        # get state properties
+        root_link_pose_w = cube_object.data.root_link_pose_w.torch
+        root_link_vel_w = cube_object.data.root_link_vel_w.torch
+        root_com_pose_w = cube_object.data.root_com_pose_w.torch
+        root_com_vel_w = cube_object.data.root_com_vel_w.torch
+        body_link_pose_w = cube_object.data.body_link_pose_w.torch
+        body_link_vel_w = cube_object.data.body_link_vel_w.torch
+        body_com_pose_w = cube_object.data.body_com_pose_w.torch
+        body_com_vel_w = cube_object.data.body_com_vel_w.torch
+
+        # cubes are spinning around center of mass
+        # position will not match
+        # center of mass position will be constant (i.e. spinning around com)
+        torch.testing.assert_close(env_pos + offset, root_com_pose_w[..., :3])
+        torch.testing.assert_close(env_pos + offset, body_com_pose_w[..., :3].squeeze(-2))
+        # link position will be moving but should stay constant away from center of mass
+        root_link_state_pos_rel_com = quat_apply_inverse(
+            root_link_pose_w[..., 3:],
+            root_link_pose_w[..., :3] - root_com_pose_w[..., :3],
+        )
+        torch.testing.assert_close(-offset, root_link_state_pos_rel_com)
+        body_link_state_pos_rel_com = quat_apply_inverse(
+            body_link_pose_w[..., 3:],
+            body_link_pose_w[..., :3] - body_com_pose_w[..., :3],
+        )
+        torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
+
+        # orientation of com will be a constant rotation from link orientation
+        com_quat_b = cube_object.data.body_com_quat_b.torch
+        com_quat_w = quat_mul(body_link_pose_w[..., 3:], com_quat_b)
+        torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
+        torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_pose_w[..., 3:])
+
+        # lin_vel will not match
+        # center of mass vel will be constant (i.e. spinning around com)
+        torch.testing.assert_close(torch.zeros_like(root_com_vel_w[..., :3]), root_com_vel_w[..., :3])
+        torch.testing.assert_close(torch.zeros_like(body_com_vel_w[..., :3]), body_com_vel_w[..., :3])
+        # link frame will be moving, and should account for the reported COM velocity and offset
+        lin_vel_rel_root_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_link_vel_w[..., :3])
+        lin_vel_rel_body_gt = quat_apply_inverse(body_link_pose_w[..., 3:], body_link_vel_w[..., :3])
+        com_lin_vel_rel_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_com_vel_w[..., :3])
+        com_ang_vel_rel_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_com_vel_w[..., 3:])
+        lin_vel_rel_gt = com_lin_vel_rel_gt + torch.linalg.cross(com_ang_vel_rel_gt, -offset)
+        torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
+        torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
+
+        # ang_vel will always match
+        torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
+        torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
