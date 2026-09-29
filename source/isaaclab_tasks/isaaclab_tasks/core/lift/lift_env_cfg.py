@@ -57,7 +57,7 @@ OBJECT_PHYSICS = {
 
 @configclass
 class ObjectCfg(PresetCfg):
-    """Graspable object presets: a set of primitive shapes, or a single cube for OvPhysX."""
+    """Graspable objects: heterogeneous shapes by default, or an explicit single-cube preset."""
 
     shapes = sim_utils.MultiAssetSpawnerCfg(
         assets_cfg=[
@@ -97,7 +97,6 @@ class ObjectCfg(PresetCfg):
         mass_props=sim_utils.MassCfg(mass=0.2),
     )
     default = shapes
-    ovphysx = cube
 
 
 ##

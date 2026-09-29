@@ -40,7 +40,7 @@ from isaaclab_ov import tensor_types as TT
 from isaaclab_ov.assets import kernels as shared_kernels
 from isaaclab_ov.physics import OvPhysxManager
 from isaaclab_ov.physics.ovphysx_compat import OVPHYSX_VERSION, requires_legacy_joint_sign_correction
-from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
+from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView, _expand_env_pattern
 
 from .actuator_control import OvPhysxActuatorControl
 from .articulation_data import ArticulationData
@@ -3952,7 +3952,8 @@ class Articulation(BaseArticulation):
             TT.BODY_COM_POSE,
             TT.BODY_INERTIA,
         ]
-        self._root_view = OvPhysxView(self._ovphysx, pattern=pattern, device=self._device)
+        paths = _expand_env_pattern(pattern, PhysicsManager._sim.get_clone_plan())
+        self._root_view = OvPhysxView(self._ovphysx, prim_paths=paths, device=self._device)
         # ``try_binding_for`` creates and caches each binding, returning ``None`` for tensor
         # types that do not apply to these prims (so a minimal articulation that lacks some
         # of these types is skipped rather than failing the whole init).
