@@ -14,6 +14,10 @@ import pytest
 import tomllib
 
 CHANGELOG = "Changelog\n---------\n\n.. towncrier release notes start\n"
+SOURCES = (
+    '[tool.uv.sources]\nother = { path = "source/other", editable = true }\n'
+    'pkg = { path = "source/pkg", editable = true }\n'
+)
 
 
 def lock(pkg="1.0.0", other="1.0.0", header="version = 1\n"):
@@ -56,7 +60,7 @@ def repo(tmp_path, monkeypatch):
                 f"source/{pkg}/code.py": "",
             },
         )
-    write(tmp_path, {"uv.lock": lock()})
+    write(tmp_path, {"uv.lock": lock(), "pyproject.toml": SOURCES})
     git(tmp_path, "init", "-q", "-b", "develop")
     commit(tmp_path, "base")
     git(tmp_path, "update-ref", "refs/remotes/origin/develop", "HEAD")
@@ -114,6 +118,19 @@ def test_check_requires_a_valid_fragment_for_a_changed_package(repo, files, stat
     assert check() == status
 
 
+@pytest.mark.parametrize("edit", [True, False])
+def test_check_rejects_editing_or_deleting_a_pending_fragment(repo, edit):
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n"})
+    commit(repo, "pending fragment")
+    git(repo, "update-ref", "refs/remotes/origin/develop", "HEAD")
+    if edit:
+        write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x differently.\n"})
+    else:
+        (repo / FRAGMENTS / "a.fixed.rst").unlink()
+    git(repo, "add", "-A")
+    assert check(include_worktree=True) == 1
+
+
 def test_check_ignores_changes_outside_packages(repo):
     write(repo, {"tools/script.py": "x = 1\n"})
     git(repo, "add", "-A")
@@ -124,7 +141,9 @@ def test_check_ignores_changes_outside_packages(repo):
     "files",
     [
         {"source/other/docs/CHANGELOG.rst": "Changelog\n---------\n"},  # marker removed
+        {"source/other/docs/CHANGELOG.rst": CHANGELOG.replace("start\n", "start here\n")},  # marker line altered
         {"source/other/pyproject.toml": '[project]\nname = "other"\nversion = "1.0.1"\n'},  # lock pin stale
+        {"pyproject.toml": SOURCES + 'new = { path = "source/new", editable = true }\n'},  # package not locked
     ],
 )
 def test_check_requires_the_marker_and_current_lock_pins(repo, files):
@@ -161,7 +180,7 @@ def test_compile_drops_stale_markers_without_entries(repo, monkeypatch):
     assert [p.name for p in (repo / FRAGMENTS).iterdir()] == [".gitkeep"]
 
 
-def fake_tools(repo, monkeypatch, relocked, stray=False):
+def fake_tools(repo, monkeypatch, relocked, stray=False, lock_fails=False):
     """Replace uv and towncrier with file edits that mimic them; git still runs for real."""
     run = cli.run
 
@@ -177,6 +196,8 @@ def fake_tools(repo, monkeypatch, relocked, stray=False):
             return ""
         if cmd[:2] == ("uv", "lock"):
             write(repo, {"uv.lock": relocked})
+            if lock_fails:
+                raise subprocess.CalledProcessError(1, cmd, stderr="resolution failed")
             return ""
         return run(*cmd, env=env)
 
@@ -205,10 +226,15 @@ def test_compile_refuses_a_dirty_checkout(repo, monkeypatch):
     assert (repo / "notes.txt").read_text() == "local work"
 
 
-def test_compile_holds_every_bump_when_the_relock_is_refused(repo, monkeypatch):
-    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n"})
-    commit(repo, "fragment")
-    fake_tools(repo, monkeypatch, relocked=lock(header="version = 1\nrevision = 3\n"))
+@pytest.mark.parametrize(
+    ("relocked", "lock_fails"),
+    [(lock(header="version = 1\nrevision = 3\n"), False), (lock(pkg="1.0.1"), True)],
+    ids=["refused", "uv-lock-failed"],
+)
+def test_compile_aborts_when_the_relock_fails(repo, monkeypatch, relocked, lock_fails):
+    write(repo, {FRAGMENTS + "a.fixed.rst": "* Fixed x.\n", "source/other/changelog.d/b.skip": ""})
+    commit(repo, "fragments")
+    fake_tools(repo, monkeypatch, relocked, lock_fails=lock_fails)
     assert cli.cmd_compile(argparse.Namespace()) == 1
     assert git(repo, "status", "--porcelain") == ""
 
@@ -221,10 +247,10 @@ def test_sync_lock_accepts_only_version_lines(repo, monkeypatch, relocked, accep
     fake_tools(repo, monkeypatch, relocked)
     if accepted:
         cli.sync_lock()
+        assert (repo / "uv.lock").read_text() == relocked
     else:
         with pytest.raises(RuntimeError):
             cli.sync_lock()
-    assert (repo / "uv.lock").read_text() == (relocked if accepted else lock())
 
 
 def test_sync_lock_rejects_a_version_change_outside_local_packages(repo, monkeypatch):
@@ -234,7 +260,6 @@ def test_sync_lock_rejects_a_version_change_outside_local_packages(repo, monkeyp
     fake_tools(repo, monkeypatch, relocked=lock() + root.format("0.2.0"))  # only a `version =` line moves
     with pytest.raises(RuntimeError):
         cli.sync_lock()
-    assert (repo / "uv.lock").read_text() == lock() + root.format("0.1.0")
 
 
 @pytest.mark.skipif(not (shutil.which("uv") and shutil.which("uvx")), reason="needs uv and uvx")

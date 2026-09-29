@@ -88,7 +88,10 @@ def check_changed_packages(changed: set[str], added: set[str]) -> list[str]:
     for pkg in packages():
         rel = pkg.relative_to(REPO_ROOT).as_posix()
         fragment_dir = f"{rel}/changelog.d/"
-        fragments = sorted(f for f in added if f.startswith(fragment_dir) and not f.endswith("/.gitkeep"))
+        touched = {f for f in changed if f.startswith(fragment_dir) and not f.endswith("/.gitkeep")}
+        # Pending fragments are immutable: an edit could rewrite another PR's entry.
+        errors += [f"{f}: changes a pending fragment; add a new one instead" for f in sorted(touched - added)]
+        fragments = sorted(touched & added)
         for fragment in fragments:
             errors += check_fragment(REPO_ROOT / fragment)
         entries = [f for f in fragments if not f.endswith((".minor", ".major"))]
@@ -104,26 +107,36 @@ def check_markers() -> list[str]:
     return [
         f"{pkg.relative_to(REPO_ROOT)}/docs/CHANGELOG.rst: missing the {RELEASE_NOTES_MARKER!r} line"
         for pkg in packages()
-        if RELEASE_NOTES_MARKER not in (pkg / "docs/CHANGELOG.rst").read_text(encoding="utf-8")
+        # towncrier matches the whole line; otherwise it writes the release above the file header.
+        if f"{RELEASE_NOTES_MARKER}\n" not in (pkg / "docs/CHANGELOG.rst").read_text(encoding="utf-8")
     ]
 
 
 def check_lock_pins() -> list[str]:
-    """Return an error for each local package whose ``uv.lock`` version differs from its ``pyproject.toml``.
+    """Return an error for each local package missing from ``uv.lock`` or pinned there at a stale version.
 
-    Catches a PR that edits a version or takes its side of a ``uv.lock`` conflict, which would make the next
-    ``uv run`` rewrite ``uv.lock``. Only these pins are compared; the rest of ``uv.lock`` is not resolved.
+    Catches a PR that adds a package, edits a version or takes its side of a ``uv.lock`` conflict without
+    re-locking, which would make the next ``uv run`` rewrite ``uv.lock``. Only local packages are compared;
+    the rest of ``uv.lock`` is not resolved.
     """
-    errors = []
-    for package in tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))["package"]:
-        path = package.get("source", {}).get("editable")
-        if path:
-            project = tomllib.loads((REPO_ROOT / path / "pyproject.toml").read_text(encoding="utf-8"))["project"]
-            if project.get("version") != package["version"]:
-                errors.append(
-                    f"uv.lock pins {package['name']} {package['version']}, but {path}/pyproject.toml is"
-                    f" {project.get('version')}; run `uv lock`"
-                )
+    lock = tomllib.loads((REPO_ROOT / "uv.lock").read_text(encoding="utf-8"))
+    locked = {
+        package["source"]["editable"]: package for package in lock["package"] if "editable" in package.get("source", {})
+    }
+    root = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    sources = root.get("tool", {}).get("uv", {}).get("sources", {}).values()
+    errors = [
+        f"uv.lock has no entry for {source['path']}; run `uv lock`"
+        for source in sources
+        if isinstance(source, dict) and source.get("editable") and source["path"] not in locked
+    ]
+    for path, package in locked.items():
+        project = tomllib.loads((REPO_ROOT / path / "pyproject.toml").read_text(encoding="utf-8"))["project"]
+        if project.get("version") != package["version"]:
+            errors.append(
+                f"uv.lock pins {package['name']} {package['version']}, but {path}/pyproject.toml is"
+                f" {project.get('version')}; run `uv lock`"
+            )
     return errors
 
 
@@ -196,7 +209,7 @@ def without_local_versions(lock_text: str) -> dict:
 
 
 def sync_lock() -> None:
-    """Re-lock ``uv.lock`` for the bumped versions; restore it and raise on any other change."""
+    """Re-lock ``uv.lock`` for the bumped versions; raise if anything else changed."""
     before = (REPO_ROOT / "uv.lock").read_text(encoding="utf-8")
     # Under UV_FROZEN, which developer shells may export, `uv lock` only validates and keeps the old pins.
     run("uv", "lock", env={k: v for k, v in os.environ.items() if k != "UV_FROZEN"})
@@ -208,21 +221,20 @@ def sync_lock() -> None:
     if any(not line[1:].startswith("version = ") for line in moved) or (
         without_local_versions(before) != without_local_versions(after)
     ):
-        run("git", "checkout", "--", "uv.lock")
-        raise RuntimeError("uv lock changed more than package versions; uv.lock left unchanged")
+        raise RuntimeError("uv lock changed more than package versions")
 
 
 def cmd_compile(args: argparse.Namespace) -> int:
     """Nightly: bump and build every package with pending entries, re-lock ``uv.lock`` and stage the outputs.
 
-    Returns 1 if anything failed; whatever succeeded stays staged.
+    Returns 1 if anything failed. A failed package is rolled back while the others stay staged; a failed
+    re-lock rolls everything back and stages nothing.
     """
-    # Rolling back a failed package restores HEAD, so start clean to never discard local work.
+    # Rolling back restores HEAD, so start clean to never discard local work.
     if run("git", "status", "--porcelain"):
         print("::error::compile needs a clean checkout; commit or stash local changes first", file=sys.stderr)
         return 1
     failed = False
-    bumped = []
     for pkg in packages():
         try:
             version = compile_package(pkg)
@@ -233,16 +245,16 @@ def cmd_compile(args: argparse.Namespace) -> int:
             failed = True
         else:
             if version:
-                bumped.append(pkg)
                 print(f"{pkg.name} -> {version}")
     try:
         sync_lock()
     except (subprocess.CalledProcessError, RuntimeError) as e:
-        # Versions must not move without their lock pins, so hold every bump until the lock is fixed.
-        for pkg in bumped:
+        # Versions must not move without their lock pins: abort, leaving the checkout at HEAD.
+        run("git", "checkout", "HEAD", "--", "uv.lock")
+        for pkg in packages():
             restore(pkg)
         print(f"::error::uv.lock: {getattr(e, 'stderr', None) or e}", file=sys.stderr)
-        failed = True
+        return 1
     # Stage exactly the compile outputs; anything else changed in the checkout is reported, not committed.
     run("git", "add", "-A", "--", "uv.lock", *(path for pkg in packages() for path in outputs(pkg) if path.exists()))
     unexpected = run("git", "ls-files", "--modified", "--others", "--exclude-standard").splitlines()
