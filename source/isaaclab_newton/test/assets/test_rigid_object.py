@@ -20,6 +20,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 from types import SimpleNamespace
@@ -133,15 +134,22 @@ class _Scene:
     cube: RigidObject
     origins: torch.Tensor
     device: str
+    masses: torch.Tensor
+    """Configured body masses [kg], restored before each test."""
+    coms: torch.Tensor
+    """Configured center-of-mass positions in the body frames [m], restored before each test."""
+    inertias: torch.Tensor
+    """Configured body inertias [kg·m^2], restored before each test."""
 
     def step(self, num_steps: int = 1) -> None:
+        """Step ``num_steps`` times, writing the cube commands before and updating the cubes after each step."""
         for _ in range(num_steps):
             self.cube.write_data_to_sim()
             self.sim.step()
             self.cube.update(self.sim.cfg.dt)
 
     def rest(self) -> None:
-        """Put the cubes at rest at their configured pose with the configured inertial properties."""
+        """Put the cubes at rest at their configured pose."""
         root_pose = self.cube.data.default_root_pose.torch.clone()
         root_pose[:, :3] += self.origins
         self.cube.write_root_pose_to_sim_index(root_pose=root_pose)
@@ -152,30 +160,31 @@ class _Scene:
 
 
 @pytest.fixture(scope="module", params=test_devices())
-def shared_scene(request) -> _Scene:
+def shared_scene(request: pytest.FixtureRequest) -> Iterator[_Scene]:
     """Initialize the cubes once per device for this module."""
     device = request.param
     with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
         cube = spawn_assets({"cube": _cube_cfg()})["cube"]
         sim.reset()
-        scene = _Scene(sim=sim, cube=cube, origins=env_origins(device), device=device)
-        initial_properties = (
-            cube.data.body_mass.torch.clone(),
-            cube.data.body_com_pos_b.torch.clone(),
-            cube.data.body_inertia.torch.clone(),
+        yield _Scene(
+            sim=sim,
+            cube=cube,
+            origins=env_origins(device),
+            device=device,
+            masses=cube.data.body_mass.torch.clone(),
+            coms=cube.data.body_com_pos_b.torch.clone(),
+            inertias=cube.data.body_inertia.torch.clone(),
         )
-        yield scene, initial_properties
 
 
 @pytest.fixture
-def scene(shared_scene) -> _Scene:
+def scene(shared_scene: _Scene) -> _Scene:
     """Hand each test the shared scene at rest with the configured inertial properties."""
-    scene, (masses, coms, inertias) = shared_scene
-    scene.cube.set_masses_index(masses=masses)
-    scene.cube.set_coms_index(coms=coms)
-    scene.cube.set_inertias_index(inertias=inertias)
-    scene.rest()
-    return scene
+    shared_scene.cube.set_masses_index(masses=shared_scene.masses)
+    shared_scene.cube.set_coms_index(coms=shared_scene.coms)
+    shared_scene.cube.set_inertias_index(inertias=shared_scene.inertias)
+    shared_scene.rest()
+    return shared_scene
 
 
 def test_external_force_on_single_body(scene: _Scene) -> None:
@@ -580,9 +589,8 @@ def test_write_root_state(scene: _Scene) -> None:
 
             # Snapshot the body-frame caches *before* reading the root-frame caches: touching a
             # root cache lazily recomputes the shared buffer and would mask a stale body cache.
-            # The body-frame caches must already reflect the write on their own (regressions:
-            # body_com_pose_w returned the pre-write buffer after a link-frame pose write, and
-            # body_link_vel_w after a center-of-mass velocity write).
+            # The body-frame caches must reflect the write on their own, including ``body_com_pose_w``
+            # after a link-frame pose write and ``body_link_vel_w`` after a center-of-mass velocity write.
             body_link_pose_w = cube_object.data.body_link_pose_w.torch.squeeze(1).clone()
             body_com_pose_w = cube_object.data.body_com_pose_w.torch.squeeze(1).clone()
             body_link_vel_w = cube_object.data.body_link_vel_w.torch.squeeze(1).clone()
