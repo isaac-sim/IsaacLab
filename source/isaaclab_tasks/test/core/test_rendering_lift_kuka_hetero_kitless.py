@@ -18,8 +18,7 @@ from rendering_test_utils import (
     rendering_test_lift_kuka,
 )
 
-# The OVPhysX preset selects the homogeneous cube because heterogeneous multi-asset scenes are unsupported;
-# OVPhysX Kuka goldens live in test_rendering_lift_kuka_homo_kitless.py.
+# OVPhysX heterogeneous rendering goldens are not available yet.
 _RENDERING_PARAMS = group_rendering_params(
     [param for param in make_kitless_rendering_params_lift() if param.values[1] != "ovphysx"]
 )
@@ -36,6 +35,4 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 )
 def test_rendering_lift_kuka_hetero_kitless(ovstage_variant, physics_backend, renderer, data_types):
     """Camera output must match golden images (Lift KukaAllegro Lift, single camera)."""
-    if physics_backend == "ovphysx":
-        pytest.skip("OvPhysX heterogeneous rendering goldens are not available yet.")
     rendering_test_lift_kuka(physics_backend, renderer, data_types, False, _COMPARISON_SCORES)

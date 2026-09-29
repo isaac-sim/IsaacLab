@@ -83,7 +83,7 @@ def _fake_ovphysx_module(bootstrap):
     return module
 
 
-def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch, manager_module):
+def test_runtime_clone_replay_preserves_targets_and_ids(manager_module):
     import isaaclab_ov.cloner.replicate as cloner_module
 
     manager = manager_module.OvPhysxManager
@@ -96,23 +96,17 @@ def test_runtime_clone_replay_batches_targets_without_changing_order(monkeypatch
     ]
     clone_calls = []
     waits = []
-    physx = SimpleNamespace(wait_op=waits.append)
 
-    def record_clone(physx_arg, source, target_paths, target_transforms, target_env_ids):
-        assert physx_arg is physx
-        clone_calls.append((source, target_paths, target_transforms, target_env_ids))
+    def record_clone(source, target_paths, target_transforms, env_ids):
+        clone_calls.append((source, target_paths, target_transforms, env_ids))
         return len(clone_calls)
 
-    monkeypatch.setattr(cloner_module, "clone_physics", record_clone)
-
+    physx = SimpleNamespace(wait_op=waits.append, clone=record_clone)
     cloner_module._replay_clones(physx, manager._clone_recipes)
 
-    assert [len(call[1]) for call in clone_calls] == [512, 1, 1]
-    assert [path for call in clone_calls[:2] for path in call[1]] == targets
-    assert [pose for call in clone_calls[:2] for pose in call[2]] == transforms
-    assert [env_id for call in clone_calls[:2] for env_id in call[3]] == env_ids
+    assert clone_calls[0] == ("/World/envs/env_0/Robot", targets, transforms, env_ids)
     assert clone_calls[-1] == ("/World/envs/env_0/table", ["/World/envs/env_1/table"], None, [1])
-    assert waits == [1, 2, 3]
+    assert waits == [1, 2]
     assert len(manager._clone_recipes) == 2
 
 

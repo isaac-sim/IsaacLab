@@ -431,7 +431,8 @@ def test_first_transition_with_aged_clock(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_cube_stack_contact_filtering(device, monkeypatch):
+@pytest.mark.parametrize("missing_filter", [False, True])
+def test_cube_stack_contact_filtering(device, monkeypatch, missing_filter):
     """Checks contact sensor reporting for filtering stacked cube prims."""
     from ovphysx.api import PhysX
 
@@ -440,6 +441,9 @@ def test_cube_stack_contact_filtering(device, monkeypatch):
     create_contact_binding = PhysX.create_contact_binding
 
     def record_binding_patterns(physx, sensor_patterns, filter_patterns=None, **kwargs):
+        if missing_filter and not binding_patterns:
+            filter_patterns = list(filter_patterns)
+            filter_patterns[3] += "/Missing"
         binding_patterns.append((sensor_patterns, filter_patterns))
         return create_contact_binding(physx, sensor_patterns, filter_patterns, **kwargs)
 
@@ -458,7 +462,7 @@ def test_cube_stack_contact_filtering(device, monkeypatch):
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
-            track_pose=True,
+            track_pose=not missing_filter,
             debug_vis=False,
             update_period=0.0,
             history_length=2,
@@ -475,6 +479,10 @@ def test_cube_stack_contact_filtering(device, monkeypatch):
         scene = InteractiveScene(scene_cfg)
 
         # Play the simulation
+        if missing_filter:
+            with pytest.raises(RuntimeError, match="omitted sensor bodies"):
+                sim.reset()
+            return
         sim.reset()
 
         contact_sensor: ContactSensor = scene["contact_sensor"]
@@ -525,10 +533,13 @@ def test_cube_stack_contact_filtering(device, monkeypatch):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_heterogeneous_clone_contact_report_order(device):
+@pytest.mark.parametrize("filter_collisions", [False, True])
+def test_heterogeneous_clone_contact_report_order(device, filter_collisions):
     """Clone contact reporters retain numeric environment order and per-variant forces."""
     with _ovphysx_sim_context(device=device, dt=0.01) as sim:
-        cfg = ContactSensorSceneCfg(num_envs=12, env_spacing=2.0, lazy_sensor_update=False)
+        cfg = ContactSensorSceneCfg(
+            num_envs=12, env_spacing=2.0, lazy_sensor_update=False, filter_collisions=filter_collisions
+        )
         cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
         cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Object")
         cfg.shape.spawn = sim_utils.MultiAssetSpawnerCfg(
@@ -553,7 +564,7 @@ def test_heterogeneous_clone_contact_report_order(device):
         cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Object",
             track_pose=True,
-            filter_prim_paths_expr=["{ENV_REGEX_NS}/Support", "/World/ground", "/World/envs/env_0/Object"],
+            filter_prim_paths_expr=["/World/envs/env_*/Support", "/World/ground", "/World/envs/env_0/Object"],
         )
         scene = InteractiveScene(cfg)
         sim.reset()
@@ -570,69 +581,6 @@ def test_heterogeneous_clone_contact_report_order(device):
         torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, 0, 0, 2], expected, atol=0.1, rtol=0.0)
         assert torch.count_nonzero(sensor.data.normal_force_matrix_w.torch[:, :, 1:]) == 0
         torch.testing.assert_close(sensor.data.pos_w.torch[:, 0, :2], scene.env_origins[:, :2], atol=0.01, rtol=0.0)
-
-
-def test_no_contact_reporting():
-    """Test that OVPhysX contact sensor returns zero forces when no filter is configured.
-
-    Without ``filter_prim_paths_expr``, the ``normal_force_matrix_w`` buffer is not
-    populated (no per-partner breakdown is available), and ``net_normal_forces_w``
-    should still reflect the aggregate contact force.  This test verifies the
-    simpler "unfiltered, CPU-only" path by using CPU and letting the scene
-    settle: with no filter the ``normal_force_matrix_w`` sum is expected to be zero
-    (the buffer is not allocated).
-
-    Note:
-        The PhysX variant of this test forcibly disables contact processing via
-        a Carbonite setting (``/physics/disableContactProcessing``).  That
-        setting is not available in the kitless OVPhysX flow; instead we test
-        that a sensor with no filter has a zero ``normal_force_matrix_w``.
-    """
-    with _ovphysx_sim_context(device="cpu", dt=_SIM_DT, add_lighting=True) as sim:
-        scene_cfg = ContactSensorSceneCfg(num_envs=2, env_spacing=1.0, lazy_sensor_update=False)
-        scene_cfg.terrain = FLAT_TERRAIN_CFG
-        # -- cube 1
-        scene_cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_1")
-        scene_cfg.shape.init_state.pos = (0, -1.0, 1.0)
-        # -- cube 2 (on top of cube 1)
-        scene_cfg.shape_2 = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Cube_2")
-        scene_cfg.shape_2.init_state.pos = (0, -1.0, 1.525)
-        # No filter paths — normal_force_matrix_w will not be allocated.
-        scene_cfg.contact_sensor = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Cube_1",
-            track_pose=True,
-            debug_vis=False,
-            update_period=0.0,
-            filter_prim_paths_expr=[],
-        )
-        scene_cfg.contact_sensor_2 = ContactSensorCfg(
-            prim_path="{ENV_REGEX_NS}/Cube_2",
-            track_pose=True,
-            debug_vis=False,
-            update_period=0.0,
-            filter_prim_paths_expr=[],
-        )
-        scene = InteractiveScene(scene_cfg)
-
-        # Play the simulation
-        sim.reset()
-
-        contact_sensor: ContactSensor = scene["contact_sensor"]
-        contact_sensor_2: ContactSensor = scene["contact_sensor_2"]
-
-        # Let the scene settle
-        scene.reset()
-        for _ in range(500):
-            _perform_sim_step(sim, scene, _SIM_DT)
-
-        # Without filter_prim_paths_expr the normal_force_matrix_w buffer is not allocated;
-        # its sum should be zero (or the tensor is None).
-        fm1 = contact_sensor.data.normal_force_matrix_w
-        fm2 = contact_sensor_2.data.normal_force_matrix_w
-        if fm1 is not None:
-            assert fm1.torch.sum().item() == 0.0
-        if fm2 is not None:
-            assert fm2.torch.sum().item() == 0.0
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])

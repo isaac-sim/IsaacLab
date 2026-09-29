@@ -44,7 +44,7 @@ from isaaclab_ov.cloner.replicate import _replay_clones, _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
 from isaaclab_ov.stage import create_ovstage
 
-from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS, OVPHYSX_VERSION, supports_clone_env_ids
+from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
 
 if TYPE_CHECKING:
@@ -291,8 +291,7 @@ class OvPhysxBackend:
             "/physics/updateToUsd": False,
             "/physics/updateVelocitiesToUsd": False,
             "/physics/updateParticlesToUsd": False,
-            # Retained heterogeneous sources use USD collision groups instead.
-            "/ovphysx/clone/useEnvIds": cfg.use_env_ids,
+            "/ovphysx/clone/useEnvIds": is_gpu,
         }
         if is_gpu:
             carbonite_overrides.update({"/physics/suppressReadback": True, "/physics/suppressFabricUpdate": True})
@@ -748,15 +747,6 @@ class OvPhysxManager(PhysicsManager):
         if sim is None:
             raise RuntimeError("OvPhysxManager: SimulationContext is not set.")
         plan = sim.get_clone_plan()
-        # Parsed source bodies have native ID 0. Clones in a retained source world must
-        # use USD collision groups instead, including repeated members in world 0.
-        use_env_ids = all(
-            source_env_id == 0 and (env_ids is None or 0 not in env_ids)
-            for _, _, _, env_ids, source_env_id in cls._clone_recipes
-        )
-        if not use_env_ids and not supports_clone_env_ids(OVPHYSX_VERSION):
-            raise RuntimeError("Heterogeneous OvPhysX cloning requires ovphysx>=0.6.3; use uv run --extra ovphysx.")
-
         entries = None
         if plan is not None:
             env_ids = np.arange(len(plan.topology.world_prototype_layout))
@@ -777,7 +767,8 @@ class OvPhysxManager(PhysicsManager):
                 scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        stage_usda = _serialize_stage(sim.stage, cls._clone_recipes, cls._requires_full_stage, use_env_ids)
+        full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
+        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage)
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend
@@ -785,7 +776,6 @@ class OvPhysxManager(PhysicsManager):
             OvPhysxBackendCfg(
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
-                use_env_ids=use_env_ids,
             )
         )
         cls._locked_device = ovphysx_device
@@ -801,8 +791,7 @@ class OvPhysxManager(PhysicsManager):
         cls._attach_ovstage(stage_usda)
         logger.info("OvPhysxManager: attached OVStage to ovphysx (device=%s)", ovphysx_device)
 
-        if not cls._requires_full_stage:
-            _replay_clones(cls.backend.physx, cls._clone_recipes)
+        _replay_clones(cls.backend.physx, native_clones)
 
         # Native metadata and bindings must see the newly attached bodies, including on CPU.
         cls._warmup_physx(cls.backend.physx)

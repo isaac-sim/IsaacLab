@@ -162,7 +162,9 @@ def test_heterogeneous_clone_contacts(device, filter_collisions, author_targets)
 def test_heterogeneous_clone_collision_isolation(device):
     """Collision groups isolate overlapping environments, including both retained sources."""
     with _ovphysx_sim_context(device=device, dt=1.0 / 120.0) as sim:
-        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=6, env_spacing=0.0))
+        # Without GPU environment-ID filtering, 2048 overlapping worlds exhaust broadphase pairs.
+        num_envs = 2048 if device.startswith("cuda") else 6
+        scene = InteractiveScene(HeterogeneousRigidSceneCfg(num_envs=num_envs, env_spacing=0.0))
         sim.reset()
         for _ in range(240):
             sim.step()

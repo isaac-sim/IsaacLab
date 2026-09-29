@@ -85,9 +85,8 @@ def test_manager_forced_rewarm_invalidates_bindings_before_loading(monkeypatch):
     ("device", "expected_cpu_mode", "expected_active_cuda_gpus"),
     [("cpu", True, None), ("cuda:2", False, "2")],
 )
-@pytest.mark.parametrize("use_env_ids", [True, False])
 def test_manager_supports_pinned_runtime_api(
-    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus, use_env_ids
+    monkeypatch, tmp_path, device, expected_cpu_mode, expected_active_cuda_gpus
 ):
     """The pinned OVPhysX wheel keeps its constructor, step, and reset API."""
     import isaaclab_ov.physics.ovphysx_manager as module
@@ -132,9 +131,7 @@ def test_manager_supports_pinned_runtime_api(
     runtime = SimpleNamespace(PhysX=PinnedPhysX, PhysXConfig=pinned_config, bootstrap=lambda: None)
     monkeypatch.setattr(module, "import_ovphysx", lambda: runtime)
 
-    backend = module.OvPhysxBackend(
-        OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir, use_env_ids=use_env_ids)
-    )
+    backend = module.OvPhysxBackend(OvPhysxBackendCfg(device=device, cooked_collider_cache_dir=cache_dir))
     physx = backend.physx
     OvPhysxManager.backend.physx = physx
     OvPhysxManager.backend.rigid_body_view = SimpleNamespace(destroy=lambda: physx.calls.append(("destroy_view",)))
@@ -148,7 +145,7 @@ def test_manager_supports_pinned_runtime_api(
     assert physx.constructor["active_cuda_gpus"] == expected_active_cuda_gpus
     assert physx.constructor["config"].num_threads == 8
     assert physx.constructor["config"].cooked_collider_cache_dir == cache_dir
-    assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is use_env_ids
+    assert physx.constructor["config"].carbonite_overrides["/ovphysx/clone/useEnvIds"] is not expected_cpu_mode
     updates = [("step_sync", 0.02), ("update_articulations_kinematic",)]
     assert physx.calls == updates + [("destroy_view",), ("reset_stage",), ("wait_op", 23)]
     assert OvPhysxManager.backend.rigid_body_view is None

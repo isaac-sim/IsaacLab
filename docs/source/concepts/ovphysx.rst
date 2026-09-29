@@ -75,30 +75,30 @@ tests.
 Heterogeneous cloning
 ---------------------
 
-OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Isaac Lab retains
-each active geometry source and dispatches its destinations in a separate clone
-call with matching environment IDs. Tensor bindings use numeric environment
-order so indexed resets, actions and observations address the correct variant.
-Older runtimes retain the legacy homogeneous clone call signature.
+OvPhysX 0.6.3 is required for heterogeneous runtime cloning. Tensor bindings use
+numeric environment order so indexed resets, actions and observations address
+the correct variant. Variants may differ in geometry but must preserve body,
+joint and tendon layout.
 
 The clone context compiles the plan's prototypes and world assignments once.
-The physics manager attaches one exported stage, replays those operations, and
+The physics manager attaches one exported stage, replays the native copies, and
 warms the runtime before assets and sensors bind. Hard reset reuses the same
-operations; there is no separate consumable queue. Binding paths come from the
+declarations; there is no separate consumable queue. Binding paths come from the
 plan's world layout and environment template, not from native clone order.
 
-In OvPhysX 0.6.3, authored sources all receive runtime environment ID zero;
-explicit clone IDs apply only to destinations. When sources occupy different
-environments, Isaac Lab therefore uses USD collision groups for isolation on
-both CPU and CUDA and disables the runtime environment-ID filter for that scene.
-Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
-isolate overlapping environments. Disabling it allows cross-environment contacts.
+Authored sources all receive native environment ID zero. Every world containing
+a source therefore imports all its declared assets as originals. Other worlds
+clone their assets from a complete original world of the same composition,
+using one native environment ID per destination world. This keeps a robot,
+table and object able to contact one another without destination placeholders.
+Only declared asset subtrees are copied; unrelated authored assets are retained.
 
-The serialized physics stage contains lightweight transform placeholders for
-destination bodies and colliders so their collision-group membership and poses
-remain resolvable. Their geometry and physics objects still come from runtime
-cloning. This adds stage-authoring work proportional to the destination collider
-hierarchies. The homogeneous fast path keeps its existing environment-ID filtering.
+Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
+isolate original worlds with USD collision groups. GPU copies additionally use
+native environment-ID filtering. CPU has no native environment-ID filtering
+in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
+Large overlapping original layouts can still exhaust broadphase pair capacity;
+use spatially separated environments.
 
 Deformable limitations
 ----------------------

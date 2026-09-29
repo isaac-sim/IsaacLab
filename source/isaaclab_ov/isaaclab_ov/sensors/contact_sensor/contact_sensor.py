@@ -256,6 +256,9 @@ class ContactSensor(BaseContactSensor):
         )
         # Contact discovery is lexical; keep the same body-major, numeric env order as asset views.
         paths = list(getattr(self._contact_binding, "sensor_paths", []))
+        expected_paths = {path for path in sensor_patterns if not any(char in path for char in "*?[")}
+        if missing := expected_paths.difference(paths):
+            raise RuntimeError(f"Contact binding omitted sensor bodies {sorted(missing)}; check their filter paths.")
         ordered_paths = ordered_clone_paths(paths, sensor_patterns)
         if ordered_paths != paths:
             filters_by_path = dict(zip(paths, self._contact_binding.filter_paths))
