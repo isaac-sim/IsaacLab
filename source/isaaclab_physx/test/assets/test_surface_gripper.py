@@ -116,7 +116,6 @@ def test_close_and_open_command() -> None:
         # send a single close command (the action term is edge-triggered, so commands are sent once)
         surface_gripper.set_grippers_command_index(wp.array([1.0], dtype=wp.float32, device="cpu"))
         surface_gripper.write_data_to_sim()
-        # step the simulation so the gripper reacts to the command
         for _ in range(3):
             sim.step()
             surface_gripper.update(sim.cfg.dt)
