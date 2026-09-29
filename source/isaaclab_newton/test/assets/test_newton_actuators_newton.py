@@ -30,7 +30,7 @@ import functools
 import os
 import sys
 from collections.abc import Iterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import pytest
@@ -188,8 +188,8 @@ class _Island:
     """Whether to command distinct position, velocity, and effort values by physical joint name."""
     newton_only: bool = False
     """Whether only the Newton path runs the island."""
-    tolerances: dict[str, float] = field(default_factory=dict)
-    """Overrides of the equivalence oracle tolerances."""
+    torque_atol: float = EquivalenceAssertionsMixin.torque_atol
+    """Absolute tolerance of the torque-telemetry oracles [N·m]."""
 
 
 def _islands(mlp_path: str | None = None, lstm_path: str | None = None) -> dict[str, _Island]:
@@ -200,7 +200,7 @@ def _islands(mlp_path: str | None = None, lstm_path: str | None = None) -> dict[
         "cartpole": _Island(CARTPOLE_EXPLICIT_ACTUATORS, usd="fixed_cartpole.usda"),
         "dc_motor": _Island(SATURATING_DC_MOTOR_ACTUATORS),
         "mixed": _Island(MIXED_WITH_IMPLICIT_ACTUATORS),
-        "implicit_feedforward": _Island(IMPLICIT_ONLY_ACTUATORS, feedforward=2.0, tolerances={"torque_atol": 0.5}),
+        "implicit_feedforward": _Island(IMPLICIT_ONLY_ACTUATORS, feedforward=2.0, torque_atol=0.5),
         "delayed": _Island(FIXED_DELAYED_PD_ACTUATORS, ramp_targets=True),
         "remotized": _Island(REMOTIZED_PD_ACTUATORS, ramp_targets=True),
         # The implicit hip group reads its torque telemetry from backend-order effort buffers, so the
@@ -457,9 +457,18 @@ def newton_run(device: str, lab_run: dict, decimated_runs: dict) -> Iterator[_Ru
         os.unlink(lstm_path)
 
 
-def _assert_equivalent(lab_result: dict, newton_result: dict, **tolerances: float) -> None:
-    """Run the shared trajectory and telemetry oracles on one island's Lab and Newton rollouts."""
-    oracle = type("_Oracle", (EquivalenceAssertionsMixin,), tolerances)()
+def _assert_equivalent(
+    lab_result: dict, newton_result: dict, torque_atol: float = EquivalenceAssertionsMixin.torque_atol
+) -> None:
+    """Run the shared trajectory and telemetry oracles on one island's Lab and Newton rollouts.
+
+    Args:
+        lab_result: Rollout recorded on the Isaac Lab actuator path.
+        newton_result: Rollout recorded on the Newton actuator path.
+        torque_atol: Absolute tolerance of the torque-telemetry oracles [N·m].
+    """
+    oracle = EquivalenceAssertionsMixin()
+    oracle.torque_atol = torque_atol
     oracle.lab_result = lab_result
     oracle.newton_result = newton_result
     oracle.test_joint_positions_match()
@@ -484,7 +493,9 @@ def test_newton_actuators_match_lab_actuators(lab_run: dict, newton_run: _Run, i
     a saturating DC motor, implicit hips beside explicit Newton actuators, an implicit feedforward effort added on
     top of the solver's joint drive, and command delays with and without position-based clamping.
     """
-    _assert_equivalent(lab_run["results"][island], newton_run.results[island], **_islands()[island].tolerances)
+    _assert_equivalent(
+        lab_run["results"][island], newton_run.results[island], torque_atol=_islands()[island].torque_atol
+    )
 
 
 def test_decimated_remotized_pd_matches_lab_actuators(decimated_runs: dict) -> None:
@@ -715,15 +726,22 @@ def test_randomize_actuator_gains_reaches_newton_controllers(newton_run: _Run) -
 
 
 def test_newton_state_reset_isolated_to_reset_env(newton_run: _Run) -> None:
-    """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0]."""
+    """Newton: ``num_pushes`` zeroes for env 0's DOFs only after reset of [0].
+
+    Only the reset articulation's own delayed actuators are checked. The adapter is model-wide, so the other
+    islands' actuators share its state buffers; their state is not part of this articulation's contract.
+    """
     articulation = newton_run.articulations["delayed"]
     adapter = SimulationManager._adapter
     assert adapter is not None
-    # Find the delayed actuators (only they have delay_state).
+    own_actuators = []
+    for group_name in articulation.actuators._native_group_names:
+        group_actuators = articulation.actuators[group_name]
+        own_actuators.extend(group_actuators if isinstance(group_actuators, tuple) else (group_actuators,))
     stateful_pairs = [
         (act, st)
         for act, st in zip(adapter.actuators, adapter._states_a)
-        if st is not None and st.delay_state is not None
+        if any(act is own for own in own_actuators) and st is not None and st.delay_state is not None
     ]
     assert len(stateful_pairs) > 0, "expected at least one DelayedPD actuator with delay_state"
 
