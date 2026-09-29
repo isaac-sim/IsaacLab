@@ -15,8 +15,12 @@ backend state. The islands of one environment share a solver world, so every tes
 rest and restores the properties it changes. Scene gravity is off; a test that needs gravity applies it to every
 world for its own duration.
 
-Configurations that fail initialization and the rebind scenario, which swaps the live Newton state, build
-their own small scenes.
+Configurations that fail initialization, the rebind scenario, which swaps the live Newton state, and the
+CUDA-graph check build their own small scenes. Only one simulation context can be alive, so these tests come
+first and fail if selected after a composite-scene test.
+
+The composite scene runs on the CPU without CUDA-graph capture. On CUDA, one own-scene test covers the
+ordered-state republish recorded into a captured graph.
 """
 
 from isaaclab_newton.physics import NewtonCfg
@@ -51,6 +55,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.actuators import ActuatorBaseCfg, IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.assets.articulation.ordering_resolvers import get_articulation_name_ordering
+from isaaclab.envs.mdp import randomize_physics_scene_gravity
 from isaaclab.envs.mdp.events import randomize_rigid_body_collider_offsets, randomize_rigid_body_material
 from isaaclab.managers import EventTermCfg, SceneEntityCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
@@ -595,6 +600,50 @@ def _prime_ordered_state_rebind(articulation: Articulation, dt: float) -> Callab
         np.testing.assert_array_equal(data.joint_pos_limits.warp.numpy(), expected_limits)
 
     return check_rebind
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_newton_ordered_state_publishes_inside_captured_cuda_graph(device: str) -> None:
+    """Republish the user-order state shadows from inside a captured CUDA graph.
+
+    With CUDA-graph capture a step replays the recorded launches, so the post-step reorder of the Tier-1 shadows
+    must be recorded into the graph rather than run from Python. The shadows are clobbered after the graph exists
+    and must equal the reordered backend state after one replayed step, without a state property read in between.
+    """
+    articulation_cfg = ArticulationCfg(
+        prim_path="/World/Env_[^/]*/Robot",
+        spawn=local_usd("floating_two_leg.usda"),
+        init_state=ArticulationCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
+        actuators={"legs": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=40.0, damping=5.0)},
+        joint_ordering=_LEG_PUBLIC_JOINT_NAMES,
+        body_ordering=_LEG_PUBLIC_BODY_NAMES,
+    )
+    sim_cfg = newton_sim_cfg(device, use_newton_actuators=False, use_cuda_graph=True)
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        articulation = spawn_assets({"robot": articulation_cfg})["robot"]
+        sim.reset()
+        # the first step captures the graph that later steps replay
+        sim.step()
+        assert SimulationManager._graph is not None
+        data = articulation.data
+        joint_u2b = np.asarray(articulation.joint_ordering.user_to_backend_indices)
+        body_u2b = np.asarray(articulation.body_ordering.user_to_backend_indices)
+
+        # a sentinel far from the resting backend state, so a stale shadow cannot pass for a republished one
+        data._joint_pos_user.fill_(1000.0)
+        data._joint_vel_user.fill_(1000.0)
+        data._body_link_pose_w_user.fill_(wp.transformf(1000.0, 1000.0, 1000.0, 0.0, 0.0, 0.0, 1.0))
+        data._body_com_vel_w_user.fill_(wp.spatial_vectorf(1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0))
+        sim.step()
+
+        np.testing.assert_allclose(data._joint_pos_user.numpy(), data._sim_bind_joint_pos.numpy()[:, joint_u2b])
+        np.testing.assert_allclose(data._joint_vel_user.numpy(), data._sim_bind_joint_vel.numpy()[:, joint_u2b])
+        np.testing.assert_allclose(
+            data._body_link_pose_w_user.numpy(), data._sim_bind_body_link_pose_w.numpy()[:, body_u2b]
+        )
+        np.testing.assert_allclose(
+            data._body_com_vel_w_user.numpy(), data._sim_bind_body_com_vel_w.numpy()[:, body_u2b]
+        )
 
 
 ##
@@ -1882,6 +1931,7 @@ def test_body_root_state(scene: _Scene) -> None:
     scene.rest(articulation)
 
 
+@pytest.mark.isaacsim_ci
 def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     """Per-env mutations to Newton's ``model.gravity`` reach ``GRAVITY_VEC_W`` and ``projected_gravity_b``.
 
@@ -1901,15 +1951,18 @@ def test_gravity_vec_w_tracks_model_gravity(scene: _Scene) -> None:
     assert articulation.data.GRAVITY_VEC_W.warp.ptr == model_gravity_arr.ptr
     assert articulation.data.GRAVITY_VEC_W.shape == (num_articulations,)
 
-    # Mutate model.gravity per-env in place, as randomize_physics_scene_gravity does.
+    # Randomize the per-env gravity through the public event term.
     new_gravity = torch.tensor(
         [[0.1 * (i + 1), 0.2 * (i + 1), -3.0 - float(i)] for i in range(num_articulations)],
         device=device,
         dtype=torch.float32,
     )
     with world_gravity((0.0, 0.0, 0.0)):
-        wp.to_torch(model_gravity_arr).copy_(new_gravity)
-        SimulationManager.add_model_change(ModelFlags.MODEL_PROPERTIES)
+        env = SimpleNamespace(sim=scene.sim, device=device, num_envs=num_articulations)
+        params = {"gravity_distribution_params": ((0.0, 0.0, 0.0), (0.0, 0.0, 0.0)), "operation": "abs"}
+        event = randomize_physics_scene_gravity(EventTermCfg(func=randomize_physics_scene_gravity, params=params), env)
+        for row, values in enumerate(new_gravity.tolist()):
+            event(env, torch.tensor([row], device=device), (values, values), operation="abs")
 
         # Live view: new per-env values are visible immediately, no invalidation step.
         torch.testing.assert_close(articulation.data.GRAVITY_VEC_W.torch, new_gravity)
