@@ -35,6 +35,8 @@ _METHODS = [
     "set_forces_and_torques_index",
     "set_forces_and_torques_mask",
 ]
+# ``(env, body)`` cell -> literal 3-vector or quaternion
+_Cells = dict[tuple[int, int], tuple[float, ...]]
 
 
 def test_wrench_composer_uses_asset_frame_conventions():
@@ -62,11 +64,13 @@ class _AssetData:
         self.set_pose(com_pos_w, link_quat_w)
 
     def set_pose(self, com_pos_w: torch.Tensor, link_quat_w: torch.Tensor) -> None:
-        self.body_com_pos_w = ProxyArray(wp.from_torch(com_pos_w.contiguous(), dtype=wp.vec3f))
-        self.body_link_quat_w = ProxyArray(wp.from_torch(link_quat_w.contiguous(), dtype=wp.quatf))
+        self.body_com_pos_w = ProxyArray(wp.from_torch(com_pos_w, dtype=wp.vec3f))
+        self.body_link_quat_w = ProxyArray(wp.from_torch(link_quat_w, dtype=wp.quatf))
 
 
-def _poses(com: dict | None = None, quat: dict | None = None, shape: tuple[int, int] = (2, 2)):
+def _poses(
+    com: _Cells | None = None, quat: _Cells | None = None, shape: tuple[int, int] = (2, 2)
+) -> tuple[torch.Tensor, torch.Tensor]:
     """Return CoM positions and link quaternions: zero and identity except for the given ``(env, body)`` cells."""
     com_pos_w = torch.zeros((*shape, 3))
     link_quat_w = torch.tensor(_IDENTITY).repeat(*shape, 1)
@@ -78,14 +82,14 @@ def _poses(com: dict | None = None, quat: dict | None = None, shape: tuple[int, 
 
 
 def _make_composer(
-    com: dict | None = None, quat: dict | None = None, *, supports_world_at_com: bool = False
+    com: _Cells | None = None, quat: _Cells | None = None, *, supports_world_at_com: bool = False
 ) -> WrenchComposer:
     """Create a two-environment, two-body CPU composer with literal body poses."""
     asset = SimpleNamespace(num_instances=2, num_bodies=2, device="cpu", data=_AssetData(*_poses(com, quat)))
     return WrenchComposer(asset, supports_world_at_com=supports_world_at_com)
 
 
-def _grid(cells: dict, shape: tuple[int, int] = (2, 2)) -> torch.Tensor:
+def _grid(cells: _Cells, shape: tuple[int, int] = (2, 2)) -> torch.Tensor:
     """Return a ``(num_envs, num_bodies, 3)`` tensor that is zero except for the given ``(env, body)`` cells."""
     values = torch.zeros((*shape, 3))
     for cell, value in cells.items():
@@ -94,13 +98,13 @@ def _grid(cells: dict, shape: tuple[int, int] = (2, 2)) -> torch.Tensor:
 
 
 def _vectors(values: torch.Tensor) -> wp.array:
-    """Convert a ``(..., 3)`` tensor to a Warp vector array."""
-    return wp.from_torch(values.contiguous(), dtype=wp.vec3f)
+    """Convert a contiguous ``(..., 3)`` tensor to a Warp vector array."""
+    return wp.from_torch(values, dtype=wp.vec3f)
 
 
 def _mask(values: list[bool]) -> wp.array:
-    """Convert literal booleans to a Warp mask array with owned storage."""
-    return wp.array(np.array(values, dtype=bool), dtype=wp.bool, device="cpu")
+    """Convert literal booleans to a CPU Warp mask array."""
+    return wp.array(values, dtype=wp.bool, device="cpu")
 
 
 def _apply_to_cell(composer: WrenchComposer, method: str, cell: tuple[int, int], is_global: bool, **vectors) -> None:
@@ -293,16 +297,15 @@ def test_index_dtype_combinations_preserve_selected_wrench_cells(
 
 def _fill_all_input_buffers(composer: WrenchComposer) -> None:
     """Give every cell a distinct contribution in each of the five input buffers."""
-    ones = torch.ones((2, 2, 3))
+
+    def every_cell(value: tuple[float, float, float]) -> wp.array:
+        return _vectors(torch.tensor(value).repeat(2, 2, 1))
+
     composer.add_forces_and_torques_index(
-        forces=_vectors(ones * torch.tensor([0.0, 0.0, 1.0])),
-        positions=_vectors(ones * torch.tensor([0.0, 1.0, 0.0])),
-        is_global=True,
+        forces=every_cell((0.0, 0.0, 1.0)), positions=every_cell((0.0, 1.0, 0.0)), is_global=True
     )
-    composer.add_forces_and_torques_index(forces=_vectors(ones * torch.tensor([1.0, 0.0, 0.0])), is_global=True)
-    composer.add_forces_and_torques_index(
-        forces=_vectors(ones * torch.tensor([0.0, 1.0, 0.0])), torques=_vectors(ones * torch.tensor([0.0, 0.0, 1.0]))
-    )
+    composer.add_forces_and_torques_index(forces=every_cell((1.0, 0.0, 0.0)), is_global=True)
+    composer.add_forces_and_torques_index(forces=every_cell((0.0, 1.0, 0.0)), torques=every_cell((0.0, 0.0, 1.0)))
 
 
 # buffer -> per-cell value written by ``_fill_all_input_buffers``
