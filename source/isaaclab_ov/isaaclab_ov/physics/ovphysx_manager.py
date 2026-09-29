@@ -852,11 +852,12 @@ class OvPhysxManager(PhysicsManager):
         schemas.prependedItems = items
         scene_prim.SetMetadata("apiSchemas", schemas)
 
-        # Propagate scene query support from SimulationCfg so omni.physx creates
-        # the scene with the correct query mode.  OvPhysxCfg does not carry this field.
-        sim_cfg = PhysicsManager._sim.cfg if PhysicsManager._sim is not None else None
-        enable_sq = getattr(sim_cfg, "enable_scene_query_support", False)
-        scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(enable_sq)
+        # PhysX uses the declared timestep to derive automatic collision contact offsets.
+        sim_cfg = PhysicsManager._sim.cfg
+        scene_prim.CreateAttribute("physxScene:timeStepsPerSecond", Sdf.ValueTypeNames.Int).Set(int(1.0 / sim_cfg.dt))
+        scene_prim.CreateAttribute("physxScene:enableSceneQuerySupport", Sdf.ValueTypeNames.Bool).Set(
+            sim_cfg.enable_scene_query_support
+        )
 
         if cfg is not None:
             # OvPhysX answers the backend-agnostic determinism request with enhanced determinism.

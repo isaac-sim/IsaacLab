@@ -515,10 +515,10 @@ def test_retained_binding_preserves_uncaught_failure_exit_status():
     _assert_no_atexit_errors(output)
 
 
-@pytest.mark.parametrize("device", ["cpu", "gpu"])
+@pytest.mark.parametrize(("device", "rate"), [("cpu", 60), ("gpu", 120)])
 @pytest.mark.parametrize(("override", "expected"), [(None, True), (False, False), (True, True)])
-def test_scene_external_forces_every_iteration(monkeypatch, manager_module, device, override, expected):
-    """Default TGS force integration and explicit overrides reach the USD physics scene."""
+def test_scene_settings(monkeypatch, manager_module, device, rate, override, expected):
+    """The simulation timestep, scene queries, and TGS force settings reach the native scene."""
     from isaaclab_ov.physics.ovphysx_manager_cfg import OvPhysxCfg
 
     from pxr import Usd
@@ -527,11 +527,14 @@ def test_scene_external_forces_every_iteration(monkeypatch, manager_module, devi
 
     cfg = OvPhysxCfg() if override is None else OvPhysxCfg(enable_external_forces_every_iteration=override)
     assert cfg.enable_external_forces_every_iteration is expected
-    monkeypatch.setattr(PhysicsManager, "_sim", None)
+    sim_cfg = SimpleNamespace(dt=1.0 / rate, enable_scene_query_support=device == "gpu")
+    monkeypatch.setattr(PhysicsManager, "_sim", SimpleNamespace(cfg=sim_cfg))
     stage = Usd.Stage.CreateInMemory()
     prim = stage.DefinePrim("/World/PhysicsScene", "PhysicsScene")
     manager_module.OvPhysxManager._configure_physx_scene_prim(prim, cfg, device)
     assert prim.GetAttribute("physxScene:enableExternalForcesEveryIteration").Get() is expected
+    assert prim.GetAttribute("physxScene:timeStepsPerSecond").Get() == rate
+    assert prim.GetAttribute("physxScene:enableSceneQuerySupport").Get() is sim_cfg.enable_scene_query_support
 
 
 def test_construct_physx_forwards_cooked_collider_cache_dir(monkeypatch, manager_module, tmp_path):

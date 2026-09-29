@@ -13,3 +13,4 @@ Fixed
 * Removed destination placeholders and empty exported environment roots that caused quadratic native binding lookup costs.
 * Registered Newton USD schemas before OVStage parsing. This affected all authored physics assets, including mimic-joint constraints, not only cloned assets.
 * Deferred scene-data tensor bindings until visualization requests them, avoiding unnecessary headless-training startup cost.
+* Matched the native scene's declared step rate to ``SimulationCfg.dt`` so automatic contact offsets used the actual simulation timestep instead of the 60 Hz default.
