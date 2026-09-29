@@ -133,12 +133,9 @@ def base_height_l2(
         sensor readings can adjust the target height to account for the terrain.
 
     Note:
-        A ray that does not hit anything within its ``max_distance`` reports ``inf`` in
-        ``ray_hits_w`` (see :class:`~isaaclab.sensors.ray_caster.RayCaster`), rather than being
-        clamped. Averaging that in directly turns a single missed ray -- e.g. the height-scan
-        grid extending past a terrain patch's edge, or over a hole -- into an infinite reward for
-        every environment in the batch. Only finite hits are averaged; an environment with no
-        finite hits at all falls back to the unadjusted ``target_height``.
+        A ray that hits nothing within its ``max_distance`` reports ``inf`` rather than a clamped
+        value, so only finite hits are averaged into the terrain-adjusted target height. An
+        environment whose rays all miss falls back to the unadjusted ``target_height``.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     if sensor_cfg is not None:

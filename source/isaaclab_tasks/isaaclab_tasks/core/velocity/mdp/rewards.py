@@ -72,20 +72,12 @@ def feet_air_time_variance(
 ) -> torch.Tensor:
     """Penalize an uneven swing/stance split between the feet.
 
-    :func:`feet_air_time_positive_biped` scores the duration of the current single-stance phase and
-    is blind to which foot is swinging, so holding one foot planted and the other airborne sits at
-    its clamp while a symmetric gait, whose timers reset at every touchdown, scores lower. This term
-    prices that in as the variance across feet of the last completed swing and stance durations
-    [s], and vanishes when both feet are loaded equally.
-
-    Durations are clipped at ``max_time`` so a single long stand does not dominate. The penalty is
-    zero for near-zero commands, matching the gate on the air-time term it balances.
+    The penalty is the variance across feet of the last completed swing and stance durations [s],
+    each clipped at ``max_time`` [s], and is zero for near-zero commands.
 
     Raises:
-        RuntimeError: If ``sensor_cfg`` resolves to fewer than two bodies. A variance across feet is
-            undefined for a single foot: :func:`torch.var` returns ``nan`` there, and the zero-command
-            gate below multiplies rather than masks, so the ``nan`` would spread through the total
-            reward and into the loss instead of failing loudly.
+        RuntimeError: If ``sensor_cfg`` resolves to fewer than two bodies, where :func:`torch.var`
+            would return ``nan``.
     """
     # extract the used quantities (to enable type-hinting)
     contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
