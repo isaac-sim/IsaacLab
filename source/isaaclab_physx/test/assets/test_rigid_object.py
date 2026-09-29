@@ -20,8 +20,10 @@ launch_test_simulation()
 
 import math
 import sys
+from collections.abc import Iterator
 from dataclasses import dataclass
 from typing import Literal
+from unittest.mock import MagicMock, patch
 
 import pytest
 import torch
@@ -29,6 +31,8 @@ import warp as wp
 from isaaclab_physx.assets import RigidObject
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
+import omni.kit.app
+import omni.physx
 from pxr import UsdPhysics
 
 import isaaclab.sim as sim_utils
@@ -81,14 +85,14 @@ def _yaw_quat(angle: float) -> tuple[float, float, float, float]:
         pytest.param(
             "articulation_root",
             marks=pytest.mark.xfail(
-                strict=True, reason="The PhysX rigid object no longer rejects an enabled articulation root."
+                strict=True, reason="The PhysX rigid object does not reject an enabled articulation root."
             ),
         ),
     ],
 )
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.isaacsim_ci
-def test_initialization_rejects_invalid_rigid_body(device, api: Literal["none", "articulation_root"]):
+def test_initialization_rejects_invalid_rigid_body(device, api: Literal["none", "articulation_root"]) -> None:
     """Initialization fails without a rigid body and when the rigid body is an articulation root."""
     with build_simulation_context(device=device, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
@@ -116,7 +120,7 @@ def test_initialization_rejects_invalid_rigid_body(device, api: Literal["none", 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("gravity_enabled", [True, False])
 @pytest.mark.isaacsim_ci
-def test_gravity_vec_w(device, gravity_enabled):
+def test_gravity_vec_w(device, gravity_enabled) -> None:
     """Test that gravity vector direction is set correctly for the rigid object."""
     with build_simulation_context(device=device, gravity_enabled=gravity_enabled) as sim:
         sim._app_control_on_stop_handle = None
@@ -154,13 +158,8 @@ def test_gravity_vec_w(device, gravity_enabled):
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("device", test_devices())
-def test_warmup_loads_physics_once(device):
+def test_warmup_loads_physics_once(device) -> None:
     """Attach on GPU or force-load on CPU, without destroying and rebuilding native objects."""
-    from unittest.mock import MagicMock, patch
-
-    import omni.kit.app
-    import omni.physx
-
     with build_simulation_context(device=device, add_ground_plane=True, dt=0.01, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         sim_utils.create_prim("/World/Table_0", "Xform", translation=(0.0, 0.0, 1.0))
@@ -226,7 +225,7 @@ class _RigidObjectScene:
 
 
 @pytest.fixture(scope="module", params=test_devices())
-def rigid_object_scene(request) -> _RigidObjectScene:
+def rigid_object_scene(request) -> Iterator[_RigidObjectScene]:
     """Initialize the composite rigid-object scene once per device."""
     device = request.param
     with build_simulation_context(device=device, gravity_enabled=True) as sim:
@@ -246,7 +245,7 @@ def rigid_object_scene(request) -> _RigidObjectScene:
         )
 
 
-def test_rigid_object_initialization(rigid_object_scene: _RigidObjectScene):
+def test_rigid_object_initialization(rigid_object_scene: _RigidObjectScene) -> None:
     """Initialize local cubes with the expected buffers; kinematic cubes hold their default pose under gravity."""
     scene = rigid_object_scene
     for name, rigid_object in (("cubes", scene.cubes), ("kinematic", scene.kinematic)):
@@ -269,7 +268,7 @@ def test_rigid_object_initialization(rigid_object_scene: _RigidObjectScene):
         torch.testing.assert_close(kinematic.data.root_com_vel_w.torch, kinematic.data.default_root_vel.torch)
 
 
-def test_rigid_object_inertial_properties(rigid_object_scene: _RigidObjectScene):
+def test_rigid_object_inertial_properties(rigid_object_scene: _RigidObjectScene) -> None:
     """Mass, center-of-mass, and inertia writes reach only the selected PhysX entries and survive a step."""
     scene = rigid_object_scene
     device = scene.device
@@ -309,12 +308,14 @@ def test_rigid_object_inertial_properties(rigid_object_scene: _RigidObjectScene)
         torch.testing.assert_close(wp.to_torch(raw).to(device).reshape(expected[name].shape), expected[name])
 
 
-def test_rigid_object_root_state_writes(rigid_object_scene: _RigidObjectScene):
+def test_rigid_object_root_state_writes(rigid_object_scene: _RigidObjectScene) -> None:
     """Root writes round-trip through the written frame and keep the other frame consistent with the offset."""
     scene = rigid_object_scene
     device = scene.device
     cube_object = scene.cubes
-    rest_pose = torch.cat((scene.origins["cubes"], torch.tensor([[0.0, 0.0, 0.0, 1.0]] * _NUM_ENVS, device=device)), -1)
+    rest_pose = torch.cat(
+        (scene.origins["cubes"], torch.tensor([0.0, 0.0, 0.0, 1.0], device=device).repeat(_NUM_ENVS, 1)), -1
+    )
     rest_pose[:, 2] += 1.0
     scene.place_cubes_at_rest(rest_pose)
 
@@ -412,7 +413,7 @@ def test_rigid_object_root_state_writes(rigid_object_scene: _RigidObjectScene):
         torch.testing.assert_close(root_com_vel_w[:, 3:], root_link_vel_w[:, 3:])
 
 
-def test_rigid_object_wrench_delivery_and_reset(rigid_object_scene: _RigidObjectScene):
+def test_rigid_object_wrench_delivery_and_reset(rigid_object_scene: _RigidObjectScene) -> None:
     """External wrenches act in the frame they are given in on the selected root; reset clears them."""
     scene = rigid_object_scene
     device = scene.device
@@ -463,7 +464,9 @@ def test_rigid_object_wrench_delivery_and_reset(rigid_object_scene: _RigidObject
     # An upward force 0.1 m along the body y-axis rolls the cube about its x-axis.
     assert torch.all(cube_object.data.root_com_ang_vel_b.torch[:, 0] > 0.1)
     assert torch.all(
-        quat_apply(cube_object.data.root_link_quat_w.torch, torch.tensor([[1.0, 0.0, 0.0]] * 2, device=device))[:, 1]
+        quat_apply(
+            cube_object.data.root_link_quat_w.torch, torch.tensor([1.0, 0.0, 0.0], device=device).repeat(_NUM_ENVS, 1)
+        )[:, 1]
         > 0.99
     )
 
