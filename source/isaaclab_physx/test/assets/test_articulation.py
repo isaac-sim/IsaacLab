@@ -38,12 +38,11 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_physx.assets import Articulation
-from isaaclab_physx.sim.schemas import PhysxJointCfg
 
 from pxr import Gf, PhysxSchema, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
+from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
@@ -75,29 +74,16 @@ def generate_articulation_cfg(
     articulation_type: str,
     stiffness: float | None = 10.0,
     damping: float | None = 2.0,
-    actuator_velocity_limit: float | None = None,
-    actuator_effort_limit: float | None = None,
-    joint_velocity_limit: float | None = None,
-    joint_effort_limit: float | None = None,
 ) -> ArticulationCfg:
     """Generate an articulation configuration.
 
     Args:
         articulation_type: Type of articulation to generate.
-            It should be one of: "humanoid", "panda", "anymal", "shadow_hand", "single_joint_implicit",
-            "single_joint_explicit".
+            It should be one of: "humanoid", "panda", "anymal", "shadow_hand", or "spatial_tendon_test_asset".
         stiffness: Stiffness value for the articulation's actuators. Only currently used for "humanoid".
             Defaults to 10.0.
         damping: Damping value for the articulation's actuators. Only currently used for "humanoid".
             Defaults to 2.0.
-        actuator_velocity_limit: Velocity limit for the actuators. Only currently used for "single_joint_implicit"
-            and "single_joint_explicit".
-        actuator_effort_limit: Effort limit for explicit actuators. Only currently used for
-            "single_joint_explicit".
-        joint_velocity_limit: Velocity limit for the actuators (set into the simulation).
-            Only currently used for "single_joint_implicit" and "single_joint_explicit".
-        joint_effort_limit: Effort limit for the actuators (set into the simulation).
-            Only currently used for "single_joint_implicit" and "single_joint_explicit".
 
     Returns:
         The articulation configuration for the requested articulation type.
@@ -117,48 +103,6 @@ def generate_articulation_cfg(
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
         articulation_cfg = SHADOW_HAND_PHYSX_CFG
-    elif articulation_type == "single_joint_implicit":
-        articulation_cfg = ArticulationCfg(
-            # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
-            ),
-            actuators={
-                "joint": ImplicitActuatorCfg(
-                    joint_names_expr=[".*"],
-                    joint_effort_limit=joint_effort_limit,
-                    joint_velocity_limit=joint_velocity_limit,
-                    actuator_velocity_limit=actuator_velocity_limit,
-                    stiffness=2000.0,
-                    damping=100.0,
-                ),
-            },
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.0),
-                joint_pos=({"RevoluteJoint": 1.5708}),
-                rot=(0.7071081, 0, 0, 0.7071055),
-            ),
-        )
-    elif articulation_type == "single_joint_explicit":
-        # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
-        articulation_cfg = ArticulationCfg(
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/IsaacSim/SimpleArticulation/revolute_articulation.usd",
-                joint_drive_props=[sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0)],
-            ),
-            actuators={
-                "joint": IdealPDActuatorCfg(
-                    joint_names_expr=[".*"],
-                    joint_effort_limit=joint_effort_limit,
-                    joint_velocity_limit=joint_velocity_limit,
-                    actuator_effort_limit=actuator_effort_limit,
-                    actuator_velocity_limit=actuator_velocity_limit,
-                    stiffness=0.0,
-                    damping=10.0,
-                ),
-            },
-        )
     elif articulation_type == "spatial_tendon_test_asset":
         # we set 80.0 default for max force because default in USD is 10e10 which makes testing annoying.
         articulation_cfg = ArticulationCfg(
@@ -176,7 +120,7 @@ def generate_articulation_cfg(
     else:
         raise ValueError(
             f"Invalid articulation type: {articulation_type}, valid options are 'humanoid', 'panda', 'anymal',"
-            " 'shadow_hand', 'single_joint_implicit', 'single_joint_explicit' or 'spatial_tendon_test_asset'."
+            " 'shadow_hand' or 'spatial_tendon_test_asset'."
         )
 
     return articulation_cfg
@@ -329,6 +273,16 @@ _USD_STIFFNESS = {"left_shoulder": 4.0, "left_elbow": 5.0, "right_shoulder": 6.0
 _USD_DAMPING = {"left_shoulder": 0.4, "left_elbow": 0.5, "right_shoulder": 0.6, "right_elbow": 0.7}
 _USD_MAX_FORCE = {"left_shoulder": 40.0, "left_elbow": 41.0, "right_shoulder": 42.0, "right_elbow": 43.0}
 _USD_MAX_VELOCITY = {"left_shoulder": 2.0, "left_elbow": 3.0, "right_shoulder": 4.0, "right_elbow": 5.0}
+# Configured gains and limits shared by both floating islands, so that their responses are comparable.
+_FLOATING_ACTUATORS = {
+    "joints": ImplicitActuatorCfg(
+        joint_names_expr=[".*"],
+        stiffness={".*_shoulder": 6.0, ".*_elbow": 4.0},
+        damping={".*_shoulder": 0.6, ".*_elbow": 0.4},
+        joint_velocity_limit=7.0,
+        joint_effort_limit=30.0,
+    )
+}
 
 
 def _branching_cfg(prim_path: str = "/World/Robot", **kwargs) -> ArticulationCfg:
@@ -897,22 +851,10 @@ def articulation_scene(request) -> Iterator[_ArticulationScene]:
                 ),
                 {"fixed_base": True},
             ),
-            "floating": (
-                _branching_cfg(
-                    actuators={
-                        "joints": ImplicitActuatorCfg(
-                            joint_names_expr=[".*"],
-                            stiffness={".*_shoulder": 6.0, ".*_elbow": 4.0},
-                            damping={".*_shoulder": 0.6, ".*_elbow": 0.4},
-                            joint_velocity_limit=7.0,
-                            joint_effort_limit=30.0,
-                        )
-                    },
-                ),
-                {"root_on_base": True},
-            ),
+            "floating": (_branching_cfg(actuators=_FLOATING_ACTUATORS), {"root_on_base": True}),
             "reordered": (
                 _branching_cfg(
+                    actuators=_FLOATING_ACTUATORS,
                     articulation_root_prim_path="/base",
                     body_ordering=("left_tip", "base", "right_upper", "right_tip", "left_upper"),
                 ),
@@ -1092,7 +1034,8 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     device = scene.device
 
     # Direct tensor-view mass and inertia writes become visible on the lazy read: on the first read of a cold
-    # buffer (identity order), and after the next update once the buffer is primed (non-identity order).
+    # buffer, and after the next update once the buffer is primed. No other test reads the inertial buffers of
+    # the reordered island, so its first read here is cold regardless of test order.
     cpu_env_ids = wp.array(list(range(_NUM_ENVS)), dtype=wp.int32, device="cpu")
 
     def write_backend_mass_inertia(
@@ -1106,16 +1049,22 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         articulation.root_view.set_inertias(wp.from_torch(backend_inertias, dtype=wp.float32), indices=cpu_env_ids)
         return backend_masses.to(device), backend_inertias.to(device)
 
-    backend_masses, backend_inertias = write_backend_mass_inertia(scene.tendon, 0.293, 0.023)
-    torch.testing.assert_close(scene.tendon.data.body_mass.torch, backend_masses)
-    torch.testing.assert_close(scene.tendon.data.body_inertia.torch, backend_inertias)
+    reordered_user_to_backend = list(scene.reordered.body_ordering.user_to_backend_indices)
+    backend_masses, backend_inertias = write_backend_mass_inertia(scene.reordered, 0.293, 0.023)
+    torch.testing.assert_close(scene.reordered.data.body_mass.torch, backend_masses[:, reordered_user_to_backend])
+    torch.testing.assert_close(scene.reordered.data.body_inertia.torch, backend_inertias[:, reordered_user_to_backend])
+    write_backend_mass_inertia(scene.reordered, -0.293, -0.023)
 
     articulation = scene.ordered
     body_user_to_backend = list(articulation.body_ordering.user_to_backend_indices)
     body_backend_to_user = list(articulation.body_ordering.backend_to_user_indices)
     joint_backend_to_user = list(articulation.joint_ordering.backend_to_user_indices)
-    articulation.data.body_mass.torch  # prime the lazy buffers
-    articulation.data.body_inertia.torch
+    # Reading the buffers primes them; the later tests drive the island with these initial properties.
+    initial_properties = {
+        "masses": articulation.data.body_mass.torch.clone(),
+        "coms": articulation.data.body_com_pose_b.torch.clone(),
+        "inertias": articulation.data.body_inertia.torch.clone(),
+    }
     backend_masses, backend_inertias = write_backend_mass_inertia(articulation, 0.137, 0.011)
     articulation.update(scene.sim.cfg.dt)
     torch.testing.assert_close(articulation.data.body_mass.torch, backend_masses[:, body_user_to_backend])
@@ -1125,6 +1074,11 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
     env_ids = torch.tensor([1], dtype=torch.int32, device=device)
     joint_ids = torch.tensor([3, 0], dtype=torch.int32, device=device)
     raw_friction_before = wp.to_torch(articulation.root_view.get_dof_friction_properties()).clone()
+    initial_frictions = {
+        "joint_friction_coeff": articulation.data.joint_friction_coeff.torch.clone(),
+        "joint_dynamic_friction_coeff": articulation.data.joint_dynamic_friction_coeff.torch.clone(),
+        "joint_viscous_friction_coeff": articulation.data.joint_viscous_friction_coeff.torch.clone(),
+    }
     frictions = {
         "joint_friction_coeff": torch.tensor([[0.9, 0.7]], device=device),
         "joint_dynamic_friction_coeff": torch.tensor([[0.4, 0.3]], device=device),
@@ -1190,6 +1144,12 @@ def test_articulation_joint_and_body_properties_round_trip(articulation_scene: _
         (articulation.data.body_inertia.torch, articulation.root_view.get_inertias()),
     ):
         torch.testing.assert_close(wp.to_torch(raw).to(device), public[:, body_backend_to_user])
+
+    # Restore the initial properties for the tests that drive this island.
+    articulation.set_masses_index(masses=initial_properties["masses"], full_data=True)
+    articulation.set_coms_index(coms=initial_properties["coms"], full_data=True)
+    articulation.set_inertias_index(inertias=initial_properties["inertias"], full_data=True)
+    articulation.write_joint_friction_coefficient_to_sim_index(**initial_frictions, full_data=True)
 
 
 def _rotate_z(angle: torch.Tensor, vector: tuple[float, float, float] | torch.Tensor) -> torch.Tensor:
@@ -1308,6 +1268,7 @@ def _assert_jacobian_contract(articulation: Articulation, generalized_velocity: 
     torch.testing.assert_close(generalized_energy, body_energy, atol=1e-5, rtol=1e-4)
 
 
+@pytest.mark.isaacsim_ci
 def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene) -> None:
     """Drive targets and efforts move the selected joints; dynamics quantities match the live state."""
     scene = articulation_scene
@@ -1394,7 +1355,10 @@ def test_articulation_drive_and_dynamics(articulation_scene: _ArticulationScene)
         torch.testing.assert_close(public, expected[key], atol=1e-4, rtol=1e-4, msg=key)
     _assert_jacobian_contract(articulation, data.joint_vel.torch)
 
-    # A reversed joint keeps the dynamics in the public joint basis; floating Jacobians prepend the base DoFs.
+    # A reversed joint keeps the dynamics in the public joint basis; floating Jacobians prepend the base DoFs and,
+    # with center-of-mass offsets on the moving links, shift their linear rows to the link origins.
+    scene.floating.set_coms_index(coms=coms, full_data=True)
+    scene.step()
     for island in (scene.tendon, scene.floating):
         island.write_joint_state_to_sim_index(position=joint_pos, velocity=joint_vel, full_data=True)
     root_velocity = torch.tensor([[0.3, -0.2, 0.1, 0.2, 0.1, -0.3], [-0.1, 0.2, 0.3, -0.2, 0.3, 0.1]], device=device)
@@ -1540,20 +1504,28 @@ def test_floating_articulation_root_writes_and_wrenches(articulation_scene: _Art
     roll_rate = floating.data.root_ang_vel_b.torch[:, 0]
     assert roll_rate[1] - roll_rate[0] > 0.1, roll_rate
 
-    # Forces on several bodies push each selected body along its own force direction, also when the public body
-    # order differs from the PhysX link order.
-    _place_at_rest(reordered, reordered_rest_pose)
-    tips = reordered.find_bodies(["left_tip", "right_tip"], preserve_order=True)[0]
-    reordered.permanent_wrench_composer.set_forces_and_torques_index(
-        forces=torch.tensor([[[0.0, 4.0, 0.0], [0.0, -4.0, 0.0]]], device=device), body_ids=tips, env_ids=[1]
-    )
+    # Forces on several bodies push each selected body along its own force direction. Under a public body order
+    # that differs from the PhysX link order, every body responds as in the identity-ordered island.
+    tip_forces = torch.tensor([[[0.0, 4.0, 0.0], [0.0, -4.0, 0.0]]], device=device)
+    for articulation, pose in ((floating, rest_pose), (reordered, reordered_rest_pose)):
+        _place_at_rest(articulation, pose)
+        tips = articulation.find_bodies(["left_tip", "right_tip"], preserve_order=True)[0]
+        articulation.permanent_wrench_composer.set_forces_and_torques_index(
+            forces=tip_forces, body_ids=tips, env_ids=[1]
+        )
+        # Refresh the link transforms after the teleport: on the GPU pipeline, the step applies link-frame wrenches
+        # with the link transforms of the last kinematic update.
+        articulation.data.body_link_pose_w.torch
     scene.step()
+    tips = reordered.find_bodies(["left_tip", "right_tip"], preserve_order=True)[0]
     tip_velocity = reordered.data.body_link_lin_vel_w.torch[:, tips]
-    tip_direction = quat_apply(
-        reordered.data.body_link_quat_w.torch[1, tips], torch.tensor([[0.0, 1.0, 0.0], [0.0, -1.0, 0.0]], device=device)
-    )
+    tip_direction = quat_apply(reordered.data.body_link_quat_w.torch[1, tips], tip_forces[0])
     assert torch.all((tip_velocity[1] * tip_direction).sum(-1) > 1e-3), tip_velocity[1]
     torch.testing.assert_close(tip_velocity[0], torch.zeros_like(tip_velocity[0]), atol=1e-6, rtol=0.0)
+    floating_order = [reordered.body_names.index(name) for name in floating.body_names]
+    torch.testing.assert_close(
+        reordered.data.body_link_lin_vel_w.torch[:, floating_order], floating.data.body_link_lin_vel_w.torch
+    )
 
     # A partial reset clears the selected environment; a full reset resets every actuator environment and
     # clears all external forces and torques.
