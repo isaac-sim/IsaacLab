@@ -86,6 +86,17 @@ def _prepare_default_cache_dir(cache_dir: str) -> str:
 
 logger = logging.getLogger(__name__)
 
+# OVRTX and OVStage share an OpenUSD 25.11 build that reads its plugin search path from this
+# variable once, when the runtime starts.
+_OV_USD_PLUGIN_PATH_ENV = "OV_PXR_PLUGINPATH_2511"
+
+
+def _publish_ov_usd_plugin_path(path: str) -> None:
+    """Append ``path`` to the plugin search path of the OpenUSD runtime shared by OVRTX and OVStage."""
+    entries = [entry for entry in os.environ.get(_OV_USD_PLUGIN_PATH_ENV, "").split(os.pathsep) if entry]
+    if path not in entries:
+        os.environ[_OV_USD_PLUGIN_PATH_ENV] = os.pathsep.join([*entries, path])
+
 
 class OvPhysxSceneDataBackend(SceneDataBackend):
     """Scene-data backend for the OVPhysX physics manager.
@@ -492,10 +503,11 @@ class OvPhysxManager(PhysicsManager):
     def _ensure_physx_schemas_registered(cls) -> None:
         """Register the codeless USD schemas published by the OVPhysX wheel.
 
-        OVStage maintains its own USD schema registry, so register the wheel's
-        schema root there even when the host USD runtime already provides the
-        same plugins. For the host USD registry, only register providers that
-        are not already available from a compiled plugin.
+        OVRTX and OVStage share one OpenUSD runtime that has its own schema registry. Publishing
+        the wheel's schema root on that runtime's plugin search path registers the schemas with
+        whichever library starts it, without loading OVStage before the first OVRTX renderer.
+        For the host USD registry, only register providers that are not already available from
+        a compiled plugin.
         """
         if cls._physx_schemas_registered:
             return
@@ -505,15 +517,9 @@ class OvPhysxManager(PhysicsManager):
             from pxr import Plug  # noqa: PLC0415
         except ImportError:
             return
-        try:
-            import ovstage  # noqa: PLC0415
-        except ImportError:
-            pass  # Host USD schemas can still be registered without OVStage.
-        else:
-            schema_root = getattr(ovphysx, "codeless_schema_root", None)
-            register_ovstage_schemas = getattr(getattr(ovstage, "population", None), "register_usd_schemas", None)
-            if callable(schema_root) and callable(register_ovstage_schemas):
-                register_ovstage_schemas(str(schema_root()))
+        schema_root = getattr(ovphysx, "codeless_schema_root", None)
+        if callable(schema_root):
+            _publish_ov_usd_plugin_path(str(schema_root()))
         registry = Plug.Registry()
         registered_names = {plugin.name.casefold() for plugin in registry.GetAllPlugins()}
         # The wheel documents ``<module>/resources`` as its stable layout and its

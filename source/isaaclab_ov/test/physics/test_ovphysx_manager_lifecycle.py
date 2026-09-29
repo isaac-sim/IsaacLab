@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import textwrap
@@ -156,11 +157,16 @@ def test_schema_registration_skips_providers_already_supplied_by_host(
     # A None entry makes importing OVStage raise ModuleNotFoundError.
     monkeypatch.setitem(sys.modules, "ovstage", fake_ovstage if has_registration_api is not None else None)
     monkeypatch.setitem(sys.modules, "pxr", fake_pxr)
+    plugin_path_env = manager_module._OV_USD_PLUGIN_PATH_ENV
+    monkeypatch.delenv(plugin_path_env, raising=False)
 
     manager._ensure_physx_schemas_registered()
     manager._ensure_physx_schemas_registered()
 
-    assert ovstage_registrations == ([schema_root] if schema_root is not None and has_registration_api else [])
+    published = [entry for entry in os.environ.get(plugin_path_env, "").split(os.pathsep) if entry]
+    assert published == ([schema_root] if schema_root is not None else [])
+    # Registering through OVStage would load it before the first OVRTX renderer.
+    assert ovstage_registrations == []
     assert host_registrations == ([expected_paths] if expected_paths else [])
 
 
