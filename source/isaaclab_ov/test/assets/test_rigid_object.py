@@ -44,7 +44,8 @@ from isaaclab_ov.assets import RigidObject  # noqa: E402
 from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
-from isaaclab.assets import RigidObjectCfg  # noqa: E402
+from isaaclab import cloner  # noqa: E402
+from isaaclab.assets import AssetBaseCfg, RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.spawners import materials  # noqa: E402
@@ -137,7 +138,7 @@ class HeterogeneousRigidSceneCfg(InteractiveSceneCfg):
 
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("filter_collisions", [False, True])
-@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd"])
+@pytest.mark.parametrize("support_cloning", ["native", "usd_and_native", "usd", "usd_nested"])
 def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning):
     """Sources and clones from different variants contact their own support."""
     with _ovphysx_sim_context(device=device, dt=1.0 / 120.0) as sim:
@@ -147,6 +148,12 @@ def test_heterogeneous_clone_contacts(device, filter_collisions, support_cloning
             cfg.support.cloning_contexts = ("isaaclab.cloner:UsdReplicateContext",)
             if support_cloning == "usd_and_native":
                 cfg.support.cloning_contexts += ("isaaclab_ov.cloner:OvPhysxReplicateContext",)
+        if support_cloning == "usd_nested":
+            cfg.support.prim_path = "{ENV_REGEX_NS}/Assembly/Support"
+            cfg.object.spawn.assets_cfg = cfg.object.spawn.assets_cfg[:1]
+            spawn = sim_utils.SpawnerCfg(func=lambda path, cfg, **kwargs: sim.stage.DefinePrim(path, "Xform"))
+            cfg.assembly = AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Assembly", spawn=spawn, cloning_contexts=None)
+            cfg.clone_cfg.clone_combinations = [cloner.InclusionSet(assets=names) for names in (["assembly"], [])]
         scene = InteractiveScene(cfg)
         sim.reset()
         for _ in range(240):

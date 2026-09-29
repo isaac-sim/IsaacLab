@@ -301,7 +301,9 @@ def _ovphysx_sim_context(device: str, **kwargs):
 
 
 @pytest.mark.parametrize("device", test_devices())
-@pytest.mark.parametrize("variant", ["geometry", "joint_type", "d6_rotation", "d6_translation", "fixed_tendon"])
+@pytest.mark.parametrize(
+    "variant", ["geometry", "joint_type", "d6_rotation", "d6_translation", "disabled_joint", "fixed_tendon"]
+)
 def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_path):
     """Compatible variants preserve indexed state; incompatible action/tendon layouts are rejected."""
     variants = []
@@ -329,8 +331,14 @@ def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_pat
         joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
         joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
         joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
-        if variant.startswith("d6_"):
-            free_axis = "rotY" if variant == "d6_rotation" and shape is UsdGeom.Sphere else "rotX"
+        if variant == "disabled_joint":
+            joint = UsdPhysics.Joint.Define(stage, "/Robot/Disabled")
+            joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+            joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
+            joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+            joint.CreateJointEnabledAttr(False)
+        if variant.startswith("d6_") or variant == "disabled_joint":
+            free_axis = "rotY" if variant != "d6_translation" and shape is UsdGeom.Sphere else "rotX"
             for axis in ("transX", "transY", "transZ", "rotX", "rotY", "rotZ"):
                 if axis == free_axis or (axis == "transX" and variant == "d6_translation" and shape is UsdGeom.Sphere):
                     continue

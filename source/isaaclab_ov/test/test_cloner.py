@@ -264,7 +264,8 @@ def test_raw_replicate_validates_sources_and_pose_arrays():
 @pytest.mark.parametrize("full_stage", [False, True])
 @pytest.mark.parametrize("env_template", ["/World/envs/env_{}", "/Scenes/World_{}"])
 @pytest.mark.parametrize("independent_physics", [False, True])
-def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics):
+@pytest.mark.parametrize("nested", [False, True], ids=["sibling", "nested"])
+def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_template, independent_physics, nested):
     """Export exact targets, preserve unrelated assets, and replay without consuming the recipes."""
     stage = Usd.Stage.CreateInMemory()
     for env_id, variant in enumerate(("cube", "sphere", "target", "target")):
@@ -272,24 +273,27 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
         prim = stage.DefinePrim(root + "/Object", "Xform")
         prim.CreateAttribute("test:variant", Sdf.ValueTypeNames.String).Set(variant)
     stage.DefinePrim("/Shared/Ground", "Xform")
-    for world in (1, 3):
-        independent = stage.DefinePrim(env_template.format(world) + "/Independent", "Xform")
+    independent_path = "/Support/Independent" if nested else "/Independent"
+    for world in range(4) if nested else (1, 3):
+        independent = stage.DefinePrim(env_template.format(world) + independent_path, "Xform")
         if independent_physics:
             UsdPhysics.RigidBodyAPI.Apply(independent)
     assets = tuple(
         AssetBaseCfg(prim_path=env_template.format("[^/]+") + name)
-        for name in ("/Object", "/Object", "/Support", "/Independent")
+        for name in ("/Object", "/Object", "/Support", independent_path)
     )
-    worlds = ((0, 2), (1, 2, 3))
+    worlds = ((0, 2, 3), (1, 3)) if nested else ((0, 2), (1, 2, 3))
     plan = make_clone_plan(assets, worlds, 4, env_template=env_template, clone_strategy=lambda _, n: np.arange(n) % 2)
     object_paths = [env_template.format(i) + "/Object" for i in range(4)]
     recipes = [(object_paths[i], [object_paths[i], object_paths[i + 2]], [], [i, i + 2], i) for i in range(2)]
     # A target can also be inside a world which retains a different prototype.
     support = stage.DefinePrim(env_template.format(0) + "/Support", "Xform")
     support.CreateAttribute("test:physics", Sdf.ValueTypeNames.Bool).Set(True)
-    targets = [env_template.format(i) + "/Support" for i in range(4)]
-    recipes.append((str(support.GetPath()), targets, [], list(range(4)), 0))
-    stage.DefinePrim(targets[1], "Xform")
+    support_worlds = [0, 2] if nested else list(range(4))
+    targets = [env_template.format(i) + "/Support" for i in support_worlds]
+    recipes.append((str(support.GetPath()), targets, [], support_worlds, 0))
+    if not nested:
+        stage.DefinePrim(targets[1], "Xform")
     before = stage.GetRootLayer().ExportToString()
 
     for _ in range(2):
@@ -301,9 +305,9 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
             prim = exported.GetPrimAtPath(object_paths[env_id])
             assert prim.GetAttribute("test:variant").Get() == variant
         assert exported.GetPrimAtPath("/Shared/Ground")
-        assert exported.GetPrimAtPath(env_template.format(3) + "/Independent")
+        assert exported.GetPrimAtPath(env_template.format(3) + independent_path)
         assert bool(exported.GetPrimAtPath(env_template.format(2))) is full_stage
-        for world, target in enumerate(targets):
+        for world, target in zip(support_worlds, targets, strict=True):
             prim = exported.GetPrimAtPath(target)
             assert bool(prim) is (full_stage or world < 2 or (independent_physics and world == 3))
             if prim:
@@ -317,7 +321,7 @@ def test_clone_export_preserves_sources_and_independent_assets(full_stage, env_t
                 (env_template.format(i) + name, env_template.format(i + 2) + name, i + 2)
                 for i in range(2)
                 for name in ("/Object", "/Support")
-                if not independent_physics or i == 0
+                if (not independent_physics or i == 0) and (name == "/Object" or i == 0 or not nested)
             }
         assert stage.GetRootLayer().ExportToString() == before
         assert len(recipes) == 3

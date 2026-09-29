@@ -58,7 +58,7 @@ def _clone_recipes(
                 layout = layouts[source] = {}
                 for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
                     relative = str(prim.GetPath().MakeRelativePath(root.GetPath()))
-                    if prim.GetTypeName() == "PhysicsJoint":
+                    if prim.GetTypeName() == "PhysicsJoint" and UsdPhysics.Joint(prim).GetJointEnabledAttr().Get():
                         # Native articulations always lock translation, regardless of authored limits.
                         axes = []
                         for axis in ("rotX", "rotY", "rotZ"):
@@ -210,16 +210,31 @@ def _serialize_stage(
     memberships = {}
     originals = {world for _, _, _, _, world in recipes if world is not None}
     if plan is not None and not full_stage:
-        # USD-only physics keeps native ID zero, so its worlds cannot mix originals with native copies.
-        for asset, source in enumerate(cloner.path.get_asset_prototype_paths(plan)):
-            if source is None or any(Sdf.Path(source).HasPrefix(root) for root in sources):
-                continue
-            prim = stage.GetPrimAtPath(source)
-            if prim and any(
-                child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
-                for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
-            ):
-                originals.update(cloner.query.get_asset_prototype_unique_world_index(plan.topology, asset)[0])
+        # USD-only physics keeps native ID zero. Coverage requires the same copy in each destination world.
+        asset_sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+            worlds = world_ids[world_starts[group] : world_starts[group + 1]]
+            for index in range(*starts[group : group + 2]):
+                uncovered = set(worlds) - originals
+                if not uncovered:
+                    break
+                source, template = asset_sources[plan.topology.world_prototypes[index]], templates[index]
+                for root, targets, *_ in recipes:
+                    suffix = cloner.path.relative_to(source, root)
+                    if suffix is not None:
+                        copied_paths = {target + suffix for target in targets}
+                        uncovered = {world for world in uncovered if template.format(world) not in copied_paths}
+                if not uncovered:
+                    continue
+                prim = stage.GetPrimAtPath(source)
+                if prim and any(
+                    child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
+                    for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
+                ):
+                    originals.update(uncovered)
     for index, (_, _, _, world_ids, _) in enumerate(recipes):
         for world in world_ids or ():
             memberships.setdefault(world, []).append(index)
