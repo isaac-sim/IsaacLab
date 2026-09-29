@@ -34,6 +34,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.controllers import OperationalSpaceController, OperationalSpaceControllerCfg
 from isaaclab.sim import SimulationContext, build_simulation_context
+from isaaclab.test.utils import DeviceScope, test_devices
 from isaaclab.utils.math import compute_pose_error, matrix_from_quat, quat_inv, subtract_frame_transforms
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -42,14 +43,13 @@ from articulation_test_utils import NUM_ENVS, local_usd, newton_sim_cfg, spawn_a
 
 pytestmark = [pytest.mark.integration, pytest.mark.kitless]
 
-_DEVICE = "cpu"
-
 
 @dataclass
 class _Chain:
     """A passive six-DOF chain and the end-effector indices the controller reads."""
 
     sim: SimulationContext
+    device: str
     robot: Articulation
     ee_frame_idx: int
     ee_jacobi_idx: int
@@ -68,8 +68,8 @@ class _Chain:
         self.robot.update(self.sim.cfg.dt)
 
 
-@pytest.fixture(scope="module")
-def chain() -> Iterator[_Chain]:
+@pytest.fixture(scope="module", params=test_devices(DeviceScope.CPU))
+def chain(request: pytest.FixtureRequest) -> Iterator[_Chain]:
     """Build the unpowered chain once, at a configuration away from the joint limits."""
     robot_cfg = ArticulationCfg(
         prim_path="/World/Env_[^/]*/Robot",
@@ -79,13 +79,15 @@ def chain() -> Iterator[_Chain]:
         ),
         actuators={"arm": ImplicitActuatorCfg(joint_names_expr=["Joint_.*"], stiffness=0.0, damping=0.0)},
     )
-    with build_simulation_context(sim_cfg=newton_sim_cfg(_DEVICE)) as sim:
+    device = request.param
+    with build_simulation_context(sim_cfg=newton_sim_cfg(device)) as sim:
         robot = spawn_assets({"robot": robot_cfg})["robot"]
         sim.reset()
         assert robot.is_initialized and robot.is_fixed_base
         ee_frame_idx = robot.find_bodies("Link_5")[0][0]
         yield _Chain(
             sim=sim,
+            device=device,
             robot=robot,
             ee_frame_idx=ee_frame_idx,
             # the fixed root has no Jacobian row
@@ -115,11 +117,11 @@ def _build_relative_pose_target(
 ) -> torch.Tensor:
     """Return the current end-effector pose in the root frame offset by ``delta_xyz`` [m], keeping its orientation."""
     initial_ee_pos_b, initial_ee_quat_b = _compute_ee_pose_root(robot, ee_frame_idx)
-    target_pos_b = initial_ee_pos_b + torch.tensor(delta_xyz, device=_DEVICE, dtype=initial_ee_pos_b.dtype)
+    target_pos_b = initial_ee_pos_b + initial_ee_pos_b.new_tensor(delta_xyz)
     return torch.cat([target_pos_b, initial_ee_quat_b], dim=-1)
 
 
-def _make_osc() -> OperationalSpaceController:
+def _make_osc(device: str) -> OperationalSpaceController:
     """Return a fixed-impedance absolute-pose controller with inertial decoupling and no gravity compensation."""
     return OperationalSpaceController(
         OperationalSpaceControllerCfg(
@@ -132,7 +134,7 @@ def _make_osc() -> OperationalSpaceController:
             motion_damping_ratio_task=1.0,
         ),
         num_envs=NUM_ENVS,
-        device=_DEVICE,
+        device=device,
     )
 
 
@@ -173,6 +175,7 @@ def _run_osc(
     return pos_history, rot_history
 
 
+@pytest.mark.isaacsim_ci
 def test_osc_tracking_accuracy(chain: _Chain) -> None:
     """OSC pose tracking sentinel for the Jacobian and mass-matrix bridge.
 
@@ -182,7 +185,7 @@ def test_osc_tracking_accuracy(chain: _Chain) -> None:
     """
     chain.rest()
     target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.05, 0.0, 0.0))
-    pos_history, rot_history = _run_osc(chain, _make_osc(), target_pose_b, 300, gravity=False)
+    pos_history, rot_history = _run_osc(chain, _make_osc(chain.device), target_pose_b, 300, gravity=False)
 
     pos_mean = sum(pos_history[-200:]) / 200
     rot_mean = sum(rot_history[-200:]) / 200
@@ -195,6 +198,7 @@ def test_osc_tracking_accuracy(chain: _Chain) -> None:
     assert rot_mean < 5e-2, f"OSC rot_mean {rot_mean:.5f} > 0.05 rad — bridge regression?"
 
 
+@pytest.mark.isaacsim_ci
 def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
     """Two-phase EE hold: gravity sag without compensation, tight hold with it.
 
@@ -211,7 +215,7 @@ def test_osc_gravity_compensation_precision(chain: _Chain) -> None:
     phase 2. Both phases reach a true steady state, enforced by tail-half stationarity guards.
     """
     chain.rest()
-    osc = _make_osc()
+    osc = _make_osc(chain.device)
     # Hold the initial EE pose: phase-1 steady-state error is pure gravity sag.
     target_pose_b = _build_relative_pose_target(chain.robot, chain.ee_frame_idx, (0.0, 0.0, 0.0))
 

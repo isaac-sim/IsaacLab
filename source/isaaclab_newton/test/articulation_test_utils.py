@@ -507,6 +507,8 @@ def Cube "Object" (
     {
         rel physics:body0 = </Object>
         rel physics:body1 = </Object/Child>
+        point3f physics:localPos0 = (0, 0, 2)
+        point3f physics:localPos1 = (0, 0, 0)
     }
 }
 """
