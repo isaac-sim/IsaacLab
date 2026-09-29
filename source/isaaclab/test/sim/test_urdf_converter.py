@@ -110,7 +110,6 @@ def test_config_change(sim_config, tmp_path):
 
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
-    time_usd_file_created = os.stat(urdf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = config
@@ -121,7 +120,8 @@ def test_config_change(sim_config, tmp_path):
     new_urdf_converter = UrdfConverter(new_config)
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    # the importer writes the new conversion next to the first one; file times may share a second
+    assert new_urdf_converter.usd_path != urdf_converter.usd_path
 
     # convert again with the changed config, which must not generate a new USD file
     lazy_urdf_converter = UrdfConverter(new_config)

@@ -113,7 +113,6 @@ def test_config_change(test_setup_teardown):
     sim, mjcf_config = test_setup_teardown
 
     mjcf_converter = MjcfConverter(mjcf_config)
-    time_usd_file_created = os.stat(mjcf_converter.usd_path).st_mtime_ns
 
     # change the config
     new_config = mjcf_config
@@ -124,7 +123,8 @@ def test_config_change(test_setup_teardown):
     new_mjcf_converter = MjcfConverter(new_config)
     new_time_usd_file_created = os.stat(new_mjcf_converter.usd_path).st_mtime_ns
 
-    assert time_usd_file_created != new_time_usd_file_created
+    # the importer writes the new conversion next to the first one; file times may share a second
+    assert new_mjcf_converter.usd_path != mjcf_converter.usd_path
 
     # convert again with the changed config, which must not generate a new USD file
     lazy_mjcf_converter = MjcfConverter(new_config)
