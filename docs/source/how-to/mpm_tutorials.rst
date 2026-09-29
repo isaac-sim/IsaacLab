@@ -40,7 +40,7 @@ policy checkpoint unless you provide ``--checkpoint``; it requires a CUDA
 device. It walks across sand, snow, and clay strips; ``--coupling one_way``
 lets the robot displace particles without receiving their reaction forces.
 From an installed wheel, run it with
-``uvx --from 'isaaclab[rsl-rl]' isaaclab example mpm-g1-coupling``.
+``uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling``.
 For Newton RTX from a source checkout, add ``--extra ovrtx`` to ``uv run``.
 
 Read ``scripts/tutorials/08_mpm/README.md`` for the controlled settings and

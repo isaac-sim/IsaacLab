@@ -13,7 +13,7 @@ their reaction forces; the two-way variant returns those forces to the robot.
 
 .. code-block:: bash
 
-    uvx --from 'isaaclab[rsl-rl]' isaaclab example mpm-g1-coupling \
+    uvx --from 'isaaclab[isaacsim,rsl-rl]' isaaclab example mpm-g1-coupling \
       --coupling two_way --visualizer kit
 """
 

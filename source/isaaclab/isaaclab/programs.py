@@ -153,7 +153,7 @@ EXAMPLES = (
         "mpm-g1-coupling",
         "examples/mpm/g1_coupling.py",
         "Compare one-way and two-way G1 coupling across particle materials.",
-        extras=("rsl-rl",),
+        extras=("isaacsim", "rsl-rl"),
         required_modules=("rsl_rl",),
     ),
     ProgramSpec(
