@@ -240,6 +240,7 @@ class FeatureExtractor:
             if dt == "rgb":
                 img = img / 255.0
             elif dt == "depth":
+                img = img.clone()
                 img[img == float("inf")] = 0
                 img /= 5.0
                 max_val = img.max()

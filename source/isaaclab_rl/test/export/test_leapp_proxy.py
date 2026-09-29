@@ -14,6 +14,7 @@ pytest.importorskip("leapp")
 
 from isaaclab.assets.articulation import BaseArticulationData
 from isaaclab.envs import mdp
+from isaaclab.sensors.camera import CameraData
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.leapp import utils as leapp_utils
 from isaaclab.utils.leapp.export_annotator import ExportPatcher
@@ -131,6 +132,71 @@ def test_projected_gravity_observation_exports_root_quat_w_input(monkeypatch: py
     assert semantics.name == "robot_root_quat_w"
     assert semantics.kind == InputKindEnum.BODY_ROTATION
     assert semantics.extra == {"isaaclab_connection": "state:robot:root_quat_w"}
+
+
+def test_deformable_nodal_positions_use_inherited_semantics(monkeypatch: pytest.MonkeyPatch):
+    """Test PhysX nodal positions are registered with inherited input semantics."""
+    from isaaclab_physx.assets.deformable_object.deformable_object_data import DeformableObjectData
+
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    nodal_pos_w = torch.arange(24, dtype=torch.float32).reshape(2, 4, 3)
+
+    class DeformableView:
+        count, max_simulation_nodes_per_body = nodal_pos_w.shape[:2]
+        max_simulation_elements_per_body = 1
+        max_collision_elements_per_body = 1
+
+        def get_simulation_nodal_positions(self):
+            return wp.from_torch(nodal_pos_w)
+
+    root_view = DeformableView()
+    data = DeformableObjectData(root_view, "cpu")
+    proxy = _DataProxy(
+        data,
+        entity_name="deformable",
+        task_name="Isaac-Lift-Soft-Franka",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"deformable_{property_name}",
+    )
+
+    assert torch.equal(proxy.nodal_pos_w.torch, nodal_pos_w)
+
+    assert len(annotated_inputs) == 1
+    task_name, semantics = annotated_inputs[0]
+    assert task_name == "Isaac-Lift-Soft-Franka"
+    assert semantics.name == "deformable_nodal_pos_w"
+    assert semantics.kind == InputKindEnum.BODY_POSITION
+    assert semantics.element_names == [["x", "y", "z"]]
+    assert semantics.extra == {"isaaclab_connection": "state:deformable:nodal_pos_w"}
+
+
+def test_camera_output_mapping_registers_each_buffer_as_an_input(monkeypatch: pytest.MonkeyPatch):
+    """Test each camera output buffer becomes an independently wired LEAPP input."""
+    annotated_inputs = _capture_leapp_inputs(monkeypatch)
+    camera_data = CameraData()
+    camera_data._output = {
+        "rgb": ProxyArray(wp.from_torch(torch.zeros(1, 4, 4, 4, dtype=torch.uint8))),
+        "depth": ProxyArray(wp.from_torch(torch.ones(1, 4, 4, 1, dtype=torch.float32))),
+    }
+    proxy = _DataProxy(
+        camera_data,
+        entity_name="camera",
+        task_name="camera-task",
+        property_resolution_cache={},
+        cache={},
+        input_name_resolver=lambda property_name: f"camera_{property_name}",
+    )
+
+    assert proxy.output["rgb"].torch.shape == (1, 4, 4, 4)
+    assert proxy.output["depth"].torch.shape == (1, 4, 4, 1)
+    _ = proxy.output["rgb"].torch  # Re-reading a buffer must not add another graph input.
+    assert len(annotated_inputs) == 2
+    assert set(semantics.name for _, semantics in annotated_inputs) == {"camera_output_rgb", "camera_output_depth"}
+    assert {semantics.extra["isaaclab_connection"] for _, semantics in annotated_inputs} == {
+        "state:camera:output.rgb",
+        "state:camera:output.depth",
+    }
 
 
 def test_named_last_action_observations_use_independent_feedback_states(monkeypatch: pytest.MonkeyPatch):

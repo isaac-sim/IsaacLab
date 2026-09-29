@@ -24,6 +24,7 @@ import types
 from pathlib import Path
 
 import pytest
+import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 
@@ -254,6 +255,20 @@ def test_task_presets_select_published_feature_extractor_checkpoint(
 
     expected_path = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl/{checkpoint_filename}"
     assert env_cfg.feature_extractor.pretrained_checkpoint == expected_path
+
+
+def test_depth_preprocessing_does_not_mutate_camera_buffer() -> None:
+    """Depth normalization must not modify the renderer-owned camera buffer."""
+    extractor = object.__new__(FeatureExtractor)
+    extractor.data_types = ["depth"]
+    depth = torch.tensor([[[[1.0], [float("inf")]], [[2.5], [5.0]]]])
+    original = depth.clone()
+
+    processed = extractor._preprocess_images({"depth": depth})
+
+    assert torch.equal(depth, original)
+    assert torch.isfinite(processed).all()
+    assert processed.max() == 1.0
 
 
 @pytest.fixture

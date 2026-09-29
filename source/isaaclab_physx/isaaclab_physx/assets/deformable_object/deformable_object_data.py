@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
+from isaaclab.assets.deformable_object.base_deformable_object_data import BaseDeformableObjectData
 from isaaclab.utils.buffers import TimestampedBuffer
 from isaaclab.utils.warp import ProxyArray
 
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
     import omni.physics.tensors as physx
 
 
-class DeformableObjectData:
+class DeformableObjectData(BaseDeformableObjectData):
     """Data container for a deformable object.
 
     This class contains the data for a deformable object in the simulation. The data includes the nodal states of
@@ -45,8 +46,7 @@ class DeformableObjectData:
             root_view: The root deformable body view of the object.
             device: The device used for processing.
         """
-        # Set the parameters
-        self.device = device
+        super().__init__(device)
         # Set the root deformable body view
         # note: this is stored as a weak reference to avoid circular references between the asset class
         #  and the data container. This is important to avoid memory leaks.
@@ -57,9 +57,6 @@ class DeformableObjectData:
         self._max_sim_vertices = root_view.max_simulation_nodes_per_body
         self._max_sim_elements = root_view.max_simulation_elements_per_body
         self._max_collision_elements = root_view.max_collision_elements_per_body
-
-        # Set initial time stamp
-        self._sim_timestamp = 0.0
 
         # Initialize the lazy buffers.
         # -- node state in simulation world frame
