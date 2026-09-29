@@ -659,8 +659,10 @@ class OvPhysxView:
         kwargs: dict[str, Any] = {"tensor_type": create_type}
         # Reuse resolved paths within each native family; rigid bodies and articulations may differ.
         prefix = create_type.name.partition("_")[0] + "_"
-        previous = next((b for b in self._bindings.values() if b.tensor_type.name.startswith(prefix)), None)
-        if previous is not None and prefix in ("RIGID_", "ARTICULATION_"):
+        previous = None
+        if prefix in ("RIGID_", "ARTICULATION_"):
+            previous = next((b for b in self._bindings.values() if b.tensor_type.name.startswith(prefix)), None)
+        if previous is not None:
             kwargs["prim_paths"] = previous.prim_paths
         elif self._prim_paths is not None:
             kwargs["prim_paths"] = self._prim_paths
