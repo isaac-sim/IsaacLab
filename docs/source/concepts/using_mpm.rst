@@ -157,15 +157,15 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The demo handles CUDA graph capture, empty surfaces, inactive particles, and
-dynamic topology in one reusable helper:
+The demo uses a reusable helper to handle CUDA graph capture, empty surfaces,
+inactive particles, and dynamic topology:
 
-.. dropdown:: ``FluidSurfaceRenderer`` implementation
+.. dropdown:: ``ParticleSurfaceRenderer`` implementation
    :icon: code
 
-   .. literalinclude:: ../../../examples/demos/teapot_fill.py
+   .. literalinclude:: ../../../source/isaaclab_visualizers/isaaclab_visualizers/newton/particle_surface.py
       :language: python
-      :pyobject: FluidSurfaceRenderer
+      :pyobject: ParticleSurfaceRenderer
 
 
 Tune Resolution, Time, Then Convergence
