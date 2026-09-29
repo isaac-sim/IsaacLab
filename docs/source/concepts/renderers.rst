@@ -520,6 +520,10 @@ The first capture, including after reset, waits for a fresh image. The ovstage p
 The diagram shows steady-state operation when a camera captures once per environment step.
 With other update periods, latency is one capture, not necessarily one physics or control step.
 
+The diagram's *step* lane is everything synchronous with the environment step, such as physics
+and policy compute. That work may also use the GPU. The contrast is with the *render* lane,
+whose work is pipelined and no longer blocks the step.
+
 .. raw:: html
    :file: renderers_async_dataflow.html
 
@@ -543,9 +547,9 @@ when deprojecting depth:
 These snapshots describe the returned image and do not change on subsequent captures.
 Direct renderer callers use :meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before
 ``render`` or ``render_batch``, then :meth:`~isaaclab.renderers.BaseRenderer.read_output` to
-publish each camera's pixels and metadata. No physics-step announcement is needed.
+publish each camera's pixels and metadata.
 
-Input buffers remain owned until OVRTX finishes reading them. Two buffers alternate per write;
+Input buffers remain owned until OVRTX finishes reading them. Two buffers alternate per write.
 SDP converts scene transforms directly into the available buffer rather than converting and
 then copying into another staging array.
 

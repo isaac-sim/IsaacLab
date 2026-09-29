@@ -606,7 +606,11 @@ class Camera(SensorBase):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None):
         if not self._is_initialized:
             raise RuntimeError("Camera could not be initialized. Check the renderer and simulation logs for details.")
-        self._renderer.reset(self._render_data)
+        # The hook takes plain id sequences, so a slice resolves to its range. A mask-only call
+        # passes None, which means all environments: the hook permits resetting more than asked.
+        if isinstance(env_ids, slice):
+            env_ids = range(*env_ids.indices(self._num_envs))
+        self._renderer.reset(self._render_data, env_ids)
         # reset the timestamps
         super().reset(env_ids, env_mask)
         # reset the data
@@ -710,11 +714,11 @@ class Camera(SensorBase):
     def _update_buffers_impl(self, env_mask: wp.array):
         if not self._env_mask_has_any(env_mask):
             return
+        self._prepare_camera(env_mask)
+
         sim_ctx = sim_utils.SimulationContext.instance()
         renderer = self._renderer
         assert renderer is not None
-        self._prepare_camera(env_mask)
-
         if sim_ctx is not None:
             sim_ctx.render_context.render_into_camera(
                 renderer,

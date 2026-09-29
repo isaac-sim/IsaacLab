@@ -233,14 +233,17 @@ class BaseRenderer(ABC):
         """
         pass
 
-    def reset(self, render_data: Any) -> None:
-        """Invalidate queued observations before a camera reset.
+    def reset(self, render_data: Any, env_ids: Sequence[int] | None = None) -> None:
+        """Reset the renderer-owned state of a camera when its environments reset.
 
-        Synchronous renderers have no pending observations. A tiled renderer may need to re-prime
-        the whole product after a partial environment reset to avoid returning pre-reset pixels.
+        A renderer implementation drops whatever per-camera state must not survive a reset.
+        Examples are pending asynchronous observations and accumulated temporal render history.
+        The default does nothing.
 
         Args:
-            render_data: Renderer-owned camera resources to keep, with pending captures invalidated.
+            render_data: The render data object from :meth:`create_render_data`.
+            env_ids: Environments being reset, or ``None`` for all. An implementation may reset
+                more than the given environments when its state is not separable per environment.
         """
 
     def close(self) -> None:

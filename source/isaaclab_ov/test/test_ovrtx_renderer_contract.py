@@ -596,7 +596,7 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
         assert_depth(*cameras[0], 4.5)
         assert_depth(*cameras[1], 5.5)
 
-        # Reuse the two camera input slots repeatedly without a physics-step announcement.
+        # Reuse the two camera input slots repeatedly across captures.
         # A producer-stream switch must also preserve the previous write's borrowed inputs.
         for height in (6.0, 8.0, 9.0):
             with wp.ScopedStream(wp.Stream("cuda:0")):

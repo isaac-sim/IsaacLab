@@ -61,7 +61,7 @@ class OVRTXRendererCfg(RendererCfg):
 
     Each camera returns its previous capture while rendering its next image. The first capture
     and the first capture after reset wait for a fresh image. Live pose and calibration fields
-    stay current; ``camera.data.info[output_name]["capture"]`` carries the image's matching
+    stay current. ``camera.data.info[output_name]["capture"]`` carries the image's matching
     ``pos_w``, ``quat_w_world``, ``intrinsic_matrices``, and per-environment ``frame`` indices.
     The ovstage path does not support pipelining and renders synchronously.
     """

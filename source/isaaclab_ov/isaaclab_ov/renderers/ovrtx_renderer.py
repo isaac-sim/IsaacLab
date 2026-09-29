@@ -10,8 +10,9 @@ How it fits together
 - **ovrtx_renderer.py** (this file): Orchestrates USD loading/cloning, camera and object
   bindings, and output buffers, borrowing native handles from OVRTXBackend. Each frame it:
   updates camera/object transforms (using kernels), steps the renderer, then extracts
-  tiles from the tiled framebuffer (kernels). Cameras retain their own asynchronous results;
-  native write operations own the lifetime of borrowed input buffers.
+  tiles from the tiled framebuffer (kernels). Under asynchronous rendering, each camera keeps
+  its own pending ``step_async`` render operation and publishes it at the next ``read_output``.
+  The ovrtx binding write operations retain their input buffers until ovrtx has consumed them.
 
 - **ovrtx_renderer_kernels.py**: Warp GPU kernels for OVRTX rendering pipeline.
 
@@ -953,7 +954,8 @@ class OVRTXRenderer(BaseRenderer):
             return
         num_envs = positions.shape[0]
         stream = self._warp_device.stream
-        if len(render_data.camera_writes) == (2 if self.cfg.async_rendering else 1):
+        retained_writes = 2 if self.cfg.async_rendering else 1
+        if len(render_data.camera_writes) == retained_writes:
             converted, matrices, operation, producer = render_data.camera_writes[0]
             operation.wait()
             if producer != stream:
@@ -968,7 +970,7 @@ class OVRTXRenderer(BaseRenderer):
         operation = render_data.camera_xform_binding.write_async(
             matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream
         )
-        if len(render_data.camera_writes) == (2 if self.cfg.async_rendering else 1):
+        if len(render_data.camera_writes) == retained_writes:
             render_data.camera_writes.popleft()
         render_data.camera_writes.append((converted, matrices, operation, stream))
         if not self.cfg.async_rendering:
@@ -1436,8 +1438,13 @@ class OVRTXRenderer(BaseRenderer):
                 errors.append(error)
         return errors
 
-    def reset(self, render_data: OVRTXCameraRenderData) -> None:
-        """Retire pre-reset frames; the next capture primes this whole tiled product."""
+    def reset(self, render_data: OVRTXCameraRenderData, env_ids: Sequence[int] | None = None) -> None:
+        """Retire pre-reset frames. The next capture primes this whole tiled product.
+
+        Pending captures cover every environment tile, so they are not separable per environment
+        and ``env_ids`` is not consulted.
+        """
+        del env_ids
         errors = self.drain_pending_renders((render_data,))
         render_data.pending = render_data.ready = None
         render_data.capture = {}
@@ -1502,6 +1509,9 @@ class OVRTXRenderer(BaseRenderer):
         binding = self._object_xform_query if self._use_ovstage else self._object_xform_binding
         if binding is None:
             return
+        timestamp = self._sdp.backend.transforms_timestamp
+        if self._transforms.timestamp == timestamp:
+            return
         stream = self._warp_device.stream
         output = self._transforms.data
         asynchronous = self.cfg.async_rendering and not self._use_ovstage
@@ -1512,9 +1522,6 @@ class OVRTXRenderer(BaseRenderer):
                 if producer != stream:
                     stream.wait_stream(producer)
         if not self._sdp.get_transforms(output, allow_passthrough=not asynchronous, scales=self._object_scales):
-            return
-        timestamp = self._sdp.backend.transforms_timestamp
-        if self._transforms.timestamp == timestamp:
             return
         matrices = output.matrices
         if self._use_ovstage:
@@ -1578,8 +1585,9 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_camera_intrinsics(self, render_data: OVRTXCameraRenderData, intrinsics: wp.array, parameters: wp.array):
         """Publish calibration columns from GPU memory into the renderer-owned scene."""
-        # A runtime calibration change is a scene write, so any in-flight render must finish first.
-        errors = self.drain_pending_renders()
+        # A runtime calibration change is a scene write for this camera's bindings, so its
+        # in-flight renders must finish first. Other cameras keep their pipelines.
+        errors = self.drain_pending_renders((render_data,))
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
         stream = wp.get_stream(parameters.device).cuda_stream

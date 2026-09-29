@@ -582,7 +582,7 @@ def test_camera_batch_respects_period_partial_reset_and_updated_pose(camera_batc
 
     slow.pose = 3.0
     slow.reset(env_mask=wp.array([False, True], dtype=wp.bool, device="cpu"))
-    renderer.reset.assert_called_once_with(slow._render_data)
+    renderer.reset.assert_called_once_with(slow._render_data, None)
     InteractiveScene.update(scene, 0.1)
     assert batches[-1] == [("fast", 0.0), ("slow", 3.0)]
     assert slow.data.info["pose"] == 3.0

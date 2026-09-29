@@ -81,12 +81,12 @@
   </tr>
   <tr>
     <td class="lbl">3 · submit</td>
-    <td class="same" colspan="2">GPU starts rendering <span class="chip frame">F<sub>k</sub></span> from <span class="chip tf">T<sub>k</sub></span></td>
+    <td class="same" colspan="2">the renderer starts <span class="chip frame">F<sub>k</sub></span> from <span class="chip tf">T<sub>k</sub></span></td>
   </tr>
   <tr class="differs">
     <td class="lbl">4 · render</td>
-    <td>CPU <b>waits</b> until <span class="chip frame">F<sub>k</sub></span> is finished</td>
-    <td class="async">CPU <b>waits</b> until <em>previous</em> <span class="chip frame stale">F<sub>k-1</sub></span> is finished</td>
+    <td>the step <b>waits</b> until <span class="chip frame">F<sub>k</sub></span> is finished</td>
+    <td class="async">the step <b>waits</b> until <em>previous</em> <span class="chip frame stale">F<sub>k-1</sub></span> is finished</td>
   </tr>
   <tr class="differs">
     <td class="lbl">5 · observe</td>
@@ -103,19 +103,19 @@
 </table>
 
 <p class="il-h">Synchronous timeline</p>
-<svg viewBox="0 0 860 128" role="img" aria-label="Synchronous timeline: the CPU waits while the GPU renders each frame">
-  <text x="8"  y="40" class="lane-label">CPU</text>
-  <text x="8"  y="104" class="lane-label">GPU</text>
+<svg viewBox="0 0 860 128" role="img" aria-label="Synchronous timeline: the step waits while the renderer produces each frame">
+  <text x="8"  y="40" class="lane-label">step</text>
+  <text x="8"  y="104" class="lane-label">render</text>
   <rect x="70"  y="20" width="130" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
   <text x="135" y="40" text-anchor="middle">physics k</text>
   <rect x="200" y="20" width="140" height="32" rx="6" fill="var(--il-wait-bg)" stroke="var(--il-wait-border)" stroke-dasharray="4 3"/>
-  <text x="270" y="40" text-anchor="middle" class="small">waits for GPU</text>
+  <text x="270" y="40" text-anchor="middle" class="small">waits for render</text>
   <rect x="340" y="20" width="150" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
   <text x="415" y="40" text-anchor="middle">obs, policy k</text>
   <rect x="490" y="20" width="140" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
   <text x="560" y="40" text-anchor="middle">physics k+1</text>
   <rect x="630" y="20" width="140" height="32" rx="6" fill="var(--il-wait-bg)" stroke="var(--il-wait-border)" stroke-dasharray="4 3"/>
-  <text x="700" y="40" text-anchor="middle" class="small">waits for GPU</text>
+  <text x="700" y="40" text-anchor="middle" class="small">waits for render</text>
   <rect x="200" y="84" width="140" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
   <text x="270" y="104" text-anchor="middle">render F<tspan class="smsub">k</tspan></text>
   <rect x="630" y="84" width="140" height="32" rx="6" fill="var(--il-gpu-bg)" stroke="var(--il-gpu-border)"/>
@@ -125,11 +125,11 @@
 </svg>
 
 <p class="il-h">Asynchronous timeline</p>
-<svg viewBox="0 0 860 150" role="img" aria-label="Asynchronous timeline: the GPU renders frame k while the CPU runs the policy and the next physics step">
+<svg viewBox="0 0 860 150" role="img" aria-label="Asynchronous timeline: frame k renders while the policy and the next physics step run">
   <rect x="282" y="12" width="248" height="112" rx="8" fill="var(--il-obs-bg)" opacity="0.5"/>
-  <text x="406" y="146" text-anchor="middle" class="small">render F<tspan class="smsub">k</tspan> overlaps the CPU work of step k and the physics of step k+1 — the step time becomes max(render time, CPU time per step)</text>
-  <text x="8"  y="40" class="lane-label">CPU</text>
-  <text x="8"  y="104" class="lane-label">GPU</text>
+  <text x="406" y="146" text-anchor="middle" class="small">render F<tspan class="smsub">k</tspan> overlaps the rest of step k and the physics of step k+1 — the step time becomes max(render time, step compute time)</text>
+  <text x="8"  y="40" class="lane-label">step</text>
+  <text x="8"  y="104" class="lane-label">render</text>
   <rect x="70"  y="20" width="120" height="32" rx="6" fill="var(--il-cpu-bg)" stroke="var(--il-cpu-border)"/>
   <text x="130" y="40" text-anchor="middle">physics k</text>
   <rect x="190" y="20" width="92" height="32" rx="6" fill="var(--il-frame-bg)" stroke="var(--il-frame)"/>
