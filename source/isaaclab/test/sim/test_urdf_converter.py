@@ -234,13 +234,19 @@ def test_merge_fixed_joints_converter(sim_config, tmp_path):
 
 
 @pytest.mark.isaacsim_ci
-def test_fix_base_creates_fixed_joint(sim_config, tmp_path):
-    """Verify that fix_base=True creates a FixedJoint in the output USD."""
+@pytest.mark.parametrize("run_asset_transformer", [True, False], ids=["layered", "flat"])
+def test_fix_base_roots_articulation_at_world_joint(sim_config, tmp_path, run_asset_transformer):
+    """Verify that fix_base=True roots the articulation at the fixed joint that attaches the root link to the world.
+
+    The importer adds that joint as ``root_joint``. UsdPhysics roots a fixed-base articulation at its world joint,
+    while an articulation rooted at the root link is floating.
+    """
     sim, config = sim_config
     output_dir = os.path.join(str(tmp_path), "urdf_fix_base")
     os.makedirs(output_dir, exist_ok=True)
 
     config.fix_base = True
+    config.run_asset_transformer = run_asset_transformer
     config.force_usd_conversion = True
     config.usd_dir = output_dir
     urdf_converter = UrdfConverter(config)
@@ -248,15 +254,9 @@ def test_fix_base_creates_fixed_joint(sim_config, tmp_path):
     from pxr import Usd, UsdPhysics
 
     stage = Usd.Stage.Open(urdf_converter.usd_path)
-
-    # search for a FixedJoint in the output
-    fixed_joints = [p for p in stage.Traverse() if p.IsA(UsdPhysics.FixedJoint)]
-    assert len(fixed_joints) > 0, "Expected at least one FixedJoint from fix_base=True"
-
-    # the first FixedJoint should target a rigid body link via body1
-    fj = UsdPhysics.FixedJoint(fixed_joints[0])
-    body1_targets = fj.GetBody1Rel().GetTargets()
-    assert len(body1_targets) > 0, "FixedJoint should target a rigid body link via body1"
+    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert [root.GetName() for root in roots] == ["root_joint"]
+    assert roots[0].IsA(UsdPhysics.FixedJoint)
 
 
 @pytest.mark.isaacsim_ci

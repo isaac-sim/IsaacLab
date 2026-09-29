@@ -21,8 +21,10 @@ class MjcfConverter(AssetConverterBase):
     from the standalone ``isaacsim-asset-isolated`` package. All conversion logic (USD schema
     application, fix-base, density, actuator gains, self-collision, mesh merging, asset
     transformer profile) is performed by :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` —
-    this class only translates :class:`MjcfConverterCfg` into a flat
-    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`.
+    this class translates :class:`MjcfConverterCfg` into a flat
+    :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig`. After the import, it only selects the
+    configured physics variant and roots a fixed-base articulation at its world joint (see
+    :attr:`MjcfConverterCfg.fix_base`).
 
     .. caution::
         The current lazy conversion implementation does not automatically trigger USD generation if
@@ -94,3 +96,5 @@ class MjcfConverter(AssetConverterBase):
         if generated_usd_path:
             generated_usd_path = os.path.normpath(generated_usd_path)
             self._usd_file_name = os.path.relpath(generated_usd_path, self.usd_dir)
+            if cfg.fix_base:
+                self._root_articulations_at_world_joints(layered=cfg.run_asset_transformer)

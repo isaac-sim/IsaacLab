@@ -31,13 +31,14 @@ import warp as wp
 from isaaclab_physx.assets import Articulation
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdPhysics
 
 import isaaclab.sim as sim_utils
 import isaaclab.utils.math as math_utils
 import isaaclab.utils.string as string_utils
 from isaaclab.actuators import IdealPDActuatorCfg, ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering
+from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.controllers import DifferentialIKController, DifferentialIKControllerCfg
 from isaaclab.envs.mdp.terminations import joint_effort_out_of_limit
 from isaaclab.managers import SceneEntityCfg
@@ -55,6 +56,26 @@ from isaaclab_assets import (  # isort:skip
     FRANKA_PANDA_HIGH_PD_CFG,
 )
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
+
+# Base link with one revolute child. The URDF importer attaches the base link to the asset's root prim.
+_FIXED_BASE_URDF = """
+<robot name="fixed_base">
+  <link name="base_link">
+    <inertial><mass value="5.0"/><inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/></inertial>
+    <collision><geometry><box size="0.2 0.2 0.2"/></geometry></collision>
+  </link>
+  <link name="arm_link">
+    <inertial>
+      <origin xyz="0.15 0 0"/><mass value="1.0"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+    <collision><origin xyz="0.15 0 0"/><geometry><box size="0.3 0.04 0.04"/></geometry></collision>
+  </link>
+  <joint name="hinge" type="revolute">
+    <parent link="base_link"/><child link="arm_link"/><origin xyz="0.1 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="5.0"/>
+  </joint>
+</robot>
+"""
 
 
 def generate_articulation_cfg(
@@ -781,6 +802,42 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 
         torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("fix_root_link", [None, True])
+def test_initialization_fixed_base_urdf(sim, num_articulations, device, fix_root_link, tmp_path):
+    """Test that a URDF converted with ``fix_base=True`` initializes as a fixed-base articulation.
+
+    The importer attaches the root link to the world with the fixed joint ``root_joint``. The articulation has to be
+    rooted at that joint, since PhysX simulates an articulation rooted at the root link as a floating base. With
+    physics replication, each environment has to keep its base at its origin. Fixing the root link through the
+    spawner as well must reuse that joint instead of adding a second one.
+    """
+    urdf_path = tmp_path / "fixed_base.urdf"
+    urdf_path.write_text(_FIXED_BASE_URDF)
+    spawn = sim_utils.UrdfFileCfg(
+        asset_path=str(urdf_path), usd_dir=str(tmp_path / "usd"), fix_base=True, fix_root_link=fix_root_link
+    )
+    cfg = ArticulationCfg(prim_path="/World/Env_[^/]*/Robot", spawn=spawn, actuators={})
+    sim_utils.create_prim("/World/Env_0", "Xform")
+    # the grid places every environment away from the world origin
+    plan = clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), (cfg,), num_articulations, 2.5)
+    articulation = Articulation(cfg)
+    replicate(plan)
+
+    sim.reset()
+    assert articulation.is_fixed_base
+    for _ in range(10):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    env_origins = torch.as_tensor(plan.positions, device=device)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:, :3], env_origins)
+
+    robot = sim_utils.get_current_stage().GetPrimAtPath("/World/Env_0/Robot")
+    fixed_joints = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.FixedJoint)]
+    assert fixed_joints == ["root_joint"]
 
 
 @pytest.mark.parametrize("num_articulations", [2])

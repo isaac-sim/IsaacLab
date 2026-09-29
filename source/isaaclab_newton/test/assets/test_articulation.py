@@ -42,7 +42,7 @@ from newton import JointTargetMode, JointType, ModelBuilder, ModelFlags, ShapeFl
 from newton.selection import ArticulationView
 from newton.solvers import SolverMuJoCo
 
-from pxr import UsdPhysics
+from pxr import Usd, UsdPhysics
 
 import isaaclab.assets.articulation.ordering_resolvers as ordering_resolvers
 import isaaclab.sim as sim_utils
@@ -184,6 +184,27 @@ SIM_CFGs = {
 
 class CustomDrive(ImplicitActuator):
     """Implicit actuator with a class name that does not encode its execution type."""
+
+
+# Base link with one revolute child. The URDF importer attaches the base link to the asset's root prim.
+_FIXED_BASE_URDF = """
+<robot name="fixed_base">
+  <link name="base_link">
+    <inertial><mass value="5.0"/><inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/></inertial>
+    <collision><geometry><box size="0.2 0.2 0.2"/></geometry></collision>
+  </link>
+  <link name="arm_link">
+    <inertial>
+      <origin xyz="0.15 0 0"/><mass value="1.0"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
+    </inertial>
+    <collision><origin xyz="0.15 0 0"/><geometry><box size="0.3 0.04 0.04"/></geometry></collision>
+  </link>
+  <joint name="hinge" type="revolute">
+    <parent link="base_link"/><child link="arm_link"/><origin xyz="0.1 0 0"/><axis xyz="0 1 0"/>
+    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="5.0"/>
+  </joint>
+</robot>
+"""
 
 
 def generate_articulation_cfg(
@@ -1677,6 +1698,38 @@ def test_fragment_fix_root_link_uses_base_manager(sim, device, add_ground_plane,
 
         torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize("articulation_type", ["single_joint_implicit"])
+@pytest.mark.parametrize("fix_root_link", [None, True])
+def test_initialization_fixed_base_urdf(sim, num_articulations, device, articulation_type, fix_root_link, tmp_path):
+    """Test that a URDF converted with ``fix_base=True`` initializes as a fixed-base articulation.
+
+    The articulation is rooted at the fixed joint ``root_joint`` that the importer adds. Fixing the root link through
+    the spawner as well must reuse that joint instead of adding a second one, which Newton cannot import.
+    """
+    urdf_path = tmp_path / "fixed_base.urdf"
+    urdf_path.write_text(_FIXED_BASE_URDF)
+    spawn = sim_utils.UrdfFileCfg(
+        asset_path=str(urdf_path), usd_dir=str(tmp_path / "usd"), fix_base=True, fix_root_link=fix_root_link
+    )
+    articulation, translations = generate_articulation(
+        ArticulationCfg(spawn=spawn, actuators={}), num_articulations, device
+    )
+
+    replicate(sim.get_clone_plan())
+    sim.reset()
+    assert articulation.is_fixed_base
+    for _ in range(10):
+        sim.step()
+        articulation.update(sim.cfg.dt)
+    torch.testing.assert_close(articulation.data.root_link_pose_w.torch[:, :3], translations)
+
+    robot = sim.stage.GetPrimAtPath("/World/Env_0/Robot")
+    fixed_joints = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.FixedJoint)]
+    assert fixed_joints == ["root_joint"]
 
 
 @pytest.mark.parametrize("num_articulations", [2])

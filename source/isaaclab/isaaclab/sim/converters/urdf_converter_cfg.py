@@ -102,7 +102,13 @@ class UrdfConverterCfg(AssetConverterBaseCfg):
         """The drive gains configuration."""
 
     fix_base: bool = MISSING
-    """Create a fix joint to the root/base link."""
+    """Fix the root link to the world.
+
+    The articulation is rooted at the fixed joint that attaches the root link to the world, the ``root_joint`` that
+    the importer adds or the fixed joint from a ``world`` link, so that PhysX treats it as fixed-base. A root link
+    attached to a ``world`` link by a non-fixed joint keeps the articulation root, and PhysX simulates that joint
+    outside the articulation.
+    """
 
     root_link_name: str | None = None
     """The name of the root link. Defaults to None.

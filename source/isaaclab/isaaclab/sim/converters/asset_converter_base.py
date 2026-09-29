@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+from __future__ import annotations
+
 import abc
 import hashlib
 import json
@@ -12,13 +14,20 @@ import pathlib
 import random
 import tempfile
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from ...utils import to_dict, validate
 from ...utils.assets import check_file_path
 from ...utils.io import dump_yaml
 from .asset_converter_base_cfg import AssetConverterBaseCfg
 
+if TYPE_CHECKING:
+    from pxr import Usd
+
 logger = logging.getLogger(__name__)
+
+_ARTICULATION_ROOT_ATTRIBUTES = ("newton:selfCollisionEnabled", "newton:jointsAddMobility")
+"""Attributes of the Newton articulation-root schema, which move with the articulation root."""
 
 
 class AssetConverterBase(abc.ABC):
@@ -199,6 +208,52 @@ class AssetConverterBase(abc.ABC):
         variant_set.SetVariantSelection(variant)
         stage.GetRootLayer().Save()
 
+    def _root_articulations_at_world_joints(self, layered: bool):
+        """Root each fixed-base articulation of the converted asset at the fixed joint that attaches it to the world.
+
+        With ``fix_base``, the Isaac Sim importers keep a fixed world joint that the asset already has, such as the
+        root joint that the URDF importer adds or the weld of an MJCF body without joints, but leave the articulation
+        root on the root body. UsdPhysics roots a fixed-base articulation at its world joint or at an ancestor of
+        that joint, while an articulation rooted at a rigid body is floating: PhysX simulates such an asset as a
+        floating articulation that the world joint only holds as an additional constraint. The importers root the
+        fixed joint that they create themselves in the same way. A root body on a revolute, prismatic, or D6 world
+        joint keeps the root, since PhysX would weld an articulation rooted at that joint.
+
+        The importers author the articulation roots in the physics layer, which the other physics layers include.
+        Isaac Sim's ``fix_articulation_root_for_fixed_base`` does not apply here: it skips the prims that the
+        physics layer only overrides, and it also roots non-fixed world joints.
+
+        Remove this correction when the pinned Isaac Sim importers root an existing world joint as well
+        (isaac-sim/IsaacSim#859).
+
+        Args:
+            layered: Whether the asset transformer of the importer split the asset into layers.
+        """
+        from pxr import Usd, UsdPhysics
+
+        if layered:
+            usd_path = os.path.join(os.path.dirname(self.usd_path), "payloads", "Physics", "physics.usda")
+        else:
+            usd_path = self.usd_path
+        if not os.path.isfile(usd_path):
+            logger.warning(f"Cannot root the articulations at their world joints: '{usd_path}' does not exist.")
+            return
+        stage = Usd.Stage.Open(usd_path)
+        # the physics layer only adds opinions under the asset's prims, so it has to be traversed with the
+        # all-prims predicate to reach them
+        prims = list(stage.TraverseAll())
+        joints = [prim for prim in prims if prim.IsA(UsdPhysics.FixedJoint)]
+        modified = False
+        for body in prims:
+            if not (body.HasAPI(UsdPhysics.ArticulationRootAPI) and body.HasAPI(UsdPhysics.RigidBodyAPI)):
+                continue
+            world_joint = next((joint for joint in joints if _attaches_to_world(joint, body)), None)
+            if world_joint is not None:
+                _move_articulation_root(body, world_joint)
+                modified = True
+        if modified:
+            stage.GetRootLayer().Save()
+
     @staticmethod
     def _config_to_hash(cfg: AssetConverterBaseCfg) -> str:
         """Converts the configuration object and asset file to an MD5 hash of a string.
@@ -234,3 +289,61 @@ class AssetConverterBase(abc.ABC):
                 md5.update(data)
         # return the hash
         return md5.hexdigest()
+
+
+def _attaches_to_world(joint: Usd.Prim, body: Usd.Prim) -> bool:
+    """Return whether an articulation joint attaches a body, as its second body, to the world.
+
+    UsdPhysics attaches a joint to the closest rigid-body ancestor of its target, and to the world without one.
+    """
+    from pxr import UsdPhysics
+
+    joint_api = UsdPhysics.Joint(joint)
+    if not joint.IsActive() or not joint_api.GetJointEnabledAttr().Get():
+        return False
+    if joint_api.GetExcludeFromArticulationAttr().Get():
+        return False
+    if joint_api.GetBody1Rel().GetTargets() != [body.GetPath()]:
+        return False
+    targets = joint_api.GetBody0Rel().GetTargets()
+    prim = joint.GetStage().GetPrimAtPath(targets[0]) if targets else None
+    while prim and not prim.IsPseudoRoot():
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            return False
+        prim = prim.GetParent()
+    return True
+
+
+def _move_articulation_root(source: Usd.Prim, target: Usd.Prim):
+    """Move the articulation-root schemas and their authored attributes from one prim to another.
+
+    These are the schemas and attributes that the Isaac Sim importers move to a fixed joint that they create. The
+    schema names are read from the authored ``apiSchemas``, since USD leaves schemas without a registered
+    definition out of :meth:`~pxr.Usd.Prim.GetAppliedSchemas`, which happens without Kit.
+
+    Raises:
+        RuntimeError: If a schema or an attribute cannot be moved.
+    """
+    from pxr import Sdf
+
+    api_schemas = source.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+    names = [
+        name
+        for name in api_schemas.GetAddedOrExplicitItems()
+        if "ArticulationRoot" in name or name == "PhysxArticulationAPI"
+    ]
+    for name in names:
+        if not target.AddAppliedSchema(name):
+            raise RuntimeError(f"Failed to apply '{name}' to '{target.GetPath()}'.")
+    for attr in source.GetAttributes():
+        name = attr.GetName()
+        is_root_attribute = name.startswith("physxArticulation:") or name in _ARTICULATION_ROOT_ATTRIBUTES
+        if not (is_root_attribute and attr.HasAuthoredValue()):
+            continue
+        if not target.CreateAttribute(name, attr.GetTypeName(), custom=False).Set(attr.Get()):
+            raise RuntimeError(f"Failed to move '{attr.GetPath()}' to '{target.GetPath()}'.")
+        if not source.RemoveProperty(name):
+            raise RuntimeError(f"Failed to remove '{attr.GetPath()}'.")
+    for name in names:
+        if not source.RemoveAppliedSchema(name):
+            raise RuntimeError(f"Failed to remove '{name}' from '{source.GetPath()}'.")

@@ -517,7 +517,11 @@ def modify_articulation_root_properties(
     apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     if fix_root_link is not None:
-        existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
+        if fix_root_link and articulation_prim.IsA(UsdPhysics.FixedJoint):
+            # an articulation rooted at a fixed joint is attached to the world by that joint
+            existing_fixed_joint_prim = UsdPhysics.Joint(articulation_prim)
+        else:
+            existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)
         # enable/disable an existing world joint, otherwise create one
         if existing_fixed_joint_prim is not None:
             logger.info(
