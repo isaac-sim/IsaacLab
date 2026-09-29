@@ -1,0 +1,217 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+r"""Configuration for the Pollen Robotics Reachy 2 bimanual humanoid robot.
+
+The following configurations are available:
+
+* :obj:`REACHY2_CFG`: Reachy 2 with both arms, neck, and grippers using implicit actuators.
+* :obj:`REACHY2_HIGH_PD_CFG`: Reachy 2 with stiffer PD gains for task-space (IK) tracking.
+
+Reachy 2 has:
+* 7 DOF per arm: shoulder_pitch, shoulder_roll, elbow_yaw, elbow_pitch,
+  wrist_roll, wrist_pitch, wrist_yaw (Orbita 2D + 3D parallel mechanisms)
+* 3 DOF neck: neck_roll, neck_pitch, neck_yaw (Orbita 3D)
+* 5 gripper joints per hand: hand_finger, hand_finger_proximal,
+  hand_finger_proximal_mimic, hand_finger_distal, hand_finger_distal_mimic
+
+Reference:
+    https://github.com/pollen-robotics/reachy2_core
+    https://www.pollen-robotics.com/reachy-2/
+
+Asset generation:
+    The USD asset is generated locally from the bundled ``reachy2_fixed.urdf``
+    (pending hosting on Nucleus). The URDF references meshes via ROS
+    ``package://`` URLs, resolved from a clone of ``reachy2_core``:
+
+    .. code-block:: bash
+
+        git clone https://github.com/pollen-robotics/reachy2_core /path/to/reachy2_core
+
+    .. code-block:: bash
+
+        REACHY2_CORE=/path/to/reachy2_core
+        ASSET_DIR=source/isaaclab_assets/isaaclab_assets/robots/reachy2
+        uv run python scripts/tools/convert_urdf.py \
+            $ASSET_DIR/reachy2_fixed.urdf $ASSET_DIR/reachy2.usd --joint_target_type position \
+            --ros_package_path reachy_description $REACHY2_CORE/reachy_description \
+            --ros_package_path dynamixel_description \
+            $REACHY2_CORE/reachy_controllers/dynamixel_control/dynamixel_description
+
+    Convert without ``--fix-base``: :data:`REACHY2_CFG` fixes the base through the spawner. A
+    world joint authored in the USD anchors every cloned environment to the first one.
+
+    Note: the URDF has been pre-processed from the original in
+    ``reachy2_symbolic_ik``: Gazebo-specific blocks and non-existent meshes
+    removed, mobile-base and torso-bar visuals stripped (fixed-base
+    simulation), the ``world`` link removed, and gripper ``<mimic>`` tags removed — the importer drops the
+    mimic offset, which displaces the finger linkage; the finger joints are
+    instead position-driven directly with kinematically consistent commands.
+"""
+
+import os
+
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
+import isaaclab.sim as sim_utils
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets.articulation import ArticulationCfg
+from isaaclab.utils import clone
+
+##
+# USD path — local to this repo until the asset is hosted on Nucleus.
+# Generated from reachy2_fixed.urdf via scripts/tools/convert_urdf.py (see the module docstring):
+#   source/isaaclab_assets/isaaclab_assets/robots/reachy2/reachy2.usd/reachy2_fixed/reachy2_fixed.usda
+##
+_REACHY2_USD = os.path.join(
+    os.path.dirname(__file__),
+    "reachy2",
+    "reachy2.usd",
+    "reachy2_fixed",
+    "reachy2_fixed.usda",
+)
+
+##
+# Configuration
+##
+
+REACHY2_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=_REACHY2_USD,
+        activate_contact_sensors=False,
+        # Fix the base per environment; a world joint authored in the USD pins every clone to env 0
+        fix_root_link=True,
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        joint_pos={
+            # Neck — neutral
+            "neck_roll": 0.0,
+            "neck_pitch": 0.0,
+            "neck_yaw": 0.0,
+            # Right arm — resting alongside torso
+            "r_shoulder_pitch": 0.0,
+            "r_shoulder_roll": -0.2,
+            "r_elbow_yaw": 0.0,
+            "r_elbow_pitch": -0.5,
+            "r_wrist_roll": 0.0,
+            "r_wrist_pitch": 0.0,
+            "r_wrist_yaw": 0.0,
+            # Left arm — resting alongside torso
+            "l_shoulder_pitch": 0.0,
+            "l_shoulder_roll": 0.2,
+            "l_elbow_yaw": 0.0,
+            "l_elbow_pitch": -0.5,
+            "l_wrist_roll": 0.0,
+            "l_wrist_pitch": 0.0,
+            "l_wrist_yaw": 0.0,
+            # Grippers — open
+            "r_hand_finger": 0.0,
+            "r_hand_finger_proximal": 0.0,
+            "r_hand_finger_proximal_mimic": 0.0,
+            "r_hand_finger_distal": 0.0,
+            "r_hand_finger_distal_mimic": 0.0,
+            "l_hand_finger": 0.0,
+            "l_hand_finger_proximal": 0.0,
+            "l_hand_finger_proximal_mimic": 0.0,
+            "l_hand_finger_distal": 0.0,
+            "l_hand_finger_distal_mimic": 0.0,
+        }
+    ),
+    actuators={
+        # Note: non-zero armature is required for stability. The URDF's Orbita
+        # dummy links and gripper finger links have near-zero inertias (down to
+        # 1e-6 kg m^2); stiff position drives on such bodies are numerically
+        # unstable at the 100 Hz physics rate without added rotor inertia.
+        # Right arm — 7 DOF Orbita actuators
+        "r_arm": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "r_shoulder_pitch",
+                "r_shoulder_roll",
+                "r_elbow_yaw",
+                "r_elbow_pitch",
+                "r_wrist_roll",
+                "r_wrist_pitch",
+                "r_wrist_yaw",
+            ],
+            joint_effort_limit=100.0,
+            joint_velocity_limit=5.0,
+            stiffness=100.0,
+            damping=5.0,
+            armature=0.01,
+        ),
+        # Left arm — 7 DOF Orbita actuators
+        "l_arm": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "l_shoulder_pitch",
+                "l_shoulder_roll",
+                "l_elbow_yaw",
+                "l_elbow_pitch",
+                "l_wrist_roll",
+                "l_wrist_pitch",
+                "l_wrist_yaw",
+            ],
+            joint_effort_limit=100.0,
+            joint_velocity_limit=5.0,
+            stiffness=100.0,
+            damping=5.0,
+            armature=0.01,
+        ),
+        # Neck — 3 DOF Orbita 3D
+        "neck": ImplicitActuatorCfg(
+            joint_names_expr=["neck_roll", "neck_pitch", "neck_yaw"],
+            joint_effort_limit=50.0,
+            joint_velocity_limit=5.0,
+            stiffness=80.0,
+            damping=4.0,
+            armature=0.01,
+        ),
+        # Grippers — Dynamixel fingers
+        "r_gripper": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "r_hand_finger",
+                "r_hand_finger_proximal",
+                "r_hand_finger_proximal_mimic",
+                "r_hand_finger_distal",
+                "r_hand_finger_distal_mimic",
+            ],
+            joint_effort_limit=10.0,
+            joint_velocity_limit=2.0,
+            stiffness=20.0,
+            damping=1.0,
+            armature=0.005,
+        ),
+        "l_gripper": ImplicitActuatorCfg(
+            joint_names_expr=[
+                "l_hand_finger",
+                "l_hand_finger_proximal",
+                "l_hand_finger_proximal_mimic",
+                "l_hand_finger_distal",
+                "l_hand_finger_distal_mimic",
+            ],
+            joint_effort_limit=10.0,
+            joint_velocity_limit=2.0,
+            stiffness=20.0,
+            damping=1.0,
+            armature=0.005,
+        ),
+    },
+    soft_joint_pos_limit_factor=1.0,
+)
+"""Configuration of Reachy 2 with implicit actuators."""
+
+
+REACHY2_HIGH_PD_CFG = clone(REACHY2_CFG)
+REACHY2_HIGH_PD_CFG.actuators["r_arm"].stiffness = 400.0
+REACHY2_HIGH_PD_CFG.actuators["r_arm"].damping = 40.0
+REACHY2_HIGH_PD_CFG.actuators["l_arm"].stiffness = 400.0
+REACHY2_HIGH_PD_CFG.actuators["l_arm"].damping = 40.0
+"""Configuration of Reachy 2 with stiffer PD gains for task-space (IK) control."""

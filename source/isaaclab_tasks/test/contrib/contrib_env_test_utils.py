@@ -39,6 +39,8 @@ _SKIPPED_TASK_SUBSTRINGS = {
     # The DR Legs solver intermittently produces NaN robot state under random actions.
     # Re-enable the family once the tracked solver instability is resolved.
     "DrLegs": "Kamino solver intermittently produces NaN robot state under random actions.",
+    # Remove once the Reachy 2 USD is hosted; it is generated locally from the bundled URDF until then.
+    "Reachy2": "Requires the Reachy 2 USD, which is generated locally until it is hosted on Nucleus.",
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
