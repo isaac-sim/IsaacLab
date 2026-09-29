@@ -97,7 +97,11 @@ def test_no_change(sim_config):
 
 @pytest.mark.isaacsim_ci
 def test_config_change(sim_config, tmp_path):
-    """Call conversion twice but change the config in the second call. This should generate a new USD file."""
+    """Call conversion twice but change the config in the second call. This should generate a new USD file.
+
+    A third call with the changed config must load that file, although the importer writes it next to the
+    first one instead of overwriting it.
+    """
 
     sim, config = sim_config
     output_dir = os.path.join(str(tmp_path), "urdf_config_change")
@@ -117,6 +121,11 @@ def test_config_change(sim_config, tmp_path):
     new_time_usd_file_created = os.stat(new_urdf_converter.usd_path).st_mtime_ns
 
     assert time_usd_file_created != new_time_usd_file_created
+
+    # convert again with the changed config, which must not generate a new USD file
+    lazy_urdf_converter = UrdfConverter(new_config)
+    assert lazy_urdf_converter.usd_path == new_urdf_converter.usd_path
+    assert os.stat(lazy_urdf_converter.usd_path).st_mtime_ns == new_time_usd_file_created
 
 
 @pytest.mark.isaacsim_ci
