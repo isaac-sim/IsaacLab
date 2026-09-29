@@ -8,12 +8,15 @@ such as granular media. MPM support and rigid-MPM coupling are experimental.
 Start with the compact ``mpm-granular`` example; the ``snowball-smash`` and
 ``teapot-fill`` demos provide polished coupling and cavity-sampling showcases.
 
+The launcher uses ``cuda:0`` by default. Pass ``--device cuda:N`` to select a
+different GPU.
+
 
 Explore MPM Scenes
 ------------------
 
 These examples and demos introduce MPM construction and interaction before any
-parameter study. Run them in Kit to inspect the authored particles directly:
+parameter study. They default to Newton GL for interactive viewing:
 
 .. grid:: 1 1 2 2
    :gutter: 2
@@ -28,8 +31,7 @@ parameter study. Run them in Kit to inspect the authored particles directly:
 
       .. code-block:: bash
 
-         uv run isaaclab example mpm-granular \
-           --device cuda:0 --visualizer kit
+         uv run isaaclab example mpm-granular
 
    .. grid-item-card:: Two-way sphere pit
 
@@ -41,8 +43,7 @@ parameter study. Run them in Kit to inspect the authored particles directly:
 
       .. code-block:: bash
 
-         uv run isaaclab example mpm-two-way-coupling \
-           --device cuda:0 --visualizer kit
+         uv run isaaclab example mpm-two-way-coupling
 
    .. grid-item-card:: Snowball smash
 
@@ -54,8 +55,7 @@ parameter study. Run them in Kit to inspect the authored particles directly:
 
       .. code-block:: bash
 
-         uv run isaaclab demo snowball-smash \
-           --device cuda:0 --visualizer kit
+         uv run isaaclab demo snowball-smash
 
    .. grid-item-card:: Teapot fill
 
@@ -67,8 +67,7 @@ parameter study. Run them in Kit to inspect the authored particles directly:
 
       .. code-block:: bash
 
-         uv run isaaclab demo teapot-fill \
-           --device cuda:0 --visualizer kit --fluid_render_mode particles
+         uv run isaaclab demo teapot-fill --fluid_render_mode particles
 
 .. _franka-pour-reset-artifact:
 
@@ -83,7 +82,7 @@ training needs no artifact setup:
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048 --device cuda:0
+     --num_envs 2048
 
 The checked-in generator remains the executable reference for reproducing or
 customizing the distribution. It takes about two minutes on an L40S-class GPU
@@ -91,9 +90,9 @@ and writes a local artifact that can be selected explicitly:
 
 .. code-block:: bash
 
-   uv run python scripts/tools/generate_franka_pour_reset_dataset.py --device cuda:0
+   uv run python scripts/tools/generate_franka_pour_reset_dataset.py
    uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --num_envs 2048 --device cuda:0 \
+     --num_envs 2048 \
      env.reset_dataset_path=datasets/franka_pour/reset_dataset.pt
 
 The task validates the payload's stored content digest automatically. Setting
@@ -112,8 +111,8 @@ callback or particle override is required:
 
 .. code-block:: bash
 
-   uv run isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
-     --checkpoint /path/to/model.pt --num_envs 1 --device cuda:0 --visualizer kit
+   uv run --extra isaacsim isaaclab play --rl_library rsl_rl --task IsaacContrib-Franka-Pour \
+     --checkpoint /path/to/model.pt --num_envs 1 --visualizer kit
 
 
 Minimal Setup
@@ -191,13 +190,13 @@ material behavior. Run the teapot demo to compare the available modes:
 .. code-block:: bash
 
    # Reconstructed surface
-   uv run isaaclab demo teapot-fill --device cuda:0 \
+   uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode surface
    # Surface and source particles together
-   uv run isaaclab demo teapot-fill --device cuda:0 \
+   uv run isaaclab demo teapot-fill \
      --visualizer newton_gl --fluid_render_mode both
    # Path-traced translucent surface
-   uv run --extra ovrtx isaaclab demo teapot-fill --device cuda:0 \
+   uv run --extra ovrtx isaaclab demo teapot-fill \
      --visualizer newton_rtx --fluid_render_mode surface
 
 The teapot demo defaults to the reconstructed surface. Select ``particles`` or
