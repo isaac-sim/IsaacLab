@@ -403,6 +403,25 @@ def define_articulation_root_properties(
     modify_articulation_root_properties.__wrapped__(prim_path, cfg, stage)
 
 
+def _is_world_fixed_joint(prim: Usd.Prim) -> bool:
+    """Return whether a prim is a fixed joint that attaches a body to the world.
+
+    UsdPhysics attaches a side of a joint to the world when its body target is empty or has no rigid-body ancestor.
+    """
+    if not prim.IsA(UsdPhysics.FixedJoint):
+        return False
+    joint = UsdPhysics.FixedJoint(prim)
+    stage = prim.GetStage()
+    for rel in (joint.GetBody0Rel(), joint.GetBody1Rel()):
+        targets = rel.GetTargets()
+        body = stage.GetPrimAtPath(targets[0]) if targets else None
+        while body and not body.IsPseudoRoot() and not body.HasAPI(UsdPhysics.RigidBodyAPI):
+            body = body.GetParent()
+        if not body or body.IsPseudoRoot():
+            return True
+    return False
+
+
 def create_world_fixed_joint(articulation_prim: Usd.Prim, stage: Usd.Stage) -> None:
     """Author a ``UsdPhysics.FixedJoint`` fixing an articulation root link to the world frame.
 
@@ -517,8 +536,8 @@ def modify_articulation_root_properties(
     apply_namespaced_schemas(articulation_prim, cfg, cfg_dict)
 
     if fix_root_link is not None:
-        if fix_root_link and articulation_prim.IsA(UsdPhysics.FixedJoint):
-            # an articulation rooted at a fixed joint is attached to the world by that joint
+        if fix_root_link and _is_world_fixed_joint(articulation_prim):
+            # an articulation rooted at its fixed world joint is attached to the world by that joint
             existing_fixed_joint_prim = UsdPhysics.Joint(articulation_prim)
         else:
             existing_fixed_joint_prim = find_global_fixed_joint_prim(prim_path, stage=stage)

@@ -406,6 +406,26 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
     assert joint.GetJointEnabledAttr().Get() is False
 
 
+def test_fix_root_link_rejects_internal_fixed_joint_root(setup_simulation):
+    """``fix_root_link=True`` must not treat an articulation root on a fixed joint between two bodies as fixed."""
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    for name in ("base", "link"):
+        UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim(f"/World/Robot/{name}", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/joint")
+    joint.CreateBody0Rel().SetTargets(["/World/Robot/base"])
+    joint.CreateBody1Rel().SetTargets(["/World/Robot/link"])
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    with pytest.raises(NotImplementedError):
+        schemas.apply_articulation_root_properties("/World/Robot/joint", [], fix_root_link=True)
+    with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+        with pytest.raises(NotImplementedError):
+            schemas.modify_articulation_root_properties(
+                "/World/Robot/joint", schemas.ArticulationRootBaseCfg(fix_root_link=True)
+            )
+
+
 @pytest.mark.isaacsim_ci
 def test_physx_articulation_root_writes_self_collisions(setup_simulation):
     """Setting ``enabled_self_collisions`` on ``PhysxArticulationRootPropertiesCfg`` must author
