@@ -250,6 +250,66 @@ def test_initialization_with_no_rigid_body():
             sim.reset()
 
 
+@pytest.mark.parametrize(
+    ("member_paths", "other_paths"),
+    [
+        # a rigid body outside the collection whose name shares the members' prefix
+        (("Object_A", "Object_B"), ("Object_Target",)),
+        # members at different depths below the environment
+        (("Object_A", "Shelf/Object_B"), ()),
+    ],
+    ids=["sibling_sharing_prefix", "nested_member"],
+)
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_collection_binds_only_configured_prims(member_paths, other_paths, device):
+    """The collection binds exactly its configured rigid bodies, and each body name reads its own prim."""
+    num_envs = 2
+    # distinct local positions identify which prim a body slot is bound to
+    local_pos = {path: (0.0, float(index + 1), 0.0) for index, path in enumerate((*member_paths, *other_paths))}
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        origins = np.asarray([(float(env_index) * 3.0, 0.0, 1.0) for env_index in range(num_envs)], dtype=np.float32)
+        sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
+        spawn_cfg = sim_utils.CuboidCfg(
+            size=(0.1, 0.1, 0.1),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        )
+        cfg = RigidObjectCollectionCfg(
+            rigid_objects={
+                path.rsplit("_", 1)[-1].lower(): RigidObjectCfg(
+                    prim_path=f"/World/Env_[^/]*/{path}",
+                    spawn=clone(spawn_cfg),
+                    init_state=RigidObjectCfg.InitialStateCfg(pos=local_pos[path]),
+                )
+                for path in member_paths
+            }
+        )
+        others = [AssetBaseCfg(prim_path=f"/World/Env_[^/]*/{path}") for path in other_paths]
+        clone_plan_from_env_0(
+            CloneCfg(clone_template="/World/Env_{}"),
+            [*cfg.rigid_objects.values(), *others],
+            num_envs,
+            3.0,
+            positions=origins,
+        )
+        for path in other_paths:
+            spawn_cfg.func(f"/World/Env_0/{path}", spawn_cfg, translation=local_pos[path])
+        object_collection = RigidObjectCollection(cfg)
+        replicate(sim.get_clone_plan())
+        sim.reset()
+
+        assert object_collection.num_instances == num_envs
+        assert object_collection.root_view.count == num_envs * len(member_paths)
+        env_origins = torch.as_tensor(origins, device=device)
+        for name, member_cfg in cfg.rigid_objects.items():
+            body_ids, _ = object_collection.find_bodies(name)
+            body_pos = object_collection.data.body_link_pos_w.torch[:, body_ids[0]] - env_origins
+            expected_pos = torch.tensor(member_cfg.init_state.pos, device=device).expand(num_envs, 3)
+            torch.testing.assert_close(body_pos, expected_pos, atol=1e-5, rtol=0.0)
+
+
 @pytest.mark.parametrize("num_envs", [2])
 @pytest.mark.parametrize("num_cubes", [4])
 @pytest.mark.parametrize("device", test_devices())
