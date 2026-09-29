@@ -152,7 +152,7 @@ def run(argv: list[str]) -> None:
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
-            dump_train_configs(rank_dir, env_cfg, agent_cfg)
+            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
             print(f"Exact experiment name requested from command line: {log_dir}")
 
             env_cfg.log_dir = rank_dir

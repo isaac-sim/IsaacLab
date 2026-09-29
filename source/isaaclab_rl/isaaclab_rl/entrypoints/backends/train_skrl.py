@@ -132,7 +132,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="skrl", task=args_cli.task, metadata=manifest_metadata)
-            dump_train_configs(rank_dir, env_cfg, agent_cfg)
+            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
 
             if args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(

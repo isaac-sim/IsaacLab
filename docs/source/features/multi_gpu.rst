@@ -52,9 +52,12 @@ arguments are the same arguments accepted by ``train``:
 total.
 
 All ranks write into one run folder. Each rank trains with the launch seed plus
-its rank on its own GPU, and writes its own outputs, such as the settings it
-resolved in ``params/`` and any recorded videos, to ``rank_<rank>/`` inside that
-folder. ``rank_0/params/`` holds the launch settings.
+its rank on its own GPU. ``params/env.yaml`` and ``params/agent.yaml`` hold the
+launch settings (rank 0). ``params/env_all_ranks.yaml`` and
+``params/agent_all_ranks.yaml`` keep the same structure for all ranks: a field
+whose value differs between ranks, such as the seed or device, becomes a mapping
+with ``type: per_rank`` and one entry per rank index. Each rank's recorded
+videos go to ``rank_<rank>/``.
 
 .. tip::
 

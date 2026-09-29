@@ -181,7 +181,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(resume_path, map_location=agent_cfg.device)
-            dump_train_configs(rank_dir, env_cfg, agent_cfg)
+            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
 
             if agent_cfg.logger == "wandb":
                 announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())

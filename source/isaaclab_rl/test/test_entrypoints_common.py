@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -16,6 +17,7 @@ import gymnasium as gym
 import numpy as np
 import pytest
 import torch
+import yaml
 from isaaclab_newton.physics import NewtonCfg
 from PIL import Image
 
@@ -28,6 +30,7 @@ from isaaclab_rl.entrypoints.common import (
     CaptureEnvSensors,
     add_common_train_args,
     create_isaaclab_env,
+    dump_train_configs,
     enable_cameras_for_video,
     normalize_task_name,
     wrap_sensor_capture,
@@ -165,6 +168,47 @@ def test_wrap_sensor_capture_returns_env_when_disabled(tmp_path: Path) -> None:
     args_cli = argparse.Namespace(capture_env_sensors=0)
 
     assert wrap_sensor_capture(env, str(tmp_path), args_cli) is env
+
+
+def test_dump_train_configs_marks_per_rank_fields(tmp_path: Path) -> None:
+    """The all-ranks files keep the config structure and mark only the fields that differ as per-rank."""
+
+    def configs(rank: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        env = {
+            "seed": 42 + rank,
+            "sim": {"dt": 0.01, "device": f"cuda:{rank}"},
+            "recorders": [{"fps": 30, "output_dir": f"run/rank_{rank}"}],
+        }
+        agent = {"seed": 42 + rank, "policy": {"hidden_dims": [64, 64]}}
+        return env, agent
+
+    # ranks write concurrently and in any order, as distributed ranks do
+    ranks = [
+        threading.Thread(target=dump_train_configs, args=(str(tmp_path), *configs(rank)), kwargs={"rank": rank})
+        for rank in (2, 0, 3, 1)
+    ]
+    for thread in ranks:
+        thread.start()
+    for thread in ranks:
+        thread.join()
+
+    params = tmp_path / "params"
+    assert yaml.full_load((params / "env.yaml").read_text()) == configs(0)[0]
+    assert yaml.full_load((params / "agent.yaml").read_text()) == configs(0)[1]
+    env_all_ranks = (params / "env_all_ranks.yaml").read_text()
+    assert env_all_ranks.splitlines()[0] == "# ranks: 0, 1, 2, 3"
+    per_rank = lambda value: {"type": "per_rank", **{rank: value(rank) for rank in range(4)}}  # noqa: E731
+    assert yaml.full_load(env_all_ranks) == {
+        "seed": per_rank(lambda rank: 42 + rank),
+        "sim": {"dt": 0.01, "device": per_rank(lambda rank: f"cuda:{rank}")},
+        "recorders": [{"fps": 30, "output_dir": per_rank(lambda rank: f"run/rank_{rank}")}],
+    }
+    assert list(yaml.full_load(env_all_ranks)["seed"]) == ["type", 0, 1, 2, 3]
+    assert list(yaml.full_load(env_all_ranks)) == list(configs(0)[0])  # same field order as env.yaml
+    assert yaml.full_load((params / "agent_all_ranks.yaml").read_text()) == {
+        "seed": per_rank(lambda rank: 42 + rank),
+        "policy": {"hidden_dims": [64, 64]},
+    }
 
 
 def test_enable_cameras_for_video_enables_cameras_for_sensor_capture() -> None:
