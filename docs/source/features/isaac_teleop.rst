@@ -1,15 +1,15 @@
 .. _isaac-teleop-feature:
 
-Isaac Teleop
-============
+Isaac Capture
+=============
 
 .. currentmodule:: isaaclab
 
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ is the unified framework for high-fidelity
+`Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ is the unified framework for high-fidelity
 egocentric and robot data collection. It provides a standardized device interface, a flexible
 graph-based retargeting pipeline, and works seamlessly across simulated and real-world robots.
 
-Isaac Teleop replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
+Isaac Capture replaces the previous native XR teleop stack (``isaaclab.devices.openxr``) in Isaac
 Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 
 .. tip::
@@ -23,7 +23,7 @@ Lab. For migration details see :ref:`migrating-to-isaaclab-3-0`.
 Supported Devices
 -----------------
 
-Isaac Teleop supports multiple XR headsets and tracking peripherals. Each device provides different
+Isaac Capture supports multiple XR headsets and tracking peripherals. Each device provides different
 input modes, which determine which retargeters and control schemes are available.
 
 .. list-table::
@@ -48,12 +48,12 @@ input modes, which determine which retargeters and control schemes are available
      - Requires Pico OS 15.4.4U+; must use HTTPS mode
    * - Manus Gloves
      - High-fidelity finger tracking (Manus SDK)
-     - Isaac Teleop plugin (bundled)
+     - Isaac Capture plugin (bundled)
      - Migrated from the now-deprecated ``isaac-teleop-device-plugins`` repo.
        Combine with an external wrist-tracking source for wrist positioning. See :ref:`manus-vive-handtracking`.
    * - Haptikos Exoskeletons
      - Exoskeleton hand tracking with controller wrist poses
-     - Isaac Teleop plugin (separate executable)
+     - Isaac Capture plugin (separate executable)
      - Requires the Haptikos App, exoskeletons, and an OpenXR headset with controllers.
        See :ref:`haptikos-quest-handtracking`.
 
@@ -109,7 +109,7 @@ matters.
 How It Works
 ------------
 
-The :class:`~isaaclab_teleop.IsaacTeleopDevice` is the main integration point between Isaac Teleop
+The :class:`~isaaclab_teleop.IsaacTeleopDevice` is the main integration point between Isaac Capture
 and Isaac Lab. It composes three collaborators:
 
 * **XrAnchorManager** -- creates and synchronizes an XR anchor prim in the simulation, and
@@ -143,7 +143,7 @@ and Isaac Lab. It composes three collaborators:
 Visualize XR Tracking
 ---------------------
 
-Isaac Teleop can draw the raw XR tracking poses in the Isaac Lab world frame. Use this
+Isaac Capture can draw the raw XR tracking poses in the Isaac Lab world frame. Use this
 visualization to confirm that tracking data is available and aligned with the simulated robot:
 
 * red spheres show the 26 joints of each tracked hand when the retargeting pipeline contains a
@@ -178,7 +178,7 @@ Enable the visualization when launching a teleoperation session:
 
 The ``--enable_debug_visualization`` flag is also available in ``scripts/tools/record_demos.py``
 and ``scripts/environments/teleoperation/teleop_replay_agent.py``. The option is applied when the
-Isaac Teleop device is created and cannot be toggled during a running device session. The markers
+Isaac Capture device is created and cannot be toggled during a running device session. The markers
 are diagnostic only and do not change the actions produced by the retargeting pipeline.
 
 .. note::
@@ -294,15 +294,15 @@ The CloudXR JS client must be updated to discover this UUID when sending command
 Run Without a Headset (Standalone I/O)
 --------------------------------------
 
-By default the teleop scripts drive Isaac Teleop through Isaac Sim's Kit XR bridge, which renders
-the scene to a connected XR headset. When you only need Isaac Teleop as an **input/output
+By default the teleop scripts drive Isaac Capture through Isaac Sim's Kit XR bridge, which renders
+the scene to a connected XR headset. When you only need Isaac Capture as an **input/output
 transport** -- for example a joint-space leader arm streaming encoder angles, or any non-XR device
 -- you can run it *standalone*, with no Kit XR rendering.
 
 The ``teleop_se3_agent.py`` and ``record_demos.py`` scripts select the mode with the ``--xr`` flag:
 
 * **With** ``--xr`` -- the full Kit XR path (headset rendering, anchor, hand / controller tracking).
-* **Without** ``--xr`` -- Isaac Teleop creates and owns its own OpenXR session through the CloudXR
+* **Without** ``--xr`` -- Isaac Capture creates and owns its own OpenXR session through the CloudXR
   runtime (``create_isaac_teleop_device(..., use_kit_xr_bridge=False)``); teleop input/output works
   headless, with no Kit XR rendering.
 
@@ -353,7 +353,7 @@ anchor. Its pipeline is
 ``JointStateSource -> JointStateRetargeter (mode="joint") -> TensorReorderer``.
 
 For the end-to-end walkthrough -- building the plugin, hardware setup, calibration, launching, and
-recording a dataset -- see `Data Collection in Sim`_ in the Isaac Teleop documentation. The
+recording a dataset -- see `Data Collection in Sim`_ in the Isaac Capture documentation. The
 prerequisites below are the minimum needed to get this example running.
 
 Prerequisites
@@ -361,15 +361,15 @@ Prerequisites
 
 * **SO-101 hardware**: A physical SO-101 leader arm connected to the workstation over USB.
 
-* **The** ``so101_leader`` **plugin, built from Isaac Teleop source**: the leader's joint state is
+* **The** ``so101_leader`` **plugin, built from Isaac Capture source**: the leader's joint state is
   streamed by a standalone C++ plugin that you run alongside the sim.
 
   .. important::
 
      ``so101_leader_plugin`` is **not** shipped with Isaac Lab, is **not** part of the
      ``isaacteleop`` pip package, and is not in any release archive. It exists only after building
-     the `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository from source. If
-     ``install/plugins/so101_leader/so101_leader_plugin`` does not exist in your Isaac Teleop
+     the `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ repository from source. If
+     ``install/plugins/so101_leader/so101_leader_plugin`` does not exist in your Isaac Capture
      checkout, this step has not been completed.
 
   Install the build prerequisites first -- a missing ``clang-format-14`` is the most common cause
@@ -389,8 +389,8 @@ Prerequisites
 
   .. code-block:: bash
 
-     git clone https://github.com/NVIDIA/IsaacTeleop.git
-     cd IsaacTeleop
+     git clone https://github.com/NVIDIA/IsaacCapture.git
+     cd IsaacCapture
      git checkout release/1.4.x
 
      cmake -B build                       # configure (default: Python 3.11)
@@ -399,17 +399,17 @@ Prerequisites
 
   .. note::
 
-     When Isaac Lab bumps its Isaac Teleop pin, check out the matching ``release/<version>.x``
+     When Isaac Lab bumps its Isaac Capture pin, check out the matching ``release/<version>.x``
      branch instead.
 
-  The plugin is installed to ``<IsaacTeleop>/install/plugins/so101_leader/so101_leader_plugin``.
-  Every later command in this section runs from the Isaac Teleop checkout root; substitute your own
-  path for ``/path/to/IsaacTeleop``. Verify the build by running the plugin with **no arguments** --
+  The plugin is installed to ``<IsaacCapture>/install/plugins/so101_leader/so101_leader_plugin``.
+  Every later command in this section runs from the Isaac Capture checkout root; substitute your own
+  path for ``/path/to/IsaacCapture``. Verify the build by running the plugin with **no arguments** --
   that selects the synthetic backend, so it starts without any hardware attached:
 
   .. code-block:: bash
 
-     cd /path/to/IsaacTeleop
+     cd /path/to/IsaacCapture
      ./install/plugins/so101_leader/so101_leader_plugin
 
   See `Build from Source`_ for the full prerequisite list and all build options, and the
@@ -439,7 +439,7 @@ Prerequisites
 
   .. code-block:: bash
 
-     cd /path/to/IsaacTeleop
+     cd /path/to/IsaacCapture
      ./install/plugins/so101_leader/so101_leader_plugin calibrate /dev/ttyACM0 so101_leader.calib
 
   It runs two interactive steps (hold the arm at mid-range, then sweep every joint through its full
@@ -533,7 +533,7 @@ note in the Calibration step above):
 
 .. code-block:: bash
 
-   cd /path/to/IsaacTeleop
+   cd /path/to/IsaacCapture
    source ~/.cloudxr/run/cloudxr.env
    ./install/plugins/so101_leader/so101_leader_plugin /dev/ttyACM0 so101_leader so101_leader.calib
 
@@ -606,7 +606,7 @@ full recording workflow and runtime troubleshooting.
 Retargeting Framework
 ---------------------
 
-Isaac Teleop uses a graph-based retargeting pipeline. Data flows from **source nodes** through
+Isaac Capture uses a graph-based retargeting pipeline. Data flows from **source nodes** through
 **retargeters** and is combined into a single action tensor.
 
 Source Nodes
@@ -619,10 +619,10 @@ Available Retargeters
 ~~~~~~~~~~~~~~~~~~~~~
 
 Retargeters are provided by the ``isaacteleop`` package from the
-`Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_ repository. The retargeters listed below
-are those used by the built-in Isaac Lab environments. Isaac Teleop may offer additional
+`Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_ repository. The retargeters listed below
+are those used by the built-in Isaac Lab environments. Isaac Capture may offer additional
 retargeters not listed here -- refer to the
-`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_ for the full set.
+`Isaac Capture repository <https://github.com/NVIDIA/IsaacCapture>`_ for the full set.
 
 .. dropdown:: Se3AbsRetargeter / Se3RelRetargeter
 
@@ -691,10 +691,10 @@ organized by input method. For closed-loop policy evaluation, the play script au
 applies each environment config's ``play_mode`` overrides; pass ``--train_env_cfg`` to
 play the training configuration as-is.
 
-Isaac Teleop (XR Headset) Environments
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Isaac Capture (XR Headset) Environments
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-These environments use the Isaac Teleop XR pipeline with motion controllers or hand tracking.
+These environments use the Isaac Capture XR pipeline with motion controllers or hand tracking.
 
 .. list-table::
    :header-rows: 1
@@ -761,7 +761,7 @@ Keyboard and SpaceMouse Environments
 .. note::
 
    Keyboard and SpaceMouse teleoperation uses the legacy native Isaac Lab teleop stack
-   (``isaaclab.devices``), not Isaac Teleop. These environments do not require an XR headset.
+   (``isaaclab.devices``), not Isaac Capture. These environments do not require an XR headset.
 
 The device button layouts below apply to all environments in this section. Per-environment
 differences (gripper enabled/disabled, sensitivity) are noted in the environment table that
@@ -913,7 +913,7 @@ Leader-Arm Environments
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 These environments are driven by a physical *leader* arm that streams joint angles over the Isaac
-Teleop tensor transport; the angles are mirrored directly onto the simulated follower with no XR
+Capture tensor transport; the angles are mirrored directly onto the simulated follower with no XR
 headset or inverse kinematics. See
 :ref:`Example: SO-101 leader-arm joint teleoperation <isaac-teleop-so101-leader-example>` above
 for the run command and pipeline.
@@ -1117,13 +1117,13 @@ Key ``IsaacTeleopCfg`` fields:
   The list is empty by default, so tasks opt in to PiP explicitly.
 * ``xr_camera_feed_layout`` -- viewer reference, fixed world pose, and manual, horizontal, vertical,
   or grid panel packing.
-* ``plugins`` -- list of Isaac Teleop plugin configurations (e.g. Manus).
+* ``plugins`` -- list of Isaac Capture plugin configurations (e.g. Manus).
 * ``sim_device`` -- torch device string (default ``"cuda:0"``).
-* ``retargeting_execution`` -- IsaacTeleop retargeting execution settings.
+* ``retargeting_execution`` -- Isaac Capture retargeting execution settings.
   Defaults to ``RetargetingExecutionConfig(mode="pipelined")`` with
   ``DeadlinePacingConfig(safety_margin_s=0.025)`` so retargeting can run on
-  the IsaacTeleop worker instead of blocking the simulation loop.
-  The 25 ms safety margin staggers IsaacTeleop's Python work behind Isaac
+  the Isaac Capture worker instead of blocking the simulation loop.
+  The 25 ms safety margin staggers Isaac Capture's Python work behind Isaac
   Lab's step Python, giving native work such as rendering time to overlap
   instead of having both Python stacks contend for the GIL at the start of
   the step.
@@ -1390,7 +1390,7 @@ fixed. The panel follows the headset, but its image comes from the robot's head 
 headset view. ``--device cpu`` selects CPU simulation; camera rendering and CloudXR encoding still
 use the GPU.
 
-``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an IsaacTeleop-enabled
+``teleop_se3_agent.py`` and ``record_demos.py`` show every enabled feed when an Isaac Capture-enabled
 environment runs with ``--xr``. PiP is absent unless the task explicitly selects an existing
 ``CameraCfg`` through ``xr_camera_feeds``. Except for fixed-base G1, the selected
 ``robot_pov_cam`` is also a policy image observation, so the normal demonstration recorder stores
@@ -1435,7 +1435,7 @@ their existing behavior because ``use_scene_partition`` defaults to ``False``.
        --xr --device cpu
 
 XR camera PiP currently supports exactly one environment. When a task has enabled PiP feeds,
-startup rejects ``--num_envs`` values other than ``1``; IsaacTeleop XR behavior without PiP is
+startup rejects ``--num_envs`` values other than ``1``; Isaac Capture XR behavior without PiP is
 unchanged. For either G1 task, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP and retain
 the camera sensor and any configured camera observations.
 
@@ -1562,7 +1562,7 @@ configuration, camera-buffer, and panel-initialization errors still fail during 
 Haptic Feedback
 ---------------
 
-Isaac Teleop can render **haptic feedback** on the operator's device from a sim-side signal,
+Isaac Capture can render **haptic feedback** on the operator's device from a sim-side signal,
 closing the loop on grasp feel during teleoperation and demonstration recording. Two backends
 ship today:
 
@@ -1574,7 +1574,7 @@ ship today:
 Feedback is an *output* path that mirrors the input retargeting pipeline in reverse. Each step, a
 :class:`~isaaclab_teleop.HapticFeedbackDriver` reads a per-hand signal vector from the scene and
 pushes it to the :class:`~isaaclab_teleop.IsaacTeleopDevice`, which renders it through an Isaac
-Teleop ``HapticSink``. The signal-to-device mapping runs inside the retargeting graph, so no
+Capture ``HapticSink``. The signal-to-device mapping runs inside the retargeting graph, so no
 device-specific code lives in your environment.
 
 The design keeps three concerns pluggable, so the same seam serves both devices:
@@ -1677,7 +1677,7 @@ Enabled on the two GR1T2 pick-place teleop environments
 Record Demonstrations for Imitation Learning
 ---------------------------------------------
 
-Isaac Teleop integrates with Isaac Lab's ``record_demos.py`` script for recording teleoperated
+Isaac Capture integrates with Isaac Lab's ``record_demos.py`` script for recording teleoperated
 demonstrations, exposed as the ``isaaclab teleop record`` command.
 
 When your environment configuration has an ``isaac_teleop`` attribute, the script automatically
@@ -1799,7 +1799,7 @@ Add a New Retargeter
 --------------------
 
 If the built-in retargeters do not cover your use case, you can implement a custom one in the
-`Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_:
+`Isaac Capture repository <https://github.com/NVIDIA/IsaacCapture>`_:
 
 #. Inherit from ``BaseRetargeter`` and implement ``input_spec()``, ``output_spec()``, and
    ``compute()``.
@@ -1808,8 +1808,8 @@ If the built-in retargeters do not cover your use case, you can implement a cust
 #. Connect to existing source nodes (``HandsSource``, ``ControllersSource``) or create a new
    ``IDeviceIOSource`` subclass for custom input devices.
 
-See the `Isaac Teleop repository <https://github.com/NVIDIA/IsaacTeleop>`_
-and `Contributing Guide <https://github.com/NVIDIA/IsaacTeleop/blob/main/CONTRIBUTING.md>`_ for details.
+See the `Isaac Capture repository <https://github.com/NVIDIA/IsaacCapture>`_
+and `Contributing Guide <https://github.com/NVIDIA/IsaacCapture/blob/main/CONTRIBUTING.md>`_ for details.
 
 
 .. _isaac-teleop-new-device:
@@ -1819,16 +1819,16 @@ Add a New Device
 
 There are two levels of device integration:
 
-**Isaac Teleop plugin (C++ level)**
+**Isaac Capture plugin (C++ level)**
    For new hardware that requires a custom driver or SDK. Plugins push data via OpenXR tensor
    collections. Existing plugins include Manus gloves, Haptikos exoskeletons, OAK-D camera,
    controller synthetic hands, and foot pedals. After creating the plugin, update the retargeting
    pipeline config to consume data from the new plugin's source node.
 
-   See the `Plugins directory <https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/>`_ for examples.
+   See the `Plugins directory <https://github.com/NVIDIA/IsaacCapture/tree/main/src/plugins/>`_ for examples.
 
 **Pipeline configuration only**
-   For devices already supported by Isaac Teleop (or whose data is available as hand / controller
+   For devices already supported by Isaac Capture (or whose data is available as hand / controller
    tracking). Simply update your ``pipeline_builder`` to use the appropriate source nodes and
    retargeters for the device's data format.
 
@@ -2014,7 +2014,7 @@ Optimize XR Performance
 .. dropdown:: Configure retargeting execution
    :open:
 
-   Isaac Teleop can run retargeting either synchronously on the application thread or
+   Isaac Capture can run retargeting either synchronously on the application thread or
    asynchronously through a pipelined worker. This is controlled by
    ``RetargetingExecutionConfig``.
 
@@ -2023,7 +2023,7 @@ Optimize XR Performance
    since a background Python worker can still contend with the application thread through
    the GIL.
 
-   In pipelined mode, Isaac Teleop submits retargeting work to a background worker and the
+   In pipelined mode, Isaac Capture submits retargeting work to a background worker and the
    application uses the most recent completed result. This is useful when retargeting has
    enough native work to overlap with simulation or rendering, or when the retargeting cost
    is large enough that running it inline would directly extend the frame.
@@ -2121,6 +2121,6 @@ See the :ref:`isaaclab_teleop-api` for full class and function documentation:
 ..
    References
 .. _`Isaac XR Teleop Sample Client`: https://github.com/isaac-sim/isaac-xr-teleop-sample-client-apple
-.. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacTeleop/tree/main/src/plugins/so101_leader
+.. _`SO-101 plugin README`: https://github.com/NVIDIA/IsaacCapture/tree/main/src/plugins/so101_leader
 .. _`Data Collection in Sim`: https://nvidia.github.io/IsaacCapture/main/getting_started/lerobot/data_collection_sim.html
 .. _`Build from Source`: https://nvidia.github.io/IsaacCapture/main/getting_started/build_from_source/index.html
