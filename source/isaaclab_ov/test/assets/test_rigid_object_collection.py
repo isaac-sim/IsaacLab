@@ -94,6 +94,7 @@ class _CollectionScene:
     fused: RigidObjectCollection
     resettable: RigidObjectCollection
     stepped: RigidObjectCollection
+    wrenched: RigidObjectCollection
 
 
 @pytest.fixture(scope="module")
@@ -104,8 +105,11 @@ def scene(request: pytest.FixtureRequest) -> Iterator[_CollectionScene]:
         fused = _spawn_collection("Fused", y_offset=0.0)
         resettable = _spawn_collection("Resettable", y_offset=4.0)
         stepped = _spawn_collection("Stepped", y_offset=8.0)
+        wrenched = _spawn_collection("Wrenched", y_offset=12.0)
         sim.reset()
-        yield _CollectionScene(sim=sim, device=device, fused=fused, resettable=resettable, stepped=stepped)
+        yield _CollectionScene(
+            sim=sim, device=device, fused=fused, resettable=resettable, stepped=stepped, wrenched=wrenched
+        )
 
 
 @pytest.mark.parametrize("scene", test_devices(), indirect=True)
@@ -205,6 +209,32 @@ def test_reset_clears_active_wrench_composers(scene: _CollectionScene) -> None:
     assert torch.count_nonzero(object_collection._instantaneous_wrench_composer.composed_torque.torch) == 0
     assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_force.torch) == 0
     assert torch.count_nonzero(object_collection._permanent_wrench_composer.composed_torque.torch) == 0
+
+
+@pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
+def test_wrench_reaches_only_the_selected_collection_body(scene: _CollectionScene) -> None:
+    """Deliver an external force through the fused body-major binding to the selected body only.
+
+    Environment 1, body 1 has different flat indices in body-major and environment-major layouts.
+    """
+    collection, sim, device = scene.wrenched, scene.sim, scene.device
+    velocity_before = collection.data.body_com_vel_w.torch.clone()
+    collection.permanent_wrench_composer.set_forces_and_torques_index(
+        forces=torch.tensor([[[20.0, 0.0, 0.0]]], device=device),
+        torques=torch.zeros((1, 1, 3), device=device),
+        env_ids=torch.tensor([1], dtype=torch.int32, device=device),
+        body_ids=torch.tensor([1], dtype=torch.int32, device=device),
+    )
+    collection.write_data_to_sim()
+    sim.step()
+    collection.update(sim.cfg.dt)
+    collection.reset()
+
+    velocity = collection.data.body_com_vel_w.torch
+    assert velocity[1, 1, 0] > velocity_before[1, 1, 0] + 1e-3
+    unselected = torch.ones((_NUM_ENVS, _NUM_BODIES), dtype=torch.bool, device=device)
+    unselected[1, 1] = False
+    torch.testing.assert_close(velocity[unselected], velocity_before[unselected], atol=1e-6, rtol=0.0)
 
 
 @pytest.mark.parametrize("scene", test_devices(DeviceScope.CUDA), indirect=True)
