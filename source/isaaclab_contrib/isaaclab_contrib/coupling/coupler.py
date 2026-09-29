@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import partial
 
@@ -127,6 +128,21 @@ class NewtonCouplerManager(NewtonVBDManager):
             )
         if not solver_cfg.entries:
             raise ValueError("CouplerCfg.entries must contain at least one solver entry.")
+
+        if isinstance(solver_cfg, CouplerAdmmCfg):
+            capacity = solver_cfg.contact_max_triangle_pairs
+            if capacity is not None and (type(capacity) is not int or capacity <= 0):
+                raise ValueError("CouplerAdmmCfg.contact_max_triangle_pairs must be a positive integer or None.")
+            if capacity is not None and capacity >= 2**20 and solver_cfg.rigid_contact_matching in ("latest", "sticky"):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_max_triangle_pairs must be less than 2**20 when "
+                    "rigid_contact_matching is 'latest' or 'sticky'."
+                )
+            factor = solver_cfg.contact_reduction_hashtable_size_factor
+            if factor is not None and (not math.isfinite(factor) or factor <= 0.0):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_reduction_hashtable_size_factor must be finite and positive or None."
+                )
 
         if any(not isinstance(entry.name, str) or not entry.name for entry in solver_cfg.entries):
             raise ValueError("CouplerCfg entry names must be non-empty strings.")
@@ -402,6 +418,9 @@ class NewtonCouplerManager(NewtonVBDManager):
         solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
         values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
+        for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor"):
+            if getattr(solver_cfg, name) is not None and name not in values:
+                raise RuntimeError(f"The installed Newton version does not support {name}.")
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:
