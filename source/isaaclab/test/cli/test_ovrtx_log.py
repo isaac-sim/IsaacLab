@@ -20,8 +20,6 @@ import sys
 import textwrap
 from pathlib import Path
 
-import pytest
-
 _REPO_ROOT = Path(__file__).resolve().parents[4]
 
 _INNER_CONFTEST = (
@@ -56,24 +54,6 @@ def reopen():
     """Drop the retained handle and open the log again, truncating it."""
     _HANDLE.clear()
     _log()
-'''
-
-_STDOUT_RENDERER = '''\
-import os
-
-_FD = []
-
-
-def _fd():
-    """Open pytest's stdout once and keep the descriptor, as the removed /dev/stdout override did."""
-    if not _FD:
-        _FD.append(os.open("/dev/stdout", os.O_WRONLY))
-    return _FD[0]
-
-
-def render(tag, count=1):
-    """Append ``count`` renderer log lines tagged ``tag``."""
-    os.write(_fd(), f"[omni.rtx] {tag}-line\\n".encode() * count)
 '''
 
 
@@ -135,65 +115,6 @@ def test_collector_is_loaded_into_every_session(request) -> None:
     assert request.config.pluginmanager.hasplugin("tools.ovrtx_log")
 
 
-def test_retained_handle_on_pytest_stdout_writes_nul_blocks(tmp_path: Path) -> None:
-    """Pin the failure this collector exists to avoid.
-
-    Pointing the renderer at ``/dev/stdout`` hands it a second handle on the temporary file pytest captures
-    file descriptor 1 into. Pytest rewinds and truncates that file between tests while the renderer's own
-    offset keeps advancing, so the next native write lands past the end and the gap reads back as NUL bytes.
-    """
-    if os.name == "nt":
-        pytest.skip("/dev/stdout is POSIX-only")
-
-    output = _run_inner_pytest(
-        tmp_path,
-        _STDOUT_RENDERER,
-        """
-        def test_alpha():
-            render("alpha", 40)
-            assert False
-
-
-        def test_beta():
-            render("beta")
-            assert False
-        """,
-    )
-
-    assert b"\x00" in output
-
-
-def test_replayed_log_is_free_of_nul_blocks_and_attributed_per_test(tmp_path: Path) -> None:
-    """A renderer logging to the claimed file keeps pytest's capture intact and its output readable.
-
-    The same retained-handle writer as above, pointed at the log the collector claims for the process: no
-    descriptor of pytest's is shared, so nothing is written past the end of the capture file, and each
-    test's failure carries the renderer output produced while it ran.
-    """
-    output = _run_inner_pytest(
-        tmp_path,
-        _FAKE_RENDERER,
-        """
-        def test_alpha():
-            render("alpha", 40)
-            assert False
-
-
-        def test_beta():
-            render("beta")
-            assert False
-        """,
-    )
-
-    assert b"\x00" not in output
-    # Reported against the test's name, the same string the saved copy is named after.
-    assert b"----- OVRTX renderer log: test_alpha -----" in output
-    assert b"----- OVRTX renderer log: test_beta -----" in output
-    # Replayed once each: a repeat would mean one test was credited with another's output.
-    assert output.count(b"alpha-line") == 40
-    assert output.count(b"beta-line") == 1
-
-
 def test_replay_restarts_when_the_log_is_rewritten(tmp_path: Path) -> None:
     """A log re-opened mid-session is replayed whole rather than from an offset it no longer has."""
     output = _run_inner_pytest(
@@ -250,8 +171,14 @@ def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path)
     This is the copy that survives the caps: the replay and the crash report both quote a bounded tail,
     so a run whose renderer log outgrows the cap is only diagnosable from the saved file. What is saved
     is that test's own range of a log the renderer keeps appending to for the lifetime of the process.
+
+    The renderer is a retained-handle writer pointed at the log the collector claims for the process: no
+    descriptor of pytest's is shared, so nothing is written past the end of the capture file (NUL blocks).
+    One path is shared by every session on the machine, so the session first claims it by dropping a
+    previous owner's bytes; otherwise offsets would be measured against them.
     """
     save_dir = tmp_path / "ovrtx-logs"
+    _inner_log_path(tmp_path).write_bytes(b"[omni.rtx] stale-line\n" * 10)
 
     output = _run_inner_pytest(
         tmp_path,
@@ -269,8 +196,16 @@ def test_saved_log_is_written_per_test_when_a_directory_is_named(tmp_path: Path)
         save_dir=save_dir,
     )
 
+    assert b"\x00" not in output
+    assert b"stale-line" not in output
+    # Reported against the test's name, the same string the saved copy is named after.
+    assert b"----- OVRTX renderer log: test_alpha -----" in output
+    assert b"----- OVRTX renderer log: test_beta -----" in output
+    # Replayed once each: a repeat would mean one test was credited with another's output.
+    assert output.count(b"beta-line") == 1
     saved = sorted(path.name for path in save_dir.iterdir())
     assert saved == ["test_alpha.0", "test_beta.0"]
+    assert b"stale-line" not in (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes()
     # The saved copy is unbounded where the replay is capped, and the replay still happens alongside it.
     assert (save_dir / "test_alpha.0" / "ovrtx_renderer.log").read_bytes().count(b"alpha-line") == 40
     assert output.count(b"alpha-line") == 40
@@ -363,28 +298,6 @@ def test_nothing_is_saved_for_a_test_that_adds_nothing_to_an_existing_log(tmp_pa
     )
 
     assert sorted(path.name for path in save_dir.iterdir()) == ["test_alpha.0"]
-
-
-def test_log_left_behind_by_a_previous_owner_is_discarded(tmp_path: Path) -> None:
-    """One path is shared by every session on the machine, so a session starts by claiming it.
-
-    Without dropping what is already there, the offset recorded before the renderer rewrites the file is
-    measured against a previous session's bytes, and the start of this session's log is skipped.
-    """
-    _inner_log_path(tmp_path).write_bytes(b"[omni.rtx] stale-line\n" * 10)
-
-    output = _run_inner_pytest(
-        tmp_path,
-        _FAKE_RENDERER,
-        """
-        def test_alpha():
-            render("alpha", 40)
-            assert False
-        """,
-    )
-
-    assert b"stale-line" not in output
-    assert output.count(b"alpha-line") == 40
 
 
 def test_missing_log_reports_nothing(tmp_path: Path) -> None:

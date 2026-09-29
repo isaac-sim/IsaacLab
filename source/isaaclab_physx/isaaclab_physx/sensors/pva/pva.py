@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
@@ -18,7 +19,6 @@ import isaaclab.utils.math as math_utils
 from isaaclab.markers import VisualizationMarkers
 from isaaclab.sensors.pva import BasePva
 from isaaclab.sim.utils.queries import path_expr_to_glob
-from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_physx.physics import PhysxManager as SimulationManager
 
@@ -44,9 +44,9 @@ class Pva(BasePva):
 
     .. note::
 
-        We are computing the accelerations using numerical differentiation from the velocities. Consequently, the
-        PVA sensor accuracy depends on the chosen physx timestep. For a sufficient accuracy, we recommend to keep the
-        timestep at least as 200Hz.
+        Linear and angular accelerations are read from the solver and transported from the body
+        center of mass to the sensor frame. They are kinematic accelerations, so they do not
+        include the gravity bias that the IMU sensor reports.
 
     .. note::
 
@@ -81,8 +81,11 @@ class Pva(BasePva):
         self._rigid_parent_expr: str | None = None
         self._raw_transforms: wp.array | None = None
         self._raw_velocities: wp.array | None = None
+        self._raw_accelerations: wp.array | None = None
         self._raw_coms: wp.array | None = None
         self._update_cmd: wp.Launch | None = None
+        # Gravity baked into the recorded command, so a change can be re-bound on replay.
+        self._recorded_gravity_w: tuple[float, float, float] | None = None
         self._update_env_mask: wp.array | None = None
         self._use_recorded_launch: bool = False
 
@@ -132,8 +135,6 @@ class Pva(BasePva):
                 self._data._lin_acc_b,
                 self._data._ang_acc_b,
                 self._data._projected_gravity_b,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
             ],
             device=self._device,
         )
@@ -158,12 +159,11 @@ class Pva(BasePva):
         # Create the rigid body view on the ancestor
         self._view = self._physics_sim_view.create_rigid_body_view(path_expr_to_glob(self._rigid_parent_expr))
 
-        # Get world gravity
-        gravity = self._physics_sim_view.get_gravity()
-        gravity_dir = torch.tensor((gravity[0], gravity[1], gravity[2]), device=self.device)
-        gravity_dir = math_utils.normalize(gravity_dir.unsqueeze(0)).squeeze(0)
-        gravity_dir_repeated = gravity_dir.repeat(self.num_instances, 1)
-        self.GRAVITY_VEC_W = ProxyArray(wp.from_torch(gravity_dir_repeated.contiguous(), dtype=wp.vec3f))
+        # Unit world-gravity direction. The scene value can change at runtime, so it is
+        # refreshed on every update instead of snapshotted here.
+        self._gravity_w: tuple[float, float, float] | None = None
+        self._gravity_vec_w = wp.vec3f(0.0, 0.0, -1.0)
+        self._refresh_gravity_vec()
 
         # Create internal buffers
         self._initialize_buffers_impl()
@@ -187,9 +187,28 @@ class Pva(BasePva):
 
         self._use_recorded_launch = wp.get_device(self._device).is_cuda
 
+    def _refresh_gravity_vec(self):
+        """Refresh the cached gravity buffer when the scene gravity changed.
+
+        Scene gravity is runtime-mutable (see
+        :func:`~isaaclab.envs.mdp.events.randomize_physics_scene_gravity`), so the buffer is
+        re-filled in place rather than reallocated: consumers (and any recorded launch) hold
+        the array pointer, and a fresh allocation would freeze the sensor on the old value.
+        """
+        gravity = self._physics_sim_view.get_gravity()
+        gravity = (float(gravity[0]), float(gravity[1]), float(gravity[2]))
+        if gravity == self._gravity_w:
+            return
+        self._gravity_w = gravity
+        # Mirrors ``math_utils.normalize``: the norm is clamped to eps, so zero scene gravity
+        # yields a zero direction instead of NaNs.
+        scale = 1.0 / max(math.sqrt(gravity[0] ** 2 + gravity[1] ** 2 + gravity[2] ** 2), 1.0e-9)
+        self._gravity_vec_w = wp.vec3f(gravity[0] * scale, gravity[1] * scale, gravity[2] * scale)
+
     def _update_buffers_impl(self, env_mask: wp.array | None = None):
         """Fills the buffers of the sensor data."""
         env_mask = self._resolve_indices_and_mask(None, env_mask)
+        self._refresh_gravity_vec()
 
         # Refresh the PhysX buffers every update, but create their typed Warp views only once:
         # the getters lazily allocate their output buffers and refresh the same memory in place
@@ -197,14 +216,17 @@ class Pva(BasePva):
         # valid. A re-backed buffer would silently freeze the sensor data, so fail loudly.
         transforms = self._view.get_transforms()
         velocities = self._view.get_velocities()
+        accelerations = self._view.get_accelerations()
         coms = self._view.get_coms()
         if self._raw_transforms is None:
             self._raw_transforms = transforms.view(wp.transformf)
             self._raw_velocities = velocities.view(wp.spatial_vectorf)
+            self._raw_accelerations = accelerations.view(wp.spatial_vectorf)
             self._raw_coms = coms.view(wp.transformf)
         elif (
             transforms.ptr != self._raw_transforms.ptr
             or velocities.ptr != self._raw_velocities.ptr
+            or accelerations.ptr != self._raw_accelerations.ptr
             or coms.ptr != self._raw_coms.ptr
         ):
             raise RuntimeError(
@@ -219,6 +241,7 @@ class Pva(BasePva):
                 try:
                     self._update_cmd = self._launch_update(env_mask, record_cmd=True)
                     self._update_env_mask = env_mask
+                    self._recorded_gravity_w = self._gravity_w
                 except Exception as exc:
                     self._use_recorded_launch = False
                     logger.warning(
@@ -229,6 +252,9 @@ class Pva(BasePva):
                 if env_mask is not self._update_env_mask:
                     self._update_cmd.set_param_by_name("env_mask", env_mask)
                     self._update_env_mask = env_mask
+                if self._gravity_w != self._recorded_gravity_w:
+                    self._update_cmd.set_param_by_name("gravity_vec_w", self._gravity_vec_w)
+                    self._recorded_gravity_w = self._gravity_w
                 self._update_cmd.launch()
                 return
 
@@ -244,14 +270,12 @@ class Pva(BasePva):
                 env_mask,
                 self._raw_transforms,
                 self._raw_velocities,
+                self._raw_accelerations,
                 self._coms_buffer,
                 self._offset_pos_b,
                 self._offset_quat_b,
-                self.GRAVITY_VEC_W,
+                self._gravity_vec_w,
                 self._timestamp,
-                self._timestamp_last_update,
-                self._prev_lin_vel_w,
-                self._prev_ang_vel_w,
                 self._data._pos_w,
                 self._data._quat_w,
                 self._data._lin_vel_b,
@@ -269,10 +293,6 @@ class Pva(BasePva):
         # Create data buffers via data class
         self._data.create_buffers(num_envs=self._view.count, device=self._device)
 
-        # Sensor-internal buffers for velocity tracking (not exposed via data)
-        self._prev_lin_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
-        self._prev_ang_vel_w = wp.zeros(self._view.count, dtype=wp.vec3f, device=self._device)
-
         # Store sensor offset (applied relative to rigid source).
         # This may be composed later with a fixed ancestor->target transform.
         offset_pos_torch = torch.tensor(list(self.cfg.offset.pos), device=self._device).repeat(self._view.count, 1)
@@ -289,9 +309,11 @@ class Pva(BasePva):
         self._view = None
         self._raw_transforms = None
         self._raw_velocities = None
+        self._raw_accelerations = None
         self._raw_coms = None
         self._update_cmd = None
         self._update_env_mask = None
+        self._recorded_gravity_w = None
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         # set visibility of markers

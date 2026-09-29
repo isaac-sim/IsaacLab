@@ -44,6 +44,7 @@ jobs:
           # run only when inputs that can affect the wheel have changed.
           patterns=(
             $'^apps/\tStandalone apps packaged in the wheel'
+            $'^examples/\tDemos and examples packaged in the wheel'
             $'^pyproject\.toml$\tWheel dependency metadata and resolver overrides'
             $'^VERSION$\tPackage version'
             $'^source/\tPython packages'
@@ -147,7 +148,7 @@ jobs:
       # resolution work and drops the ~24 MB `pip install uv` bootstrap.
       - name: Set up uv
         if: steps.changes.outputs.run_build == 'true'
-        uses: astral-sh/setup-uv@v6
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
         with:
           enable-cache: true
           # Neither this job nor kitless-docker pins python-version, so both land

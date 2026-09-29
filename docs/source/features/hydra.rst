@@ -150,13 +150,14 @@ For example, for the configuration of the Cartpole camera environment:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
-    :start-at: class CartpoleTiledCameraCfg
+    :start-at: class CartpoleCameraEnvCfg(PresetCfg):
     :end-at: observation_space = [3, 96, 96]
 
 The configuration declares the single-frame channel count and a default spatial size.
 At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
 the resolved camera: the default ``frame_stack=2`` expands channels, and height/width are
-taken from ``tiled_camera``. So ``env.tiled_camera.width=128 env.tiled_camera.height=128``
+taken from ``scene.tiled_camera``. So
+``env.scene.tiled_camera.width=128 env.scene.tiled_camera.height=128``
 alone yields an effective stacked shape of ``[6,128,128]`` without also overriding
 ``env.observation_space``. The channel entry in ``observation_space`` must still match the
 camera data type (for example ``[1, ...]`` with ``presets=depth``); presets already set this.
@@ -251,7 +252,7 @@ override is given:
 .. code-block:: python
 
     from isaaclab.sim import SimulationCfg
-    from isaaclab.utils.configclass import configclass
+    from isaaclab.utils import configclass
     from isaaclab_newton.physics import NewtonCfg
     from isaaclab_physx.physics import PhysxCfg
     from isaaclab_tasks.utils import PresetCfg
@@ -312,10 +313,10 @@ Physics backend selection uses the same preset system. A task can define a
 
 The Cartpole task's definition is a maintained example:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_common.py
     :language: python
     :start-at: class CartpolePhysicsCfg(PresetCfg):
-    :end-before: ##
+    :end-before: @configclass
 
 The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physics backend because
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
@@ -386,7 +387,7 @@ instances:
         depth: list = ["depth"]
         albedo: list = ["albedo"]
 
-Use ``preset()`` when the definition fits on a single line.  Use a
+Use ``preset()`` when the definition fits on a single line. Use a
 ``PresetCfg`` subclass when the options are verbose enough to benefit from
 type annotations and multiline formatting.
 
@@ -475,9 +476,13 @@ and ``renderer=rtx`` are opt-in, not universal defaults.
 
 Domain presets (observation modes, camera configurations, etc.) are task-specific.
 Pass ``--task=<task-name> --help`` to a training command to see all presets available
-for that task, grouped by selector type. Reinforcement-learning commands also list
-the registered ``--agent`` values for the selected library. When a task declares
-preset-to-agent compatibility, the compatible presets appear beneath each agent:
+for that task, grouped by selector type.
+
+For reinforcement-learning tasks, preset resolution composes the registered
+environment and agent configurations as sibling roots. A library's canonical
+``<library>_cfg_entry_point`` may therefore return a root-level ``PresetCfg`` with
+the same alternative names as the environment. A broadcast such as
+``presets=resnet18`` selects ``resnet18`` in both roots in one resolution pass:
 
 .. tab-set::
 
@@ -486,18 +491,29 @@ preset-to-agent compatibility, the compatible presets appear beneath each agent:
       .. code-block:: bash
 
           uv run isaaclab train --rl_library rsl_rl \
-               --task Isaac-Cartpole-Camera --help
+               --task Isaac-Cartpole-Camera presets=resnet18
 
    .. tab-item:: isaaclab.sh / isaaclab.bat
 
       .. code-block:: bash
 
           ./isaaclab.sh train --rl_library rsl_rl \
-               --task Isaac-Cartpole-Camera --help
+               --task Isaac-Cartpole-Camera presets=resnet18
 
-Preset and agent selection are otherwise independent. A task may use an alternate
-agent for symmetry, recurrence, or another algorithm without changing its environment
-preset.
+This is the preferred way to keep an environment-coupled policy shape, such as a
+feature extractor or action-space head, aligned with the selected environment. It
+does not require a preset-specific registry entry or rewrite ``--agent``.
+
+Independent training recipes remain explicit agent choices. A task may select an
+alternate agent for symmetry, recurrence, distillation, or another algorithm
+without changing its environment preset.
+
+Preset-specific agent entry points and registry-side preset-to-agent maps are not
+part of this model. Use the canonical entry point and select its variant with
+``presets=``. For older SKRL runs whose manifest or directory encoded a
+configuration-key suffix instead of ``agent.class`` as the algorithm, pass the
+checkpoint path explicitly instead of using automatic ``latest`` or ``best``
+discovery.
 
 .. note::
 
@@ -549,6 +565,10 @@ Using Presets
 
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Lift-KukaAllegro-Camera presets=duo_camera,rgb128
+
+The KukaAllegro ``-Camera`` tasks default to a single camera and the matching
+RSL-RL CNN actor. ``presets=duo_camera`` switches both the camera rig and actor
+inputs; the critic continues to use state observations.
 
 **Combined** -- typed selectors, a domain preset, and a scalar override:
 

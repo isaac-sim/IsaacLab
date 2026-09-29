@@ -19,7 +19,7 @@ environment code. During export, LEAPP traces the annotated tensors and builds a
 intermediate representation of the full policy pipeline. These annotations remain
 dormant during normal environment execution and only add a small amount of
 overhead until export time. They are activated by
-``scripts/reinforcement_learning/leapp/rsl_rl/export.py`` when you run the export flow.
+``isaaclab leapp export --rl_library rsl_rl`` when you run the export flow.
 
 This tutorial uses ``scripts/tutorials/06_deploy/anymal_c_env.py`` as a concrete
 example of adding LEAPP annotations to a Direct workflow environment. Apply the same
@@ -65,61 +65,32 @@ For example, on Isaac Sim PhysX:
    .. tab-item:: :icon:`fa-brands fa-linux` Linux
       :sync: linux
 
-      .. tab-set::
+      .. code-block:: bash
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: bash
-
-               # Newton:     uv run --extra leapp python ... physics=newton_mjwarp
-               # OV PhysX:   uv run --extra ovphysx,leapp python ... physics=ovphysx
-               # Isaac Sim:
-               OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim,leapp python \
-                   scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT> \
-                   --export_save_path <EXPORT_PATH> \
-                   physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: bash
-
-               ./isaaclab.sh -p scripts/reinforcement_learning/leapp/rsl_rl/export.py \
-                   --task <TASK_NAME> \
-                   --checkpoint <PATH_TO_CHECKPOINT> \
-                   --export_save_path <EXPORT_PATH> \
-                   physics=isaacsim_physx
+         # Newton:     uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
+         # OV PhysX:   uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
+         # Isaac Sim:
+         OMNI_KIT_ACCEPT_EULA=Y ACCEPT_EULA=Y uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl \
+             --task <TASK_NAME> \
+             --checkpoint <PATH_TO_CHECKPOINT> \
+             --export_save_path <EXPORT_PATH> \
+             physics=isaacsim_physx
 
    .. tab-item:: :icon:`fa-brands fa-windows` Windows
       :sync: windows
 
-      .. tab-set::
+      .. code-block:: batch
 
-         .. tab-item:: uv (Recommended)
-
-            .. code-block:: batch
-
-               :: Newton:   uv run --extra leapp python ... physics=newton_mjwarp
-               :: OV PhysX: uv run --extra ovphysx,leapp python ... physics=ovphysx
-               :: Isaac Sim:
-               set OMNI_KIT_ACCEPT_EULA=Y
-               set ACCEPT_EULA=Y
-               uv run --extra isaacsim,leapp python scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT> ^
-                   --export_save_path <EXPORT_PATH> ^
-                   physics=isaacsim_physx
-
-         .. tab-item:: isaaclab.sh / isaaclab.bat
-
-            .. code-block:: batch
-
-               isaaclab.bat -p scripts\reinforcement_learning\leapp\rsl_rl\export.py ^
-                   --task <TASK_NAME> ^
-                   --checkpoint <PATH_TO_CHECKPOINT> ^
-                   --export_save_path <EXPORT_PATH> ^
-                   physics=isaacsim_physx
+         :: Newton:   uv run --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=newton_mjwarp
+         :: OV PhysX: uv run --extra ovphysx --extra leapp isaaclab leapp export --rl_library rsl_rl ... physics=ovphysx
+         :: Isaac Sim:
+         set OMNI_KIT_ACCEPT_EULA=Y
+         set ACCEPT_EULA=Y
+         uv run --extra isaacsim --extra leapp isaaclab leapp export --rl_library rsl_rl ^
+             --task <TASK_NAME> ^
+             --checkpoint <PATH_TO_CHECKPOINT> ^
+             --export_save_path <EXPORT_PATH> ^
+             physics=isaacsim_physx
 
 The ``--task`` argument is the registered task name, such as
 ``IsaacContrib-Velocity-Rough-AnymalC-Direct``. The ``--checkpoint`` argument
@@ -140,7 +111,7 @@ exported artifacts. If you omit it, the export is written next to the checkpoint
 
    This tutorial covers exporting direct rl policies only. direct rl
    policies are not currently supported by
-   ``scripts/reinforcement_learning/leapp/deploy.py``.
+   ``isaaclab leapp deploy``.
 
 For more information on the export arguments, see the
 :doc:`standard LEAPP deployment workflow <exporting_policies_with_leapp>`.
@@ -185,8 +156,8 @@ collects the tensors that are passed to the policy.
 ``annotate.input_tensors()`` wraps a tensor so LEAPP can trace all downstream
 operations that depend on it. The function takes two important arguments:
 
-- ``self.spec.id`` identifies the node that owns the tensor. When you use
-  ``export.py``, this ID matches the exported policy node.
+- ``self.spec.id`` identifies the node that owns the tensor. When you run
+  ``isaaclab leapp export``, this ID matches the exported policy node.
 - The second argument is a dictionary that maps a unique tensor name to the
   tensor itself. LEAPP uses these names in the exported metadata and for
   debugging.

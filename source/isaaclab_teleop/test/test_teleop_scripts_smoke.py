@@ -82,6 +82,8 @@ _REGRESSION_SIGNATURES = (
     "No module named 'omni.replicator'",
     "has no attribute 'enable_cameras'",
     "has no attribute 'headless'",
+    # Success termination removed while a reward still references it
+    "Not all regular expressions are matched",
     # Registry-only XR dependency: the app exits before any marker is printed
     "Exiting app because of dependency solver failure",
 )
@@ -94,6 +96,9 @@ _ISAAC_TELEOP_MARKER = "Using IsaacTeleop stack for teleoperation"
 
 # Marker logged by ManagerBasedEnv creation, which runs *after* the RTX-apply site that regressed.
 _ENV_CREATED_MARKER = "Base environment:"
+
+# Marker logged after every manager has initialized successfully.
+_ENV_READY_MARKER = "Completed setting up the environment"
 
 # Disable CloudXR: no headset connects in CI, and auto-launching the runtime is unnecessary to
 # exercise the Isaac Teleop device factory (the live session is out of scope for a headless smoke).
@@ -153,10 +158,10 @@ def _terminate_group(proc: subprocess.Popen) -> None:
 
 
 def _assert_started_cleanly(output: str, markers: list[str], script: str) -> None:
-    """Assert the run cleared the #6656 regression and reached a post-startup marker."""
+    """Assert the run cleared known regressions and reached a post-startup marker."""
     tail = output[-4000:]
     for sig in _REGRESSION_SIGNATURES:
-        assert sig not in output, f"{script}: #6656 regression signature present ({sig!r})\n---\n{tail}"
+        assert sig not in output, f"{script}: regression signature present ({sig!r})\n---\n{tail}"
     assert any(marker in output for marker in markers), (
         f"{script}: did not reach a startup marker {markers} within {_STARTUP_TIMEOUT_S:.0f}s\n---\n{tail}"
     )
@@ -197,6 +202,23 @@ def test_record_demos_starts(tmp_path):
     ]
     output = _launch_until_marker(argv, [_ISAAC_TELEOP_MARKER], tmp_path / "record_demos.log")
     _assert_started_cleanly(output, [_ISAAC_TELEOP_MARKER], "record_demos.py")
+
+
+def test_record_demos_starts_when_reward_references_success(tmp_path):
+    """record_demos.py preserves success-term references while disabling automatic resets."""
+    argv = [
+        "scripts/tools/record_demos.py",
+        "--task",
+        "Isaac-Reach-Franka",
+        "--teleop_device",
+        "keyboard",
+        "--dataset_file",
+        str(tmp_path / "dataset.hdf5"),
+        "physics=isaacsim_physx",
+        "presets=diffik",
+    ]
+    output = _launch_until_marker(argv, [_ENV_READY_MARKER], tmp_path / "record_demos_success_reward.log")
+    _assert_started_cleanly(output, [_ENV_READY_MARKER], "record_demos.py with a success reward")
 
 
 def test_xr_experience_declares_only_shipped_extensions():

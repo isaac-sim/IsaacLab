@@ -79,6 +79,7 @@ _READ_ONLY_NAMES: frozenset[str] = frozenset(
         "articulation_body_inv_mass",
         "articulation_body_inv_inertia",
         "articulation_dof_projected_joint_force",
+        "articulation_dof_drive_type",
         "articulation_jacobian",
         "articulation_mass_center_world",
         "articulation_mass_center_local",

@@ -5,7 +5,7 @@
 - [Preflight Detection](#preflight-detection)
 - [Express Route Mapping](#express-route-mapping)
 - [Express Flow Rules](#express-flow-rules)
-- [China Storage Profile](#china-storage-profile)
+- [Asset Region Profiles](#asset-region-profiles)
 - [Prerequisite Minimums](#prerequisite-minimums)
 - [Minimal Verification](#minimal-verification)
 - [Install-Time Failure Routing](#install-time-failure-routing)
@@ -19,7 +19,7 @@ Read-only commands to gather routing facts on Linux; nothing changes system stat
 grep PRETTY_NAME /etc/os-release && uname -m && ldd --version | head -1
 nvidia-smi --query-gpu=name,memory.total,driver_version --format=csv,noheader
 command -v python3.12 uv conda; free -g | head -2; df -h .
-env | grep -E '^(ISAACSIM_STORAGE_PROFILE|ISAACSIM_ASSET_ROOT)=' || true
+env | grep -E '^(ISAACSIM_ASSET_REGION_PROFILE|ISAACSIM_ASSET_ROOT)=' || true
 ```
 
 Also note existing install artifacts: `.venv/` or an env directory in the checkout, and `~/.isaaclab/install_profile.yaml`. On Windows, collect the equivalents (driver via `nvidia-smi`, Python version, free disk).
@@ -45,7 +45,7 @@ User-stated preferences override the routing and map directly:
 | External extension author, Isaac Lab wheel only | `docs/source/setup/installation/index.rst` (`installation-method-wheel`) |
 | Newton-only workflow, no Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-legacy-installer`) |
 | Managed venv or conda with pip Isaac Sim | `docs/source/setup/installation/index.rst` (`installation-method-python-env`) |
-| Containerized deployment | `docs/source/setup/installation/index.rst` (`installation-method-container`); deep-dive `docs/source/features/docker_cloud.rst` |
+| Containerized deployment | `docs/source/setup/installation/index.rst` (`installation-method-container`); deep-dive `docs/source/workflows/docker/index.rst` |
 | Cloud-hosted GPU workstation | `docs/source/setup/installation/index.rst` (`installation-method-cloud`) |
 
 ## Express Flow Rules
@@ -56,14 +56,14 @@ User-stated preferences override the routing and map directly:
 - Log every executed command and its output to `~/.isaaclab/logs/install-<timestamp>.log`.
 - After success, write facts, route, and commands run to `~/.isaaclab/install_profile.yaml`.
 
-## China Storage Profile
+## Asset Region Profiles
 
 Use the China profile only when the user requests it or states that Isaac Lab will run in mainland China. Do not
 infer the profile from an IP address or other geolocation lookup.
 
-Read `docs/source/setup/installation/asset_caching_details.inc` from the checkout every time. Use its current profile
-setting and asset-availability manifest instead of copying release numbers, service endpoints, bucket names, or CDN
-URLs into the skill.
+Read the `installation-asset-region-profiles` section in `docs/source/setup/installation/index.rst` from the checkout
+every time. Use its current profile setting and asset-availability manifest instead of copying release numbers,
+service endpoints, bucket names, or CDN URLs into the skill.
 
 - Add the documented profile environment variable to the install verification and subsequent example commands. Do
   not edit shell startup files unless the user explicitly requests persistence.
@@ -110,7 +110,7 @@ Apply at most one documented fix per failed step, retry once, then stop and hand
 | `nvidia-smi` missing or driver too old | `docs/source/setup/installation/index.rst` ("System requirements" — driver minimums) |
 | Network timeout fetching wheels | Retry the step once; then check proxy/firewall for github.com, pypi.org, pypi.nvidia.com, download.pytorch.org |
 | Windows path-too-long errors | Windows tab of the chosen section (long-path support) |
-| Docker step fails with runtime error | `docs/source/features/docker_cloud.rst` (NVIDIA Container Toolkit setup) |
+| Docker step fails with runtime error | `docs/source/workflows/docker/index.rst` (NVIDIA Container Toolkit setup) |
 | Import fails after install completes | Hand off to `isaaclab-setup-troubleshooting` |
 
 ## Cross-Skill Routing

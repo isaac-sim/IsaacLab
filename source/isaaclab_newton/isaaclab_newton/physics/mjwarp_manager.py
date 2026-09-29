@@ -17,6 +17,7 @@ from newton.solvers import SolverMuJoCo
 from isaaclab.physics import PhysicsManager
 
 from .mjwarp_manager_cfg import MJWarpSolverCfg
+from .mjwarp_tendon_control import MjWarpTendonControl
 from .newton_manager import NewtonManager
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,18 @@ class NewtonMJWarpManager(NewtonManager):
             )
 
     @classmethod
+    def create_fixed_tendon_control(cls, articulation):
+        """Build the MuJoCo tendon adapter for ``articulation``.
+
+        Args:
+            articulation: Newton articulation to drive.
+
+        Returns:
+            The adapter, or None when no MuJoCo actuator transmits to any of its tendons.
+        """
+        return MjWarpTendonControl.create(articulation, cls.get_model())
+
+    @classmethod
     def _initialize_contacts(cls) -> None:
         """Allocate contact buffers.
 
@@ -84,7 +97,7 @@ class NewtonMJWarpManager(NewtonManager):
                 rigid_contact_max=cls._solver.get_max_contact_count(),
                 soft_contact_max=0,
                 device=PhysicsManager._device,
-                requested_attributes=cls._model.get_requested_contact_attributes(),
+                requested_attributes=cls.backend.model.get_requested_contact_attributes(),
             )
 
     @classmethod
@@ -119,7 +132,7 @@ class NewtonMJWarpManager(NewtonManager):
             return
         # flags=0 skips the joint-state reset to model defaults: IsaacLab owns
         # joint_q/joint_qd and has already written the authored reset pose.
-        cls._solver.reset(cls._state_0, world_mask=world_mask, flags=0)
+        cls._solver.reset(cls.backend.state_0, world_mask=world_mask, flags=0)
 
     @classmethod
     def _log_solver_debug(cls) -> None:

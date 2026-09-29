@@ -3,18 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""Configuration for the direct-workflow Shadow Hand camera reorientation environment."""
+
 from __future__ import annotations
 
 import isaaclab.sim as sim_utils
 from isaaclab.renderers import RendererCfg
-from isaaclab.scene import InteractiveSceneCfg
-from isaaclab.sensors import CameraCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.sensors import CameraCfg, JointWrenchSensorCfg
+from isaaclab.utils import configclass
+from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
-from isaaclab_tasks.core.reorient.config.shadow_hand.feature_extractor import FeatureExtractorCfg
-from isaaclab_tasks.core.reorient.config.shadow_hand.shadow_hand_direct_env_cfg import ShadowHandEnvCfg
-from isaaclab_tasks.utils import PresetCfg
+from isaaclab_tasks.utils import PresetCfg, preset
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
+
+from .feature_extractor import FeatureExtractorCfg
+from .shadow_hand_direct_env_cfg import (
+    ShadowHandEnvCfg,
+    ShadowHandSceneCfg,
+)
+
+_PRETRAINED_CHECKPOINT_DIR = f"{ISAACLAB_NUCLEUS_DIR}/PretrainedCheckpoints/rsl_rl"
+_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/"
+    "Isaac-Reorient-Cube-Shadow-Camera-Direct_newtonmjwarp_newton_rsl_rl_feature_extractor.pth"
+)
+_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT = (
+    f"{_PRETRAINED_CHECKPOINT_DIR}/Isaac-Reorient-Cube-Shadow-Camera-Direct_physx_rtx_rsl_rl_feature_extractor.pth"
+)
 
 
 def validate_shadow_hand_camera_settings(
@@ -31,25 +46,6 @@ def validate_shadow_hand_camera_settings(
         raise TypeError(
             f"Shadow Hand camera validation requires a concrete RendererCfg or None, got {type(renderer_cfg).__name__}."
         )
-
-    renderer_type = getattr(renderer_cfg, "renderer_type", None)
-    warp_supported = {
-        "rgb",
-        "depth",
-        "distance_to_camera",
-        "distance_to_image_plane",
-        "normals",
-        "semantic_segmentation",
-        "instance_segmentation",
-    }
-    if renderer_type == "newton_warp":
-        unsupported = set(tiled_camera.data_types) - warp_supported
-        if unsupported:
-            raise ValueError(
-                f"Warp renderer only supports data types {sorted(warp_supported)}, "
-                f"but the camera is configured with unsupported types: {sorted(unsupported)}. "
-                "Choose a compatible preset, e.g. presets=newton_renderer,rgb."
-            )
 
     non_depth_data_types = set(tiled_camera.data_types).difference(
         {"depth", "distance_to_image_plane", "distance_to_camera"}
@@ -160,13 +156,32 @@ class ShadowHandTiledCameraCfg(PresetCfg):
 
 
 @configclass
-class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
-    # scene
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=1225, env_spacing=2.0, replicate_physics=True)
+class ShadowHandCameraSceneCfg(ShadowHandSceneCfg):
+    """Shadow Hand scene with camera and fingertip-wrench sensors."""
 
-    # camera — data-type and renderer backend selectable via CLI presets
+    num_envs = 1225
+    env_spacing = 2.0
+    ground = None
+    joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
     tiled_camera: ShadowHandTiledCameraCfg = ShadowHandTiledCameraCfg()
-    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg()
+
+
+@configclass
+class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
+    """Configuration for the direct-workflow Shadow Hand camera reorientation environment."""
+
+    # scene
+    scene: ShadowHandCameraSceneCfg = ShadowHandCameraSceneCfg()
+
+    feature_extractor: FeatureExtractorCfg = FeatureExtractorCfg(
+        pretrained_checkpoint=preset(  # type: ignore[arg-type]
+            default=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            newton_mjwarp=_DIRECT_NEWTON_FEATURE_EXTRACTOR_CHECKPOINT,
+            isaacsim_physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            ovphysx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+            physx=_DIRECT_PHYSX_FEATURE_EXTRACTOR_CHECKPOINT,
+        )
+    )
 
     # env
     observation_space = 164 + 27  # state observation + vision CNN embedding
@@ -174,7 +189,7 @@ class ShadowHandCameraEnvCfg(ShadowHandEnvCfg):
 
     def validate_config(self):
         """Check renderer/data-type and feature-extractor compatibility."""
-        validate_shadow_hand_camera_settings(self.tiled_camera, self.feature_extractor)
+        validate_shadow_hand_camera_settings(self.scene.tiled_camera, self.feature_extractor)
 
     def play_mode(self):
         # play-mode overrides of parent

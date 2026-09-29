@@ -38,15 +38,20 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import replace_slices_with_strings, replace_strings_with_slices
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import (
+    configclass,
+    replace_slices_with_strings,
+    replace_strings_with_slices,
+    to_dict,
+    update_from_dict,
+)
 
 from .preset_target import PresetTarget
 
 _LITERAL_MAP = {"true": True, "false": False, "none": None, "null": None}
 
 
-def _user_stacklevel() -> int:
+def user_stacklevel() -> int:
     """Compute a ``warnings.warn`` stacklevel that lands on the first frame
     outside the ``isaaclab_tasks.utils`` package, so deprecation messages
     cite user code rather than internal utility frames.
@@ -93,7 +98,7 @@ def _normalize_preset_name(name: str, known_names: set[str]) -> str:
     warnings.warn(
         f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
         FutureWarning,
-        stacklevel=_user_stacklevel(),
+        stacklevel=user_stacklevel(),
     )
     return replacement
 
@@ -149,7 +154,7 @@ class PresetCfg:
             warnings.warn(
                 f"Preset '{name}' is deprecated. Use '{replacement}' instead.",
                 FutureWarning,
-                stacklevel=_user_stacklevel(),
+                stacklevel=user_stacklevel(),
             )
             return getattr(self, replacement)
         raise AttributeError(f"{type(self).__name__!s} object has no attribute {name!r}")
@@ -450,7 +455,7 @@ def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
     @hydra.main(config_path=None, config_name=task, version_base="1.3")
     def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
         hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        env_cfg.from_dict(hydra_cfg["env"])
+        update_from_dict(env_cfg, hydra_cfg["env"])
         env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
         if isinstance(agent_cfg, dict) or agent_cfg is None:
             agent_cfg = hydra_cfg["agent"]
@@ -714,7 +719,7 @@ def register_task(
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
-    env_dict = env_cfg.to_dict()  # type: ignore[union-attr]
+    env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars

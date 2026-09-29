@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from .keyboard_schema import KeyboardStyle, ResolvedKey
 
-_FONT_5X7: dict[str, tuple[str, ...]] = {
+FONT_5X7: dict[str, tuple[str, ...]] = {
     "A": ("01110", "10001", "10001", "11111", "10001", "10001", "10001"),
     "B": ("11110", "10001", "10001", "11110", "10001", "10001", "11110"),
     "C": ("01111", "10000", "10000", "10000", "10000", "10000", "01111"),
@@ -89,7 +89,7 @@ _COMMON_LEGEND_REPLACEMENTS = {
 def legend_text(label: str, style: KeyboardStyle) -> str:
     if style.label_mode == "blank":
         return ""
-    text = "".join(ch for ch in label.upper() if ch in _FONT_5X7 or ch.isalnum()).strip()
+    text = "".join(ch for ch in label.upper() if ch in FONT_5X7 or ch.isalnum()).strip()
     if not text:
         return ""
     compact = text.replace(" ", "")
@@ -133,7 +133,7 @@ def label_mesh_data(
     faces: list[tuple[int, int, int, int]] = []
     cursor = 0.0
     for ch in text:
-        glyph = _FONT_5X7.get(ch, _FONT_5X7["?"])
+        glyph = FONT_5X7.get(ch, FONT_5X7["?"])
         char_cols = 3 if ch == " " else glyph_width
         if ch != " ":
             for row_index, row in enumerate(glyph):

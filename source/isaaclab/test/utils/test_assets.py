@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-"""Launch Isaac Sim Simulator first."""
 import importlib
 import json
 import logging
@@ -27,7 +26,7 @@ pytestmark = pytest.mark.unit
 def test_asset_root_environment_override_takes_precedence(monkeypatch):
     """Test the documented Isaac Sim asset-root environment override."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "/tmp/isaacsim_assets/Assets/Isaac/X.Y/")
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "/tmp/isaacsim_assets/Assets/Isaac/X.Y"
@@ -36,34 +35,30 @@ def test_asset_root_environment_override_takes_precedence(monkeypatch):
 def test_asset_root_falls_back_to_kit_file(monkeypatch):
     """Test kitless asset-root resolution when the environment override is absent."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
-def test_asset_root_uses_china_storage_profile(monkeypatch):
-    """Test the China storage profile uses the same public bucket root as Isaac Sim."""
+def test_us_asset_root_is_parsed_from_kit_file(monkeypatch):
+    """Test the US asset region profile initializes its root from the shipped experience."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "us")
 
-    expected_root = (
-        f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{assets_utils._ISAAC_SIM_ASSET_RELEASE}"
-    )
-    assert assets_utils._resolve_asset_root() == expected_root
+    assert assets_utils._resolve_asset_root() == assets_utils._US_ASSET_ROOT
 
 
 def test_asset_root_ignores_unknown_storage_profile(monkeypatch, caplog):
     """Test an unknown profile warns and falls back to the experience file."""
     monkeypatch.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "unknown")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "unknown")
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     with caplog.at_level(logging.WARNING, logger=assets_utils.logger.name):
         assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
-    assert "no storage profile named 'unknown'" in caplog.text
+    assert "no asset region profile named 'unknown'" in caplog.text
 
 
 def test_configure_china_storage_profile_once(monkeypatch):
@@ -71,7 +66,7 @@ def test_configure_china_storage_profile_once(monkeypatch):
     import omni.client
 
     calls = []
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
     monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
 
     def configure(**kwargs):
@@ -95,21 +90,13 @@ def test_configure_china_storage_profile_once(monkeypatch):
     ]
 
 
-def test_configure_storage_profile_reports_client_failure(monkeypatch):
-    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
-    import omni.client
-
-    monkeypatch.setenv("ISAACSIM_STORAGE_PROFILE", "china")
-    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
-    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
-
-    with pytest.raises(RuntimeError, match="Storage profile 'china' failed to configure"):
-        assets_utils.configure_storage_profile()
-
-
-def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
-    """Test the initializer does not import OmniClient when no profile is selected."""
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+@pytest.mark.parametrize("profile", ["us", None], ids=["us", "unset"])
+def test_configure_storage_profile_is_lazy(monkeypatch, profile):
+    """Test the primary profile, or no selected profile, does not import OmniClient."""
+    if profile is None:
+        monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
+    else:
+        monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", profile)
     original_omni_client = sys.modules.pop("omni.client", None)
     try:
         assets_utils.configure_storage_profile()
@@ -117,6 +104,28 @@ def test_configure_storage_profile_is_lazy_without_selection(monkeypatch):
     finally:
         if original_omni_client is not None:
             sys.modules["omni.client"] = original_omni_client
+
+
+def test_configure_storage_profile_reports_client_failure(monkeypatch):
+    """Test a rejected OmniClient profile fails before an inaccessible asset is used."""
+    import omni.client
+
+    monkeypatch.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
+    monkeypatch.setattr(assets_utils, "_CONFIGURED_STORAGE_PROFILES", set())
+    monkeypatch.setattr(omni.client, "set_s3_configuration", lambda **_kwargs: "rejected")
+
+    with pytest.raises(RuntimeError, match="Asset region profile 'china' failed to configure"):
+        assets_utils.configure_storage_profile()
+
+
+def test_configure_asset_region_profile_alias(monkeypatch):
+    """Test the public Asset Region Profile initializer forwards to the existing initializer."""
+    calls = []
+    monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append(True))
+
+    assets_utils.configure_asset_region_profile()
+
+    assert calls == [True]
 
 
 def test_asset_client_applies_storage_profile(monkeypatch):
@@ -141,16 +150,23 @@ def test_asset_root_environment_override_strips_windows_separator(monkeypatch):
 def test_asset_root_ignores_empty_environment_override(monkeypatch):
     """Test an empty override falls back, matching when ``isaacsim.storage.native`` skips it."""
     monkeypatch.setenv("ISAACSIM_ASSET_ROOT", "")
-    monkeypatch.delenv("ISAACSIM_STORAGE_PROFILE", raising=False)
+    monkeypatch.delenv("ISAACSIM_ASSET_REGION_PROFILE", raising=False)
     monkeypatch.setattr(assets_utils, "_parse_kit_asset_root", lambda: "https://example.com/kit-assets")
 
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
-def test_kit_experience_path_resolves_to_the_shipped_experience():
-    """Test the unpatched experience-file path so a broken relative walk fails here."""
-    assert Path(assets_utils._KIT_EXPERIENCE_PATH).is_file()
-    assert assets_utils._parse_kit_asset_root()
+def test_kit_experience_asset_roots_use_production():
+    """Test every shipped experience uses the canonical production asset root."""
+    kit_directory = Path(assets_utils._KIT_EXPERIENCE_PATH).parent
+    production_root = assets_utils._parse_kit_asset_root()
+
+    assert "omniverse-content-production" in production_root
+    for kit_path in kit_directory.glob("*.kit"):
+        kit_config = kit_path.read_text(encoding="utf-8")
+        assert "omniverse-content-staging" not in kit_config
+        for setting in ("default", "cloud", "nvidia"):
+            assert f'persistent.isaac.asset_root.{setting} = "{production_root}"' in kit_config
 
 
 def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
@@ -197,11 +213,11 @@ def test_exported_asset_root_constants_follow_environment_override(monkeypatch):
 
 
 def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch):
-    """Test kitless asset constants follow the selected China storage profile."""
+    """Test kitless asset constants follow the selected China asset region profile."""
     try:
         with monkeypatch.context() as patched_env:
             patched_env.delenv("ISAACSIM_ASSET_ROOT", raising=False)
-            patched_env.setenv("ISAACSIM_STORAGE_PROFILE", "china")
+            patched_env.setenv("ISAACSIM_ASSET_REGION_PROFILE", "china")
             module = importlib.reload(assets_utils)
 
             root = f"https://simready-cn.s3.oss-cn-shanghai.aliyuncs.com/Assets/Isaac/{module._ISAAC_SIM_ASSET_RELEASE}"
@@ -210,12 +226,6 @@ def test_exported_asset_root_constants_follow_china_storage_profile(monkeypatch)
             assert f"{root}/Isaac/IsaacLab" == module.ISAACLAB_NUCLEUS_DIR
     finally:
         importlib.reload(assets_utils)
-
-
-def test_nucleus_connection():
-    """Test checking the Nucleus connection."""
-    # check nucleus connection
-    assert assets_utils.NUCLEUS_ASSET_ROOT_DIR is not None
 
 
 def test_check_file_path_nucleus():
@@ -234,74 +244,46 @@ def test_check_file_path_invalid():
     assert assets_utils.check_file_path(usd_path) == 0
 
 
-def test_find_asset_dependencies_collects_mdl_texture_resources(tmp_path):
-    """Test collecting texture resources from quoted MDL strings."""
-    mdl_path = tmp_path / "material.mdl"
-    mdl_path.write_text(
-        """
-        export material Example(*) = OmniPBR(
-            diffuse_texture: texture_2d("./textures/Albedo.png", ::tex::gamma_srgb),
-            normalmap_texture: texture_2d("../shared/Normal.EXR", ::tex::gamma_linear),
-            ORM_texture: texture_2d("https://example.com/materials/orm.<UDIM>.png", ::tex::gamma_linear),
-            roughness_texture: texture_2d("omniverse://server/Library/roughness.tx", ::tex::gamma_linear),
-            ignored_label: "not_a_texture",
-            empty_texture: texture_2d()
-        );
-        // texture_2d("./textures/commented_line.png")
-        /* texture_2d("./textures/commented_block.png") */
-        """,
-        encoding="utf-8",
+@pytest.mark.parametrize("remote", [False, True], ids=["local", "remote"])
+def test_localized_usd_preserves_material_resource_anchors(asset_cache, monkeypatch, remote):
+    """MDL modules and sparse UDIM tiles retain their source, not a partial mirror."""
+    import omni.client
+    from pxr import Sdf, Usd, UsdShade
+
+    layer = (
+        f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Shader "Material" {{\n'
+        " asset info:mdl:sourceAsset = @./material.mdl@\n asset unresolved = @./missing.mdl@\n"
+        " asset inputs:file = @texture.<UDIM>.png@\n}\n"
     )
+    module = 'mdl 1.7;\nimport ::anno::*;\nexport material example() [[anno::description("wood.png")]] = material();\n'
+    payloads = {"scene.usda": layer, "material.mdl": module, "texture.1002.png": "tile", "texture.1004.png": "tile"}
+    for name, data in payloads.items():
+        (asset_cache / name).write_text(data)
+    assert assets_utils.retrieve_file_path(str(asset_cache / "material.mdl")) == str(asset_cache / "material.mdl")
 
-    assert assets_utils._find_asset_dependencies(str(mdl_path)) == {
-        "./textures/Albedo.png",
-        "../shared/Normal.EXR",
-        "https://example.com/materials/orm.<UDIM>.png",
-        "omniverse://server/Library/roughness.tx",
-    }
+    payloads = {f"https://example.com/{name}": data for name, data in payloads.items()}
+    payloads[_REMOTE_URL] = '#usda 1.0\ndef Xform "Remote" {}\n'
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, dict.fromkeys(payloads, revision))
 
+    def copy(url, target_path, behavior):
+        Path(target_path).write_text(payloads[url])
+        return omni.client.Result.OK
 
-def test_find_asset_dependencies_collects_mdl_relative_import_modules(tmp_path):
-    """Test collecting sibling MDL modules imported by material files."""
-    mdl_path = tmp_path / "material.mdl"
-    mdl_path.write_text(
-        """
-        import .::OmniUe4Function;
-        import .::OmniUe4Translucent::*;
-        import .::Shared::OmniUe4Base::*;
-        import .::Helpers::make_color;
-        import ..::Common::Surface::*;
-        export using .::Local::Palette import *;
-        using ..::Shared::Functions import make_color, make_normal;
-        import ::nvidia::core_definitions::*;
-        export material Example(*) = OmniPBR();
-        // import .::CommentedLine;
-        /* import .::CommentedBlock; */
-        string ignored = "import .::QuotedString;";
-        """,
-        encoding="utf-8",
-    )
-
-    assert assets_utils._find_asset_dependencies(str(mdl_path)) == {
-        "OmniUe4Function.mdl",
-        "OmniUe4Translucent.mdl",
-        "Shared/OmniUe4Base.mdl",
-        "Helpers.mdl",
-        "Helpers/make_color.mdl",
-        "../Common/Surface.mdl",
-        "Local.mdl",
-        "Local/Palette.mdl",
-        "../Shared.mdl",
-        "../Shared/Functions.mdl",
-    }
-
-
-def test_find_asset_dependencies_missing_mdl_does_not_log_traceback(tmp_path, caplog):
-    """Test unavailable MDL dependencies do not emit tracebacks in training logs."""
-    missing_mdl = tmp_path / "missing.mdl"
-
-    assert assets_utils._find_asset_dependencies(str(missing_mdl)) == set()
-    assert "Traceback (most recent call last):" not in caplog.text
+    monkeypatch.setattr(omni.client, "copy", copy)
+    source = "https://example.com/scene.usda" if remote else str(asset_cache / "scene.usda")
+    result = assets_utils.retrieve_file_path(source)
+    assert result != source
+    stage = Usd.Stage.Open(result)
+    material = stage.GetPrimAtPath("/Material")
+    directory = "https://example.com" if remote else str(asset_cache)
+    assert material.GetAttribute("info:mdl:sourceAsset").Get().path == f"{directory}/material.mdl"
+    assert material.GetAttribute("unresolved").Get().path == f"{directory}/missing.mdl"
+    assert material.GetAttribute("inputs:file").Get().path == f"{directory}/texture.<UDIM>.png"
+    if not remote:
+        layer = Sdf.Layer.FindOrOpen(str(asset_cache / "scene.usda"))
+        tiles = UsdShade.UdimUtils.ResolveUdimTilePaths("texture.<UDIM>.png", layer)
+        assert [tile for _, tile in tiles] == ["1002", "1004"]
 
 
 def test_retrieve_git_asset_path_uses_local_repo_path(tmp_path):
@@ -464,6 +446,11 @@ def test_git_asset_paths_tell_a_windows_drive_letter_from_a_url_scheme(git_path,
     assert assets_utils._is_git_remote_path(git_path) is is_remote
 
 
+def test_resolve_reference_url_treats_windows_drive_as_local_path():
+    """Resolve a relative dependency beside a local Windows layer instead of constructing a URL."""
+    assert assets_utils._resolve_reference_url(r"C:\assets\scene.usda", "robot.usda") == r"C:\assets\robot.usda"
+
+
 def test_retrieve_git_asset_path_raises_for_missing_asset(tmp_path):
     """Test that git asset retrieval raises when the requested asset is missing."""
     repo_dir = tmp_path / "newton-assets"
@@ -483,7 +470,7 @@ def asset_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(assets_utils, "_REMOTE_FINGERPRINTS", {})
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRROR_DIRS", set())
     monkeypatch.setattr(assets_utils, "_ANNOUNCED_MIRRORS", set())
-    monkeypatch.setattr(assets_utils, "_MIRRORED_URLS", {})
+    monkeypatch.setattr(assets_utils, "_ASSET_SOURCES", {})
     return tmp_path
 
 
@@ -516,6 +503,153 @@ def _cache_asset(cache_dir, url: str, payload: bytes, fingerprint: dict | None) 
             json.dumps(fingerprint), encoding="utf-8"
         )
     return mirrored
+
+
+@pytest.mark.parametrize("layout", ["direct", "nested", "remote", "package"])
+def test_local_usd_mirrors_remote_sublayer_without_editing_source(asset_cache, monkeypatch, layout):
+    """Compose local and remote dependency chains without editing the authored layers."""
+    import omni.client
+    from pxr import Usd
+
+    layers = {
+        "local.usda": '#usda 1.0\ndef Shader "local" {\n asset info:mdl:sourceAsset = @OmniPBR.mdl@\n}\n',
+        "robot.usda": f"#usda 1.0\n(subLayers = [@{_REMOTE_URL}@, @local.usda@])\n",
+        "scene.usda": "#usda 1.0\n(subLayers = [@robot.usda@])\n",
+    }
+    for name, content in layers.items():
+        (asset_cache / name).write_text(content, encoding="utf-8")
+    root_url = "https://example.com/scene.usda"
+    payloads = {
+        _REMOTE_URL: '#usda 1.0\ndef Xform "cartpole" {}\n',
+        root_url: layers["robot.usda"],
+        "https://example.com/local.usda": layers["local.usda"],
+    }
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+
+    def fake_copy(url, target_path, behavior):
+        if url not in payloads:
+            return omni.client.Result.ERROR_NOT_FOUND
+        data = payloads[url]
+        Path(target_path).write_bytes(data.encode() if isinstance(data, str) else data)
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    source = {"direct": str(asset_cache / "robot.usda"), "nested": str(asset_cache / "scene.usda"), "remote": root_url}
+    if layout == "package":
+        source[layout] = _REMOTE_URL + "z"
+        package_path = asset_cache / "scene.usdz"
+        package_root = asset_cache / "package.usda"
+        package_root.write_text('#usda 1.0\n(subLayers = [@local.usda@])\ndef Xform "cartpole" {}\n')
+        with Usd.ZipFileWriter.CreateNew(str(package_path)) as package:
+            package.AddFile(str(package_root), "package.usda")
+            package.AddFile(str(asset_cache / "local.usda"), "local.usda")
+        payloads[source[layout]] = package_path.read_bytes()
+    _serve(monkeypatch, dict.fromkeys(payloads, revision))
+    resolved_path = assets_utils.retrieve_file_path(source[layout])
+    stage = Usd.Stage.Open(resolved_path)
+    assert stage.GetPrimAtPath("/cartpole").IsValid()
+    assert stage.GetPrimAtPath("/local").IsValid()
+    assert stage.GetPrimAtPath("/local").GetAttribute("info:mdl:sourceAsset").Get().path == "OmniPBR.mdl"
+    assert {name: (asset_cache / name).read_text(encoding="utf-8") for name in layers} == layers
+    if layout == "package":
+        assert Path(resolved_path).read_bytes() == payloads[source[layout]]
+    for path in (resolved_path, source[layout]):
+        stage = Usd.Stage.Open(assets_utils.retrieve_file_path(path))
+        assert all(stage.GetPrimAtPath("/" + name).IsValid() for name in ("cartpole", "local"))
+        assert not stage.GetCompositionErrors()
+
+
+def test_local_usd_preserves_search_paths_and_relative_sublayers(asset_cache, monkeypatch):
+    """Resolve in context without requiring an unavailable, unselected variant."""
+    import omni.client
+    from pxr import Ar, Sdf, Usd
+
+    source_dir = asset_cache / "source"
+    search_dir = asset_cache / "search"
+    source_dir.mkdir()
+    search_dir.mkdir()
+    source = source_dir / "scene.usda"
+    source.write_text("#usda 1.0\n(subLayers = [@robot.usda@, @./child.usda@])\n", encoding="utf-8")
+    (source_dir / "child.usda").write_text('#usda 1.0\ndef Xform "child" {}\n')
+    layer = Sdf.Layer.FindOrOpen(str(source))
+    prim = Sdf.PrimSpec(layer, "Variants", Sdf.SpecifierDef, "Xform")
+    variants = Sdf.VariantSetSpec(prim, "model")
+    Sdf.VariantSpec(variants, "available")
+    missing = Sdf.VariantSpec(variants, "missing")
+    missing.primSpec.referenceList.prependedItems = [Sdf.Reference("missing.usda")]
+    prim.variantSetNameList.prependedItems = ["model"]
+    prim.variantSelections["model"] = "available"
+    layer.Save()
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    _serve(monkeypatch, {_REMOTE_URL: revision})
+
+    def fake_copy(url, target_path, behavior):
+        assert url == _REMOTE_URL
+        Path(target_path).write_text('#usda 1.0\ndef Xform "remote" {}\n', encoding="utf-8")
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    for name in ("first", "second"):
+        directory = search_dir / name
+        directory.mkdir()
+        (directory / "robot.usda").write_text(f'#usda 1.0\n(subLayers = [@{_REMOTE_URL}@])\ndef Xform "{name}" {{}}\n')
+        context = Ar.ResolverContext(Ar.DefaultResolverContext([str(directory), str(source_dir)]))
+        with Ar.ResolverContextBinder(context):
+            resolved_path = assets_utils.retrieve_file_path(source.name)
+            resolved_stage = Usd.Stage.Open(resolved_path, context)
+            assert all(resolved_stage.GetPrimAtPath("/" + prim).IsValid() for prim in (name, "child", "remote"))
+            assert not resolved_stage.GetCompositionErrors()
+
+    # Neither the old files nor the resolver context change when nearer files become available.
+    (source_dir / "robot.usda").write_text('#usda 1.0\ndef Xform "nearer" {}\n')
+    (source_dir / "missing.usda").write_text('#usda 1.0\n(defaultPrim = "Root")\ndef Xform "Root" {\n int found = 1\n}')
+    with Ar.ResolverContextBinder(context):
+        resolved_stage = Usd.Stage.Open(assets_utils.retrieve_file_path(resolved_path), context)
+        assert resolved_stage.GetPrimAtPath("/nearer").IsValid()
+        variant = resolved_stage.GetPrimAtPath("/Variants")
+        variant.GetVariantSet("model").SetVariantSelection("missing")
+        assert variant.GetAttribute("found").Get() == 1
+        assert not resolved_stage.GetCompositionErrors()
+
+
+@pytest.mark.parametrize("failure", ["transfer", "missing"])
+@pytest.mark.parametrize("force_download", [False, True])
+def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, failure, force_download):
+    """Retry failed or unavailable dependencies; forced downloads also refresh revision metadata."""
+    import omni.client
+    from pxr import Usd
+
+    child_url = _REMOTE_URL.replace("example.usd", "child.usda")
+    revision = {"hash": "abc123", "version": "", "size": 32, "modified_time": "2026-07-01 10:00:00"}
+    root = b"#usda 1.0\n(subLayers = [@child.usda@])\n"
+    mirrored = _cache_asset(asset_cache, _REMOTE_URL, root, revision)
+    entries = {_REMOTE_URL: revision, child_url: revision if failure == "transfer" else None}
+    _serve(monkeypatch, entries)
+    fail_child = True
+
+    def fake_copy(url, target_path, behavior):
+        if url == _REMOTE_URL:
+            Path(target_path).write_bytes(root)
+            return omni.client.Result.OK
+        if fail_child:
+            return omni.client.Result.ERROR_NOT_FOUND
+        Path(target_path).write_text('#usda 1.0\ndef Xform "child" {}\n', encoding="utf-8")
+        return omni.client.Result.OK
+
+    monkeypatch.setattr(omni.client, "copy", fake_copy)
+    if failure == "transfer":
+        with pytest.raises(RuntimeError, match=child_url):
+            assets_utils.retrieve_file_path(_REMOTE_URL)
+    else:
+        assets_utils.retrieve_file_path(_REMOTE_URL)
+    fail_child = False
+    entries[child_url] = revision
+    if force_download:
+        entries[_REMOTE_URL] = {**revision, "hash": "new-revision"}
+    resolved = assets_utils.retrieve_file_path(str(mirrored), force_download=force_download)
+    stage = Usd.Stage.Open(resolved)
+    assert stage.GetPrimAtPath("/child").IsValid()
+    assert json.loads(Path(str(mirrored) + assets_utils._MIRROR_FINGERPRINT_SUFFIX).read_text()) == entries[_REMOTE_URL]
 
 
 def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):
@@ -579,7 +713,6 @@ def test_retrieve_file_path_serializes_cold_cache_population(asset_cache, monkey
         return omni.client.Result.OK
 
     monkeypatch.setattr(omni.client, "copy", fake_copy)
-    monkeypatch.setattr(assets_utils, "_find_asset_dependencies", lambda path: set())
     start = threading.Barrier(2)
 
     def retrieve() -> str:
@@ -685,16 +818,12 @@ def test_unmirror_file_path_recovers_the_url_a_copy_was_cached_from(asset_cache,
 
 @pytest.mark.parametrize(
     "path",
-    ["/home/user/assets/example.usd", "Materials/dex_cube_mod.png", "OmniPBR.mdl", ""],
-)
-def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
-    """Test a locally authored asset path is not mistaken for a cached remote copy."""
-    assert assets_utils.unmirror_file_path(path) == ""
-
-
-@pytest.mark.parametrize(
-    "path",
     [
+        "/home/user/assets/example.usd",
+        "Materials/dex_cube_mod.png",
+        "OmniPBR.mdl",
+        "",
+        # an ordinary local layout is not read as a cache layout because of a directory name;
         # ``Omniverse`` is where Omniverse puts user projects by default
         "C:/Users/user/Omniverse/MyProject/scene.usd",
         "/data/omniverse/assets/robot.usd",
@@ -702,8 +831,8 @@ def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache
         "/home/user/projects/https/site/logo.png",
     ],
 )
-def test_unmirror_file_path_leaves_a_directory_named_after_a_url_scheme_unclaimed(asset_cache, path):
-    """Test an ordinary local layout is not read as a cache layout because of a directory name."""
+def test_unmirror_file_path_leaves_paths_outside_the_cache_unclaimed(asset_cache, path):
+    """Test a locally authored asset path is not mistaken for a cached remote copy."""
     assert assets_utils.unmirror_file_path(path) == ""
 
 

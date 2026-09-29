@@ -20,7 +20,9 @@ if TYPE_CHECKING:
 import argparse
 import sys
 
-from isaaclab_rl.entrypoints import common as _common
+from isaaclab.utils import to_dict
+
+from isaaclab_rl.entrypoints import common
 
 
 def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
@@ -39,7 +41,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the Hydra preset tokens.
     """
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -85,9 +87,10 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         ),
     )
     add_launcher_args(parser)
+    common.add_frontend_args(parser)
 
     args, remaining = setup_preset_cli(parser, argv)
-    _common.enable_cameras_for_video(args)
+    common.enable_cameras_for_video(args)
     sys.argv = [sys.argv[0]] + remaining
     return args, remaining
 
@@ -104,7 +107,6 @@ def run(argv: list[str]) -> BenchmarkResult:
     import os
     import time
 
-    import gymnasium as gym
     from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
     from isaaclab.app import launch_simulation
@@ -125,7 +127,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     args, remaining = _parse_args(argv)
 
     env_cfg, agent_cfg = resolve_task_config(args.task, args.agent)
-    _common.pre_launch_video_config(env_cfg, args_cli=args)
+    common.pre_launch_video_config(env_cfg, args_cli=args)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()
@@ -133,7 +135,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     with launch_simulation(env_cfg, args):
         with contextlib.ExitStack() as cleanup:
             app_t1 = time.perf_counter_ns()
-            _common.apply_video_recording(env_cfg, args.output_path, args, subdir="play")
+            common.apply_video_recording(env_cfg, args.output_path, args, subdir="play")
 
             if args.num_envs is not None:
                 env_cfg.scene.num_envs = args.num_envs
@@ -145,8 +147,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            if args.checkpoint in _common.CHECKPOINT_SELECTORS:
-                resume_path = _common.resolve_checkpoint_selector(
+            if args.checkpoint in common.CHECKPOINT_SELECTORS:
+                resume_path = common.resolve_checkpoint_selector(
                     log_root_path,
                     args.checkpoint,
                     library="rsl_rl",
@@ -155,7 +157,7 @@ def run(argv: list[str]) -> BenchmarkResult:
                     metadata={"agent": args.agent},
                 )
             else:
-                resume_path = _common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
+                resume_path = common.resolve_play_checkpoint(args.checkpoint, "rsl_rl", args.task, env_cfg)
 
             cfg = capture.run_config_from_env_cfg(env_cfg)
             formatter_types = [value.strip() for value in args.benchmark_formatter.split(",") if value.strip()]
@@ -183,7 +185,7 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             env_t0 = time.perf_counter_ns()
-            env = gym.make(args.task, cfg=env_cfg)
+            env = common.create_isaaclab_env(args.task, env_cfg, args, convert_marl_to_single_agent=True)
             cleanup.callback(lambda: env.close())
             env_t1 = time.perf_counter_ns()
 
@@ -193,9 +195,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
             if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             runner.load(resume_path)

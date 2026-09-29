@@ -7,17 +7,15 @@
 Setup:
     - ./isaaclab.sh -u
 Tests:
-    - ./isaaclab.sh -i core
-        -> verify core submodules are importable
     - ./isaaclab.sh -i all
         -> verify automatic extras install without tetrahedralization dependencies
     - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct
         --num_envs 16 presets=newton_mjwarp --max_iterations 5
         -> verify state training completes
-    - uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Camera-Direct
-        --num_envs 16 presets=newton_mjwarp,newton_renderer --max_iterations 2
 
-        -> verify camera rendering is valid and camera training completes
+The ``-i core`` import checks live in ``test_cli_install_in_uvenv_smoke.py``; the camera
+rendering and camera training probes run once, on the wheel install path in
+``uv_pip/test_uv_pip_install_isaaclab_all_trains_cartpole.py``.
 """
 
 from __future__ import annotations
@@ -25,6 +23,7 @@ from __future__ import annotations
 import shutil
 
 import pytest
+from misc.cartpole_training_smoke import _STATE_TRAIN_CMD, _assert_training_passed
 from utils import UV_Mixin
 
 
@@ -36,45 +35,14 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
 
-    @pytest.mark.install_path_cli
-    @pytest.mark.uv
-    @pytest.mark.slow
-    @pytest.mark.gpu
-    @pytest.mark.timeout(900)
-    def test_install_core_makes_core_submodules_importable(self, isaaclab_root):
-        """``./isaaclab.sh -i core`` installs all core submodules without extras."""
-        try:
-            self.create_uv_env(isaaclab_root)
-            result = self.run_in_uv_env(
-                [str(self.cli_script), "-i", "core"],
-                cwd=isaaclab_root,
-                timeout=600,
-            )
-            assert result.returncode == 0, f"isaaclab -i core failed:\n{result.stdout}\n{result.stderr}"
-            output = result.stdout + result.stderr
-            # All core submodules should be installed; no optional tokens should warn
-            assert "WARNING" not in output or "Unknown install token" not in output, (
-                f"Unexpected warnings from -i core:\n{output}"
-            )
-            # Verify core packages importable
-            for pkg in ("isaaclab", "isaaclab_assets", "isaaclab_tasks", "isaaclab_physx"):
-                r = self.run_in_uv_env(
-                    [str(self.python), "-c", f"import {pkg}; print({pkg!r}, 'ok')"],
-                    cwd=isaaclab_root,
-                    timeout=60,
-                )
-                assert r.returncode == 0, f"{pkg} not importable after -i core:\n{r.stdout}\n{r.stderr}"
-        finally:
-            self.destroy_uv_env()
-
     # regression for NVBug 5968136 (Cartpole training fails in MuJoCo stiffness conversion)
     @pytest.mark.install_path_cli
     @pytest.mark.uv
     @pytest.mark.slow
     @pytest.mark.gpu
     @pytest.mark.timeout(3600)
-    def test_install_all_trains_cartpole(self, isaaclab_root, cartpole_smoke_script):
-        """``-i all`` supports state training, camera rendering, and camera training."""
+    def test_install_all_trains_cartpole(self, isaaclab_root):
+        """``-i all`` installs the automatic extras and supports state training."""
         try:
             self.create_uv_env(isaaclab_root)
             result = self.run_in_uv_env(
@@ -95,11 +63,7 @@ class Test_Cli_Install_All_In_Uvenv_Training(UV_Mixin):
             assert result.returncode == 0, (
                 f"pytetwild should not be installed by -i all:\n{result.stdout}\n{result.stderr}"
             )
-            result = self.run_in_uv_env(
-                [str(self.python), str(cartpole_smoke_script)],
-                cwd=isaaclab_root,
-                timeout=3000,
-            )
-            assert result.returncode == 0, f"Cartpole smoke failed:\n{result.stdout}\n{result.stderr}"
+            result = self.run_in_uv_env([str(self.cli_script)] + _STATE_TRAIN_CMD, cwd=isaaclab_root, timeout=600)
+            _assert_training_passed(result)
         finally:
             self.destroy_uv_env()

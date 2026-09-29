@@ -84,6 +84,10 @@ class VideoRecorder:
         # Set to True after the first unrecoverable frame-capture error so that
         # subsequent steps do not propagate the exception or repeat the log message.
         self._frame_error_logged: bool = False
+        # Set to True after the Kit/Newton cubric warning is emitted. The condition it
+        # reports is fixed configuration state, so warning once per recorder is enough;
+        # without this the message repeats on every captured frame.
+        self._cubric_warning_logged: bool = False
 
     def step(self) -> None:
         """Advance the recorder by one env step."""
@@ -186,9 +190,10 @@ class VideoRecorder:
         # Kit Replicator requires cubric to propagate Newton Fabric transforms to RTX's
         # scene delegate. Without cubric, frames will be black. Log a warning but allow
         # the capture to proceed — users with cubric available will get correct frames.
-        if viz_type == "kit":
+        if viz_type == "kit" and not self._cubric_warning_logged:
             physics_backend = getattr(getattr(sim, "physics_manager", None), "video_capture_backend", lambda: None)()
             if physics_backend == "newton_gl":
+                self._cubric_warning_logged = True
                 logger.warning(
                     "[VideoRecorder] source='visualizer:kit' with Newton physics requires cubric "
                     "to propagate Fabric transforms to RTX. Frames may be black if cubric is "
@@ -196,6 +201,8 @@ class VideoRecorder:
                 )
 
         viz = candidates[0]
+        if not sim.is_rendering:
+            sim.forward()
         if sub == "streaming_view":
             if not hasattr(viz, "render_tiled_rgb_array"):
                 raise RuntimeError(
@@ -234,7 +241,7 @@ class VideoRecorder:
         return frame
 
     def _frame_from_sensor(self, name: str, gt_type: str = "rgb") -> np.ndarray | None:
-        from isaaclab.envs.utils.camera_colorizer import (
+        from .camera_colorizer import (
             SUPPORTED_GT_TYPES,
             CameraFrameColorizer,
             sensor_key_for_gt_type,

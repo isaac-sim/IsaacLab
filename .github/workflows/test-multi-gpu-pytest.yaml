@@ -56,7 +56,8 @@ jobs:
           triggered-jobs-pr: multi-GPU sharded unit tests
           patterns: |
             ^source/isaaclab/isaaclab/test/utils/ :: Device-scope test helpers
-            ^source/isaaclab/isaaclab/app/app_launcher\.py$ :: Device selection at launch
+            ^source/isaaclab_physx/isaaclab_physx/app/kit_launcher\.py$ :: Device selection at launch
+            ^source/isaaclab/isaaclab/app/sim_launcher\.py$ :: Device selection at launch
             ^source/.+/test/.+/test_.*\.py$ :: Device-parametrized test files
             ^\.github/workflows/test-multi-gpu-pytest\.yaml$ :: This workflow
             ^\.github/actions/(run-tests|run-package-tests|ecr-build-push-pull|multi-gpu|detect-changes)/ :: Shared actions

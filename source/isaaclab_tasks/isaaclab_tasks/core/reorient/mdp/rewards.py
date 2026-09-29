@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Functions specific to the in-hand dexterous manipulation environments."""
+"""Reward terms for the in-hand reorientation environments."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def track_pos_l2(
 
     Args:
         env: The environment object.
-        command_term: The command term to be used for extracting the goal.
+        command_name: The command term to be used for extracting the goal.
         object_cfg: The configuration for the scene entity. Default is "object".
     """
     # extract useful elements

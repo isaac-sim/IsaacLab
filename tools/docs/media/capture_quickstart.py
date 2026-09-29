@@ -19,7 +19,7 @@ from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import VideoRecorderCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 from isaaclab.visualizers import VisualizerCfg
 
 import isaaclab_tasks  # noqa: F401

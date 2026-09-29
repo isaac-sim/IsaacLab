@@ -74,9 +74,6 @@ _SHADOW_EYE = (0.0, -2.2, 1.8)
 _SHADOW_LOOKAT = (0.0, -0.1, 0.4)
 _SHADOW_ENV_SPACING = 1.0
 
-# Tiled camera eye offset from each robot root for generated per-env cameras.
-_SHADOW_TILED_EYE = (0.0, 0.35, 0.8)
-
 # Skip the first few steps so the RTX renderer has warmed up before recording starts.
 _KIT_STEP_OFFSET = 5
 
@@ -87,9 +84,9 @@ def _output_dir(example: int) -> str:
 
 def _shadow_env_cfg(num_envs: int, env_spacing: float = _SHADOW_ENV_SPACING):
     """Build a base Shadow Hand camera env cfg shared by all examples."""
-    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.tiled_camera=rgb"))
-    env_cfg.tiled_camera.height = 256
-    env_cfg.tiled_camera.width = 256
+    env_cfg, _ = resolve_task_config(_TASK_SHADOW, "", overrides=(*sys.argv[1:], "env.scene.tiled_camera=rgb"))
+    env_cfg.scene.tiled_camera.height = 256
+    env_cfg.scene.tiled_camera.width = 256
     env_cfg.scene.num_envs = num_envs
     env_cfg.scene.env_spacing = env_spacing
     return env_cfg
@@ -156,9 +153,9 @@ def _build_env_cfg_example_3(num_envs: int):
         lookat=_SHADOW_LOOKAT,
         streaming_view=True,
         streaming_envs=min(num_envs, 16),
-        # Reuse the existing scene camera sensor so the streaming panel shows
-        # the same RTX-rendered views as source="sensor:tiled_camera".
-        streaming_sensor_prim_path="/World/envs/env_.*/Camera",
+        # No streaming_sensor_prim_path/streaming_cam_target_prim_path: adopts the existing
+        # tiled_camera sensor automatically, so the streaming panel shows the same
+        # RTX-rendered views as source="sensor:tiled_camera".
     )
     newton_cfg = NewtonGLVisualizerCfg(
         eye=_SHADOW_EYE,
