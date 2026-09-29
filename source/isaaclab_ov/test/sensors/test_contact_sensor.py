@@ -431,9 +431,23 @@ def test_first_transition_with_aged_clock(device):
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-def test_cube_stack_contact_filtering(device):
+@pytest.mark.parametrize("missing_filter", [False, True])
+def test_cube_stack_contact_filtering(device, monkeypatch, missing_filter):
     """Checks contact sensor reporting for filtering stacked cube prims."""
+    from ovphysx.api import PhysX
+
     num_envs = 6
+    binding_patterns = []
+    create_contact_binding = PhysX.create_contact_binding
+
+    def record_binding_patterns(physx, sensor_patterns, filter_patterns=None, **kwargs):
+        if missing_filter and not binding_patterns:
+            filter_patterns = list(filter_patterns)
+            filter_patterns[3] += "/Missing"
+        binding_patterns.append((sensor_patterns, filter_patterns))
+        return create_contact_binding(physx, sensor_patterns, filter_patterns, **kwargs)
+
+    monkeypatch.setattr(PhysX, "create_contact_binding", record_binding_patterns)
     with _ovphysx_sim_context(device=device, dt=_SIM_DT, add_lighting=True) as sim:
         # Instance new scene for the current terrain and contact prim.
         # OVPhysX uses fnmatch globs (not regex), so ``Env_*`` rather than ``Env_.*``.
@@ -448,7 +462,7 @@ def test_cube_stack_contact_filtering(device):
         # -- contact sensor 1
         scene_cfg.contact_sensor = ContactSensorCfg(
             prim_path="{ENV_REGEX_NS}/Cube_1",
-            track_pose=True,
+            track_pose=not missing_filter,
             debug_vis=False,
             update_period=0.0,
             history_length=2,
@@ -465,10 +479,23 @@ def test_cube_stack_contact_filtering(device):
         scene = InteractiveScene(scene_cfg)
 
         # Play the simulation
+        if missing_filter:
+            with pytest.raises(RuntimeError, match="omitted sensor bodies"):
+                sim.reset()
+            return
         sim.reset()
 
         contact_sensor: ContactSensor = scene["contact_sensor"]
         contact_sensor_2: ContactSensor = scene["contact_sensor_2"]
+
+        assert len(binding_patterns) == 2
+        if num_envs > 1:
+            for sensor_patterns, filter_patterns in binding_patterns:
+                assert len(sensor_patterns) == num_envs
+                assert len(filter_patterns) == num_envs
+                for env_id, (sensor_path, filter_path) in enumerate(zip(sensor_patterns, filter_patterns, strict=True)):
+                    assert f"/env_{env_id}/" in sensor_path
+                    assert f"/env_{env_id}/" in filter_path
 
         # Check that the filter binding was created for each sensor
         assert contact_sensor.contact_view.filter_count == 1
@@ -503,6 +530,57 @@ def test_cube_stack_contact_filtering(device):
         contact_sensor.reset(env_ids=[0])
         assert torch.count_nonzero(data.normal_force_matrix_w_history.torch[0]) == 0
         torch.testing.assert_close(data.normal_force_matrix_w_history.torch[1:], history[1:])
+
+
+@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
+@pytest.mark.parametrize("filter_collisions", [False, True])
+def test_heterogeneous_clone_contact_report_order(device, filter_collisions):
+    """Clone contact reporters retain numeric environment order and per-variant forces."""
+    with _ovphysx_sim_context(device=device, dt=0.01) as sim:
+        cfg = ContactSensorSceneCfg(
+            num_envs=12, env_spacing=2.0, lazy_sensor_update=False, filter_collisions=filter_collisions
+        )
+        cfg.terrain = FLAT_TERRAIN_CFG.replace(prim_path="/World/ground")
+        cfg.shape = CUBE_CFG.replace(prim_path="{ENV_REGEX_NS}/Object")
+        cfg.shape.spawn = sim_utils.MultiAssetSpawnerCfg(
+            assets_cfg=[
+                sim_utils.CuboidCfg(size=(0.2, 0.2, 0.2), mass_props=sim_utils.MassPropertiesCfg(mass=1.0)),
+                sim_utils.SphereCfg(radius=0.1, mass_props=sim_utils.MassPropertiesCfg(mass=2.0)),
+            ],
+            rigid_props=sim_utils.RigidBodyBaseCfg(),
+            collision_props=sim_utils.CollisionBaseCfg(),
+            activate_contact_sensors=True,
+        )
+        cfg.shape.init_state.pos = (0.0, 0.0, 0.5)
+        cfg.shape_2 = RigidObjectCfg(
+            prim_path="{ENV_REGEX_NS}/Support",
+            spawn=sim_utils.CuboidCfg(
+                size=(1.0, 1.0, 0.2),
+                rigid_props=sim_utils.RigidBodyBaseCfg(kinematic_enabled=True),
+                collision_props=sim_utils.CollisionBaseCfg(),
+            ),
+            init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.2)),
+        )
+        cfg.contact_sensor = ContactSensorCfg(
+            prim_path="{ENV_REGEX_NS}/Object",
+            track_pose=True,
+            filter_prim_paths_expr=["/World/envs/env_*/Support", "/World/ground", "/World/envs/env_0/Object"],
+        )
+        scene = InteractiveScene(cfg)
+        sim.reset()
+        sensor = scene["contact_sensor"]
+        assert sensor.contact_view.sensor_paths == [f"/World/envs/env_{i}/Object" for i in range(scene.num_envs)]
+        assert sensor.contact_view.filter_paths == [
+            [f"/World/envs/env_{i}/Support", "/World/ground", "/World/envs/env_0/Object"] for i in range(scene.num_envs)
+        ]
+        for _ in range(240):
+            _perform_sim_step(sim, scene, sim.get_physics_dt())
+        layout = torch.as_tensor(sim.get_clone_plan().topology.world_prototype_layout, device=device)
+        expected = 9.81 * (layout + 1)
+        torch.testing.assert_close(sensor.data.net_normal_forces_w.torch[:, 0, 2], expected, atol=0.1, rtol=0.0)
+        torch.testing.assert_close(sensor.data.normal_force_matrix_w.torch[:, 0, 0, 2], expected, atol=0.1, rtol=0.0)
+        assert torch.count_nonzero(sensor.data.normal_force_matrix_w.torch[:, :, 1:]) == 0
+        torch.testing.assert_close(sensor.data.pos_w.torch[:, 0, :2], scene.env_origins[:, :2], atol=0.01, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", ["cuda:0", "cpu"])
