@@ -24,6 +24,7 @@ import warp as wp
 from isaaclab.test.utils import DeviceScope, test_devices
 
 from ._articulation_contract_utils import get_articulation
+from ._articulation_ordering_contract_cases import _read_backend_joint_state
 from .capabilities import contract_backend, require_backend_capability, requires_backend
 
 # ---------------------------------------------------------------------------
@@ -987,6 +988,81 @@ def _read_joint_writer_target(art, getter: str):
 
 class TestArticulationWritersJoint:
     """Test joint writers/setters with all input combinations."""
+
+    @_writes_backends
+    def test_partial_joint_state_write_follows_int64_selectors_and_restarts_acceleration(self, backend):
+        """A fused joint-state write honors unsorted int64 selectors and restarts the finite-difference baseline."""
+        art, raw_backend = get_articulation(backend, 2, 3, 2, device="cpu")
+        art.data.update(dt=0.01)
+        expected_joint_pos = art.data.joint_pos.torch.clone()
+        expected_joint_vel = art.data.joint_vel.torch.clone()
+        # Newton reads body poses through FK bindings, so only its body velocity is a timestamped cache.
+        caches = ("_body_link_vel_w",) if backend == "newton" else ("_body_link_pose_w", "_body_com_vel_w")
+        for cache in caches:
+            getattr(art.data, cache[1:])
+        # Seed the finite-difference state so an untouched cell shows whether the write leaked into it.
+        previous_joint_vel = wp.to_torch(art.data._previous_joint_vel)
+        previous_joint_vel.fill_(3.0)
+        wp.to_torch(art.data._joint_acc.data).fill_(4.0)
+        art.data._joint_acc.timestamp = -1.0
+        position = torch.tensor([[0.1, -0.1]])
+        velocity = torch.tensor([[0.2, -0.2]])
+
+        # int64 selectors with the joints in reverse order; the payload follows the selector order.
+        art.write_joint_state_to_sim_index(
+            position=position[:, [1, 0]],
+            velocity=velocity[:, [1, 0]],
+            env_ids=torch.tensor([1], dtype=torch.int64),
+            joint_ids=torch.tensor([2, 0], dtype=torch.int64),
+            skip_forward=True,
+        )
+
+        expected_joint_pos[1, [0, 2]] = position[0]
+        expected_joint_vel[1, [0, 2]] = velocity[0]
+        expected_previous_joint_vel = torch.full_like(previous_joint_vel, 3.0)
+        expected_previous_joint_vel[1, [0, 2]] = velocity[0]
+        expected_joint_acc = torch.full_like(previous_joint_vel, 4.0)
+        expected_joint_acc[1, [0, 2]] = 0.0
+        torch.testing.assert_close(art.data.joint_pos.torch, expected_joint_pos)
+        torch.testing.assert_close(art.data.joint_vel.torch, expected_joint_vel)
+        torch.testing.assert_close(previous_joint_vel, expected_previous_joint_vel)
+        torch.testing.assert_close(wp.to_torch(art.data._joint_acc.data), expected_joint_acc)
+        if backend == "ovphysx":
+            # OVPhysX stamps the reset acceleration, so a read before the next step returns it unchanged.
+            assert art.data._joint_acc.timestamp == art.data._sim_timestamp
+            torch.testing.assert_close(art.data.joint_acc.torch, expected_joint_acc)
+        else:
+            torch.testing.assert_close(art.data.joint_acc.torch[1, [0, 2]], torch.zeros(2))
+        backend_joint_pos, backend_joint_vel = _read_backend_joint_state(backend, art, raw_backend)
+        torch.testing.assert_close(torch.from_numpy(backend_joint_pos), expected_joint_pos)
+        torch.testing.assert_close(torch.from_numpy(backend_joint_vel), expected_joint_vel)
+        # ``skip_forward`` leaves the body caches to the caller; a regular write invalidates them.
+        for cache in caches:
+            assert getattr(art.data, cache).timestamp == art.data._sim_timestamp, cache
+        art.write_joint_state_to_sim_index(position=position, velocity=velocity, env_ids=[1], joint_ids=[0, 2])
+        for cache in caches:
+            assert getattr(art.data, cache).timestamp < art.data._sim_timestamp, cache
+
+    @_writes_backends
+    def test_deprecated_joint_state_writer_matches_public_writers(self, backend):
+        """The deprecated combined joint-state writer warns and writes what the public writers would."""
+        art, raw_backend = get_articulation(backend, 2, 3, 2, device="cpu")
+        art.data.update(dt=0.01)
+        expected_joint_pos = art.data.joint_pos.torch.clone()
+        expected_joint_vel = art.data.joint_vel.torch.clone()
+
+        with pytest.warns(DeprecationWarning, match="write_joint_state_to_sim"):
+            art.write_joint_state_to_sim(
+                position=torch.tensor([[0.1]]), velocity=torch.tensor([[0.2]]), joint_ids=[1], env_ids=[1]
+            )
+
+        expected_joint_pos[1, 1] = 0.1
+        expected_joint_vel[1, 1] = 0.2
+        torch.testing.assert_close(art.data.joint_pos.torch, expected_joint_pos)
+        torch.testing.assert_close(art.data.joint_vel.torch, expected_joint_vel)
+        backend_joint_pos, backend_joint_vel = _read_backend_joint_state(backend, art, raw_backend)
+        torch.testing.assert_close(torch.from_numpy(backend_joint_pos), expected_joint_pos)
+        torch.testing.assert_close(torch.from_numpy(backend_joint_vel), expected_joint_vel)
 
     @_writes_backends
     @_devices
