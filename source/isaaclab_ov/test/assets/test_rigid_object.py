@@ -16,6 +16,7 @@ order. Initialization failures need their own scenes and therefore build them be
 from __future__ import annotations
 
 from collections.abc import Iterator
+from contextlib import AbstractContextManager
 from dataclasses import dataclass
 
 import pytest
@@ -41,7 +42,7 @@ pytestmark = pytest.mark.integration
 _NUM_CUBES = 2
 
 
-def _sim_context(device: str):
+def _sim_context(device: str) -> AbstractContextManager[SimulationContext]:
     """Build a local OVPhysX context from an in-memory USD stage."""
     return build_simulation_context(device=device, sim_cfg=SimulationCfg(physics=OvPhysxCfg(), device=device))
 
@@ -78,7 +79,7 @@ def _spawn_static_colliders() -> RigidObject:
 
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CPU))
-def test_initialization_with_no_rigid_body(device):
+def test_initialization_with_no_rigid_body(device: str) -> None:
     """Test that initialization fails when no rigid body is found at the provided prim path."""
     with _sim_context(device) as sim:
         # Keep the asset alive: only a live asset initializes, and fails, on reset.
@@ -94,10 +95,10 @@ def test_initialization_with_no_rigid_body(device):
     raises=pytest.fail.Exception,
     reason="OVPhysX RigidObject has no ArticulationRootAPI guard; the rigid body initializes normally.",
 )
-def test_initialization_with_articulation_root(device):
+def test_initialization_with_articulation_root(device: str) -> None:
     """Test that initialization fails when an articulation root is found at the provided prim path."""
     with _sim_context(device) as sim:
-        # Generate cubes and mark each rigid body as an articulation root. Keep the asset alive for reset.
+        # Mark each rigid body as an articulation root; the asset must stay alive for reset.
         _cube_object = _spawn_cubes("Rooted", y_offset=0.0)
         stage = sim_utils.get_current_stage()
         for index in range(_NUM_CUBES):
@@ -249,24 +250,22 @@ def test_body_root_state_properties(scene: _RigidScene) -> None:
     cube_object, sim, device = scene.spinning, scene.sim, scene.device
     env_pos = cube_object.data.root_link_pos_w.torch.clone()
 
-    # change center of mass offset from link frame
+    # Offset the center of mass along the link x-axis.
     offset = torch.tensor([0.1, 0.0, 0.0], device=device).repeat(_NUM_CUBES, 1)
     com = cube_object.data.body_com_pose_b.torch.clone()  # shape (N, 1, 7)
     com[..., :3] = offset.unsqueeze(1)
-    cube_object.set_coms_index(coms=wp.from_torch(com.contiguous(), dtype=wp.transformf))
+    cube_object.set_coms_index(coms=wp.from_torch(com, dtype=wp.transformf))
     torch.testing.assert_close(cube_object.data.body_com_pose_b.torch, com)
 
-    # z spin velocity
     spin_twist = torch.zeros(6, device=device)
     spin_twist[5] = 2.0
 
     for _ in range(10):
-        # spin the object around Z axis (com)
+        # Keep spinning about the z-axis through the center of mass.
         cube_object.write_root_velocity_to_sim_index(root_velocity=spin_twist.repeat(_NUM_CUBES, 1))
         sim.step()
         cube_object.update(sim.cfg.dt)
 
-        # get state properties
         root_link_pose_w = cube_object.data.root_link_pose_w.torch
         root_link_vel_w = cube_object.data.root_link_vel_w.torch
         root_com_pose_w = cube_object.data.root_com_pose_w.torch
@@ -276,12 +275,10 @@ def test_body_root_state_properties(scene: _RigidScene) -> None:
         body_com_pose_w = cube_object.data.body_com_pose_w.torch
         body_com_vel_w = cube_object.data.body_com_vel_w.torch
 
-        # cubes are spinning around center of mass
-        # position will not match
-        # center of mass position will be constant (i.e. spinning around com)
+        # The center of mass stays fixed while the cube spins about it.
         torch.testing.assert_close(env_pos + offset, root_com_pose_w[..., :3])
         torch.testing.assert_close(env_pos + offset, body_com_pose_w[..., :3].squeeze(-2))
-        # link position will be moving but should stay constant away from center of mass
+        # The link origin stays at the negated COM offset in the link frame.
         root_link_state_pos_rel_com = quat_apply_inverse(
             root_link_pose_w[..., 3:],
             root_link_pose_w[..., :3] - root_com_pose_w[..., :3],
@@ -293,17 +290,16 @@ def test_body_root_state_properties(scene: _RigidScene) -> None:
         )
         torch.testing.assert_close(-offset, body_link_state_pos_rel_com.squeeze(-2))
 
-        # orientation of com will be a constant rotation from link orientation
+        # The COM orientation is a constant rotation of the link orientation.
         com_quat_b = cube_object.data.body_com_quat_b.torch
         com_quat_w = quat_mul(body_link_pose_w[..., 3:], com_quat_b)
         torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
         torch.testing.assert_close(com_quat_w.squeeze(-2), root_com_pose_w[..., 3:])
 
-        # lin_vel will not match
-        # center of mass vel will be constant (i.e. spinning around com)
+        # The center of mass does not translate.
         torch.testing.assert_close(torch.zeros_like(root_com_vel_w[..., :3]), root_com_vel_w[..., :3])
         torch.testing.assert_close(torch.zeros_like(body_com_vel_w[..., :3]), body_com_vel_w[..., :3])
-        # link frame will be moving, and should account for the reported COM velocity and offset
+        # The link velocity adds the rotation of the offset to the COM velocity.
         lin_vel_rel_root_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_link_vel_w[..., :3])
         lin_vel_rel_body_gt = quat_apply_inverse(body_link_pose_w[..., 3:], body_link_vel_w[..., :3])
         com_lin_vel_rel_gt = quat_apply_inverse(root_link_pose_w[..., 3:], root_com_vel_w[..., :3])
@@ -312,6 +308,6 @@ def test_body_root_state_properties(scene: _RigidScene) -> None:
         torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_root_gt, atol=1e-4, rtol=1e-4)
         torch.testing.assert_close(lin_vel_rel_gt, lin_vel_rel_body_gt.squeeze(-2), atol=1e-4, rtol=1e-4)
 
-        # ang_vel will always match
+        # Link and COM frames share the angular velocity.
         torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
         torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
