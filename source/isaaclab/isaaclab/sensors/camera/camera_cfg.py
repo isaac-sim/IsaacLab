@@ -222,6 +222,17 @@ class CameraCfg(SensorBaseCfg):
     cfg through to a renderer that knows what to do with it.
     """
 
+    def requires_hdr_output(self) -> bool:
+        """Return whether this camera consumes the renderer's HDR output.
+
+        An ISP (any :attr:`isp_cfg` other than ``None``) renders from the HDR AOV, and ``"rgb_hdr"``
+        in :attr:`data_types` requests it directly. Either way the RTX-bearing backends must leave
+        Gaussian pixels tonemapped, which each of them applies through its own mechanism: Isaac RTX
+        through the global ``/rtx/rtpt/gaussian/skipTonemapping/enabled`` setting, OVRTX through the
+        equivalent RenderProduct attribute.
+        """
+        return "rgb_hdr" in self.data_types or self.isp_cfg is not None
+
     def __post_init__(self):
         """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
 

@@ -120,6 +120,23 @@ def test_tiled_camera_cfg_does_not_forward_deprecated_fields():
     assert cfg.renderer_cfg.colorize_semantic_segmentation is True
 
 
+@pytest.mark.parametrize(
+    ("data_types", "isp_cfg", "expected"),
+    [
+        (["rgb"], None, False),
+        (["rgb_hdr"], None, True),
+        (["rgb"], object(), True),
+        (["rgb", "rgb_hdr"], object(), True),
+    ],
+)
+def test_camera_cfg_requires_hdr_output(data_types, isp_cfg, expected):
+    """Both RTX-bearing backends read one rule for leaving Gaussian pixels tonemapped."""
+    cfg = CameraCfg(height=64, width=64, prim_path="/World/Camera", spawn=_SPAWN, data_types=data_types)
+    cfg.isp_cfg = isp_cfg
+
+    assert cfg.requires_hdr_output() is expected
+
+
 def test_newton_warp_supported_output_types_key_set():
     """Newton renderer and config publish one shared output contract."""
     pytest.importorskip("isaaclab_newton")

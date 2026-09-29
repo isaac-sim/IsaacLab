@@ -94,7 +94,7 @@ class ScriptSpec:
     @property
     def finite(self) -> bool:
         """Return whether the script can stop itself after a bounded number of steps."""
-        return "--max_steps" in self.options
+        return "--max_steps" in self.options or "--num_frames" in self.options
 
     @property
     def relative_path(self) -> str:
@@ -157,8 +157,9 @@ class LaunchCase:
             ]
         if "--num_envs" in self.spec.options and "--num_envs" not in self.spec.args:
             command.extend(("--num_envs", str(DEFAULT_BATCHED_NUM_ENVS)))
-        if self.spec.finite and "--max_steps" not in self.spec.args:
-            command.extend(("--max_steps", str(DEFAULT_MAX_STEPS)))
+        if self.spec.finite and not any(option in self.spec.args for option in ("--max_steps", "--num_frames")):
+            finite_option = "--max_steps" if "--max_steps" in self.spec.options else "--num_frames"
+            command.extend((finite_option, str(DEFAULT_MAX_STEPS)))
         if self.physics_option is not None:
             command.extend((self.physics_option, self.physics_backend))
         if self.renderer_option is not None:
@@ -236,7 +237,7 @@ OVERRIDES = {
     ),
     "examples/demos/pick_and_place.py": ScriptOverride(visualizers=("kit",)),
     "examples/sensors/ppisp_camera.py": ScriptOverride(
-        args=("--max_steps", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
+        args=("--num_frames", "3", "--warmup_steps", "1", "--image_width", "64", "--image_height", "64"),
         startup_timeout=600.0,
         visualizers=("none",),
     ),
@@ -390,6 +391,8 @@ def backend_is_available(backend: str) -> bool:
         return True
     if backend == "isaac_rtx":
         return importlib.util.find_spec("isaacsim") is not None or (ROOT / "_isaac_sim").exists()
+    if backend == "ovrtx":
+        return importlib.util.find_spec("isaaclab_ov") is not None and importlib.util.find_spec("ovrtx") is not None
     if backend in {"physx", "isaacsim_physx"}:
         package = "isaaclab_physx"
     elif backend == "ovphysx":

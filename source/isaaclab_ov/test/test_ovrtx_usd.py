@@ -126,6 +126,48 @@ def test_render_product_solid_background_color(camera_spec, render_data):
     assert 'token omni:rtx:background:source:type = "domeLight"' not in render_scope
 
 
+def test_build_render_scope_usd_authors_ovrtx_rtx_settings(camera_spec, render_data):
+    """OVRTX settings are authored on the RenderProduct without its settings extension."""
+    render_scope = build_render_scope_usd(
+        camera_spec,
+        render_data,
+        render_mode="PathTracing",
+        enable_accumulation=True,
+        accumulation_limit=7,
+        gaussian_accumulated_albedo=True,
+        gaussian_skip_tonemapping=True,
+    )
+
+    assert (
+        'prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1", "OmniRtxSettingsRtAPI_1", '
+        '"OmniRtxSettingsParticleFieldAPI_1"]'
+    ) in render_scope
+    assert 'token omni:rtx:rendermode = "PathTracing"' in render_scope
+    assert "bool omni:rtx:rt:accumulation:enabled = true" in render_scope
+    assert "int omni:rtx:rt:accumulationLimit = 7" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:accumulatedAlbedo:enabled = true" in render_scope
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true" in render_scope
+
+
+def test_build_render_scope_usd_rejects_minimal_without_simple_shading(camera_spec, render_data):
+    """Minimal mode needs the simple-shading mode that selects its output."""
+    with pytest.raises(ValueError, match="requires a simple-shading output"):
+        build_render_scope_usd(
+            camera_spec,
+            render_data,
+            render_mode="Minimal",
+        )
+
+
+def test_ovrtx_rgb_hdr_uses_hdr_color_render_var():
+    """Requesting RGB_HDR from OVRTX selects the HdrColor render variable."""
+    assert get_render_var_config(["rgb_hdr"], render_scope_name="RenderCamera_0") == (
+        "/RenderCamera_0/Vars/HdrColor",
+        "HdrColor",
+        "HdrColor",
+    )
+
+
 def test_render_var_prim_names_are_read_only():
     with pytest.raises(TypeError):
         render_var_prim_names_by_source()["LdrColor"] = "mutated"  # type: ignore[index]
@@ -343,6 +385,32 @@ def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data)
     assert "rel orderedVars = [</RenderCamera_0/Vars/LdrColor>, </RenderCamera_0/Vars/HdrColor>]" in render_scope
     assert 'def RenderVar "LdrColor"' in render_scope
     assert 'def RenderVar "HdrColor"' in render_scope
+
+
+def test_ovrtx_gaussian_skip_tonemapping_none_leaves_attribute_unauthored(camera_spec, render_data):
+    """Callers resolve the desired value; the default leaves the RenderProduct attribute unauthored."""
+    render_scope = build_render_scope_usd(camera_spec, render_data)
+
+    assert "omni:rtx:rtpt:gaussian:skipTonemapping:enabled" not in render_scope
+
+
+def test_ovrtx_gaussian_skip_tonemapping_authors_caller_resolved_value(camera_spec, render_data):
+    """``rgb_hdr`` requested for reasons other than PPISP does not override an explicit caller value."""
+    camera_spec.cfg.data_types = ["rgb_hdr"]
+
+    render_scope = build_render_scope_usd(camera_spec, render_data, gaussian_skip_tonemapping=True)
+
+    assert "bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = true" in render_scope
+    # The attribute is gated on the particle-field API schema, as its accumulated-albedo sibling is.
+    assert "OmniRtxSettingsParticleFieldAPI_1" in render_scope
+
+
+def test_ovrtx_accumulation_limit_alone_enables_accumulation(camera_spec, render_data):
+    """A limit is meaningless without accumulation, so requesting one turns accumulation on."""
+    render_scope = build_render_scope_usd(camera_spec, render_data, accumulation_limit=4)
+
+    assert "bool omni:rtx:rt:accumulation:enabled = true" in render_scope
+    assert "int omni:rtx:rt:accumulationLimit = 4" in render_scope
 
 
 def test_ovrtx_semantic_segmentation_authors_semantic_and_id_map_render_vars(camera_spec, render_data):

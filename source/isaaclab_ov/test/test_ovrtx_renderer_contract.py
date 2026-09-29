@@ -153,6 +153,28 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert not SimulationContext.instance()._backend_registry
 
 
+@pytest.mark.parametrize(
+    ("isp_cfg", "data_types", "cfg_skip_tonemapping", "expected"),
+    [
+        # An ISP consumes the HDR output itself, so it overrides the cfg request either way.
+        (object(), ["rgb"], True, False),
+        (object(), ["rgb"], False, False),
+        # Plain HDR defaults to tonemapped -- OVRTX's own default renders Gaussians black -- but an
+        # explicit cfg request still wins.
+        (None, ["rgb_hdr"], True, True),
+        (None, ["rgb_hdr"], False, False),
+        (None, ["rgb"], True, True),
+        # Neither HDR nor an explicit cfg request applies: leave the attribute unauthored.
+        (None, ["rgb"], False, None),
+    ],
+)
+def test_ovrtx_resolve_gaussian_skip_tonemapping_prefers_ppisp(isp_cfg, data_types, cfg_skip_tonemapping, expected):
+    """PPISP forcing tonemapping on takes precedence over an explicit skip-tonemapping request."""
+    cfg = _make_camera_cfg(data_types)
+    cfg.isp_cfg = isp_cfg
+    assert ovrtx_renderer_module._resolve_gaussian_skip_tonemapping(cfg, cfg_skip_tonemapping) is expected
+
+
 # Each missing output runs with and without batching; ``use_ovstage`` only changes the ordinal bookkeeping.
 @pytest.mark.parametrize(
     ("missing_output", "batch", "use_ovstage"),
@@ -848,6 +870,8 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = False
+    # Use the production initializer so fields added to the path stay covered by ``close()``.
+    renderer._init_fields_legacy()
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct_camera"
     render_data.camera_xform_binding = _RecordingBinding(events, "camera")
@@ -891,6 +915,8 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._use_ovstage = True
+    # Use the production initializer so fields added to the path stay covered by ``close()``.
+    renderer._init_fields_ovstage()
     renderer.backend.stage = Stage()
     renderer.backend.paths = StagePaths()
     render_data = _make_ovrtx_camera_render_data()
