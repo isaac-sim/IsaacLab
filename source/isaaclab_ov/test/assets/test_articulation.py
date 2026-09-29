@@ -63,7 +63,7 @@ _STIFFNESS, _DAMPING, _MAX_FORCE = 5.0, 0.5, 100.0
 _ALL_DEVICES = test_devices()
 _CUDA_DEVICES = test_devices(DeviceScope.CUDA)
 _ROTATED_JOINT_NAMES = (*BRANCHING_PHYSX_JOINT_NAMES[1:], BRANCHING_PHYSX_JOINT_NAMES[0])
-# We set 80.0 for max force because the USD default is 10e10, which makes testing annoying.
+# The USD default max force (1e10) is effectively unlimited, so the limit islands author a finite one.
 _LIMIT_DRIVE_PROPS = (sim_utils.UsdPhysicsDriveCfg(max_force=80.0), PhysxJointCfg(max_joint_velocity=5.0))
 _ROOT_PRESERVING_REVERSED_BODY_NAMES = (BRANCHING_PHYSX_BODY_NAMES[0], *reversed(BRANCHING_PHYSX_BODY_NAMES[1:]))
 
@@ -573,9 +573,7 @@ def test_setting_velocity_and_effort_limits_write_to_solver(scene: _Articulation
     actuator_cfg = _ISLANDS[island].actuators["joints"]
     joint_drive_props = _ISLANDS[island].joint_drive_props
 
-    # read the values set into the simulation
     physx_vel_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_VELOCITY, device)
-    # check data buffer
     torch.testing.assert_close(articulation.data.joint_vel_limits.torch, physx_vel_limit)
     # the solver clamp comes from joint_velocity_limit when set, otherwise the USD-authored value
     if actuator_cfg.joint_velocity_limit is None:
@@ -585,9 +583,7 @@ def test_setting_velocity_and_effort_limits_write_to_solver(scene: _Articulation
     expected_velocity_limit = torch.full_like(physx_vel_limit, limit)
     torch.testing.assert_close(physx_vel_limit, expected_velocity_limit)
 
-    # obtain the physx effort limits
     physx_effort_limit = _read_binding_to_torch(articulation, TT.DOF_MAX_FORCE, device)
-    # check data buffer
     torch.testing.assert_close(articulation.data.joint_effort_limits.torch, physx_effort_limit)
     # the solver keeps the USD-authored limit unless the user overrides it explicitly
     if actuator_cfg.joint_effort_limit is None:
