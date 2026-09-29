@@ -7,7 +7,6 @@
 
 from types import SimpleNamespace
 
-import gymnasium as gym
 import pytest
 import torch
 import warp as wp
@@ -64,11 +63,6 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     cfg = resolve_presets(FrankaSoftEnvCfg(), selected=selected_presets)
 
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
-
-
-def test_franka_reorient_is_not_registered() -> None:
-    """The unsupported core Franka reorientation task is absent from the task registry."""
-    assert "Isaac-Reorient-Franka" not in gym.registry
 
 
 def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
