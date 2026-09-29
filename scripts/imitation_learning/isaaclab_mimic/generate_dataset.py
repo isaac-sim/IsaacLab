@@ -9,7 +9,7 @@ Main data generation script.
 
 import argparse
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation, resolve_simulation_cfg
 from isaaclab.utils.string import list_intersection, string_to_callable
 
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
@@ -136,7 +136,7 @@ def generate(env_name: str):
         dataset_compression=not args_cli.disable_dataset_compression,
     )
     # resolve the automatic physics and renderer selections of this config the same way the launch did
-    scan(env_cfg, args_cli)
+    resolve_simulation_cfg(env_cfg, args_cli)
     if args_cli.max_num_failures is not None:
         env_cfg.datagen_config.max_num_failures = args_cli.max_num_failures
 

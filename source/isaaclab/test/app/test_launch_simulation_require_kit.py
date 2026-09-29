@@ -21,13 +21,14 @@ import types
 
 import isaaclab_physx.app as physx_app
 import pytest
+from isaaclab_visualizers.newton import NewtonRTXVisualizerCfg
 
 import isaaclab.app.sim_launcher as sim_launcher
 import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
-from isaaclab.visualizers import VisualizerCfg
+from isaaclab.sim import SimulationCfg
 
 
 @pytest.fixture
@@ -98,21 +99,10 @@ def test_require_kit_reads_from_a_namespace(kit_branch_taken):
     assert kit_branch_taken == [True]
 
 
-def test_require_kit_rejects_ovrtx_runtime(monkeypatch: pytest.MonkeyPatch):
-    config_scan = sim_launcher.Scan(
-        resolved_physics_cfg=None,
-        effective_cfg=object(),
-        visualizer_intent={"has_kit_visualizer": False},
-        has_ovrtx=True,
-        has_kit_camera=False,
-        has_kit_physics=False,
-        has_ovphysx_physics=False,
-        needs_kit=False,
-    )
-    monkeypatch.setattr(sim_launcher, "scan", lambda _cfg, _launcher_args: config_scan)
-
+def test_require_kit_rejects_ovrtx_runtime():
+    cfg = argparse.Namespace(physics=PhysicsCfg(), renderer=sim_launcher.OVRTXRendererCfg())
     with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(cfg=object(), launcher_args={"require_kit": True}):
+        with launch_simulation(cfg, {"require_kit": True}):
             pass
 
 
@@ -123,22 +113,26 @@ def test_newton_rtx_rejects_kit_before_loading_ovrtx(monkeypatch: pytest.MonkeyP
     )
 
     with pytest.raises(ValueError, match="OVRTX runtime"):
-        with launch_simulation(sim_launcher.PhysxCfg(), {"visualizer": ["newton_rtx"]}):
+        with launch_simulation(SimulationCfg(physics=sim_launcher.PhysxCfg()), {"visualizer": "newton_rtx"}):
             pass
 
     assert calls == []
 
 
-def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatch):
+@pytest.mark.parametrize("consumers", ["renderer", "viewer", "both"])
+def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatch, consumers: str):
+    """Renderer and viewer configs require the same runtime, started exactly once."""
     calls = []
     monkeypatch.setitem(
         sys.modules, "ovrtx", types.SimpleNamespace(register_schema_paths=lambda: calls.append("register"))
     )
     monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
-    cfg = argparse.Namespace(
-        physics=sim_launcher.NewtonCfg(),
-        visualizer_cfgs=VisualizerCfg(visualizer_type="newton_rtx"),
-    )
+    sim_cfg = SimulationCfg(physics=sim_launcher.NewtonCfg(), visualizer_cfgs=[])
+    if consumers != "renderer":
+        sim_cfg.visualizer_cfgs = NewtonRTXVisualizerCfg()
+    cfg = argparse.Namespace(sim=sim_cfg)
+    if consumers != "viewer":
+        cfg.renderer = sim_launcher.OVRTXRendererCfg()
 
     with launch_simulation(cfg):
         calls.append("user")
@@ -181,7 +175,7 @@ def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
     # '--viz kit' requires Kit on its own; require_kit=False must not override that
     launcher_args = {"visualizer": ["kit"], "require_kit": False}
 
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
+    with launch_simulation(cfg=SimulationCfg(physics=PhysicsCfg()), launcher_args=launcher_args):
         pass
 
     assert kit_branch_taken == [True]

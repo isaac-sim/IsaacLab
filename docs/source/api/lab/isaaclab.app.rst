@@ -9,7 +9,6 @@
 
       AppLauncher
       LoadingScreen
-      Scan
       SimulationLauncher
 
    .. rubric:: Functions
@@ -19,7 +18,7 @@
       add_launcher_args
       launch_simulation
       report_activity
-      scan
+      resolve_simulation_cfg
 
 
 Simulation Launcher
@@ -35,10 +34,7 @@ Simulation Launcher
 .. autoclass:: AppLauncher
    :members:
 
-.. autofunction:: scan
-
-.. autoclass:: Scan
-   :members:
+.. autofunction:: resolve_simulation_cfg
 
 
 

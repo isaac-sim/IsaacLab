@@ -27,9 +27,6 @@ import sys
 import gymnasium as gym
 import torch
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
-from isaaclab_physx.renderers import IsaacRtxRendererCfg
-from isaaclab_visualizers.kit import KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 import isaaclab_tasks  # noqa: F401
 
@@ -42,35 +39,13 @@ from isaaclab.utils.math import create_rotation_matrix_from_view, quat_from_matr
 
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
 
-KIT_DEFAULT_TASK = "Isaac-Velocity-Rough-AnymalD"
-NEWTON_DEFAULT_TASK = "IsaacContrib-Stack-Cube-Galbot-Left-Arm-Gripper-Visuomotor"
-SUPPORTED_TILED_VISUALIZERS = {"kit", "newton", "newton_gl", "newton_rtx"}
-UNSUPPORTED_TILED_VISUALIZERS = {"rerun", "viser"}
-
-
-def _requested_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return requested visualizers, defaulting to Kit for this tutorial."""
-    visualizers = args_cli.visualizer or ["kit"]
-    visualizers = [str(visualizer).lower() for visualizer in visualizers]
-
-    if "none" in visualizers:
-        raise ValueError("This demo requires a tiled-camera visualizer. Use '--viz kit' or '--viz newton_gl'.")
-    unsupported = sorted(set(visualizers) & UNSUPPORTED_TILED_VISUALIZERS)
-    if unsupported:
-        raise ValueError(
-            "The visualizer tiled camera panel is only implemented for Kit and Newton. "
-            f"Unsupported selection: {unsupported}."
-        )
-    unknown = sorted(set(visualizers) - SUPPORTED_TILED_VISUALIZERS)
-    if unknown:
-        raise ValueError(f"Unknown visualizer selection for this demo: {unknown}.")
-    return visualizers
-
 
 def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
     """Declare a scene camera before launch; every viewer borrows the same sensor."""
-    visualizers = _requested_visualizers(args_cli)
-    args_cli.visualizer = visualizers
+    visualizers = env_cfg.sim.visualizer_cfgs
+    visualizers = visualizers if isinstance(visualizers, list) else [visualizers] if visualizers else []
+    if not visualizers:
+        raise ValueError("This demo requires a visualizer; select visualizer=kit or visualizer=newton_gl.")
     camera_cfg = getattr(env_cfg.scene, "ego_cam", None)
     if camera_cfg is None:
         eye, target = torch.tensor([[3.0, 3.0, 3.0]]), torch.zeros((1, 3))
@@ -83,36 +58,22 @@ def _configure_visualizers(env_cfg, args_cli: argparse.Namespace) -> None:
             data_types=["rgb"],
             spawn=PinholeCameraCfg(focal_length=24.0, clipping_range=(0.1, 1.0e5)),
             offset=CameraCfg.OffsetCfg(pos=(3.0, 3.0, 3.0), rot=tuple(rotation.tolist()), convention="opengl"),
-            renderer_cfg=IsaacRtxRendererCfg() if "kit" in visualizers else NewtonWarpRendererCfg(),
+            renderer_cfg=NewtonWarpRendererCfg(),
         )
         env_cfg.scene.streaming_camera = camera_cfg
-    env_cfg.sim.visualizer_cfgs = [
-        (KitVisualizerCfg if kind == "kit" else NewtonGLVisualizerCfg)(
-            streaming_view=True,
-            streaming_envs=36 if kind == "kit" else 12,
-            streaming_sensor_prim_path=camera_cfg.prim_path,
-        )
-        for kind in visualizers
-    ]
-
-
-def _resolve_task(args_cli: argparse.Namespace) -> str:
-    """Resolve the task for the selected visualizer."""
-    if args_cli.task is not None:
-        return args_cli.task
-    if "newton" in _requested_visualizers(args_cli):
-        return NEWTON_DEFAULT_TASK
-    return KIT_DEFAULT_TASK
+    for cfg in visualizers:
+        cfg.streaming_view = True
+        cfg.streaming_envs = 16
+        cfg.streaming_sensor_prim_path = camera_cfg.prim_path
 
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Showcase the Kit/Newton visualizer tiled camera panel.")
 parser.add_argument("--num_envs", type=int, default=None, help="Number of environments to simulate.")
-parser.add_argument("--task", type=str, default=None, help="Name of the task.")
-# append simulation launcher cli args
+parser.add_argument("--task", type=str, default="Isaac-Velocity-Rough-AnymalD", help="Name of the task.")
 add_launcher_args(parser)
+parser.set_defaults(visualizer="kit")
 args_cli, hydra_args = setup_preset_cli(parser)
-args_cli.task = _resolve_task(args_cli)
 sys.argv = [sys.argv[0]] + hydra_args
 
 

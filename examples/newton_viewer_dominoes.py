@@ -142,8 +142,8 @@ def main() -> None:
         default_shape_cfg=NewtonShapeCfg(gap=0.001, ke=1.0e4, kd=0.0, mu=1.0),
         solver_cfg=XPBDSolverCfg(iterations=20, enable_restitution=True),
     )
-    with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as resolved_physics_cfg:
-        sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 120.0, device=args_cli.device, physics=resolved_physics_cfg)
+    sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 120.0, device=args_cli.device, physics=physics_cfg)
+    with launch_simulation(sim_cfg, args_cli):
         sim = sim_utils.SimulationContext(sim_cfg)
         sim.set_camera_view(eye=(0.0, -18.0, 15.0), target=(0.0, 0.0, 0.0))
         _scene = InteractiveScene(DominoSceneCfg(num_envs=1, env_spacing=1.0))

@@ -11,7 +11,7 @@ import pytest
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
 
-from isaaclab.app import scan
+from isaaclab.app import resolve_simulation_cfg
 from isaaclab.sim import CuboidCfg
 
 import isaaclab_tasks  # noqa: F401
@@ -46,7 +46,7 @@ def test_ovphysx_camera_preset_resolves_kitless(task_name: str, presets: str):
 
     assert isinstance(env_cfg.sim.physics, OvPhysxCfg)
     assert isinstance(camera_cfg.renderer_cfg, OVRTXRendererCfg)
-    assert scan(env_cfg).needs_kit is False
+    resolve_simulation_cfg(env_cfg)
 
     if task_name != "Isaac-Reorient-Cube-Shadow-Camera-Direct":
         robot_asset_cfg = env_cfg.events.robot_physics_material.params["asset_cfg"]

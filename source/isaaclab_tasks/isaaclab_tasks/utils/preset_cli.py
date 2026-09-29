@@ -5,25 +5,19 @@
 
 """Typed-preset selection via Hydra-style CLI tokens.
 
-Recognizes three ``key=value`` tokens (no leading dashes) on ``sys.argv``:
+Recognizes these ``key=value`` tokens (no leading dashes) on ``sys.argv``:
 
 * ``physics=NAME``            -- typed selector for ``PhysicsCfg`` variants.
 * ``renderer=NAME``           -- typed selector for ``RendererCfg`` variants.
+* ``visualizer=NAME[,...]``    -- selects one or more ``VisualizerCfg`` variants.
 * ``presets=NAME[,NAME,...]`` -- broadcast applied to every matching ``PresetCfg``.
 
-:func:`setup_preset_cli` registers preset-selection help, then runs
-``parse_known_args`` and returns the verbatim remainder. The preset tokens
-above are passed through unchanged; hydra's
-:func:`~isaaclab_tasks.utils.hydra.register_task` parses them directly (applying
-the names as presets and enforcing that ``physics=``/``renderer=`` resolve
-against a config of that type). Callers simply assign the remainder to
-``sys.argv``; no rewriting step is needed.
-
-No argparse arguments are registered for the typed selectors -- their
-discoverability lives in the ``argument_group`` description, so the parsed
-Namespace gains no preset attributes and cannot shadow
-:class:`~isaaclab_physx.app.KitLauncher` SimulationApp config keys (``renderer``
-notably).
+:func:`setup_preset_cli` translates ``--physics``, ``--renderer``, and
+``--visualizer`` (also ``--viz``) into these selectors before task composition.
+It removes selector attributes from the returned launcher arguments so a renderer
+preset cannot become a Kit renderer setting. Explicit ``--kit_args`` stay untouched.
+Script defaults use ``parser.set_defaults(physics=..., renderer=..., visualizer=...)``;
+explicit selections in either spelling take precedence.
 
 Typical script setup::
 
@@ -33,15 +27,8 @@ Typical script setup::
     args_cli, remaining = setup_preset_cli(parser)
     sys.argv = [sys.argv[0]] + remaining
 
-Scripts that intersect the remainder with external-callback output (e.g.
-``rsl_rl`` scripts' ``--external_callback`` hook) do the intersection on the
-remainder before assigning ``sys.argv`` -- both sides share the same token
-vocabulary::
-
-    args_cli, remaining = setup_preset_cli(parser)
-    if args_cli.external_callback:
-        remaining = list_intersection(remaining, external_callback_function())
-    sys.argv = [sys.argv[0]] + remaining
+External callbacks must run before parsing. Normalize their returned arguments
+with this function too before intersecting them with the main remainder.
 
 ``setup_preset_cli`` does NOT add launcher flags itself -- callers add them
 explicitly via :func:`isaaclab.app.add_launcher_args` before calling.
@@ -68,9 +55,9 @@ def setup_preset_cli(
     registered on ``parser`` -- otherwise those unknown tokens land in
     ``parse_known_args``'s remainder.
 
-    The returned remainder contains the user-typed ``physics=`` / ``renderer=``
-    / ``presets=`` tokens verbatim, alongside any Hydra path overrides and any
-    unknown argparse flags, ready to assign to ``sys.argv`` for hydra to parse.
+    The remainder contains canonical preset selectors, Hydra path overrides,
+    and unknown flags. Launcher arguments, including ``--kit_args``, are parsed
+    first so their values are never interpreted as task selectors.
 
     Does not mutate ``sys.argv``; the caller assigns
     ``sys.argv = [sys.argv[0]] + remaining`` when ready, so any argv-aware logic
@@ -88,12 +75,11 @@ def setup_preset_cli(
             the user's interactive command line is the only argv that
             triggers ``--help`` rendering.
     Returns:
-        ``(args, remaining)`` where ``remaining`` is the verbatim output of
-        ``parser.parse_known_args(argv)``, ready to hand to Hydra via
-        ``sys.argv``.
+        Parsed launcher arguments and normalized task overrides, ready to hand
+        to Hydra via ``sys.argv`` or :func:`~isaaclab_tasks.utils.hydra.resolve_task_config`.
 
     Raises:
-        SystemExit: If ``argv`` requests help, after printing it.
+        SystemExit: If help is requested or selector arguments are missing or conflicting.
     """
     # --help short-circuits parsing, so help text that depends on --task has to
     # find it before argparse runs. Gate the env_cfg load on --help to keep
@@ -110,9 +96,7 @@ def setup_preset_cli(
     if parser.formatter_class is argparse.HelpFormatter:
         parser.formatter_class = _PresetHelpFormatter
 
-    # Help-only group: no add_argument() calls means no preset attributes on
-    # the Namespace, so the Kit launcher can't accidentally forward one (notably
-    # ``renderer``) into SimulationApp config.
+    # Preset aliases belong to task composition, not the launcher's argument namespace.
     parser.add_argument_group("preset selection", description=_DescriptionBuilder.build(actual_variants))
 
     args_to_parse = sys.argv[1:] if argv is None else argv
@@ -120,7 +104,31 @@ def setup_preset_cli(
         parser.print_help()
         raise SystemExit(0)
 
-    return parser.parse_known_args(args_to_parse)
+    args, remaining = parser.parse_known_args(args_to_parse)
+    overrides = []
+    tokens = iter(remaining)
+    for token in tokens:
+        key, separator, value = token.partition("=")
+        if key in ("--physics", "--renderer", "--visualizer", "--viz"):
+            value = value if separator else next(tokens, "")
+            if not value or value.startswith("-") or "=" in value:
+                parser.error(f"{key} requires a preset name.")
+            key = "visualizer" if key == "--viz" else key[2:]
+            token = f"{key}={value}"
+        overrides.append(token)
+
+    for key in ("physics", "renderer", "visualizer"):
+        selected = {token[len(key) + 1 :] for token in overrides if token.startswith(f"{key}=")}
+        value = vars(args).pop(key, None)
+        explicit = vars(args).pop(f"{key}_explicit", False)
+        if value is not None or explicit:
+            value = (",".join(value) if isinstance(value, list) else value) or "none"
+            if (explicit or not selected) and value not in selected:
+                overrides.append(f"{key}={value}")
+                selected.add(value)
+        if len(selected) > 1:
+            parser.error(f"Conflicting {key} selections: {', '.join(sorted(selected))}.")
+    return args, overrides
 
 
 # ============================================================================
@@ -203,7 +211,10 @@ class _DescriptionBuilder:
     ROW_PREFIX = "    "
 
     INTRO = "Select named PresetCfg alternatives via Hydra-style overrides (key=value, no leading dashes):"
-    EPILOG = "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
+    EPILOG = (
+        "Aliases: --physics NAME, --renderer NAME, --visualizer NAME (--viz). "
+        "Hydra also accepts path-targeted overrides like env.sim.physics=NAME."
+    )
     HINT = "Pass `--task=X` along with `--help` to see preset variants available for that task."
 
     @classmethod
@@ -240,7 +251,7 @@ class _DescriptionBuilder:
     @staticmethod
     def _syntax(target: PresetTarget) -> str:
         """User-facing selector form: ``physics=NAME`` vs ``presets=NAME[,NAME,...]``."""
-        if target.base_classes:  # typed: single name
+        if target.base_classes and target is not PresetTarget.VISUALIZER:
             return f"{target.value}=NAME"
         return f"{target.value}=NAME[,NAME,...]"  # DOMAIN: comma-separated broadcast
 
@@ -319,6 +330,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
     typed_targets = [t for t in PresetTarget if t.base_classes]
     result: dict[PresetTarget, set[str]] = {target: set() for target in PresetTarget}
     for path_dict in walked.values():
+        families = {target for target in typed_targets if any(target.matches(cfg) for cfg in path_dict.values())}
         for name, cfg in path_dict.items():
             if name == "default":
                 continue
@@ -326,5 +338,7 @@ def _bucket_variants_by_target(walked: dict) -> dict[PresetTarget, set[str]]:
                 (target for target in typed_targets if target.matches(cfg)),
                 PresetTarget.DOMAIN,
             )
+            if (cfg is None or (isinstance(cfg, list) and not cfg)) and len(families) == 1:
+                matched = next(iter(families))
             result[matched].add(name)
     return result

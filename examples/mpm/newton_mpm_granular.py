@@ -23,7 +23,11 @@ from __future__ import annotations
 import argparse
 import math
 
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
+
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
 
 parser = argparse.ArgumentParser(description="Newton implicit MPM granular example.")
 parser.add_argument(
@@ -73,20 +77,12 @@ Y_ROT_45_DEG = (0.0, math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 Y_ROT_NEG_45_DEG = (0.0, -math.sin(math.pi / 8.0), 0.0, math.cos(math.pi / 8.0))
 
 
-def create_visualizer_cfgs():
-    """Create example-specific visualizer configs for the requested backends."""
-    if not any(v in (args_cli.visualizer or []) for v in ("newton", "newton_gl", "newton_rtx")):
-        return []
+@configclass
+class VisualizerCfg(MultiBackendVisualizerCfg):
+    """Show the granular particles in either Newton viewer."""
 
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfg_type = NewtonRTXVisualizerCfg if args_cli.visualizer == ["newton_rtx"] else NewtonGLVisualizerCfg
-    return [
-        cfg_type(
-            show_particles=True,
-            particle_color=PARTICLE_COLOR,
-        )
-    ]
+    newton_gl = NewtonGLVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
+    newton_rtx = NewtonRTXVisualizerCfg(show_particles=True, particle_color=PARTICLE_COLOR)
 
 
 def create_sim_cfg():
@@ -99,7 +95,7 @@ def create_sim_cfg():
         dt=1.0 / FPS,
         device=args_cli.device,
         gravity=GRAVITY,
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,

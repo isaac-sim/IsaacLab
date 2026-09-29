@@ -55,7 +55,6 @@ from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils import clone, configclass, instantiate
 
 from isaaclab.assets import DeformableObjectCfg  # isort:skip
-from isaaclab.physics import PhysicsCfg  # isort:skip
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR  # isort:skip
 
 if TYPE_CHECKING:
@@ -233,7 +232,8 @@ def run_simulator(sim: "sim_utils.SimulationContext", entities: dict[str, "Defor
 
 def main():
     """Main function."""
-    with launch_simulation(cfg=PhysicsCfg(), launcher_args=args_cli) as physics_cfg:
+    sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device)
+    with launch_simulation(sim_cfg, args_cli) as physics_cfg:
         # Tune the CLI-selected backend for this example.
         if args_cli.physics == "newton_vbd":
             physics_cfg.solver_cfg.iterations = 20
@@ -247,7 +247,6 @@ def main():
                 soft_contact_kd=1.0e0,
                 soft_contact_mu=0.01,
             )
-        sim_cfg = sim_utils.SimulationCfg(dt=0.01, device=args_cli.device, physics=physics_cfg)
         sim = sim_utils.SimulationContext(sim_cfg)
         # Set main camera
         sim.set_camera_view([4.0, 4.0, 3.0], [0.5, 0.5, 0.0])

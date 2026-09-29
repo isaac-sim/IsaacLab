@@ -23,7 +23,7 @@ from isaaclab_ov.renderers import OVRTXRendererCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
-from isaaclab.app import scan
+from isaaclab.app import resolve_simulation_cfg
 from isaaclab.envs import DirectRLEnv
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.sim.schemas import MassCfg, UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
@@ -173,11 +173,10 @@ def test_physics_presets_resolve_to_expected_backend(presets, expected_type):
 def test_ovphysx_presets_resolve_with_ovrtx(physics_preset):
     """Explicit and automatic PhysX presets support rendering without Kit."""
     cfg = resolve_presets(_load_cfg(), selected=(physics_preset, "ovrtx"))
-    config_scan = scan(cfg)
+    resolve_simulation_cfg(cfg)
 
     assert isinstance(cfg.sim.physics, OvPhysxCfg)
     assert isinstance(cfg.scene.tiled_camera.renderer_cfg, OVRTXRendererCfg)
-    assert config_scan.needs_kit is False
 
 
 @pytest.fixture(scope="module")

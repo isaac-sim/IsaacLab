@@ -97,14 +97,18 @@ Choose a selector
    * - ``renderer=NAME``
      - ``renderer=newton_renderer``
      - Selects a renderer configuration for tasks that produce camera data.
+   * - ``visualizer=NAME[,NAME,...]``
+     - ``visualizer=newton_gl``
+     - Selects interactive viewers; ``visualizer=none`` disables them.
    * - ``presets=NAME[,NAME,...]``
      - ``presets=rgb``
      - Applies task-specific choices such as observation modes, camera layouts,
        or compatible configuration bundles.
 
-These are Hydra tokens, so append them without leading dashes. They work with
-training, playback, and environment scripts that use Isaac Lab's task
-configuration launcher.
+Task scripts also accept ``--physics NAME``, ``--renderer NAME``, and ``--visualizer NAME``
+(``--viz NAME``). These aliases select the same task presets and are consumed before runtime
+launch; ``--renderer`` never sets Kit's rendering mode. Explicit Kit settings belong in
+``--kit_args``. Explicit selections override script defaults; conflicting selections are errors.
 
 Selectors can be combined. This command chooses Newton with the MuJoCo-Warp
 solver, the Newton Warp renderer, and RGB observations:

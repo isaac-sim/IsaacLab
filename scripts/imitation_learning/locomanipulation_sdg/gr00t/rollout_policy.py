@@ -10,7 +10,7 @@ from __future__ import annotations
 import argparse
 import os
 
-from isaaclab.app import add_launcher_args, launch_simulation, scan
+from isaaclab.app import add_launcher_args, launch_simulation, resolve_simulation_cfg
 
 parser = argparse.ArgumentParser(description="Disjoint navigation")
 parser.add_argument("--task", type=str, help="The Isaac Lab disjoint navigation task to load for data generation.")
@@ -383,7 +383,7 @@ if __name__ == "__main__":
 
         env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=1, overrides=hydra_overrides)
         # resolve the config's automatic physics and renderer selections for the launched runtime
-        scan(env_cfg, args_cli)
+        resolve_simulation_cfg(env_cfg, args_cli)
         env_cfg.sim.device = args_cli.device
         # Drop the SDG output-data recorder term: it pulls env._locomanipulation_sdg_output_data,
         # which is only populated by the data-generation state machine, not during policy rollout.

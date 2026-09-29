@@ -31,8 +31,11 @@ from dataclasses import MISSING
 
 import numpy as np
 import torch
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
+from isaaclab_visualizers.presets import MultiBackendVisualizerCfg
 
 from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, retrieve_file_path
 
 DEFAULT_VOXEL_SIZE = 0.003
@@ -210,23 +213,12 @@ SURFACE_MAX_GRID_CELLS = 4_000_000
 SURFACE_PATH = "/fluid_surface"
 
 
-def create_visualizer_cfgs():
-    """Create demo-specific visualizer configs for requested backends."""
-    requested = args_cli.visualizer or []
-    if not any(name in requested for name in ("newton_gl", "newton_rtx")):
-        return []
+@configclass
+class VisualizerCfg(MultiBackendVisualizerCfg):
+    """Configure the fluid particle display for either Newton viewer."""
 
-    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
-
-    cfg_types = {"newton_gl": NewtonGLVisualizerCfg, "newton_rtx": NewtonRTXVisualizerCfg}
-    return [
-        cfg_types[name](
-            show_particles=SHOW_FLUID_PARTICLES,
-            particle_color=WATER_COLOR,
-        )
-        for name in requested
-        if name in cfg_types
-    ]
+    newton_gl = NewtonGLVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)
+    newton_rtx = NewtonRTXVisualizerCfg(show_particles=SHOW_FLUID_PARTICLES, particle_color=WATER_COLOR)
 
 
 class FluidSurfaceRenderer:
@@ -566,7 +558,7 @@ def create_sim_cfg():
         dt=1.0 / SIMULATION_HZ,
         device=args_cli.device,
         gravity=(0.0, 0.0, -9.81),
-        visualizer_cfgs=create_visualizer_cfgs(),
+        visualizer_cfgs=VisualizerCfg(),
         physics=NewtonCfg(
             solver_cfg=MPMSolverCfg(
                 voxel_size=VOXEL_SIZE,
@@ -814,7 +806,10 @@ def main() -> None:
     """Set up and run the Isaac Lab Newton MPM teapot-fill demo."""
     sim_cfg = create_sim_cfg()
     with launch_simulation(sim_cfg, args_cli):
-        if "kit" in (args_cli.visualizer or []):
+        viewers = sim_cfg.visualizer_cfgs
+        viewers = viewers if isinstance(viewers, list) else [viewers] if viewers else []
+        visualizers = {cfg.visualizer_type for cfg in viewers}
+        if "kit" in visualizers:
             from isaaclab_physx.renderers import IsaacRtxRendererGlobalSettingsCfg
             from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
 
@@ -825,7 +820,7 @@ def main() -> None:
         # Resolve after launching so Kit runs never import USD modules before
         # Kit starts; Newton-only runs still use standalone omni.client.
         container_usd = retrieve_file_path(args_cli.container_usd)
-        if {"kit", "newton_rtx"}.intersection(args_cli.visualizer or []):
+        if {"kit", "newton_rtx"}.intersection(visualizers):
             island_usd = retrieve_optional_visual_asset(args_cli.island_usd, "kitchen island")
             bowl_usd = retrieve_optional_visual_asset(args_cli.bowl_usd, "catch bowl")
         else:
@@ -840,7 +835,7 @@ def main() -> None:
         sim.set_camera_view(eye=CAMERA_EYE, target=CAMERA_TARGET)
         surface_renderer = (
             FluidSurfaceRenderer(sim)
-            if SHOW_FLUID_SURFACE and any(v in (args_cli.visualizer or []) for v in ("newton_gl", "newton_rtx"))
+            if SHOW_FLUID_SURFACE and {"newton_gl", "newton_rtx"}.intersection(visualizers)
             else None
         )
         surface_triangle_count = surface_renderer.update() if surface_renderer is not None else 0

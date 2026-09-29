@@ -8,33 +8,12 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
 from ..utils import configclass
 
 if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
-
-
-_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
-"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`."""
-
-_VISUALIZER_ALIASES = {"newton": "newton_gl"}
-"""Deprecated ``--visualizer`` names and their replacements."""
-
-_VISUALIZER_EXTRAS = {
-    "kit": "isaacsim",
-    "rerun": "rerun",
-    "viser": "viser",
-}
-
-
-def _get_visualizer_install_hint(visualizer_type: str) -> str:
-    """Return the uv command needed to run a visualizer backend."""
-    extra = _VISUALIZER_EXTRAS.get(visualizer_type)
-    if extra is None:
-        return "Run your command with: uv run <command>."
-    return f"Run your command with: uv run --extra {extra} <command>."
 
 
 @configclass
@@ -75,6 +54,9 @@ class VisualizerCfg:
 
     class_type: type[BaseVisualizer] | str | None = None
     """Visualizer implementation class. Concrete configs must set this field."""
+
+    launcher_type: ClassVar[str | None] = None
+    """Process runtime required by this viewer, started before its implementation is imported."""
 
     cloning_contexts: tuple[type | str, ...] = ()
     """Clone contexts that build this visualizer's scene representation from the asset plan."""

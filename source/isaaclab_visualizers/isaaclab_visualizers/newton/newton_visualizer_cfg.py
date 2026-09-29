@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import warnings
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
@@ -29,7 +29,7 @@ class NewtonVisualizerCfg(VisualizerCfg):
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
     """Deprecated alias for the Newton GL visualizer implementation."""
 
-    # Deprecated alias: "newton" routes to the GL backend via visualizer_cfg._VISUALIZER_ALIASES.
+    # Deprecated alias retained by MultiBackendVisualizerCfg.
     visualizer_type: str = "newton_gl"
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
@@ -180,6 +180,8 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
 
     visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""
+
+    launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
 
     rtx_environment: str = "default"
     """Lighting selection: ``"default"`` uses scene lights, ``"studio"`` uses Newton's three-point rig,
