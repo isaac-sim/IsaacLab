@@ -45,6 +45,7 @@ import contextlib
 import logging
 import os
 import sys
+import tempfile
 from typing import TYPE_CHECKING, Any
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -670,57 +671,120 @@ def get_source_camera_in_default(
 
 
 def get_env_scene_world_transforms() -> list[Gf.Matrix4d]:
-    """Return the world transform of each duplicated env scene prim, as the renderers evaluate it."""
-    stage = sim_utils.get_current_stage()
-    target_cache = UsdGeom.XformCache(Usd.TimeCode(STAGE_TIME_CODE))
-    transforms = []
-    for env_id in range(args_cli.num_envs):
-        scene_path = f"/World/envs/env_{env_id}/Scene"
-        scene_prim = stage.GetPrimAtPath(scene_path)
-        if not scene_prim or not scene_prim.IsValid():
-            raise RuntimeError(f"Duplicated scene prim not found: {scene_path}")
-        transforms.append(target_cache.GetLocalToWorldTransform(scene_prim))
-    return transforms
+    """Return the world transform of each duplicated env scene prim, as the renderers evaluate it.
 
-
-def freeze_env_camera_ancestor_xforms(source_stage: Usd.Stage, source_camera_prim_path: str) -> None:
-    """Collapse the xform chain above each duplicated env camera to a static pose at :data:`STAGE_TIME_CODE`.
-
-    Capture scenes animate the camera rig rather than the camera prim itself. A render path that
-    re-evaluates those animated xforms on every frame overwrites the poses written at runtime and
-    leaves the render stuck on the first frame. Rewriting each
-    ancestor with the static transform the renderer already evaluates at :data:`STAGE_TIME_CODE`
-    makes the runtime pose writes authoritative for every renderer without changing the pose that is
-    rendered.
+    Composed from each env root rather than read off the per-env scene prims: the cloner authors an
+    env root per env for every backend, while the referenced scene subtree below it is a USD prim
+    only where the clone context copies it. The scene's transform under its env root is the same in
+    every env, so one sample of it plus each env root's world transform gives the same answer with
+    no dependency on how the envs were cloned.
     """
     stage = sim_utils.get_current_stage()
     time_code = Usd.TimeCode(STAGE_TIME_CODE)
+    target_cache = UsdGeom.XformCache(time_code)
+    scene_prim = stage.GetPrimAtPath("/World/envs/env_0/Scene")
+    if not scene_prim or not scene_prim.IsValid():
+        raise RuntimeError("Referenced scene prim not found: /World/envs/env_0/Scene")
+    scene_local = UsdGeom.Xformable(scene_prim).GetLocalTransformation(time_code)
+    transforms = []
+    for env_id in range(args_cli.num_envs):
+        env_path = f"/World/envs/env_{env_id}"
+        env_prim = stage.GetPrimAtPath(env_path)
+        if not env_prim or not env_prim.IsValid():
+            raise RuntimeError(f"Duplicated env prim not found: {env_path}")
+        transforms.append(scene_local * target_cache.GetLocalToWorldTransform(env_prim))
+    return transforms
+
+
+def prepare_static_camera_scene(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> str:
+    """Author the camera rig's static pose into the scene layer every env references.
+
+    Two edits make the runtime pose writes authoritative. Capture scenes animate the camera rig
+    rather than the camera prim itself, so a render path that re-evaluates those animated ancestor
+    xforms every frame overwrites the poses written at runtime and leaves the render stuck on the
+    first frame; each ancestor is collapsed to the static transform the renderer already evaluates
+    at :data:`STAGE_TIME_CODE`. The camera prim is then seeded with its pose at ``time_code``,
+    because the Newton backend samples that transform once while building its model and the Fabric
+    render path is populated from USD at reset, so later USD edits never reach the renderer.
+    Runtime trajectory playback goes through the prebaked trajectory tensors instead.
+
+    Both are authored once, on an overlay layer referencing the input scene, rather than on the
+    per-env prims the scene is cloned into. The env subtree is a USD prim only where the clone
+    context copies it, so editing per env would see a different prim count per renderer; preparing
+    the referenced content up front gives every renderer the same scene. The seeded camera pose is
+    the same in every env regardless: the env offset appears in both the camera's world transform
+    and its parent's, so it cancels out of the local transform authored here.
+
+    Poses are written through :func:`~isaaclab.sim.utils.standardize_xform_ops` so the prims keep the
+    canonical ``[translate, orient, scale]`` op order that the sensor frame views require; authoring
+    a single ``xformOp:transform`` here would silently discard every later view-side pose write.
+
+    Returns:
+        Path of the prepared scene layer to reference under each env.
+    """
+    stage_time = Usd.TimeCode(STAGE_TIME_CODE)
+    default_prim = gaussian_anim.require_default_prim(source_stage)
+    default_prim_name = default_prim.GetName()
     camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
     ancestor_rel_parts = camera_rel_path.split("/")[:-1]
+
+    # The camera's local pose, composed so the frozen ancestors reproduce the source world pose.
+    source_camera_in_default = get_source_camera_in_default(source_stage, source_camera_prim_path, time_code)
+    source_cache = UsdGeom.XformCache(stage_time)
+    source_camera_prim = source_stage.GetPrimAtPath(source_camera_prim_path)
+    default_world = source_cache.GetLocalToWorldTransform(default_prim)
+    parent_in_default = (
+        source_cache.GetLocalToWorldTransform(source_camera_prim.GetParent()) * default_world.GetInverse()
+    )
+    camera_local = source_camera_in_default * parent_in_default.GetInverse()
+    camera_local.Orthonormalize()
+
+    prepared = Usd.Stage.CreateInMemory()
+    scene_prim = prepared.DefinePrim(f"/{default_prim_name}", default_prim.GetTypeName() or "Xform")
+    scene_prim.GetReferences().AddReference(args_cli.input_scene)
+    prepared.SetDefaultPrim(scene_prim)
+
     frozen_count = 0
-    for env_id in range(args_cli.num_envs):
-        for depth in range(1, len(ancestor_rel_parts) + 1):
-            ancestor_path = "/".join([f"/World/envs/env_{env_id}/Scene", *ancestor_rel_parts[:depth]])
-            ancestor_prim = stage.GetPrimAtPath(ancestor_path)
-            if not ancestor_prim or not ancestor_prim.IsValid():
-                raise RuntimeError(f"Duplicated camera ancestor prim not found: {ancestor_path}")
-            # Scopes and other non-Xformable groupings carry no transform to freeze.
-            if not ancestor_prim.IsA(UsdGeom.Xformable):
-                continue
-            local_transform = Gf.Transform(UsdGeom.Xformable(ancestor_prim).GetLocalTransformation(time_code))
-            rotation = local_transform.GetRotation().GetQuat()
-            imaginary = rotation.GetImaginary()
-            sim_utils.standardize_xform_ops(
-                ancestor_prim,
-                translation=tuple(local_transform.GetTranslation()),
-                orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
-                scale=tuple(local_transform.GetScale()),
-            )
-            frozen_count += 1
+    for depth in range(1, len(ancestor_rel_parts) + 1):
+        ancestor_path = "/".join([f"/{default_prim_name}", *ancestor_rel_parts[:depth]])
+        ancestor_prim = prepared.GetPrimAtPath(ancestor_path)
+        if not ancestor_prim or not ancestor_prim.IsValid():
+            raise RuntimeError(f"Camera ancestor prim not found: {ancestor_path}")
+        # Scopes and other non-Xformable groupings carry no transform to freeze.
+        if not ancestor_prim.IsA(UsdGeom.Xformable):
+            continue
+        local_transform = Gf.Transform(UsdGeom.Xformable(ancestor_prim).GetLocalTransformation(stage_time))
+        rotation = local_transform.GetRotation().GetQuat()
+        imaginary = rotation.GetImaginary()
+        sim_utils.standardize_xform_ops(
+            ancestor_prim,
+            translation=tuple(local_transform.GetTranslation()),
+            orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
+            scale=tuple(local_transform.GetScale()),
+        )
+        frozen_count += 1
+
+    camera_prim = prepared.GetPrimAtPath(f"/{default_prim_name}/{camera_rel_path}")
+    if not camera_prim or not camera_prim.IsValid():
+        raise RuntimeError(f"Camera prim not found in prepared scene: /{default_prim_name}/{camera_rel_path}")
+    translation = camera_local.ExtractTranslation()
+    rotation = camera_local.ExtractRotationQuat()
+    imaginary = rotation.GetImaginary()
+    sim_utils.standardize_xform_ops(
+        camera_prim,
+        translation=(translation[0], translation[1], translation[2]),
+        orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
+        scale=(1.0, 1.0, 1.0),
+    )
+
+    prepared_path = os.path.join(tempfile.mkdtemp(prefix="isaaclab-ppisp-"), "prepared_scene.usda")
+    prepared.GetRootLayer().Export(prepared_path)
     print(
-        f"[INFO] Froze {frozen_count} camera ancestor xform(s) at USD time {STAGE_TIME_CODE:g}.",
+        f"[INFO] Prepared scene layer with {frozen_count} frozen camera ancestor xform(s) at USD time"
+        f" {STAGE_TIME_CODE:g} and the camera pose at USD time {time_code:g}.",
         flush=True,
     )
+    return prepared_path
 
 
 def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_anim.AnimatedGaussianTrack]:
@@ -739,53 +803,6 @@ def resolve_animated_gaussian_tracks(source_stage: Usd.Stage) -> list[gaussian_a
             f" back: {gaussian_anim.format_tracks(tracks)}. Use --renderer isaac_rtx or --renderer ovrtx."
         )
     return tracks
-
-
-def bake_source_camera_pose_to_envs(source_stage: Usd.Stage, source_camera_prim_path: str, time_code: float) -> None:
-    """Bake a USD camera pose at ``time_code`` into duplicated env camera prims.
-
-    This seeds the initial pose on the stage and must run before the camera sensors are created and before
-    :meth:`SimulationContext.reset`. The Newton backend samples the camera prim's USD transform once while
-    building its model, and the Fabric render path is populated from USD at reset, so later USD edits do
-    not reach the renderer. Runtime trajectory playback goes through the prebaked trajectory tensors
-    instead.
-
-    The pose is written through :func:`~isaaclab.sim.utils.standardize_xform_ops` so the prims keep the
-    canonical ``[translate, orient, scale]`` op order that the sensor frame views require; authoring a
-    single ``xformOp:transform`` here would silently discard every later view-side pose write.
-    """
-    source_camera_in_default = get_source_camera_in_default(source_stage, source_camera_prim_path, time_code)
-    stage = sim_utils.get_current_stage()
-    # The renderers evaluate the referenced scene at the stage's current timeline time, so the ancestor
-    # chain must be sampled there too. Sampling it at the default time code instead resolves animated
-    # ancestor xforms as unauthored, which double-counts their contribution in the composed camera pose.
-    target_cache = UsdGeom.XformCache(Usd.TimeCode(STAGE_TIME_CODE))
-    camera_rel_path = source_camera_path_to_default_rel_path(source_stage, source_camera_prim_path)
-    scene_world_transforms = get_env_scene_world_transforms()
-    for env_id, target_scene_world in enumerate(scene_world_transforms):
-        target_camera_path = f"/World/envs/env_{env_id}/Scene/{camera_rel_path}"
-        target_camera_prim = stage.GetPrimAtPath(target_camera_path)
-        if not target_camera_prim or not target_camera_prim.IsValid():
-            raise RuntimeError(f"Duplicated camera prim not found: {target_camera_path}")
-
-        target_parent_world = target_cache.GetLocalToWorldTransform(target_camera_prim.GetParent())
-        target_camera_world = source_camera_in_default * target_scene_world
-        target_camera_local = target_camera_world * target_parent_world.GetInverse()
-        target_camera_local.Orthonormalize()
-        translation = target_camera_local.ExtractTranslation()
-        rotation = target_camera_local.ExtractRotationQuat()
-        imaginary = rotation.GetImaginary()
-        sim_utils.standardize_xform_ops(
-            target_camera_prim,
-            translation=(translation[0], translation[1], translation[2]),
-            orientation=(imaginary[0], imaginary[1], imaginary[2], rotation.GetReal()),
-            scale=(1.0, 1.0, 1.0),
-        )
-
-    print(
-        f"[INFO] Baked camera pose at USD time {time_code:g} into {len(scene_world_transforms)} env camera(s).",
-        flush=True,
-    )
 
 
 def compute_env_camera_world_poses(
@@ -951,10 +968,16 @@ def resolve_env_spacing(source_stage: Usd.Stage) -> float:
     return spacing
 
 
-def create_duplicated_env_scene(env_spacing: float) -> InteractiveScene:
-    """Create a production-style duplicated-env scene for tiled camera rendering."""
+def create_duplicated_env_scene(env_spacing: float, scene_path: str) -> InteractiveScene:
+    """Create a production-style duplicated-env scene for tiled camera rendering.
+
+    Args:
+        env_spacing: Grid spacing between duplicated envs [m].
+        scene_path: Scene layer to reference under each env, as prepared by
+            :func:`prepare_static_camera_scene`.
+    """
     scene_cfg = PpispCameraSceneCfg(num_envs=args_cli.num_envs, env_spacing=env_spacing)
-    scene_cfg.input_scene.spawn = sim_utils.UsdFileCfg(usd_path=args_cli.input_scene)
+    scene_cfg.input_scene.spawn = sim_utils.UsdFileCfg(usd_path=scene_path)
     scene = instantiate(scene_cfg)
     print(f"[INFO] Referenced input scene into {args_cli.num_envs} env(s).", flush=True)
     return scene
@@ -1272,7 +1295,6 @@ def main() -> None:
             sim = sim_utils.SimulationContext(sim_cfg)
             sim.set_camera_view(eye=[2.5, 2.5, 2.5], target=[0.0, 0.0, 0.0])
 
-            scene = create_duplicated_env_scene(resolve_env_spacing(source_stage))
             gaussian_tracks = resolve_animated_gaussian_tracks(source_stage)
             playback_times = get_playback_time_samples(source_stage, source_camera_prim_path, gaussian_tracks)
             if playback_times:
@@ -1295,10 +1317,13 @@ def main() -> None:
                 last_index = len(playback_times) - 1
                 frame_time_codes = [playback_times[min(index, last_index)] for index in range(args_cli.num_frames)]
 
-            # Prepare the camera prims before the sensors and their frame views are built: freeze the animated
-            # rig above them so runtime pose writes stick, then seed the first trajectory pose.
-            freeze_env_camera_ancestor_xforms(source_stage, source_camera_prim_path)
-            bake_source_camera_pose_to_envs(source_stage, source_camera_prim_path, frame_time_codes[0])
+            # Prepare the scene before it is referenced into the envs, and so before the sensors and their
+            # frame views are built: freeze the animated rig above the camera so runtime pose writes stick,
+            # and seed the first trajectory pose.
+            prepared_scene_path = prepare_static_camera_scene(
+                source_stage, source_camera_prim_path, frame_time_codes[0]
+            )
+            scene = create_duplicated_env_scene(resolve_env_spacing(source_stage), prepared_scene_path)
             make_matched_camera_prims_visible(sim_utils.get_current_stage(), camera_prim_path)
             if args_cli.renderer == "ovrtx":
                 overridden_count = force_gaussian_sorting_mode_hint(sim_utils.get_current_stage())
