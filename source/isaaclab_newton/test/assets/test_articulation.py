@@ -27,7 +27,7 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(SimulationCfg(physics=NewtonCfg()))
 
 import sys
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from copy import copy
 from dataclasses import dataclass
 from pathlib import Path
@@ -41,7 +41,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxJointCfg
-from newton import ModelFlags, ShapeFlags
+from newton import Model, ModelFlags, ShapeFlags, State
 
 from pxr import UsdPhysics
 
@@ -433,7 +433,7 @@ def test_newton_rebind_refreshes_ordered_state_and_preserves_lab_owned_actuator_
         SimulationManager.unregister_post_step_callback(_other_callback)
 
 
-def _prime_ordered_state_rebind(articulation: Articulation, dt: float):
+def _prime_ordered_state_rebind(articulation: Articulation, dt: float) -> Callable[[State, Model], None]:
     """Prime an implicit island's ordered state caches and return the check to run after the arrays are swapped."""
     data = articulation.data
     has_ordering = data.joint_ordering is not None
@@ -497,7 +497,7 @@ def _prime_ordered_state_rebind(articulation: Articulation, dt: float):
     for cache_name in _NEWTON_USER_ORDER_STATE_CACHES:
         assert (getattr(data, cache_name) is not None) is has_ordering
 
-    def check_rebind(new_state, new_model) -> None:
+    def check_rebind(new_state: State, new_model: Model) -> None:
         body_velocities = articulation.root_view.get_link_velocities(new_state)
         assert body_velocities is not None
         new_source_bindings = {
@@ -1813,11 +1813,10 @@ def test_body_root_state(scene: _Scene) -> None:
     for _ in range(50):
         scene.step("pendulum")
 
-        # check that the root is at the correct state - its default state as it is fixed base
+        # the fixed pivot holds its default state
         torch.testing.assert_close(articulation.data.root_link_pose_w.torch, default_root_pose)
         torch.testing.assert_close(articulation.data.root_com_vel_w.torch, default_root_vel)
 
-        # get state properties
         root_link_vel_w = articulation.data.root_link_vel_w.torch
         root_com_pose_w = articulation.data.root_com_pose_w.torch
         root_com_vel_w = articulation.data.root_com_vel_w.torch
@@ -1825,40 +1824,31 @@ def test_body_root_state(scene: _Scene) -> None:
         body_link_vel_w = articulation.data.body_link_vel_w.torch
         body_com_pose_w = articulation.data.body_com_pose_w.torch
         body_com_vel_w = articulation.data.body_com_vel_w.torch
-
-        # get joint state
         joint_pos = articulation.data.joint_pos.torch.unsqueeze(-1)
         joint_vel = articulation.data.joint_vel.torch.unsqueeze(-1)
 
-        # LINK state
-        # angular velocity should be the same for both COM and link frames
+        # the angular velocity is the same in the link and center-of-mass frames
         torch.testing.assert_close(root_com_vel_w[..., 3:], root_link_vel_w[..., 3:])
         torch.testing.assert_close(body_com_vel_w[..., 3:], body_link_vel_w[..., 3:])
 
-        # lin_vel arm
+        # the arm's link origin circles the pivot at the link offset; the pivot's link does not move
         lin_vel_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
         vx = -(link_offset[0]) * joint_vel * torch.sin(joint_pos)
         vy = (link_offset[0]) * joint_vel * torch.cos(joint_pos)
-        vz = torch.zeros(num_articulations, 1, 1, device=device)
-        lin_vel_gt[:, arm_idx, :] = torch.cat([vx, vy, vz], dim=-1).squeeze(-2)
-
-        # linear velocity of root link should be zero
+        lin_vel_gt[:, arm_idx, :] = torch.cat([vx, vy, torch.zeros_like(vx)], dim=-1).squeeze(-2)
         torch.testing.assert_close(lin_vel_gt[:, root_idx, :], root_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
-        # linear velocity of pendulum link should be
         torch.testing.assert_close(lin_vel_gt, body_link_vel_w[..., :3], atol=1e-3, rtol=1e-1)
 
-        # COM state
-        # position and orientation shouldn't match for the _state_com_w but everything else will
+        # the arm's center of mass circles the pivot at the link offset plus the center-of-mass offset
         pos_gt = torch.zeros(num_articulations, num_bodies, 3, device=device)
         px = (link_offset[0] + offset[0]) * torch.cos(joint_pos)
         py = (link_offset[0] + offset[0]) * torch.sin(joint_pos)
-        pz = torch.zeros(num_articulations, 1, 1, device=device)
-        pos_gt[:, arm_idx, :] = torch.cat([px, py, pz], dim=-1).squeeze(-2)
-        pos_gt += pivot_pos_w.unsqueeze(-2).repeat(1, num_bodies, 1)
+        pos_gt[:, arm_idx, :] = torch.cat([px, py, torch.zeros_like(px)], dim=-1).squeeze(-2)
+        pos_gt += pivot_pos_w.unsqueeze(-2)
         torch.testing.assert_close(pos_gt[:, root_idx, :], root_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
         torch.testing.assert_close(pos_gt, body_com_pose_w[..., :3], atol=1e-3, rtol=1e-1)
 
-        # orientation
+        # the center-of-mass orientation is the link orientation composed with the body-frame offset rotation
         com_quat_b = articulation.data.body_com_quat_b.torch
         com_quat_w = math_utils.quat_mul(body_link_pose_w[..., 3:], com_quat_b)
         torch.testing.assert_close(com_quat_w, body_com_pose_w[..., 3:])
@@ -1952,7 +1942,7 @@ def test_body_q_consistent_after_root_write(scene: _Scene) -> None:
     original_simulate = SimulationManager._simulate_physics_only.__func__
 
     @classmethod  # type: ignore[misc]
-    def _patched_simulate(cls):
+    def _patched_simulate(cls) -> None:
         if cls._needs_collision_pipeline:
             bq = wp.to_torch(cls.backend.state_0.body_q)
             jq = wp.to_torch(cls.backend.state_0.joint_q)
