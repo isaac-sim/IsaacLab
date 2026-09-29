@@ -423,6 +423,13 @@ class NewtonCouplerManager(NewtonVBDManager):
         solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
         values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
+        for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor"):
+            if getattr(solver_cfg, name) is not None and name not in values:
+                raise RuntimeError(
+                    f"The installed Newton SolverCoupledADMM.Config does not support {name}. "
+                    "Update Newton to a version containing https://github.com/newton-physics/newton/pull/4309 "
+                    "or leave this field unset."
+                )
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:
@@ -431,44 +438,7 @@ class NewtonCouplerManager(NewtonVBDManager):
                 for source, destination in solver_cfg.contact_pairs
             ]
         coupling = SolverCoupledADMM.Config(**values)
-        solver = SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
-        if any(
-            getattr(solver_cfg, name) is not None and name not in values
-            for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor")
-        ):
-            cls._configure_admm_contact_capacity(solver, solver_cfg)
-        return solver
-
-    @staticmethod
-    def _configure_admm_contact_capacity(solver: SolverCoupledADMM, solver_cfg: CouplerAdmmCfg) -> None:
-        """Apply internal collision budgets before any stepping or CUDA graph capture."""
-        # Compatibility with the pinned Newton version; skipped when Config accepts both budgets.
-        # Remove after the minimum Newton version includes https://github.com/newton-physics/newton/pull/4309.
-        # Rebuild it while preserving ADMM's pair filters, output capacities, and matching mode.
-        previous = solver._admm_collision_pipeline
-        if previous is None:
-            return
-        overrides = {}
-        if solver_cfg.contact_max_triangle_pairs is not None:
-            overrides["max_triangle_pairs"] = solver_cfg.contact_max_triangle_pairs
-        if solver_cfg.contact_reduction_hashtable_size_factor is not None:
-            overrides["contact_reduction_hashtable_size_factor"] = solver_cfg.contact_reduction_hashtable_size_factor
-        if solver_cfg.contact_matching_pos_threshold is not None:
-            overrides["contact_matching_pos_threshold"] = solver_cfg.contact_matching_pos_threshold
-        if solver_cfg.contact_matching_normal_dot_threshold is not None:
-            overrides["contact_matching_normal_dot_threshold"] = solver_cfg.contact_matching_normal_dot_threshold
-        pipeline = CollisionPipeline(
-            solver.model,
-            broad_phase=previous.broad_phase_mode,
-            shape_pairs_filtered=previous.shape_pairs_filtered,
-            rigid_contact_max=previous.rigid_contact_max,
-            soft_contact_max=previous.soft_contact_max,
-            soft_contact_gap=previous.soft_contact_gap,
-            contact_matching=previous.contact_matching,
-            **overrides,
-        )
-        solver._admm_collision_pipeline = pipeline
-        solver._admm_internal_contacts = pipeline.contacts()
+        return SolverCoupledADMM(model=model, entries=entries, coupling=coupling)
 
     @staticmethod
     def _validate_no_cross_entry_proxy_joints(model: Model, entries: dict[str, _ResolvedEntry]) -> None:

@@ -211,6 +211,11 @@ contact-reduction hash table independently. Both default to ``None`` to preserve
 Newton's defaults. These capacities cover all environments in one process and
 are allocated independently on each rank in multi-GPU jobs.
 
+Explicit capacity overrides require a Newton version containing
+`the public ADMM capacity controls <https://github.com/newton-physics/newton/pull/4309>`_.
+If the installed Newton version lacks these fields, leave both at ``None`` or
+upgrade Newton before setting them. Unsupported overrides raise an error.
+
 Increase the triangle-pair capacity for triangle-pair overflow, or the hash table
 size factor for contact-reduction fill or insertion warnings. Increasing the outer
 collision budget does not resize ADMM's internal buffers. With

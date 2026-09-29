@@ -7,4 +7,5 @@ Added
   Newton's existing allocation and contact matching behavior. Configuration
   validation rejected triangle-pair capacities at or above ``2**20`` when rigid
   contact matching was ``"latest"`` or ``"sticky"``, while allowing larger
-  capacities when matching was disabled.
+  capacities when matching was disabled. Explicit overrides required Newton's
+  public ADMM capacity fields; older Newton versions reported an upgrade error.

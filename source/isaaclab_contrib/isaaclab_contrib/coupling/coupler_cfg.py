@@ -159,7 +159,12 @@ class CouplerProxyCfg(CouplerCfg):
 
 @configclass
 class CouplerAdmmCfg(CouplerCfg):
-    """Configuration for Newton's linearized ADMM coupling."""
+    """Configuration for Newton's linearized ADMM coupling.
+
+    Explicit contact-capacity overrides require the corresponding public fields in
+    Newton's ``SolverCoupledADMM.Config``. Older Newton versions support the defaults
+    but raise an error if either override is set.
+    """
 
     contact_max_triangle_pairs: int | None = None
     """Triangle-pair capacity of the internal ADMM collision pipeline.
