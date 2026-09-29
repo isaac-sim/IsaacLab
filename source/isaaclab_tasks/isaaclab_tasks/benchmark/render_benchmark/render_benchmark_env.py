@@ -25,8 +25,8 @@ if TYPE_CHECKING:
 class RenderBenchmarkEnv(DirectRLEnv):
     """Environment that animates its articulations so a renderer can be profiled on them.
 
-    Every articulation in the configured scene is driven by a sinusoid around its default joint
-    positions. Actions are ignored and rewards are zero.
+    An explicit benchmark mode drives every articulation by a sinusoid around its default joint
+    positions. With ``None``, no benchmark animation is applied. Actions are ignored and rewards are zero.
 
     ``"physics_render"`` mode tracks the sinusoid through actuator targets. ``"render"`` mode
     writes joint poses after physics and requires lazy sensor updates so rendering sees those poses.

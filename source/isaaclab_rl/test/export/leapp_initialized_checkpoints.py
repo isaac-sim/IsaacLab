@@ -324,13 +324,10 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     from isaaclab_tasks.utils.hydra import resolve_task_config
 
-    # TODO: Remove once usd-core>=26.5 is the minimum. Earlier OpenUSD releases
-    # can corrupt the heap while parsing the Newton Franka payload concurrently.
     cli_args = SimpleNamespace(
         seed=args.seed,
         algorithm=args.algorithm,
         headless=True,
-        limit_cpu_threads=1,
     )
     task_dir = task_checkpoint_dir(args.checkpoint_root, backend_id, task_name)
     task_dir.mkdir(parents=True, exist_ok=True)
@@ -339,8 +336,8 @@ def main(argv: Sequence[str] | None = None) -> None:
     try:
         env_cfg, agent_cfg = resolve_task_config(task_name, _agent_cfg_entry_point(backend_id))
         with launch_simulation(env_cfg, vars(cli_args)):
-            get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
-            get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+            get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
+            get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
             checkpoint_path = create_initialized_checkpoint(
                 backend_id,
                 task_name,

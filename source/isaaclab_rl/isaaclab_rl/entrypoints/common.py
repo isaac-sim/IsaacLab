@@ -14,6 +14,7 @@ import logging
 import os
 import random
 import re
+import signal
 import sys
 import time
 from collections.abc import Callable, Iterator
@@ -556,6 +557,19 @@ def create_isaaclab_env(
     return env
 
 
+def close_env(env: gym.Env) -> None:
+    """Close the outermost environment wrapper without interrupting its teardown.
+
+    Args:
+        env: Environment to close on the entrypoint's main thread.
+    """
+    previous_handler = signal.signal(signal.SIGINT, signal.SIG_IGN)
+    try:
+        env.close()
+    finally:
+        signal.signal(signal.SIGINT, previous_handler)
+
+
 """
 Checkpoints.
 """
@@ -1003,9 +1017,8 @@ def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
     Raises:
         ValueError: If ``--viz none`` or only streaming visualizers were requested.
     """
-    # _parse_visualizer_csv("none") yields None rather than ["none"], so an explicitly disabled
-    # visualizer is only recognizable through the ExplicitAction sentinel
-    if getattr(args_cli, "visualizer_explicit", False) and getattr(args_cli, "visualizer", "not_none") is None:
+    # ``--viz none`` parses to an empty list
+    if getattr(args_cli, "visualizer", None) == []:
         raise ValueError(
             "--video is not compatible with --viz none: there is no active visualizer to record from. "
             "Remove --viz none so that video recording can auto-create a visualizer, "

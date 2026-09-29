@@ -25,6 +25,7 @@ overrides = [
     { name = "packaging", specifier = ">=20,<27" },
     { name = "torch", specifier = "==2.12.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", specifier = "==0.27.0", index = "https://download.pytorch.org/whl/cu130" },
+    { name = "usd-exchange", specifier = "==3.0.0" },
 ]
 
 [[package]]
@@ -1698,7 +1699,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "29.0.0"
+version = "31.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1722,7 +1723,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "2.0.1"
+version = "3.0.0"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -2057,7 +2058,7 @@ requires-dist = [
     { name = "transformers", specifier = "==5.10.4" },
     { name = "trimesh", specifier = ">=4.6.8" },
     { name = "typing-extensions", specifier = ">=4.15.0" },
-    { name = "usd-exchange", specifier = "==2.3.0" },
+    { name = "usd-exchange", specifier = "==3.0.0" },
     { name = "viser", marker = "extra == 'viser'", specifier = ">=1.0.16" },
     { name = "wandb", marker = "extra == 'wandb'", specifier = ">=0.13.11" },
     { name = "warp-lang", specifier = "==1.17.0" },
@@ -2066,7 +2067,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.2.2"
+version = "0.2.3"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2077,7 +2078,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.9"
+version = "2.0.11"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2094,7 +2095,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "8.0.0"
+version = "9.0.0"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2105,7 +2106,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.4.0"
+version = "3.5.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2120,7 +2121,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.2.3"
+version = "7.3.0"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2142,7 +2143,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "1.2.0"
+version = "1.3.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2159,7 +2160,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "21.1.0"
+version = "21.3.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2200,7 +2201,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-visualizers"
-version = "1.13.0"
+version = "2.0.0"
 source = { editable = "source/isaaclab_visualizers" }
 dependencies = [
     { name = "isaaclab" },
@@ -5689,12 +5690,12 @@ wheels = [
 
 [[package]]
 name = "usd-exchange"
-version = "2.3.0"
+version = "3.0.0"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-2.3.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:3beddb68abb89b1f3be207a35275604a6eb89b179ba052ca3eada5cd7202e534" },
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-2.3.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:358c858fafebc0ca37a0e62608e595d894ff732eb723ed871292755f5882e8b4" },
-    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-2.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:f5ab1b54ce670d8e36786c40750f86396463f2185cfaa5f5e813d6c5207e35ae" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:59a3b8ef4bc545c76059f7efc5fec94023e0818c5a714fae40f8e0411de79db5" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:3d5a3ca9f6153abaf2bb4f8fda6c4026e174b6b050eb904a6e4a5bdf89a52926" },
+    { url = "https://pypi.nvidia.com/usd-exchange/usd_exchange-3.0.0-cp312-cp312-win_amd64.whl", hash = "sha256:374499c3d06bd10f4cda2036239935222527f17e1f3ee059fc093aeb9058439b" },
 ]
 
 [[package]]

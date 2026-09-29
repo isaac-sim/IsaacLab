@@ -371,13 +371,6 @@ token per instance; markers without that ownership information remain shared.
 
 .. warning::
 
-   Kit RTX sizes each partition from the bounding boxes of the prims it contains and never
-   refreshes the bounding box of an animated ``UsdGeom.BasisCurves`` prim, so cables can be
-   culled once they deform beyond their initial extent. See
-   :ref:`known-issues-animated-curve-scene-partition` for the workaround.
-
-.. warning::
-
    The Isaac RTX and OVRTX renderers cap the number of scene partitions at 15625.
    Requesting more than 15625 environments with scene partitioning enabled discards
    the additional partitions, and ``rtx.scenedb.plugin`` logs ``SceneDbContext : Maximum

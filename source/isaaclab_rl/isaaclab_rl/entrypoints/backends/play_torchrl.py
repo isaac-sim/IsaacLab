@@ -26,6 +26,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -90,7 +91,7 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="torchrl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             # torchrl is an optional extra; importing it after the task config is resolved lets preset errors
             # surface even when it is not installed
             from torchrl.envs import ExplorationType, set_exploration_type
@@ -118,24 +119,22 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
-            try:
-                env = IsaacLabTorchRLWrapper(env, clip_actions=agent_cfg.clip_actions)
+            cleanup.callback(lambda: close_env(env))
+            env = IsaacLabTorchRLWrapper(env, clip_actions=agent_cfg.clip_actions)
 
-                screen.stage("Loading policy")
-                print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
-                actor = make_actor(env, agent_cfg).to(env.device).eval()
-                actor.load_state_dict(torch.load(checkpoint_path, map_location=env.device, weights_only=True))
-                if args_cli.deterministic:
-                    configure_seed(env_cfg.seed, torch_deterministic=True)
+            screen.stage("Loading policy")
+            print(f"[INFO] Loading model checkpoint from: {checkpoint_path}")
+            actor = make_actor(env, agent_cfg).to(env.device).eval()
+            actor.load_state_dict(torch.load(checkpoint_path, map_location=env.device, weights_only=True))
+            if args_cli.deterministic:
+                configure_seed(env_cfg.seed, torch_deterministic=True)
 
-                tensordict = env.reset()
+            tensordict = env.reset()
 
-                def step() -> None:
-                    nonlocal tensordict
-                    with set_exploration_type(ExplorationType.DETERMINISTIC):
-                        _, tensordict = env.step_and_maybe_reset(actor(tensordict))
+            def step() -> None:
+                nonlocal tensordict
+                with set_exploration_type(ExplorationType.DETERMINISTIC):
+                    _, tensordict = env.step_and_maybe_reset(actor(tensordict))
 
-                screen.close()
-                run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            finally:
-                env.close()
+            screen.close()
+            run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)

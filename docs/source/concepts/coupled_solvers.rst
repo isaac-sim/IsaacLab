@@ -200,61 +200,20 @@ runtime and cannot repair an unstable entry. The generated
 default; Newton's concept page explains the underlying algorithms.
 
 
-Tune Rigid--MPM Proxy Coupling
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+Rigid--MPM Comparison Recordings
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-For :class:`~isaaclab_contrib.coupling.CouplerProxyCfg`, first stabilize each
-solver alone. Then tune the additional controls:
+For proxy coupling, ``mass_scale`` changes a source body's effective mass and
+inertia in the destination view; it does not change the authored rigid-body
+mass. Start at ``1`` and increase it only when the rigid solver strongly
+constrains the body during MPM contact. Check both supported and freely moving
+cases, since a large scale can suppress legitimate motion.
 
-* ``CouplerEntryCfg.substeps`` divides one coupled step for that entry. Increase
-  the MPM entry's value when only the particle solve needs a smaller timestep.
-* ``CouplerProxyCfg.iterations`` repeats the proxy exchange and relaxation; it
-  does not replace smaller physical timesteps.
-* ``CouplerProxyMappingCfg.mass_scale`` scales the source body's effective mass
-  and inertia only in the destination proxy view. It does not change the body's
-  authored mass in the rigid solver.
-* ``CouplerProxyMappingCfg.proxy_relaxation`` relaxes updates to the force fed
-  back to the source. With fixed relaxation, ``0`` preserves the initial zero
-  feedback for a one-way run; ``1`` accepts each new force estimate. Values
-  between them blend the new estimate with the previous feedback. Start each
-  comparison from a fresh state rather than switching an ongoing run to zero.
-  ``proxy_relaxation_mode="aitken"`` adapts the value within a coupled step and
-  clamps it between ``proxy_relaxation_min`` and
-  ``proxy_relaxation_max``.
-
-Start ``mass_scale`` at ``1`` for a freely moving collider. Increase it when the
-rigid solver strongly constrains the collider during MPM contact. For example, a
-cup resting on a table has much greater effective resistance in the supported
-direction than its free-body mass suggests. Sweep finite values geometrically,
-such as ``1``, ``10``, and ``100``, and keep the smallest value that prevents
-unrealistic proxy motion. Newton requires a finite positive value: do not use
-infinity. An excessively large scalar also suppresses legitimate motion in
-unsupported directions and can make the interaction effectively one-way.
-
-Do not use ``mode="lagged"`` as a synonym for one-way coupling. Both ``lagged``
-and ``staggered`` transfer modes can return forces. Use zero
-``proxy_relaxation`` when the intended experiment must suppress feedback.
-
-Validate both the supported and free-moving cases after changing coupling. If
-the uncoupled systems are unstable, fix their timestep, contacts, and reset
-states before adjusting ``mass_scale`` or coupling iterations.
-
-The G1 comparison deploys one policy across successive sand, snow, and clay
-strips. A fall or stall is a legitimate feedback result, not a policy success
-metric. Keep the policy, seed, commands, collision proxies, and material strips
-fixed between one-way and two-way runs:
-
-.. code-block:: bash
-
-   uv run --extra rsl-rl isaaclab example mpm-g1-coupling \
-     --coupling two_way --visualizer kit
-
-Historical recordings use 25 mm voxels and 20 cm strips; the current demo
-defaults to 40 mm voxels and 16 cm strips for faster iteration. The existing
-one-way recording uses lower-leg proxies, while the full-body two-way recording
-uses all robot collision geometry. Do not present them as a single-variable
-comparison. Rerun both modes with identical ``--proxy_bodies`` settings for that
-purpose.
+The G1 recordings show one policy walking across sand, snow, and clay. The
+one-way recording uses lower-leg proxies, while the two-way recording uses
+full-body proxies. They are presentation examples, **not** a controlled
+single-variable comparison; keep the policy, seed, commands, and proxy geometry
+identical when measuring a coupling effect.
 
 .. grid:: 1 1 2 2
    :gutter: 2
@@ -274,6 +233,29 @@ purpose.
          <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
            <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_g1_two_way.mp4" type="video/mp4">
          </video>
+
+ADMM Contact Capacity
+^^^^^^^^^^^^^^^^^^^^^
+
+ADMM's internal contact buffers are independent of ``NewtonCfg.collision_cfg``.
+Increase ``CouplerAdmmCfg.contact_max_triangle_pairs`` for triangle-pair overflows,
+or ``contact_reduction_hashtable_size_factor`` for contact-reduction hash table
+warnings. Both default to ``None`` (Newton's defaults); explicit values require
+support in Newton's ``SolverCoupledADMM.Config``. Capacities cover all environments
+in one process, independently on each rank in multi-GPU jobs.
+
+With ``rigid_contact_matching="latest"`` or ``"sticky"``, triangle-pair capacity
+must be less than ``2**20``; larger values require ``"disabled"``. The hash table
+can grow independently while retaining matching:
+
+.. code-block:: python
+
+    coupling_cfg = CouplerAdmmCfg(
+        entries=entries,
+        rigid_contact_matching="latest",
+        contact_max_triangle_pairs=1_000_000,
+        contact_reduction_hashtable_size_factor=2.0,
+    )
 
 
 Start from a maintained task

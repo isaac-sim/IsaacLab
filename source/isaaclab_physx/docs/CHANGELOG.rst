@@ -1,6 +1,47 @@
 Changelog
 ---------
 
+7.4.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.wait_for_stage_load` to run Kit app updates
+  until the USD stage has no assets left to load.
+* Added the PhysX deformable-body fragments :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg`
+  and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`, covering the solver,
+  damping, and self-collision attributes from ``PhysxBaseDeformableBodyAPI`` and the
+  surface-only collision attributes from ``PhysxSurfaceDeformableBodyAPI``.
+* Added the PhysX deformable material fragments
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxDeformableMaterialCfg` and
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableMaterialCfg`, authoring
+  ``physxDeformableMaterial:*`` attributes from ``PhysxDeformableMaterialAPI`` and
+  ``PhysxSurfaceDeformableMaterialAPI``.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.setup_deformable_body`, applying the
+  OmniPhysics deformable sim and body anchor APIs, rest state, and visual bind pose to a prepared
+  deformable mesh.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed ``KitLauncher.add_app_launcher_args`` to
+  :meth:`~isaaclab_physx.app.KitLauncher.add_launcher_args`, matching :func:`~isaaclab.app.add_launcher_args`.
+  Replace the calls, or call :func:`~isaaclab.app.add_launcher_args`.
+
+Removed
+^^^^^^^
+
+* Removed ``isaaclab_physx.app.show_stage_in_viewport``. Preview a USD file by spawning it into a scene and
+  rendering it with the visualizer selected with ``--viz``, as the ``convert_*`` tools do.
+
+Fixed
+^^^^^
+
+* Prevented repeated Ctrl+C presses from interrupting Kit shutdown, restoring the previous signal
+  handler when shutdown returned.
+
+
 7.3.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

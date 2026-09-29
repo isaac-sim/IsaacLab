@@ -746,7 +746,7 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
     from isaaclab_ov.physics import OvPhysxManager
 
     import isaaclab.sim.simulation_context as simulation_context_module
-    from isaaclab.app.sim_launcher import make_physics_cfg
+    from isaaclab.app.sim_launcher import _make_physics_cfg
     from isaaclab.sim import SimulationCfg, SimulationContext
 
     class StageCreationReached(Exception):
@@ -774,7 +774,7 @@ def test_automatic_physx_selection_prepares_ovphysx_before_stage_creation(monkey
 
     monkeypatch.setattr(simulation_context_module, "create_new_stage", _stop_at_stage_creation)
     cfg = SimulationCfg(create_stage_in_memory=True)
-    physics_cfg = make_physics_cfg("physx")
+    physics_cfg = _make_physics_cfg("physx")
     physics_cfg.class_type = StubPhysxManager
     cfg.physics = physics_cfg
 

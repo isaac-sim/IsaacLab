@@ -777,9 +777,7 @@ def test_visualizer_construction_precedes_initialization_and_happens_once(monkey
     monkeypatch.setattr(context_module, "has_kit", lambda: False)
     monkeypatch.setattr(context_module, "SceneDataProvider", lambda backend: _FakeProvider())
     monkeypatch.setattr(
-        context_module.SettingsManager,
-        "instance",
-        lambda: SimpleNamespace(get=settings.get, set_bool=settings.__setitem__),
+        context_module, "get_settings_manager", lambda: SimpleNamespace(get=settings.get, set=settings.__setitem__)
     )
     monkeypatch.setattr(SimulationContext, "_init_usd_physics_scene", lambda self: None)
     monkeypatch.setattr(SimulationContext, "_instance", None)
@@ -1080,9 +1078,9 @@ def test_visualizer_failures_propagate_and_retain_constructed_instances(cli_expl
 
 
 def test_explicit_partial_valid_types_raises_for_invalid():
-    """Requesting 'newton,bogus_viz' via CLI raises for the unknown type even though newton is valid."""
+    """Requesting 'newton_gl,bogus_viz' via CLI raises for the unknown type even though newton_gl is valid."""
     settings = {
-        "/isaaclab/visualizer/types": "newton,bogus_viz",
+        "/isaaclab/visualizer/types": "newton_gl,bogus_viz",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_visible_envs": None,
@@ -1093,43 +1091,23 @@ def test_explicit_partial_valid_types_raises_for_invalid():
         ctx._create_visualizers()
 
     message = str(exc_info.value)
-    assert "bogus_viz" in message
-    # The successfully-resolved deprecated alias must not also be reported as missing.
-    assert "'newton'" not in message
+    # The successfully-resolved type must not also be reported as missing.
+    assert "['bogus_viz']" in message
 
 
-def test_explicit_deprecated_alias_alone_does_not_raise():
-    """Requesting only the deprecated 'newton' alias warns, resolves to a NewtonGLVisualizerCfg, and does
-    not raise, even though the resolved cfg carries the canonical 'newton_gl' type."""
-    settings = {
-        "/isaaclab/visualizer/types": "newton",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": None,
-    }
-    ctx = _make_context_with_settings(settings)
-
-    with pytest.warns(DeprecationWarning, match="newton.*deprecated.*newton_gl"):
-        ctx._create_visualizers()
-
-    assert len(ctx._pending_visualizers) == 1
-    assert isinstance(ctx._pending_visualizers[0].cfg, NewtonGLVisualizerCfg)
-
-
-def test_explicit_deprecated_alias_matches_existing_cfg_by_canonical_type():
-    """Requesting 'newton' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
+def test_explicit_type_matches_existing_cfg():
+    """Requesting 'newton_gl' via CLI when cfg.visualizer_cfgs already has a customized 'newton_gl'
     config selects and returns that exact instance, rather than discarding it and building a
-    fresh default -- exercising the branch that filters pre-existing cfgs by canonical type."""
+    fresh default -- exercising the branch that filters pre-existing cfgs by type."""
     existing_cfg = NewtonGLVisualizerCfg(background_color=(0.4, 0.5, 0.6))
     settings = {
-        "/isaaclab/visualizer/types": "newton",
+        "/isaaclab/visualizer/types": "newton_gl",
         "/isaaclab/visualizer/explicit": True,
         "/isaaclab/visualizer/disable_all": False,
         "/isaaclab/visualizer/max_visible_envs": None,
     }
     ctx = _make_context_with_settings(settings, visualizer_cfgs=[existing_cfg])
 
-    # No alias-resolution warning: the pre-existing cfg already satisfies the canonical type.
     cfgs = ctx._resolve_visualizer_cfgs()
 
     assert len(cfgs) == 1
