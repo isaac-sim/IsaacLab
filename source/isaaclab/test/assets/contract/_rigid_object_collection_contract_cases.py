@@ -6,12 +6,10 @@
 # ignore private usage of variables warning
 # pyright: reportPrivateUsage=none
 
-"""
-Checks that the rigid object collection interfaces are consistent across backends, and are providing
-the exact same data as what the base rigid object collection class advertises. All rigid object
-collection interfaces need to comply with the same interface contract.
+"""Shared rigid-object-collection contract cases, collected by the ``test_asset_contract_*`` entry modules.
 
-The setup is a bit convoluted so that we can run these tests without requiring Isaac Sim or GPU simulation.
+Checks that every collection backend provides the data and writer behavior the base collection class advertises.
+The backends run on mocked views, so these cases need neither Isaac Sim nor a GPU simulation.
 """
 
 import math
@@ -21,11 +19,11 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _rigid_object_collection_iface_test_utils import BACKENDS, get_rigid_object_collection
 
 from isaaclab.test.utils import DeviceScope, test_devices
 
-pytestmark = pytest.mark.integration
+from ._rigid_object_collection_contract_utils import get_rigid_object_collection
+from .capabilities import contract_backend
 
 # Distinct instance and body counts make swapped axes visible.
 _NUM_INSTANCES, _NUM_BODIES = 2, 3
@@ -47,17 +45,11 @@ def _check_proxy_array(arr, *, expected_shape: tuple, expected_dtype: type, name
 
 # Common parametrize decorators. Pure bookkeeping (counts, names, finders, aliases) runs on CPU only;
 # getters and writers keep every test device because PhysX stages through CPU-pinned buffers on CUDA.
-_backends = pytest.mark.parametrize("backend", BACKENDS, indirect=False)
+_api_backends = contract_backend("api")
+_data_backends = contract_backend("data")
+_writes_backends = contract_backend("writes")
+_index_resolution_backends = contract_backend("index_resolution")
 _devices = pytest.mark.parametrize("device", test_devices(DeviceScope.CPU_AND_DEFAULT_CUDA))
-_index_resolution_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton") if backend in BACKENDS], indirect=False
-)
-_reshape_3d_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
-)
-_production_backends = pytest.mark.parametrize(
-    "backend", [backend for backend in ("physx", "newton", "ovphysx") if backend in BACKENDS], indirect=False
-)
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +188,7 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 class TestCollectionIndexResolution:
     """Test backend-specific index resolution helpers."""
 
-    @_production_backends
+    @_api_backends
     @_devices
     def test_resolve_env_ids_handles_tensor_view_shape(self, backend, device):
         obj, _ = get_rigid_object_collection(backend, num_instances=4, device=device)
@@ -234,7 +226,7 @@ class TestCollectionIndexResolution:
 class TestCollectionViewReshape:
     """Test backend-specific view reshape helpers."""
 
-    @_reshape_3d_backends
+    @_data_backends
     @_devices
     @pytest.mark.parametrize("dtype", [torch.float32, torch.float64])
     def test_reshape_data_to_view_3d_accepts_torch_tensor(self, backend, device, dtype):
@@ -263,7 +255,7 @@ class TestCollectionViewReshape:
             assert str(warp_view.device) == device
             torch.testing.assert_close(wp.to_torch(warp_view), view)
 
-    @_reshape_3d_backends
+    @_data_backends
     @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")
     def test_reshape_data_to_view_3d_moves_torch_tensor_to_requested_device(self, backend):
         num_instances = 2
@@ -290,7 +282,7 @@ class TestCollectionViewReshape:
 class TestCollectionProperties:
     """Test that collection properties return the correct types/values."""
 
-    @_backends
+    @_api_backends
     def test_collection_counts_and_names(self, backend):
         from isaaclab.assets.rigid_object_collection.base_rigid_object_collection_data import (
             BaseRigidObjectCollectionData,
@@ -310,7 +302,7 @@ class TestCollectionProperties:
 class TestCollectionFinderReturnModes:
     """Test finder return modes on production collection backends."""
 
-    @_production_backends
+    @_api_backends
     def test_find_bodies_returns_legacy_tensor_or_cached_proxy(self, backend):
         collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
 
@@ -331,7 +323,7 @@ class TestCollectionFinderReturnModes:
         _, first_names = collection.find_bodies(first_body)
         assert first_names == [first_body]
 
-    @_production_backends
+    @_api_backends
     def test_find_objects_forwards_return_mode_with_alias_warning(self, backend):
         collection, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
 
@@ -387,7 +379,7 @@ _COLLECTION_DATA_PROPERTIES = [
 class TestCollectionDataProperties:
     """Test that every data property is a ProxyArray with the advertised shape and dtype."""
 
-    @_backends
+    @_data_backends
     @_devices
     def test_collection_data_property_contract(self, backend, device):
         obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, device)
@@ -417,7 +409,7 @@ _BODY_VEL_METHODS = {
 
 
 class TestCollectionCacheInvalidation:
-    @_production_backends
+    @_writes_backends
     def test_pose_write_invalidates_pose_dependent_caches(self, backend):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
         obj.data.update(dt=0.01)
@@ -437,7 +429,7 @@ class TestCollectionCacheInvalidation:
         obj.write_body_link_pose_to_sim_index(body_poses=body_pose)
         _assert_buffers_stale(obj.data, buffers)
 
-    @_production_backends
+    @_writes_backends
     def test_velocity_write_invalidates_body_frame_caches(self, backend):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
         obj.data.update(dt=0.01)
@@ -454,7 +446,7 @@ class TestCollectionCacheInvalidation:
         obj.write_body_com_velocity_to_sim_index(body_velocities=body_velocity)
         _assert_buffers_stale(obj.data, buffers)
 
-    @_production_backends
+    @_writes_backends
     @pytest.mark.parametrize("setter_kind", ["index", "mask"])
     def test_set_coms_invalidates_same_timestamp_dependents(self, backend, setter_kind):
         obj, _ = get_rigid_object_collection(backend, num_instances=2, num_bodies=3, device="cpu")
@@ -499,7 +491,7 @@ class TestCollectionWritersPose:
 
     # -- index variants for pose --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
     def test_write_body_pose_to_sim_index(self, backend, device, method_suffix):
@@ -542,7 +534,7 @@ class TestCollectionWritersPose:
 
     # -- index variants for velocity --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
     def test_write_body_velocity_to_sim_index(self, backend, device, method_suffix):
@@ -589,7 +581,7 @@ class TestCollectionWritersPose:
 
     # -- mask variants for pose --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_POSE_METHODS)
     def test_write_body_pose_to_sim_mask(self, backend, device, method_suffix):
@@ -635,7 +627,7 @@ class TestCollectionWritersPose:
 
     # -- mask variants for velocity --
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_suffix", _BODY_VEL_METHODS)
     def test_write_body_velocity_to_sim_mask(self, backend, device, method_suffix):
@@ -717,7 +709,7 @@ def _make_body_warp(shape: tuple[int, int], device: str, wp_dtype: type, trailin
 class TestCollectionWritersBody:
     """Test body property writers/setters with all input combinations."""
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_index(self, backend, device, method_base, kwarg):
@@ -757,7 +749,7 @@ class TestCollectionWritersBody:
         with pytest.raises((AssertionError, RuntimeError)):
             method(**{kwarg: _make_body_warp((num_instances + 1, num_bodies), device, wp_dtype, trailing)})
 
-    @_backends
+    @_writes_backends
     @_devices
     @pytest.mark.parametrize("method_base, kwarg", _BODY_METHODS, ids=[m[0] for m in _BODY_METHODS])
     def test_body_writer_mask(self, backend, device, method_base, kwarg):
@@ -820,7 +812,7 @@ _COLLECTION_ALIASES = [
 class TestCollectionDataAliases:
     """Test that alias properties return the values of their canonical counterparts."""
 
-    @_backends
+    @_data_backends
     def test_aliases_match_canonical_values(self, backend):
         # Random mock state makes link and COM quantities differ, so a retargeted alias fails.
         obj, _ = get_rigid_object_collection(backend, _NUM_INSTANCES, _NUM_BODIES, "cpu")
@@ -832,3 +824,86 @@ class TestCollectionDataAliases:
             assert alias_value.shape == canonical_value.shape, alias
             assert alias_value.dtype == canonical_value.dtype, alias
             assert torch.equal(alias_value.torch, canonical_value.torch), alias
+
+
+# ---------------------------------------------------------------------------
+# Tests: partial writes reach only the selected backend cells
+# ---------------------------------------------------------------------------
+
+# quantity -> (writer base name, writer keyword, trailing size)
+_PARTIAL_WRITES = {
+    "body_pose": ("write_body_link_pose_to_sim", "body_poses", 7),
+    "body_velocity": ("write_body_com_velocity_to_sim", "body_velocities", 6),
+    "mass": ("set_masses", "masses", 1),
+}
+
+
+def _read_backend_cells(backend: str, raw_backend, quantity: str, num_instances: int, num_bodies: int):
+    """Read one collection quantity from backend storage in public ``(env, body, ...)`` order."""
+    if backend == "physx":
+        getter = {"body_pose": "get_transforms", "body_velocity": "get_velocities", "mass": "get_masses"}[quantity]
+        # PhysX collection views are body-major.
+        values = wp.to_torch(getattr(raw_backend, getter)()).reshape(num_bodies, num_instances, -1).transpose(0, 1)
+    elif backend == "newton":
+        if quantity == "mass":
+            values = wp.to_torch(raw_backend.get_attribute("body_mass", None))
+        else:
+            getter = {"body_pose": "get_root_transforms", "body_velocity": "get_root_velocities"}[quantity]
+            values = wp.to_torch(getattr(raw_backend, getter)(None))
+    else:
+        from isaaclab_ov import tensor_types as TT
+
+        binding = {"body_pose": TT.LINK_POSE, "body_velocity": TT.LINK_VELOCITY, "mass": TT.BODY_MASS}[quantity]
+        values = torch.as_tensor(raw_backend.bindings[binding]._data)
+    return values.reshape(num_instances, num_bodies, -1).cpu().clone()
+
+
+class TestCollectionPartialWriteCells:
+    """Test that partial writers reach only the selected cells of backend storage."""
+
+    @_writes_backends
+    @pytest.mark.parametrize("selection", ["index", "mask"])
+    @pytest.mark.parametrize("quantity", _PARTIAL_WRITES)
+    def test_partial_write_preserves_unselected_backend_cells(self, request, backend, selection, quantity):
+        if backend == "ovphysx" and quantity != "mass":
+            # Product bug: OVPhysX pushes whole environment rows from a pose/velocity buffer that a partial write does
+            # not refresh first, so the unselected bodies of the selected environment receive stale (here zero) state.
+            request.applymarker(
+                pytest.mark.xfail(
+                    raises=AssertionError,
+                    strict=True,
+                    reason="OVPhysX partial body writes overwrite unselected bodies of the selected environment",
+                )
+            )
+        num_instances, num_bodies = _NUM_INSTANCES, _NUM_BODIES
+        obj, raw_backend = get_rigid_object_collection(backend, num_instances, num_bodies, "cpu")
+        writer, kwarg, trailing = _PARTIAL_WRITES[quantity]
+        # Literal, per-cell distinct payload; poses keep an identity rotation.
+        values = 100.0 * torch.arange(1, num_instances * num_bodies + 1, dtype=torch.float32).reshape(
+            num_instances, num_bodies, 1
+        ) + torch.arange(trailing, dtype=torch.float32)
+        if quantity == "body_pose":
+            values[..., 3:6] = 0.0
+            values[..., 6] = 1.0
+        if quantity == "mass":
+            values = values[..., 0]
+        before = _read_backend_cells(backend, raw_backend, quantity, num_instances, num_bodies)
+        # Select the second environment and the last body so identity or transposed routing cannot pass.
+        env, body = 1, 2
+        if selection == "index":
+            getattr(obj, f"{writer}_index")(
+                **{kwarg: values[env : env + 1, body : body + 1]},
+                env_ids=torch.tensor([env], dtype=torch.int32),
+                body_ids=_make_body_ids("cpu", [body]),
+            )
+        else:
+            getattr(obj, f"{writer}_mask")(
+                **{kwarg: values},
+                env_mask=_make_item_mask(num_instances, [env], "cpu"),
+                body_mask=_make_item_mask(num_bodies, [body], "cpu"),
+            )
+
+        after = _read_backend_cells(backend, raw_backend, quantity, num_instances, num_bodies)
+        expected = before.clone()
+        expected[env, body] = values[env, body].reshape(-1)
+        torch.testing.assert_close(after, expected, rtol=0.0, atol=0.0)

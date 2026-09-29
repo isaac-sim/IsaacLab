@@ -5,7 +5,7 @@
 
 # pyright: reportPrivateUsage=none
 
-"""Mocked cross-backend articulation ordering interface tests."""
+"""Mocked cross-backend articulation joint- and body-ordering contract cases."""
 
 from unittest.mock import MagicMock, patch
 
@@ -13,11 +13,13 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from _articulation_iface_test_utils import BACKEND_UNAVAILABLE_REASONS, BACKENDS, get_articulation
 from _pytest.mark.structures import ParameterSet
 
 from isaaclab.utils import replace
 from isaaclab.utils.buffers import TimestampedBuffer
+
+from ._articulation_contract_utils import get_articulation
+from .capabilities import backend_parameters, contract_backend, requires_backend
 
 
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
@@ -895,37 +897,21 @@ def _get_backend_body_property_tensors(backend: str, art, raw_backend) -> dict[s
 
 
 def _backend_param(backend: str, *values, **kwargs) -> ParameterSet:
-    """Build a backend parameter that skips unavailable plugins at collection time."""
-    marks = list(kwargs.pop("marks", ()))
-    marks.append(pytest.mark.skipif(backend not in BACKENDS, reason=_backend_unavailable_reason(backend)))
+    """Build an ordering parameter row that carries the backend's declared skip reason."""
+    marks = [*kwargs.pop("marks", ()), *backend_parameters("ordering", names=(backend,))[0].marks]
     return pytest.param(backend, *values, marks=marks, **kwargs)
 
 
-def _backend_unavailable_reason(backend: str) -> str:
-    """Describe why an optional articulation backend could not be imported."""
-    label = {"physx": "PhysX", "ovphysx": "OVPhysX", "newton": "Newton"}.get(backend, backend)
-    reason = f"{label} backend is not available"
-    if detail := BACKEND_UNAVAILABLE_REASONS.get(backend):
-        reason = f"{reason}: {detail}"
-    return reason
-
-
-_requires_physx = pytest.mark.skipif("physx" not in BACKENDS, reason=_backend_unavailable_reason("physx"))
-_requires_ovphysx = pytest.mark.skipif("ovphysx" not in BACKENDS, reason=_backend_unavailable_reason("ovphysx"))
-_requires_newton = pytest.mark.skipif("newton" not in BACKENDS, reason=_backend_unavailable_reason("newton"))
-_all_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx", "newton")], indirect=False
-)
-_physx_ovphysx_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "ovphysx")], indirect=False
-)
-_dynamics_ordering_backends = pytest.mark.parametrize(
-    "backend", [_backend_param(backend) for backend in ("physx", "newton")], indirect=False
-)
+_requires_physx = requires_backend("physx")
+_requires_ovphysx = requires_backend("ovphysx")
+_requires_newton = requires_backend("newton")
+_all_backends = contract_backend("ordering")
+_physx_ovphysx_backends = contract_backend("ordering", names=("physx", "ovphysx"))
+_dynamics_ordering_backends = contract_backend("ordering", names=("physx", "newton"))
 _non_mock_backends = _all_backends
 
 
-class TestArticulationDataBodyState:
+class TestArticulationOrderingBodyState:
     """Test data properties for all body states."""
 
     @_non_mock_backends
@@ -1859,7 +1845,7 @@ class TestArticulationOrderingWriteParity:
         np.testing.assert_array_equal(pushed_after_partial_write, expected_backend)
 
 
-class TestArticulationDataJointState:
+class TestArticulationOrderingJointState:
     """Test data properties for joint state and joint properties."""
 
     @_requires_ovphysx
@@ -1975,7 +1961,7 @@ def _make_item_mask(total: int, selected: list[int], device: str) -> wp.array:
 # ---------------------------------------------------------------------------
 
 
-class TestArticulationOperations:
+class TestArticulationOrderingOperations:
     """Test cross-cutting articulation operations."""
 
     @_non_mock_backends
@@ -2230,7 +2216,7 @@ class TestArticulationOperations:
             art._validate_cfg()
 
 
-class TestArticulationWritersJoint:
+class TestArticulationOrderingJointWriters:
     """Test joint writers/setters with all input combinations."""
 
     @_non_mock_backends
@@ -2350,7 +2336,7 @@ class TestArticulationWritersJoint:
                 )
 
 
-class TestArticulationWritersBody:
+class TestArticulationOrderingBodyWriters:
     """Test body property writers/setters with all input combinations."""
 
     @_non_mock_backends
