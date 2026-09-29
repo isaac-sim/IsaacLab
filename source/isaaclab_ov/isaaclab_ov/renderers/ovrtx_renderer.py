@@ -31,6 +31,7 @@ import weakref
 from builtins import ExceptionGroup
 from collections import deque
 from collections.abc import Iterator, Sequence
+from itertools import chain
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, NoReturn, cast
 
@@ -413,6 +414,8 @@ class OVRTXRenderer(BaseRenderer):
         self._object_scales: wp.array | None = None
         self._object_scales_by_path: dict[str, tuple[float, float, float]] = {}
         self._geometry_paths: list[str] = []
+        self._geometry_offsets: dict[str, int] = {}
+        self._geometry_writes = deque()
         self._geometry_timestamp = -1
         self._initialized_scene = False
         self._exported_usd_string: str | None = None
@@ -636,12 +639,6 @@ class OVRTXRenderer(BaseRenderer):
 
         self._setup_xform_bindings_legacy()
         self._setup_geometry_bindings_legacy()
-        if self.cfg.async_rendering and self._geometry_points_binding is not None:
-            logger.warning(
-                "Asynchronous rendering is enabled, but this scene has deformable, particle, or"
-                " cable geometry. Their blocking writes wait for the render still in flight, so"
-                " expect little to no throughput gain over synchronous rendering."
-            )
 
     def _clone_sources(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
@@ -748,9 +745,18 @@ class OVRTXRenderer(BaseRenderer):
 
     def _setup_geometry_bindings_legacy(self) -> None:
         """Bind SDP's authored point prims without depending on their physics representation."""
-        self._geometry_paths = list(self._sdp.get_geometry_points())
+        points = self._sdp.get_geometry_points()
+        self._geometry_paths = list(points)
         if not self._geometry_paths:
             return
+        if self.cfg.async_rendering:
+            count = 0
+            for path, array in points.items():
+                self._geometry_offsets[path] = count
+                count += len(array)
+            self._geometry_writes = deque(
+                (wp.empty(count, dtype=wp.vec3f, device=self._device), None, None) for _ in range(2)
+            )
         prim_count = len(self._geometry_paths)
         # Published points are world-space; do not apply inherited transforms a second time.
         self.backend.renderer.write_attribute(
@@ -1549,11 +1555,22 @@ class OVRTXRenderer(BaseRenderer):
         binding = self._geometry_points_query if self._use_ovstage else self._geometry_points_binding
         if binding is None:
             return
-        points = self._sdp.get_geometry_points()
+        stream = self._warp_device.stream
+        if self._geometry_writes:
+            output, operation, producer = self._geometry_writes[0]
+            if operation is not None:
+                operation.wait()
+                if producer != stream:
+                    stream.wait_stream(producer)
+            self._sdp.get_geometry_points(output=output, offsets=self._geometry_offsets)
+            offsets = list(self._geometry_offsets.values())
+            points = [output[start:end] for start, end in zip(offsets, [*offsets[1:], len(output)], strict=True)]
+        else:
+            points = self._sdp.get_geometry_points()
+            points = [points[path] for path in self._geometry_paths]
         timestamp = self._sdp.backend.geometry_timestamp
         if self._geometry_timestamp == timestamp:
             return
-        points = [points[path] for path in self._geometry_paths]
         if self._use_ovstage:
             self.backend.stage.write_attribute(
                 binding,
@@ -1564,10 +1581,14 @@ class OVRTXRenderer(BaseRenderer):
                 semantic=ovstage.AttributeSemantic.POINT,
                 cuda_stream=self._warp_device.stream.cuda_stream,
             ).wait()
-        else:
-            binding.write(
-                cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=self._warp_device.stream.cuda_stream
+        elif self._geometry_writes:
+            operation = binding.write_async(
+                cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream
             )
+            self._geometry_writes[0] = (output, operation, stream)
+            self._geometry_writes.rotate(-1)
+        else:
+            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
         self._geometry_timestamp = timestamp
 
     def update_camera(
@@ -1668,12 +1689,14 @@ class OVRTXRenderer(BaseRenderer):
                 resources.callback(self._close_ovstage if self._use_ovstage else self._close_legacy)
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
-                for _, operation, producer in self._transform_writes:
+                for _, operation, producer in chain(self._transform_writes, self._geometry_writes):
                     if operation is not None:
                         resources.callback(wp.synchronize_stream, producer)
                         resources.callback(operation.wait)
         finally:
             self._transform_writes = deque((SceneDataFormat.TransposedMatrix44d(), None, None) for _ in range(2))
+            self._geometry_writes.clear()
+            self._geometry_offsets.clear()
             self._geometry_paths = []
             self._geometry_timestamp = -1
             self._transforms = TimestampedBuffer(SceneDataFormat.TransposedMatrix44d())

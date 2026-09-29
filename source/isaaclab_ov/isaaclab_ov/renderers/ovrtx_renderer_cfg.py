@@ -57,7 +57,7 @@ class OVRTXRendererCfg(RendererCfg):
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
     async_rendering: bool = False
-    """Trade one frame of camera latency for pipelined rendering. Defaults to False (synchronous).
+    """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).
 
     Each camera returns its previous capture while rendering its next image. The first capture
     and the first capture after reset wait for a fresh image. Live pose and calibration fields

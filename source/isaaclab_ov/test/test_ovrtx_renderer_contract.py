@@ -89,6 +89,8 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
     renderer._transform_writes = deque()
+    renderer._geometry_writes = deque()
+    renderer._geometry_offsets = {}
     renderer._use_ovstage = False
     return renderer
 
@@ -493,14 +495,19 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
 
 @pytest.mark.integration
 @pytest.mark.rendering
-@pytest.mark.parametrize("batch", [False, True], ids=["lazy", "batched"])
-def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
+@pytest.mark.parametrize(
+    "geometry, batch",
+    [("rigid", False), ("rigid", True), ("mesh", False), ("particles", True), ("cable", True)],
+    ids=["rigid-lazy", "rigid-batched", "mesh-lazy", "particles-batched", "cable-batched"],
+)
+def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch, geometry):
     """Two asynchronous cameras keep their own capture cadence, input buffers and reset boundary."""
     from pxr import Gf, Usd, UsdGeom, UsdLux
 
     from isaaclab.assets import AssetBaseCfg
     from isaaclab.cloner import make_clone_plan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+    from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
     from isaaclab.utils.math import convert_camera_frame_orientation_convention
     from isaaclab.utils.warp import ProxyArray
 
@@ -513,17 +520,51 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
     UsdLux.DomeLight.Define(stage, "/World/Light").CreateIntensityAttr(1000.0)
     UsdGeom.Xform.Define(stage, "/World/envs/env_0")
     UsdGeom.Xform.Define(stage, "/World/envs/env_1")
+    batches, initial_points = [], []
     for index, x in enumerate((0.0, 2.0)):
         camera = UsdGeom.Camera.Define(stage, f"/World/envs/env_0/cam{index}")
         camera.CreateProjectionAttr("orthographic")
         camera.CreateHorizontalApertureAttr(20.0)
         camera.CreateVerticalApertureAttr(20.0)
         camera.AddTranslateOp().Set(Gf.Vec3d(x, 0, 5))
-        cube = UsdGeom.Cube.Define(stage, f"/World/envs/env_0/cube{index}")
-        cube.CreateSizeAttr(1.0)
-        cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
+        path = f"/World/envs/env_0/object{index}"
+        if geometry == "rigid":
+            cube = UsdGeom.Cube.Define(stage, path)
+            cube.CreateSizeAttr(1.0)
+            cube.AddTranslateOp().Set(Gf.Vec3d(x, 0, index))
+            continue
+        if geometry == "mesh":
+            prim = UsdGeom.Mesh.Define(stage, path)
+            prim.CreateFaceVertexCountsAttr([4])
+            prim.CreateFaceVertexIndicesAttr([0, 1, 2, 3])
+            vertices = [
+                (x - 0.5, -0.5, index + 0.5),
+                (x + 0.5, -0.5, index + 0.5),
+                (x + 0.5, 0.5, index + 0.5),
+                (x - 0.5, 0.5, index + 0.5),
+            ]
+        elif geometry == "particles":
+            prim = UsdGeom.Points.Define(stage, path)
+            prim.CreateWidthsAttr([1.0])
+            vertices = [(x, 0, index)]
+        else:
+            prim = UsdGeom.BasisCurves.Define(stage, path)
+            prim.CreateTypeAttr("linear")
+            prim.CreateWrapAttr("nonperiodic")
+            prim.CreateCurveVertexCountsAttr([3])
+            prim.CreateWidthsAttr([1.0])
+            prim.SetWidthsInterpolation("constant")
+            vertices = [(x, -0.5, index), (x, 0, index), (x, 0.5, index)]
+        prim.CreatePointsAttr(vertices)
+        initial_points.append(np.asarray(vertices, dtype=np.float32))
+        source = SceneDataFormat.Points()
+        source.points = wp.array(vertices, dtype=wp.vec3f, device="cuda:0")
+        batches.append((source, {path.replace("env_0", f"env_{world}"): (0, len(vertices)) for world in range(2)}))
 
     renderer = OVRTXRenderer(OVRTXRendererCfg(async_rendering=True))
+    publication = types.SimpleNamespace(geometry_timestamp=0, get_geometry_batches=lambda _format: batches)
+    renderer._sdp = SceneDataProvider(publication)
+    publication.transform_paths = []
     renderer._exported_usd_string = stage.ExportToString()
     renderer._clone_plan = make_clone_plan(
         (AssetBaseCfg(prim_path="/World/envs/env_[^/]+"),), ((0,),), 2, positions=np.zeros((2, 3), dtype=np.float32)
@@ -561,6 +602,7 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
             renderer.set_outputs(rd, data.output)
             cameras.append((rd, data))
 
+        renderer.update_geometries()
         # Each camera's first frame is primed, so the first read is already valid and independent.
         for index, (rd, data) in enumerate(cameras):
             renderer.render(rd)
@@ -611,10 +653,28 @@ def test_ovrtx_async_cameras_share_the_pipeline(monkeypatch, batch):
         renderer.render(cameras[0][0])
         renderer.read_output(*cameras[0])
         assert_depth(*cameras[0], 8.5)
+        if batches:
+            for height in (1.0, 2.0, 3.0):
+                with wp.ScopedStream(wp.Stream("cuda:0")):
+                    for (source, _), vertices in zip(batches, initial_points, strict=True):
+                        source.points.assign(vertices + (0, 0, height))
+                    publication.geometry_timestamp += 1
+                    renderer.update_geometries()
+                    # Physics can immediately reuse its live storage while OVRTX reads its snapshot.
+                    for source, _ in batches:
+                        source.points.fill_(wp.vec3f(-100))
+                    step()
+                    wp.synchronize_stream()
+                assert_depth(*cameras[0], 8.5 - (height - 1))
+                assert_depth(*cameras[1], 5.5 - (height - 1))
+            renderer.reset(cameras[1][0], [0])
+            renderer.render(cameras[1][0])
+            renderer.read_output(*cameras[1])
+            assert_depth(*cameras[1], 2.5)
         renderer.cleanup(cameras[0][0])
         renderer.render(cameras[1][0])
         renderer.read_output(*cameras[1])
-        assert_depth(*cameras[1], 5.5)
+        assert_depth(*cameras[1], 2.5 if batches else 5.5)
     finally:
         try:
             renderer.close()
