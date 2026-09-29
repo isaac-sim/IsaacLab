@@ -101,6 +101,7 @@ class BaseDeformableObjectData(ABC):
 
     @property
     @abstractmethod
+    # Per mesh node: world-frame position [m] and linear velocity [m/s], ordered [x, y, z, vx, vy, vz].
     @leapp_tensor_semantics(kind="state/deformable/nodal_state")
     def nodal_state_w(self) -> ProxyArray:
         """Nodal state ``[nodal_pos, nodal_vel]`` in simulation world frame [m, m/s].

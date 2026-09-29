@@ -93,7 +93,7 @@ class CameraData:
         return self._intrinsic_matrices
 
     @property
-    @leapp_tensor_semantics(kind="state/camera/output")
+    @leapp_tensor_semantics(kind="state/camera/image")
     def output(self) -> dict[str, ProxyArray] | None:
         """The retrieved sensor data with sensor types as key.
 
