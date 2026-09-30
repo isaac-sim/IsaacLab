@@ -1,6 +1,97 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.10.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added opt-in ``XrCameraFeedLayoutCfg.use_scene_partition`` to exclude shared SceneUI
+  from robot cameras. Preparation disabled environment partitioning and all-partitions
+  rendering before camera initialization, keeping the single environment shared while
+  the XR camera and SceneUI used a dedicated PiP partition. Prior camera, renderer, and
+  session-layer settings were restored after the final owner closed, including failures
+  during environment construction.
+
+Fixed
+^^^^^
+
+* Fixed head-locked XR camera panels to follow the complete display pose.
+* Hid panels during tracking loss or partition conflicts and restored them after recovery.
+* Fixed first-panel startup to establish the SceneUI partition before waiting for panel visibility.
+* Refreshed partition inheritance when SceneUI children appeared, preventing recursive camera feeds after startup
+  or stage replacement without rewriting the partition every frame.
+* Preserved positional construction of ``XrCameraFeedLayoutCfg``.
+* Preserved requested PiP denoising settings without importing Isaac Sim during configuration preparation.
+
+
+0.9.0 (2026-09-10)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the ``ISAACLAB_CXR_ACCEPT_EULA=1`` environment variable, which accepts the NVIDIA
+  CloudXR license up front wherever Isaac Lab launches the CloudXR runtime -- both the teleop
+  session lifecycle and the process-scoped launcher in ``teleop_replay_agent.py``, which share
+  one :func:`~isaaclab_teleop.cloudxr_eula_accepted` helper. The license is separate from the
+  Omniverse one and was otherwise only ever prompted for on stdin, so headless, container and
+  CI runs aborted with
+  ``RuntimeError: CloudXR EULA was not accepted; cannot start the runtime``.
+
+
+0.8.4 (2026-09-05)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed demonstration recording for tasks whose rewards reference the ``success``
+  termination term.
+
+
+0.8.3 (2026-09-03)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed ``from isaaclab_teleop import IsaacTeleopDevice`` raising ``ModuleNotFoundError: No module named 'carb'``
+  on hosts without Isaac Sim installed. :mod:`~isaaclab_teleop.xr_anchor_manager` now imports ``carb`` with the
+  same optional fallback it already used for ``omni.kit.xr.core``, so headless sessions that never start an XR
+  runtime can import the device. The XR render and anchor settings are skipped when Kit is absent; behavior with
+  Kit present is unchanged.
+
+
+0.8.2 (2026-09-01)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the XR headset receiving noise instead of the rendered scene on multi-GPU hosts.
+  The auto-launched CloudXR runtime selected its own device, and because Vulkan's physical
+  device enumeration is unrelated to the CUDA ordering Isaac Lab picks the simulation and
+  renderer devices with, the compositor could end up on a different GPU than the one holding
+  the rendered swapchain. The runtime is now pinned to the renderer's CUDA device via
+  ``NV_CXR_GPU_INDEX_CUDA``; an index already set in the environment or in the
+  ``--cloudxr_env`` profile is left untouched.
+
+
+0.8.1 (2026-08-28)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed the ``isaaclab teleop run``, ``record``, and ``replay`` workflows rejecting Hydra-style
+  task selectors such as ``physics=isaacsim_physx presets=diffik``. The workflows now resolve task
+  configurations through the shared preset-aware path and expose the selector syntax in ``--help``.
+
+
 0.8.0 (2026-08-08)
 ~~~~~~~~~~~~~~~~~~
 
