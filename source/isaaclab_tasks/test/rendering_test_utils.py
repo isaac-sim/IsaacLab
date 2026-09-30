@@ -1961,9 +1961,6 @@ def rendering_test_lift_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
-    # The goldens predate the visible table, so keep it hidden until they are regenerated.
-    env_cfg.scene.table.spawn.visible = False
-
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
