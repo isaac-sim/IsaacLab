@@ -44,7 +44,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.25, 0.15, 0.15)),
 )
-"""Table the object rests on, tinted by the command term once the goal is reached."""
+"""Table the object rests on."""
 
 OBJECT_PHYSICS = {
     "physics_material": RigidBodyMaterialCfg(static_friction=0.5),
@@ -167,7 +167,6 @@ class CommandsCfg:
             yaw=(0.0, 0.0),
         ),
         success_vis_material_name="table_material",
-        success_vis_colors=((0.25, 0.15, 0.15), (0.15, 0.25, 0.15)),
     )
 
 

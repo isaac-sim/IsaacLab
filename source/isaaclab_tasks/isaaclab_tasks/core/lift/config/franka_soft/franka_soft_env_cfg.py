@@ -64,7 +64,7 @@ TABLE_SPAWN_CFG = sim_utils.CuboidCfg(
     collision_props=sim_utils.UsdPhysicsCollisionCfg(),
     visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
 )
-"""Table whose top surface sits at z = 0, tinted by the command term once the goal is reached."""
+"""Table collider whose top surface sits at z = 0."""
 
 FRANKA_CAMERA_CFG = CameraCfg(
     prim_path="{ENV_REGEX_NS}/Camera",
@@ -214,7 +214,7 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
 
     deformable: DeformableCfg = DeformableCfg()
 
-    # static table
+    # static table collider
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
@@ -324,7 +324,6 @@ class CommandsCfg:
             pitch=(0.0, 0.0),
             yaw=(0.0, 0.0),
         ),
-        # the table turns green once the goal is reached
         success_vis_material_name="table_material",
         success_vis_colors=((0.8, 0.5, 0.5), (0.5, 0.8, 0.5)),
     )
