@@ -5,10 +5,8 @@
 
 __all__ = [
     "BaseVisualizer",
-    "Visualizer",
     "VisualizerCfg",
 ]
 
 from .base_visualizer import BaseVisualizer
-from .visualizer import Visualizer
 from .visualizer_cfg import VisualizerCfg

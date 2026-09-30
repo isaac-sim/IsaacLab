@@ -537,7 +537,7 @@ class IsaacTeleopDevice:
 def _enable_teleop_bridge() -> None:
     """Enable the XR teleop bridge extension and configure carb settings.
 
-    Must be called after the Omniverse AppLauncher has started.
+    Must be called after the Kit launcher has started.
     """
     import carb.settings
     import omni.kit.app
