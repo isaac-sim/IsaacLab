@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from typing import ClassVar, Literal
 
@@ -27,7 +26,7 @@ from isaaclab.sim.schemas.schemas_cfg import (
     deprecate_field_alias,
     deprecated_schema_cfg,
 )
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, warn_from_post_init
 
 
 @configclass
@@ -173,11 +172,10 @@ class DeformableBodyPropertiesCfg(PhysxDeformableBodyPropertiesCfg):
     """
 
     def __post_init__(self):
-        warnings.warn(
+        warn_from_post_init(
             "'DeformableBodyPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxDeformableBodyPropertiesCfg' instead.",
             DeprecationWarning,
-            stacklevel=2,
         )
         super().__post_init__()
 
@@ -1254,11 +1252,10 @@ class FixedTendonPropertiesCfg(PhysxFixedTendonPropertiesCfg):
     """
 
     def __post_init__(self):
-        warnings.warn(
+        warn_from_post_init(
             "'FixedTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxFixedTendonPropertiesCfg' instead.",
             DeprecationWarning,
-            stacklevel=2,
         )
         super().__post_init__()
 
@@ -1311,11 +1308,10 @@ class SpatialTendonPropertiesCfg(PhysxSpatialTendonPropertiesCfg):
     """
 
     def __post_init__(self):
-        warnings.warn(
+        warn_from_post_init(
             "'SpatialTendonPropertiesCfg' is deprecated and will be removed in 3.2. Use"
             " 'isaaclab_physx.sim.schemas.PhysxSpatialTendonPropertiesCfg' instead.",
             DeprecationWarning,
-            stacklevel=2,
         )
         super().__post_init__()
 

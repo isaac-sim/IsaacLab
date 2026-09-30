@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 from pathlib import Path
 
@@ -18,6 +19,8 @@ from isaaclab_tasks.utils.hydra import resolve_task_config
 
 from ...app import add_launcher_args, launch_simulation
 from ...app.sim_launcher import fuse_kit_args
+
+logger = logging.getLogger(__name__)
 
 
 def command_deploy_leapp(argv: list[str] | None = None) -> int:
@@ -61,8 +64,8 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             env = LeappDeploymentEnv(env_cfg, args_cli.pipeline)
 
             if getattr(args_cli, "headless", False):
-                print(
-                    "[WARN]: Running deploy without a viewport. This happens when headless mode is active, "
+                logger.warning(
+                    "Running deploy without a viewport. This happens when headless mode is active, "
                     "including the default case where no visualizer was selected. The policy may be "
                     "stepping normally, but no viewport will appear unless you specify the "
                     "`--visualizer` field."

@@ -39,10 +39,13 @@ if TYPE_CHECKING:
 import argparse
 import cProfile
 import importlib.util
+import logging
 import os
 import sys
 import time
 from datetime import datetime, timezone
+
+logger = logging.getLogger(__name__)
 
 _PHASE_ORDER = ("python_imports", "task_config", "app_launch", "env_creation", "first_step")
 _VALID_PHASES = set(_PHASE_ORDER)
@@ -133,9 +136,8 @@ def _load_whitelist(path: str | None) -> dict[str, list[str]]:
 
     unknown = set(raw) - _VALID_PHASES
     if unknown:
-        print(
-            f"[WARNING] Whitelist config contains unknown phase(s): {unknown}. "
-            f"Valid phases: {_VALID_PHASES}. Check for typos."
+        logger.warning(
+            f"Whitelist config contains unknown phase(s): {unknown}. Valid phases: {_VALID_PHASES}. Check for typos."
         )
     for phase_name, patterns in raw.items():
         if not isinstance(patterns, list) or not all(isinstance(pattern, str) for pattern in patterns):

@@ -5,6 +5,7 @@
 
 """Tests for handle_deprecated_rsl_rl_cfg across rsl-rl version boundaries."""
 
+import logging
 from dataclasses import MISSING
 
 import pytest
@@ -22,6 +23,9 @@ from isaaclab_rl.rsl_rl import (
     RslRlRNNModelCfg,
 )
 from isaaclab_rl.rsl_rl.utils import handle_deprecated_rsl_rl_cfg, is_missing
+
+# Most tests feed legacy configs on purpose; the tests that check the migration warning use ``pytest.warns``.
+pytestmark = pytest.mark.filterwarnings("ignore:.*will not be supported starting with Isaac Lab 3.1:FutureWarning")
 
 
 def _ppo_algo():
@@ -140,19 +144,21 @@ class TestBelow4:
         with pytest.raises(ValueError, match="policy"):
             handle_deprecated_rsl_rl_cfg(make_runner(algorithm=make_algo()), "3.0.0")
 
-    def test_preserves_policy(self, capsys):
+    def test_preserves_policy(self, caplog):
         cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
+        with caplog.at_level(logging.WARNING):
+            handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
         assert not is_missing(cfg.policy)
         assert cfg.policy.actor_hidden_dims == [256, 256]
-        assert "optimizer" not in capsys.readouterr().out
+        assert "optimizer" not in caplog.text
 
-    def test_removes_optimizer_with_warning_for_non_adam(self, capsys):
+    def test_removes_optimizer_with_warning_for_non_adam(self, caplog):
         algo = _ppo_algo()
         algo.optimizer = "adamw"
         cfg = _on_policy_runner(policy=_ppo_mlp_policy(), algorithm=algo)
-        handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
-        assert "optimizer" in capsys.readouterr().out.lower()
+        with caplog.at_level(logging.WARNING):
+            handle_deprecated_rsl_rl_cfg(cfg, "3.0.0")
+        assert "optimizer" in caplog.text.lower()
 
     def test_distillation_optimizer_untouched(self):
         cfg = _distillation_runner(policy=_distillation_mlp_policy(), algorithm=_distillation_algo())
@@ -195,7 +201,7 @@ class TestBelow4:
 # ===================================================================
 class TestV4:
     # PPO tests
-    def test_infers_mlp_actor_critic(self, capsys):
+    def test_infers_mlp_actor_critic(self):
         p = RslRlPpoActorCriticCfg(
             actor_hidden_dims=[512],
             critic_hidden_dims=[64],
@@ -207,7 +213,8 @@ class TestV4:
             state_dependent_std=True,
         )
         cfg = _on_policy_runner(policy=p, algorithm=_ppo_algo())
-        handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
+        with pytest.warns(FutureWarning, match="will not be supported starting with Isaac Lab 3.1"):
+            handle_deprecated_rsl_rl_cfg(cfg, "4.0.0")
 
         assert isinstance(cfg.actor, RslRlMLPModelCfg) and not isinstance(cfg.actor, RslRlRNNModelCfg)
         assert is_missing(cfg.policy)
@@ -220,7 +227,6 @@ class TestV4:
         assert isinstance(cfg.critic, RslRlMLPModelCfg) and not isinstance(cfg.critic, RslRlRNNModelCfg)
         assert cfg.critic.hidden_dims == [64]
         assert cfg.critic.stochastic is False
-        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_infers_rnn_actor_critic(self):
         p = RslRlPpoActorCriticRecurrentCfg(
@@ -351,12 +357,13 @@ class TestV4:
 # ===================================================================
 class TestV5:
     # Distribution tests
-    def test_gaussian_from_stochastic(self, capsys):
+    def test_gaussian_from_stochastic(self):
         a = _mlp_model()
         a.init_noise_std = 0.5
         a.noise_std_type = "log"
         cfg = _on_policy_runner(algorithm=_ppo_algo(), actor=a)
-        handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
+        with pytest.warns(FutureWarning, match="will not be supported starting with Isaac Lab 3.1"):
+            handle_deprecated_rsl_rl_cfg(cfg, "5.0.0")
 
         d = cfg.actor.distribution_cfg
         assert isinstance(d, RslRlMLPModelCfg.GaussianDistributionCfg)
@@ -365,7 +372,6 @@ class TestV5:
         assert d.std_type == "log"
         for name in ("stochastic", "init_noise_std", "noise_std_type", "state_dependent_std"):
             assert not hasattr(cfg.actor, name)
-        assert "will not be supported starting with Isaac Lab 3.1" in capsys.readouterr().out
 
     def test_heteroscedastic_from_stochastic(self):
         a = _mlp_model()

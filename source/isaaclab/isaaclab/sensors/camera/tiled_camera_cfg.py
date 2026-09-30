@@ -3,10 +3,9 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warnings
 from typing import TYPE_CHECKING
 
-from ...utils import configclass
+from ...utils import configclass, warn_from_post_init
 from .camera_cfg import CameraCfg
 
 if TYPE_CHECKING:
@@ -31,9 +30,8 @@ class TiledCameraCfg(CameraCfg):
             from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
-        warnings.warn(
+        warn_from_post_init(
             "TiledCameraCfg is deprecated. Use CameraCfg directly — "
             "Camera now includes TiledCamera's vectorized rendering optimizations.",
             DeprecationWarning,
-            stacklevel=2,
         )

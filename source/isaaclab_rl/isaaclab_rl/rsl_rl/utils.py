@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import importlib.metadata
 import inspect
+import logging
+import warnings
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -29,6 +31,8 @@ from .rl_cfg import (
 
 if TYPE_CHECKING:
     from rsl_rl.env import VecEnv
+
+logger = logging.getLogger(__name__)
 
 RSL_RL_MIN_VERSION = "5.0.1"
 """Oldest rsl-rl-lib release supported by the entrypoints."""
@@ -108,8 +112,8 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
         # remove optimizer argument for PPO only available in rsl-rl >= 4.0.0
         if hasattr(agent_cfg.algorithm, "optimizer") and isinstance(agent_cfg.algorithm, RslRlPpoAlgorithmCfg):
             if agent_cfg.algorithm.optimizer != "adam":
-                print(
-                    "[WARNING]: The `optimizer` parameter for PPO is only available for rsl-rl >= 4.0.0. Consider"
+                logger.warning(
+                    "The `optimizer` parameter for PPO is only available for rsl-rl >= 4.0.0. Consider"
                     " updating rsl-rl to use this feature. Defaulting to `adam` optimizer."
                 )
             del agent_cfg.algorithm.optimizer
@@ -123,10 +127,12 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
     else:
         # Handle deprecated policy configuration
         if _has_non_missing_attr(agent_cfg, "policy"):
-            print(
-                "[WARNING]: The `policy` configuration is deprecated for rsl-rl >= 4.0.0. Please use, e.g., `actor` and"
+            warnings.warn(
+                "The `policy` configuration is deprecated for rsl-rl >= 4.0.0. Please use, e.g., `actor` and"
                 " `critic` model configurations instead. Older rsl-rl configurations will not be supported"
-                " starting with Isaac Lab 3.1. Please migrate your configuration."
+                " starting with Isaac Lab 3.1. Please migrate your configuration.",
+                FutureWarning,
+                stacklevel=2,
             )
 
             # handle deprecated obs_normalization argument
@@ -135,7 +141,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
 
             # set actor model configuration if missing
             if hasattr(agent_cfg, "actor") and is_missing(agent_cfg.actor):
-                print("[WARNING]: The `policy` configuration is used to infer the `actor` model configuration.")
+                logger.warning("The `policy` configuration is used to infer the `actor` model configuration.")
                 if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
                     agent_cfg.actor = RslRlMLPModelCfg(
                         hidden_dims=agent_cfg.policy.actor_hidden_dims,
@@ -161,7 +167,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                     )
             # set critic model configuration if missing
             if hasattr(agent_cfg, "critic") and is_missing(agent_cfg.critic):
-                print("[WARNING]: The `policy` configuration is used to infer the `critic` model configuration.")
+                logger.warning("The `policy` configuration is used to infer the `critic` model configuration.")
                 if type(agent_cfg.policy) is RslRlPpoActorCriticCfg:
                     agent_cfg.critic = RslRlMLPModelCfg(
                         hidden_dims=agent_cfg.policy.critic_hidden_dims,
@@ -181,7 +187,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                     )
             # set student model configuration if missing
             if hasattr(agent_cfg, "student") and is_missing(agent_cfg.student):
-                print("[WARNING]: The `policy` configuration is used to infer the `student` model configuration.")
+                logger.warning("The `policy` configuration is used to infer the `student` model configuration.")
                 if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
                     agent_cfg.student = RslRlMLPModelCfg(
                         hidden_dims=agent_cfg.policy.student_hidden_dims,
@@ -205,7 +211,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
                     )
             # set teacher model configuration if missing
             if hasattr(agent_cfg, "teacher") and is_missing(agent_cfg.teacher):
-                print("[WARNING]: The `policy` configuration is used to infer the `teacher` model configuration.")
+                logger.warning("The `policy` configuration is used to infer the `teacher` model configuration.")
                 if type(agent_cfg.policy) is RslRlDistillationStudentTeacherCfg:
                     agent_cfg.teacher = RslRlMLPModelCfg(
                         hidden_dims=agent_cfg.policy.teacher_hidden_dims,
@@ -246,7 +252,7 @@ def handle_deprecated_rsl_rl_cfg(agent_cfg: RslRlBaseRunnerCfg, installed_versio
 
         if "use_mixed_precision" not in inspect.signature(PPO.__init__).parameters:
             if agent_cfg.algorithm.use_mixed_precision:
-                print("[WARNING]: The installed rsl-rl does not support `use_mixed_precision`. Ignoring it.")
+                logger.warning("The installed rsl-rl does not support `use_mixed_precision`. Ignoring it.")
             del agent_cfg.algorithm.use_mixed_precision
 
     return agent_cfg
@@ -264,10 +270,12 @@ def _has_non_missing_attr(obj: Any, attr_name: str) -> bool:
 
 def _handle_empirical_normalization(policy_cfg: Any, agent_cfg: Any) -> None:
     """Migrate the deprecated runner-level ``empirical_normalization`` flag onto the policy config."""
-    print(
-        "[WARNING]: The `empirical_normalization` parameter is deprecated. Please set `actor_obs_normalization` and"
+    warnings.warn(
+        "The `empirical_normalization` parameter is deprecated. Please set `actor_obs_normalization` and"
         " `critic_obs_normalization` as part of the `policy` configuration instead. Older rsl-rl configurations"
-        " will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
+        " will not be supported starting with Isaac Lab 3.1. Please migrate your configuration.",
+        FutureWarning,
+        stacklevel=3,
     )
     if is_missing(policy_cfg.actor_obs_normalization):
         policy_cfg.actor_obs_normalization = agent_cfg.empirical_normalization
@@ -278,8 +286,8 @@ def _handle_empirical_normalization(policy_cfg: Any, agent_cfg: Any) -> None:
 
 def _clear_new_model_cfg(agent_cfg: Any, model_name: str) -> None:
     """Drop a model config that only rsl-rl >= 4.0.0 understands."""
-    print(
-        f"[WARNING]: The `{model_name}` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
+    logger.warning(
+        f"The `{model_name}` model configuration is only used for rsl-rl >= 4.0.0. Consider updating rsl-rl"
         " or use the `policy` configuration for rsl-rl < 4.0.0."
     )
     setattr(agent_cfg, model_name, MISSING)
@@ -301,11 +309,13 @@ def _update_distribution_cfg(model_cfg: Any) -> None:
     """Migrate the legacy stochastic parameters to ``distribution_cfg`` for rsl-rl >= 5.0.0."""
     if model_cfg.distribution_cfg is None and model_cfg.stochastic is True:
         # a stochastic output was requested through the legacy parameters
-        print(
-            "[WARNING]: The `distribution_cfg` configuration is now used to specify the output distribution for"
+        warnings.warn(
+            "The `distribution_cfg` configuration is now used to specify the output distribution for"
             " stochastic policies. Consider updating the configuration to use `distribution_cfg` instead of"
             " `stochastic`, `init_noise_std`, `noise_std_type`, and `state_dependent_std` parameters. Older rsl-rl"
-            " configurations will not be supported starting with Isaac Lab 3.1. Please migrate your configuration."
+            " configurations will not be supported starting with Isaac Lab 3.1. Please migrate your configuration.",
+            FutureWarning,
+            stacklevel=3,
         )
         if model_cfg.state_dependent_std is False:  # gaussian distribution
             model_cfg.distribution_cfg = RslRlMLPModelCfg.GaussianDistributionCfg(

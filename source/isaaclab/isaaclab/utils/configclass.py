@@ -10,6 +10,7 @@ import inspect
 import re
 import sys
 import types
+import warnings
 from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import MISSING, Field, dataclass, field
@@ -181,6 +182,30 @@ def validate(cfg: Any) -> Any:
         ValueError: If a configuration's validation hook rejects its values.
     """
     return cfg.validate()
+
+
+def warn_from_post_init(message: str, category: type[Warning]) -> None:
+    """Emit a warning from a config ``__post_init__``, attributed to the code that created the config.
+
+    :func:`configclass` wraps ``__post_init__`` once per decorated class in the hierarchy, and subclasses
+    may chain to their parents with ``super().__post_init__()``, so a fixed ``stacklevel`` points at a
+    different frame depending on the class. This helper skips every ``__post_init__`` frame, the
+    :func:`configclass` wrappers, and the :mod:`dataclasses` machinery, so the warning points at the line
+    that constructed the config.
+
+    Args:
+        message: The warning message.
+        category: The warning category, e.g. :class:`DeprecationWarning` or :class:`UserWarning`.
+    """
+    # dataclasses generate ``__init__`` with ``exec``, which gives its frame the ``<string>`` filename;
+    # ``dataclasses.replace`` adds a frame when the config is created through :func:`replace`
+    skipped_files = (__file__, dataclasses.__file__, "<string>")
+    frame = sys._getframe(1)
+    stacklevel = 2
+    while frame is not None and (frame.f_code.co_name == "__post_init__" or frame.f_code.co_filename in skipped_files):
+        frame = frame.f_back
+        stacklevel += 1
+    warnings.warn(message, category, stacklevel=stacklevel)
 
 
 def _field_module_dir(obj: Any, key: str | None = None) -> str | None:

@@ -7,13 +7,12 @@
 
 from __future__ import annotations
 
-import warnings
 from typing import TYPE_CHECKING, Any
 
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 
 from isaaclab.renderers import RendererCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, warn_from_post_init
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
 
 if TYPE_CHECKING:
@@ -43,11 +42,10 @@ class NewtonVisualizerCfg(VisualizerCfg):
     def __post_init__(self) -> None:
         super().__post_init__()
         if type(self) is NewtonVisualizerCfg:
-            warnings.warn(
+            warn_from_post_init(
                 "NewtonVisualizerCfg is deprecated and will be removed in a future release. "
                 "Use NewtonGLVisualizerCfg (OpenGL rasterizer) or NewtonRTXVisualizerCfg (OVRTX path tracer) instead.",
                 DeprecationWarning,
-                stacklevel=3,
             )
 
     window_width: int = 1920

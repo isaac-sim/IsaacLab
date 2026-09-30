@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-import warnings
 from dataclasses import MISSING
 from typing import Literal
 
-from ...utils import configclass
+from ...utils import configclass, warn_from_post_init
 from ..sub_terrain_cfg import SubTerrainBaseCfg
 
 """
@@ -251,9 +250,10 @@ class MeshRepeatedObjectsTerrainCfg(SubTerrainBaseCfg):
 
     def __post_init__(self):
         if self.max_height_noise is not None:
-            warnings.warn(
+            warn_from_post_init(
                 "MeshRepeatedObjectsTerrainCfg: max_height_noise:float is deprecated and support will be removed in the"
-                " future. Use abs_height_noise:list[float] instead."
+                " future. Use abs_height_noise:list[float] instead.",
+                DeprecationWarning,
             )
             self.abs_height_noise = (-self.max_height_noise, self.max_height_noise)
 
