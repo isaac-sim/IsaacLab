@@ -98,7 +98,7 @@ class SceneCfg(InteractiveSceneCfg):
     )
 
     robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-    robot.spawn.variants["Physics"] = "mujoco" if args_cli.physics in {"newton_mjwarp", "newton_vbd"} else "physx"
+    robot.spawn.variants["Physics"] = "physx"
     robot.actuators["panda_arm"].stiffness = 0.0
     robot.actuators["panda_arm"].damping = 0.0
     robot.spawn.rigid_props.disable_gravity = True
