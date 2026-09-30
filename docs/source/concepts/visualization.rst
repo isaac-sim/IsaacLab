@@ -382,6 +382,15 @@ Visualizer Overview
          ``--viz newton_rtx``, or switch to ``--viz newton_gl``, ``--viz viser``, ``--viz rerun``,
          or ``--viz kit`` with a Kit-compatible physics backend.
 
+      .. note::
+
+         By default Newton rebuilds the scene from its own model, which drops visual properties it
+         cannot represent, such as MDL materials like glass. Set ``render_usd_stage=True`` on
+         :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` to draw the simulation's USD
+         stage as authored instead. It needs a Newton release whose ``ViewerRTX`` accepts ``ovstage=``,
+         OVRTX 0.5, and OVStage 0.2 or newer. Runtime visual-material randomization writes to the
+         Newton model, so it does not reach the drawn stage yet.
+
    .. tab-item:: Rerun
 
       Like Viser, `Rerun <https://rerun.io/>`_ streams simulation state to a local web server, for

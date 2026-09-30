@@ -178,3 +178,11 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     copyable. For example, ``{"omni:rtx:quality": ("Int", 100)}`` re-enables the path tracer's
     quality convergence loop, which ``ViewerRTX`` otherwise disables to keep interactive latency
     down."""
+
+    render_usd_stage: bool = False
+    """Draw the simulation's own USD stage instead of a scene rebuilt from the Newton model.
+
+    Newton's USD import drops visual properties it cannot represent, such as MDL materials, so the
+    rebuilt scene loses them. With this enabled, Isaac Lab clones the stage into an OVStage stage that
+    ``ViewerRTX`` renders as authored, and Newton only drives the body poses. It needs a Newton release
+    whose ``ViewerRTX`` accepts ``ovstage=``, and OVRTX 0.5 with OVStage 0.2 or newer."""

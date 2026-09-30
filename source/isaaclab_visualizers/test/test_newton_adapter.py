@@ -992,6 +992,45 @@ def test_newton_rtx_receives_background_color(
     assert kwargs["background_color"] == color
 
 
+def _patch_rtx_viewer(monkeypatch: pytest.MonkeyPatch, *, accepts_ovstage: bool) -> dict:
+    """Replace the RTX viewer classes with fakes and return the keyword arguments the wrapper receives."""
+    kwargs = {}
+    monkeypatch.setattr(
+        newton_visualizer_module, "NewtonViewerRTX", lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object()
+    )
+    base_init = (lambda self, *, ovstage=None: None) if accepts_ovstage else (lambda self: None)
+    monkeypatch.setattr(newton_visualizer_module, "ViewerRTX", type("FakeViewerRTX", (), {"__init__": base_init}))
+    return kwargs
+
+
+def test_newton_rtx_borrows_the_usd_stage_only_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
+    pytest.importorskip("isaaclab_ov.stage")
+    kwargs = _patch_rtx_viewer(monkeypatch, accepts_ovstage=True)
+    stage, plan = object(), object()
+    monkeypatch.setattr(
+        newton_visualizer_module.SimulationContext,
+        "instance",
+        staticmethod(lambda: SimpleNamespace(stage=stage, get_clone_plan=lambda: plan)),
+    )
+    built = []
+    monkeypatch.setattr("isaaclab_ov.stage.create_render_ovstage", lambda *args: built.append(args) or "render-stage")
+
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg())._create_viewer(False, {})
+    assert "ovstage" not in kwargs
+    assert not built
+
+    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(render_usd_stage=True))._create_viewer(False, {})
+    assert kwargs["ovstage"] == "render-stage"
+    assert built == [(stage, plan)]
+
+
+def test_newton_rtx_usd_stage_requires_a_viewer_that_accepts_ovstage(monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_rtx_viewer(monkeypatch, accepts_ovstage=False)
+
+    with pytest.raises(RuntimeError, match="ovstage="):
+        NewtonRTXVisualizer(NewtonRTXVisualizerCfg(render_usd_stage=True))._create_viewer(False, {})
+
+
 def test_eye_lookat_to_pitch_yaw_looking_up():
     # looking straight up → pitch=90
     pitch, yaw = _eye_lookat_to_pitch_yaw((0.0, 0.0, 0.0), (0.0, 0.0, 1.0))

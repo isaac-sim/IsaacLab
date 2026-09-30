@@ -11,12 +11,18 @@
 from __future__ import annotations
 
 import logging
+from typing import TYPE_CHECKING
 
 import numpy as np
 import ovstage
 import warp as wp
 
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
+    from isaaclab.cloner import ClonePlan
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +120,65 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
         A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
     """
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
+
+
+def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
+    """Build a populated ovstage of the scene for a consumer that draws it, such as Newton's ``ViewerRTX``.
+
+    The USD stage is trimmed to the clone plan's prototypes, exported into a new ovstage stage, and
+    cloned onto every environment, so each environment keeps its own authored prims and visual
+    materials. The caller owns the returned stage.
+
+    Args:
+        stage: The live USD stage the clone plan was published for.
+        plan: The scene's completed clone plan.
+
+    Returns:
+        The populated stage, with all writes committed.
+
+    Raises:
+        RuntimeError: If the installed OVStage does not compute the prim hierarchy on the device, which a
+            stage borrowed by ``ViewerRTX`` requires.
+    """
+    if HIERARCHY_COMPUTATION_MODEL != "GPU_INCREMENTAL":
+        raise RuntimeError(
+            "Rendering the simulation's USD stage needs OVStage 0.2 or newer, which computes the prim hierarchy"
+            " on the device."
+        )
+
+    from isaaclab.cloner import path as cloner_path  # noqa: PLC0415
+
+    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string, iter_clone_copies  # noqa: PLC0415
+
+    num_envs = len(plan.topology.world_prototype_layout)
+    sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
+    usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
+
+    render_stage = create_ovstage("isaaclab.render")
+    # Ordinal 0 is the empty state in ovstage; the first write must use >= 1.
+    ordinal = 1
+    ovstage.population.open_usd_from_string(
+        render_stage, usda, ordinal=ordinal, domains=ovstage.PopulationDomain.RENDERING
+    )
+    ovstage.population.apply_usd_changes(render_stage, ordinal=ordinal)
+    for source, target_paths in iter_clone_copies(plan):
+        render_stage.clone(source, target_paths, ordinal=ordinal)
+
+    # Cloning recreates the environment roots, so their poses are written afterwards.
+    xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
+    xforms[:, 3, :3] = plan.positions
+    env_paths = [plan.env_template.format(world) for world in range(num_envs)]
+    with ovstage.PathDictionary(render_stage) as paths:
+        path_list = paths.create_path_list_from_strings(env_paths)
+        with render_stage.query_from_path_list(path_list) as query:
+            render_stage.write_attribute(
+                query,
+                "omni:xform",
+                ordinal=ordinal,
+                tensors=xform_tensor_from_numpy(xforms),
+                is_array=False,
+                semantic=ovstage.AttributeSemantic.MATRIX,
+            ).wait()
+        paths.destroy_path_list(path_list)
+    render_stage.advance_write_floor(ordinal=ordinal).wait()
+    return render_stage

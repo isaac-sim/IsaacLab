@@ -99,6 +99,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     build_render_product_as_string,
     create_scene_partition_attributes,
     export_stage_to_string,
+    iter_clone_copies,
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
@@ -642,34 +643,14 @@ class OVRTXRenderer(BaseRenderer):
         env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
 
-        sources = cloner_path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            start, end = starts[group : group + 2]
-            targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
-                source, template = sources[plan.topology.world_prototypes[index]], templates[index]
-                if parent != -1:
-                    ancestor = start + parent
-                    suffix = cloner_path.relative_to(template, templates[ancestor])
-                    if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
-                        continue
-                copies.setdefault((source, template), []).append(targets)
         num_cloned_sources = 0
-        for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
-            worlds = np.concatenate(copies[source, destination])
-            target_paths = [target for target in map(destination.format, worlds) if target != source]
-            if target_paths:
-                logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-                if self._use_ovstage:
-                    self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-                else:
-                    self.backend.renderer.clone_usd(source, target_paths)
-                num_cloned_sources += 1
+        for source, target_paths in iter_clone_copies(plan):
+            logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
+            if self._use_ovstage:
+                self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
+            else:
+                self.backend.renderer.clone_usd(source, target_paths)
+            num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
         xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))

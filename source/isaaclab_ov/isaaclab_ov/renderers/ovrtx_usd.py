@@ -9,13 +9,18 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Mapping
+from collections.abc import Iterator, Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from pxr import Sdf, Usd, UsdGeom
 
+from isaaclab.cloner import path as cloner_path
+
 if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
@@ -393,6 +398,42 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[
             prim_paths.append(child_path)
 
     return prim_paths
+
+
+def iter_clone_copies(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
+    """Yield each ``(source, target paths)`` copy the clone plan needs, parents before their descendants.
+
+    Copies already covered by an identical copy of an ancestor are omitted, and so are copies onto the
+    source itself.
+
+    Args:
+        plan: The scene's completed clone plan.
+
+    Yields:
+        The prototype prim path and the destination paths it is copied to.
+    """
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    # Group copies by source/template, omitting descendants already covered by an identical parent copy.
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        start, end = starts[group : group + 2]
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        for index, parent in enumerate(cloner_path.get_parent_indices(templates[start:end]), start):
+            source, template = sources[plan.topology.world_prototypes[index]], templates[index]
+            if parent != -1:
+                ancestor = start + parent
+                suffix = cloner_path.relative_to(template, templates[ancestor])
+                if source == sources[plan.topology.world_prototypes[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).append(targets)
+    for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
+        worlds = np.concatenate(copies[source, destination])
+        target_paths = [target for target in map(destination.format, worlds) if target != source]
+        if target_paths:
+            yield source, target_paths
 
 
 def export_stage_to_string(
