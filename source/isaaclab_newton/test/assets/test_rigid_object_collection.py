@@ -66,17 +66,19 @@ def generate_cubes_scene(
     kinematic_enabled: bool = False,
     device: str = "cuda:0",
     spawn_unrelated_sibling: bool = False,
+    object_paths: tuple[str, ...] | None = None,
 ) -> tuple[RigidObjectCollection, torch.Tensor]:
     """Generate a scene with the provided number of cubes.
 
     Args:
         num_envs: Number of envs to generate.
-        num_cubes: Number of cubes to generate.
+        num_cubes: Number of cubes to generate when object_paths is not specified.
         height: Height of the cubes.
         has_api: Whether the cubes have a rigid body API on them.
         kinematic_enabled: Whether the cubes are kinematic.
         device: Device to use for the simulation.
         spawn_unrelated_sibling: Whether to spawn a rigid body outside the collection in each environment.
+        object_paths: Member paths relative to each environment. Defaults to Object_0, Object_1, etc.
 
     Returns:
         A tuple containing the rigid object collection representing the cubes and the origins of the cubes.
@@ -100,23 +102,21 @@ def generate_cubes_scene(
 
     # create the rigid object configs
     cube_config_dict = {}
-    for i in range(num_cubes):
+    if object_paths is None:
+        object_paths = tuple(f"Object_{i}" for i in range(num_cubes))
+    for i, path in enumerate(object_paths):
         cube_object_cfg = RigidObjectCfg(
-            prim_path=f"/World/Env_[^/]*/Object_{i}",
+            prim_path=f"/World/Env_[^/]*/{path}",
             spawn=clone(spawn_cfg),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 3 * i, height)),
         )
         cube_config_dict[f"cube_{i}"] = cube_object_cfg
     cfgs = list(cube_config_dict.values())
     if spawn_unrelated_sibling:
-        cfgs.append(AssetBaseCfg(prim_path="/World/Env_[^/]*/UnrelatedObject"))
+        cfgs.append(AssetBaseCfg(prim_path="/World/Env_[^/]*/Object_Target"))
     clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), cfgs, num_envs, 3.0, positions=origins)
     if spawn_unrelated_sibling:
-        spawn_cfg.func(
-            "/World/Env_0/UnrelatedObject",
-            spawn_cfg,
-            translation=(0.0, -3.0, height),
-        )
+        spawn_cfg.func("/World/Env_0/Object_Target", spawn_cfg, translation=(0.0, -3.0, height))
     # create the rigid object collection
     cube_object_collection_cfg = RigidObjectCollectionCfg(rigid_objects=cube_config_dict)
     cube_object_collection = RigidObjectCollection(cfg=cube_object_collection_cfg)
@@ -124,21 +124,23 @@ def generate_cubes_scene(
     return cube_object_collection, torch.as_tensor(origins, device=device)
 
 
-@pytest.mark.parametrize(("num_envs", "num_cubes", "spawn_unrelated_sibling"), [(1, 1, False), (2, 3, True)])
+@pytest.mark.parametrize(
+    ("num_envs", "object_paths", "spawn_unrelated_sibling"),
+    [
+        (1, ("Object_A",), False),
+        (2, ("Object_A", "Object_B", "Object_C"), True),
+        (2, ("Object_A", "Shelf/Object_B"), False),
+    ],
+    ids=["single_member", "sibling_sharing_prefix", "nested_member"],
+)
 @pytest.mark.parametrize("device", test_devices())
-def test_initialization(num_envs, num_cubes, spawn_unrelated_sibling, device):
-    """Test initialization for prim with rigid body API at the provided prim path.
-
-    With an unrelated rigid body next to the cubes in each environment, the collection view must still
-    select only its configured rigid objects.
-    """
-    with _newton_sim_context(device, auto_add_lighting=True) as sim:
+def test_initialization(num_envs, object_paths, spawn_unrelated_sibling, device):
+    """Bind only configured members, including nested paths, and preserve each body's name-to-pose mapping."""
+    num_cubes = len(object_paths)
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
-        object_collection, _ = generate_cubes_scene(
-            num_envs=num_envs,
-            num_cubes=num_cubes,
-            device=device,
-            spawn_unrelated_sibling=spawn_unrelated_sibling,
+        object_collection, origins = generate_cubes_scene(
+            num_envs, device=device, spawn_unrelated_sibling=spawn_unrelated_sibling, object_paths=object_paths
         )
 
         # Check that the framework doesn't hold excessive strong references.
@@ -160,6 +162,12 @@ def test_initialization(num_envs, num_cubes, spawn_unrelated_sibling, device):
         assert object_collection.data.body_link_quat_w.torch.shape == (num_envs, num_cubes, 4)
         assert object_collection.data.body_mass.torch.shape == (num_envs, num_cubes)
         assert object_collection.data.body_inertia.torch.shape == (num_envs, num_cubes, 9)
+
+        for name, member_cfg in object_collection.cfg.rigid_objects.items():
+            body_ids, _ = object_collection.find_bodies(name)
+            body_pos = object_collection.data.body_link_pos_w.torch[:, body_ids[0]] - origins
+            expected_pos = torch.tensor(member_cfg.init_state.pos, device=device).expand(num_envs, 3)
+            torch.testing.assert_close(body_pos, expected_pos, atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -248,66 +256,6 @@ def test_initialization_with_no_rigid_body():
         replicate(sim.get_clone_plan())
         with pytest.raises(RuntimeError, match="Expected 1 prims at"):
             sim.reset()
-
-
-@pytest.mark.parametrize(
-    ("member_paths", "other_paths"),
-    [
-        # a rigid body outside the collection whose name shares the members' prefix
-        (("Object_A", "Object_B"), ("Object_Target",)),
-        # members at different depths below the environment
-        (("Object_A", "Shelf/Object_B"), ()),
-    ],
-    ids=["sibling_sharing_prefix", "nested_member"],
-)
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_collection_binds_only_configured_prims(member_paths, other_paths, device):
-    """The collection binds exactly its configured rigid bodies, and each body name reads its own prim."""
-    num_envs = 2
-    # distinct local positions identify which prim a body slot is bound to
-    local_pos = {path: (0.0, float(index + 1), 0.0) for index, path in enumerate((*member_paths, *other_paths))}
-    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
-        sim._app_control_on_stop_handle = None
-        origins = np.asarray([(float(env_index) * 3.0, 0.0, 1.0) for env_index in range(num_envs)], dtype=np.float32)
-        sim_utils.create_prim("/World/Env_0", "Xform", translation=origins[0])
-        spawn_cfg = sim_utils.CuboidCfg(
-            size=(0.1, 0.1, 0.1),
-            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
-            mass_props=sim_utils.MassCfg(mass=1.0),
-            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
-        )
-        cfg = RigidObjectCollectionCfg(
-            rigid_objects={
-                path.rsplit("_", 1)[-1].lower(): RigidObjectCfg(
-                    prim_path=f"/World/Env_[^/]*/{path}",
-                    spawn=clone(spawn_cfg),
-                    init_state=RigidObjectCfg.InitialStateCfg(pos=local_pos[path]),
-                )
-                for path in member_paths
-            }
-        )
-        others = [AssetBaseCfg(prim_path=f"/World/Env_[^/]*/{path}") for path in other_paths]
-        clone_plan_from_env_0(
-            CloneCfg(clone_template="/World/Env_{}"),
-            [*cfg.rigid_objects.values(), *others],
-            num_envs,
-            3.0,
-            positions=origins,
-        )
-        for path in other_paths:
-            spawn_cfg.func(f"/World/Env_0/{path}", spawn_cfg, translation=local_pos[path])
-        object_collection = RigidObjectCollection(cfg)
-        replicate(sim.get_clone_plan())
-        sim.reset()
-
-        assert object_collection.num_instances == num_envs
-        assert object_collection.root_view.count == num_envs * len(member_paths)
-        env_origins = torch.as_tensor(origins, device=device)
-        for name, member_cfg in cfg.rigid_objects.items():
-            body_ids, _ = object_collection.find_bodies(name)
-            body_pos = object_collection.data.body_link_pos_w.torch[:, body_ids[0]] - env_origins
-            expected_pos = torch.tensor(member_cfg.init_state.pos, device=device).expand(num_envs, 3)
-            torch.testing.assert_close(body_pos, expected_pos, atol=1e-5, rtol=0.0)
 
 
 @pytest.mark.parametrize("num_envs", [2])
