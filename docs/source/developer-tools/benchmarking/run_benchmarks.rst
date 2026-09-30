@@ -66,6 +66,24 @@ From a source installation, run:
        --output_path ./benchmark_results \
        physics=isaacsim_physx
 
+OVRTX camera tasks can compare synchronous against asynchronous (pipelined) rendering through a
+Hydra override on the camera's renderer configuration:
+
+.. code-block:: bash
+
+   ./isaaclab.sh benchmark runtime \
+       --task Isaac-Cartpole-Camera-Direct \
+       --num_envs 256 \
+       --warmup_steps 30 \
+       --num_steps 200 \
+       --benchmark_formatter schema,omniperf \
+       --output_path ./results/ovrtx_async \
+       physics=newton_mjwarp renderer=ovrtx presets=rgb \
+       env.scene.tiled_camera.renderer_cfg.async_rendering=True
+
+Only the OVRTX renderer implements asynchronous rendering.
+See :ref:`renderers-async-data-flow` for how states, observations, and frames line up in each mode.
+
 Read the result
 ~~~~~~~~~~~~~~~
 
@@ -82,8 +100,10 @@ Render and physics scope profiling requires a non-``None`` ``benchmark_mode`` in
 task configuration. If the field is absent or ``None``, both scopes remain disabled
 even when their profiling flags are set; standard runtime reports are still produced.
 
-For ``Isaac-RenderBenchmark-Franka-Cabinet``, ``BENCHMARK_MODE=render`` (the default)
-writes analytic joint poses after physics, while ``BENCHMARK_MODE=physics_render``
+For ``Isaac-RenderBenchmark-Franka-Cabinet``, an unset ``BENCHMARK_MODE`` defaults to
+``None``: physics and camera rendering still run, without benchmark animation or
+scope profiling. Set ``BENCHMARK_MODE=render`` to write analytic joint poses after
+physics, while ``BENCHMARK_MODE=physics_render``
 sets actuator targets before physics. Both modes still step physics. Direct posing
 requires ``scene.lazy_sensor_update=True``. With Isaac RTX, use ``--visualizer none``
 in this mode: a Kit visualizer would render before the pose write.
@@ -96,7 +116,9 @@ renderers through :func:`~isaaclab.benchmark.stepping.profile_renderers`, timing
 ``render()`` and excluding scene updates and output readback. Both context managers install
 wrappers after warmup and restore the original methods when measurement ends, including on
 failure, so subsequent benchmark runs are unaffected. The render sweep
-enables both flags automatically. Ordered ``[scope, elapsed_ms]`` samples are written under
+enables both flags but requires an explicit ``BENCHMARK_MODE=render`` or
+``BENCHMARK_MODE=physics_render`` to collect timings. Ordered
+``[scope, elapsed_ms]`` samples are written under
 ``timings_ms`` in the local ``<output_path>/profile_timings.json`` file. The benchmark bundle's
 ``extra`` dictionary holds scalar ``physics_mean_ms``, ``physics_std_ms``, ``physics_max_ms``,
 ``physics_calls``, and corresponding ``render_*`` summaries. Disabled scopes contribute no keys.

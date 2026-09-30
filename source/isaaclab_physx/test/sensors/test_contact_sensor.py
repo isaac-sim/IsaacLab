@@ -633,7 +633,7 @@ def test_contact_sensor_no_stale_data_after_reset(setup_simulation, device):
     PhysX's stale post-step buffer for the reset env — it must reflect the freshly reset state.
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=True) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=False)
@@ -692,7 +692,7 @@ def test_contact_history_updates_at_sensor_period(
     timestamps) on data access.
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=2.0, lazy_sensor_update=True)
@@ -752,7 +752,7 @@ def test_lazy_sensor_reports_contact_loss(setup_simulation, device):
     (regression for #3498, where the spawner passed ``activate_contact_sensors`` as the threshold).
     """
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", False)
+    settings.set("/physics/disableContactProcessing", False)
     with build_simulation_context(device=device, dt=sim_dt, add_lighting=False) as sim:
         sim._app_control_on_stop_handle = None
         scene_cfg = ContactSensorSceneCfg(num_envs=1, env_spacing=1.0, lazy_sensor_update=True)
@@ -814,7 +814,7 @@ def test_friction_reporting(setup_simulation):
     # minor gravity force in -z to ensure object stays on ground plane
     grav_dir = (-10.0, 0.0, -0.1)
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", True)
+    settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device, gravity=grav_dir)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:
@@ -871,7 +871,7 @@ def test_friction_reporting(setup_simulation):
 def test_invalid_contact_data_config(setup_simulation, use_filter, max_contact_data_count_per_prim, match):
     """Tracking friction forces requires a filter pattern and a positive contact data budget."""
     sim_dt, _, settings = setup_simulation
-    settings.set_bool("/physics/disableContactProcessing", True)
+    settings.set("/physics/disableContactProcessing", True)
     device = "cuda:0"
     sim_cfg = SimulationCfg(dt=sim_dt, device=device)
     with build_simulation_context(sim_cfg=sim_cfg, add_lighting=False) as sim:

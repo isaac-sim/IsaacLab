@@ -1,6 +1,31 @@
 Changelog
 ---------
 
+9.1.1 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed :class:`~isaaclab_newton.assets.RigidObjectCollection` selecting rigid bodies outside the
+  collection whose names share the members' prefix or suffix, and rejecting members at different
+  path depths. The collection view now matches each configured prim path exactly.
+
+
+9.1.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added the Newton deformable material fragments
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonVolumeDeformableMaterialCfg` and
+  :class:`~isaaclab_newton.sim.spawners.materials.NewtonSurfaceDeformableMaterialCfg`, authoring the
+  ``newton:*`` attributes read by the Newton deformable-body builder hooks.
+* Added :meth:`~isaaclab_newton.physics.NewtonManager.setup_deformable_body`, applying Newton's
+  token deformable anchor schemas and syncing the visual mesh geometry from the simulation mesh.
+
+
 9.0.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

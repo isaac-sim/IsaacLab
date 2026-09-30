@@ -38,6 +38,7 @@ from ..utils import (
     bare_fragments,
     fragment_mapping,
     props_expr,
+    resolve_deformable_slot,
     subtree_carries_api,
 )
 
@@ -710,6 +711,18 @@ def spawn_from_usd_file(
         if cfg.make_uninstanceable:
             make_uninstanceable(prim_path, stage=stage)
 
+    # author the deformable dict slot first so any collision_props keyed to the created sim mesh
+    # (e.g. {"/sim_mesh": [...]}) can match it in _apply_body_schema_properties below
+    deformable_slot = resolve_deformable_slot(cfg)
+    if deformable_slot is not None:
+        kind, mapping = deformable_slot
+        writer = (
+            schemas.apply_volume_deformable_properties
+            if kind == "volume"
+            else schemas.apply_surface_deformable_properties
+        )
+        for pattern, fragments in mapping.items():
+            writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage)
     # modify rigid body, collision, and mass properties
     _apply_body_schema_properties(prim_path, cfg)
     # modify articulation root, tendon, and joint drive properties

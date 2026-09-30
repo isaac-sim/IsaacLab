@@ -199,6 +199,36 @@ def _make_view(n: int = 3, unavailable: set | None = None, device: str = "cpu") 
     return OvPhysxView(_FakePhysX(n=n, unavailable=unavailable), pattern="/World/env_*/body", device=device)
 
 
+@pytest.mark.parametrize("explicit", [False, True])
+def test_variant_bindings_preserve_environment_and_collection_order(explicit):
+    """Numeric environment order is restored within each requested collection body."""
+    paths = [f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 4, 3, 10, 5)]
+
+    class VariantPhysX(_FakePhysX):
+        def create_tensor_binding(self, *, tensor_type, pattern=None, prim_paths=None):
+            binding = super().create_tensor_binding(tensor_type=tensor_type, pattern=pattern, prim_paths=prim_paths)
+            binding.prim_paths = list(prim_paths) if prim_paths and "*" not in prim_paths[0] else paths
+            return binding
+
+    physx = VariantPhysX(n=len(paths))
+    patterns = ["/World/env_*/sphere", "/World/env_*/cube"]
+    selection = {"prim_paths": patterns} if explicit else {"pattern": "/World/env_*/*"}
+    view = OvPhysxView(physx, **selection)
+    try:
+        view.binding_for(TensorType.RIGID_BODY_POSE)
+        expected = [f"/World/env_{i}/{body}" for body in ("sphere", "cube") for i in (0, 1, 2, 3, 4, 5, 10)]
+        if not explicit:
+            expected = [f"/World/env_{i}/{body}" for i in (0, 1, 2, 3, 4, 5, 10) for body in ("cube", "sphere")]
+        assert view.prim_paths == expected
+        view.binding_for(TensorType.RIGID_BODY_VELOCITY)
+        assert physx.created[-1][1:] == (None, expected)
+        # A different family must still resolve its own prims, not reuse rigid-body paths.
+        view.binding_for(TensorType.ARTICULATION_ROOT_POSE)
+        assert physx.created[-2][1:] == (selection.get("pattern"), selection.get("prim_paths"))
+    finally:
+        view.close()
+
+
 @pytest.fixture(autouse=True)
 def _close_live_views():
     existing_views = set(OvPhysxView._live_views)

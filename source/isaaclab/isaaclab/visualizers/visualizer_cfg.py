@@ -16,6 +16,12 @@ if TYPE_CHECKING:
     from .base_visualizer import BaseVisualizer
 
 
+_VISUALIZER_TYPES = ("kit", "newton_gl", "newton_rtx", "rerun", "viser")
+"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`."""
+
+_VISUALIZER_ALIASES = {"newton": "newton_gl"}
+"""Deprecated ``--visualizer`` names and their replacements."""
+
 _VISUALIZER_EXTRAS = {
     "kit": "isaacsim",
     "rerun": "rerun",

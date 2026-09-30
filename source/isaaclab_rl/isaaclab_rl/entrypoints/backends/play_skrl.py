@@ -36,6 +36,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -118,7 +119,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             apply_env_overrides(args_cli, env_cfg)
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -148,6 +149,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
             )
+            cleanup.callback(lambda: close_env(env))
             dt = env.unwrapped.step_dt
 
             screen.stage("Loading policy")
@@ -178,4 +180,3 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             screen.close()
             run_playback(step, dt=dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

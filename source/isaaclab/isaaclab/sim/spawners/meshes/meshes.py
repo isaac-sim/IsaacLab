@@ -22,7 +22,7 @@ from ..materials import (
     SurfaceDeformableBodyMaterialBaseCfg,
 )
 from ..materials.physics_materials import spawn_physics_material
-from ..utils import apply_schema_props, fragment_mapping, props_expr
+from ..utils import apply_schema_props, fragment_mapping, props_expr, resolve_deformable_slot
 
 if TYPE_CHECKING:
     from . import meshes_cfg
@@ -324,7 +324,12 @@ def _refine_surface_mesh(mesh: trimesh.Trimesh, cfg: meshes_cfg.MeshCfg) -> trim
     """
     if cfg.edge_refinement < 1.0:
         raise ValueError(f"Mesh edge refinement must be at least 1.0, got {cfg.edge_refinement}.")
-    if cfg.deformable_props is None or cfg.edge_refinement == 1.0:
+    # refinement applies to any deformable spelling, so the fragment slots get the same
+    # simulation-mesh resolution the legacy ``deformable_props`` field does
+    is_deformable = any(
+        props is not None for props in (cfg.deformable_props, cfg.volume_deformable_props, cfg.surface_deformable_props)
+    )
+    if not is_deformable or cfg.edge_refinement == 1.0:
         return mesh
 
     max_edge = float(np.linalg.norm(mesh.bounding_box.extents)) / cfg.edge_refinement
@@ -404,16 +409,12 @@ def _spawn_mesh_geom_from_mesh(
 
     prim = create_prim(prim_path, prim_type="Xform", translation=translation, orientation=orientation, stage=stage)
     # check that invalid schema types are not used
-    if cfg.deformable_props is not None and cfg.rigid_props is not None:
+    deformable_slot = resolve_deformable_slot(cfg)
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.rigid_props is not None:
         raise ValueError("Cannot use both deformable and rigid properties at the same time.")
-    if cfg.deformable_props is not None and cfg.collision_props is not None:
+    if (deformable_slot is not None or cfg.deformable_props is not None) and cfg.collision_props is not None:
         # only fragments resolve onto the simulation mesh, legacy cfgs would target the inert body prim
-        collision_props_mapping = fragment_mapping(cfg.collision_props)
-        if collision_props_mapping is not None:
-            frags = [frag for fragments in collision_props_mapping.values() for frag in fragments]
-        else:
-            frags = [cfg.collision_props]
-        if not frags or not all(isinstance(frag, schemas.SchemaFragment) for frag in frags):
+        if fragment_mapping(cfg.collision_props) is None:
             raise ValueError("Deformable bodies require 'collision_props' as collision fragments.")
     # check material types are correct
     if cfg.deformable_props is not None and cfg.physics_material is not None:
@@ -425,7 +426,7 @@ def _spawn_mesh_geom_from_mesh(
         physics_material_frags = (
             cfg.physics_material if isinstance(cfg.physics_material, (list, tuple)) else [cfg.physics_material]
         )
-        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or all(
+        is_rigid_material = isinstance(cfg.physics_material, RigidBodyMaterialBaseCfg) or any(
             isinstance(frag, RigidBodyMaterialFragment) for frag in physics_material_frags
         )
         if not is_rigid_material:
@@ -446,7 +447,17 @@ def _spawn_mesh_geom_from_mesh(
         stage=stage,
     )
 
-    if cfg.deformable_props is not None:
+    if deformable_slot is not None:
+        kind, mapping = deformable_slot
+        writer = (
+            schemas.apply_volume_deformable_properties
+            if kind == "volume"
+            else schemas.apply_surface_deformable_properties
+        )
+        kwargs = {"tetrahedralization_edge_length_fac": 1.0 / cfg.edge_refinement} if kind == "volume" else {}
+        for pattern, fragments in mapping.items():
+            writer(props_expr(prim_path, pattern), fragments, create_if_missing=True, stage=stage, **kwargs)
+    elif cfg.deformable_props is not None:
         # apply deformable body properties
         deformable_type = (
             "surface" if isinstance(cfg.physics_material, SurfaceDeformableBodyMaterialBaseCfg) else "volume"
@@ -461,13 +472,6 @@ def _spawn_mesh_geom_from_mesh(
             deformable_type=deformable_type,
             **deformable_kwargs,
         )
-        if cfg.collision_props is not None:
-            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
-        if cfg.mass_props is not None:
-            raise ValueError(
-                """MassPropertiesCfg are not supported for deformable bodies
-                and should be set through deformable_props with mass=<value>."""
-            )
     elif cfg.collision_props is not None:
         # decide on type of collision approximation based on the mesh
         collision_approximation = getattr(cfg, "collision_approximation", None)
@@ -490,6 +494,12 @@ def _spawn_mesh_geom_from_mesh(
             schemas.define_collision_properties,
             stage,
         )
+
+    if deformable_slot is not None or cfg.deformable_props is not None:
+        if cfg.collision_props is not None:
+            _apply_deformable_collision_props(prim_path, cfg.collision_props, stage)
+        if cfg.mass_props is not None:
+            raise ValueError("Set deformable mass through deformable body properties, not mass_props.")
 
     if cfg.visual_material is not None:
         material_path = (
