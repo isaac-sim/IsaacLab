@@ -339,7 +339,7 @@ def warm_start_app():
         [
             sys.executable,
             "-c",
-            "from isaaclab.app import AppLauncher; app_launcher = AppLauncher(headless=True); app_launcher.app.close()",
+            "from isaaclab.test.utils import launch_test_simulation; launch_test_simulation()",
         ],
         capture_output=True,
     )
@@ -355,10 +355,7 @@ def warm_start_app():
         [
             sys.executable,
             "-c",
-            (
-                "from isaaclab.app import AppLauncher; app_launcher = AppLauncher(headless=True,"
-                " enable_cameras=True); app_launcher.app.close()"
-            ),
+            ("from isaaclab.test.utils import launch_test_simulation; launch_test_simulation(enable_cameras=True)"),
         ],
         capture_output=True,
     )

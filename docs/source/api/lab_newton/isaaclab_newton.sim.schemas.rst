@@ -9,7 +9,7 @@ isaaclab_newton.sim.schemas
   Newton's MuJoCo solver). MuJoCo cfgs subclass their Newton counterpart
   because MuJoCo is one of Newton's solver options.
 
-  See :doc:`/source/overview/core-concepts/schema_cfgs` for the design and
+  See :doc:`/source/concepts/schema_cfgs` for the design and
   when to use each class.
 
   .. rubric:: Newton-targeted (family roots)

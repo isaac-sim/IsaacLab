@@ -15,6 +15,7 @@ from docker import container as container_cli
 from docker.utils import ContainerInterface, volume_mounts
 
 DOCKER_DIR = Path(__file__).resolve().parents[1]
+REPO_ROOT = DOCKER_DIR.parent
 
 
 @pytest.fixture
@@ -24,7 +25,7 @@ def container_context(tmp_path: Path) -> Path:
         "\n".join(
             (
                 "ISAACSIM_BASE_IMAGE=nvcr.io/nvidia/isaac-sim",
-                "ISAACSIM_VERSION=6.0.0",
+                "ISAACSIM_VERSION=6.1.0",
                 "DOCKER_ISAACSIM_ROOT_PATH=/isaac-sim",
                 "DOCKER_ISAACLAB_PATH=/workspace/isaaclab",
                 "DOCKER_USER_HOME=/root",
@@ -32,7 +33,6 @@ def container_context(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
-    (tmp_path / ".env.ros2").write_text("ROS2_APT_PACKAGE=ros-base\n", encoding="utf-8")
     (tmp_path / ".env.kitless").write_text(
         "\n".join(
             (
@@ -61,7 +61,6 @@ def make_interface(container_context: Path) -> Callable[[str], ContainerInterfac
     ("profile", "expected_env_files"),
     (
         ("base", ["--env-file", ".env.base"]),
-        ("ros2", ["--env-file", ".env.base", "--env-file", ".env.ros2"]),
         ("kitless", ["--env-file", ".env.kitless"]),
     ),
 )
@@ -75,13 +74,6 @@ def test_profile_environment_inheritance(
     if profile == "kitless":
         assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
         assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
-
-
-def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface]):
-    """Only profiles derived from the Isaac Sim base image require it to be built first."""
-    assert not make_interface("base").requires_base_image
-    assert make_interface("ros2").requires_base_image
-    assert not make_interface("kitless").requires_base_image
 
 
 @pytest.mark.parametrize(
@@ -102,37 +94,6 @@ def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface
                     "build",
                     "isaac-lab-base",
                 ]
-            ],
-        ),
-        (
-            "ros2",
-            [
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "base",
-                    "--env-file",
-                    ".env.base",
-                    "build",
-                    "isaac-lab-base",
-                ],
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "ros2",
-                    "--env-file",
-                    ".env.base",
-                    "--env-file",
-                    ".env.ros2",
-                    "build",
-                    "isaac-lab-ros2",
-                ],
             ],
         ),
         (
@@ -233,7 +194,7 @@ def test_x11_overlay_covers_every_profile():
     """Compose merges the X11 override by service name, so each profile needs an entry."""
     overlay = yaml.safe_load((DOCKER_DIR / "x11.yaml").read_text(encoding="utf-8"))
 
-    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-ros2", "isaac-lab-kitless"}
+    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-kitless"}
     for name, service in overlay["services"].items():
         assert "DISPLAY" in service["environment"], name
         assert any("X11-unix" in mount["source"] for mount in service["volumes"]), name
@@ -286,6 +247,41 @@ def test_kitless_compose_service_has_no_isaac_sim_mounts():
     assert forbidden_sources.isdisjoint(mount.get("source") for mount in mounts)
     assert all("DOCKER_ISAACSIM" not in mount["target"] for mount in mounts)
     assert all("/kit/" not in mount["target"].lower() for mount in mounts)
+
+
+def test_image_is_verified_before_it_is_published():
+    """A published image must be a verified one.
+
+    The push steps publish under both the commit tag and the deps tag, and a later deps-cache hit
+    serves that image without rebuilding it, so anything published unverified stays unverified.
+    """
+    action = yaml.safe_load(
+        (REPO_ROOT / ".github" / "actions" / "ecr-build-push-pull" / "action.yml").read_text(encoding="utf-8")
+    )
+    names = [step["name"] for step in action["runs"]["steps"] if "name" in step]
+
+    assert names.index("Verify freshly built image") < names.index("Push to ECR") < names.index("Push deps tag")
+
+    build = yaml.safe_load((REPO_ROOT / ".github" / "workflows" / "build.yaml").read_text(encoding="utf-8"))
+    (base_build,) = [
+        step for step in build["jobs"]["build"]["steps"] if step.get("uses") == "./.github/actions/ecr-build-push-pull"
+    ]
+
+    assert base_build["with"]["verify-test-path"] == "docker/test/test_image_invariants.py"
+
+
+def test_run_tests_links_isaac_sim_only_where_kit_is_installed():
+    """The kit-less image has no Kit under ``/isaac-sim``, which the runtime mounts create anyway.
+
+    Linking it as ``_isaac_sim`` there reads as a downloaded Isaac Sim, which ``isaaclab.sh``
+    refuses to combine with the image's ``VIRTUAL_ENV``.
+    """
+    script = (REPO_ROOT / ".github" / "actions" / "run-tests" / "run_tests.sh").read_text(encoding="utf-8")
+
+    link_lines = [line.strip() for line in script.splitlines() if "ln -s /isaac-sim _isaac_sim" in line]
+
+    assert link_lines
+    assert all("/isaac-sim/python.sh" in line for line in link_lines), link_lines
 
 
 def test_kitless_volume_key_resolves_owned_image_paths(monkeypatch: pytest.MonkeyPatch):
