@@ -12,10 +12,12 @@ Changed
 * Changed :attr:`~isaaclab_tasks.core.lift.mdp.ObjectUniformPoseCommandCfg.success_vis_asset_name` to default
   to ``None``, so success markers are only created when it names a scene asset. Configurations that set it
   are unaffected.
-* Changed the Kuka-Allegro and Franka lift and reorient tasks and the Franka soft, cloth, and cable tasks to
-  spawn the table visible and tint its own material by success, instead of drawing the table with success
-  markers. Their command terms no longer create ``/Visuals/SuccessMarkers``, and ``success_visualizer`` is
-  ``None``; set ``success_vis_material_name`` to ``None`` to keep the table a fixed color. Camera policies
+* **Breaking:** Changed the Kuka-Allegro and Franka lift and reorient tasks and the Franka soft, cloth, and
+  cable tasks to spawn the table visible and tint its own material by success, instead of drawing the table
+  with success markers. Their command terms no longer create ``/Visuals/SuccessMarkers``, and the
+  ``success_visualizer`` attribute of their pose command terms is ``None``. Code that called
+  ``success_visualizer.set_visibility(False)`` to hide the success coloring should set
+  ``success_vis_material_name`` to ``None`` instead, which keeps the table a fixed color. Camera policies
   trained with OVRTX or Newton Warp before this change never saw the table and should be retrained.
 
 Fixed
