@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Behavioral tests for the unified dexterous Lift and Reorient tasks."""
+"""Behavioral tests for the dexterous Lift tasks."""
 
 from types import SimpleNamespace
 
@@ -13,12 +13,13 @@ import warp as wp
 
 from pxr import Usd
 
+from isaaclab.assets import Asset
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import select_usd_variants
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -65,10 +66,9 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
 
 
-@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
+def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
     """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
-    cfg = cfg_type()
+    cfg = FrankaLiftEnvCfg()
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
@@ -147,9 +147,10 @@ def test_camera_normalization_is_stationary(data_type: str) -> None:
         torch.testing.assert_close(output.flatten(), expected)
 
 
-def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Every lift pose, goal, and success marker should retain its environment ownership."""
-    num_envs = 3
+def _make_pose_command(
+    monkeypatch: pytest.MonkeyPatch, num_envs: int, success_asset: object
+) -> tuple[ObjectUniformPoseCommand, torch.Tensor]:
+    """Build a pose command around fake assets and spy markers; returns it with the shared root positions."""
     environment_ids = torch.arange(num_envs)
     identity_quat = torch.zeros((num_envs, 4))
     identity_quat[:, 3] = 1.0
@@ -170,7 +171,6 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
             root_link_pose_w=SimpleNamespace(torch=root_pose_w),
         )
     )
-    success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=root_pos_w)))
     scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = SimpleNamespace(
@@ -192,20 +192,36 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
 
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
     monkeypatch.setattr(pose_commands, "VisualizationMarkers", _MarkerSpy)
+    return ObjectUniformPoseCommand(cfg, env), root_pos_w
 
-    command = ObjectUniformPoseCommand(cfg, env)
+
+@pytest.mark.parametrize("static", [False, True])
+def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch, static: bool) -> None:
+    """Every lift pose, goal, and success marker should retain its environment ownership."""
+    num_envs = 3
+    environment_ids = torch.arange(num_envs)
+    success_asset = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=torch.zeros((num_envs, 3)))))
+    if static:
+        success_asset = object.__new__(Asset)
+        success_asset.cfg = SimpleNamespace(init_state=SimpleNamespace(pos=(0.5, 0.0, 0.0)))
+    command, root_pos_w = _make_pose_command(monkeypatch, num_envs, success_asset)
     command._set_debug_vis_impl(True)
     command._debug_vis_callback(None)
     command.cfg.position_only = False
     command._debug_vis_callback(None)
+    # Discard construction-time placement, as happens before a backend is active.
+    command.success_visualizer.calls.clear()
+    command.cfg.position_only = True
+    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0, 1.0])
     command._update_metrics()
+    assert torch.equal(command.success_visualizer.calls[0][1]["marker_indices"], torch.tensor([0, 1, 0]))
     DeformableUniformPoseCommand._update_metrics(command)
     command._segment_position_w = lambda: root_pos_w
     CableUniformPoseCommand._update_metrics(command)
     CableUniformPoseCommand._debug_vis_callback(command, None)
 
     expected_call_counts = {
-        command.success_visualizer: 4,
+        command.success_visualizer: 3,
         command.goal_visualizer: 3,
         command.curr_visualizer: 3,
     }
@@ -213,6 +229,29 @@ def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPat
         assert len(visualizer.calls) == expected_count
         for _, kwargs in visualizer.calls:
             assert torch.equal(kwargs["environment_ids"], environment_ids)
+    if static:
+        for args, _ in command.success_visualizer.calls:
+            torch.testing.assert_close(args[0], torch.tensor([[0.5, 0.0, 0.0]] * num_envs))
+
+
+def test_lift_contact_terms_match_per_sensor_reference() -> None:
+    """Contact gating and counting from stacked sensor forces match a per-sensor evaluation."""
+    num_envs, threshold = 3, 1.0
+    names = ["thumb", "index", "middle"]
+    # The rows cover a finger without thumb, thumb with finger, and thumb alone.
+    magnitudes = {"thumb": [0.0, 2.0, 2.0], "index": [2.0, 0.0, 0.0], "middle": [0.0, 2.0, 0.0]}
+    forces = {
+        name: torch.tensor([[value, 0.0, 0.0] for value in values]).reshape(num_envs, 1, 1, 3)
+        for name, values in magnitudes.items()
+    }
+    sensors = {
+        name: SimpleNamespace(data=SimpleNamespace(normal_force_matrix_w=ProxyArray(wp.from_torch(force))))
+        for name, force in forces.items()
+    }
+    env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=SimpleNamespace(sensors=sensors))
+    assert torch.equal(mdp.contacts(env, threshold, "thumb", names[1:]), torch.tensor([False, True, False]))
+    torch.testing.assert_close(mdp.contact_count(env, threshold, names), torch.tensor([1 / 3, 2 / 3, 1 / 3]))
+    assert not mdp.contacts(env, threshold, "thumb", []).any()
 
 
 def test_lift_point_cloud_markers_repeat_environment_ids_per_point() -> None:

@@ -354,13 +354,15 @@ class RigidObjectCollectionData(BaseRigidObjectCollectionData):
         This quantity is the acceleration of the rigid bodies' center of mass frame relative to the world.
         """
         if self._body_com_acc_w.timestamp < self._sim_timestamp:
+            # Finite-difference over the elapsed time, which spans the decimation when Newton owns it.
+            time_elapsed = self._sim_timestamp - self._body_com_acc_w.timestamp
             wp.launch(
                 shared_kernels.derive_body_acceleration_from_body_com_velocities,
                 dim=(self.num_instances, self.num_bodies),
                 device=self.device,
                 inputs=[
                     self.body_com_vel_w.warp,
-                    SimulationManager.get_dt(),
+                    time_elapsed,
                     self._previous_body_com_vel,
                 ],
                 outputs=[

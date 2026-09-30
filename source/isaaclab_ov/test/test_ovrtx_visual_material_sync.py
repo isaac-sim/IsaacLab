@@ -20,6 +20,7 @@ pytestmark = pytest.mark.skipif(
 
 if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXRendererCfg
     from ovrtx import DataAccess
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
@@ -118,6 +119,8 @@ def _renderer(*, use_ovstage: bool = False):
     renderer._use_ovstage = use_ovstage
     renderer.backend.renderer = _NativeRecorder(events)
     renderer._visual_material_writer_ref = None
+    renderer.cfg = OVRTXRendererCfg()
+    renderer._camera_render_data = []
     if use_ovstage:
         renderer.backend.stage = _OvstageRecorder(events)
         renderer.backend.paths = _PathRecorder()
