@@ -163,6 +163,8 @@ class ManagerBasedEnvWarp:
         # Pre-allocated env masks (shared across managers/terms via `env`).
         self.ALL_ENV_MASK = wp.ones((self.num_envs,), dtype=wp.bool, device=self.device)
         self.ENV_MASK = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
+        # Reset stages read this mask; every reset selection is copied into it.
+        self.reset_mask_wp = wp.zeros((self.num_envs,), dtype=wp.bool, device=self.device)
 
         # Persistent scalar buffer for global env step count (stable pointer for capture).
         self._global_env_step_count_wp = wp.zeros((1,), dtype=wp.int32, device=self.device)
@@ -391,6 +393,8 @@ class ManagerBasedEnvWarp:
         self._action_in_wp = wp.zeros(
             (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
         )
+        # whether a reset has to compact its mask for a manager that resets by environment index
+        self._resets_by_index = bool(self.recorder_manager.active_terms)
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -415,11 +419,15 @@ class ManagerBasedEnvWarp:
     """
 
     def reset(
-        self, seed: int | None = None, env_ids: Sequence[int] | None = None, options: dict[str, Any] | None = None
+        self,
+        seed: int | None = None,
+        env_ids: Sequence[int] | None = None,
+        options: dict[str, Any] | None = None,
+        env_mask: wp.array | torch.Tensor | None = None,
     ) -> tuple[VecEnvObs, dict]:
         """Resets the specified environments and returns observations.
 
-        This function calls the :meth:`_reset_idx` function to reset the specified environments.
+        This function calls the :meth:`_reset_mask` function to reset the specified environments.
         However, certain operations, such as procedural terrain generation, that happened during initialization
         are not repeated.
 
@@ -431,11 +439,14 @@ class ManagerBasedEnvWarp:
                 Note:
                     This argument is used for compatibility with Gymnasium environment definition.
 
+            env_mask: Boolean mask of the environments to reset, of shape ``(num_envs,)``. Takes precedence
+                over :paramref:`env_ids`. Defaults to None.
+
         Returns:
             A tuple containing the observations and extras.
         """
-        if env_ids is None:
-            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+        env_mask = self.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        env_ids = self._reset_env_ids(env_mask)
 
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(env_ids)
@@ -454,7 +465,7 @@ class ManagerBasedEnvWarp:
             )
 
         # reset state of scene
-        self._reset_idx(env_ids)
+        self._reset_mask(env_mask, env_ids)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -508,7 +519,7 @@ class ManagerBasedEnvWarp:
         if seed is not None:
             self.seed(seed)
 
-        self._reset_idx(env_ids)
+        self._reset_mask(self.resolve_env_mask(env_ids=env_ids), env_ids)
 
         # set the state
         self.scene.reset_to(state, env_ids, is_relative=is_relative)
@@ -632,36 +643,63 @@ class ManagerBasedEnvWarp:
     Helper functions.
     """
 
-    def _reset_idx(self, env_ids: Sequence[int]):
-        """Reset environments based on specified indices.
+    def _reset_env_ids(self, env_mask: wp.array) -> torch.Tensor | None:
+        """Compact a reset mask for the managers that reset by environment index.
+
+        This is the host boundary of the mask-first reset: it synchronizes with the device.
 
         Args:
-            env_ids: List of environment ids which must be reset
+            env_mask: Boolean mask of the environments to reset.
+
+        Returns:
+            Indices of the selected environments, or None when every active manager resets by mask.
         """
+        if not self._resets_by_index:
+            return None
+        return wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
+
+    def _reset_mask(self, env_mask: wp.array, env_ids: torch.Tensor | None = None) -> None:
+        """Reset the selected environments.
+
+        Args:
+            env_mask: Boolean mask of the environments to reset.
+            env_ids: Indices of the same environments for the managers that reset by index, or None
+                when every active manager resets by mask.
+        """
+        # recorded reset stages read the environment-owned mask
+        if env_mask is not self.reset_mask_wp:
+            wp.copy(self.reset_mask_wp, env_mask)
+        env_mask = self.reset_mask_wp
+
         # reset the internal buffers of the scene elements
-        self.scene.reset(env_ids)
+        self.scene.reset(env_mask=env_mask)
 
         # apply events such as randomization for environments that need a reset
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self._global_env_step_count_wp.fill_(env_step_count)
-            self.event_manager.apply(
-                mode="reset", env_ids=env_ids, global_env_step_count=self._global_env_step_count_wp
+            self._warp_graph_cache.call(
+                "EventManager_apply_reset",
+                self.event_manager.apply,
+                mode="reset",
+                env_mask_wp=env_mask,
+                global_env_step_count=self._global_env_step_count_wp,
             )
 
         # iterate over all managers and reset them
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
-        env_mask = self.resolve_env_mask(env_ids=env_ids)
         # -- observation manager
-        info = self.observation_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call(
+            "ObservationManager_reset", self.observation_manager.reset, env_mask=env_mask
+        )
         self.extras["log"].update(info)
         # -- action manager
-        info = self.action_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call("ActionManager_reset", self.action_manager.reset, env_mask=env_mask)
         self.extras["log"].update(info)
         # -- event manager
-        info = self.event_manager.reset(env_mask=env_mask)
+        info = self._warp_graph_cache.call("EventManager_reset", self.event_manager.reset, env_mask=env_mask)
         self.extras["log"].update(info)
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)

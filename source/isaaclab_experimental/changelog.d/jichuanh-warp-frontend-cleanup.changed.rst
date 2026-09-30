@@ -4,3 +4,7 @@
 * **Breaking:** Replaced ``WarpGraphCache.capture_or_replay`` with
   :meth:`~isaaclab_experimental.utils.WarpGraphCache.call`. Stages are recorded from the first environment
   step without an eager warm-up, so a stage runs exactly once per call.
+* Changed the Warp manager-based environments to reset environments by boolean mask. The mask is converted
+  to environment indices once per reset, and only when a command, curriculum or recorder term is active.
+* Changed :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` to skip its reset stage on steps where no
+  environment terminated.

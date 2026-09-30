@@ -218,6 +218,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.reset_terminated = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_time_outs = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
         self.reset_buf = wp.zeros(self.num_envs, dtype=wp.bool, device=self.device)
+        self._torch_reset_buf = wp.to_torch(self.reset_buf)
         self._ALL_ENV_MASK = wp.ones(self.num_envs, dtype=wp.bool, device=self.device)
 
         # Expected bindings:
@@ -437,6 +438,10 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
             self._warp_graph_cache.call("DirectEndPre_step", self._step_warp_end_pre)
+        # one host predicate per step skips the reset stage when no environment terminated
+        if self._torch_reset_buf.any().item():
+            with Timer(name="reset_graph", msg="Reset graph took:", enable=DEBUG_TIMERS):
+                self._warp_graph_cache.call("DirectReset_step", self._step_warp_reset)
         # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
@@ -488,7 +493,8 @@ class DirectRLEnvWarp(DirectRLEnv):
         self._get_dones()
         self._get_rewards()
 
-        # -- reset envs that terminated/timed-out and log the episode information
+    def _step_warp_reset(self) -> None:
+        """Capturable reset of the environments that terminated or timed out."""
         self._reset_idx(mask=self.reset_buf)
 
     def _step_warp_end_post(self) -> None:
