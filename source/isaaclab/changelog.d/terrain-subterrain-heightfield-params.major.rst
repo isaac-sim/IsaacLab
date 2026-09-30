@@ -5,3 +5,8 @@ Changed
   and ``slope_threshold`` values. Moved these fields from ``TerrainGeneratorCfg`` to each
   ``HfTerrainBaseCfg`` when configuring a terrain generator. Newton users can set
   ``TerrainImporterCfg.heightfield_collider_resolution`` to control the resolution of the combined collider.
+
+Fixed
+^^^^^
+
+* Preserved per-asset contact reporting settings in ``MultiAssetSpawnerCfg`` when no global override was given.
