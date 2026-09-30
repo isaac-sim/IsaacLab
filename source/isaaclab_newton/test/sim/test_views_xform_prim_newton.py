@@ -27,11 +27,12 @@ from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics.newton_manager import NewtonManager
 from isaaclab_newton.sim.views import NewtonSiteFrameView as FrameView
 
-from pxr import Sdf
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 import isaaclab.cloner as cloner
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, RigidObjectCfg
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.utils import configclass
@@ -231,4 +232,87 @@ def test_world_attached_pose_read_and_write(device):
     ret_pos, ret_quat = view.get_world_poses()
     torch.testing.assert_close(ret_pos.torch, wp.to_torch(new_pos), atol=1e-5, rtol=0)
     torch.testing.assert_close(ret_quat.torch, wp.to_torch(new_quat), atol=1e-5, rtol=0)
+    ctx.__exit__(None, None, None)
+
+
+# ==================================================================
+# Newton edge case: frame below a non-body articulation root
+# ==================================================================
+
+
+def _author_xform_rooted_articulation(usd_path: str) -> None:
+    """Author a floating articulation whose ``ArticulationRootAPI`` sits on a plain root Xform.
+
+    Many assets put the API there instead of on the root link. ``Mount`` is a frame below the root
+    Xform but outside every rigid body; ``base/Mount`` is a frame on the root link.
+    """
+    stage = Usd.Stage.CreateNew(usd_path)
+    UsdGeom.SetStageUpAxis(stage, UsdGeom.Tokens.z)
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    root = UsdGeom.Xform.Define(stage, "/Robot")
+    stage.SetDefaultPrim(root.GetPrim())
+    UsdPhysics.ArticulationRootAPI.Apply(root.GetPrim())
+    for name, pos in (("base", (0.0, 0.0, 0.0)), ("link", (0.3, 0.0, 0.0))):
+        body = UsdGeom.Xform.Define(stage, f"/Robot/{name}")
+        body.AddTranslateOp().Set(Gf.Vec3d(*pos))
+        UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+        UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+        collision = UsdGeom.Cube.Define(stage, f"/Robot/{name}/collision")
+        collision.CreateSizeAttr(0.1)
+        UsdPhysics.CollisionAPI.Apply(collision.GetPrim())
+    joint = UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joint")
+    joint.CreateBody0Rel().SetTargets([Sdf.Path("/Robot/base")])
+    joint.CreateBody1Rel().SetTargets([Sdf.Path("/Robot/link")])
+    joint.CreateLocalPos0Attr(Gf.Vec3f(0.15, 0.0, 0.0))
+    joint.CreateLocalPos1Attr(Gf.Vec3f(-0.15, 0.0, 0.0))
+    joint.CreateAxisAttr("Y")
+    for path in ("/Robot/Mount", "/Robot/base/Mount"):
+        UsdGeom.Xform.Define(stage, path).AddTranslateOp().Set(Gf.Vec3d(*CHILD_OFFSET))
+    stage.Save()
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_frame_below_non_body_articulation_root_is_static(device, tmp_path):
+    """A frame below an ``ArticulationRootAPI`` Xform but outside every rigid body stays in place.
+
+    The root Xform is not simulated, so, as on PhysX, the frame must not follow the robot, while a
+    frame on the root link must.
+    """
+    num_envs = 2
+    robot_pos = (0.0, 0.0, 1.0)
+    usd_path = str(tmp_path / "xform_rooted_articulation.usda")
+    _author_xform_rooted_articulation(usd_path)
+
+    @configclass
+    class _RobotSceneCfg(InteractiveSceneCfg):
+        robot: ArticulationCfg = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.UsdFileCfg(usd_path=usd_path),
+            init_state=ArticulationCfg.InitialStateCfg(pos=robot_pos),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["joint"], stiffness=0.0, damping=0.0)},
+        )
+
+    ctx = _sim_context(device, num_envs=num_envs)
+    sim = ctx.__enter__()
+    sim._app_control_on_stop_handle = None
+    scene = InteractiveScene(_RobotSceneCfg(num_envs=num_envs, env_spacing=2.0))
+    sim.reset()
+    # Created after reset, as a camera sensor creates its view once the Newton model exists.
+    static_view = FrameView("/World/envs/env_[^/]+/Robot/Mount", device=device)
+    body_view = FrameView("/World/envs/env_[^/]+/Robot/base/Mount", device=device)
+    for _ in range(20):
+        sim.step()
+
+    assert static_view.count == num_envs and body_view.count == num_envs
+    offset = torch.tensor(CHILD_OFFSET, device=device)
+    env_origins = scene.env_origins.to(device)
+    expected_static = env_origins + torch.tensor(robot_pos, device=device) + offset
+    torch.testing.assert_close(static_view.get_world_poses()[0].torch, expected_static, atol=1e-5, rtol=0)
+
+    body_labels = list(NewtonManager.get_model().body_label)
+    body_q = wp.to_torch(NewtonManager.get_state_0().body_q)
+    base_pos = torch.stack([body_q[body_labels.index(f"/World/envs/env_{i}/Robot/base"), :3] for i in range(num_envs)])
+    assert torch.all(base_pos[:, 2] < robot_pos[2] - 0.01), "the robot should have fallen under gravity"
+    # No rotation is expected for a free fall from rest, so the offset stays axis-aligned.
+    torch.testing.assert_close(body_view.get_world_poses()[0].torch, base_pos + offset, atol=1e-4, rtol=0)
     ctx.__exit__(None, None, None)
