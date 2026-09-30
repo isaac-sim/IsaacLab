@@ -39,7 +39,7 @@ permissions:
 
 # EULA + headless env. Without these Kit bootstrap blocks on stdin
 # ("Unable to bootstrap inner kit kernel: EOF when reading a line") or
-# the global watchdog kills the headless process. Mirrors PR #4018.
+# the global watchdog kills the headless process.
 env:
   OMNI_KIT_ACCEPT_EULA: "yes"
   ACCEPT_EULA: "Y"
