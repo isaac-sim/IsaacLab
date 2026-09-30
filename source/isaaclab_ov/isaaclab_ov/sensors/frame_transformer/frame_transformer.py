@@ -266,13 +266,7 @@ class FrameTransformer(BaseFrameTransformer):
                     self._num_envs,
                 )
                 self._num_envs = binding.count
-                self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-                self._reset_mask_torch = wp.to_torch(self._reset_mask)
-                self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
-                self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
-                self._timestamp_last_update = wp.zeros_like(self._timestamp)
-                self._elapsed_since_update = wp.zeros(self._num_envs, dtype=wp.float64, device=self._device)
+                self._create_timing_buffers()
 
             read_buf = wp.zeros(self._num_envs, dtype=wp.transformf, device=self._device)
             dst_torch = torch.tensor(

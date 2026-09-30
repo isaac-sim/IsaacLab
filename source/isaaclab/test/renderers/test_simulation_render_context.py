@@ -296,11 +296,7 @@ class _CpuCamera(Camera):
         self._data.info = {}
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
-        self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._timestamp = wp.zeros(2, device="cpu")
-        self._timestamp_last_update = wp.zeros(2, device="cpu")
-        self._elapsed_since_update = wp.zeros(2, dtype=wp.float64, device="cpu")
+        self._create_timing_buffers()
         self._data_dirty = True
         self.pose = 0.0
         self._view = SimpleNamespace(count=2, xform_world_space_writer=self._pose_writer)
@@ -330,10 +326,7 @@ class _CpuSensor(SensorBase):
         self._num_envs = 2
         self._is_initialized = True
         self._is_visualizing = False
-        self._is_outdated = wp.ones(2, dtype=wp.bool, device="cpu")
-        self._timestamp = wp.zeros(2, device="cpu")
-        self._timestamp_last_update = wp.zeros(2, device="cpu")
-        self._elapsed_since_update = wp.zeros(2, dtype=wp.float64, device="cpu")
+        self._create_timing_buffers()
         self._data_dirty = True
         self._data = np.zeros(2, dtype=int)
         self.name = name
