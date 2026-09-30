@@ -25,11 +25,11 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.managers import CommandManager
+from isaaclab.managers import CommandManager, CurriculumManager
 from isaaclab.utils import index_fill_
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode
+from isaaclab_experimental.managers import RewardManager, TerminationManager
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 
 from .manager_based_env_warp import ManagerBasedEnvWarp
@@ -119,11 +119,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # TODO: termination manager provides the same mask, investigate whether this can be replaced.
         self.reset_mask_wp = wp.zeros(cfg.scene.num_envs, dtype=wp.bool, device=cfg.sim.device)
 
-        # Persistent action input buffer to keep pointer stable for captured graphs.
-        self._action_in_wp: wp.array = wp.zeros(
-            (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
-        )
-
         # initialize data and constants
         # -- set the framerate of the gym video recorder wrapper so that the playback speed
         # of the produced video matches the simulation
@@ -163,7 +158,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
-        # -- command manager (stable impl — not routed through ManagerCallSwitch)
+        # -- command manager (stable implementation)
         self.command_manager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
@@ -172,17 +167,13 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # prepare the managers
         # -- termination manager
-        self.termination_manager = self._manager_call_switch.resolve_manager_class("TerminationManager")(
-            self.cfg.terminations, self
-        )
+        self.termination_manager = TerminationManager(self.cfg.terminations, self)
         print("[INFO] Termination Manager: ", self.termination_manager)
         # -- reward manager (experimental fork; Warp-compatible rewards)
-        self.reward_manager = self._manager_call_switch.resolve_manager_class("RewardManager")(self.cfg.rewards, self)
+        self.reward_manager = RewardManager(self.cfg.rewards, self)
         print("[INFO] Reward Manager: ", self.reward_manager)
-        # -- curriculum manager
-        self.curriculum_manager = self._manager_call_switch.resolve_manager_class("CurriculumManager")(
-            self.cfg.curriculum, self
-        )
+        # -- curriculum manager (stable implementation)
+        self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
 
         # setup the action and observation spaces for Gym
@@ -217,7 +208,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         Call this if the captured launch topology changes (e.g. different term list, shapes, etc.).
         """
-        self._manager_call_switch.invalidate_graphs()
+        self._warp_graph_cache.invalidate()
 
     def step_warp_termination_compute(self) -> None:
         """Captured stage: compute terminations (env-step frequency)."""
@@ -245,19 +236,20 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # stages start recording at the first step after construction or an invalidation
+        self._warp_graph_cache.arm()
         # process actions
         # NOTE: keep a persistent action input buffer for graph pointer stability.
         # IMPORTANT: Do NOT re-wrap/replace the `wp.array` used by captured graphs each step.
         # Instead, copy the latest actions into the persistent buffer.
         with Timer(name="action_preprocess", msg="Action preprocessing took:", enable=DEBUG_TIMER_STEP, time_unit="us"):
-            if self._action_in_wp is None:
-                raise RuntimeError("Action buffer not initialized. Call reset() before step().")
-            action_device = action.to(self.device)
+            action_device = action.to(device=self.device, dtype=torch.float32).contiguous()
             wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
 
-        self._manager_call_switch.call_stage(
-            stage="ActionManager_process_action",
-            warp_call={"fn": self.action_manager.process_action, "kwargs": {"action": self._action_in_wp}},
+        self._warp_graph_cache.call(
+            "ActionManager_process_action",
+            self.action_manager.process_action,
+            action=self._action_in_wp,
             timer=DEBUG_TIMER_STEP,
         )
 
@@ -271,16 +263,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._manager_call_switch.call_stage(
-                stage="ActionManager_apply_action",
-                warp_call={"fn": self.action_manager.apply_action},
-                timer=DEBUG_TIMER_STEP,
+            self._warp_graph_cache.call(
+                "ActionManager_apply_action", self.action_manager.apply_action, timer=DEBUG_TIMER_STEP
             )
-            self._manager_call_switch.call_stage(
-                stage="Scene_write_data_to_sim",
-                warp_call={"fn": self.scene.write_data_to_sim},
-                timer=DEBUG_TIMER_STEP,
-            )
+            # scene writes cross the actuator and asset host boundaries, so they stay eager
+            with Timer(
+                name="Scene_write_data_to_sim", msg="Scene write took:", enable=DEBUG_TIMER_STEP, time_unit="us"
+            ):
+                self.scene.write_data_to_sim()
 
             # simulate
             with Timer(name="simulate", msg="Newton simulation step took:", enable=DEBUG_TIMER_STEP, time_unit="us"):
@@ -306,22 +296,19 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.common_step_counter += 1  # total step (common for all envs)
 
         # -- post-processing (termination + reward) as independently configurable stages
-        self._manager_call_switch.call_stage(
-            stage="TerminationManager_compute",
-            warp_call={"fn": self.step_warp_termination_compute},
-            timer=DEBUG_TIMER_STEP,
+        self._warp_graph_cache.call(
+            "TerminationManager_compute", self.step_warp_termination_compute, timer=DEBUG_TIMER_STEP
         )
-        self.reward_buf = self._manager_call_switch.call_stage(
-            stage="RewardManager_compute",
-            warp_call={"fn": self.reward_manager.compute, "kwargs": {"dt": float(self.step_dt)}},
-            timer=DEBUG_TIMER_STEP,
+        self.reward_buf = self._warp_graph_cache.call(
+            "RewardManager_compute", self.reward_manager.compute, dt=float(self.step_dt), timer=DEBUG_TIMER_STEP
         )
 
         if len(self.recorder_manager.active_terms) > 0:
             # update observations for recording if needed
-            self._manager_call_switch.call_stage(
-                stage="ObservationManager_compute_no_history",
-                warp_call={"fn": self.observation_manager.compute, "kwargs": {"return_cloned_output": False}},
+            self._warp_graph_cache.call(
+                "ObservationManager_compute_no_history",
+                self.observation_manager.compute,
+                return_cloned_output=False,
                 timer=DEBUG_TIMER_STEP,
             )
             self.recorder_manager.record_post_step()
@@ -336,14 +323,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             enable=DEBUG_TIMER_STEP,
             time_unit="us",
         ):
-            # Keep the reset-mask handoff fully in Warp when experimental termination buffers exist.
-            # Stable termination manager path exposes torch-only dones/reset buffers.
-            termination_manager_mode = self._manager_call_switch.get_mode_for_manager("TerminationManager")
-            if termination_manager_mode == ManagerCallMode.STABLE:
-                # copy still needed as mask will be used if manager is set to mode > 0
-                wp.copy(self.reset_mask_wp, wp.from_torch(self.reset_buf, dtype=wp.bool))
-            else:
-                wp.copy(self.reset_mask_wp, self.termination_manager.dones_wp)
+            wp.copy(self.reset_mask_wp, self.termination_manager.dones_wp)
             reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
             # trigger recorder terms for pre-reset calls
@@ -370,21 +350,22 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
-            self._manager_call_switch.call_stage(
-                stage="EventManager_apply_interval",
-                warp_call={"fn": self.event_manager.apply, "kwargs": {"mode": "interval", "dt": float(self.step_dt)}},
+            self._warp_graph_cache.call(
+                "EventManager_apply_interval",
+                self.event_manager.apply,
+                mode="interval",
+                dt=float(self.step_dt),
                 timer=DEBUG_TIMER_STEP,
             )
 
         # -- compute observations
         # note: done after reset to get the correct observations for reset envs
-        self.obs_buf = self._manager_call_switch.call_stage(
-            stage="ObservationManager_compute_update_history",
-            warp_call={
-                "fn": self.observation_manager.compute,
-                "kwargs": {"update_history": True, "return_cloned_output": False},
-                "output": lambda r: clone_obs_buffer(r),
-            },
+        self.obs_buf = self._warp_graph_cache.call(
+            "ObservationManager_compute_update_history",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            output=clone_obs_buffer,
             timer=DEBUG_TIMER_STEP,
         )
         # return observations, rewards, resets and extras
@@ -523,24 +504,17 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             self.curriculum_manager.compute(env_ids=env_ids)
 
         # reset the internal buffers of the scene elements
-        self._manager_call_switch.call_stage(
-            stage="Scene_reset",
-            warp_call={"fn": self.scene.reset, "kwargs": {"env_ids": env_ids, "env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
-        )
+        with Timer(name="Scene_reset", msg="Scene reset took:", enable=DEBUG_TIMER_RESET, time_unit="us"):
+            self.scene.reset(env_ids=env_ids, env_mask=env_mask)
 
         if "reset" in self.event_manager.available_modes:
             self._global_env_step_count_wp.fill_(self._sim_step_counter // self.cfg.decimation)
-            self._manager_call_switch.call_stage(
-                stage="EventManager_apply_reset",
-                warp_call={
-                    "fn": self.event_manager.apply,
-                    "kwargs": {
-                        "mode": "reset",
-                        "env_mask_wp": env_mask,
-                        "global_env_step_count": self._global_env_step_count_wp,
-                    },
-                },
+            self._warp_graph_cache.call(
+                "EventManager_apply_reset",
+                self.event_manager.apply,
+                mode="reset",
+                env_mask_wp=env_mask,
+                global_env_step_count=self._global_env_step_count_wp,
                 timer=DEBUG_TIMER_RESET,
             )
 
@@ -548,20 +522,14 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         # this returns a dictionary of information which is stored in the extras
         # note: This is order-sensitive! Certain things need be reset before others.
         # -- observation manager + action + reward managers
-        obs_info = self._manager_call_switch.call_stage(
-            stage="ObservationManager_reset",
-            warp_call={"fn": self.observation_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        obs_info = self._warp_graph_cache.call(
+            "ObservationManager_reset", self.observation_manager.reset, env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )
-        action_info = self._manager_call_switch.call_stage(
-            stage="ActionManager_reset",
-            warp_call={"fn": self.action_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        action_info = self._warp_graph_cache.call(
+            "ActionManager_reset", self.action_manager.reset, env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )
-        reward_info = self._manager_call_switch.call_stage(
-            stage="RewardManager_reset",
-            warp_call={"fn": self.reward_manager.reset, "kwargs": {"env_mask": env_mask}},
-            timer=DEBUG_TIMER_RESET,
+        reward_info = self._warp_graph_cache.call(
+            "RewardManager_reset", self.reward_manager.reset, env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )
 
         # -- curriculum manager
@@ -575,17 +543,11 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
 
         # -- command + event + termination managers
         command_info = self.command_manager.reset(env_ids=env_ids)
-        event_info = self._manager_call_switch.call_stage(
-            stage="EventManager_reset",
-            warp_call={"fn": self.event_manager.reset, "kwargs": {"env_mask": env_mask}},
-            stable_call={"fn": self.event_manager.reset, "kwargs": {"env_ids": env_ids}},
-            timer=DEBUG_TIMER_RESET,
+        event_info = self._warp_graph_cache.call(
+            "EventManager_reset", self.event_manager.reset, env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )
-        termination_info = self._manager_call_switch.call_stage(
-            stage="TerminationManager_reset",
-            warp_call={"fn": self.termination_manager.reset, "kwargs": {"env_mask": env_mask}},
-            stable_call={"fn": self.termination_manager.reset, "kwargs": {"env_ids": env_ids}},
-            timer=DEBUG_TIMER_RESET,
+        termination_info = self._warp_graph_cache.call(
+            "TerminationManager_reset", self.termination_manager.reset, env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )
 
         # -- recorder manager

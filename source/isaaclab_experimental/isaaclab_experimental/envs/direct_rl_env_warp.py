@@ -227,8 +227,9 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.torch_reset_time_outs: torch.Tensor = None
         self.torch_episode_length_buf: torch.Tensor = None
 
-        # Warp CUDA graph cache for capture-or-replay
-        self._graph_cache = WarpGraphCache()
+        # Task stages run through this cache and record their CUDA graphs on the first step.
+        self._warp_graph_cache = WarpGraphCache(self.device)
+        self._warp_graph_cache.invalidate_on(self.sim.physics_manager)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -391,6 +392,8 @@ class DirectRLEnvWarp(DirectRLEnv):
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
 
+        # stages start recording at the first step after construction or an invalidation
+        self._warp_graph_cache.arm()
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -413,7 +416,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
-                    self._graph_cache.capture_or_replay("action", self.step_warp_action)
+                    self._warp_graph_cache.call("DirectAction_step", self.step_warp_action)
 
                 # write_data_to_sim runs outside the CUDA graph because _apply_actuator_model
                 # uses torch ops (wp.to_torch + torch arithmetic) that cross CUDA streams.
@@ -433,12 +436,12 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_pre", self._step_warp_end_pre)
+            self._warp_graph_cache.call("DirectEndPre_step", self._step_warp_end_pre)
         # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.
         with Timer(name="write_data_to_sim_post", msg="Write data to sim (post-reset) took:", enable=DEBUG_TIMERS):
             self.scene.write_data_to_sim()
         with Timer(name="end_post_graph", msg="End post-graph took:", enable=DEBUG_TIMERS):
-            self._graph_cache.capture_or_replay("end_post", self._step_warp_end_post)
+            self._warp_graph_cache.call("DirectEndPost_step", self._step_warp_end_post)
 
         # Visualization hook — runs after CUDA graph scope. Override in subclass
         # to update markers or other non-graphable visual elements.
@@ -575,6 +578,7 @@ class DirectRLEnvWarp(DirectRLEnv):
             if self.cfg.events:
                 del self.event_manager
             del self.scene
+            self._warp_graph_cache.close()
 
             # # clear callbacks and instance
             # if float(".".join(get_version()[2])) >= 5:

@@ -16,11 +16,9 @@ from __future__ import annotations
 
 # import builtins
 import contextlib
-import importlib
 import logging
 import warnings
 from collections.abc import Sequence
-from copy import deepcopy
 from typing import Any
 
 import torch
@@ -33,6 +31,7 @@ from isaaclab.envs.utils.io_descriptors import (
     export_articulations_data,
     export_scene_data,
 )
+from isaaclab.managers import RecorderManager
 from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import use_stage
 from isaaclab.utils import validate
@@ -40,8 +39,10 @@ from isaaclab.utils.seed import configure_seed
 from isaaclab.utils.timer import Timer
 
 from isaaclab_experimental.envs.interactive_scene_warp import InteractiveSceneWarp as InteractiveScene
-from isaaclab_experimental.utils.manager_call_switch import ManagerCallMode, ManagerCallSwitch
+from isaaclab_experimental.managers import ActionManager, EventManager, ObservationManager
+from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 from isaaclab_experimental.utils.warp import resolve_1d_mask
+from isaaclab_experimental.utils.warp_graph_cache import WarpGraphCache
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -89,11 +90,6 @@ class ManagerBasedEnvWarp:
             )
         # initialize internal variables
         self._is_closed = False
-        # temporary debug runtime config for manager source/call switching.
-        cfg_source: dict | str | None = getattr(self.cfg, "manager_call_config", None)
-        max_modes: dict[str, int] | None = getattr(self.cfg, "manager_call_max_mode", None)
-        self._manager_call_switch = ManagerCallSwitch(cfg_source, max_modes=max_modes)
-        self._apply_manager_term_cfg_profile()
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -116,6 +112,10 @@ class ManagerBasedEnvWarp:
         # make sure torch is running on the correct device
         if "cuda" in self.device:
             torch.cuda.set_device(self.device)
+
+        # Manager stages run through this cache; managers register terms that are unsafe to capture.
+        self._warp_graph_cache = WarpGraphCache(self.device)
+        self._warp_graph_cache.invalidate_on(self.sim.physics_manager)
 
         # print useful information
         print("[INFO]: Base environment:")
@@ -170,7 +170,7 @@ class ManagerBasedEnvWarp:
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
         #   that must happen before the simulation starts. Example: randomizing mesh scale
-        self.event_manager = self._manager_call_switch.resolve_manager_class("EventManager")(self.cfg.events, self)
+        self.event_manager = EventManager(self.cfg.events, self)
 
         # apply USD-related randomization events
         if "prestartup" in self.event_manager.available_modes:
@@ -373,22 +373,24 @@ class ManagerBasedEnvWarp:
             :meth:`SimulationContext.reset_async` and it isn't possible to call async functions in the constructor.
 
         """
+        # recorded stages read buffers of the managers being replaced
+        self._warp_graph_cache.invalidate()
         # prepare the managers
         # -- event manager (we print it here to make the logging consistent)
         print("[INFO] Event Manager: ", self.event_manager)
         # -- recorder manager
-        self.recorder_manager = self._manager_call_switch.resolve_manager_class("RecorderManager")(
-            self.cfg.recorders, self
-        )
+        self.recorder_manager = RecorderManager(self.cfg.recorders, self)
         print("[INFO] Recorder Manager: ", self.recorder_manager)
         # -- action manager
-        self.action_manager = self._manager_call_switch.resolve_manager_class("ActionManager")(self.cfg.actions, self)
+        self.action_manager = ActionManager(self.cfg.actions, self)
         print("[INFO] Action Manager: ", self.action_manager)
         # -- observation manager
-        self.observation_manager = self._manager_call_switch.resolve_manager_class("ObservationManager")(
-            self.cfg.observations, self
-        )
+        self.observation_manager = ObservationManager(self.cfg.observations, self)
         print("[INFO] Observation Manager:", self.observation_manager)
+        # persistent action input: recorded stages read this pointer, so each step copies into it
+        self._action_in_wp = wp.zeros(
+            (self.num_envs, self.action_manager.total_action_dim), dtype=wp.float32, device=self.device
+        )
 
         # perform events at the start of the simulation
         # in-case a child implementation creates other managers, the randomization should happen
@@ -543,14 +545,14 @@ class ManagerBasedEnvWarp:
         Returns:
             A tuple containing the observations and extras.
         """
+        # stages start recording at the first step after construction or an invalidation
+        self._warp_graph_cache.arm()
         # process actions
-        action_device = action.to(self.device)
-        if action_device.dtype != torch.float32:
-            action_device = action_device.float()
-        if not action_device.is_contiguous():
-            action_device = action_device.contiguous()
-        action_wp = wp.from_torch(action_device, dtype=wp.float32)
-        self.action_manager.process_action(action_wp)
+        action_device = action.to(device=self.device, dtype=torch.float32).contiguous()
+        wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
+        self._warp_graph_cache.call(
+            "ActionManager_process_action", self.action_manager.process_action, action=self._action_in_wp
+        )
 
         self.recorder_manager.record_pre_step()
 
@@ -562,7 +564,7 @@ class ManagerBasedEnvWarp:
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self.action_manager.apply_action()
+            self._warp_graph_cache.call("ActionManager_apply_action", self.action_manager.apply_action)
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
@@ -577,10 +579,18 @@ class ManagerBasedEnvWarp:
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
-            self.event_manager.apply(mode="interval", dt=self.step_dt)
+            self._warp_graph_cache.call(
+                "EventManager_apply_interval", self.event_manager.apply, mode="interval", dt=self.step_dt
+            )
 
         # -- compute observations
-        self.obs_buf = self.observation_manager.compute(update_history=True)
+        self.obs_buf = self._warp_graph_cache.call(
+            "ObservationManager_compute_update_history",
+            self.observation_manager.compute,
+            update_history=True,
+            return_cloned_output=False,
+            output=clone_obs_buffer,
+        )
         self.recorder_manager.record_post_step()
 
         # return observations and extras
@@ -607,6 +617,7 @@ class ManagerBasedEnvWarp:
             del self.event_manager
             del self.recorder_manager
             del self.scene
+            self._warp_graph_cache.close()
 
             # self.sim.clear_all_callbacks()
             self.sim.clear_instance()
@@ -620,96 +631,6 @@ class ManagerBasedEnvWarp:
     """
     Helper functions.
     """
-
-    def _resolve_stable_cfg_counterpart(self) -> ManagerBasedEnvCfg | None:
-        """Resolve a stable task config counterpart for the current experimental task config.
-
-        The lookup follows a module-name mirror convention:
-        ``isaaclab_tasks_experimental...`` -> ``isaaclab_tasks...`` with the same config class name.
-        """
-        cfg_cls = self.cfg.__class__
-        cfg_module_name = cfg_cls.__module__
-        if "isaaclab_tasks_experimental" not in cfg_module_name:
-            return None
-
-        stable_module_name = cfg_module_name.replace("isaaclab_tasks_experimental", "isaaclab_tasks", 1)
-        try:
-            stable_module = importlib.import_module(stable_module_name)
-        except Exception as exc:
-            logger.warning(
-                "Failed to import stable task cfg module '%s' for manager_call_config stable mode: %s",
-                stable_module_name,
-                exc,
-            )
-            return None
-
-        stable_cfg_cls = getattr(stable_module, cfg_cls.__name__, None)
-        if stable_cfg_cls is None:
-            logger.warning(
-                "Stable task cfg class '%s' not found in module '%s'.",
-                cfg_cls.__name__,
-                stable_module_name,
-            )
-            return None
-
-        try:
-            return stable_cfg_cls()
-        except Exception as exc:
-            logger.warning(
-                "Failed to instantiate stable task cfg '%s.%s': %s",
-                stable_module_name,
-                cfg_cls.__name__,
-                exc,
-            )
-            return None
-
-    def _apply_manager_term_cfg_profile(self) -> None:
-        """Align term configs with manager modes for stable manager selections.
-
-        When a manager is configured as STABLE (0), swap its corresponding config subtree
-        from the stable task counterpart to keep manager-term type/signature compatibility.
-        """
-        manager_to_cfg_attr = {
-            "ActionManager": "actions",
-            "ObservationManager": "observations",
-            "EventManager": "events",
-            "RecorderManager": "recorders",
-            "CommandManager": "commands",
-            "TerminationManager": "terminations",
-            "RewardManager": "rewards",
-            "CurriculumManager": "curriculum",
-        }
-
-        stable_manager_names = [
-            manager_name
-            for manager_name in manager_to_cfg_attr
-            if self._manager_call_switch.get_mode_for_manager(manager_name) == ManagerCallMode.STABLE
-        ]
-        if not stable_manager_names:
-            return
-
-        stable_cfg = self._resolve_stable_cfg_counterpart()
-        if stable_cfg is None:
-            logger.warning(
-                "Stable managers requested (%s), but no stable cfg counterpart could be resolved."
-                " Keeping experimental term configs.",
-                ", ".join(stable_manager_names),
-            )
-            return
-
-        replaced_items: list[str] = []
-        for manager_name, cfg_attr in manager_to_cfg_attr.items():
-            if self._manager_call_switch.get_mode_for_manager(manager_name) != ManagerCallMode.STABLE:
-                continue
-            if not hasattr(self.cfg, cfg_attr) or not hasattr(stable_cfg, cfg_attr):
-                continue
-            setattr(self.cfg, cfg_attr, deepcopy(getattr(stable_cfg, cfg_attr)))
-            replaced_items.append(f"{manager_name} -> cfg.{cfg_attr}")
-
-        if replaced_items:
-            print("[INFO] Applied stable term config profile for managers:")
-            for item in replaced_items:
-                print(f"  - {item}")
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
