@@ -6,3 +6,6 @@
 * Fixed the ``write_body_*_to_sim_mask`` methods of :class:`~isaaclab_newton.assets.RigidObjectCollection`
   converting masks to indices on the host, which prevented capturing them in CUDA graphs as documented. They now
   write through masked kernels.
+* Fixed the fixed-tendon ``set_*_mask`` methods and
+  :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` converting masks to indices
+  on the host, which prevented capturing them in CUDA graphs. They now write through masked kernels.

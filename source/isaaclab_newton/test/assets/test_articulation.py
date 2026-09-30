@@ -1651,6 +1651,63 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
     np.testing.assert_allclose(solver_model.tendon_damping.numpy(), expected_damping)
 
 
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
+def test_fixed_tendon_mask_writes_replay_from_cuda_graph_on_selected_cells(
+    sim, num_articulations, device, articulation_type
+):
+    """Fixed tendon mask setters and writer record into a CUDA graph and, on replay, write only the selected cells.
+
+    The mask variants are the documented graph-capturable path. The inputs are filled only after capture, so the
+    replay must read them at launch time.
+    """
+    articulation, _ = generate_articulation(
+        generate_articulation_cfg(articulation_type=articulation_type), num_articulations, device
+    )
+    replicate(sim.get_clone_plan())
+    sim.reset()
+    num_tendons = articulation.num_fixed_tendons
+    env_mask = wp.array([False, True], dtype=wp.bool, device=device)
+    tendon_mask = torch.zeros(num_tendons, dtype=torch.bool, device=device)
+    tendon_mask[1] = True
+    tendon_mask = wp.from_torch(tendon_mask)
+    selected = torch.zeros(num_articulations, num_tendons, 1, dtype=torch.bool, device=device)
+    selected[1, 1] = True
+
+    stiffness = torch.zeros(num_articulations, num_tendons, device=device)
+    damping = torch.zeros_like(stiffness)
+    limits = torch.zeros(num_articulations, num_tendons, 2, device=device)
+    data = articulation.data
+    before = {
+        "stiffness": data.fixed_tendon_stiffness.torch.clone(),
+        "damping": data.fixed_tendon_damping.torch.clone(),
+        "pos_limits": data.fixed_tendon_pos_limits.torch.clone(),
+    }
+    with wp.ScopedCapture(device) as capture:
+        articulation.set_fixed_tendon_stiffness_mask(
+            stiffness=stiffness, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+        )
+        articulation.set_fixed_tendon_damping_mask(damping=damping, fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+        articulation.set_fixed_tendon_position_limit_mask(
+            limit=limits, fixed_tendon_mask=tendon_mask, env_mask=env_mask
+        )
+        articulation.write_fixed_tendon_properties_to_sim_mask(fixed_tendon_mask=tendon_mask, env_mask=env_mask)
+    stiffness.fill_(12.0)
+    damping.fill_(3.0)
+    limits[..., 0] = -0.1
+    limits[..., 1] = 0.2
+    wp.capture_launch(capture.graph)
+
+    written = {"stiffness": stiffness, "damping": damping, "pos_limits": limits}
+    for name, value in written.items():
+        after = getattr(data, f"fixed_tendon_{name}").torch
+        expected = torch.where(
+            selected, value.view(*selected.shape[:2], -1), before[name].view(*selected.shape[:2], -1)
+        )
+        torch.testing.assert_close(after.view_as(expected), expected, msg=name)
+
+
 @pytest.mark.parametrize("device", ["cpu"])
 @pytest.mark.parametrize("add_ground_plane", [True])
 @pytest.mark.parametrize("articulation_type", ["anymal"])
