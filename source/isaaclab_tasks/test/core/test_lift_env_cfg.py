@@ -171,7 +171,8 @@ def _make_pose_command(
             root_link_pose_w=SimpleNamespace(torch=root_pose_w),
         )
     )
-    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=object())
+    material = SimpleNamespace(is_per_env=True)
+    scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=material)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
     cfg = SimpleNamespace(
         asset_name="robot",

@@ -69,6 +69,8 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.success_vis_material: VisualMaterial | None = None
         if cfg.success_vis_material_name is not None:
             self.success_vis_material = env.scene[cfg.success_vis_material_name]
+            if not self.success_vis_material.is_per_env:
+                raise ValueError(f"Success material '{cfg.success_vis_material_name}' must be per-environment.")
             self._success_vis_colors = torch.tensor(cfg.success_vis_colors, device=self.device)
 
         # create buffers
