@@ -53,6 +53,9 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
     Parsing canonical names again returns them unchanged.
     """
     names = value.split(",") if isinstance(value, str) else list(value)
+    # an undocumented alias of omitting --visualizer, kept so older commands keep running
+    if names == ["none"]:
+        return []
     invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES)]
     if invalid:
         raise argparse.ArgumentTypeError(

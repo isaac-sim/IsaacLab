@@ -724,8 +724,12 @@ def test_resolve_launcher_args_rejects_negative_max_visible_envs():
 def test_parse_visualizer_csv_rejects_invalid_names():
     with pytest.raises(argparse.ArgumentTypeError, match="without spaces"):
         parse_visualizer_csv("kit, newton_gl")
-    with pytest.raises(argparse.ArgumentTypeError, match="Invalid --visualizer value 'none'"):
-        parse_visualizer_csv("none")
+    with pytest.raises(argparse.ArgumentTypeError, match="Invalid --visualizer value 'none,kit'"):
+        parse_visualizer_csv("none,kit")
+
+
+def test_parse_visualizer_csv_treats_none_as_no_selection():
+    assert parse_visualizer_csv("none") == []
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
