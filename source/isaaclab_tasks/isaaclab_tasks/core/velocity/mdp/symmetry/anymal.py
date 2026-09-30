@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 # specify the functions that are available for import
 __all__ = ["compute_symmetric_states"]
 
+_ANYMAL_JOINT_NAME = re.compile(r"(?P<side>[LR])(?P<end>[FH])_(?P<joint>HAA|HFE|KFE)")
+
 
 @torch.no_grad()
 def compute_symmetric_states(
@@ -83,13 +85,11 @@ def compute_symmetric_states(
         # -- original
         actions_aug[:batch_size] = actions[:]
         # -- left-right
-        actions_aug[batch_size : 2 * batch_size] = _transform_actions_left_right(actions, left_right)
+        actions_aug[batch_size : 2 * batch_size] = _switch_joints(actions, left_right)
         # -- front-back
-        actions_aug[2 * batch_size : 3 * batch_size] = _transform_actions_front_back(actions, front_back)
+        actions_aug[2 * batch_size : 3 * batch_size] = _switch_joints(actions, front_back)
         # -- diagonal
-        actions_aug[3 * batch_size :] = _transform_actions_front_back(
-            actions_aug[batch_size : 2 * batch_size], front_back
-        )
+        actions_aug[3 * batch_size :] = _switch_joints(actions_aug[batch_size : 2 * batch_size], front_back)
     else:
         actions_aug = None
 
@@ -191,47 +191,6 @@ def _transform_policy_obs_front_back(
 
 
 """
-Symmetry functions for actions.
-"""
-
-
-def _transform_actions_left_right(actions: torch.Tensor, joint_map: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
-    """Applies a left-right symmetry transformation to the actions tensor.
-
-    This function modifies the given actions tensor by applying transformations
-    that represent a symmetry with respect to the left-right axis. This includes
-    flipping the joint positions, joint velocities, and last actions for the
-    ANYmal robot.
-
-    Args:
-        actions: The actions tensor to be transformed.
-        joint_map: The left-right joint permutation and sign in the robot's joint order.
-
-    Returns:
-        The transformed actions tensor with left-right symmetry applied.
-    """
-    return _switch_joints(actions, joint_map)
-
-
-def _transform_actions_front_back(actions: torch.Tensor, joint_map: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
-    """Applies a front-back symmetry transformation to the actions tensor.
-
-    This function modifies the given actions tensor by applying transformations
-    that represent a symmetry with respect to the front-back axis. This includes
-    flipping the joint positions, joint velocities, and last actions for the
-    ANYmal robot.
-
-    Args:
-        actions: The actions tensor to be transformed.
-        joint_map: The front-back joint permutation and sign in the robot's joint order.
-
-    Returns:
-        The transformed actions tensor with front-back symmetry applied.
-    """
-    return _switch_joints(actions, joint_map)
-
-
-"""
 Helper functions for symmetry.
 
 The ANYmal joints are named ``<side><end>_<joint>``, where the side is ``L`` (left) or ``R`` (right), the end is
@@ -242,8 +201,6 @@ or ``KFE`` (knee flexion/extension). The joint order of the articulation depends
 * left-right: swap ``L`` and ``R`` and negate the ``HAA`` joints.
 * front-back: swap ``F`` and ``H`` and negate the ``HFE`` and ``KFE`` joints.
 """
-
-_ANYMAL_JOINT_NAME = re.compile(r"(?P<side>[LR])(?P<end>[FH])_(?P<joint>HAA|HFE|KFE)")
 
 
 @functools.cache
