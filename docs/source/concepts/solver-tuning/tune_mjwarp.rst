@@ -97,8 +97,22 @@ metrics plateau. More iterations cannot compensate for bad inertia, penetration
 at reset, missing collision geometry, unsupported constraints, or excessive
 drive stiffness.
 
+.. _browser-demo-rigid-friction:
+
 Tune friction and contact behavior
 ----------------------------------
+
+The boxes below begin at rest on a 0.22 rad incline. Change the middle box's
+friction coefficient and press **Reset** to compare its downhill travel with
+the fixed low- and high-friction references. This isolated MJWarp scene
+illustrates how contact friction affects slip; reproduce any task-specific
+result with the task's own geometry, mass, contact settings, and solver budget.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../../_static/css/browser-demo.css">
+   <script type="module" src="../../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../../_static/browser_demos/rigid_friction/manifest.json"></isaaclab-browser-demo>
 
 Validate colliders, contact locations, normal force, material friction, and
 ``condim`` before changing global friction settings. ``cone`` selects the

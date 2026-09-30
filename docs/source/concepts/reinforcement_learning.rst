@@ -40,6 +40,63 @@ The ``train`` and ``play`` commands work across the supported RL libraries.
 
    An ANYmal-D locomotion policy at three checkpoints during training.
 
+Try policies in the browser
+---------------------------
+
+These compact Newton MJWarp scenes run locally as WebAssembly when scrolled into
+view. They let you perturb a trained controller or set velocity commands. For
+task evaluation and metrics, use ``isaaclab play`` with the corresponding task.
+The exporter and rebuild instructions live in
+`docs/browser_demos <https://github.com/isaac-sim/IsaacLab/tree/develop/docs/browser_demos>`_.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
+   <script type="module" src="../../_static/css/browser-demo.js"></script>
+
+.. _browser-demo-cartpole:
+
+Cartpole policy
+~~~~~~~~~~~~~~~
+
+The published ``Isaac-Cartpole-Direct`` Newton policy balances the pole from
+a repeatable 0.2 rad initial angle. Hold the slider to push the cart with up
+to 300 N in either direction; release it to watch the policy recover. The cart
+resets beyond 3 m of travel. **Reset** restores the starting state.
+
+.. raw:: html
+
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/cartpole/manifest.json"></isaaclab-browser-demo>
+
+.. _browser-demo-g1:
+
+G1 velocity control
+~~~~~~~~~~~~~~~~~~~
+
+This scene runs the published 29-joint WBC-AGILE ``Velocity-G1-v0`` policy.
+Drag the travel and yaw pads to command forward, sideways, and turning motion;
+release them to stop. The arrow keys also work when a pad is focused. The G1
+geometry comes from Unitree's open robot description. This is a browser
+demonstration of an external policy, not an Isaac Lab task evaluation.
+
+.. raw:: html
+
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/g1/manifest.json"></isaaclab-browser-demo>
+
+.. _browser-demo-anymal:
+
+ANYmal-D velocity control
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This scene uses the published ``Isaac-Velocity-Flat-AnymalD`` RSL-RL checkpoint
+trained with Newton MJWarp. The travel and yaw pads command its body velocity.
+The full task uses an LSTM ANYdrive actuator; this compact browser scene uses
+a tuned PD drive, so motion can differ from a full task run.
+
+.. raw:: html
+
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/anymal/manifest.json"></isaaclab-browser-demo>
+
 .. _choose-an-rl-library:
 
 Choose an RL library

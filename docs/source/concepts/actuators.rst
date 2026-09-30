@@ -313,6 +313,38 @@ targets. Units are [N·m·s/rad] for revolute joints and [N·s/m] for prismatic 
     :width: 80%
     :alt: Position step response for a damping sweep.
 
+.. _browser-demo-joint-pd:
+
+Tune a suspended arm in the browser
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This suspended three-joint arm uses implicit position drives in Newton MJWarp
+at 240 Hz. Select a joint, then compare a **Step** command with a **Sine wave**.
+The orange silhouette marks the commanded pose; the blue arm shows the simulated
+pose. The plot traces the selected joint's target and measured angle over the
+last four seconds and reports root-mean-square (RMS) tracking error. The other
+two joints hold their zero targets with their own drives. Selecting a new joint
+or waveform starts a new trace.
+
+1. Apply a step and raise stiffness until the joint reaches its target in a
+   useful time. Watch for overshoot and oscillation in the plot.
+2. Increase damping until overshoot falls without making the response too slow.
+   Press **Reset** between trials to compare from the same pose.
+3. Switch to a sine wave and increase frequency. Look for tracking lag and a
+   growing RMS error, even if the step response looked good.
+
+Gravity and the other two joints affect the response. Gain values from this
+small arm are illustrative; tune an imported robot with its actual mass,
+actuator model, effort limits, timestep, and full task conditions. This exercise
+addresses the browser part of the `PD tuning proposal
+<https://github.com/isaac-sim/IsaacLab/issues/2783>`_.
+
+.. raw:: html
+
+   <link rel="stylesheet" href="../../_static/css/browser-demo.css">
+   <script type="module" src="../../_static/css/browser-demo.js"></script>
+   <isaaclab-browser-demo class="compact" src="../../_static/browser_demos/joint_pd/manifest.json"></isaaclab-browser-demo>
+
 
 Armature
 ^^^^^^^^

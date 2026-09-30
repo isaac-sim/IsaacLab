@@ -1,0 +1,67 @@
+/* Copyright (c) 2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+ * All rights reserved.
+ *
+ * SPDX-License-Identifier: BSD-3-Clause
+ */
+
+isaaclab-browser-demo { display: block; min-height: 620px; margin: 1.4rem 0; }
+isaaclab-browser-demo.compact { min-height: 520px; }
+isaaclab-browser-demo:empty { display: grid; place-items: center; border: 1px solid #d8e1e5; border-radius: 12px; background: #eef5f8; color: #587078; }
+isaaclab-browser-demo:empty::before { content: 'Interactive simulation loads when in view'; font-size: .85rem; }
+.browser-demo { border: 1px solid #d8e1e5; border-radius: 12px; overflow: hidden; background: #fff; color: #1a3039; box-shadow: 0 8px 28px #14232b0c; }
+.browser-demo-head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; padding: .8rem 1rem; background: #fff; border-bottom: 1px solid #e5ecef; }
+.browser-demo-head strong { display: inline-flex; align-items: center; gap: .6rem; font-size: .94rem; }
+.browser-demo-head strong::before { content: ''; width: .55rem; height: .55rem; border-radius: 50%; background: #76b900; box-shadow: 0 0 0 4px #76b9001c; }
+.browser-demo-head span { font-size: .78rem; color: #587078; }
+.browser-demo-error { color: #b3261e; }
+.browser-demo canvas { display: block; width: 100%; height: min(510px, 68vw); min-height: 360px; cursor: grab; touch-action: none; }
+.browser-demo canvas:active { cursor: grabbing; }
+isaaclab-browser-demo.compact .browser-demo canvas { height: min(410px, 55vw); min-height: 320px; }
+.browser-demo-controls { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem 1.5rem; padding: 1rem; background: #fff; border-top: 1px solid #e5ecef; }
+.browser-demo-slider { display: grid; grid-template-columns: auto minmax(100px, 1fr) 4.5em; align-items: center; gap: .6rem; flex: 1 1 250px; font-size: .85rem; }
+.browser-demo-slider input { width: 100%; accent-color: #76b900; }
+.browser-demo-slider output { text-align: right; font-variant-numeric: tabular-nums; }
+.browser-demo-force { display: grid; gap: .45rem; box-sizing: border-box; width: 100%; padding: .85rem 1rem; border: 1px solid #dce7e9; border-radius: 10px; background: #f7faf9; }
+.browser-demo-force .browser-demo-slider { display: grid; grid-template-columns: 1fr auto; gap: .65rem; font-weight: 600; }
+.browser-demo-force .browser-demo-slider input { grid-column: 1 / -1; grid-row: 2; box-sizing: border-box; height: 12px; margin: .3rem 0; appearance: none; border-radius: 99px; background: linear-gradient(90deg, #d9e4e7 calc(50% - 1px), #92a9ae 50%, #d9e4e7 calc(50% + 1px)); cursor: ew-resize; }
+.browser-demo-force .browser-demo-slider input::-webkit-slider-thumb { appearance: none; width: 25px; height: 25px; border: 3px solid white; border-radius: 50%; background: #76b900; box-shadow: 0 2px 8px #31500055, 0 0 0 1px #588d12; }
+.browser-demo-force .browser-demo-slider input::-moz-range-thumb { width: 19px; height: 19px; border: 3px solid white; border-radius: 50%; background: #76b900; box-shadow: 0 2px 8px #31500055, 0 0 0 1px #588d12; }
+.browser-demo-force .browser-demo-slider output { color: #4c7600; }
+.browser-demo-force-scale { display: flex; justify-content: space-between; color: #667b84; font-size: .74rem; font-variant-numeric: tabular-nums; }
+.browser-demo-force small { color: #667b84; font-size: .77rem; }
+.browser-demo-tracking { padding: .6rem 1rem .65rem; border-top: 1px solid #e5ecef; background: #f8fafb; }
+.browser-demo canvas.browser-demo-tracking-canvas,
+isaaclab-browser-demo.compact .browser-demo canvas.browser-demo-tracking-canvas { height: 145px; min-height: 0; cursor: default; touch-action: auto; }
+.browser-demo-tracking-caption { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem 1.2rem; color: #536b74; font-size: .76rem; }
+.browser-demo-tracking-caption span::before { content: ''; display: inline-block; width: 1.1rem; height: 3px; margin: 0 .4rem .2rem 0; border-radius: 3px; vertical-align: middle; }
+.browser-demo-tracking-target::before { background: #d97825; }
+.browser-demo-tracking-measured::before { background: #236eb9; }
+.browser-demo-tracking-caption span output { font-variant-numeric: tabular-nums; }
+.browser-demo-tracking-caption > output { margin-left: auto; font-variant-numeric: tabular-nums; }
+.browser-demo-pd-toolbar { display: flex; flex-wrap: wrap; gap: .6rem 1.2rem; width: 100%; }
+.browser-demo-pd-toolbar label { display: flex; align-items: center; gap: .5rem; font-size: .82rem; font-weight: 600; }
+.browser-demo-pd-toolbar select { min-width: 8rem; padding: .38rem .55rem; border: 1px solid #b9c7cc; border-radius: 6px; background: #fff; color: inherit; font: inherit; }
+.browser-demo-slider[hidden] { display: none; }
+.browser-demo-legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; width: 100%; font-size: .78rem; color: #536b74; }
+.browser-demo-legend > span { display: inline-flex; align-items: center; gap: .4rem; }
+.browser-demo-legend i { display: inline-block; width: .65rem; height: .65rem; border-radius: 50%; }
+.browser-demo-joysticks { display: flex; flex-wrap: wrap; align-items: start; gap: 1.2rem; width: 100%; }
+.browser-demo-stick-section { display: grid; align-content: start; gap: .5rem; width: 192px; font-size: .84rem; }
+.browser-demo-stick-heading { display: grid; gap: .15rem; font-weight: 600; }
+.browser-demo-stick-heading output { font-variant-numeric: tabular-nums; font-weight: 400; color: #49616b; font-size: .76rem; }
+.browser-demo-stick-section small { color: #667b84; font-size: .72rem; }
+.browser-demo-stick { position: relative; box-sizing: border-box; width: 168px; height: 168px; border: 1px solid #cbd8de; border-radius: 50%; background: radial-gradient(circle at center, #dae6e9 0 2px, transparent 3px 15px, #dbe6e9 16px 17px, transparent 18px 53px, #dce7ea 54px 55px, transparent 56px), linear-gradient(90deg, transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), linear-gradient(transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), #f3f7f8; box-shadow: inset 0 2px 7px #172f390c, 0 2px 7px #172f390a; touch-action: none; cursor: pointer; user-select: none; }
+.browser-demo-stick-yaw { height: 70px; border-radius: 35px; background: linear-gradient(90deg, transparent calc(50% - .5px), #dce7ea 50%, transparent calc(50% + .5px)), #f3f7f8; }
+.browser-demo-stick-mark { position: absolute; color: #8299a2; font-size: 1rem; line-height: 1; pointer-events: none; }
+.browser-demo-stick-mark-top { top: 10px; left: 50%; transform: translateX(-50%); }
+.browser-demo-stick-mark-bottom { bottom: 10px; left: 50%; transform: translateX(-50%); }
+.browser-demo-stick-mark-left { left: 11px; top: 50%; transform: translateY(-50%); }
+.browser-demo-stick-mark-right { right: 11px; top: 50%; transform: translateY(-50%); }
+.browser-demo-stick-knob { position: absolute; box-sizing: border-box; left: 50%; top: 50%; width: 36px; height: 36px; margin: -18px; border-radius: 50%; background: radial-gradient(circle at 36% 30%, #a5d954, #76b900 72%); border: 3px solid #fff; box-shadow: 0 2px 8px #31500055, 0 0 0 1px #588d12; pointer-events: none; transition: transform .1s ease-out; }
+.browser-demo-stick.active .browser-demo-stick-knob { background: radial-gradient(circle at 36% 30%, #b8e66f, #81c511 72%); transition: none; }
+.browser-demo-stick:focus-visible { outline: 2px solid #76b900; outline-offset: 3px; }
+.browser-demo-buttons { display: flex; gap: .5rem; }
+.browser-demo button { cursor: pointer; padding: .42rem .9rem; border: 1px solid #b9c7cc; border-radius: 6px; background: #fff; color: inherit; font: inherit; font-size: .83rem; }
+.browser-demo-buttons button:hover { background: #eaf5dc; }
+.browser-demo button:focus-visible, .browser-demo input:focus-visible { outline: 2px solid #76b900; outline-offset: 2px; }
+@media (max-width: 600px) { .browser-demo-head { align-items: flex-start; flex-direction: column; gap: .3rem; } .browser-demo canvas { min-height: 320px; } }
