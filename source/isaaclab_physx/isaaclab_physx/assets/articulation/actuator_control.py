@@ -17,7 +17,7 @@ from isaaclab.actuators.actuator_control import ArticulationActuatorControl
 from isaaclab.actuators.newton.adapter import LightArticulationView, NewtonActuatorSelection
 from isaaclab.actuators.newton.physx_runtime import PhysxActuatorRuntime
 from isaaclab.assets.articulation import ordering_kernels
-from isaaclab.sim.schemas.schemas_actuators import _validate_newton_native_actuator_cfgs
+from isaaclab.sim.schemas.schemas_actuators import validate_newton_native_actuator_cfgs
 from isaaclab.sim.utils.queries import find_first_matching_prim
 from isaaclab.sim.utils.stage import get_current_stage
 
@@ -61,15 +61,15 @@ class PhysxActuatorControl(ArticulationActuatorControl):
         if not use_newton_actuators:
             return set()
 
-        _validate_newton_native_actuator_cfgs(actuator_cfgs)
-
-        # Activate the runtime even without explicit native groups: implicit-only
-        # articulations still rely on it for the solver telemetry fast path.
-        self._native_actuator_path_active = True
-        articulation._has_newton_actuators = True
+        validate_newton_native_actuator_cfgs(actuator_cfgs)
         native_group_names = {
             name for name, actuator_cfg in actuator_cfgs.items() if not _is_implicit_actuator_cfg(actuator_cfg)
         }
+        if not native_group_names:
+            return set()
+
+        self._native_actuator_path_active = True
+        articulation._has_newton_actuators = True
 
         first_prim = find_first_matching_prim(articulation.cfg.prim_path)
         art_prim_path = str(first_prim.GetPath()) if first_prim is not None else None

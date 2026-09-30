@@ -7,8 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.backend_utils import FactoryBase
-
+from ...utils.backend_utils import FactoryBase
 from .base_deformable_object import BaseDeformableObject
 from .base_deformable_object_data import BaseDeformableObjectData
 

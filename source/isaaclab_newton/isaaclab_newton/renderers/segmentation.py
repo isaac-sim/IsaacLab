@@ -28,8 +28,8 @@ import warp as wp
 
 # Colorization (host ``random_color_from_id`` / ``pack_rgba``) and the reserved BACKGROUND / UNLABELLED
 # ids are shared with the RTX and OVRTX renderers to keep colorized segmentation visually consistent.
+from isaaclab.cloner import ClonePlan
 from isaaclab.cloner import path as cloner_path
-from isaaclab.cloner import query as cloner_query
 from isaaclab.renderers.segmentation_colors import BACKGROUND_ID, UNLABELLED_ID, pack_rgba, random_color_from_id
 from isaaclab.utils.timer import Timer
 
@@ -38,7 +38,6 @@ if TYPE_CHECKING:
 
     from pxr import Usd
 
-    from isaaclab.cloner import ClonePlan
 
 _UNLABELLED_COLOR: int = 0xFF000000
 """Packed RGBA color for UNLABELLED pixels: ``(0, 0, 0, 255)`` opaque black."""
@@ -237,29 +236,18 @@ class NewtonSegmentationMapping:
         if self.shape_count == 0:
             out_view.zero_()
             return
-        if self.colorize:
-            wp.launch(
-                _remap_shape_index_to_color_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_color, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
-        else:
-            wp.launch(
-                _remap_shape_index_to_id_kernel,
-                dim=shape_index.shape,
-                inputs=[shape_index, self.shape_to_id, self.shape_count],
-                outputs=[out_view],
-                device=out_view.device,
-            )
+        kernel = _remap_shape_index_to_color_kernel if self.colorize else _remap_shape_index_to_id_kernel
+        mapping = self.shape_to_color if self.colorize else self.shape_to_id
+        wp.launch(
+            kernel, shape_index.shape, [shape_index, mapping, self.shape_count], [out_view], device=out_view.device
+        )
 
 
 class NewtonSegmentationMapper:
     """Builds per-shape segmentation lookup tables from a Newton model and its USD stage."""
 
-    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, clone_plan: ClonePlan) -> None:
-        """Initialize the mapper from the Newton model, USD stage, renderer config, and clone plan.
+    def __init__(self, model: newton.Model, stage: Usd.Stage | None, cfg, plan: ClonePlan | None) -> None:
+        """Initialize the mapper from the Newton model, USD stage, renderer config, and native instance paths.
 
         Construction is cheap — it only captures references and snapshots ``model.shape_label``.
         Call :meth:`build_mapping` to do the actual per-shape USD resolution and id assignment.
@@ -269,9 +257,8 @@ class NewtonSegmentationMapper:
             stage: The live USD stage used to read :class:`UsdSemantics.LabelsAPI` labels. May be
                 ``None`` in stageless setups, in which case every shape is treated as unlabelled.
             cfg: Renderer config exposing ``semantic_filter`` and ``semantic_segmentation_mapping``.
-            clone_plan: The scene's published :class:`~isaaclab.cloner.ClonePlan`, used to fall back
-                to the prototype env when a replicated shape has no prim on the stage (backend-only
-                replication). See :meth:`_resolve_via_prototype`.
+            plan: Prototype topology and native naming, used when a
+                replicated shape has no prim on the stage. See :meth:`_resolve_via_prototype`.
         """
         self._model = model
         self._stage = stage
@@ -283,7 +270,9 @@ class NewtonSegmentationMapper:
         # Cache of prim path -> (matched_labels or None); labels resolved with ancestor inheritance.
         self._matched_cache: dict[str, tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None] = {}
         self._mappings: dict[tuple[str, bool], NewtonSegmentationMapping] = {}
-        self._clone_plan = clone_plan
+        self._plan = plan
+        self._source_paths = () if plan is None else cloner_path.get_asset_prototype_paths(plan)
+        self._templates = () if plan is None else cloner_path.get_world_prototype_asset_templates(plan)[0]
 
     def build_mapping(self, kind: _SegKind, colorize: bool) -> None:
         """Build and cache the :class:`NewtonSegmentationMapping` for ``kind`` at the requested colorization."""
@@ -376,48 +365,32 @@ class NewtonSegmentationMapper:
     def _resolve_via_prototype(
         self, prim_path: str
     ) -> tuple[dict[SemanticType, SemanticLabels], SemanticPrimPath] | None:
-        """Resolve a replicated shape's labels through the prototype env it was cloned from.
+        """Read labels from the authored prototype when a native clone has no USD prim.
 
-        Newton replicates the *model*, rewriting each cloned shape's ``shape_label`` to its per-env
-        path (see ``isaaclab_newton.cloner.rename_builder_labels``), but a scene that spawns only
-        the prototype (:attr:`~isaaclab.sim.spawners.SpawnerCfg.spawn_path`) authors USD prims —
-        and therefore :class:`UsdSemantics.LabelsAPI` labels — for that one env only. Those clones
-        would otherwise resolve to UNLABELLED, so their labels are read off the prototype instead.
-
-        The matched ancestor is rebased back onto the clone before being returned, because
-        ``instance_segmentation`` groups by that path: leaving it on the prototype side would
-        collapse every environment into a single instance id.
-
-        Returns:
-            The prototype's ``(filtered_labels, matched_ancestor_path)`` with the ancestor rebased
-            into ``prim_path``'s environment, or ``None`` when ``prim_path`` is not a clone, or the
-            prototype itself is unlabelled.
-
-        Raises:
-            ValueError: When ``prim_path`` is owned by multiple distinct, equally near destination
-                templates — a malformed clone plan, not a state to resolve around.
+        Rebase the labelled ancestor to keep instance IDs distinct across worlds. Labels above
+        the cloned subtree remain shared. Return None for unowned or unlabelled paths.
         """
-        resolved = cloner_query.path_to_source(self._clone_plan, prim_path)
-        if resolved is None:
-            # ``prim_path`` is not owned by the clone plan at all (e.g. an un-cloned ground plane or
-            # other static prim) — nothing to fall back to, so it stays unlabelled.
+        if self._plan is None or (world := cloner_path.match(prim_path, self._plan.env_template)) is None:
             return None
-        source_root, _, asset_suffix = resolved
-        prototype_path = source_root + asset_suffix
-        # The prototype path is where the labels actually live, so a plain stage walk — not another
-        # round of clone-plan resolution — is all that's needed here. When ``prim_path`` names the
-        # prototype's own env, this re-walks the same path the caller already walked; the cache it
-        # left behind makes that a cheap no-op rather than a correctness concern.
-        match = self._walk_for_labels(prototype_path)
+        world_id = int(world.instance)
+        topology = self._plan.topology
+        if not 0 <= world_id < len(topology.world_prototype_layout):
+            return None
+        prototype = topology.world_prototype_layout[world_id]
+        start, end = topology.world_prototype_starts[prototype + 1 : prototype + 3]
+        matches = []
+        for index in range(start, end):
+            if (matched := cloner_path.match(prim_path, self._templates[index])) is not None:
+                matches.append((index, matched.suffix))
+        if not matches:
+            return None
+        index, suffix = min(matches, key=lambda item: len(item[1]))
+        source = self._source_paths[topology.world_prototypes[index]]
+        match = self._walk_for_labels(source + suffix)
         if match is None:
             return None
-        matched, ancestor_path = match
-        # ``asset_suffix`` is the part of ``prim_path`` below the destination template, so trimming
-        # it yields this clone's counterpart of ``source_root``. An ancestor above ``source_root``
-        # (a label authored outside the cloned subtree) is genuinely shared and ``rebase`` leaves
-        # it alone, keeping such shapes in one instance group across envs.
-        clone_root = prim_path[: len(prim_path) - len(asset_suffix)] if asset_suffix else prim_path
-        return matched, cloner_path.rebase(ancestor_path, source_root, clone_root)
+        labels, ancestor = match
+        return labels, cloner_path.rebase(ancestor, source, self._templates[index].format(world.instance))
 
     def _apply_filter(self, labels: dict[SemanticType, SemanticLabels]) -> dict[SemanticType, SemanticLabels]:
         """Restrict ``labels`` (``{type: [labels]}``) to the types/labels passing the semantic filter.

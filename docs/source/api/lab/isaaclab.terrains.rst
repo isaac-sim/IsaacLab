@@ -228,6 +228,16 @@ Star terrain
     :show-inheritance:
     :exclude-members: __init__, function
 
+Mesh file terrain
+^^^^^^^^^^^^^^^^^
+
+.. autofunction:: isaaclab.terrains.trimesh.mesh_terrains.mesh_file_terrain
+
+.. autoclass:: isaaclab.terrains.trimesh.mesh_terrains_cfg.MeshFileTerrainCfg
+    :members:
+    :show-inheritance:
+    :exclude-members: __init__, function
+
 Repeated Objects Terrain
 ^^^^^^^^^^^^^^^^^^^^^^^^
 
