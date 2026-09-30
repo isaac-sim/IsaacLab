@@ -21,14 +21,13 @@ from isaaclab.controllers.operational_space import OperationalSpaceController
 from isaaclab.managers.action_manager import ActionTerm
 from isaaclab.sensors import ContactSensor, ContactSensorCfg, FrameTransformer, FrameTransformerCfg
 from isaaclab.sim.utils.queries import resolve_matching_prims_from_source
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-    from isaaclab.envs.utils.io_descriptors import GenericActionIODescriptor
-
+    from ... import ManagerBasedEnv
+    from ...utils.io_descriptors import GenericActionIODescriptor
     from . import actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -211,16 +210,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
             self._limits_injected = True
         # compute the delta in joint-space
-        if ee_quat_curr.norm() != 0:
-            jacobian = self._compute_frame_jacobian()
-            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
-        else:
-            joint_pos_des = joint_pos.clone()
+        jacobian = self._compute_frame_jacobian()
+        joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        joint_pos_des = torch.where(ee_quat_curr.norm() != 0, joint_pos_des, joint_pos)
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
 
     """
     Helper functions.
@@ -256,18 +253,14 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         self._jacobian_b[:] = self.jacobian_b
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
-            self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._body_idx],
             )
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, 0:3, :] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
             )
 
         return self._jacobian_b
@@ -566,7 +559,7 @@ class OperationalSpaceControllerAction(ActionTerm):
         Args:
             env_ids (Sequence[int] | None): The environment indices to reset. If ``None``, all environments are reset.
         """
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
         if self._contact_sensor is not None:
             self._contact_sensor.reset(env_ids)
         if self._task_frame_transformer is not None:
@@ -620,7 +613,6 @@ class OperationalSpaceControllerAction(ActionTerm):
             ValueError: If the nullspace joint pos targets are not set when null space control is set to 'position'.
             ValueError: If an invalid value is set for nullspace joint pos targets.
         """
-
         if self.cfg.nullspace_joint_pos_target != "none" and self.cfg.controller_cfg.nullspace_control != "position":
             raise ValueError("Nullspace joint targets can only be set when null space control is set to 'position'.")
 
@@ -676,19 +668,15 @@ class OperationalSpaceControllerAction(ActionTerm):
 
         # account for the offset
         if self.cfg.body_offset is not None:
-            # Modify the jacobian to account for the offset
-            # -- translational part
-            # v_link = v_ee + w_ee x r_link_ee = v_J_ee * q + w_J_ee * q x r_link_ee
-            #        = (v_J_ee + w_J_ee x r_link_ee ) * q
-            #        = (v_J_ee - r_link_ee_[x] @ w_J_ee) * q
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(self._asset.data.root_quat_w.torch),
+                self._asset.data.body_quat_w.torch[:, self._ee_body_idx],
+            )
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
             self._jacobian_b[:, 0:3, :] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
-            # -- rotational part
-            # w_link = R_link_ee @ w_ee
-            self._jacobian_b[:, 3:, :] = torch.bmm(
-                math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:, :]
-            )  # type: ignore
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:, :]
+            )
 
     def _compute_ee_pose(self):
         """Computes the pose of the ee frame in root frame."""
@@ -712,10 +700,10 @@ class OperationalSpaceControllerAction(ActionTerm):
 
     def _compute_ee_velocity(self):
         """Computes the velocity of the ee frame in root frame."""
-        # Extract end-effector velocity in the world frame
-        self._ee_vel_w[:] = self._asset.data.body_vel_w.torch[:, self._ee_body_idx, :]
+        # Match the link-origin reference point used by the pose and Jacobian.
+        self._ee_vel_w[:] = self._asset.data.body_link_vel_w.torch[:, self._ee_body_idx, :]
         # Compute the relative velocity in the world frame
-        relative_vel_w = self._ee_vel_w - self._asset.data.root_vel_w.torch
+        relative_vel_w = self._ee_vel_w - self._asset.data.root_link_vel_w.torch
 
         # Convert ee velocities from world to root frame
         root_quat_w = self._asset.data.root_quat_w.torch

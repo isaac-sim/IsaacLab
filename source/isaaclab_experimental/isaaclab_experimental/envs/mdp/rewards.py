@@ -206,6 +206,43 @@ def flat_orientation_l2(env: ManagerBasedRLEnv, out, asset_cfg: SceneEntityCfg =
     )
 
 
+@wp.kernel
+def _base_height_l2_kernel(
+    root_pose_w: wp.array(dtype=wp.transformf),
+    ray_hits_w: wp.array(dtype=wp.vec3f, ndim=2),
+    target_height: float,
+    out: wp.array(dtype=wp.float32),
+):
+    i = wp.tid()
+    height_sum = float(0.0)
+    hit_count = int(0)
+    if ray_hits_w:
+        for ray in range(ray_hits_w.shape[1]):
+            height = ray_hits_w[i, ray][2]
+            if wp.isfinite(height):
+                height_sum += height
+                hit_count += 1
+    error = wp.transform_get_translation(root_pose_w[i])[2] - target_height - height_sum / float(wp.max(hit_count, 1))
+    out[i] = error * error
+
+
+def base_height_l2(
+    env: ManagerBasedRLEnv,
+    out: wp.array(dtype=wp.float32),
+    target_height: float,
+    asset_cfg: SceneEntityCfg = SceneEntityCfg("robot"),
+    sensor_cfg: SceneEntityCfg | None = None,
+) -> None:
+    """Penalize squared base-height error from ``target_height`` [m], relative to finite terrain hits."""
+    ray_hits = env.scene[sensor_cfg.name].data.ray_hits_w if sensor_cfg is not None else None
+    wp.launch(
+        _base_height_l2_kernel,
+        dim=env.num_envs,
+        inputs=[env.scene[asset_cfg.name].data.root_link_pose_w, ray_hits, target_height, out],
+        device=env.device,
+    )
+
+
 """
 Joint penalties.
 """

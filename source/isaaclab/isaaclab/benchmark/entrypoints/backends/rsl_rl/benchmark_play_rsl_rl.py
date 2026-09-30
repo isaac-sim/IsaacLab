@@ -20,6 +20,8 @@ if TYPE_CHECKING:
 import argparse
 import sys
 
+from isaaclab.utils import to_dict
+
 from isaaclab_rl.entrypoints import common
 
 
@@ -39,7 +41,7 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         Tuple of ``(parsed_args, remaining)`` where *remaining* are the Hydra preset tokens.
     """
     from isaaclab.app import add_launcher_args
-    from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+    from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 
     from isaaclab_tasks.utils import setup_preset_cli
 
@@ -193,9 +195,9 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             # Load the trained policy the same way isaaclab_rl.entrypoints.backends.play_rsl_rl does.
             if agent_cfg.class_name == "OnPolicyRunner":
-                runner = OnPolicyRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = OnPolicyRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             elif agent_cfg.class_name == "DistillationRunner":
-                runner = DistillationRunner(env, agent_cfg.to_dict(), log_dir=None, device=agent_cfg.device)
+                runner = DistillationRunner(env, to_dict(agent_cfg), log_dir=None, device=agent_cfg.device)
             else:
                 raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
             runner.load(resume_path)

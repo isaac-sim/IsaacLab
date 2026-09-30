@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import torch
 
-from isaaclab.markers import VisualizationMarkers, VisualizationMarkersCfg
+from ...markers import VisualizationMarkers, VisualizationMarkersCfg
 
 
 class ContactForceVisualizer:

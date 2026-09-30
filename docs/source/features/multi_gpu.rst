@@ -153,9 +153,11 @@ Run each benchmark with the same launcher options used by ``train_multigpu``:
       --task Isaac-Cartpole --num_envs 4096 --max_iterations 100
 
 ``training_multigpu`` supports RSL-RL, RL-Games, and skrl with PyTorch. It does
-not support skrl with JAX or SB3. It also rejects ``--video``,
-``--capture_env_sensors``, and ``--check_success``, which do not produce a
-meaningful aggregate result across ranks.
+not support skrl with JAX or SB3. It also rejects ``--video`` and
+``--capture_env_sensors``, which do not produce a meaningful aggregate result
+across ranks. ``--check_success`` is supported with RSL-RL and RL-Games: the
+success metric is averaged over the environments of all ranks, so every rank
+stops at the same iteration.
 
 For multi-node benchmarks, pass the same ``--nnodes``, ``--node_rank``, and
 rendezvous options described in :ref:`multi-node-training` on every node.

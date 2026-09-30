@@ -7,8 +7,7 @@ from __future__ import annotations
 
 import os
 
-from isaaclab.utils.version import has_kit
-
+from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .mjcf_converter_cfg import MjcfConverterCfg
 
@@ -66,7 +65,7 @@ class MjcfConverter(AssetConverterBase):
         # Inside Kit the importer ships as an extension and must be enabled before it can be
         # imported; kitlessly the same module resolves from the standalone importer wheel.
         if has_kit():
-            from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+            from ..utils import enable_extension  # noqa: PLC0415
 
             enable_extension("isaacsim.asset.importer.mjcf")
         from isaacsim.asset.importer.mjcf import MJCFImporter, MJCFImporterConfig  # noqa: PLC0415

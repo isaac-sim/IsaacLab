@@ -113,4 +113,13 @@ def test_missing_agent_entrypoint_diagnostic_does_not_invent_algorithm_labels():
 def test_preset_composed_tasks_expose_only_canonical_config_roots(task, expected):
     registered = {name for name in gym.spec(task).kwargs if name.endswith("_cfg_entry_point")}
     assert registered == expected
-    assert "agent_preset_compatibility" not in gym.spec(task).kwargs
+
+
+def test_task_registrations_have_no_preset_to_agent_maps():
+    """A shared preset name must compose config roots without a registry-side pairing table."""
+    offenders = [
+        task_id
+        for task_id, spec in gym.registry.items()
+        if task_id.startswith("Isaac") and "agent_preset_compatibility" in spec.kwargs
+    ]
+    assert not offenders

@@ -6,26 +6,60 @@
 from __future__ import annotations
 
 import os
+from typing import Literal, cast
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
-from isaaclab.assets import ArticulationCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
 from isaaclab.envs import DirectRLEnvCfg
 from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
-from isaaclab.utils.configclass import configclass
 
 from isaaclab_tasks.utils import PresetCfg
 from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
+
+BenchmarkMode = Literal["render", "physics_render"]
+"""Animation mode used by the render benchmark.
+
+``"render"`` writes analytic joint poses after physics and requires ``scene.lazy_sensor_update=True``.
+Isaac RTX direct posing also requires no Kit app-pumping visualizer (for example, ``--visualizer none``).
+``"physics_render"`` sends actuator targets before physics and renders the resulting state.
+Both modes still step physics; the renderer sweep reports physics and rendering timings separately.
+"""
+
+BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
+"""Explicit animation modes; ``None`` disables benchmark animation and scope profiling."""
+
+
+def _read_benchmark_mode() -> BenchmarkMode | None:
+    """Read the default benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
+
+    Returns:
+        The configured mode, or ``None`` when the variable is unset.
+
+    Raises:
+        ValueError: If ``BENCHMARK_MODE`` is set to a value outside :data:`BENCHMARK_MODES`.
+    """
+    mode = os.getenv("BENCHMARK_MODE")
+    if mode is not None and mode not in BENCHMARK_MODES:
+        raise ValueError(f"Unknown BENCHMARK_MODE '{mode}'. Expected one of {list(BENCHMARK_MODES)}.")
+    return cast(BenchmarkMode | None, mode)
+
+
+BENCHMARK_MODE: BenchmarkMode | None = _read_benchmark_mode()
+"""Default :attr:`RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`, read once at import."""
 
 
 @configclass
@@ -33,7 +67,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
     """Physics backend presets.
 
     Pick via ``presets=newton_mjwarp`` (default) or ``presets=physx``, which resolves to the
-    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX.
+    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX
+    or ``presets=ovphysx`` to pin OvPhysX.
     The BVH constructors are read from the environment so ``benchmark_renderer.py`` can sweep
     them without a separate preset per combination.
     """
@@ -47,7 +82,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
         use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
     )
     isaacsim_physx: PhysxCfg = PhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
@@ -89,18 +125,87 @@ class RenderBenchmarkTiledCameraCfg(PresetCfg):
 
 
 @configclass
+class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
+    """Franka, cabinet, ground, camera, and lighting for renderer benchmarking."""
+
+    # Use a simulation mesh that both renderers see, sized to tile the default environments without overlap.
+    ground: RigidObjectCfg = RigidObjectCfg(
+        prim_path="{ENV_REGEX_NS}/Ground",
+        spawn=sim_utils.CuboidCfg(
+            size=(3.0, 3.0, 0.1),
+            visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.5, 0.5), metallic=0.0),
+            rigid_props=[
+                sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True),
+                PhysxRigidBodyCfg(disable_gravity=True),
+            ],
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
+        ),
+        init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
+    )
+    robot: ArticulationCfg = replace(
+        FRANKA_PANDA_HIGH_PD_CFG,
+        prim_path="{ENV_REGEX_NS}/Robot",
+        init_state=replace(FRANKA_PANDA_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
+    )
+    cabinet: ArticulationCfg = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Cabinet",
+        spawn=sim_utils.UsdFileCfg(
+            usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
+            activate_contact_sensors=False,
+        ),
+        init_state=ArticulationCfg.InitialStateCfg(
+            pos=(0.0, 0.0, 0.4),
+            joint_pos={
+                "door_left_joint": 0.0,
+                "door_right_joint": 0.0,
+                "drawer_bottom_joint": 0.0,
+                "drawer_top_joint": 0.0,
+            },
+        ),
+        actuators={
+            "drawers": ImplicitActuatorCfg(
+                joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
+                joint_effort_limit=87.0,
+                stiffness=10.0,
+                damping=1.0,
+            ),
+            "doors": ImplicitActuatorCfg(
+                joint_names_expr=["door_left_joint", "door_right_joint"],
+                joint_effort_limit=87.0,
+                stiffness=10.0,
+                damping=2.5,
+            ),
+        },
+    )
+    tiled_camera: RenderBenchmarkTiledCameraCfg = RenderBenchmarkTiledCameraCfg()
+    dome_light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/Light",
+        spawn=sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75)),
+    )
+    directional_light: AssetBaseCfg = AssetBaseCfg(
+        prim_path="/World/LightDirectional",
+        spawn=sim_utils.DistantLightCfg(
+            intensity=200.0,
+            exposure=0.0,
+            angle=0.0,
+            color=(1.0, 1.0, 1.0),
+            normalize=True,
+        ),
+        init_state=AssetBaseCfg.InitialStateCfg(rot=(0.3251, 0.3251, 0.0, 0.8881)),
+    )
+
+
+@configclass
 class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Franka Panda and Sektion cabinet, animated for renderer benchmarking.
 
     The cabinet contributes four articulated joints (two drawers, two doors) on top of the
-    Franka's seven, and a sinusoidal animation drives all of them so every rendered frame has
-    moving articulated geometry rather than a static scene. There is no policy: actions are
+    Franka's seven. An explicit benchmark mode drives them with a sinusoidal animation so every
+    rendered frame has moving articulated geometry. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
 
-    A mirrored layout of the canonical ``Isaac-Franka-Cabinet-Direct-v0`` task, which places the
-    Franka at the origin facing its default ``+X``: here the Franka sits at ``(1.0, 0, 0)`` rotated
-    180 deg about Z (facing ``-X``, toward the cabinet), and the cabinet sits at the origin in its
-    default USD orientation.
+    :attr:`benchmark_mode` selects direct posing or actuator tracking. See :data:`BenchmarkMode`.
     """
 
     decimation: int = 2
@@ -112,93 +217,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     sim: SimulationCfg = SimulationCfg(dt=1.0 / 120.0, render_interval=2, physics=RenderBenchmarkPhysicsCfg())
 
-    scene: InteractiveSceneCfg = InteractiveSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
-
-    tiled_camera: RenderBenchmarkTiledCameraCfg = RenderBenchmarkTiledCameraCfg()
-
-    articulations: dict[str, ArticulationCfg] = {
-        # High-PD variant so the joints track the sinusoidal targets smoothly.
-        "robot": FRANKA_PANDA_HIGH_PD_CFG.replace(
-            prim_path="{ENV_REGEX_NS}/Robot",
-            init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
-                pos=(1.0, 0.0, 0.0),
-                rot=(0.0, 0.0, 1.0, 0.0),  # 180 deg about Z, xyzw
-            ),
-        ),
-        # Loaded as an ArticulationCfg rather than a static USD reference so its four joints
-        # animate and it clones to every env through the standard Isaac Lab path.
-        "cabinet": ArticulationCfg(
-            prim_path="{ENV_REGEX_NS}/Cabinet",
-            spawn=sim_utils.UsdFileCfg(
-                usd_path=f"{ISAAC_NUCLEUS_DIR}/Props/Sektion_Cabinet/sektion_cabinet_instanceable.usd",
-                activate_contact_sensors=False,
-            ),
-            init_state=ArticulationCfg.InitialStateCfg(
-                pos=(0.0, 0.0, 0.4),
-                rot=(0.0, 0.0, 0.0, 1.0),  # identity: cabinet's default USD orientation
-                joint_pos={
-                    "door_left_joint": 0.0,
-                    "door_right_joint": 0.0,
-                    "drawer_bottom_joint": 0.0,
-                    "drawer_top_joint": 0.0,
-                },
-            ),
-            actuators={
-                "drawers": ImplicitActuatorCfg(
-                    joint_names_expr=["drawer_top_joint", "drawer_bottom_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=1.0,
-                ),
-                "doors": ImplicitActuatorCfg(
-                    joint_names_expr=["door_left_joint", "door_right_joint"],
-                    joint_effort_limit=87.0,
-                    stiffness=10.0,
-                    damping=2.5,
-                ),
-            },
-        ),
-    }
-    """Articulations spawned into every environment, keyed by scene name."""
-
-    ground_top_z: float = 0.0
-    """Height of the ground's top surface [m]."""
-
-    ground_size: tuple[float, float] = (50.0, 50.0)
-    """Requested extent of the per-environment ground cuboid in XY [m].
-
-    Clamped to :attr:`scene.env_spacing` when the cuboid is built, so neighboring environments'
-    ground tiles meet at the boundary instead of overlapping.
-    """
-
-    ground_thickness: float = 0.1
-    """Thickness of the ground cuboid along Z [m]."""
-
-    ground_color: tuple[float, float, float] = (0.5, 0.5, 0.5)
-    """Diffuse color of the ground, as linear RGB in ``[0, 1]``."""
-
-    dome_light_intensity: float = 2000.0
-    """Intensity of the ambient dome light.
-
-    Newton's renderer has no tone mapping or ambient defaults of its own, so without this
-    unlit surfaces render pure black.
-    """
-
-    light_cfg: sim_utils.LightCfg | None = sim_utils.DistantLightCfg(
-        intensity=200.0,
-        exposure=0.0,
-        angle=0.0,
-        color=(1.0, 1.0, 1.0),
-        normalize=True,
-    )
-    """Directional light spawned on top of the ambient dome light, or ``None`` for dome only."""
-
-    light_orientation: tuple[float, float, float, float] = (0.3251, 0.3251, 0.0, 0.8881)
-    """Orientation of :attr:`light_cfg` as ``(qx, qy, qz, qw)``.
-
-    Rotates a USD ``DistantLight``'s default ``-Z`` onto ``(-0.57735, 0.57735, -0.57735)``, the
-    direction Warp's renderer hard-codes, so both renderers light the scene identically.
-    """
+    scene: RenderBenchmarkSceneCfg = RenderBenchmarkSceneCfg(num_envs=4, env_spacing=3.0, replicate_physics=True)
 
     joint_animation_amplitude: float = 0.4
     """Peak sinusoidal offset from each joint's default position [m or rad, depending on joint type].
@@ -208,6 +227,15 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     joint_animation_freq_hz: float = 0.35
     """Frequency of the joint animation [Hz]."""
+
+    benchmark_mode: BenchmarkMode | None = BENCHMARK_MODE
+    """Whether animation uses direct joint poses or actuator targets.
+
+    See :data:`BenchmarkMode`. Defaults to the ``BENCHMARK_MODE`` environment variable, or
+    ``None`` when it is unset. ``None`` leaves physics and camera rendering active without
+    benchmark animation or scope profiling. Render mode requires ``scene.lazy_sensor_update=True``.
+    With Isaac RTX, use ``--visualizer none`` or a visualizer that does not pump the Kit app loop.
+    """
 
     write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"
     """Whether to dump each rendered frame to a PNG, for eyeballing renderer output."""

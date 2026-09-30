@@ -8,9 +8,9 @@
 from __future__ import annotations
 
 from dataclasses import MISSING
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from isaaclab.utils import configclass
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from isaaclab_ov.physics import OvPhysxCfg
@@ -33,6 +33,9 @@ class PhysicsCfg:
 
     class_type: type[PhysicsManager] | Any = MISSING
     """The physics manager class to use. Must be set by subclasses."""
+
+    launcher_type: ClassVar[str | None] = None
+    """The launcher that starts the runtime this backend runs in, as ``"module:Class"``, or None if none is needed."""
 
     deterministic: bool = False
     """Whether to request reproducible physics from the backend. Defaults to False.

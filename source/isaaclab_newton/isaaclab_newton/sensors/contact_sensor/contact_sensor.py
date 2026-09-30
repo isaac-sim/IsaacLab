@@ -458,7 +458,7 @@ class ContactSensor(BaseContactSensor):
 
     def _get_model_labels(self, kind: str) -> list[str]:
         """Return Newton model labels in a version-compatible way."""
-        model = NewtonManager._model
+        model = NewtonManager.backend.model
         primary = f"{kind}_label"
         fallback = f"{kind}_key"
         labels = getattr(model, primary, None)
@@ -560,6 +560,7 @@ class ContactSensor(BaseContactSensor):
     def _debug_vis_callback(self, event):
         if not self._is_initialized:
             return
+        self._update_outdated_buffers()
 
         sensing_transforms = wp.to_torch(self.contact_view.sensing_obj_transforms)
         positions = sensing_transforms.reshape(self._num_envs, self._num_sensors, 7)[..., :3]

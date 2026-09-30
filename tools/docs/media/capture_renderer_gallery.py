@@ -186,7 +186,7 @@ def resolve_gallery_scene(scene: str) -> str:
 
 
 def add_gallery_arguments(parser: argparse.ArgumentParser) -> None:
-    """Add renderer-gallery arguments without colliding with AppLauncher options."""
+    """Add renderer-gallery arguments without colliding with the simulation launcher options."""
     script_dir = Path(__file__).resolve().parent
     parser.add_argument("--renderer-backend", choices=tuple(_RENDERER_SLUGS), required=True)
     parser.add_argument("--capture-group", choices=("standard", *_SIMPLE_SHADING_MODES), default="standard")
@@ -206,11 +206,11 @@ def add_gallery_arguments(parser: argparse.ArgumentParser) -> None:
 
 def _parse_args() -> argparse.Namespace:
     """Parse capture and Isaac Lab launcher arguments."""
-    from isaaclab.app import AppLauncher
+    from isaaclab.app import add_launcher_args
 
     parser = argparse.ArgumentParser(description=__doc__)
     add_gallery_arguments(parser)
-    AppLauncher.add_app_launcher_args(parser)
+    add_launcher_args(parser)
     parser.set_defaults(enable_cameras=True, headless=True)
     args = parser.parse_args()
     args.output_dir = args.output_dir.expanduser().resolve()
@@ -268,9 +268,9 @@ def gallery_lighting_override(renderer: str) -> Iterator[None]:
 
     original_builder = ovrtx_renderer.build_render_product_as_string
 
-    def build_render_product_without_ambient_light(*args: Any, **kwargs: Any) -> tuple[str, str]:
-        render_product_usd, render_product_path = original_builder(*args, **kwargs)
-        return override_ovrtx_ambient_light(render_product_usd), render_product_path
+    def build_render_product_without_ambient_light(*args: Any, **kwargs: Any) -> str:
+        render_product_usd = original_builder(*args, **kwargs)
+        return override_ovrtx_ambient_light(render_product_usd)
 
     ovrtx_renderer.build_render_product_as_string = build_render_product_without_ambient_light
     try:
@@ -295,8 +295,10 @@ def _capture(args: argparse.Namespace) -> None:
 
     import isaaclab.sim as sim_utils
     from isaaclab import cloner
+    from isaaclab.assets import AssetBaseCfg
     from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer
     from isaaclab.sensors import Camera, CameraCfg
+    from isaaclab.utils import instantiate
 
     if renderer_requires_kit(args.renderer_backend):
         sim_cfg = sim_utils.SimulationCfg(dt=1.0 / 60.0, render_interval=1, device=args.device, use_fabric=True)
@@ -313,13 +315,12 @@ def _capture(args: argparse.Namespace) -> None:
     data_types = capture_data_types(args.renderer_backend, args.capture_group)
     sim = sim_utils.SimulationContext(sim_cfg)
     scene_path, camera_path = gallery_stage_paths()
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/envs/env_0", "Xform")
-    scene_cfg = sim_utils.UsdFileCfg(usd_path=str(args.scene))
-    scene_cfg.func(scene_path, scene_cfg)
-    env_positions = torch.zeros((1, 3), device=args.device)
-    clone_plan = cloner.clone_plan_from_env_0("/World/envs/env_0", "/World/envs/env_{}", 1, args.device, env_positions)
-    cloner.replicate(clone_plan, stage=stage)
+    scene_cfg = AssetBaseCfg(prim_path=scene_path, spawn=sim_utils.UsdFileCfg(usd_path=str(args.scene)))
+    clone_plan = cloner.clone_plan_from_env_0(
+        cloner.CloneCfg(), (scene_cfg,), 1, 0.0, positions=np.zeros((1, 3), dtype=np.float32)
+    )
+    instantiate(scene_cfg)
+    cloner.replicate(clone_plan)
     camera = _create_camera_and_reset(
         args.renderer_backend,
         lambda: Camera(
@@ -417,18 +418,16 @@ def _capture(args: argparse.Namespace) -> None:
 
 def main() -> None:
     """Launch Isaac Sim and capture the selected renderer gallery group."""
-    from isaaclab.app import AppLauncher
+    from isaaclab.app import launch_simulation
 
     args = _parse_args()
     if not renderer_requires_kit(args.renderer_backend):
         _capture(args)
     else:
-        app_launcher = AppLauncher(args)
-        simulation_app = app_launcher.app
-        try:
+        # the capture builds its simulation config after launch, so request Kit explicitly
+        args.require_kit = True
+        with launch_simulation(None, args):
             _capture(args)
-        finally:
-            simulation_app.close()
 
 
 if __name__ == "__main__":

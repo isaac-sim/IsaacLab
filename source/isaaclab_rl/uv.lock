@@ -4,27 +4,31 @@ requires-python = ">=3.12"
 
 [[package]]
 name = "isaaclab"
-version = "14.0.1"
+version = "25.0.0"
 source = { editable = "../isaaclab" }
 
 [[package]]
 name = "isaaclab-assets"
-version = "0.6.1"
+version = "1.0.0"
 source = { editable = "../isaaclab_assets" }
 dependencies = [
     { name = "isaaclab" },
     { name = "isaaclab-contrib" },
+    { name = "isaaclab-newton" },
+    { name = "isaaclab-physx" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "isaaclab", editable = "../isaaclab" },
     { name = "isaaclab-contrib", editable = "../isaaclab_contrib" },
+    { name = "isaaclab-newton", editable = "../isaaclab_newton" },
+    { name = "isaaclab-physx", editable = "../isaaclab_physx" },
 ]
 
 [[package]]
 name = "isaaclab-contrib"
-version = "0.5.2"
+version = "2.0.1"
 source = { editable = "../isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -34,8 +38,30 @@ dependencies = [
 requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
 
 [[package]]
+name = "isaaclab-newton"
+version = "6.4.0"
+source = { editable = "../isaaclab_newton" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
+name = "isaaclab-physx"
+version = "7.1.4"
+source = { editable = "../isaaclab_physx" }
+dependencies = [
+    { name = "isaaclab" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "isaaclab", editable = "../isaaclab" }]
+
+[[package]]
 name = "isaaclab-rl"
-version = "0.10.1"
+version = "1.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "isaaclab" },
@@ -52,7 +78,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "9.2.0"
+version = "21.0.0"
 source = { editable = "../isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },

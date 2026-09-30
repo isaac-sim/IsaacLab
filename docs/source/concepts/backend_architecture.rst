@@ -55,10 +55,9 @@ selector followed by package and module-path conventions:
         │
         └─ Return backend-specific instance
 
-Some factories use a different resolution key. For example,
-:class:`~isaaclab.renderers.Renderer` selects an implementation from its
-renderer configuration because rendering and physics are independent.
-Visualizers similarly use their ``visualizer_type`` configuration field.
+Renderers and visualizers instead select their implementations through their
+configuration's ``class_type``. Their selection is independent of physics;
+renderer instances are shared through the simulation registry described below.
 
 Physics manager lifecycle
 -------------------------
@@ -71,8 +70,57 @@ and release resources with ``close()``.
 
 The manager exposes :class:`~isaaclab.physics.PhysicsEvent` callbacks for
 cross-backend lifecycle work. ``MODEL_INIT`` occurs during scene construction,
-``PHYSICS_READY`` after physics initialization, and ``STOP`` during shutdown.
+``PHYSICS_READY`` after physics initialization, and ``STOP`` before native resources are replaced
+or shut down.
 The concrete ``close()`` implementation dispatches the ``STOP`` event.
+
+``SimulationContext`` owns native resources and renderer instances in one registry.
+``get_or_create_backend(backend_cfg)``
+reuses one resource for equal configurations of the same concrete type; a cache miss
+constructs ``instantiate(backend_cfg)``.
+:class:`~isaaclab.sim.BackendCfg` describes resource settings and identity, and
+:class:`~isaaclab.renderers.RendererCfg` extends it for renderer instances.
+``PhysicsCfg`` selects a physics manager. Finalize configurations before
+registration and treat them, including nested values, as read-only afterward.
+Use a new configuration for different settings. ``close_backend(backend)`` closes
+the exact registered object after all consumers have released their bindings;
+it does not compare or hash configurations. Resources declared through ``BackendCfg`` must
+implement ``close()``. Plain construction cfgs share Python-owned data without a teardown
+operation; removing the registry entry releases its reference. A failed close retains
+the entry for retry. After physics shutdown invalidates camera
+render data, simulation teardown closes material writers, renderer instances, visualizers,
+and remaining native resources, in that order, before closing the stage.
+
+Managers and native renderers expose their borrowed resource through ``backend``.
+For example, ``NewtonManager.backend.model`` accesses the finalized native model.
+Closing a renderer releases its bindings, not the shared native resource.
+Exposing native handles does not replace SDP transport.
+
+Clone contexts are registered separately as ``sim.clone_contexts[Context] = Context(...)``
+before plan dispatch. They apply the plan but do not own native runtime resources.
+
+Newton has two resources with different lifetimes, not two interchangeable backends:
+
+* ``ModelBuilder`` holds mutable construction data. Cloning populates it and sensors declare
+  requirements before finalization. It remains available for hard reset. ``NewtonBuilderCfg``
+  is a plain construction cfg, not a ``BackendCfg``; the builder needs no native ``close()``.
+* ``NewtonBackend`` owns the finalized model and native buffers. Physics and render consumers
+  borrow those handles. Closing it releases runtime allocations without closing the builder.
+
+Both resources use the same registry:
+
+.. code-block:: python
+
+    builder_cfg = NewtonBuilderCfg(physics_cfg=sim.cfg.physics)
+    builder = sim.get_or_create_backend(builder_cfg)
+    # Clone/import populates this builder before model allocation.
+    model_cfg = NewtonBackendCfg(physics_cfg=sim.cfg.physics, device=sim.device)
+    backend = sim.get_or_create_backend(model_cfg)
+
+Both configurations use the selected physics cfg; non-Newton physics selects a render-only
+representation. ``SimulationContext`` has no backend-specific cfg fields, and consumers do not
+access clone contexts. Consumers request body transforms and visual points directly through SDP.
+Queries share the native resource's BVHs but keep each consumer's captured work separate.
 
 Portable asset and sensor interfaces
 ------------------------------------
@@ -100,10 +148,14 @@ guidance.
 Portable renderer and scene-data interfaces
 -------------------------------------------
 
-Rendering is selected independently from physics. Renderer configurations
-dispatch through :class:`~isaaclab.renderers.Renderer` to implementations that
-share the :class:`~isaaclab.renderers.BaseRenderer` contract, with
-:class:`~isaaclab.renderers.RenderContext` owning their lifecycle. See
+Rendering is selected independently from physics. Acquire implementations of the
+:class:`~isaaclab.renderers.BaseRenderer` contract through
+``sim.get_or_create_backend(renderer_cfg)``. The
+:class:`~isaaclab.renderers.RenderContext` coordinates their rendering lifecycle
+through a filtered view of that registry, without a separate renderer cache or
+renderer ownership. It validates global settings and registration timing, initializes
+renderers after physics is ready, and coordinates stage preparation, scene updates,
+and material writers. See
 :ref:`overview_renderers` for renderer choices and usage.
 
 Physics managers expose live simulation data through

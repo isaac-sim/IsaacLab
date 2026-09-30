@@ -5,6 +5,7 @@
 
 
 from isaaclab_physx.assets import SurfaceGripperCfg
+from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxRigidBodyCfg
 from isaaclab_teleop import IsaacTeleopCfg
 
 from isaaclab.assets import RigidObjectCfg
@@ -15,9 +16,8 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
-from isaaclab.sim.schemas.schemas_cfg import CollisionPropertiesCfg, RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -224,12 +224,8 @@ class ObservationGalbotLeftArmGripperCfg:
     class RGBCameraPolicyCfg(ObsGroup):
         """Observations for policy group with RGB images."""
 
-        table_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("table_cam"), "data_type": "rgb", "normalize": False}
-        )
-        wrist_cam = ObsTerm(
-            func=mdp.image, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "data_type": "rgb", "normalize": False}
-        )
+        table_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("table_cam"), "normalize": False})
+        wrist_cam = ObsTerm(func=mdp.image_rgb, params={"sensor_cfg": SceneEntityCfg("wrist_cam"), "normalize": False})
 
         def __post_init__(self):
             self.enable_corruption = False
@@ -256,7 +252,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.observations.subtask_terms = ObservationGalbotLeftArmGripperCfg().SubtaskCfg()
 
         # Set galbot as robot
-        self.scene.robot = GALBOT_ONE_CHARLIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(GALBOT_ONE_CHARLIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Set actions for the specific robot type (galbot)
         self.actions.arm_action = mdp.JointPositionActionCfg(
@@ -274,15 +270,17 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         self.gripper_threshold = 0.010
 
         # Rigid body properties of each cube
-        cube_properties = RigidBodyPropertiesCfg(
-            solver_position_iteration_count=16,
-            solver_velocity_iteration_count=1,
-            max_angular_velocity=1000.0,
-            max_linear_velocity=1000.0,
-            max_depenetration_velocity=5.0,
-            disable_gravity=False,
-        )
-        cube_collision_properties = CollisionPropertiesCfg(contact_offset=0.005, rest_offset=0.0)
+        cube_properties = [
+            PhysxRigidBodyCfg(
+                solver_position_iteration_count=16,
+                solver_velocity_iteration_count=1,
+                max_angular_velocity=1000.0,
+                max_linear_velocity=1000.0,
+                max_depenetration_velocity=5.0,
+                disable_gravity=False,
+            )
+        ]
+        cube_collision_properties = [PhysxCollisionCfg(contact_offset=0.005, rest_offset=0.0)]
 
         # Set each stacking cube deterministically
         self.scene.cube_1 = RigidObjectCfg(
@@ -317,7 +315,7 @@ class GalbotLeftArmCubeStackEnvCfg(StackEnvCfg):
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = clone(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 
