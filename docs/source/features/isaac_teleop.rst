@@ -448,6 +448,17 @@ Prerequisites
   without calibration produces incorrect joint mappings and the follower arm will not track the
   leader.
 
+  .. figure:: ../_static/teleop/so101-leader-calibration-pose.jpg
+     :width: 60%
+     :alt: SO-101 leader arm held in the mid-range calibration pose
+
+     SO-101 leader arm in the mid-range pose used for the first calibration step.
+
+  .. tip::
+
+     In the mid-range step, also set the gripper to the midpoint of its travel, as pictured.
+     Leaving it fully open or closed can produce an incorrect gripper mapping.
+
 Run the simulation
 ^^^^^^^^^^^^^^^^^^
 
