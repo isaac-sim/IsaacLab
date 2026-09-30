@@ -411,6 +411,12 @@ def test_gravity_vec_w_tracks_model_gravity(num_envs, num_cubes, device):
         gravity[..., 2] = -9.81
         torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
 
+        # One update may span several physics steps, e.g. once per env step when Newton owns decimation.
+        sim.step()
+        sim.step()
+        object_collection.update(2 * sim.cfg.dt)
+        torch.testing.assert_close(object_collection.data.body_com_acc_w.torch, gravity)
+
         # GRAVITY_VEC_W must share storage with Newton's per-env gravity array.
         model = SimulationManager.get_model()
         model_gravity_arr = model.gravity[: model.world_count]
