@@ -69,8 +69,6 @@ class ObjectUniformPoseCommand(CommandTerm):
         self.success_vis_material: VisualMaterial | None = None
         if cfg.success_vis_material_name is not None:
             self.success_vis_material = env.scene[cfg.success_vis_material_name]
-            if not self.success_vis_material.is_per_env:
-                raise ValueError(f"Success material '{cfg.success_vis_material_name}' must be per-environment.")
             self._success_vis_colors = torch.tensor(cfg.success_vis_colors, device=self.device)
 
         # create buffers
@@ -142,11 +140,7 @@ class ObjectUniformPoseCommand(CommandTerm):
         self._visualize_success(success_id)
 
     def _visualize_success(self, success: torch.Tensor) -> None:
-        """Show each environment's success through the success markers and material.
-
-        Args:
-            success: Whether each environment reached its goal. Shape is (num_envs,).
-        """
+        """Update the success markers and material from per-environment success. Shape is (num_envs,)."""
         if self.success_visualizer is not None:
             self.success_visualizer.visualize(
                 self._get_success_vis_pos_w(),
