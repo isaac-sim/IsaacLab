@@ -7,12 +7,12 @@ from __future__ import annotations
 
 import warp as wp
 
-from isaaclab.utils.leapp import (
+from ...utils.leapp import (
     QUAT_XYZW_ELEMENT_NAMES,
     XYZ_ELEMENT_NAMES,
     leapp_tensor_semantics,
 )
-from isaaclab.utils.warp import ProxyArray
+from ...utils.warp import ProxyArray
 
 
 class RayCasterData:

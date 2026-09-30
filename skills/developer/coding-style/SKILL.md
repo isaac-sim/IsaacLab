@@ -17,14 +17,12 @@ Do not use this skill as a replacement for the contribution guide. Read the auth
 
 ## Workflow
 
-1. Read the `Coding Style` section of `docs/source/refs/contributing.rst`.
-2. Check `AGENTS.md` for always-on Isaac Lab API, docstring, dependency, and tooling rules.
-3. Keep the change aligned with local patterns in the touched package.
-4. Use the documented file and class member ordering.
-5. Avoid runtime circular imports with `TYPE_CHECKING`, resolvable strings, and lazy exports where the contribution guide calls for them.
-6. Use modern, specific type hints and Google-style docstrings.
-7. Keep public-facing docs and auto-generated API docs current when adding public symbols.
-8. Run the formatting and lint feedback loop.
+1. Read the `Coding Style` section of `docs/source/refs/contributing.rst` and apply the relevant subsections.
+2. Check `AGENTS.md` and any more-specific instructions for repository workflow constraints.
+3. Inspect surrounding code and the guide's ordering rules before choosing local structure; its minimal
+   function example illustrates signatures and docstrings.
+4. For validation, follow the guide's `Unit Testing` and `Tools` sections. For test changes, apply
+   [the test-audit skill](../test-audit/SKILL.md) before adding or removing coverage.
 
 ## Validation
 
@@ -53,5 +51,5 @@ Keep this skill synchronized with `AGENTS.md`, `docs/source/refs/contributing.rs
 ## References
 
 - [Contributing guide](../../../docs/source/refs/contributing.rst)
-- [Code skeleton](../../../docs/source/refs/snippets/code_skeleton.py)
+- [Minimal function example](../../../docs/source/refs/snippets/code_skeleton.py)
 - [Examples](examples.md)

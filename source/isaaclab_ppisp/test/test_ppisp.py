@@ -90,23 +90,6 @@ def test_ppisp_camera_attr_import_uses_first_time_sample():
     assert cfg.inputs["colorLatentBlue"] == pytest.approx((0.1, 0.2))
 
 
-def test_normalize_ppisp_cfg_imports_camera_attrs_from_stage():
-    stage = Usd.Stage.CreateInMemory()
-    _author_ppisp_camera(
-        stage,
-        attrs={
-            "exposureOffset": 1.5,
-            "colorLatentRed": (0.25, -0.5),
-        },
-    )
-
-    cfg = normalize_ppisp_cfg(PpispCfg(camera_prim_path="/World/Camera_ppisp"), stage=stage)
-
-    assert cfg.camera_prim_path is None
-    assert cfg.inputs["exposureOffset"] == 1.5
-    assert cfg.inputs["colorLatentRed"] == pytest.approx((0.25, -0.5))
-
-
 def test_normalize_ppisp_cfg_requires_stage_for_camera_prim_path():
     with pytest.raises(ValueError, match="requires a USD stage"):
         normalize_ppisp_cfg(PpispCfg(camera_prim_path="/World/Camera_ppisp"))
@@ -130,6 +113,7 @@ def test_normalize_ppisp_cfg_applies_explicit_overrides_after_camera_attr_import
         stage=stage,
     )
 
+    assert cfg.camera_prim_path is None
     assert cfg.inputs["exposureOffset"] == 2.0
     assert cfg.inputs["colorLatentRed"] == pytest.approx((0.25, -0.5))
 

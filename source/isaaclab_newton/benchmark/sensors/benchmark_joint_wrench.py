@@ -38,7 +38,7 @@ from isaaclab.benchmark import LatencyBenchmarkRunner, SingleMeasurement
 from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, collect_sensor_latency_samples
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import JointWrenchSensorCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets import CARTPOLE_CFG
 
@@ -47,7 +47,7 @@ from isaaclab_assets import CARTPOLE_CFG
 class JointWrenchBenchmarkSceneCfg(InteractiveSceneCfg):
     """One cartpole articulation and JointWrench sensor per environment."""
 
-    robot = CARTPOLE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(CARTPOLE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     joint_wrench = JointWrenchSensorCfg(prim_path="{ENV_REGEX_NS}/Robot")
 
 

@@ -17,8 +17,6 @@ Usage:
     ./isaaclab.sh -p scripts/benchmarks/benchmark_newton_raycast.py --num_envs 1024 --headless
 """
 
-"""Parse CLI first so we can decide whether to launch Isaac Sim Kit."""
-
 import argparse
 
 from isaaclab.app import add_launcher_args, launch_simulation
@@ -47,7 +45,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sensors import RayCasterCfg
 from isaaclab.sensors.ray_caster.patterns import GridPatternCfg
 from isaaclab.terrains import TerrainGeneratorCfg, TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 
 def _make_terrain_cfg(num_envs: int, env_spacing: float) -> TerrainGeneratorCfg:
@@ -81,8 +79,8 @@ def _make_scene_cfg(num_envs: int, env_spacing: float = 2.0) -> InteractiveScene
             prim_path="{ENV_REGEX_NS}/SensorBody",
             spawn=sim_utils.CuboidCfg(
                 size=(0.1, 0.1, 0.1),
-                rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-                mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
+                rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+                mass_props=sim_utils.MassCfg(mass=1.0),
             ),
             init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
         )

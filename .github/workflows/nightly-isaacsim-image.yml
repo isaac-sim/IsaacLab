@@ -7,9 +7,8 @@
 # manifest digest and open (or refresh) a draft PR against ``develop``.
 #
 # Scheduled workflows register only from the default branch, so this file
-# must be present on the current default, ``release/3.0.0-beta2``. The job
-# deliberately checks out ``develop`` because that is where the CI image pin
-# is maintained.
+# must remain on ``develop`` while it is the repository default. The job also
+# checks out ``develop`` because that is where the CI image pin is maintained.
 #
 # The isaaclab-bot GitHub App token is used instead of GITHUB_TOKEN so the
 # branch push and PR events trigger the normal CI workflows. The App must have
@@ -179,6 +178,7 @@ jobs:
           CURRENT_PIN: ${{ steps.pin.outputs.current }}
           CANDIDATE_PIN: ${{ steps.pin.outputs.candidate }}
           DIGEST: ${{ steps.pin.outputs.digest }}
+          BRANCH_CHANGED: ${{ steps.pin.outputs.branch_changed }}
         run: |
           set -euo pipefail
 
@@ -187,6 +187,8 @@ jobs:
           title="[CI] Bump Isaac Sim image to $short_digest"
           body_file="$RUNNER_TEMP/isaacsim-image-update.md"
           {
+            echo "# Description"
+            echo
             echo "This automated draft updates CI to the current Isaac Sim nightly image."
             echo
             echo "| Field | Value |"
@@ -199,6 +201,30 @@ jobs:
             echo "Source: https://registry.ngc.nvidia.com/orgs/0947644777160149/teams/internal/containers/isaac-sim/tags"
             echo
             echo "New PRs are opened as drafts so maintainers can merge after the CI results are acceptable."
+            echo
+            echo "## Type of change"
+            echo
+            echo "- Infrastructure update"
+            echo
+            echo "## Release backport"
+            echo
+            echo '- [ ] <!-- backport-active-release --> Backport this pull request to the active release branch after it merges into `develop`'
+            echo
+            echo "## Screenshots"
+            echo
+            echo "Not applicable."
+            echo
+            echo "## Checklist"
+            echo
+            echo "Docker and GPU tests run on demand. This workflow comments \`run-ci\` after opening the pull request or updating its commit."
+            echo
+            echo '- [ ] I have read and understood the [contribution guidelines](https://isaac-sim.github.io/IsaacLab/main/source/refs/contributing.html)'
+            echo '- [ ] I have run the [`pre-commit` checks](https://pre-commit.com/) with `./isaaclab.sh --format`'
+            echo '- [ ] I have made corresponding changes to the documentation'
+            echo '- [ ] My changes generate no new warnings'
+            echo '- [ ] I have added tests that prove my fix is effective or that my feature works'
+            echo '- [ ] I have added a changelog fragment under `source/<pkg>/changelog.d/` for every touched package (do **not** edit `CHANGELOG.rst` or bump `extension.toml` — CI handles that)'
+            echo '- [ ] I have added my name to the `CONTRIBUTORS.md` or my name already exists there'
           } > "$body_file"
 
           repository_owner=${REPOSITORY%%/*}
@@ -208,6 +234,7 @@ jobs:
             -f head="$repository_owner:$UPDATE_BRANCH" \
             --jq '.[0].number // empty')
 
+          pr_created=false
           if [ -n "$pr_number" ]; then
             pr_url=$(gh api --method PATCH "repos/$REPOSITORY/pulls/$pr_number" \
               -f title="$title" \
@@ -223,8 +250,16 @@ jobs:
               -F body=@"$body_file" \
               -F draft=true \
               --jq '.html_url')
+            pr_number=${pr_url##*/}
+            pr_created=true
             echo "Opened draft PR: $pr_url"
             echo "Draft PR: $pr_url" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ "$BRANCH_CHANGED" = "true" ] || [ "$pr_created" = "true" ]; then
+            gh api --method POST "repos/$REPOSITORY/issues/$pr_number/comments" \
+              -f body='run-ci' >/dev/null
+            echo "Triggered CI on PR #$pr_number."
           fi
 
       - name: Report no-op or dry run
