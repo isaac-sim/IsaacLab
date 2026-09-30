@@ -217,7 +217,9 @@ class FrankaCubeStackBlueprintEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvC
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
+        robot_variants = self.scene.robot.spawn.variants
         self.scene.robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Set actions for the specific robot type (franka)

@@ -19,6 +19,7 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab_tasks.contrib.stack import mdp
 from isaaclab_tasks.contrib.stack.mdp import franka_stack_events
 from isaaclab_tasks.contrib.stack.stack_env_cfg import StackEnvCfg
+from isaaclab_tasks.utils import preset
 
 ##
 # Pre-defined configs
@@ -97,6 +98,7 @@ class FrankaBinStackEnvCfg(StackEnvCfg):
 
         # Set Franka as robot
         self.scene.robot = replace(FRANKA_PANDA_FLAT_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants["Physics"] = preset(default="physx", newton_mjwarp="mujoco")
         self.scene.robot.spawn.semantic_tags = [("class", "robot")]
 
         # Add semantics to table

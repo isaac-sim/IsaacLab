@@ -70,6 +70,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.tensor([2.0, 2.0, 2.0, 1.0, 1.0, 1.0, 1.0])
+        _offset = torch.tensor([0.2, -0.4, 0.6, 0.0, 0.0, 0.0, 0.0])
 
         def _compute_frame_pose(self):
             return torch.tensor([[2.0, 4.0, 6.0]]), torch.tensor([[0.0, 0.0, 0.0, 1.0]])
@@ -147,7 +148,7 @@ def test_zero_agent_infers_finite_manager_actions() -> None:
     ).flatten(start_dim=1)
     expected = torch.cat(
         (
-            torch.tensor([[1.0, 2.0, 3.0, 0.0, 0.0, 0.0, 1.0]]),
+            torch.tensor([[0.9, 2.2, 2.7, 0.0, 0.0, 0.0, 1.0]]),
             torch.tensor([[3.0, 2.0, 1.0, 0.0, 0.0, 1.0, 0.0]]),
             expected_pink_poses,
             torch.tensor([[0.2, 0.4]]),
@@ -168,6 +169,7 @@ def test_zero_agent_rejects_non_finite_inferred_actions() -> None:
         action_dim = 7
         cfg = SimpleNamespace(controller=SimpleNamespace(use_relative_mode=False, command_type="pose"))
         _scale = torch.ones(7)
+        _offset = torch.zeros(7)
 
         def _compute_frame_pose(self):
             return torch.full((1, 3), torch.nan), torch.tensor([[0.0, 0.0, 0.0, 1.0]])

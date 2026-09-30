@@ -36,10 +36,12 @@ class FrankaCubeStackEnvCfg(stack_joint_pos_env_cfg.FrankaCubeStackEnvCfg):
         # Use a stiffer PD controller for better IK tracking.
         robot_init_state = self.scene.robot.init_state
         robot_semantic_tags = self.scene.robot.spawn.semantic_tags
+        robot_variants = self.scene.robot.spawn.variants
         self.scene.robot = replace(
             FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot", init_state=robot_init_state
         )
         self.scene.robot.spawn.semantic_tags = robot_semantic_tags
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

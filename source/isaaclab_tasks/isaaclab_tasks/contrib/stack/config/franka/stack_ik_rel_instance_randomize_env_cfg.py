@@ -25,7 +25,9 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(
 
         # Set Franka as robot
         # We switch here to a stiffer PD controller for IK tracking to be better.
+        robot_variants = self.scene.robot.spawn.variants
         self.scene.robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot.spawn.variants = robot_variants
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(

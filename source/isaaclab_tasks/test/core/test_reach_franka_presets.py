@@ -54,12 +54,20 @@ def _without_controller_dependent_cfg(cfg):
     return cfg_dict
 
 
-@pytest.mark.parametrize("task", _RIGID_FRANKA_TASKS)
-def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task):
-    default_cfg = _load_reach_env_cfg(task)
+@pytest.mark.parametrize(
+    ("task", "physics_presets"),
+    [
+        *((task, ()) for task in _RIGID_FRANKA_TASKS),
+        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint", ("newton_mjwarp",)),
+        ("IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", ("newton_mjwarp",)),
+        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", ("newton_mjwarp",)),
+    ],
+)
+def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physics_presets):
+    newton_cfg = _load_reach_env_cfg(task, *physics_presets)
     physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
 
-    for cfg, physics_variant in ((default_cfg, "mujoco"), (physx_cfg, "physx")):
+    for cfg, physics_variant in ((newton_cfg, "mujoco"), (physx_cfg, "physx")):
         assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_FLAT_CFG.spawn.usd_path
         assert cfg.scene.robot.spawn.variants == {
             "Physics": physics_variant,
