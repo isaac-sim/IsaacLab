@@ -46,6 +46,8 @@ import isaaclab_experimental.envs.mdp.terminations as warp_term
 import isaaclab_tasks_experimental.core as tasks_experimental_core
 import isaaclab_tasks_experimental.core.locomotion.mdp.rewards as warp_loco_rew
 import isaaclab_tasks_experimental.core.velocity.mdp.rewards as warp_velocity_rew
+import isaaclab_tasks_experimental.core.velocity.mdp.terminations as warp_velocity_term
+from isaaclab_experimental.utils.warp import is_warp_capturable
 from parity_helpers import (
     DEVICE,
     NUM_BODIES,
@@ -62,6 +64,7 @@ from parity_helpers import (
     copy_np_to_wp,
     make_pose_command_term,
     mutate_body_data,
+    mutate_root_state,
     proxy_array,
 )
 
@@ -70,6 +73,7 @@ import isaaclab.envs.mdp.terminations as stable_term
 from isaaclab.managers.manager_term_cfg import RewardTermCfg, TerminationTermCfg
 
 import isaaclab_tasks.core.velocity.mdp.rewards as stable_velocity_rew
+import isaaclab_tasks.core.velocity.mdp.terminations as stable_velocity_term
 
 
 @dataclasses.dataclass(frozen=True)
@@ -291,6 +295,33 @@ def _build_feet_air_time_variance(body_ids=(0, 2)) -> CaptureCase:
     )
 
 
+def _build_terrain_out_of_bounds() -> CaptureCase:
+    """A termination term reading the terrain size and the root positions.
+
+    The term first runs in an environment on a plane, then in one on generated terrain: bounds held
+    across calls (rather than read from the environment) keep the plane's "never out of bounds".
+    """
+
+    def make_env(terrain_type: str) -> SimpleNamespace:
+        art_data = MockArticulationData()
+        terrain_generator = SimpleNamespace(size=(2.0, 3.0), num_rows=2, num_cols=2, border_width=0.5)
+        scene = MockScene({"robot": MockArticulation(art_data)}, env_origins=None)
+        scene.cfg = SimpleNamespace(terrain=SimpleNamespace(terrain_type=terrain_type))
+        scene.terrain = SimpleNamespace(cfg=SimpleNamespace(terrain_generator=terrain_generator))
+        return SimpleNamespace(scene=scene, num_envs=NUM_ENVS, device=DEVICE, art_data=art_data)
+
+    warp_velocity_term.terrain_out_of_bounds(make_env("plane"), wp.zeros(NUM_ENVS, dtype=wp.bool, device=DEVICE))
+    env = make_env("generator")
+    params = {"distance_buffer": 0.5}
+
+    def mutate() -> None:
+        mutate_root_state(np.random.RandomState(707), env.art_data)
+
+    return CaptureCase(
+        warp_velocity_term.terrain_out_of_bounds, stable_velocity_term.terrain_out_of_bounds, env, env, params, mutate
+    )
+
+
 _SHARED_REW = "isaaclab_experimental.envs.mdp.rewards"
 _SHARED_TERM = "isaaclab_experimental.envs.mdp.terminations"
 _LOCO_REW = "isaaclab_tasks_experimental.core.locomotion.mdp.rewards"
@@ -307,6 +338,12 @@ CAPTURE_SPECS: list[CaptureSpec] = [
         "feet_air_time_variance",
         "reward",
         _build_feet_air_time_variance,
+    ),
+    CaptureSpec(
+        "isaaclab_tasks_experimental.core.velocity.mdp.terminations",
+        "terrain_out_of_bounds",
+        "termination",
+        _build_terrain_out_of_bounds,
     ),
 ]
 
@@ -425,8 +462,7 @@ CAPTURE_UNAUDITED: dict[str, str] = {
             "stand_still_joint_deviation_l1",
             "track_ang_vel_z_world_exp",
             "track_lin_vel_xy_yaw_frame_exp",
-        )
-        + _ids(f"{_TE}.velocity.mdp.terminations", "terrain_out_of_bounds"),
+        ),
         _MIRROR,
     ),
     # command terms are classes driven through compute() and reset(), which this harness does not model
@@ -467,32 +503,35 @@ def _warp_mdp_modules() -> list:
     return modules
 
 
-def _discover_warp_mdp_terms() -> set[str]:
-    """Return every public warp MDP term as a ``"<module>:<name>"`` identity.
+def _discover_warp_mdp_terms() -> dict[str, object]:
+    """Return every public warp MDP term, keyed by its ``"<module>:<name>"`` identity.
 
     Qualified rather than bare: the same term name legitimately appears in more than one task
     mirror (``survival_success_rate`` is twinned by both cartpole and locomotion), and keying
     by name alone would let a spec for one of them mark the other as declared.
     """
-    terms: set[str] = set()
+    terms: dict[str, object] = {}
     for module in _warp_mdp_modules():
         for name, obj in vars(module).items():
             if name.startswith("_") or not (inspect.isfunction(obj) or inspect.isclass(obj)):
                 continue
             if getattr(obj, "__module__", "") == module.__name__:
-                terms.add(f"{module.__name__}:{name}")
+                terms[f"{module.__name__}:{name}"] = obj
     return terms
 
 
 def test_every_warp_mdp_term_is_declared():
     """Every warp MDP term is either exercised here or listed as an unaudited pre-existing term.
 
+    A term annotated ``@WarpCapturable(False)`` is declared by that annotation: it never runs captured.
     The declarations must also stay truthful: a term moved into the harness loses its unaudited
     row, and rows for terms that no longer exist are dropped, so the backlog cannot rot.
     """
     specified = {spec.qualified for spec in CAPTURE_SPECS}
-    discovered = _discover_warp_mdp_terms()
-    undeclared = sorted(discovered - (specified | set(CAPTURE_UNAUDITED)))
+    terms = _discover_warp_mdp_terms()
+    discovered = set(terms)
+    eager = {name for name, term in terms.items() if not is_warp_capturable(term)}
+    undeclared = sorted(discovered - (specified | set(CAPTURE_UNAUDITED) | eager))
 
     assert not undeclared, (
         "warp MDP terms with no capture declaration: "

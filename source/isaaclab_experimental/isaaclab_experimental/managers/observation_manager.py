@@ -922,7 +922,8 @@ class ObservationManager(ManagerBase):
         1. ``out_dim`` on the function's ``@generic_io_descriptor_warp`` decorator.
         2. ``axes`` on the decorator (e.g. ``axes=["X","Y","Z"]`` → dim 3).
         3. Explicit ``term_dim`` / ``out_dim`` / ``obs_dim`` in ``term_cfg.params`` (legacy).
-        4. ``asset_cfg.joint_ids`` count (joint-based observations).
+        4. Number of rays of the ray-caster sensor in ``sensor_cfg`` (one value per ray).
+        5. ``asset_cfg.joint_ids`` count (joint-based observations).
         """
         # --- 1-2. Decorator metadata (preferred) ---
         func = term_cfg.func
@@ -946,7 +947,14 @@ class ObservationManager(ManagerBase):
             if k in term_cfg.params:
                 return int(term_cfg.params[k])
 
-        # --- 3. Joint-based fallback via asset_cfg ---
+        # --- 4. Ray-based fallback via sensor_cfg ---
+        sensor_cfg = term_cfg.params.get("sensor_cfg")
+        if sensor_cfg is not None:
+            num_rays = getattr(self._env.scene.sensors[sensor_cfg.name], "num_rays", None)
+            if num_rays is not None:
+                return int(num_rays)
+
+        # --- 5. Joint-based fallback via asset_cfg ---
         asset_cfg = term_cfg.params.get("asset_cfg")
         if asset_cfg is None:
             raise ValueError(

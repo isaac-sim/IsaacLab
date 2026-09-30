@@ -4,3 +4,5 @@
   like the stable term.
 * Added :meth:`~isaaclab_experimental.managers.CommandManager.get_command_wp` to read a command as a Warp
   array.
+* Added a Warp twin of the ``height_scan`` observation, so the Rough velocity tasks run with
+  ``--frontend warp``. It reads a ray caster refreshed on the host, so it runs eagerly.
