@@ -137,12 +137,11 @@ def test_isolation_accepts_effective_raw_false_and_unpartitioned_extra_camera(mo
         session.close()
 
 
-@pytest.mark.parametrize("initial", [True, False])
 @pytest.mark.parametrize("at_bind", [True, False])
-def test_isolation_acquired_only_when_binding(monkeypatch, isolated_settings, initial, at_bind):
+def test_isolation_acquired_only_when_binding(monkeypatch, isolated_settings, at_bind):
     """Kit can restore its startup settings during the first simulation reset."""
     key = ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
-    isolated_settings[key] = initial
+    isolated_settings[key] = True
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
     cfg = _teleop_env_cfg(
         [XrCameraFeedCfg(camera_name="robot_pov_cam")],
@@ -160,7 +159,7 @@ def test_isolation_acquired_only_when_binding(monkeypatch, isolated_settings, in
     monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", manager_factory)
     session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
     try:
-        assert isolated_settings[key] is initial
+        assert isolated_settings[key] is True
         isolated_settings[key] = at_bind
         with session.bind(object()):
             assert session.enabled

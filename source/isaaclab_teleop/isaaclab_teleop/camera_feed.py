@@ -271,7 +271,9 @@ class XrCameraFeedSession:
 
         Render-product policy authored while binding persists for the selected
         camera render product's lifetime.
-        Shared partition overrides are restored after the final isolated session.
+        Camera configuration is restored after the last prepared session closes;
+        the global setting's bind-time value is restored after the last bound
+        session closes, unless changed externally.
         """
         try:
             if self._manager is not None:
