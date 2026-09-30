@@ -33,9 +33,8 @@ class processed_image(ManagerTermBase):
     manager prepares this term after scene spawning and before simulation reset,
     allowing processors to request renderer signals such as unexposed radiance. Each term
     owns its chain, intermediate buffers, and state, even when sharing a camera.
-    Processed pixels are returned through this term. ``camera.render_outputs`` retains
-    raw buffers even if the deprecated ``CameraCfg.isp_cfg`` adapter separately processes
-    ``camera.data.output``. Required renderer settings apply to the entire source camera.
+    Processed pixels are returned through this term; camera outputs retain their
+    raw renderer buffers. Required renderer settings apply to the entire source camera.
 
     Processor inputs are borrowed read-only. The returned tensor persists until the
     next rendered frame; the observation manager makes its usual snapshot copy

@@ -11,12 +11,10 @@ https://arxiv.org/abs/2601.18336.
 
 from __future__ import annotations
 
-import warnings
 from dataclasses import field
 from enum import StrEnum
 from typing import Any
 
-from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.utils import configclass
 
 PPISP_ATTR_NAMESPACE = "ppisp:"
@@ -340,9 +338,7 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
 
 
 def resolve_and_normalize(
-    isp_cfg: PpispCfg | PpispDiscoveryMode | CameraISPMode | None,
-    stage: Any,
-    camera_prim_path: str | None = None,
+    isp_cfg: PpispCfg | PpispDiscoveryMode | None, stage: Any, camera_prim_path: str | None = None
 ) -> PpispCfg | None:
     """Resolve a PPISP processor's configuration to a normalised cfg or ``None``.
 
@@ -375,13 +371,6 @@ def resolve_and_normalize(
     """
     if isp_cfg is None:
         return None
-    if isinstance(isp_cfg, CameraISPMode):
-        warnings.warn(
-            "CameraISPMode is deprecated. Use isaaclab_ppisp.PpispDiscoveryMode instead.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        isp_cfg = PpispDiscoveryMode(isp_cfg.value)
     if isinstance(isp_cfg, PpispDiscoveryMode):
         resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
         if resolved is None and (isp_cfg == PpispDiscoveryMode.AUTO_ANY or not camera_prim_path):

@@ -377,24 +377,16 @@ consume PPISP's RGB result; a future visual domain randomization processor can b
 
 .. important::
 
-   **Deprecation:** ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode`` remain supported
-   during migration. The deprecated camera adapter uses the same PPISP processor and retains
-   processed ``camera.data.output["rgb"]`` / ``["rgba"]`` for existing applications.
+   **Breaking change:** ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode`` were removed.
    To migrate, remove the ``isp_cfg`` argument from the camera configuration and pass its previous
    value as ``processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]`` in the ``params`` of an
    ``ObservationTermCfg(func=mdp.processed_image, ...)``, as shown above. Replace discovery enum
    imports with ``from isaaclab_ppisp import PpispDiscoveryMode``; ``AUTO_CAMERA`` and ``AUTO_ANY``
    retain their discovery behavior.
 
-   After migration, read the processed image from the environment's observations.
-   With ``isp_cfg=None``, ``camera.data.output`` contains the renderer's raw camera outputs. To access the image by
+   Read the processed image from the environment's observations. ``camera.data.output`` contains
+   the renderer's raw camera outputs and no longer returns PPISP results. To access the image by
    its term name within an observation group, set that group's ``concatenate_terms=False``.
-
-   ``camera.render_outputs`` always exposes raw inputs. Observation processors use these inputs,
-   even when the deprecated camera adapter is enabled, so PPISP is not applied twice to the same
-   image. Both paths own independent buffers and processing state; remove the old setting when
-   migrating to avoid duplicate work. The adapter resolves discovery before shared renderer setup,
-   and a failed discovery adds no PPISP radiance request.
 
 Using the generic pipeline without PPISP does not import the optional ``isaaclab_ppisp`` package.
 

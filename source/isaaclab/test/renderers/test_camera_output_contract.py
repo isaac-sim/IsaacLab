@@ -103,16 +103,6 @@ def test_camera_cfg_copy_does_not_reforward_deprecated_fields():
     assert clone(cfg).renderer_cfg.colorize_semantic_segmentation is True
 
 
-def test_camera_cfg_preserves_deprecated_isp_configuration():
-    """Legacy configuration remains accepted and explains where processed pixels move."""
-    from isaaclab_ppisp import PpispCfg
-
-    with pytest.warns(DeprecationWarning, match=r"CameraCfg.isp_cfg.*processed_image"):
-        cfg = CameraCfg(height=2, width=3, prim_path="/World/Camera", spawn=_SPAWN, isp_cfg=PpispCfg())
-    assert isinstance(cfg.isp_cfg, PpispCfg)
-    assert not hasattr(cfg.renderer_cfg, "isp_cfg")
-
-
 def test_camera_cfg_post_construction_mutation_is_silent_no_op():
     """Mutating a deprecated field after construction does not propagate to renderer_cfg."""
     cfg = CameraCfg(
@@ -509,7 +499,7 @@ def test_visual_processor_cleanup_continues_after_callback_failure():
     assert closed == ["second", "first"]
 
 
-@pytest.mark.parametrize("fail_cleanup", [None, "processor", "renderer"])
+@pytest.mark.parametrize("fail_cleanup", [False, True])
 def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     """A partial camera failure closes every resource and preserves the original diagnostic."""
     from isaaclab.sensors.camera import Camera
@@ -519,18 +509,12 @@ def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     closed = []
     render_data = object()
 
-    def close_processor():
-        closed.append("processor")
-        if fail_cleanup == "processor":
-            raise ValueError("processor cleanup failed")
-
     def cleanup_renderer(data):
         closed.append(data)
-        if fail_cleanup == "renderer":
+        if fail_cleanup:
             raise ValueError("cleanup failed")
 
     def initialize_camera():
-        camera._legacy_isp = SimpleNamespace(close=close_processor)
         camera._renderer = SimpleNamespace(cleanup=cleanup_renderer)
         camera._view = SimpleNamespace(close=lambda: closed.append("view"))
         camera._render_data = render_data
@@ -539,18 +523,16 @@ def test_camera_initialization_failure_releases_renderer_state(fail_cleanup):
     camera._initialize_camera = initialize_camera
     with pytest.raises(RuntimeError, match="camera initialization failed"):
         camera._initialize_impl()
-    assert closed == ["processor", render_data, "view"]
-    assert camera._legacy_isp is None
+    assert closed == [render_data, "view"]
     assert camera._render_data is None
     assert camera._renderer is None
     assert camera._view is None
     camera.__del__()
-    assert closed == ["processor", render_data, "view"]
+    assert closed == [render_data, "view"]
 
 
-@pytest.mark.parametrize("source", ["public", "explicit", "discovered", "disabled"])
 @pytest.mark.parametrize("supports_rgba", [False, True])
-def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supports_rgba, source):
+def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supports_rgba):
     """Public and private inputs reach shared renderer setup without changing public output layouts."""
     from pxr import Sdf, Usd, UsdGeom
 
@@ -561,24 +543,14 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
     from isaaclab.sensors.sensor_base import SensorBase
     from isaaclab.sim import SimulationContext
 
-    if source != "public":
-        from isaaclab_ppisp import PpispCfg, PpispPipeline
+    original_import = builtins.__import__
 
-        from isaaclab.sensors.camera import CameraISPMode
-    else:
-        original_import = builtins.__import__
+    def without_ppisp(name, *args, **kwargs):
+        if name == "isaaclab_ppisp" or name.startswith("isaaclab_ppisp."):
+            raise AssertionError("Preparing raw camera inputs must not import PPISP.")
+        return original_import(name, *args, **kwargs)
 
-        def without_ppisp(name, *args, **kwargs):
-            if name == "isaaclab_ppisp" or name.startswith("isaaclab_ppisp."):
-                raise AssertionError("A camera without legacy ISP must not import PPISP.")
-            return original_import(name, *args, **kwargs)
-
-        monkeypatch.setattr(builtins, "__import__", without_ppisp)
-    device = "cpu"
-    if source in {"explicit", "discovered"}:
-        if not wp.is_cuda_available():
-            pytest.skip("PPISP camera output validation requires CUDA.")
-        device = "cuda:0"
+    monkeypatch.setattr(builtins, "__import__", without_ppisp)
 
     class CameraPhysicsManager(PhysicsManager):
         _callbacks = {}
@@ -604,8 +576,7 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
     def export_stage(stage, num_envs):
         if not exports:
             assert {spec.camera_prim_paths for spec in prepared} == {(str(prim.GetPath()),) for prim in prims}
-            assert prims[0].GetAttribute("exposure:iso").Get() == 0.0
-            assert prims[1].GetAttribute("exposure:iso").Get() == (100.0 if source == "disabled" else 0.0)
+            assert all(prim.GetAttribute("exposure:iso").Get() == 0.0 for prim in prims)
             exports.append(stage.ExportToString())
 
     renderer = SimpleNamespace(
@@ -616,7 +587,7 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
         cleanup=lambda data: None,
     )
     sim = SimpleNamespace(
-        device=device,
+        device="cpu",
         physics_manager=CameraPhysicsManager,
         get_clone_plan=lambda: SimpleNamespace(topology=SimpleNamespace(world_prototype_layout=np.zeros(2))),
         render_context=SimpleNamespace(ensure_prepare_stage=export_stage),
@@ -636,18 +607,15 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
         camera = Camera.__new__(Camera)
         camera.cfg = SimpleNamespace(
             prim_path=str(prim.GetPath()),
-            data_types=["rgb_radiance"] if index == 1 and source == "public" else ["rgb"],
-            isp_cfg=None,
+            data_types=["rgb_radiance"] if index == 1 else ["rgb"],
             height=2,
             width=3,
             renderer_cfg=SimpleNamespace(renderer_type="newton"),
         )
         camera.stage = stage
-        camera._device = device
+        camera._device = "cpu"
         camera._num_envs = 2
         camera._is_initialized = False
-        camera._legacy_isp = None
-        camera.render_generation = 0
         camera._requested_render_inputs = ()
         camera._sensor_prims = []
         camera._renderer = renderer
@@ -655,12 +623,6 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
         camera._view = None
         camera._register_callbacks()
         cameras.append(camera)
-
-    if source != "public":
-        cameras[1].cfg.isp_cfg = PpispCfg() if source == "explicit" else CameraISPMode.AUTO_CAMERA
-    if source == "discovered":
-        # Discovery must happen after prestartup authors camera attributes.
-        prims[1].CreateAttribute("ppisp:exposureOffset", Sdf.ValueTypeNames.Float).Set(1.0)
 
     try:
         first = cameras[0]
@@ -681,32 +643,6 @@ def test_all_camera_signals_prepare_before_shared_stage_export(monkeypatch, supp
         assert outputs["rgb"] is first._data.output["rgb"]
         if supports_rgba:
             assert outputs["rgb"].warp.ptr == outputs["rgba"].warp.ptr
-        if source != "public":
-            legacy = cameras[1]
-            raw = bound_outputs[legacy.cfg.prim_path]
-            if source == "disabled":
-                assert "rgb_radiance" not in raw
-                assert legacy._data.output["rgb"] is raw["rgb"]
-            else:
-                radiance = raw["rgb_radiance"]
-                radiance.warp.fill_(0.5)
-                pointers = {name: output.warp.ptr for name, output in legacy._data.output.items()}
-                assert set(pointers) == {"rgb", "rgba"}
-                mask = wp.ones(2, dtype=wp.bool, device=device)
-                legacy._finish_capture(mask)
-                assert legacy.render_generation == 1
-                assert np.any(legacy._data.output["rgb"].warp.numpy())
-                reference = PpispPipeline(PpispCfg(inputs={"exposureOffset": 1.0 if source == "discovered" else 0.0}))
-                expected = wp.empty_like(legacy._data.output["rgba"].warp)
-                try:
-                    reference.apply(radiance.warp, expected)
-                    np.testing.assert_array_equal(legacy._data.output["rgba"].warp.numpy(), expected.numpy())
-                finally:
-                    reference.close()
-                assert pointers["rgb"] == pointers["rgba"] != radiance.warp.ptr
-                np.testing.assert_array_equal(radiance.warp.numpy(), 0.5)
-                legacy._finish_capture(mask)
-                assert {name: output.warp.ptr for name, output in legacy._data.output.items()} == pointers
         with pytest.raises(RuntimeError, match="before sensor initialization"):
             first.request_render_inputs(("rgb_radiance",))
     finally:
