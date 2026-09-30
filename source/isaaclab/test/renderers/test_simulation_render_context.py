@@ -296,7 +296,10 @@ class _CpuCamera(Camera):
         self._data.info = {"pose": None}
         self._render_camera_data = CameraData()
         self._render_camera_data.info = {"pose": None}
+        self._legacy_isp = None
         self.render_generation = 0
+        self._published_frame = None
+        self._capture_mask = None
         self._frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
         self._ALL_INDICES = wp.array([0, 1], dtype=wp.int32, device="cpu")
         self._ALL_ENV_MASK = wp.ones(2, dtype=wp.bool, device="cpu")
@@ -450,6 +453,59 @@ def test_camera_lazy_reads_leave_peer_cameras_outdated(camera_batch_context):
         np.testing.assert_allclose(camera._timestamp_last_update.numpy(), [0.01, 0.01])
     assert batches == [[("wide", 1.0)], [("tele", 2.0)]]
     renderer.render.assert_not_called()
+
+
+@pytest.mark.parametrize("lazy", [False, True])
+def test_legacy_ppisp_runs_after_capture_and_reuses_cached_frames(camera_batch_context, lazy):
+    """Both capture paths process once per render and forward only the reset views."""
+    _, renderer, batches = camera_batch_context
+    camera = _CpuCamera(renderer, "legacy")
+    camera._reset_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
+    camera._reset_mask_torch = wp.to_torch(camera._reset_mask)
+    processed, resets = [], []
+
+    def process(mask):
+        assert camera._render_camera_data.info["pose"] == camera.pose
+        processed.append(mask.numpy().copy())
+
+    camera._legacy_isp = SimpleNamespace(process=process, reset=lambda mask: resets.append(mask.numpy().copy()))
+    scene = _camera_scene([camera], lazy=lazy)
+    InteractiveScene.update(scene, 0.01)
+    first = camera.data
+    assert camera.data is first
+    assert len(processed) == len(batches) == camera.render_generation == 1
+    np.testing.assert_array_equal(processed[0], [True, True])
+    for kwargs, expected in (
+        ({"env_ids": [1]}, [False, True]),
+        ({"env_mask": wp.array([True, False], dtype=wp.bool, device="cpu")}, [True, False]),
+    ):
+        camera.reset(**kwargs)
+        np.testing.assert_array_equal(resets[-1], expected)
+        assert camera.data is first
+        np.testing.assert_array_equal(processed[-1], expected)
+    assert len(processed) == len(batches) == camera.render_generation == 3
+
+
+def test_delayed_capture_advances_ppisp_only_for_published_frames(camera_batch_context):
+    """A repeated priming frame must not advance ISP state or use the next capture's mask."""
+    _, renderer, _ = camera_batch_context
+    camera = _CpuCamera(renderer, "delayed")
+    processed = []
+    camera._legacy_isp = SimpleNamespace(process=lambda mask: processed.append(mask.numpy().copy()))
+    first = ProxyArray(wp.array([1, 1], dtype=wp.int64, device="cpu"))
+    camera._render_camera_data.info["pose"] = {"capture": {"frame": first}}
+    camera._finish_capture(camera._ALL_ENV_MASK)
+    camera._frame.warp.fill_(2)
+    camera._finish_capture(camera._ALL_ENV_MASK)
+    assert camera.render_generation == len(processed) == 1
+    assert camera.render_frame is first
+
+    second = ProxyArray(wp.array([2, 1], dtype=wp.int64, device="cpu"))
+    camera._render_camera_data.info["pose"] = {"capture": {"frame": second}}
+    camera._finish_capture(wp.array([False, True], dtype=wp.bool, device="cpu"))
+    assert camera.render_generation == len(processed) == 2
+    np.testing.assert_array_equal(processed[-1], [True, False])
+    assert camera.render_frame is second
 
 
 def test_eager_scene_batches_multiple_sensor_families(camera_batch_context):

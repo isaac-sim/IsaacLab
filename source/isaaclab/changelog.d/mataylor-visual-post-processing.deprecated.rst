@@ -1,5 +1,5 @@
-* Removed ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode``.
-  PPISP processing is configured through observation terms.
+* Deprecated ``CameraCfg.isp_cfg`` and ``isaaclab.sensors.camera.CameraISPMode`` while preserving
+  discovery and processed camera outputs through a camera-owned compatibility adapter.
   Remove the camera's ``isp_cfg`` argument and configure
   ``processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]`` in the ``params`` of an
   ``ObservationTermCfg(func=mdp.processed_image, ...)``. Read processed images from the

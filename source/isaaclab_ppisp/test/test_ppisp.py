@@ -260,6 +260,27 @@ def test_resolve_and_normalize_without_camera_uses_first_ppisp_camera():
     assert cfg.inputs["exposureOffset"] == pytest.approx(2.0)
 
 
+@pytest.mark.parametrize("mode", ["AUTO_CAMERA", "AUTO_ANY"])
+def test_legacy_camera_isp_modes_preserve_discovery(mode):
+    """Deprecated sentinels retain camera-local lookup and the optional stage fallback."""
+    from isaaclab.sensors.camera import CameraISPMode
+
+    stage = Usd.Stage.CreateInMemory()
+    _author_camera(stage, "/World/Source")
+    _author_ppisp_camera(stage, "/World/Other", inherits=None, attrs={"exposureOffset": 2.0})
+    with pytest.warns(DeprecationWarning, match="CameraISPMode"):
+        cfg = resolve_and_normalize(CameraISPMode[mode], stage, "/World/Source")
+    if mode == "AUTO_CAMERA":
+        assert cfg is None
+    else:
+        assert cfg.inputs["exposureOffset"] == pytest.approx(2.0)
+
+    _author_ppisp_attr(stage.GetPrimAtPath("/World/Source"), "exposureOffset", 1.0)
+    with pytest.warns(DeprecationWarning, match="CameraISPMode"):
+        cfg = resolve_and_normalize(CameraISPMode[mode], stage, "/World/Source")
+    assert cfg.inputs["exposureOffset"] == pytest.approx(1.0)
+
+
 def test_ppisp_cfg_from_usd_camera_reads_controller_weights_from_camera_attrs():
     stage = Usd.Stage.CreateInMemory()
     camera = _author_ppisp_camera(

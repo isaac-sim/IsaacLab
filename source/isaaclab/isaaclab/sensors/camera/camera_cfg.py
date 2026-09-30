@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import MISSING, field
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from ...renderers import RendererCfg
 from ...sim import FisheyeCameraCfg, PinholeCameraCfg
 from ...utils import configclass
 from ..sensor_base_cfg import SensorBaseCfg
+from .camera_isp import CameraISPMode
 
 if TYPE_CHECKING:
     from .camera import Camera
@@ -198,10 +199,24 @@ class CameraCfg(SensorBaseCfg):
     renderer_cfg: RendererCfg = field(default_factory=RendererCfg)
     """Renderer configuration for camera sensor."""
 
-    def __post_init__(self):
-        """Forward deprecated RTX-flavored fields onto :attr:`renderer_cfg`.
+    isp_cfg: Any | CameraISPMode | None = None
+    """Deprecated PPISP configuration for processed camera RGB/RGBA outputs.
 
-        Each deprecated field set to a non-default value emits a
+    Accepts a :class:`~isaaclab_ppisp.PpispCfg`, a discovery mode, or ``None`` to disable
+    processing. The optional PPISP package is imported only when this field is used.
+    A camera-owned adapter preserves processed ``camera.data.output`` values, while
+    ``camera.render_outputs`` remains raw. Configuration is shared across the camera batch;
+    controller weights can predict exposure and color parameters separately for each view.
+
+    For new code, set this field to ``None`` and configure
+    :class:`~isaaclab_ppisp.PpispProcessorCfg` in an ``mdp.processed_image`` observation term.
+    Read the processed pixels from that observation instead of ``camera.data.output``.
+    """
+
+    def __post_init__(self):
+        """Warn about legacy ISP use and forward deprecated RTX fields to :attr:`renderer_cfg`.
+
+        Each deprecated RTX field set to a non-default value emits a
         :class:`DeprecationWarning` and is copied onto ``self.renderer_cfg``
         when that cfg defines the same-named field.
         """
@@ -210,6 +225,14 @@ class CameraCfg(SensorBaseCfg):
             from ...utils.backend_utils import get_default_renderer_cfg
 
             self.renderer_cfg = get_default_renderer_cfg()
+        if self.isp_cfg is not None:
+            warnings.warn(
+                "CameraCfg.isp_cfg is deprecated. Configure PpispProcessorCfg in an mdp.processed_image"
+                " observation term and read processed pixels from that observation instead."
+                " Legacy camera.data.output processing remains supported during migration.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
         # Forwarded by name: any same-named field on ``renderer_cfg`` will receive the value.
         for field_name, default in _DEPRECATED_RENDERER_FIELD_DEFAULTS.items():
             value = getattr(self, field_name)

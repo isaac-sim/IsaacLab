@@ -44,6 +44,7 @@ class CameraSource:
         self.render_outputs["rgb"].torch.copy_(torch.arange(36, dtype=torch.uint8).reshape(2, 2, 3, 3))
         self.render_generation = 1
         self.frame = ProxyArray(wp.ones(2, dtype=wp.int64, device="cpu"))
+        self.render_frame = self.frame
         self.requests = []
 
     def request_render_inputs(self, data_types):
@@ -213,4 +214,11 @@ def test_term_mask_covers_all_views_changed_since_its_previous_read():
     camera.render_generation += 1
     term(env, **cfg.params)
     np.testing.assert_array_equal(events[-1][1], [True, True])
+    # Delayed images carry their own frame numbers while the live camera keeps advancing.
+    camera.render_frame = ProxyArray(wp.clone(camera.frame.warp))
+    camera.frame.torch.add_(2)
+    camera.render_frame.torch[0] += 1
+    camera.render_generation += 1
+    term(env, **cfg.params)
+    np.testing.assert_array_equal(events[-1][1], [True, False])
     term.close()

@@ -497,7 +497,7 @@ def test_ppisp_observation_matches_pipeline_with_camera_inputs():
         render_buffer_specs=processor_cfg.inputs,
         render_outputs={"rgb_radiance": hdr},
         render_generation=1,
-        frame=ProxyArray(wp.ones(2, dtype=wp.int64, device=device)),
+        render_frame=ProxyArray(wp.ones(2, dtype=wp.int64, device=device)),
         request_render_inputs=lambda data_types: None,
     )
     env = SimpleNamespace(scene={"camera": camera}, sim=SimpleNamespace(stage=None), num_envs=2, device=device)

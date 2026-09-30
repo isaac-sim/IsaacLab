@@ -18,6 +18,14 @@ from . import configclass
 from .warp import ProxyArray
 
 
+@wp.kernel
+def _find_new_camera_frames(
+    current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
+):
+    index = wp.tid()
+    mask[index] = current[index] != previous[index]
+
+
 @dataclass(frozen=True)
 class VisualProcessorContext:
     """Initialization context shared by processor factories, without a renderer reference."""
@@ -65,7 +73,7 @@ class VisualProcessor:
 
 @configclass
 class VisualProcessorCfg:
-    """Configure a factory that creates independent state for each observation term.
+    """Configure a factory that creates independent state for each processing chain.
 
     ``func(cfg, context)`` resolves configuration before renderer setup and returns a
     :class:`VisualProcessor`, or ``None`` to disable this operation. Static ``inputs``
@@ -80,7 +88,7 @@ class VisualProcessorCfg:
 
 
 class VisualProcessingPipeline:
-    """Resolve an ordered processor chain and bind storage once per observation term.
+    """Resolve an ordered processor chain and bind storage once per consumer.
 
     Resolution validates every input against the preceding output or renderer contract.
     Allocation keeps intermediate buffers private and preserves the camera's RGB/RGBA

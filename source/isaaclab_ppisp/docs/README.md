@@ -35,17 +35,29 @@ are required to add a stage.
 and spatial mean subtraction as `mdp.image`. `permute=True` selects an `NCHW`
 view instead of the default `NHWC` layout.
 
-**Breaking change:** `CameraCfg.isp_cfg` was removed. Remove the `isp_cfg`
-argument from your camera configuration and pass
+**Deprecation:** `CameraCfg.isp_cfg` remains supported with a deprecation warning.
+Its camera-owned compatibility adapter uses the same PPISP processor and preserves
+processed `camera.data.output["rgb"]` / `["rgba"]` for existing readers. Renderer
+implementations do not construct or execute PPISP.
+
+To migrate, remove the `isp_cfg` argument from your camera configuration and pass
 `processors=[PpispProcessorCfg(isp_cfg=existing_cfg)]` in the `params` of an
 `ObservationTermCfg(func=mdp.processed_image, ...)`, as shown above. Read the
 processed image from the environment's observations instead of
-`camera.data.output`, which now contains only raw renderer outputs. Set an
+`camera.data.output`, which contains raw renderer outputs when `isp_cfg=None`. Set an
 observation group's `concatenate_terms=False` to access the image by term name.
 
-`isaaclab.sensors.camera.CameraISPMode` was also removed. Replace its imports
+`isaaclab.sensors.camera.CameraISPMode` remains supported with a deprecation warning
+when resolved. Replace its imports
 with `from isaaclab_ppisp import PpispDiscoveryMode`; `AUTO_CAMERA` and `AUTO_ANY`
 retain their discovery behavior.
+
+`camera.render_outputs` always exposes raw inputs, including private requested
+signals. Observation processors read those inputs even if a legacy camera adapter
+is also enabled: they do not apply PPISP to an already processed image. Running both
+paths still creates two independent pipelines, so remove the legacy setting when
+migrating. A discovery mode that finds no PPISP attributes passes camera outputs
+through without requesting radiance for PPISP.
 
 `PpispProcessorCfg()` discovers attributes on the camera itself. Pass
 `isp_cfg=PpispDiscoveryMode.AUTO_ANY` to allow stage-wide discovery, or

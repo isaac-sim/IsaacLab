@@ -18,19 +18,12 @@ from ...utils.visual_processing import (
     VisualProcessingPipeline,
     VisualProcessorCfg,
     VisualProcessorContext,
+    _find_new_camera_frames,
 )
 
 if TYPE_CHECKING:
     from ...sensors import Camera
     from .. import ManagerBasedEnv
-
-
-@wp.kernel
-def _find_new_camera_frames(
-    current: wp.array(dtype=wp.int64), previous: wp.array(dtype=wp.int64), mask: wp.array(dtype=wp.bool)
-):
-    index = wp.tid()
-    mask[index] = current[index] != previous[index]
 
 
 class processed_image(ManagerTermBase):
@@ -40,8 +33,9 @@ class processed_image(ManagerTermBase):
     manager prepares this term after scene spawning and before simulation reset,
     allowing processors to request renderer signals such as unexposed radiance. Each term
     owns its chain, intermediate buffers, and state, even when sharing a camera.
-    Processed pixels are returned through this term; camera outputs retain their
-    raw renderer buffers. Required renderer settings apply to the entire source camera.
+    Processed pixels are returned through this term. ``camera.render_outputs`` retains
+    raw buffers even if the deprecated ``CameraCfg.isp_cfg`` adapter separately processes
+    ``camera.data.output``. Required renderer settings apply to the entire source camera.
 
     Processor inputs are borrowed read-only. The returned tensor persists until the
     next rendered frame; the observation manager makes its usual snapshot copy
@@ -145,7 +139,7 @@ class processed_image(ManagerTermBase):
             if generation != self._generation:
                 # A group may skip several renders with different partial-view masks.
                 # Compare against this term's last consumed frames, not just the latest mask.
-                frames = self._camera.frame.warp
+                frames = self._camera.render_frame.warp
                 wp.launch(
                     _find_new_camera_frames,
                     dim=self.num_envs,

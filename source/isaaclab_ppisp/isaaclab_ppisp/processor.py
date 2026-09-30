@@ -10,6 +10,7 @@ from __future__ import annotations
 import warp as wp
 
 from isaaclab.renderers import RenderBufferSpec
+from isaaclab.sensors.camera.camera_isp import CameraISPMode
 from isaaclab.utils import configclass
 from isaaclab.utils.visual_processing import VisualProcessor, VisualProcessorCfg, VisualProcessorContext
 from isaaclab.utils.warp import ProxyArray
@@ -88,5 +89,5 @@ class PpispProcessorCfg(VisualProcessorCfg):
         "rgb": RenderBufferSpec(channels=3, dtype=wp.uint8, color_space="camera_response"),
     }
 
-    isp_cfg: PpispCfg | PpispDiscoveryMode | None = PpispDiscoveryMode.AUTO_CAMERA
+    isp_cfg: PpispCfg | PpispDiscoveryMode | CameraISPMode | None = PpispDiscoveryMode.AUTO_CAMERA
     """Explicit PPISP values, USD discovery mode, or ``None`` to disable this processor."""

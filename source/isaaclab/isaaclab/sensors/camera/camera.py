@@ -27,6 +27,7 @@ from ...utils.math import (
     create_rotation_matrix_from_view,
     quat_from_matrix,
 )
+from ...utils.visual_processing import VisualProcessingPipeline, VisualProcessorContext, _find_new_camera_frames
 from ...utils.warp import ProxyArray
 from ..sensor_base import SensorBase
 from .camera_data import CameraData
@@ -215,8 +216,11 @@ class Camera(SensorBase):
         self._check_supported_data_types(cfg)
         # initialize base class
         super().__init__(cfg)
+        self._legacy_isp: VisualProcessingPipeline | None = None
         self._requested_render_inputs: tuple[str, ...] = ()
         self.render_generation = 0
+        self._published_frame: ProxyArray | None = None
+        self._capture_mask: wp.array | None = None
 
         # Compute camera orientation (convention conversion) and spawn.
         rot = torch.tensor(self.cfg.offset.rot, dtype=torch.float32, device="cpu").unsqueeze(0)
@@ -264,7 +268,7 @@ class Camera(SensorBase):
             settings = get_settings_manager()
             settings.set("/isaaclab/render/rtx_sensors", True)
             settings.set("/physics/fabricUpdateTransformations", True)
-        if {"rgb_hdr", "rgb_radiance"}.intersection(self.cfg.data_types):
+        if {"rgb_hdr", "rgb_radiance"}.intersection(self.cfg.data_types) or self.cfg.isp_cfg is not None:
             self._enable_hdr_rendering()
 
         # UsdGeom Camera prim for the sensor
@@ -339,6 +343,11 @@ class Camera(SensorBase):
     def frame(self) -> ProxyArray:
         """Frame number when the measurement took place."""
         return self._frame
+
+    @property
+    def render_frame(self) -> ProxyArray:
+        """Read-only frame numbers matching the published images, including delayed captures."""
+        return self._published_frame if self._published_frame is not None else self._frame
 
     @property
     def camera_prim_paths(self) -> tuple[str, ...]:
@@ -663,8 +672,11 @@ class Camera(SensorBase):
         if isinstance(env_ids, slice):
             env_ids = range(*env_ids.indices(self._num_envs))
         self._renderer.reset(self._render_data, env_ids)
+        self._published_frame = None
         # reset the timestamps
         super().reset(env_ids, env_mask)
+        if self._legacy_isp is not None:
+            self._legacy_isp.reset(self._resolve_indices_and_mask(env_ids, env_mask))
         # reset the data
         # note: this recomputation is useful if one performs events such as randomizations on the camera poses.
         if env_mask is not None:
@@ -764,7 +776,25 @@ class Camera(SensorBase):
         clone_plan = sim_ctx.get_clone_plan()
         num_views = len(clone_plan.topology.world_prototype_layout) if clone_plan is not None else len(cam_paths)
         device_str = str(sim_ctx.device)
-        self._render_data_types = tuple(dict.fromkeys((*self.cfg.data_types, *self._requested_render_inputs)))
+        if self.cfg.isp_cfg is not None and self._legacy_isp is None:
+            try:
+                from isaaclab_ppisp import PpispProcessorCfg
+            except ModuleNotFoundError as exc:
+                if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
+                    raise
+                raise ModuleNotFoundError(
+                    "CameraCfg.isp_cfg requires the optional isaaclab-ppisp package.", name="isaaclab_ppisp"
+                ) from exc
+            self._legacy_isp = VisualProcessingPipeline(
+                [PpispProcessorCfg(isp_cfg=self.cfg.isp_cfg)],
+                VisualProcessorContext(self.stage, cam_paths, num_views, self.cfg.height, self.cfg.width, device_str),
+                self.render_buffer_specs,
+                self.cfg.data_types,
+            )
+        render_types = (
+            self._legacy_isp.render_data_types if self._legacy_isp is not None else tuple(self.cfg.data_types)
+        )
+        self._render_data_types = tuple(dict.fromkeys((*render_types, *self._requested_render_inputs)))
         render_spec = CameraRenderSpec(
             cfg=self.cfg,
             device=device_str,
@@ -804,10 +834,34 @@ class Camera(SensorBase):
         else:
             renderer.render(self._render_data)
             renderer.read_output(self._render_data, self._render_camera_data)
-        self._finish_capture()
+        self._finish_capture(env_mask)
 
-    def _finish_capture(self) -> None:
-        """Publish a completed raw capture and its metadata."""
+    def _finish_capture(self, env_mask: wp.array) -> None:
+        """Publish a capture after updating deprecated camera PPISP outputs."""
+        frame = next(
+            (
+                info["capture"]["frame"]
+                for info in self._render_camera_data.info.values()
+                if isinstance(info, dict) and "frame" in info.get("capture", {})
+            ),
+            None,
+        )
+        previous_frame = self._published_frame
+        if frame is not None and frame is previous_frame:
+            return
+        self._published_frame = frame
+        if self._legacy_isp is not None:
+            if frame is not None and previous_frame is not None:
+                if self._capture_mask is None:
+                    self._capture_mask = wp.empty(self._num_envs, dtype=wp.bool, device=self._device)
+                wp.launch(
+                    _find_new_camera_frames,
+                    dim=self._num_envs,
+                    inputs=[frame.warp, previous_frame.warp, self._capture_mask],
+                    device=self._device,
+                )
+                env_mask = self._capture_mask
+            self._legacy_isp.process(env_mask)
         self.render_generation += 1
         for name in self._data.info:
             if name in self._render_camera_data.info:
@@ -837,7 +891,7 @@ class Camera(SensorBase):
             sim_ctx.get_physics_step_count(),
         )
         for camera in ready:
-            camera._finish_capture()
+            camera._finish_capture(camera._is_outdated)
 
     """
     Private Helpers
@@ -881,10 +935,13 @@ class Camera(SensorBase):
             supported_specs=self.render_buffer_specs,
         )
         render_outputs = allocated.output
-        public_names = set(self.cfg.data_types)
-        if not public_names.isdisjoint({"rgb", "rgba"}):
-            public_names.update({"rgb", "rgba"})
-        public_outputs = {name: output for name, output in render_outputs.items() if name in public_names}
+        if self._legacy_isp is not None:
+            public_outputs = self._legacy_isp.allocate(render_outputs)
+        else:
+            public_names = set(self.cfg.data_types)
+            if not public_names.isdisjoint({"rgb", "rgba"}):
+                public_names.update({"rgb", "rgba"})
+            public_outputs = {name: output for name, output in render_outputs.items() if name in public_names}
         self._data = allocated
         self._data._output = public_outputs
         self._data.info = dict.fromkeys(public_outputs)
@@ -894,6 +951,8 @@ class Camera(SensorBase):
         self._initialize_intrinsics()
         self._update_poses()
         self._render_camera_data = copy(self._data)
+        self._published_frame = None
+        self._capture_mask = None
         self._render_camera_data._output = render_outputs
         self._render_camera_data.info = dict.fromkeys(self._render_camera_data.output)
         self._renderer.set_outputs(self._render_data, self._render_camera_data.output)
@@ -1138,16 +1197,24 @@ class Camera(SensorBase):
 
     def _cleanup_rendering(self) -> None:
         """Release camera-owned resources, including after partial initialization."""
+        pipeline = getattr(self, "_legacy_isp", None)
         renderer = getattr(self, "_renderer", None)
         render_data = getattr(self, "_render_data", None)
         view = getattr(self, "_view", None)
+        self._legacy_isp = None
         self._render_data = None
         self._render_camera_data = None
         self._renderer = None
         self._view = None
+        self._published_frame = None
+        self._capture_mask = None
         try:
-            if renderer is not None:
-                renderer.cleanup(render_data)
+            if pipeline is not None:
+                pipeline.close()
         finally:
-            if view is not None:
-                view.close()
+            try:
+                if renderer is not None:
+                    renderer.cleanup(render_data)
+            finally:
+                if view is not None:
+                    view.close()
