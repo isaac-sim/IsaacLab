@@ -122,6 +122,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.render_mode = render_mode
         # initialize internal variables
         self._is_closed = False
+        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -189,6 +190,10 @@ class DirectRLEnvWarp(DirectRLEnv):
             # this shouldn't cause an issue since later on, users do a reset over all the
             # environments so the lazy buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # check if debug visualization is has been implemented by the environment
         source_code = inspect.getsource(self._set_debug_vis_impl)
@@ -410,10 +415,11 @@ class DirectRLEnvWarp(DirectRLEnv):
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
         with Timer(name="physics_loop", msg="Physics loop took:", enable=DEBUG_TIMERS):
-            for _ in range(self.cfg.decimation):
-                self._sim_step_counter += 1
+            for _ in range(self.cfg.decimation // steps_per_call):
+                self._sim_step_counter += steps_per_call
                 # set actions into buffers
                 # simulate
                 with Timer(name="apply_action", msg="Action processing step took:", enable=DEBUG_TIMERS):
@@ -431,9 +437,8 @@ class DirectRLEnvWarp(DirectRLEnv):
                 #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
                 if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                     self.sim.render()
-                # update buffers at sim dt
                 with Timer(name="scene_update", msg="Scene update took:", enable=DEBUG_TIMERS):
-                    self.scene.update(dt=self.physics_dt)
+                    self.scene.update(dt=self.physics_dt * steps_per_call)
 
         self.common_step_counter += 1  # total step (common for all envs)
         with Timer(name="end_pre_graph", msg="End pre-graph took:", enable=DEBUG_TIMERS):

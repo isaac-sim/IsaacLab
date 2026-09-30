@@ -90,6 +90,7 @@ class ManagerBasedEnvWarp:
             )
         # initialize internal variables
         self._is_closed = False
+        self._physics_handles_decimation = False
 
         # set the seed for the environment
         if self.cfg.seed is not None:
@@ -193,6 +194,10 @@ class ManagerBasedEnvWarp:
             # this shouldn't cause an issue since later on, users do a reset over all the environments so the lazy
             # buffers would be reset.
             self.scene.update(dt=self.physics_dt)
+        # let the physics backend know about the env decimation so it can
+        # fold the full loop into a single step() when possible
+        self.sim.physics_manager.set_decimation(self.cfg.decimation)
+        self._physics_handles_decimation = self.sim.physics_manager.handles_decimation()
 
         # TODO(jichuanh): This is a temporary solution for event_manager only, but it should be general for all managers
         # Resolve SceneEntityCfg-dependent term params once before any captured event paths.
@@ -571,9 +576,10 @@ class ManagerBasedEnvWarp:
         # note: hoisted out of the decimation loop; is_rendering does live settings lookups
         is_rendering = self.sim.is_rendering
 
-        # perform physics stepping
-        for _ in range(self.cfg.decimation):
-            self._sim_step_counter += 1
+        # physics-owned decimation covers all substeps in one call
+        steps_per_call = self.cfg.decimation if self._physics_handles_decimation else 1
+        for _ in range(self.cfg.decimation // steps_per_call):
+            self._sim_step_counter += steps_per_call
             # set actions into buffers
             self._warp_graph_cache.call_steps(
                 "ActionManager_apply_action", self.action_manager.stage_steps("apply_action")
@@ -587,8 +593,7 @@ class ManagerBasedEnvWarp:
             #    If a camera needs rendering at a faster frequency, this will lead to unexpected behavior.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
                 self.sim.render()
-            # update buffers at sim dt
-            self.scene.update(dt=self.physics_dt)
+            self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:

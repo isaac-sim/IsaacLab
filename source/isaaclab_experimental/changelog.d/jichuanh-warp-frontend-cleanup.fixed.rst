@@ -1,5 +1,9 @@
 * Fixed Warp environments replaying CUDA graphs that read freed simulation buffers after the simulation was
   reset or stopped. The environments now record their stages again on the next step.
+* Fixed the Warp environments applying actions, stepping the simulation and updating the scene once per physics
+  step when the physics backend runs the whole decimation loop. Like the stable environments, they now do it
+  once per environment step, so contact histories, air times and the rewards and terminations reading them
+  match the stable environments.
 * Fixed :attr:`~isaaclab_experimental.utils.buffers.CircularBuffer.max_length` synchronizing with the GPU.
 * Fixed the Warp ``randomize_rigid_body_com`` event accumulating offsets across calls. It now offsets the
   center of mass the term finds on its first call, like the stable term.
