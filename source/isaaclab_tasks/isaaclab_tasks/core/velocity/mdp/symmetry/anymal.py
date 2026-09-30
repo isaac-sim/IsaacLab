@@ -44,14 +44,11 @@ def compute_symmetric_states(
     Returns:
         Augmented observations and actions tensors, or None if the respective input was None.
     """
-
     if obs is None and actions is None:
         return None, None
 
-    # resolve the joint permutations from the robot's joint names (cached per joint order)
-    joint_names = env.unwrapped.scene["robot"].joint_names
-    device = obs["policy"].device if obs is not None else actions.device
-    left_right, front_back = _anymal_joint_symmetry_maps(tuple(joint_names), str(device))
+    # resolve the mirrored joints from the robot's joint names (the order depends on the backend)
+    joint_names = tuple(env.unwrapped.scene["robot"].joint_names)
 
     # observations
     if obs is not None:
@@ -64,15 +61,15 @@ def compute_symmetric_states(
         obs_aug["policy"][:batch_size] = obs["policy"][:]
         # -- left-right
         obs_aug["policy"][batch_size : 2 * batch_size] = _transform_policy_obs_left_right(
-            env.unwrapped, obs["policy"], left_right
+            env.unwrapped, obs["policy"], joint_names
         )
         # -- front-back
         obs_aug["policy"][2 * batch_size : 3 * batch_size] = _transform_policy_obs_front_back(
-            env.unwrapped, obs["policy"], front_back
+            env.unwrapped, obs["policy"], joint_names
         )
         # -- diagonal
         obs_aug["policy"][3 * batch_size :] = _transform_policy_obs_front_back(
-            env.unwrapped, obs_aug["policy"][batch_size : 2 * batch_size], front_back
+            env.unwrapped, obs_aug["policy"][batch_size : 2 * batch_size], joint_names
         )
     else:
         obs_aug = None
@@ -85,11 +82,13 @@ def compute_symmetric_states(
         # -- original
         actions_aug[:batch_size] = actions[:]
         # -- left-right
-        actions_aug[batch_size : 2 * batch_size] = _switch_joints(actions, left_right)
+        actions_aug[batch_size : 2 * batch_size] = _transform_actions_left_right(actions, joint_names)
         # -- front-back
-        actions_aug[2 * batch_size : 3 * batch_size] = _switch_joints(actions, front_back)
+        actions_aug[2 * batch_size : 3 * batch_size] = _transform_actions_front_back(actions, joint_names)
         # -- diagonal
-        actions_aug[3 * batch_size :] = _switch_joints(actions_aug[batch_size : 2 * batch_size], front_back)
+        actions_aug[3 * batch_size :] = _transform_actions_front_back(
+            actions_aug[batch_size : 2 * batch_size], joint_names
+        )
     else:
         actions_aug = None
 
@@ -102,7 +101,7 @@ Symmetry functions for observations.
 
 
 def _transform_policy_obs_left_right(
-    env: ManagerBasedRLEnv, obs: torch.Tensor, joint_map: tuple[torch.Tensor, torch.Tensor]
+    env: ManagerBasedRLEnv, obs: torch.Tensor, joint_names: tuple[str, ...]
 ) -> torch.Tensor:
     """Apply a left-right symmetry transformation to the observation tensor.
 
@@ -116,38 +115,17 @@ def _transform_policy_obs_left_right(
     Args:
         env: The environment instance from which the observation is obtained.
         obs: The observation tensor to be transformed.
-        joint_map: The left-right joint permutation and sign in the robot's joint order.
+        joint_names: The robot's joint names, in the order of the joint observations.
 
     Returns:
         The transformed observation tensor with left-right symmetry applied.
     """
-    # copy observation tensor
-    obs = obs.clone()
-    device = obs.device
-    # lin vel
-    obs[:, :3] = obs[:, :3] * torch.tensor([1, -1, 1], device=device)
-    # ang vel
-    obs[:, 3:6] = obs[:, 3:6] * torch.tensor([-1, 1, -1], device=device)
-    # projected gravity
-    obs[:, 6:9] = obs[:, 6:9] * torch.tensor([1, -1, 1], device=device)
-    # velocity command
-    obs[:, 9:12] = obs[:, 9:12] * torch.tensor([1, -1, -1], device=device)
-    # joint pos
-    obs[:, 12:24] = _switch_joints(obs[:, 12:24], joint_map)
-    # joint vel
-    obs[:, 24:36] = _switch_joints(obs[:, 24:36], joint_map)
-    # last actions
-    obs[:, 36:48] = _switch_joints(obs[:, 36:48], joint_map)
-
-    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
-    if "height_scan" in env.observation_manager.active_terms["policy"]:
-        obs[:, 48:235] = obs[:, 48:235].view(-1, 11, 17).flip(dims=[1]).view(-1, 11 * 17)
-
-    return obs
+    perm, sign = _policy_obs_symmetry("left_right", obs.shape[1], _has_height_scan(env), joint_names, str(obs.device))
+    return obs[:, perm] * sign
 
 
 def _transform_policy_obs_front_back(
-    env: ManagerBasedRLEnv, obs: torch.Tensor, joint_map: tuple[torch.Tensor, torch.Tensor]
+    env: ManagerBasedRLEnv, obs: torch.Tensor, joint_names: tuple[str, ...]
 ) -> torch.Tensor:
     """Applies a front-back symmetry transformation to the observation tensor.
 
@@ -160,34 +138,56 @@ def _transform_policy_obs_front_back(
     Args:
         env: The environment instance from which the observation is obtained.
         obs: The observation tensor to be transformed.
-        joint_map: The front-back joint permutation and sign in the robot's joint order.
+        joint_names: The robot's joint names, in the order of the joint observations.
 
     Returns:
         The transformed observation tensor with front-back symmetry applied.
     """
-    # copy observation tensor
-    obs = obs.clone()
-    device = obs.device
-    # lin vel
-    obs[:, :3] = obs[:, :3] * torch.tensor([-1, 1, 1], device=device)
-    # ang vel
-    obs[:, 3:6] = obs[:, 3:6] * torch.tensor([1, -1, -1], device=device)
-    # projected gravity
-    obs[:, 6:9] = obs[:, 6:9] * torch.tensor([-1, 1, 1], device=device)
-    # velocity command
-    obs[:, 9:12] = obs[:, 9:12] * torch.tensor([-1, 1, -1], device=device)
-    # joint pos
-    obs[:, 12:24] = _switch_joints(obs[:, 12:24], joint_map)
-    # joint vel
-    obs[:, 24:36] = _switch_joints(obs[:, 24:36], joint_map)
-    # last actions
-    obs[:, 36:48] = _switch_joints(obs[:, 36:48], joint_map)
+    perm, sign = _policy_obs_symmetry("front_back", obs.shape[1], _has_height_scan(env), joint_names, str(obs.device))
+    return obs[:, perm] * sign
 
-    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
-    if "height_scan" in env.observation_manager.active_terms["policy"]:
-        obs[:, 48:235] = obs[:, 48:235].view(-1, 11, 17).flip(dims=[2]).view(-1, 11 * 17)
 
-    return obs
+"""
+Symmetry functions for actions.
+"""
+
+
+def _transform_actions_left_right(actions: torch.Tensor, joint_names: tuple[str, ...]) -> torch.Tensor:
+    """Applies a left-right symmetry transformation to the actions tensor.
+
+    This function modifies the given actions tensor by applying transformations
+    that represent a symmetry with respect to the left-right axis. This includes
+    flipping the joint positions, joint velocities, and last actions for the
+    ANYmal robot.
+
+    Args:
+        actions: The actions tensor to be transformed.
+        joint_names: The robot's joint names, in the order of the actions.
+
+    Returns:
+        The transformed actions tensor with left-right symmetry applied.
+    """
+    perm, sign = _joint_symmetry("left_right", joint_names, str(actions.device))
+    return actions[:, perm] * sign
+
+
+def _transform_actions_front_back(actions: torch.Tensor, joint_names: tuple[str, ...]) -> torch.Tensor:
+    """Applies a front-back symmetry transformation to the actions tensor.
+
+    This function modifies the given actions tensor by applying transformations
+    that represent a symmetry with respect to the front-back axis. This includes
+    flipping the joint positions, joint velocities, and last actions for the
+    ANYmal robot.
+
+    Args:
+        actions: The actions tensor to be transformed.
+        joint_names: The robot's joint names, in the order of the actions.
+
+    Returns:
+        The transformed actions tensor with front-back symmetry applied.
+    """
+    perm, sign = _joint_symmetry("front_back", joint_names, str(actions.device))
+    return actions[:, perm] * sign
 
 
 """
@@ -200,52 +200,76 @@ or ``KFE`` (knee flexion/extension). The joint order of the articulation depends
 
 * left-right: swap ``L`` and ``R`` and negate the ``HAA`` joints.
 * front-back: swap ``F`` and ``H`` and negate the ``HFE`` and ``KFE`` joints.
+
+Each transform is a column permutation and a sign per column: ``out[:, i] = sign[i] * x[:, perm[i]]``.
 """
 
+# signs of the base lin vel, ang vel, projected gravity, and velocity command columns
+_BASE_SIGNS = {
+    "left_right": (1, -1, 1, -1, 1, -1, 1, -1, 1, 1, -1, -1),
+    "front_back": (-1, 1, 1, 1, -1, -1, -1, 1, 1, -1, 1, -1),
+}
+# side and end letters swapped, and joint types negated, per transform
+_JOINT_SWAPS = {"left_right": {"L": "R", "R": "L"}, "front_back": {"F": "H", "H": "F"}}
+_NEGATED_JOINTS = {"left_right": ("HAA",), "front_back": ("HFE", "KFE")}
+# height-scan grid dimension flipped per transform, for the (11, 17) grid
+_HEIGHT_SCAN_FLIP_DIM = {"left_right": 0, "front_back": 1}
 
-@functools.cache
-def _anymal_joint_symmetry_maps(
-    joint_names: tuple[str, ...], device: str
-) -> tuple[tuple[torch.Tensor, torch.Tensor], tuple[torch.Tensor, torch.Tensor]]:
-    """Resolves the left-right and front-back joint permutations and signs from the joint names.
 
-    Args:
-        joint_names: The joint names of the robot, in the order of the joint observations and actions.
-        device: The device on which to create the tensors.
+def _has_height_scan(env: ManagerBasedRLEnv) -> bool:
+    """Whether the policy observation contains the height scan."""
+    return "height_scan" in env.observation_manager.active_terms["policy"]
 
-    Returns:
-        The ``(indices, signs)`` pairs for the left-right and the front-back symmetry. The mirrored value of
-        joint ``i`` is ``signs[i] * data[..., indices[i]]``.
+
+def _joint_permutation(kind: str, joint_names: tuple[str, ...]) -> tuple[list[int], list[float]]:
+    """Source joint index and sign of each joint for a transform, resolved from the joint names.
 
     Raises:
         ValueError: If a joint name does not follow the ANYmal naming convention or has no mirrored counterpart.
     """
-    parsed = []
+    name_to_index = {name: i for i, name in enumerate(joint_names)}
+    swap = _JOINT_SWAPS[kind]
+    perm, sign = [], []
     for name in joint_names:
         match = _ANYMAL_JOINT_NAME.fullmatch(name)
         if match is None:
             raise ValueError(
                 f"Joint '{name}' does not follow the ANYmal naming convention: {_ANYMAL_JOINT_NAME.pattern}."
             )
-        parsed.append(match.groupdict())
-    name_to_index = {name: i for i, name in enumerate(joint_names)}
-
-    def _resolve(swap: dict[str, str], negated: tuple[str, ...]) -> tuple[torch.Tensor, torch.Tensor]:
-        indices = []
-        for p in parsed:
-            counterpart = f"{swap.get(p['side'], p['side'])}{swap.get(p['end'], p['end'])}_{p['joint']}"
-            if counterpart not in name_to_index:
-                raise ValueError(f"Mirrored joint '{counterpart}' is missing from the joint names: {joint_names}.")
-            indices.append(name_to_index[counterpart])
-        signs = [-1.0 if p["joint"] in negated else 1.0 for p in parsed]
-        return torch.tensor(indices, device=device), torch.tensor(signs, device=device)
-
-    left_right = _resolve({"L": "R", "R": "L"}, negated=("HAA",))
-    front_back = _resolve({"F": "H", "H": "F"}, negated=("HFE", "KFE"))
-    return left_right, front_back
+        side, end, joint = match.group("side", "end", "joint")
+        counterpart = f"{swap.get(side, side)}{swap.get(end, end)}_{joint}"
+        if counterpart not in name_to_index:
+            raise ValueError(f"Mirrored joint '{counterpart}' is missing from the joint names: {joint_names}.")
+        perm.append(name_to_index[counterpart])
+        sign.append(-1.0 if joint in _NEGATED_JOINTS[kind] else 1.0)
+    return perm, sign
 
 
-def _switch_joints(joint_data: torch.Tensor, joint_map: tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
-    """Applies a joint permutation and sign flip to the last dimension of the joint data tensor."""
-    indices, signs = joint_map
-    return joint_data[..., indices] * signs
+@functools.cache
+def _joint_symmetry(kind: str, joint_names: tuple[str, ...], device: str) -> tuple[torch.Tensor, torch.Tensor]:
+    """Column permutation and signs of a transform over the joints, cached per joint order and device."""
+    perm, sign = _joint_permutation(kind, joint_names)
+    return torch.tensor(perm, dtype=torch.long, device=device), torch.tensor(sign, device=device)
+
+
+@functools.cache
+def _policy_obs_symmetry(
+    kind: str, num_obs: int, height_scan: bool, joint_names: tuple[str, ...], device: str
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Column permutation and signs of a transform over the policy observation, cached per joint order and device."""
+    perm = list(range(num_obs))
+    sign = [1] * num_obs
+    sign[:12] = _BASE_SIGNS[kind]
+    # joint positions, joint velocities, and last actions
+    joint_perm, joint_sign = _joint_permutation(kind, joint_names)
+    for start in (12, 24, 36):
+        perm[start : start + 12] = [start + joint for joint in joint_perm]
+        sign[start : start + 12] = joint_sign
+    # note: this is hard-coded for grid-pattern of ordering "xy" and size (1.6, 1.0)
+    if height_scan:
+        grid = torch.arange(48, 235).view(11, 17).flip(dims=[_HEIGHT_SCAN_FLIP_DIM[kind]])
+        perm[48:235] = grid.flatten().tolist()
+    return (
+        torch.tensor(perm, dtype=torch.long, device=device),
+        torch.tensor(sign, device=device),
+    )
