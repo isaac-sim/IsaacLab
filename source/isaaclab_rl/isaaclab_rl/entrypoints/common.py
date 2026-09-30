@@ -185,6 +185,12 @@ def add_common_train_args(
         parser.add_argument(
             "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
         )
+        parser.add_argument(
+            "--run_timestamp",
+            type=str,
+            default=None,
+            help="Timestamp naming the run folder; train_multigpu passes one so that every rank shares the folder.",
+        )
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
     )
