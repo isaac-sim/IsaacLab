@@ -3,254 +3,300 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OvPhysX replication hook for IsaacLab's cloning pipeline.
-
-Called from the scene cloning path in place of immediate PhysX or Newton
-replication.  Unlike those replicators, ovphysx.PhysX does not exist yet at
-this point in the scene setup — it is created lazily on the first
-:meth:`~isaaclab_ov.physics.OvPhysxManager.reset` call.
-
-This function records an active clone recipe on :class:`OvPhysxManager`.  When
-:meth:`~isaaclab_ov.physics.OvPhysxManager._warmup_and_load` eventually
-creates the ``PhysX`` instance, env-0-only loads replay each recipe via
-``physx.clone(source, targets, transforms)`` after loading. Full-stage loads instead
-materialize or overlay every recipe in serialized USDA before attaching OVStage.
-Recipes remain active for the current simulation context so a forced re-warmup
-rebuilds the same topology without modifying the live USD stage.
-"""
+"""OvPhysX clone-context dispatch from the active clone plan."""
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab import cloner
+from isaaclab.physics import PhysicsManager
 
-from isaaclab_ov._clone import CloneTransform, clone_transforms_from_positions
+from isaaclab_ov._clone import CloneRecipe
 
-
-def _select_env_ids(env_ids: torch.Tensor, mapping: torch.Tensor, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
-    row_mask = mapping[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
+if TYPE_CHECKING:
+    from isaaclab.cloner import ClonePlan
+    from isaaclab.sim import SimulationContext
 
 
-def _matrix_to_clone_transform(matrix: Gf.Matrix4d) -> CloneTransform:
-    """Convert a USD pose matrix to an OvPhysX xyzw clone transform."""
-    matrix = matrix.RemoveScaleShear()
-    position = matrix.ExtractTranslation()
-    quaternion = matrix.ExtractRotationQuat()
-    imaginary = quaternion.GetImaginary()
-    return (
-        float(position[0]),
-        float(position[1]),
-        float(position[2]),
-        float(imaginary[0]),
-        float(imaginary[1]),
-        float(imaginary[2]),
-        float(quaternion.GetReal()),
-    )
+def _clone_recipes(
+    stage: Usd.Stage,
+    copies: Iterable[tuple[tuple[str, str], np.ndarray]],
+    env_ids: np.ndarray,
+    positions: np.ndarray | None,
+    quaternions: np.ndarray | None,
+) -> list[CloneRecipe]:
+    """Build OvPhysX clone recipes from the selected native instance groups."""
+    if positions is not None and positions.shape != (len(env_ids), 3):
+        raise ValueError(f"positions must have shape [num_envs, 3], got {list(positions.shape)}.")
+    if quaternions is not None and quaternions.shape != (len(env_ids), 4):
+        raise ValueError(f"quaternions must have shape [num_envs, 4], got {list(quaternions.shape)}.")
 
+    grouped = {}
+    for pair, columns in copies:
+        if len(columns) and columns[0] != -1:
+            grouped.setdefault(pair, []).append(columns)
+    copies = [(pair, np.unique(np.concatenate(columns))) for pair, columns in grouped.items()]
 
-def _pose_tensor_rows(tensor: torch.Tensor | None, name: str, component_count: int) -> list[list[float]] | None:
-    """Validate and copy an optional per-environment pose tensor to CPU rows."""
-    if tensor is None:
-        return None
-    if tensor.ndim != 2 or tensor.shape[1] != component_count:
-        raise ValueError(f"{name} must have shape [num_envs, {component_count}], got {list(tensor.shape)}.")
-    return tensor.detach().cpu().tolist()
+    # OVPhysX's native metatype omits effective D6 axes and tendon layout. Check only variant sources.
+    variants, layouts = {}, {}
+    for source, template in grouped:
+        variants.setdefault(template, []).append(source)
+    for sources in variants.values():
+        if len(sources) < 2:
+            continue
+        for source in sources:
+            if source not in layouts:
+                root = stage.GetPrimAtPath(source)
+                if not root:
+                    raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
+                layout = layouts[source] = {}
+                for prim in Usd.PrimRange(root, Usd.TraverseInstanceProxies()):
+                    relative = str(prim.GetPath().MakeRelativePath(root.GetPath()))
+                    if prim.GetTypeName() == "PhysicsJoint" and UsdPhysics.Joint(prim).GetJointEnabledAttr().Get():
+                        # Native articulations always lock translation, regardless of authored limits.
+                        axes = []
+                        for axis in ("rotX", "rotY", "rotZ"):
+                            limit = UsdPhysics.LimitAPI(prim, axis)
+                            if not limit or limit.GetLowAttr().Get() <= limit.GetHighAttr().Get():
+                                axes.append(axis)
+                        layout[relative, "rotation axes"] = tuple(axes)
+                    for schema in prim.GetPrimTypeInfo().GetAppliedAPISchemas():
+                        if schema.startswith(("PhysxTendonAxisRootAPI:", "PhysxTendonAttachmentRootAPI:")):
+                            layout[relative, schema] = None
+            if layouts[source] != layouts[sources[0]]:
+                raise ValueError(
+                    f"OvPhysX variants {sources[0]!r} and {source!r} have incompatible rotation axes or tendon layouts."
+                )
 
+    xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
+    recipes = []
+    for (source, template), columns in copies:
+        prefix, _, suffix = template.partition("{}")
+        env_template = prefix + "{}" + suffix.split("/", 1)[0]
+        matched = cloner.path.match(source, env_template)
+        self_env_id = int(matched.instance) if matched is not None and matched.instance.isdigit() else None
 
-def _validate_pose_rows(name: str, rows: list[list[float]] | None, env_ids: Sequence[int]) -> None:
-    """Validate that optional pose rows contain every selected environment."""
-    if rows is None:
-        return
-    for env_id in env_ids:
-        if env_id < 0 or env_id >= len(rows):
-            raise ValueError(f"{name} does not contain selected environment id {env_id}; it has {len(rows)} rows.")
+        source_prim = stage.GetPrimAtPath(source)
+        if not source_prim.IsValid():
+            raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {source}")
+        source_world = xform_cache.GetLocalToWorldTransform(source_prim).RemoveScaleShear()
+        if self_env_id is None:
+            source_anchor_world = Gf.Matrix4d(1.0)
+        else:
+            source_anchor_path = env_template.format(self_env_id)
+            source_anchor = stage.GetPrimAtPath(source_anchor_path)
+            if not source_anchor.IsValid():
+                raise ValueError(f"OvPhysX clone source anchor prim is not valid on the stage: {source_anchor_path}")
+            source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor).RemoveScaleShear()
+        source_relative = source_world * source_anchor_world.GetInverse()
+
+        targets, target_transforms, target_env_ids = [], [], []
+        for env_id, column in zip(env_ids[columns], columns, strict=True):
+            env_id = int(env_id)
+            destination = template.format(env_id)
+            targets.append(destination)
+            target_env_ids.append(env_id)
+            target_env_world = Gf.Matrix4d(1.0)
+            if positions is not None:
+                target_env_world.SetTranslateOnly(Gf.Vec3d(*map(float, positions[column])))
+            if quaternions is not None:
+                q = quaternions[column]
+                target_env_world.SetRotateOnly(Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3]))))
+            pose = (source_relative * target_env_world).RemoveScaleShear()
+            rotation = pose.ExtractRotationQuat()
+            target_transforms.append((*pose.ExtractTranslation(), *rotation.GetImaginary(), rotation.GetReal()))
+        recipes.append((source, targets, target_transforms, target_env_ids, self_env_id))
+    return recipes
 
 
 class OvPhysxReplicateContext:
-    """Queue and run OvPhysX clone operations for one stage."""
+    """Apply one clone plan to an OvPhysX simulation."""
 
-    def __init__(self, stage: Usd.Stage):
+    replicate_priority = 0
+
+    def __init__(self, sim_context: SimulationContext):
         """Initialize the context.
 
         Args:
-            stage: USD stage associated with the pending clone operations.
+            sim_context: Simulation context that owns this clone backend.
         """
-        self.stage = stage
-        physics_scene_prim = self.stage.GetPrimAtPath("/physicsScene")
-        if physics_scene_prim.IsValid():
-            physics_scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
-        self._queue: list[tuple[str, list[str], list[CloneTransform]]] = []
+        self._sim = sim_context
+        self.stage = sim_context.stage
 
-    def queue(
-        self, source: str, targets: Sequence[str], parent_positions: Sequence[tuple[float, float, float]]
-    ) -> None:
-        """Queue one pending OvPhysX clone operation.
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Publish clone operations from this context's source declarations.
 
         Args:
-            source: Source prim path.
-            targets: Destination prim paths.
-            parent_positions: Final world positions [m] for each target root;
-                orientations are identity.
-        """
-        target_transforms = clone_transforms_from_positions(parent_positions)
-        self._queue_transforms(source, targets, target_transforms)
-
-    def _queue_transforms(
-        self, source: str, targets: Sequence[str], target_transforms: Sequence[CloneTransform]
-    ) -> None:
-        """Queue final target-root world poses for one OvPhysX clone operation."""
-        self._queue.append((source, list(targets), list(target_transforms)))
-
-    def queue_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mapping: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue clone operations from the current flat clone mapping.
-
-        Args:
-            sources: Source prim paths.
-            destinations: Destination path templates with ``"{}"`` for env id.
-            env_ids: Environment indices.
-            mapping: Bool/int mask selecting envs per source.
-            positions: Optional per-environment world positions [m], shape
-                ``[num_envs, 3]``.
-            quaternions: Optional per-environment orientations in xyzw order,
-                shape ``[num_envs, 4]``.
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVPhysX.
 
         Raises:
-            ValueError: If a provided pose tensor is malformed or lacks a selected
-                environment, or if an active source or source anchor prim is invalid.
+            ValueError: If positions are malformed, a source or source anchor is invalid, or variants
+                for one destination differ in effective rotation axes or tendon layout.
         """
-        positions_list = _pose_tensor_rows(positions, "positions", 3)
-        quaternions_list = _pose_tensor_rows(quaternions, "quaternions", 4)
-        xform_cache = UsdGeom.XformCache(Usd.TimeCode.Default())
-
-        for i, src in enumerate(sources):
-            active_env_ids = [int(env_id) for env_id in _select_env_ids(env_ids, mapping, i).tolist()]
-            if not active_env_ids:
-                continue
-            _validate_pose_rows("positions", positions_list, active_env_ids)
-            _validate_pose_rows("quaternions", quaternions_list, active_env_ids)
-
-            self_env_id: int | None = None
-            matched = cloner.path.match(src, destinations[i])
-            if matched is not None and matched.instance.isdigit():
-                self_env_id = int(matched.instance)
-
-            source_prim = self.stage.GetPrimAtPath(src)
-            if not source_prim.IsValid():
-                raise ValueError(f"OvPhysX clone source prim is not valid on the stage: {src}")
-            source_world = xform_cache.GetLocalToWorldTransform(source_prim).RemoveScaleShear()
-            if self_env_id is None:
-                source_anchor_world = Gf.Matrix4d(1.0)
-            else:
-                prefix, _ = cloner.path.split(destinations[i])
-                source_anchor_path = f"{prefix}{self_env_id}"
-                source_anchor = self.stage.GetPrimAtPath(source_anchor_path)
-                if not source_anchor.IsValid():
-                    raise ValueError(
-                        f"OvPhysX clone source anchor prim is not valid on the stage: {source_anchor_path}"
-                    )
-                source_anchor_world = xform_cache.GetLocalToWorldTransform(source_anchor).RemoveScaleShear()
-            source_relative = source_world * source_anchor_world.GetInverse()
-
-            targets: list[str] = []
-            target_transforms: list[CloneTransform] = []
-            for env_id in active_env_ids:
-                if env_id == self_env_id:
-                    continue
-                targets.append(destinations[i].format(env_id))
-
-                target_env_world = Gf.Matrix4d(1.0)
-                if positions_list is not None:
-                    pos = positions_list[env_id]
-                    target_env_world.SetTranslateOnly(Gf.Vec3d(float(pos[0]), float(pos[1]), float(pos[2])))
-                if quaternions_list is not None:
-                    quat = quaternions_list[env_id]
-                    target_env_world.SetRotateOnly(
-                        Gf.Quatd(
-                            float(quat[3]),
-                            Gf.Vec3d(float(quat[0]), float(quat[1]), float(quat[2])),
-                        )
-                    )
-                target_transforms.append(_matrix_to_clone_transform(source_relative * target_env_world))
-
-            if targets:
-                self._queue_transforms(src, targets, target_transforms)
-
-    def replicate(self) -> None:
-        """Publish all queued clones to :class:`OvPhysxManager`."""
-        from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager
-
-        for source, targets, target_transforms in self._queue:
-            OvPhysxManager._register_clone_transforms(source, targets, target_transforms)
-        self._queue.clear()
-
-
-PHYSICS_CONTEXT = OvPhysxReplicateContext
-"""Physics replication context for OvPhysX assets.  OvPhysxReplicateContext authors USD
-internally, so USD replication is not separately added.
-TODO: decompose into UsdReplicateContext + a pure-physics OvPhysxReplicateContext to match
-the physx/newton split."""
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        copies = []
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            for index in range(*starts[group : group + 2]):
+                if (asset := plan.topology.world_prototypes[index]) in asset_prototype_ids:
+                    copies.append(((sources[asset], templates[index]), targets))
+        env_ids = np.arange(len(plan.topology.world_prototype_layout))
+        recipes = _clone_recipes(self.stage, copies, env_ids, plan.positions, None)
+        self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
 def ovphysx_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mapping: torch.Tensor,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
-    device: str = "cpu",
+    env_ids: np.ndarray,
+    mapping: np.ndarray,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
 ) -> None:
-    """Queue OvPhysX clone operations from a flat clone mapping.
-
-    The ``positions`` and ``quaternions`` parameters describe each environment's
-    world pose. Source-relative rows are composed with the target environment
-    poses and queued as final target-root world transforms.
+    """Publish OvPhysX clone recipes from one raw source-to-environment mapping.
 
     Args:
-        stage: USD stage associated with the clone operations.
-        sources: Source prim paths (one per prototype).
-        destinations: Destination path templates with ``"{}"`` for env index.
-        env_ids: Environment indices tensor.
-        mapping: ``(num_sources, num_envs)`` bool tensor; True selects which
-            environments receive each source.
-        positions: World (x, y, z) positions [m] for every environment, shape
-            ``[num_envs, 3]``.
-        quaternions: Optional environment orientations in xyzw order, shape
-            ``[num_envs, 4]``.
-        device: Torch device (unused; kept for API compatibility).
+        stage: USD stage containing the source prims.
+        sources: Source prim paths, one per mapping row.
+        destinations: Destination templates containing ``"{}"``, one per mapping row.
+        env_ids: Integer environment identifiers, shape ``[num_envs]``.
+        mapping: Boolean source-to-environment selection, shape ``[len(sources), num_envs]``.
+        positions: Optional environment positions [m], shape ``[num_envs, 3]``.
+        quaternions: Optional environment orientations in xyzw order, shape ``[num_envs, 4]``.
 
     Raises:
-        ValueError: If a provided pose tensor is malformed or lacks a selected
-            environment, or if an active source or source anchor prim is invalid.
+        RuntimeError: If no simulation context is active.
+        ValueError: If source/destination lengths or mapping/transform shapes are inconsistent,
+            or an active source or source anchor is invalid.
     """
-    del device
+    if len(sources) != len(destinations):
+        raise ValueError(f"Expected one destination per source, got {len(sources)} and {len(destinations)}.")
+    if mapping.shape != (len(sources), len(env_ids)):
+        raise ValueError(
+            f"mapping must have shape [num_sources, num_envs], got {list(mapping.shape)} for "
+            f"{len(sources)} sources and {len(env_ids)} environments."
+        )
+    pairs = zip(sources, destinations, strict=True)
+    copies = ((pair, np.flatnonzero(mapping[index])) for index, pair in enumerate(pairs))
+    recipes = _clone_recipes(stage, copies, env_ids, positions, quaternions)
+    sim = PhysicsManager._sim
+    if sim is None:
+        raise RuntimeError("OvPhysX replication requires an active SimulationContext.")
+    sim.physics_manager._clone_recipes.extend(recipes)
 
-    ctx = OvPhysxReplicateContext(stage)
-    ctx.queue_mapping(
-        sources,
-        destinations,
-        env_ids,
-        mapping,
-        positions=positions,
-        quaternions=quaternions,
-    )
-    ctx.replicate()
+
+def _serialize_stage(
+    stage: Usd.Stage, recipes: Sequence[CloneRecipe], full_stage: bool, plan: ClonePlan | None = None
+) -> tuple[str, list[CloneRecipe]]:
+    """Export complete original worlds once and compile copies from those originals.
+
+    Parsed bodies have native environment ID zero. An original-bearing world must therefore
+    import all its assets together; its copies inherit one collision group and environment ID.
+    CPU and features without native cloning import every declared world instead.
+    """
+    # Group worlds by their declared asset memberships, not by completed-stage discovery.
+    sources = tuple(Sdf.Path(source) for source, _, _, _, _ in recipes)
+    memberships = {}
+    originals = {world for _, _, _, _, world in recipes if world is not None}
+    if plan is not None and not full_stage:
+        # USD-only physics keeps native ID zero. Coverage requires the same copy in each destination world.
+        asset_sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        for group in np.flatnonzero(np.diff(world_starts[1:])) + 1:
+            worlds = world_ids[world_starts[group] : world_starts[group + 1]]
+            for index in range(*starts[group : group + 2]):
+                uncovered = set(worlds) - originals
+                if not uncovered:
+                    break
+                source, template = asset_sources[plan.topology.world_prototypes[index]], templates[index]
+                for root, targets, *_ in recipes:
+                    suffix = cloner.path.relative_to(source, root)
+                    if suffix is not None:
+                        copied_paths = {target + suffix for target in targets}
+                        uncovered = {world for world in uncovered if template.format(world) not in copied_paths}
+                if not uncovered:
+                    continue
+                prim = stage.GetPrimAtPath(source)
+                if prim and any(
+                    child.HasAPI(UsdPhysics.RigidBodyAPI) or child.HasAPI(UsdPhysics.CollisionAPI)
+                    for child in Usd.PrimRange(prim, Usd.TraverseInstanceProxies())
+                ):
+                    originals.update(uncovered)
+    for index, (_, _, _, world_ids, _) in enumerate(recipes):
+        for world in world_ids or ():
+            memberships.setdefault(world, []).append(index)
+    prototypes = {tuple(memberships[world]): world for world in sorted(originals) if world in memberships}
+    representatives = {
+        world: prototypes.setdefault(tuple(members), world) for world, members in sorted(memberships.items())
+    }
+    originals.update(prototypes.values())
+
+    # Materialize only originals on GPU. Each native destination is absent from the export.
+    layer = stage.Flatten()
+    exported = Usd.Stage.Open(layer)
+    xforms = UsdGeom.XformCache()
+    native = {}
+    for recipe in sorted(recipes, key=lambda recipe: recipe[0].count("/")):
+        source, targets, transforms, world_ids, source_world = recipe
+        target_by_world = dict(zip(world_ids, targets, strict=True)) if world_ids is not None else {}
+        source_pose = xforms.GetLocalToWorldTransform(stage.GetPrimAtPath(source))
+        for index, target in enumerate(targets):
+            if target == source:
+                continue
+            target_path = Sdf.Path(target)
+            if any(path.HasPrefix(target_path) for path in sources):
+                raise ValueError(f"OvPhysX clone target {target!r} overlaps a clone source.")
+            world = world_ids[index] if world_ids is not None else None
+            if full_stage or world in originals:
+                # References preserve joint relationships and any authored target opinions.
+                prim = exported.GetPrimAtPath(target)
+                authored = bool(prim)
+                prim = prim or exported.DefinePrim(target, "Xform")
+                prim.GetReferences().AddInternalReference(source)
+                if transforms and not authored:
+                    pose = transforms[index]
+                    anchor = Gf.Matrix4d().SetRotate(Gf.Quatd(pose[6], Gf.Vec3d(*pose[3:6])))
+                    anchor.SetTranslateOnly(Gf.Vec3d(*pose[:3]))
+                    world_pose = source_pose * source_pose.RemoveScaleShear().GetInverse() * anchor
+                    xform = UsdGeom.Xformable(prim)
+                    xform.MakeMatrixXform().Set(world_pose)
+                    xform.SetResetXformStack(True)
+                continue
+
+            # Clone all members of a world from the same complete original, with one native ID.
+            original = representatives[world] if world is not None else source_world
+            native_source = target_by_world[original] if world is not None else source
+            operation = native.setdefault(
+                native_source, (native_source, [], [], [] if world_ids is not None else None, original)
+            )
+            operation[1].append(target)
+            if transforms:
+                operation[2].append(transforms[index])
+            if world_ids is not None:
+                operation[3].append(world)
+            with Sdf.ChangeBlock():
+                if (spec := layer.GetPrimAtPath(target_path)) is not None:
+                    del spec.nameParent.nameChildren[spec.name]
+                # Empty clone ancestors make native literal-path lookup enumerate every world.
+                spec = layer.GetPrimAtPath(target_path.GetParentPath())
+                while spec and not spec.nameChildren and spec.typeName in ("", "Xform"):
+                    if spec.HasInfo("apiSchemas") or any(source.HasPrefix(spec.path) for source in sources):
+                        break
+                    parent = spec.nameParent
+                    del (parent.nameChildren if parent else layer.rootPrims)[spec.name]
+                    spec = parent
+
+    return layer.ExportToString(), list(native.values())

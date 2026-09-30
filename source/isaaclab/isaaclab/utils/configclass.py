@@ -3,19 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Sub-module that provides a wrapper around the Python 3.7 onwards ``dataclasses`` module."""
+"""Configuration dataclasses and construction of their selected implementations."""
 
 import dataclasses
 import inspect
 import re
+import sys
 import types
 from collections.abc import Callable
 from copy import deepcopy
-from dataclasses import MISSING, Field, dataclass, field, replace
-from typing import Any, ClassVar
+from dataclasses import MISSING, Field, dataclass, field
+from typing import Any, ClassVar, TypeVar
 
-from .dict import class_to_dict, update_class_from_dict
+from .dict import to_dict, update_from_dict
 from .string import ResolvableString
+
+_ConfigT = TypeVar("_ConfigT")
 
 _CALLABLE_STR_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_\\.]*:[A-Za-z_][A-Za-z0-9_]*$")
 _CALLABLE_STR_WITH_DIR_RE = re.compile(r"^\{DIR\}(?:\.[A-Za-z_][A-Za-z0-9_]*)*:[A-Za-z_][A-Za-z0-9_]*$")
@@ -47,13 +50,17 @@ def configclass(cls, **kwargs):
     the above two issues. It also provides additional helper functions for dictionary <-> class
     conversion and easily copying class instances.
 
+    Fields declared with ``field(metadata={"copy": False})`` retain their supplied value by reference
+    during construction, :func:`clone`, and :func:`replace`. Use this for borrowed native inputs that
+    must not be duplicated; ordinary configuration fields remain independently copied.
+
     Usage:
 
     .. code-block:: python
 
         from dataclasses import MISSING
 
-        from isaaclab.utils.configclass import configclass
+        from isaaclab.utils import clone, configclass, replace, to_dict
 
 
         @configclass
@@ -73,13 +80,13 @@ def configclass(cls, **kwargs):
         env_cfg = EnvCfg(num_envs=24)
 
         # print information as a dictionary
-        print(env_cfg.to_dict())
+        print(to_dict(env_cfg))
 
         # create a copy of the configuration
-        env_cfg_copy = env_cfg.copy()
+        env_cfg_copy = clone(env_cfg)
 
         # replace arbitrary fields using keyword arguments
-        env_cfg_copy = env_cfg_copy.replace(num_envs=32)
+        env_cfg_copy = replace(env_cfg_copy, num_envs=32)
 
     Args:
         cls: The class to wrap around.
@@ -106,10 +113,10 @@ def configclass(cls, **kwargs):
     else:
         setattr(cls, "__post_init__", _custom_post_init)
     # add helper functions for dictionary conversion
-    setattr(cls, "to_dict", _class_to_dict)
-    setattr(cls, "from_dict", _update_class_from_dict)
-    setattr(cls, "replace", _replace_class_with_kwargs)
-    setattr(cls, "copy", _copy_class)
+    setattr(cls, "to_dict", to_dict)
+    setattr(cls, "from_dict", update_from_dict)
+    setattr(cls, "replace", replace)
+    setattr(cls, "copy", clone)
     setattr(cls, "validate", _validate)
     # wrap around dataclass
     cls = dataclass(cls, **kwargs)
@@ -117,72 +124,63 @@ def configclass(cls, **kwargs):
     return cls
 
 
-"""
-Dictionary <-> Class operations.
-
-These are redefined here to add new docstrings.
-"""
-
-
-def _class_to_dict(obj: object) -> dict[str, Any]:
-    """Convert an object into dictionary recursively.
+def instantiate(cfg: Any, *args: Any, **kwargs: Any) -> Any:
+    """Construct ``cfg.class_type`` with the configuration as its first argument.
 
     Args:
-        obj: The object to convert.
+        cfg: Configuration declaring a callable ``class_type``, including a lazy
+            :class:`~isaaclab.utils.string.ResolvableString` supplied by :func:`configclass`.
+        *args: Additional positional constructor arguments.
+        **kwargs: Additional keyword constructor arguments.
 
     Returns:
-        Converted dictionary mapping.
+        The constructed instance. Configuration and arguments are passed through without copying.
     """
-    return class_to_dict(obj)
+    return cfg.class_type(cfg, *args, **kwargs)
 
 
-def _update_class_from_dict(obj, data: dict[str, Any]) -> None:
-    """Reads a dictionary and sets object variables recursively.
+def replace(cfg: _ConfigT, /, **changes: Any) -> _ConfigT:
+    """Copy a configuration with selected fields replaced.
 
-    This function performs in-place update of the class member attributes.
+    Ordinary fields are independently copied by :func:`configclass`. Fields with
+    ``metadata={"copy": False}`` retain their supplied values by reference.
 
     Args:
-        obj: The object to update.
-        data: Input (nested) dictionary to update from.
+        cfg: Configuration to copy.
+        **changes: Field names and their replacement values.
+
+    Returns:
+        A new configuration of the same type. The original is unchanged.
+    """
+    return dataclasses.replace(cfg, **changes)
+
+
+def clone(cfg: _ConfigT) -> _ConfigT:
+    """Copy a configuration using the same field-copying rules as :func:`replace`.
+
+    Args:
+        cfg: Configuration to copy.
+
+    Returns:
+        A new configuration of the same type, equivalent to ``cfg.copy()``.
+    """
+    return dataclasses.replace(cfg)
+
+
+def validate(cfg: Any) -> Any:
+    """Run configuration validation, preserving custom ``validate`` implementations.
+
+    Args:
+        cfg: Configuration to validate.
+
+    Returns:
+        The result of ``cfg.validate()``; configclasses return an empty list on success.
 
     Raises:
-        TypeError: When input is not a dictionary.
-        ValueError: When dictionary has a value that does not match default config type.
-        KeyError: When dictionary has a key that does not exist in the default config type.
+        TypeError: If required fields are missing.
+        ValueError: If a configuration's validation hook rejects its values.
     """
-    update_class_from_dict(obj, data, _ns="")
-
-
-def _replace_class_with_kwargs(obj: object, **kwargs) -> object:
-    """Return a new object replacing specified fields with new values.
-
-    This is especially useful for frozen classes.  Example usage:
-
-    .. code-block:: python
-
-        @configclass(frozen=True)
-        class C:
-            x: int
-            y: int
-
-
-        c = C(1, 2)
-        c1 = c.replace(x=3)
-        assert c1.x == 3 and c1.y == 2
-
-    Args:
-        obj: The object to replace.
-        **kwargs: The fields to replace and their new values.
-
-    Returns:
-        The new object.
-    """
-    return replace(obj, **kwargs)
-
-
-def _copy_class(obj: object) -> object:
-    """Return a new object with the same fields as the original."""
-    return replace(obj)
+    return cfg.validate()
 
 
 def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
@@ -197,7 +195,8 @@ def _field_module_dir(obj: Any, key: str | None = None) -> str | None:
         for mro_cls in cls.__mro__:
             if mro_cls is object:
                 continue
-            own_fields = getattr(mro_cls, "__configclass_own_fields__", None)
+            # read the class's own snapshot; an undecorated subclass must not inherit its parent's
+            own_fields = mro_cls.__dict__.get("__configclass_own_fields__")
             if own_fields is not None:
                 if key in own_fields:
                     cls = mro_cls
@@ -226,21 +225,17 @@ def _wrap_resolvable_strings(value: Any, module_dir: str | None = None, _seen: s
         if value_id in _seen:
             return value
         _seen.add(value_id)
-    if isinstance(value, list):
+    # containers are rebuilt only when one of their items was wrapped, so untouched values keep their identity
+    if isinstance(value, (list, tuple)):
         wrapped = [_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value]
-        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
+        if all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
             return value
-        return wrapped
-    if isinstance(value, tuple):
-        wrapped = tuple(_wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for item in value)
-        if len(wrapped) == len(value) and all(new_item is old_item for new_item, old_item in zip(wrapped, value)):
-            return value
-        return wrapped
+        return wrapped if isinstance(value, list) else tuple(wrapped)
     if isinstance(value, dict):
         wrapped = {
             key: _wrap_resolvable_strings(item, module_dir=module_dir, _seen=_seen) for key, item in value.items()
         }
-        if len(wrapped) == len(value) and all(wrapped[key] is value[key] for key in value):
+        if all(wrapped[key] is value[key] for key in value):
             return value
         return wrapped
     if is_dataclass_instance:
@@ -322,18 +317,16 @@ def _add_annotation_types(cls):
         # this only refreshes the type and keeps their original position.
         hints.update(ann)
 
-    # Note: Do not change this line. `cls.__dict__.get("__annotations__", {})` is different from
-    #   `cls.__annotations__` because of inheritance.
-    cls.__annotations__ = cls.__dict__.get("__annotations__", {})
+    # Note: assign (not update) so that inherited annotations are not mutated in place.
     cls.__annotations__ = hints
 
 
-def _validate(obj: object, prefix: str = "") -> list[str]:
+def _validate(obj: object, prefix: str = "", _custom_validators: list[Callable[[], None]] | None = None) -> list[str]:
     """Check the validity of configclass object.
 
     This function checks if the object is a valid configclass object. A valid configclass object contains no MISSING
-    entries. Additionally, if the top-level object defines a ``_validate_config`` method, it is called to perform
-    domain-specific validation.
+    entries. Additionally, ``validate_config`` hooks are called on the root object and every nested configclass to
+    perform domain-specific validation.
 
     Subclasses can define ``validate_config(self)`` to add custom checks::
 
@@ -346,6 +339,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     Args:
         obj: The object to check.
         prefix: The prefix to add to the missing fields. Defaults to ''.
+        _custom_validators: Internal post-order accumulator for custom validation hooks.
 
     Returns:
         A list of missing fields.
@@ -354,6 +348,9 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         TypeError: When the object is not a valid configuration object.
     """
     missing_fields = []
+    is_root = _custom_validators is None and prefix == ""
+    if _custom_validators is None:
+        _custom_validators = []
 
     if type(obj).__name__ == "MeshConverterCfg":
         return missing_fields
@@ -364,7 +361,7 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
     elif isinstance(obj, (list, tuple)):
         for index, item in enumerate(obj):
             current_path = f"{prefix}[{index}]"
-            missing_fields.extend(_validate(item, prefix=current_path))
+            missing_fields.extend(_validate(item, prefix=current_path, _custom_validators=_custom_validators))
         return missing_fields
     elif isinstance(obj, dict):
         # Convert any non-string keys to strings to allow validation of dict with non-string keys
@@ -382,19 +379,24 @@ def _validate(obj: object, prefix: str = "") -> list[str]:
         if key.startswith("__"):
             continue
         current_path = f"{prefix}.{key}" if prefix else key
-        missing_fields.extend(_validate(value, prefix=current_path))
+        missing_fields.extend(_validate(value, prefix=current_path, _custom_validators=_custom_validators))
 
-    # raise an error only once at the top-level call
-    if prefix == "" and missing_fields:
-        formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
-        raise TypeError(
-            f"Missing values detected in object {obj.__class__.__name__} for the following"
-            f" fields:\n{formatted_message}\n"
-        )
-    # invoke custom validation hook if defined on the object
-    if prefix == "":
+    # Collect hooks in post-order so nested configs validate before their owners.
+    # Arbitrary nested objects are traversed for missing fields but do not participate in this protocol.
+    if is_root or getattr(type(obj), "validate", None) is _validate:
         custom_validate = getattr(obj, "validate_config", None)
         if callable(custom_validate):
+            _custom_validators.append(custom_validate)
+
+    # raise an error only once at the top-level call
+    if is_root:
+        if missing_fields:
+            formatted_message = "\n".join(f"  - {field}" for field in missing_fields)
+            raise TypeError(
+                f"Missing values detected in object {obj.__class__.__name__} for the following"
+                f" fields:\n{formatted_message}\n"
+            )
+        for custom_validate in _custom_validators:
             custom_validate()
     return missing_fields
 
@@ -470,13 +472,6 @@ def _process_mutable_types(cls):
         origin = getattr(ann_value, "__origin__", None)
         if origin is ClassVar:
             continue
-        # check if f is MISSING
-        # note: commented out for now since it causes issue with inheritance
-        #   of dataclasses when parent have some positional and some keyword arguments.
-        # Ref: https://stackoverflow.com/questions/51575931/class-inheritance-in-python-3-7-dataclasses
-        # TODO: check if this is fixed in Python 3.10
-        # if f is MISSING:
-        #     continue
         if isinstance(value, Field):
             setattr(cls, key, value)
         elif not isinstance(value, type):
@@ -492,9 +487,10 @@ def _custom_post_init(obj):
     proxy type i.e. a read only proxy for mapping objects. The error is thrown when using hierarchical data-classes
     for configuration.
     """
+    borrowed = {name for name, field in obj.__dataclass_fields__.items() if field.metadata.get("copy") is False}
     for key in dir(obj):
         # skip dunder members
-        if key.startswith("__"):
+        if key.startswith("__") or key in borrowed:
             continue
         # get data member
         value = getattr(obj, key)
@@ -606,49 +602,6 @@ def _return_f(f: Any) -> Callable[[], Any]:
     return _wrap
 
 
-def resolve_cfg_presets(cfg: object) -> object:
-    """Recursively replace preset-wrapper fields with their *default* preset.
-
-    Task configs may use two preset-selector patterns to support multiple physics backends
-    (PhysX / Newton) or observation modes. Both patterns produce wrapper objects that are
-    **not** valid as the concrete cfg that downstream managers / scene builders expect.
-    This function resolves them in-place so the config can be used without a Hydra CLI
-    override (e.g. in unit tests or when creating environments directly).
-
-    Supported patterns:
-
-    * **New style** (``PresetCfg`` subclass): a configclass whose MRO contains a class named
-      ``PresetCfg``. The active variant is stored in the ``default`` attribute.
-    * **Old style** (``presets`` dict): a configclass that has a ``presets: dict[str, Cfg]``
-      attribute with a ``"default"`` key.
-
-    Args:
-        cfg: Any configclass instance (or any object; non-configclasses are returned as-is).
-
-    Returns:
-        The same ``cfg`` object, modified in-place with preset wrappers replaced.
-    """
-    if not hasattr(cfg, "__dataclass_fields__"):
-        return cfg
-    for field_name in list(cfg.__dataclass_fields__):
-        value = getattr(cfg, field_name, None)
-        if value is None or not hasattr(value, "__dataclass_fields__"):
-            continue
-        # New-style PresetCfg: class hierarchy contains a class named "PresetCfg".
-        if any(cls.__name__ == "PresetCfg" for cls in type(value).__mro__):
-            resolved = value.default
-            setattr(cfg, field_name, resolved)
-            resolve_cfg_presets(resolved)
-        # Old-style preset: configclass with a ``presets`` dict that has a ``"default"`` key.
-        elif isinstance(getattr(value, "presets", None), dict) and "default" in value.presets:
-            resolved = value.presets["default"]
-            setattr(cfg, field_name, resolved)
-            resolve_cfg_presets(resolved)
-        else:
-            resolve_cfg_presets(value)
-    return cfg
-
-
 def checked_apply(src: Any, target: Any) -> None:
     """Forward every declared field on ``src`` (a dataclass) onto ``target``.
 
@@ -681,3 +634,20 @@ def checked_apply(src: Any, target: Any) -> None:
                 f"{target_path} has no attribute `{f.name}`. {type(src).__name__} is out of sync with target."
             )
         setattr(target, f.name, getattr(src, f.name))
+
+
+class _CallableModule(types.ModuleType):
+    """Module type that makes :mod:`isaaclab.utils.configclass` usable as the decorator it defines.
+
+    This sub-module and the :func:`configclass` decorator share a name, so ``isaaclab.utils.configclass``
+    can only resolve to one object. Making the module callable lets it be both: ``@configclass`` works
+    on the value exported by :mod:`isaaclab.utils`, and the module's own members stay reachable through
+    ``import isaaclab.utils.configclass as ...`` and dotted attribute access.
+    """
+
+    def __call__(self, cls: type) -> type:
+        """Apply the :func:`configclass` decorator to ``cls``."""
+        return configclass(cls)
+
+
+sys.modules[__name__].__class__ = _CallableModule

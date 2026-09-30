@@ -5,42 +5,29 @@
 
 """Real-backend tests for the OVPhysX FrameView.
 
-Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no ``AppLauncher``).
+Run via ``./scripts/run_ovphysx.sh -m pytest`` (kitless, no the Kit launcher).
 """
 
 from __future__ import annotations
 
+import numpy as np
 import pytest
 
 # The OVPhysX runtime wheel is optional. Skip gracefully when it is not installed;
 # CI jobs that need OVPhysX coverage install it explicitly.
 pytest.importorskip("ovphysx.types", reason="ovphysx wheel not installed")
 
-from isaaclab_ov.physics import OvPhysxCfg  # noqa: E402
+from isaaclab_ov.physics import OvPhysxCfg, OvPhysxManager  # noqa: E402
 
 import isaaclab.sim as sim_utils  # noqa: E402
+from isaaclab import cloner  # noqa: E402
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.sim.views import FrameView  # noqa: E402
 
 OVPHYSX_SIM_CFG = SimulationCfg(physics=OvPhysxCfg())
 
 pytestmark = pytest.mark.device_split
-
-
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
-def test_factory_dispatches_to_ovphysx_frame_view(device):
-    """``FrameView(...)`` under an OVPhysX ``SimulationContext`` returns an ``OvPhysxFrameView``."""
-    OVPHYSX_SIM_CFG.device = device
-    with build_simulation_context(device=device, sim_cfg=OVPHYSX_SIM_CFG, add_ground_plane=True):
-        # Define a plain Xform prim so the pattern matches at least one prim.
-        stage = sim_utils.get_current_stage()
-        prim = stage.DefinePrim("/World/marker", "Xform")
-        sim_utils.standardize_xform_ops(prim)
-
-        from isaaclab_ov.sim.views import OvPhysxFrameView
-
-        view = FrameView("/World/marker", device=device)
-        assert isinstance(view, OvPhysxFrameView), f"Expected OvPhysxFrameView, got {type(view).__name__}"
 
 
 def test_view_raises_before_physics_ready():
@@ -52,37 +39,66 @@ def test_view_raises_before_physics_ready():
         prim = stage.DefinePrim("/World/marker_pre", "Xform")
         sim_utils.standardize_xform_ops(prim)
         view = FrameView("/World/marker_pre", device=device)
-        if hasattr(view, "_site_body"):
-            pytest.skip("PHYSICS_READY already fired; cannot exercise the deferred-init path here.")
+        # Nothing has played the simulation yet, so the view must still be uninitialized.
+        assert not hasattr(view, "_site_body")
         with pytest.raises(RuntimeError, match="used before initialization"):
             view.get_world_poses()
 
 
-def test_world_attached_source_prim_expands_from_clone_plan():
-    """A source-only world frame expands across cloned environments without USD replication."""
+@pytest.mark.parametrize("repeated", [False, True])
+def test_world_attached_source_prim_expands_from_clone_plan(repeated):
+    """Nested frames resolve every populated variant and repeated native name without cloned USD."""
+    from isaaclab_ov.sim.views import OvPhysxFrameView
+
     device = "cpu"
     OVPHYSX_SIM_CFG.device = device
     with build_simulation_context(
         device=device, sim_cfg=OVPHYSX_SIM_CFG, auto_add_lighting=False, add_ground_plane=False
     ) as sim:
         sim._app_control_on_stop_handle = None
-        scene = InteractiveScene(_OvPhysxFrameViewSceneCfg(num_envs=4, env_spacing=2.0))
+        scene = InteractiveScene(InteractiveSceneCfg(num_envs=12, env_spacing=2.0))
+        target_env_ids = tuple(range(scene.num_envs))
+        path = "/World/envs/env_[^/]+/WorldCamera"
+        positions = np.zeros((scene.num_envs, 3), dtype=np.float32)
+        positions[:, 0] = np.arange(scene.num_envs) * 3 + 2
+        assets = (
+            AssetBaseCfg(prim_path=path),
+            AssetBaseCfg(prim_path=path),
+            AssetBaseCfg(prim_path=path + "/Frame", spawn=sim_utils.SpawnerCfg()),
+        )
+        worlds = ((0, 0), (1, 1)) if repeated else ((0,), (1,))
+        plan = cloner.make_clone_plan(assets, worlds, scene.num_envs, weights=(10, 2), positions=positions)
+        sim.set_clone_plan(plan)
+        stage = sim_utils.get_current_stage()
+        for env_id, offset in ((0, 0.25), (10, 0.5)):
+            root = stage.DefinePrim(f"/World/envs/env_{env_id}", "Xform")
+            sim_utils.standardize_xform_ops(root, translation=tuple(map(float, positions[env_id])))
+            stage.DefinePrim(f"/World/envs/env_{env_id}/WorldCamera", "Xform")
+            prim = stage.DefinePrim(f"/World/envs/env_{env_id}/WorldCamera/Frame", "Xform")
+            sim_utils.standardize_xform_ops(prim, translation=(offset, -0.5, 1.0))
         sim.reset()
 
-        stage = sim_utils.get_current_stage()
-        prim = stage.DefinePrim("/World/envs/env_0/WorldCamera", "Xform")
-        sim_utils.standardize_xform_ops(prim)
-        prim.GetAttribute("xformOp:translate").Set(Gf.Vec3d(0.25, -0.5, 1.0))
+        name = "WorldCamera_1/Frame" if repeated else "WorldCamera/Frame"
+        view = FrameView(f"/World/envs/env_[^/]+/{name}", device=device)
 
-        view = FrameView("/World/envs/env_[^/]+/WorldCamera", device=device)
-
-        assert not stage.GetPrimAtPath("/World/envs/env_1/WorldCamera").IsValid()
+        assert isinstance(view, OvPhysxFrameView)
+        assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}").IsValid()
+        assert not stage.GetPrimAtPath(f"/World/envs/env_{target_env_ids[1]}/WorldCamera").IsValid()
         assert view.count == scene.num_envs
         assert len(view.prims) == scene.num_envs
-        assert {prim.GetPath().pathString for prim in view.prims} == {"/World/envs/env_0/WorldCamera"}
-        assert view.prim_paths == [f"/World/envs/env_{i}/WorldCamera" for i in range(scene.num_envs)]
+        assert {prim.GetPath().pathString for prim in view.prims} == {
+            f"/World/envs/env_{index}/WorldCamera/Frame" for index in (0, 10)
+        }
+        assert view.prim_paths == [f"/World/envs/env_{i}/{name}" for i in target_env_ids]
         positions, _ = view.get_world_poses()
-    expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+        expected_positions = scene.env_origins + torch.tensor([0.25, -0.5, 1.0], device=device)
+        expected_positions[10:, 0] += 0.25
+        for world_expr, indices in (("11", [11]), ("[19]", [1, 9]), ("1[01]", [10, 11])):
+            selected = FrameView(f"/World/envs/env_{world_expr}/{name}", device=device)
+            assert selected.count == len(indices)
+            assert selected.prim_paths == [f"/World/envs/env_{index}/{name}" for index in indices]
+            torch.testing.assert_close(selected.get_world_poses()[0].torch, expected_positions[indices])
+            selected.close()
     torch.testing.assert_close(positions.torch, expected_positions)
 
 
@@ -101,7 +117,7 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 
     frame_view._root_view = PreviousRootView()
     frame_view._pose_binding = object()
-    monkeypatch.setattr(frame_view, "_try_get_physx", lambda: physx)
+    monkeypatch.setattr(OvPhysxManager, "get_physx_instance", lambda: physx)
 
     def initialize(value):
         assert frame_view._root_view is None
@@ -120,7 +136,7 @@ def test_reinitialization_closes_previous_root_view(monkeypatch):
 # Note: an earlier test ``test_view_errors_when_newton_model_not_required`` was
 # removed when ``OvPhysxFrameView`` was reworked to read poses from a direct
 # OVPhysX ``RIGID_BODY_POSE`` tensor binding instead of the SDP's Newton state.
-# The view no longer depends on ``requires_newton_model``.
+# The view no longer depends on the ``NEWTON_MODEL`` scene-data requirement.
 
 
 # ==================================================================
@@ -142,7 +158,7 @@ from pxr import Gf  # noqa: E402
 
 from isaaclab.assets import RigidObjectCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
-from isaaclab.utils.configclass import configclass  # noqa: E402
+from isaaclab.utils import configclass  # noqa: E402
 
 
 @configclass
@@ -151,9 +167,9 @@ class _OvPhysxFrameViewSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.2, 0.2, 0.2),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(),
-            mass_props=sim_utils.MassPropertiesCfg(mass=1.0),
-            collision_props=sim_utils.CollisionPropertiesCfg(),
+            rigid_props=sim_utils.UsdPhysicsRigidBodyCfg(),
+            mass_props=sim_utils.MassCfg(mass=1.0),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 1.0)),
     )

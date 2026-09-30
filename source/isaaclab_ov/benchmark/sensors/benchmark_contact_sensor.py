@@ -32,6 +32,7 @@ args_cli = parser.parse_args()
 import warp as wp
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.sensors import ContactSensorCfg
+from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.assets import RigidObjectCfg
@@ -40,7 +41,7 @@ from isaaclab.benchmark.sensor_suites import add_sensor_latency_measurements, co
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.terrains import TerrainImporterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 wp.init()
 
@@ -55,8 +56,8 @@ class ContactSensorBenchmarkSceneCfg(InteractiveSceneCfg):
         prim_path="{ENV_REGEX_NS}/Cube",
         spawn=sim_utils.CuboidCfg(
             size=(0.5, 0.5, 0.5),
-            rigid_props=sim_utils.RigidBodyPropertiesCfg(disable_gravity=False),
-            collision_props=sim_utils.CollisionPropertiesCfg(collision_enabled=True),
+            rigid_props=PhysxRigidBodyCfg(disable_gravity=False),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
             activate_contact_sensors=True,
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, 0.3)),
@@ -98,7 +99,7 @@ def main() -> None:
             native_read=lambda: sensor._contact_binding.read_net_forces(sensor._net_forces_flat_buf),
         )
 
-        net_forces = sensor.data.net_forces_w.torch
+        net_forces = sensor.data.net_normal_forces_w.torch
         num_in_contact = int((net_forces.norm(dim=-1) > 0.1).sum().item())
         if num_in_contact != args_cli.num_envs:
             raise RuntimeError(f"Expected {args_cli.num_envs} contacting sensors, received {num_in_contact}.")

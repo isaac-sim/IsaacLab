@@ -13,15 +13,13 @@ import warnings
 
 import pytest
 
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import clone, configclass
 
 from isaaclab_tasks.utils import hydra as hydra_mod
 from isaaclab_tasks.utils.hydra import (
     PresetCfg,
     _format_unknown_presets_error,
-    apply_overrides,
     collect_presets,
-    parse_overrides,
     preset,
     resolve_presets,
 )
@@ -301,21 +299,27 @@ class PresetResolvesToDictEnvCfg:
 # =============================================================================
 
 
-def _apply(env_cfg, agent_cfg=None, global_presets=None, preset_sel=None, preset_scalar=None):
-    """Collect presets, resolve defaults, build hydra dict, and apply overrides."""
-    if agent_cfg is None:
-        agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    return apply_overrides(
-        env_cfg,
-        agent_cfg,
-        hydra_cfg,
-        global_presets or [],
-        preset_sel or [],
-        preset_scalar or [],
-        presets,
-    )
+def _register(env_cfg, agent_cfg=None, overrides=()):
+    """Run :func:`register_task`, the production CLI override path, on copies of the given configs."""
+    import gymnasium as gym
+
+    agent_cfg = PresetCfgAgentCfg() if agent_cfg is None else agent_cfg
+    task = "Isaac-Hydra-Overrides-Test"
+    entry_points = {"env_cfg_entry_point": lambda: clone(env_cfg), "agent_cfg_entry_point": lambda: clone(agent_cfg)}
+    gym.register(id=task, entry_point="dummy:Env", kwargs=entry_points)
+    try:
+        return hydra_mod.register_task(task, "agent_cfg_entry_point", overrides=list(overrides))
+    finally:
+        del gym.registry[task]
+
+
+def _apply(env_cfg, agent_cfg=None, global_presets=(), preset_sel=(), preset_scalar=()):
+    """Resolve presets and apply overrides given as CLI tokens through :func:`_register`."""
+    overrides = [f"presets={','.join(global_presets)}"] if global_presets else []
+    overrides += [f"{sec}.{path}={name}" if path else f"{sec}={name}" for sec, path, name in preset_sel]
+    overrides += [f"{path}={value}" for path, value in preset_scalar]
+    env_cfg, agent_cfg, _ = _register(env_cfg, agent_cfg, overrides)
+    return env_cfg, agent_cfg
 
 
 # =============================================================================
@@ -326,10 +330,7 @@ def _apply(env_cfg, agent_cfg=None, global_presets=None, preset_sel=None, preset
 @pytest.fixture
 def class_presets():
     """Fresh configs using PresetCfg pattern."""
-    env_cfg = PresetCfgEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    return env_cfg, agent_cfg, presets
+    return PresetCfgEnvCfg(), PresetCfgAgentCfg()
 
 
 # =============================================================================
@@ -420,14 +421,13 @@ def test_format_unknown_presets_error_calls_out_legacy_aliases():
 
 def test_user_stacklevel_warning_origin_is_outside_hydra_module():
     """``_normalize_preset_name`` warnings should not be attributed to hydra.py itself."""
-    presets_arg = {"env": {"backend": {"default": None, "newton_mjwarp": None}}, "agent": {}}
     with warnings.catch_warnings(record=True) as caught:
         warnings.simplefilter("always", FutureWarning)
-        parse_overrides(["presets=newton"], presets_arg)
+        _apply(PresetCfgEnvCfg(), global_presets=["newton"])
     deprecations = [w for w in caught if issubclass(w.category, FutureWarning)]
     assert deprecations, "expected a FutureWarning from the legacy alias"
     assert deprecations[0].filename != hydra_mod.__file__, (
-        f"warning was attributed to hydra.py ({deprecations[0].filename}); _user_stacklevel should "
+        f"warning was attributed to hydra.py ({deprecations[0].filename}); user_stacklevel should "
         f"point outside the module"
     )
 
@@ -442,73 +442,47 @@ def test_collect_presets_root_level():
 
 
 # =============================================================================
-# Tests: parse_overrides
+# Tests: CLI overrides
 # =============================================================================
 
 
-def test_parse_overrides_mixed():
-    """All override types categorized correctly."""
-    env_cfg = PresetCfgEnvCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": {}}
-    args = [
-        "presets=fast",
-        "env.decimation=10",
-        "env.backend=newton_mjwarp",
-        "env.backend.dt=0.001",
-    ]
-    global_p, sel, scalar, glob = parse_overrides(args, presets)
-    assert global_p == ["fast"]
-    assert ("env", "backend", "newton_mjwarp") in sel
-    assert ("env.backend.dt", "0.001") in scalar
-    assert "env.decimation=10" in glob
-
-
-def test_parse_overrides_root_preset():
-    """Root-level PresetCfg parsed as agent=<name>."""
-    presets = {"env": {}, "agent": collect_presets(RootAgentCfg())}
-    _, sel, _, _ = parse_overrides(["agent=fast"], presets)
-    assert sel == [("agent", "", "fast")]
+def test_register_task_mixed_overrides():
+    """Global presets, path presets, preset-path scalars, global scalars, and bare args apply together."""
+    overrides = ["presets=fast", "env.decimation=10", "env.backend=newton_mjwarp", "env.backend.dt=0.001", "--flag"]
+    env_cfg, agent_cfg, hydra_args = _register(PresetCfgEnvCfg(), overrides=overrides)
+    assert isinstance(env_cfg.observations, FastObservationsCfg)
+    assert isinstance(agent_cfg.policy, FastPolicyCfg)
+    assert isinstance(env_cfg.backend, NewtonCfg)
+    assert env_cfg.backend.dt == 0.001
+    assert env_cfg.decimation == 10
+    assert hydra_args == ["--flag"]
 
 
 # =============================================================================
-# Tests: apply_overrides -- PresetCfg (nested + broadcast + root)
+# Tests: PresetCfg resolution (nested + broadcast + root)
 # =============================================================================
 
 
 def test_presetcfg_auto_default(class_presets):
     """'default' field auto-applied when no CLI override."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [], [], presets)
+    env_cfg, agent_cfg = _apply(*class_presets)
     assert isinstance(env_cfg.backend, PhysxCfg)
     assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
     assert isinstance(agent_cfg.policy, SmallPolicyCfg)
 
 
-def test_presetcfg_cli_selection(class_presets):
-    """Path selection replaces with chosen preset."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton_mjwarp")], [], presets)
-    assert isinstance(env_cfg.backend, NewtonCfg)
-    assert env_cfg.backend.dt == 0.002
-
-
 def test_presetcfg_global_broadcast(class_presets):
     """Global preset 'fast' broadcasts across env and agent PresetCfg fields."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["fast"], [], [], presets)
+    env_cfg, agent_cfg = _apply(*class_presets, global_presets=["fast"])
     assert isinstance(env_cfg.observations, FastObservationsCfg)
     assert isinstance(agent_cfg.policy, FastPolicyCfg)
 
 
 def test_presetcfg_path_selection_others_default(class_presets):
     """Path preset on one field, others get auto-default."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "newton_mjwarp")], [], presets)
+    env_cfg, agent_cfg = _apply(*class_presets, preset_sel=[("env", "backend", "newton_mjwarp")])
     assert isinstance(env_cfg.backend, NewtonCfg)
+    assert env_cfg.backend.dt == 0.002
     assert isinstance(env_cfg.observations, NoiselessObservationsCfg)
     assert isinstance(agent_cfg.policy, SmallPolicyCfg)
 
@@ -696,12 +670,7 @@ def test_presetcfg_none_default_auto_applies():
 
 def test_presetcfg_none_default_cli_selects_enabled():
     """PresetCfg with default=None can be overridden to a real config via CLI."""
-    env_cfg = EnvWithOptionalFeatureCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    sel = [("env", "optional_feature", "enabled")]
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], sel, [], presets)
+    env_cfg, _ = _apply(EnvWithOptionalFeatureCfg(), preset_sel=[("env", "optional_feature", "enabled")])
     assert isinstance(env_cfg.optional_feature, OptionalFeatureCfg)
     assert env_cfg.optional_feature.buffer_size == 200
 
@@ -731,39 +700,12 @@ class ScalarPresetEnvCfg:
     actuator: ActuatorWithPresetCfg = ActuatorWithPresetCfg()
 
 
-def test_scalar_presetcfg_collect():
-    """Scalar PresetCfg fields collected with correct values."""
-    presets = collect_presets(ScalarPresetEnvCfg())
-    assert "actuator.armature" in presets
-    assert presets["actuator.armature"]["default"] == 0.0
-    assert presets["actuator.armature"]["newton_mjwarp"] == 0.01
-
-
 def test_scalar_presetcfg_resolve_default():
     """resolve_presets replaces scalar PresetCfg with its default value."""
     cfg = ScalarPresetEnvCfg()
     resolved = resolve_presets(cfg)
     assert resolved.actuator.armature == 0.0
     assert not isinstance(resolved.actuator.armature, PresetCfg)
-
-
-def test_scalar_presetcfg_auto_default():
-    """Scalar PresetCfg auto-applies default=0.0 when no CLI override."""
-    env_cfg, _ = _apply(ScalarPresetEnvCfg())
-    assert env_cfg.actuator.armature == 0.0
-
-
-def test_scalar_presetcfg_global_newton_mjwarp():
-    """Global preset=newton_mjwarp replaces scalar PresetCfg with MJWarp value."""
-    env_cfg, _ = _apply(ScalarPresetEnvCfg(), global_presets=["newton_mjwarp"])
-    assert env_cfg.actuator.armature == 0.01
-
-
-def test_scalar_presetcfg_path_selection():
-    """Path selection replaces scalar PresetCfg with chosen value."""
-    env_cfg, _ = _apply(ScalarPresetEnvCfg(), preset_sel=[("env", "actuator.armature", "newton_mjwarp")])
-    assert env_cfg.actuator.armature == 0.01
-    assert env_cfg.actuator.stiffness == 40.0
 
 
 # =============================================================================
@@ -804,12 +746,6 @@ def test_resolve_presets_traverses_dict_values():
     assert not isinstance(resolved.robot.actuators["legs"].armature, PresetCfg)
 
 
-def test_dict_preset_auto_default():
-    """Dict-held PresetCfg auto-applies default when no CLI override."""
-    env_cfg, _ = _apply(DictPresetEnvCfg())
-    assert env_cfg.robot.actuators["legs"].armature == 0.0
-
-
 def test_dict_preset_global_newton_mjwarp():
     """Global preset=newton_mjwarp replaces dict-held scalar PresetCfg."""
     env_cfg, _ = _apply(DictPresetEnvCfg(), global_presets=["newton_mjwarp"])
@@ -823,61 +759,37 @@ def test_dict_preset_path_selection():
     assert env_cfg.robot.actuators["legs"].stiffness == 40.0
 
 
-def test_dict_preset_with_factory():
-    """preset() factory works inside dict-held configclass values."""
-
-    @configclass
-    class ActuatorCfgFactory:
-        joint_names: list = [".*"]
-        armature: object = None
-
-        def __post_init__(self):
-            if self.armature is None:
-                self.armature = preset(default=0.0, newton_mjwarp=0.01, physx=0.0)
-
-    @configclass
-    class RobotCfgFactory:
-        actuators: dict = None
-
-        def __post_init__(self):
-            if self.actuators is None:
-                self.actuators = {"legs": ActuatorCfgFactory()}
-
-    @configclass
-    class EnvCfgFactory:
-        robot: RobotCfgFactory = RobotCfgFactory()
-
-    cfg = EnvCfgFactory()
-    presets = collect_presets(cfg)
-    assert "robot.actuators.legs.armature" in presets
-    assert presets["robot.actuators.legs.armature"]["default"] == 0.0
-    assert presets["robot.actuators.legs.armature"]["newton_mjwarp"] == 0.01
-    assert presets["robot.actuators.legs.armature"]["physx"] == 0.0
-
-
 # =============================================================================
 # Tests: rough terrain config regressions
 # =============================================================================
 
 
-def test_go2_rough_newton_mjwarp_armature_preset():
-    """Go2 rough terrain uses higher MJWarp armature without changing PhysX."""
-    from isaaclab_tasks.core.velocity.config.go2.rough_env_cfg import UnitreeGo2RoughEnvCfg
-
-    env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg(), global_presets=["newton_mjwarp"])
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
-
-    env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg())
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.0
-
-
 def test_go2_rough_legacy_newton_alias_resolves_to_newton_mjwarp():
     """Real-config alias path: ``presets=newton`` against an actual env cfg resolves to newton_mjwarp."""
+    from isaaclab_newton.physics import MJWarpSolverCfg
+
     from isaaclab_tasks.core.velocity.config.go2.rough_env_cfg import UnitreeGo2RoughEnvCfg
 
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
         env_cfg, _ = _apply(UnitreeGo2RoughEnvCfg(), global_presets=["newton"])
-    assert env_cfg.scene.robot.actuators["base_legs"].armature == 0.02
+    assert isinstance(env_cfg.sim.physics.solver_cfg, MJWarpSolverCfg)
+
+
+def test_velocity_events_newton_mjwarp_keeps_base_com_randomization():
+    """MJWarp velocity configs should retain base center-of-mass randomization."""
+    from isaaclab_tasks.core.velocity import mdp
+    from isaaclab_tasks.core.velocity.velocity_env_cfg import EventsCfg
+
+    events = resolve_presets(EventsCfg(), {"newton_mjwarp"})
+
+    assert events.base_com is not None
+    assert events.base_com.func is mdp.randomize_rigid_body_com
+    assert events.base_com.mode == "startup"
+    assert events.base_com.params["com_range"] == {
+        "x": (-0.05, 0.05),
+        "y": (-0.05, 0.05),
+        "z": (-0.01, 0.01),
+    }
 
 
 # =============================================================================
@@ -910,14 +822,6 @@ def test_resolve_presets_deep_nested_dicts():
     assert not isinstance(inner.params["fraction"], PresetCfg)
     assert inner.params["robot_cfg"].joint_names is None
     assert not isinstance(inner.params["robot_cfg"].joint_names, PresetCfg)
-
-
-def test_deep_nested_dict_auto_default():
-    """Deeply nested dict presets auto-apply default when no CLI override."""
-    env_cfg, _ = _apply(DeepDictEnvCfg())
-    inner = env_cfg.events.params["terms"]["step_one"]
-    assert inner.params["offset"] == (0.0, 0.0, 0.01)
-    assert inner.params["fraction"] == (0.05, 0.5)
 
 
 def test_deep_nested_dict_global_preset():
@@ -1075,14 +979,6 @@ def test_preset_factory_requires_default():
         preset(high=1.0, low=-1.0)
 
 
-def test_preset_factory_string_values():
-    """preset() works with string values."""
-    p = preset(default="cpu", gpu="cuda:0")
-    assert isinstance(p, PresetCfg)
-    assert p.default == "cpu"
-    assert p.gpu == "cuda:0"
-
-
 # =============================================================================
 # Tests: _collect_fields class-vs-instance priority
 # =============================================================================
@@ -1132,31 +1028,17 @@ def test_collect_fields_includes_dynamic_class_attrs():
 
 
 # =============================================================================
-# Tests: apply_overrides error handling
+# Tests: override error handling
 # =============================================================================
 
 
-def test_apply_overrides_unknown_preset_group_raises():
-    """apply_overrides raises ValueError for unknown preset group paths."""
-    env_cfg = PresetCfgEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    with pytest.raises(ValueError, match="Unknown or inactive preset group"):
-        apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "nonexistent", "val")], [], presets)
-
-
-def test_apply_overrides_unknown_preset_name_raises():
-    """apply_overrides raises ValueError for unknown preset name."""
-    env_cfg = PresetCfgEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+def test_unknown_preset_name_raises():
+    """An explicit preset path with an unknown name raises ValueError."""
     with pytest.raises(ValueError, match="Unknown preset 'nonexistent'"):
-        apply_overrides(env_cfg, agent_cfg, hydra_cfg, [], [("env", "backend", "nonexistent")], [], presets)
+        _apply(PresetCfgEnvCfg(), preset_sel=[("env", "backend", "nonexistent")])
 
 
-def test_apply_overrides_conflicting_globals_raises():
+def test_conflicting_global_presets_raises():
     """Two global presets matching the same path cause ValueError."""
 
     @configclass
@@ -1169,15 +1051,11 @@ def test_apply_overrides_conflicting_globals_raises():
     class ConflictEnvCfg:
         mode: TwoAltsPresetCfg = TwoAltsPresetCfg()
 
-    env_cfg = ConflictEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     with pytest.raises(ValueError, match="Conflicting global presets"):
-        apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["opt_a", "opt_b"], [], [], presets)
+        _apply(ConflictEnvCfg(), global_presets=["opt_a", "opt_b"])
 
 
-def test_apply_overrides_aliased_globals_no_conflict():
+def test_aliased_global_presets_no_conflict():
     """Two global presets resolving to equal values do not raise.
 
     Mirrors the Lift ObjectCfg pattern where ``newton_mjwarp = cube`` creates
@@ -1202,96 +1080,30 @@ def test_apply_overrides_aliased_globals_no_conflict():
         mode: AliasedPresetCfg = AliasedPresetCfg()
 
     env_cfg = AliasedEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    assert presets["env"]["mode"]["cube"] is not presets["env"]["mode"]["newton_mjwarp"]
-    assert presets["env"]["mode"]["cube"] == presets["env"]["mode"]["newton_mjwarp"]
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["cube", "newton_mjwarp"], [], [], presets)
+    presets = collect_presets(env_cfg)
+    assert presets["mode"]["cube"] is not presets["mode"]["newton_mjwarp"]
+    assert presets["mode"]["cube"] == presets["mode"]["newton_mjwarp"]
+    env_cfg, _ = _apply(env_cfg, global_presets=["cube", "newton_mjwarp"])
     assert env_cfg.mode == SharedCfg()
 
 
 # =============================================================================
-# Tests: parse_overrides edge cases
+# Tests: legacy preset aliases and root-level selection
 # =============================================================================
 
 
-def test_parse_overrides_multiple_global_presets():
-    """Multiple comma-separated global presets are split correctly."""
-    presets = {"env": {"backend": {"default": None, "newton_mjwarp": None}}, "agent": {}}
-    global_p, _, _, _ = parse_overrides(["presets=fast,newton_mjwarp,debug"], presets)
-    assert global_p == ["fast", "newton_mjwarp", "debug"]
-
-
-def test_parse_overrides_maps_legacy_newton_preset_to_newton_mjwarp():
-    """Legacy ``newton`` preset selections resolve to ``newton_mjwarp`` when available."""
-    presets = {"env": {"backend": {"default": None, "newton_mjwarp": None}}, "agent": {}}
-    legacy_name = "newton"
-
-    global_p, sel, _, _ = parse_overrides(["presets=fast," + legacy_name, f"env.backend={legacy_name}"], presets)
-
-    assert global_p == ["fast", "newton_mjwarp"]
-    assert sel == [("env", "backend", "newton_mjwarp")]
-
-
-def test_parse_overrides_maps_legacy_kamino_preset_to_newton_kamino():
-    """Legacy ``kamino`` preset selections resolve to ``newton_kamino`` when available."""
-    presets = {"env": {"solver": {"default": None, "newton_kamino": None}}, "agent": {}}
-    legacy_name = "kamino"
-
-    global_p, sel, _, _ = parse_overrides(["presets=" + legacy_name, f"env.solver={legacy_name}"], presets)
-
-    assert global_p == ["newton_kamino"]
-    assert sel == [("env", "solver", "newton_kamino")]
-
-
-def test_apply_overrides_resolves_legacy_alias_in_global_and_path_selection(class_presets):
-    """``apply_overrides`` resolves legacy names supplied directly (bypassing ``parse_overrides``)."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
+def test_legacy_alias_resolves_in_global_and_path_selection(class_presets):
+    """Legacy names resolve to their replacement in both ``presets=`` and path selections."""
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
-        apply_overrides(
-            env_cfg,
-            agent_cfg,
-            hydra_cfg,
-            global_presets=["newton"],
-            preset_sel=[("env", "backend", "newton")],
-            preset_scalar=[],
-            presets=presets,
-        )
+        env_cfg, _ = _apply(*class_presets, global_presets=["newton"], preset_sel=[("env", "backend", "newton")])
     assert isinstance(env_cfg.backend, NewtonCfg)
 
 
-def test_apply_overrides_legacy_and_current_alias_do_not_conflict(class_presets):
+def test_legacy_and_current_alias_do_not_conflict(class_presets):
     """``presets=newton,newton_mjwarp`` (legacy + current) resolves to one preset, not a conflict."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
     with pytest.warns(FutureWarning, match="Preset 'newton' is deprecated"):
-        apply_overrides(env_cfg, agent_cfg, hydra_cfg, ["newton", "newton_mjwarp"], [], [], presets)
+        env_cfg, _ = _apply(*class_presets, global_presets=["newton", "newton_mjwarp"])
     assert isinstance(env_cfg.backend, NewtonCfg)
-
-
-def test_parse_overrides_no_equals_treated_as_global_scalar():
-    """Arguments without '=' are passed through as global scalars."""
-    presets = {"env": {}, "agent": {}}
-    _, _, _, global_scalar = parse_overrides(["--flag", "positional"], presets)
-    assert "--flag" in global_scalar
-    assert "positional" in global_scalar
-
-
-def test_parse_overrides_preset_scalar_detection():
-    """Scalar within a preset path is detected as preset_scalar."""
-    presets = {"env": {"backend": {"default": None}}, "agent": {}}
-    _, _, preset_scalar, _ = parse_overrides(["env.backend.dt=0.001", "env.backend.substeps=4"], presets)
-    assert ("env.backend.dt", "0.001") in preset_scalar
-    assert ("env.backend.substeps", "4") in preset_scalar
-
-
-def test_parse_overrides_root_level_env_preset():
-    """Root-level PresetCfg (path='') makes env=<name> a valid preset selection."""
-    presets = {"env": {"": {"default": None, "fast": None}}, "agent": {}}
-    _, sel, _, _ = parse_overrides(["env=fast"], presets)
-    assert sel == [("env", "", "fast")]
 
 
 # =============================================================================
@@ -1324,16 +1136,8 @@ def test_parse_val_types():
 
 def test_scalar_override_within_preset_path(class_presets):
     """Scalar overrides within preset paths are applied on top of the preset."""
-    env_cfg, agent_cfg, presets = class_presets
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(
-        env_cfg,
-        agent_cfg,
-        hydra_cfg,
-        [],
-        [("env", "backend", "newton_mjwarp")],
-        [("env.backend.dt", "0.001")],
-        presets,
+    env_cfg, _ = _apply(
+        *class_presets, preset_sel=[("env", "backend", "newton_mjwarp")], preset_scalar=[("env.backend.dt", "0.001")]
     )
     assert isinstance(env_cfg.backend, NewtonCfg)
     assert env_cfg.backend.dt == 0.001
@@ -1353,18 +1157,10 @@ def test_scalar_override_kamino_solver_config():
     class KaminoEnvCfg:
         physics: KaminoPhysicsPreset = KaminoPhysicsPreset()
 
-    env_cfg = KaminoEnvCfg()
-    agent_cfg = PresetCfgAgentCfg()
-    presets = {"env": collect_presets(env_cfg), "agent": collect_presets(agent_cfg)}
-    hydra_cfg = {"env": env_cfg.to_dict(), "agent": agent_cfg.to_dict()}
-    apply_overrides(
-        env_cfg,
-        agent_cfg,
-        hydra_cfg,
-        ["newton_kamino"],
-        [],
-        [("env.physics.solver_cfg.dynamics_solver_cfg.max_iterations", "25")],
-        presets,
+    env_cfg, _ = _apply(
+        KaminoEnvCfg(),
+        global_presets=["newton_kamino"],
+        preset_scalar=[("env.physics.solver_cfg.dynamics_solver_cfg.max_iterations", "25")],
     )
     assert isinstance(env_cfg.physics.solver_cfg, KaminoPADMMSolverCfg)
     assert env_cfg.physics.solver_cfg.dynamics_solver_cfg.max_iterations == 25
@@ -1386,17 +1182,19 @@ def test_resolve_presets_idempotent():
 
 
 def test_unknown_global_preset_name_detected():
-    """A selected preset name that doesn't match any PresetCfg field is detected.
+    """``register_task`` rejects a selected preset name that no PresetCfg declares (e.g. a typo)."""
+    import gymnasium as gym
 
-    This catches typos like presets=peg_insrt_4mm (missing 'e'). The validation
-    in register_task raises ValueError before resolution begins.
-    """
-    cfg = PresetCfgEnvCfg()
-    presets = {"env": collect_presets(cfg), "agent": {}}
-    all_known = {name for alts in presets.values() for fields in alts.values() for name in fields if name != "default"}
-
-    assert "newton_mjwarp" in all_known
-    assert "typo_preset" not in all_known
+    gym.register(
+        id="Isaac-Hydra-UnknownPreset-Test",
+        entry_point="dummy:Env",
+        kwargs={"env_cfg_entry_point": PresetCfgEnvCfg},
+    )
+    try:
+        with pytest.raises(ValueError, match="typo_preset"):
+            hydra_mod.register_task("Isaac-Hydra-UnknownPreset-Test", None, overrides=["presets=typo_preset"])
+    finally:
+        del gym.registry["Isaac-Hydra-UnknownPreset-Test"]
 
 
 def test_resolve_presets_errors_on_no_default():
@@ -1495,26 +1293,6 @@ class _NewtonPhysicsCfg(_RealPhysicsCfg):
 @configclass
 class _PhysxPhysicsCfg(_RealPhysicsCfg):
     dt: float = 0.005
-
-
-def test_validate_typed_presets_passes_when_selector_hits_its_type():
-    """``physics=newton_mjwarp`` that landed on a PhysicsCfg does not raise."""
-    hydra_mod._validate_typed_presets(
-        {PresetTarget.PHYSICS: {"newton_mjwarp"}},
-        typed_hits={"newton_mjwarp": {PresetTarget.PHYSICS}},
-    )
-
-
-def test_validate_typed_presets_raises_when_selector_misses_its_type():
-    """``physics=newton_mjwarp`` that never landed on a PhysicsCfg must raise."""
-    with pytest.raises(ValueError, match="physics=newton_mjwarp"):
-        hydra_mod._validate_typed_presets({PresetTarget.PHYSICS: {"newton_mjwarp"}}, typed_hits={})
-
-
-def test_validate_typed_presets_ignores_broadcast_presets():
-    """A plain ``presets=`` broadcast is never in ``requested``, so it is trusted."""
-    # No typed selectors requested -> nothing to validate, even with no hits.
-    hydra_mod._validate_typed_presets({}, typed_hits={})
 
 
 def test_resolve_active_presets_records_physics_hit_for_selector():

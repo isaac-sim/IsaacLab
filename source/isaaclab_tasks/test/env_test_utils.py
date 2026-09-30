@@ -20,13 +20,24 @@ from isaaclab.physics import PhysicsCfg
 from isaaclab.sim import SimulationContext
 from isaaclab.utils.version import get_isaac_sim_version
 
-from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets
+from isaaclab_tasks.utils.hydra import collect_presets, resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry, parse_env_cfg
 
-# Map of task IDs to the reason for marking the corresponding parametrized
-# test cases as expected failures.  Tests that consume :func:`setup_environment`
-# automatically pick up these marks via :class:`pytest.param`.
-XFAIL_TASKS: dict[str, str] = {}
+# Native crashes cannot be contained by xfail because the process exits before pytest records an
+# outcome, so these tasks are skipped in every environment smoke suite.
+SKIP_TASKS: dict[str, str] = {
+    "Isaac-Lift-Soft-Franka": "Temporarily skipped because the soft-lift environment can crash the test process.",
+    "Isaac-Lift-Soft-Franka-Camera": (
+        "Temporarily skipped because the soft-lift camera environment can crash the test process."
+    ),
+}
+
+SINGLE_ENVIRONMENT_TASKS = (
+    "Isaac-Cartpole",
+    "Isaac-Reach-Franka",
+    "Isaac-Reorient-Cube-Shadow",
+    "Isaac-Velocity-Rough-AnymalD",
+)
 
 
 def _task_tier(task_spec) -> str | None:
@@ -112,16 +123,12 @@ def setup_environment(
     registered_tasks.sort()
 
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running many environments
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
     print(">>> All registered environments:", registered_tasks)
 
-    # Wrap tasks listed in XFAIL_TASKS in pytest.param so the corresponding
-    # parametrized test cases are reported as xfailed instead of failed.
     return [
-        pytest.param(task_id, marks=pytest.mark.xfail(reason=XFAIL_TASKS[task_id], strict=False))
-        if task_id in XFAIL_TASKS
-        else task_id
+        pytest.param(task_id, marks=pytest.mark.skip(reason=SKIP_TASKS[task_id])) if task_id in SKIP_TASKS else task_id
         for task_id in registered_tasks
     ]
 
@@ -247,7 +254,7 @@ def _run_environments(
     """
 
     # skip test if stage in memory is not supported
-    if get_isaac_sim_version().major < 5 and create_stage_in_memory:
+    if create_stage_in_memory and get_isaac_sim_version().major < 5:
         pytest.skip("Stage in memory is not supported in this version of Isaac Sim")
 
     # skip these environments as they cannot be run with 32 environments within reasonable VRAM
@@ -263,7 +270,6 @@ def _run_environments(
     if "Visuomotor" in task_name and num_envs == 32:
         return
 
-    print(f""">>> Running test for environment: {task_name}""")
     _check_random_actions(
         task_name,
         device,
@@ -274,8 +280,6 @@ def _run_environments(
         disable_clone_in_fabric=disable_clone_in_fabric,
         physics_preset_name=physics_preset_name,
     )
-    print(f""">>> Closing environment: {task_name}""")
-    print("-" * 80)
 
 
 def _check_random_actions(
@@ -306,23 +310,19 @@ def _check_random_actions(
         sim_utils.create_new_stage()
 
     # reset the rtx sensors setting to False
-    get_settings_manager().set_bool("/isaaclab/render/rtx_sensors", False)
+    get_settings_manager().set("/isaaclab/render/rtx_sensors", False)
     env = None
     try:
-        # parse config
-        env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
-        # apply physics preset override before creating the environment
+        # Parse the requested physics preset before resolving the config. ``parse_env_cfg`` resolves every preset to
+        # its default, so applying a physics override afterwards cannot replace the already-resolved configuration.
         if physics_preset_name is not None:
-            # parse_env_cfg already resolved PresetCfg wrappers to their default,
-            # so we load the raw config to retrieve preset alternatives.
-            raw_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
-            presets = {"env": collect_presets(raw_cfg), "agent": {}}
-            hydra_cfg = {"env": env_cfg.to_dict(), "agent": None}
-            apply_overrides(env_cfg, None, hydra_cfg, [physics_preset_name], [], [], presets)
-            # Re-apply num_envs since apply_overrides may have replaced
-            # the scene config with the preset's default num_envs.
+            env_cfg = load_cfg_from_registry(task_name, "env_cfg_entry_point")
+            env_cfg = resolve_presets(env_cfg, selected=(physics_preset_name,))
+            env_cfg.sim.device = device
             if num_envs is not None:
                 env_cfg.scene.num_envs = num_envs
+        else:
+            env_cfg = parse_env_cfg(task_name, device=device, num_envs=num_envs)
         reset_event = getattr(env_cfg.events, "reset_strategies", None)
         if reset_event is not None and "state_table_size" in reset_event.params:
             reset_event.params["state_table_size"] = min(32, reset_event.params["state_table_size"])

@@ -16,6 +16,6 @@ The following converters are currently supported:
 
 """
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

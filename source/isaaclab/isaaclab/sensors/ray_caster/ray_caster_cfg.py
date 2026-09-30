@@ -10,11 +10,10 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Literal
 
-from isaaclab.markers import VisualizationMarkersCfg
-from isaaclab.markers.config import RAY_CASTER_MARKER_CFG
-from isaaclab.sim.spawners.sensors.sensors_cfg import SensorFrameCfg
-from isaaclab.utils.configclass import configclass
-
+from ...markers import VisualizationMarkersCfg
+from ...markers.config import RAY_CASTER_MARKER_CFG
+from ...sim.spawners.sensors.sensors_cfg import SensorFrameCfg
+from ...utils import configclass, replace
 from ..sensor_base_cfg import SensorBaseCfg
 from .patterns.patterns_cfg import PatternBaseCfg
 
@@ -92,6 +91,12 @@ class RayCasterCfg(SensorBaseCfg):
     rays outside the carrier's geometry in that case.
     """
 
+    use_cuda_graph: bool = True
+    """Capture Newton BVH queries independently of the physics solver's graph setting.
+
+    CPU queries and the static Warp-mesh implementations run eagerly.
+    """
+
     drift_range: tuple[float, float] = (0.0, 0.0)
     """The range of drift (in meters) to add to the ray starting positions (xyz) in world frame. Defaults to (0.0, 0.0).
 
@@ -105,7 +110,7 @@ class RayCasterCfg(SensorBaseCfg):
     For floating base robots, this is useful for simulating drift in the robot's pose estimation.
     """
 
-    visualizer_cfg: VisualizationMarkersCfg = RAY_CASTER_MARKER_CFG.replace(prim_path="/Visuals/RayCaster")
+    visualizer_cfg: VisualizationMarkersCfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/RayCaster")
     """The configuration object for the visualization markers. Defaults to RAY_CASTER_MARKER_CFG.
 
     .. note::
