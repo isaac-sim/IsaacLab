@@ -2992,7 +2992,16 @@ def test_world_hinged_root_has_no_base_dofs(sim, num_articulations, device, arti
     mass_matrix = articulation.data.mass_matrix.torch
     assert mass_matrix.shape == (num_articulations, num_dofs, num_dofs)
     assert (mass_matrix.diagonal(dim1=-2, dim2=-1) > 1e-6).all()
-    assert articulation.data.gravity_compensation_forces.torch.shape == (num_articulations, num_dofs)
+    gravity_forces = articulation.data.gravity_compensation_forces.torch
+    assert gravity_forces.shape == (num_articulations, num_dofs)
+    # the compensation force cancels the generalized gravity load of each body at its COM
+    model = SimulationManager.get_model()
+    gravity_w = wp.to_torch(model.gravity[: model.world_count])
+    f_gravity = articulation.data.body_mass.torch.unsqueeze(-1) * gravity_w.unsqueeze(1)
+    jacobian_com = articulation.data.body_com_jacobian_w.torch
+    expected = -torch.einsum("nbij,nbi->nj", jacobian_com[:, :, 0:3, :], f_gravity)
+    assert expected.abs().max() > 1e-2
+    torch.testing.assert_close(gravity_forces, expected, atol=1e-2, rtol=1e-3)
 
 
 @pytest.mark.parametrize("num_articulations", [4])
