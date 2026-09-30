@@ -63,14 +63,10 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._restitution_binding = asset._root_view.get_attribute("shape_material_restitution", model)[:, 0]  # type: ignore
 
         if isinstance(asset, assets.Articulation) and asset_cfg.body_ids != slice(None):
-            # Shape counts use backend body order.
-            num_shapes_per_body = asset.backend_num_shapes_per_body
-            shape_indices_list = []
             backend_body_ids = asset.map_body_ids_to_backend(asset_cfg.body_ids)
-            for body_id in backend_body_ids:
-                start_idx = sum(num_shapes_per_body[:body_id])
-                end_idx = start_idx + num_shapes_per_body[body_id]
-                shape_indices_list.extend(range(start_idx, end_idx))
+            shape_indices_list = [
+                shape for body_id in backend_body_ids for shape in asset.root_view.body_shapes[body_id]
+            ]
             self._shape_indices = torch.tensor(shape_indices_list, dtype=torch.long)
         else:
             self._shape_indices = torch.arange(self._friction_binding.shape[1], dtype=torch.long)
