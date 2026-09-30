@@ -163,7 +163,7 @@ class FrankaRelJointPosActionCfg:
 
 
 @configclass
-class FrankaLiftRewardCfg(lift.RewardsCfg):
+class FrankaReorientRewardCfg(lift.RewardsCfg):
     """Reward terms for the MDP, with the Franka finger contact sensors filled in."""
 
     action_rate = RewTerm(func=mdp.action_rate_l2, weight=-1e-4)
@@ -282,7 +282,7 @@ class FrankaMixinCfg:
     """Franka scene, observation, action, reward and event terms for the lift task."""
 
     scene: FrankaSceneCfg = FrankaSceneCfg(num_envs=4096, env_spacing=3, replicate_physics=True)
-    rewards: FrankaLiftRewardCfg = FrankaLiftRewardCfg()
+    rewards: FrankaReorientRewardCfg = FrankaReorientRewardCfg()
     observations: StateObservationCfg = StateObservationCfg()
     actions: FrankaRelJointPosActionCfg = FrankaRelJointPosActionCfg()
     events: FrankaEventCfg = FrankaEventCfg()
