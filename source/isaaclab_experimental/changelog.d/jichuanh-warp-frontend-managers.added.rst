@@ -9,3 +9,8 @@
 * Added support for Warp terms defined outside Isaac Lab on the Warp frontend: class terms that subclass
   :class:`~isaaclab_experimental.managers.ManagerTermBase` and function terms decorated with
   :class:`~isaaclab_experimental.utils.warp.WarpCapturable` are used as configured.
+* Added ``set_term_cfg`` and ``get_term_cfg`` to the Warp
+  :class:`~isaaclab_experimental.managers.TerminationManager` and
+  :class:`~isaaclab_experimental.managers.CommandManager`. Setting a term configuration records the manager's
+  stages again, so a curriculum that changes a termination parameter or a command range through
+  ``modify_term_cfg`` takes effect under CUDA graph capture.

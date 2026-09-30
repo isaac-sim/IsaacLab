@@ -353,6 +353,49 @@ class TerminationManager(ManagerBase):
         )
         return self._dones_tensor_view
 
+    """
+    Operations - Term settings.
+    """
+
+    def set_term_cfg(self, term_name: str, cfg: TerminationTermCfg):
+        """Sets the configuration of the specified term into the manager.
+
+        Recorded termination stages read the term's configuration when they record, so they record again on their
+        next call.
+
+        Args:
+            term_name: The name of the termination term.
+            cfg: The configuration for the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        term_idx = self._term_name_to_term_idx[term_name]
+        # the term keeps writing into its column of the done buffer
+        cfg.out = self._term_out_views_wp[term_idx]
+        self._term_cfgs[term_idx] = cfg
+        self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
+        wp.to_torch(self._term_is_time_out_wp)[term_idx] = bool(cfg.time_out)
+        self._clear_stage_steps()
+
+    def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
+        """Gets the configuration for the specified term.
+
+        Args:
+            term_name: The name of the termination term.
+
+        Returns:
+            The configuration of the termination term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if term_name not in self._term_names:
+            raise ValueError(f"Termination term '{term_name}' not found.")
+        return self._term_cfgs[self._term_name_to_term_idx[term_name]]
+
     def get_term(self, name: str) -> torch.Tensor:
         """Returns the termination term value at current step with the specified name.
 

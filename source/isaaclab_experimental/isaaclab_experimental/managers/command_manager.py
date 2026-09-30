@@ -568,6 +568,44 @@ class CommandManager(ManagerBase):
             return wp.from_torch(command)
         return command
 
+    def set_term_cfg(self, name: str, cfg: CommandTermCfg):
+        """Sets the configuration of the specified command term.
+
+        A command term reads its configuration, such as its sampling ranges, when a recorded command stage records,
+        so the command stages record again on their next call.
+
+        Args:
+            name: The name of the command term.
+            cfg: The configuration for the command term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if name not in self._terms:
+            raise ValueError(f"Command term '{name}' not found.")
+        self._terms[name].cfg = cfg
+        if isinstance(self.cfg, dict):
+            self.cfg[name] = cfg
+        else:
+            setattr(self.cfg, name, cfg)
+        self._clear_stage_steps()
+
+    def get_term_cfg(self, name: str) -> CommandTermCfg:
+        """Gets the configuration of the specified command term.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The configuration of the command term.
+
+        Raises:
+            ValueError: If the term name is not found.
+        """
+        if name not in self._terms:
+            raise ValueError(f"Command term '{name}' not found.")
+        return self._terms[name].cfg
+
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.
 

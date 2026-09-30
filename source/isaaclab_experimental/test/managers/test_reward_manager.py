@@ -77,3 +77,30 @@ def test_capturability_is_decided_per_term_instance():
     assert CALLS == {1.0: 1, 2.0: 3, 4.0: 1, 8.0: 3}
     assert torch.equal(reward, torch.full((NUM_ENVS,), (1.0 + 2.0 + 4.0 + 8.0) * 0.5, device=DEVICE))
     graph_cache.close()
+
+
+def test_set_term_cfg_applies_to_the_recorded_reward_stage():
+    """Raising a weight from zero after the stage recorded adds the term, as ``modify_reward_weight`` expects.
+
+    A zero-weight term is skipped while the stage records, so a replay without recording again never runs it.
+    """
+    graph_cache = WarpGraphCache(DEVICE)
+    env = SimpleNamespace(
+        num_envs=NUM_ENVS,
+        device=DEVICE,
+        sim=SimpleNamespace(is_playing=lambda: True),
+        max_episode_length_s=1.0,
+        _warp_graph_cache=graph_cache,
+    )
+    manager = RewardManager({"late": RewardTermCfg(func=constant_reward, weight=0.0, params={"value": 3.0})}, env)
+    graph_cache.arm()
+    graph_cache.call_steps("RewardManager_compute", manager.stage_steps("compute"), dt=0.5)
+
+    term_cfg = manager.get_term_cfg("late")
+    term_cfg.weight = 2.0
+    manager.set_term_cfg("late", term_cfg)
+    reward = graph_cache.call_steps("RewardManager_compute", manager.stage_steps("compute"), dt=0.5)
+    wp.synchronize()
+
+    assert torch.equal(reward, torch.full((NUM_ENVS,), 3.0 * 2.0 * 0.5, device=DEVICE))
+    graph_cache.close()

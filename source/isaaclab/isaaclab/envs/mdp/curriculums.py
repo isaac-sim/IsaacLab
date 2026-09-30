@@ -263,7 +263,9 @@ class modify_term_cfg(modify_env_param):
     The same applies to other managers, such as "observations", "commands", "rewards", and "terminations".
 
     Internally, it replaces the first occurrence of "s." in the address with "_manager.cfg.",
-    thus transforming the simplified address into a full manager path.
+    thus transforming the simplified address into a full manager path. After writing a new value, it hands the
+    modified term configuration back to the manager's ``set_term_cfg`` when the manager has one, so managers that
+    keep values read from the configuration refresh them.
 
     Usage:
         .. code-block:: python
@@ -287,8 +289,24 @@ class modify_term_cfg(modify_env_param):
     def __init__(self, cfg, env):
         # initialize the parent
         super().__init__(cfg, env)
+        # the simplified address starts with the manager's configuration group and the term name
+        group, _, term_path = self._address.partition(".")
+        self._manager_name = f"{group[:-1]}_manager"
+        self._term_name = re.split(r"[.\[]", term_path, maxsplit=1)[0]
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
+
+    def _process_accessors(self, root: ManagerBasedRLEnv, path: str) -> tuple[callable, callable]:
+        get_value, set_value = super()._process_accessors(root, path)
+        manager = getattr(root, self._manager_name)
+        if not hasattr(manager, "set_term_cfg"):
+            return get_value, set_value
+
+        def set_value_and_term_cfg(val):
+            set_value(val)
+            manager.set_term_cfg(self._term_name, manager.get_term_cfg(self._term_name))
+
+        return get_value, set_value_and_term_cfg
 
 
 class DifficultyScheduler(ManagerTermBase):
