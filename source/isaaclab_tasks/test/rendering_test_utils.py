@@ -2153,22 +2153,19 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
 
 
 def _configure_franka_camera_test_env_cfg(
-    env_cfg: Any,
-    data_types: list[str],
-    command_name: str = "deformable_pose",
-    reset_event_name: str = "reset_deformable",
+    env_cfg: Any, data_types: list[str], command_cfg: Any, reset_event_cfg: Any
 ) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
 
     Args:
         env_cfg: Resolved Franka camera environment config to mutate in place.
         data_types: Camera data types the golden capture requests.
-        command_name: Name of the pose command term whose debug visualization is disabled.
-        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+        command_cfg: Pose command term whose debug visualization is disabled.
+        reset_event_cfg: Reset event term whose position range is pinned to zero.
     """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    getattr(env_cfg.commands, command_name).debug_vis = False
-    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
+    command_cfg.debug_vis = False
+    reset_event_cfg.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2201,7 +2198,9 @@ def rendering_test_franka_cloth(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
     if is_newton_ovrtx_motion:
         initial_pos = env_cfg.scene.deformable.init_state.pos
         env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
@@ -2280,7 +2279,9 @@ def rendering_test_franka_soft(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2476,9 +2477,7 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(
-        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
-    )
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types, env_cfg.commands.cable_pose, env_cfg.events.reset_cable)
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
