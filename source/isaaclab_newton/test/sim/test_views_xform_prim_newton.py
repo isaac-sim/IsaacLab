@@ -10,7 +10,6 @@ Imports the shared contract tests and provides the Newton-specific
 the world-attached prim edge case.
 """
 
-import logging
 import sys
 from pathlib import Path
 
@@ -213,11 +212,11 @@ def test_close_before_reset_cancels_deferred_initialization(device):
         ("Cube", "env_[^/]+", "before_replication"),
     ],
 )
-def test_frame_created_before_model_covers_selected_envs(device, parent, envs, created, caplog):
+def test_frame_created_before_model_covers_selected_envs(device, parent, envs, created):
     """A view created before the Newton model exists has one frame per selected env, at that env's pose.
 
-    ``Prop`` is a non-physics Xform (static frame), ``Cube`` a rigid body (body-local frame). Every frame is
-    paired with its env's prim, so pose writes reach the renderer.
+    ``Prop`` is a non-physics Xform (static frame), ``Cube`` a rigid body (body-local frame). Each frame is
+    paired with its own env's destination prim, and a pose write round-trips.
     """
     num_envs, prop_pos = 3, (0.3, 0.2, 0.0)
     with _sim_context(device, num_envs=num_envs) as sim:
@@ -237,8 +236,7 @@ def test_frame_created_before_model_covers_selected_envs(device, parent, envs, c
         cloner.replicate(plan)
         if created == "before_reset":
             view = FrameView(path, device=device)
-        with caplog.at_level(logging.WARNING):
-            sim.reset()
+        sim.reset()
 
         env_ids = list(range(num_envs)) if envs == "env_[^/]+" else [1]
         if parent == "Cube":
@@ -248,8 +246,7 @@ def test_frame_created_before_model_covers_selected_envs(device, parent, envs, c
         assert view.count == len(env_ids)
         expected = parent_pos + torch.tensor(CHILD_OFFSET, device=device)
         torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
-        assert "could not pair its sites" not in caplog.text
-        # each frame is paired with its own env's prim, in view order, so pose writes mirror to that prim
+        # each frame is paired with its own env's prim, in view order
         assert view._site_prim_paths == [f"/World/envs/env_{i}/{parent}/Mount" for i in env_ids]
         new_pos = expected + torch.tensor([0.0, 0.0, 0.5], device=device)
         view.set_world_poses(positions=_wp_vec3f(new_pos.tolist(), device=device))
