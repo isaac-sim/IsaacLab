@@ -46,6 +46,7 @@ logger = logging.getLogger(__name__)
 
 _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD = 64
 _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD = 32
+_gpu_articulation_aliasing_warning_logged = False
 
 
 class Articulation(BaseArticulation):
@@ -3961,35 +3962,26 @@ class Articulation(BaseArticulation):
 
     def _maybe_warn_gpu_articulation_partition_aliasing(self) -> None:
         """Warn about a known PhysX GPU articulation solver partition issue."""
-        physics_cfg = self._sim_cfg.physics if self._sim_cfg is not None else None
-        gpu_max_num_partitions = getattr(physics_cfg, "gpu_max_num_partitions", 1)
-        if "cuda" not in self.device or gpu_max_num_partitions <= 1:
+        global _gpu_articulation_aliasing_warning_logged
+
+        if _gpu_articulation_aliasing_warning_logged or self._sim_cfg is None:
             return
-
-        total_articulation_count = 0
-        max_link_count = 0
-        for (manager, _), view in SimulationManager.views.items():
-            if manager is not SimulationManager or not hasattr(view, "shared_metatype"):
-                continue
-            shared_metatype = view.shared_metatype
-            if not hasattr(shared_metatype, "link_count"):
-                continue
-            total_articulation_count += int(view.count)
-            max_link_count = max(max_link_count, int(shared_metatype.link_count))
-
+        physics_cfg = self._sim_cfg.physics
         if (
-            total_articulation_count <= _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD
-            or max_link_count <= _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD
+            "cuda" not in self.device
+            or physics_cfg.gpu_max_num_partitions <= 1
+            or self.num_instances <= _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD
+            or self.num_bodies <= _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD
         ):
             return
 
+        _gpu_articulation_aliasing_warning_logged = True
         logger.warning(
-            "PhysX GPU articulations may corrupt other articulations when the scene has more than "
-            f"{_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD} articulation instances, an articulation has more than "
-            f"{_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD} links, and PhysxCfg.gpu_max_num_partitions > 1. "
-            f"The current scene has {total_articulation_count} articulation instance(s), a maximum link count of "
-            f"{max_link_count}, and gpu_max_num_partitions={gpu_max_num_partitions}. Work around this PhysX solver "
-            "issue by setting PhysxCfg(gpu_max_num_partitions=1). See isaac-sim/IsaacLab#8121 and NVBUG 6851505."
+            "PhysX GPU articulations with more than "
+            f"{_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD} links and more than "
+            f"{_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD} instances may corrupt articulation state when "
+            "PhysxCfg.gpu_max_num_partitions > 1. Set PhysxCfg(gpu_max_num_partitions=1) as a workaround. "
+            "See isaac-sim/IsaacLab#8121."
         )
 
     def _resolve_joint_dof_signs(self) -> tuple[int, ...]:

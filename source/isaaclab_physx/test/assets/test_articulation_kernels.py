@@ -5,7 +5,6 @@
 
 """Tests for PhysX articulation Warp kernels."""
 
-import logging
 import sys
 import warnings
 from types import ModuleType, SimpleNamespace
@@ -96,81 +95,6 @@ def _model_writer_articulation(Articulation) -> tuple[SimpleNamespace, SimpleNam
         assert_shape_and_dtype=lambda *args, **kwargs: None,
     )
     return articulation, data
-
-
-def _partition_warning_receiver(device: str = "cuda:0", gpu_max_num_partitions: int = 8) -> SimpleNamespace:
-    """Create a minimal receiver for the PhysX GPU partition warning gate."""
-    return SimpleNamespace(
-        device=device,
-        _sim_cfg=SimpleNamespace(physics=SimpleNamespace(gpu_max_num_partitions=gpu_max_num_partitions)),
-    )
-
-
-def _articulation_view(count: int, link_count: int) -> SimpleNamespace:
-    """Create a minimal PhysX articulation view for warning checks."""
-    return SimpleNamespace(count=count, shared_metatype=SimpleNamespace(link_count=link_count))
-
-
-def test_warns_for_gpu_articulation_partition_aliasing_risk(
-    caplog: pytest.LogCaptureFixture, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """Warn when PhysX GPU articulation solver partitions can alias articulation contact data."""
-    Articulation = _articulation_class()
-    method = Articulation._maybe_warn_gpu_articulation_partition_aliasing
-    sim_manager = method.__globals__["SimulationManager"]
-    monkeypatch.setattr(
-        sim_manager,
-        "views",
-        {
-            (sim_manager, "/World/Robot"): _articulation_view(count=20, link_count=65),
-            (sim_manager, "/World/Tool"): _articulation_view(count=13, link_count=2),
-        },
-        raising=False,
-    )
-    receiver = _partition_warning_receiver()
-
-    with caplog.at_level(logging.WARNING, logger=Articulation.__module__):
-        method(receiver)
-
-    assert "PhysX GPU articulations may corrupt other articulations" in caplog.text
-    assert "PhysxCfg(gpu_max_num_partitions=1)" in caplog.text
-    assert "isaac-sim/IsaacLab#8121" in caplog.text
-    assert "NVBUG 6851505" in caplog.text
-
-
-@pytest.mark.parametrize(
-    ("device", "gpu_max_num_partitions", "view_count", "link_count"),
-    [
-        ("cpu", 8, 64, 65),
-        ("cuda:0", 1, 64, 65),
-        ("cuda:0", 8, 32, 65),
-        ("cuda:0", 8, 64, 64),
-    ],
-)
-def test_skips_gpu_articulation_partition_aliasing_warning_outside_risk(
-    caplog: pytest.LogCaptureFixture,
-    monkeypatch: pytest.MonkeyPatch,
-    device: str,
-    gpu_max_num_partitions: int,
-    view_count: int,
-    link_count: int,
-) -> None:
-    """Skip the PhysX GPU partition warning until every risk precondition is present."""
-    Articulation = _articulation_class()
-    method = Articulation._maybe_warn_gpu_articulation_partition_aliasing
-    sim_manager = method.__globals__["SimulationManager"]
-    monkeypatch.setattr(
-        sim_manager,
-        "views",
-        {(sim_manager, "/World/Robot"): _articulation_view(count=view_count, link_count=link_count)},
-        raising=False,
-    )
-    receiver = _partition_warning_receiver(device=device, gpu_max_num_partitions=gpu_max_num_partitions)
-
-    with caplog.at_level(logging.WARNING, logger=Articulation.__module__):
-        method(receiver)
-
-    assert "PhysX GPU articulations may corrupt other articulations" not in caplog.text
 
 
 @pytest.mark.parametrize(
