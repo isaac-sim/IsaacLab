@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import logging
 import os
 import time
 from datetime import datetime
@@ -50,6 +51,8 @@ from ..common import (
     write_run_manifest,
 )
 from . import cli_args_rsl_rl as cli_args
+
+logger = logging.getLogger(__name__)
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 with contextlib.suppress(ImportError):
@@ -134,9 +137,9 @@ def _run(args_cli: argparse.Namespace) -> None:
             env_cfg.seed = agent_cfg.seed
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
-            print(f"[INFO] Logging experiment in directory: {log_root_path}")
+            logger.info(f"Logging experiment in directory: {log_root_path}")
             run_name = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-            print(f"Exact experiment name requested from command line: {run_name}")
+            logger.info(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, run_name)
@@ -171,7 +174,7 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             runner.add_git_repo_to_log(__file__)
             if resume_path is not None:
-                print(f"[INFO]: Loading model checkpoint from: {resume_path}")
+                logger.info(f"Loading model checkpoint from: {resume_path}")
                 runner.load(resume_path)
             dump_train_configs(log_dir, env_cfg, agent_cfg)
 

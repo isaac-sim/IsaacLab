@@ -10,7 +10,10 @@ from __future__ import annotations
 import argparse
 import importlib
 import sys
+import warnings
 from typing import TYPE_CHECKING, Any
+
+from ..app.logging_utils import configure_console_logging
 
 if TYPE_CHECKING:
     from .api import BenchmarkLauncherConfig, BenchmarkRequest, BenchmarkResult
@@ -75,6 +78,7 @@ def run_benchmark_cli(argv: list[str] | None = None) -> int:
     """
     from .entrypoints import multigpu
 
+    configure_console_logging()
     if argv is None:
         argv = sys.argv[1:]
     argv = _fuse_kit_args(argv)
@@ -95,9 +99,10 @@ def run_benchmark_cli(argv: list[str] | None = None) -> int:
         return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
     if selected.workflow in legacy_multigpu_workflows:
         workflow = selected.workflow[: -len(multigpu.LEGACY_MULTIGPU_SUFFIX)]
-        print(
+        warnings.warn(
             f"'{selected.workflow}' is deprecated. Use '{workflow}{multigpu.MULTIGPU_SUFFIX}' instead.",
-            file=sys.stderr,
+            FutureWarning,
+            stacklevel=2,
         )
         return multigpu.run_multigpu_benchmark_cli(workflow, argv[1:])
     if selected.workflow in _RL_WORKFLOW_MODULES:

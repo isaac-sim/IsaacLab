@@ -119,17 +119,17 @@ def _load_whitelist(path: str | None) -> dict[str, list[str]]:
         with open(path) as whitelist_file:
             raw = yaml.safe_load(whitelist_file)
     except OSError as exc:
-        print(f"[ERROR] Cannot read whitelist config '{path}': {exc}")
+        logger.error(f"Cannot read whitelist config '{path}': {exc}")
         sys.exit(1)
     except yaml.YAMLError as exc:
-        print(f"[ERROR] Invalid YAML in whitelist config '{path}': {exc}")
+        logger.error(f"Invalid YAML in whitelist config '{path}': {exc}")
         sys.exit(1)
 
     if raw is None:
         return {}
     if not isinstance(raw, dict):
-        print(
-            f"[ERROR] Whitelist config must be a YAML mapping (got {type(raw).__name__})."
+        logger.error(
+            f"Whitelist config must be a YAML mapping (got {type(raw).__name__})."
             " Expected format: phase_name: [pattern, ...]"
         )
         sys.exit(1)
@@ -141,8 +141,8 @@ def _load_whitelist(path: str | None) -> dict[str, list[str]]:
         )
     for phase_name, patterns in raw.items():
         if not isinstance(patterns, list) or not all(isinstance(pattern, str) for pattern in patterns):
-            print(
-                f"[ERROR] Whitelist phase '{phase_name}' must be a list of strings, "
+            logger.error(
+                f"Whitelist phase '{phase_name}' must be a list of strings, "
                 f"got {type(patterns).__name__}. Check YAML formatting (use '- pattern' syntax)."
             )
             sys.exit(1)

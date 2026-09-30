@@ -697,6 +697,11 @@ Choose the mechanism by who has to act on the message, following the Python
      - ``logger.warning(message)`` with a module-level ``logger = logging.getLogger(__name__)``
    * - User-facing notices in scripts and command-line tools.
      - ``logger.warning(message)``, as above
+   * - **Progress and status** from library code and entry points: the parsed task configuration, the log
+       directory, environment and manager summaries.
+     - ``logger.info(message)``
+   * - A **failure reported before exiting** a command-line tool.
+     - ``logger.error(message)``
 
 * Always pass an explicit category to ``warnings.warn``:
 
@@ -711,9 +716,15 @@ Choose the mechanism by who has to act on the message, following the Python
   :func:`~isaaclab.utils.warn_from_post_init` instead of ``warnings.warn``. The number of frames
   between ``__post_init__`` and the caller depends on the class hierarchy, so no fixed ``stacklevel``
   is correct for every config.
-* Do not use ``print`` for warnings, and do not add ``[WARNING]`` or ``[WARN]`` prefixes. Printed
-  warnings ignore ``--verbose`` / ``--info`` and log handlers, and tests cannot capture them reliably.
-  The logging record already carries the level.
+* Do not use ``print`` for warnings or status messages, and do not add ``[WARNING]``, ``[WARN]``,
+  ``[INFO]``, or ``[ERROR]`` prefixes. Printed messages ignore ``--verbose`` / ``--info`` and log handlers,
+  and tests cannot capture them reliably. The logging record already carries the level. ``print`` remains
+  the right tool for a program's actual output, such as command results, a ``--dry_run`` command line, or
+  the tables a tutorial walks through.
+* Isaac Lab entry points and :func:`~isaaclab.app.launch_simulation` call
+  ``isaaclab.app.logging_utils.configure_console_logging``, which prints INFO records from ``isaaclab*``
+  loggers on stdout as ``[INFO]: <message>`` and warnings on stderr. Call it first in a new command-line
+  entry point so that messages logged before the simulation runtime starts are shown.
 * In tests, assert ``warnings.warn`` with ``pytest.warns`` and ``logger.warning`` with ``caplog``.
 
 .. code:: python

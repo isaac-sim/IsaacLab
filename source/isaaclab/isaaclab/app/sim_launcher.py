@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import logging
 import os
-import sys
 import warnings
 from collections.abc import Generator
 from contextlib import contextmanager
@@ -34,7 +33,7 @@ from ..sensors.camera.camera_cfg import CameraCfg
 from ..utils.device import set_cuda_device
 from ..utils.string import string_to_callable
 from ..visualizers.visualizer_cfg import _VISUALIZER_ALIASES, _VISUALIZER_TYPES, VisualizerCfg
-from .logging_utils import apply_python_logging_level
+from .logging_utils import apply_python_logging_level, ensure_console_handlers, resolve_python_logging_level
 from .settings_manager import get_settings_manager
 
 logger = logging.getLogger(__name__)
@@ -251,16 +250,6 @@ def _sync_visualizer_cli_settings(args: dict) -> None:
     settings.set("/isaaclab/visualizer/disable_all", visualizers == [])
     # Sentinel: ``-1`` means ``--max_visible_envs`` was not passed (see ``SimulationContext``).
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
-
-
-def _resolve_python_logging_level(args: dict) -> int:
-    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current root level."""
-    if args.get("verbose", False) or "--verbose" in sys.argv:
-        return logging.DEBUG
-    if args.get("info", False) or "--info" in sys.argv:
-        return logging.INFO
-    level = logging.getLogger().getEffectiveLevel()
-    return logging.WARNING if level == logging.NOTSET else level
 
 
 def _get_visualizer_intent(visualizer_cfgs: list[VisualizerCfg], args: dict) -> dict[str, bool]:
@@ -606,7 +595,9 @@ def launch_simulation(
     args["kit_visualizer"] = config_scan.visualizer_intent["has_kit_visualizer"]
 
     # Honor --verbose / --info; the Kit launcher re-applies this level once Kit has started.
-    apply_python_logging_level(_resolve_python_logging_level(args))
+    python_logging_level = resolve_python_logging_level(args)
+    apply_python_logging_level(python_logging_level)
+    ensure_console_handlers(python_logging_level)
 
     if needs_kit and (config_scan.has_kit_camera or config_scan.visualizer_intent.get("has_kit_streaming_view")):
         if not args.get("enable_cameras", False):

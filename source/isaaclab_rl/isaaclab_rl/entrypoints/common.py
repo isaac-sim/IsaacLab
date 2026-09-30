@@ -898,7 +898,7 @@ def wrap_sensor_capture(env: gym.Env, log_dir: str, args_cli: argparse.Namespace
         "interval": args_cli.capture_env_sensors_interval,
         "output_format": args_cli.capture_env_sensors_format,
     }
-    print("[INFO] Capturing environment sensor frames during training.")
+    logger.info("Capturing environment sensor frames during training.")
     print_dict(sensor_capture_kwargs, nesting=4)
     return CaptureEnvSensors(env, **sensor_capture_kwargs)
 
@@ -927,8 +927,8 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     if sim_cfg is None or _configured_visualizer_cfgs(sim_cfg):
         return
     if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
+        logger.info(
+            "pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
             "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
         )
 
@@ -995,7 +995,7 @@ def apply_video_recording(
         if label is not None:
             cfg.output_filename_prefix = _checkpoint_video_prefix(cfg.output_filename_prefix, label)
 
-    print("[INFO] Video recording enabled.")
+    logger.info("Video recording enabled.")
     for cfg in env_cfg.video_recorders:
         print_dict(
             {
@@ -1041,8 +1041,8 @@ def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
         configured.sort(key=lambda cfg: cfg.visualizer_type in _NO_CAPTURE_VISUALIZERS)
         return f"visualizer:{configured[0].visualizer_type}"
     if _inject_headless_kit_visualizer(sim_cfg):
-        print(
-            "[INFO] --video specified without --viz: auto-creating a headless Kit visualizer "
+        logger.info(
+            "--video specified without --viz: auto-creating a headless Kit visualizer "
             "for video recording. Pass --viz <type> to choose a different visualizer, or "
             "set video_recorders in your env config to record from a scene sensor instead."
         )
@@ -1156,7 +1156,7 @@ def run_playback(step: Callable[[], None], *, dt: float, args_cli: argparse.Name
         env_cfg: Environment config whose first video recorder bounds the clip when ``--video_length`` is omitted.
     """
     max_steps = video_playback_steps(args_cli, env_cfg)
-    print("[INFO] Policy playback is running, press Ctrl+C to exit...")
+    logger.info("Policy playback is running, press Ctrl+C to exit...")
     step_count = 0
     with contextlib.suppress(KeyboardInterrupt):
         while max_steps is None or step_count < max_steps:

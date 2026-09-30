@@ -14,7 +14,18 @@ apply the same level without constructing Kit.
 from __future__ import annotations
 
 import logging
+import sys
 from contextlib import contextmanager
+
+_INFO_HANDLER_NAME = "isaaclab_info_stream"
+_FALLBACK_HANDLER_NAME = "isaaclab_fallback_stream"
+
+_requested_level: int | None = None
+"""Level last passed to :func:`ensure_console_handlers`.
+
+The root logger is lowered to INFO so that Isaac Lab INFO records are created, so its level no longer
+reflects the requested one.
+"""
 
 
 @contextmanager
@@ -48,3 +59,96 @@ def apply_python_logging_level(level: int) -> None:
     root_logger.setLevel(level)
     for handler in root_logger.handlers:
         handler.setLevel(level)
+
+
+def resolve_python_logging_level(args: dict | None = None) -> int:
+    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current level.
+
+    Args:
+        args: Parsed launcher arguments. Defaults to None, in which case only ``sys.argv`` is inspected.
+
+    Returns:
+        :data:`logging.DEBUG` for ``--verbose``, :data:`logging.INFO` for ``--info``, otherwise the level
+        requested by an earlier :func:`ensure_console_handlers` call or the root logger's level.
+    """
+    args = {} if args is None else args
+    if args.get("verbose", False) or "--verbose" in sys.argv:
+        return logging.DEBUG
+    if args.get("info", False) or "--info" in sys.argv:
+        return logging.INFO
+    if _requested_level is not None:
+        return _requested_level
+    level = logging.getLogger().getEffectiveLevel()
+    return logging.WARNING if level == logging.NOTSET else level
+
+
+def ensure_console_handlers(level: int, fallback: bool = True) -> None:
+    """Print Isaac Lab INFO records and warnings on the console.
+
+    Isaac Lab reports progress with ``logger.info`` on ``isaaclab*`` loggers. At the default WARNING level
+    these records would be dropped, so this adds a stdout handler that prints only Isaac Lab INFO records
+    and lowers the root logger to INFO so they are created. Other root handlers keep the level set by
+    :func:`apply_python_logging_level`.
+
+    Python prints warnings through its last-resort handler only while no handler is configured, which
+    stops being true once the INFO handler exists. With ``fallback`` enabled and no other root handler, a
+    stderr handler prints records at ``level`` and above instead. Pass ``fallback=False`` once another
+    handler prints warnings, such as Kit's log bridge; an existing fallback handler is then removed.
+
+    Calling this again is safe: each handler is added once.
+
+    Args:
+        level: The requested Python logging level, e.g. from :func:`resolve_python_logging_level`.
+        fallback: Whether to print warnings on stderr when no other handler is configured.
+    """
+    global _requested_level
+    root = logging.getLogger()
+    handlers = {handler.name: handler for handler in root.handlers}
+    if not fallback and _FALLBACK_HANDLER_NAME in handlers:
+        root.removeHandler(handlers.pop(_FALLBACK_HANDLER_NAME))
+    if level > logging.WARNING:
+        return
+    info_handler = handlers.get(_INFO_HANDLER_NAME)
+    if info_handler is None:
+        info_handler = logging.StreamHandler(sys.stdout)
+        info_handler.name = _INFO_HANDLER_NAME
+        info_handler.addFilter(_is_isaaclab_info)
+        info_handler.setFormatter(logging.Formatter("[INFO]: %(message)s"))
+        root.addHandler(info_handler)
+    # apply_python_logging_level() sets every root handler to the requested level; this one stays at INFO
+    info_handler.setLevel(logging.INFO)
+    has_other_handlers = any(name not in (_INFO_HANDLER_NAME, _FALLBACK_HANDLER_NAME) for name in handlers)
+    if fallback and not has_other_handlers:
+        fallback_handler = handlers.get(_FALLBACK_HANDLER_NAME)
+        if fallback_handler is None:
+            fallback_handler = logging.StreamHandler(sys.stderr)
+            fallback_handler.name = _FALLBACK_HANDLER_NAME
+            fallback_handler.addFilter(lambda record: not _is_isaaclab_info(record))
+            fallback_handler.setFormatter(logging.Formatter("[%(levelname)s]: %(message)s"))
+            root.addHandler(fallback_handler)
+        fallback_handler.setLevel(level)
+    _requested_level = level
+    root.setLevel(min(level, logging.INFO))
+
+
+def configure_console_logging(args: dict | None = None) -> int:
+    """Apply the ``--verbose`` / ``--info`` level and set up the console handlers for an entry point.
+
+    Command-line entry points call this first so that messages logged before a simulation runtime
+    starts reach the console.
+
+    Args:
+        args: Parsed launcher arguments. Defaults to None, in which case only ``sys.argv`` is inspected.
+
+    Returns:
+        The applied logging level.
+    """
+    level = resolve_python_logging_level(args)
+    apply_python_logging_level(level)
+    ensure_console_handlers(level)
+    return level
+
+
+def _is_isaaclab_info(record: logging.LogRecord) -> bool:
+    """Return whether *record* is an INFO record from an Isaac Lab logger."""
+    return record.levelno == logging.INFO and record.name.startswith("isaaclab")

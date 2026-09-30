@@ -71,8 +71,8 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
                     "`--visualizer` field."
                 )
 
-            print(f"[INFO]: Deploying task '{task_name}' with LEAPP pipeline: {args_cli.pipeline}")
-            print(f"[INFO]: Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
+            logger.info(f"Deploying task '{task_name}' with LEAPP pipeline: {args_cli.pipeline}")
+            logger.info(f"Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
 
             env.reset()
             try:

@@ -8,10 +8,13 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 from typing import Any
 
 import torch
+
+logger = logging.getLogger(__name__)
 
 # LEAPP traces Isaac Lab's Python tensor operations, so TorchScript is disabled before importing task
 # or environment modules that compile decorated helpers at import time.
@@ -106,10 +109,10 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
 
     experiment_cfg = agent_cfg["agent"]["experiment"]
     log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
-    print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")
+    logger.info(f"Loading checkpoint search path from directory: {log_root_path}")
     resume_path = _resolve_checkpoint(args_cli, env_cfg, log_root_path, algorithm)
     if not resume_path:
-        print(f"[INFO] No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
+        logger.info(f"No checkpoint found for task: {args_cli.task} in directory: {log_root_path}")
         return False
     log_dir = os.path.dirname(os.path.dirname(resume_path))
     env_cfg.log_dir = log_dir
@@ -128,7 +131,7 @@ def export_skrl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dic
         # configure_seed must run after Runner() so torch determinism does not disturb its initialization
         if args_cli.deterministic:
             configure_seed(env_cfg.seed, torch_deterministic=True)
-        print(f"[INFO] Loading model checkpoint from: {resume_path}")
+        logger.info(f"Loading model checkpoint from: {resume_path}")
         agent = runner.agent
         agent.load(resume_path)
         agent.enable_training_mode(False, apply_to_models=True)

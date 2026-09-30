@@ -222,8 +222,12 @@ def run_multigpu_cli(argv: list[str] | None, cfg: MultiGpuLauncherCfg) -> int:
     Returns:
         Process exit code.
     """
+    # imported here so that importing the CLI does not require the runtime dependencies
+    from ..app.logging_utils import configure_console_logging
+
     if argv is None:
         argv = sys.argv[1:]
+    configure_console_logging()
 
     args_cli, worker_args = parse_launcher_args(argv, cfg)
     command = build_launch_command(args_cli, worker_args, cfg)
@@ -232,7 +236,7 @@ def run_multigpu_cli(argv: list[str] | None, cfg: MultiGpuLauncherCfg) -> int:
         print(shlex.join(command))
         return 0
 
-    print(f"[INFO] Launching distributed workers with: {shlex.join(command)}")
+    logger.info(f"Launching distributed workers with: {shlex.join(command)}")
     return run_launch_command(command)
 
 
@@ -401,10 +405,9 @@ def _run_supervised(command: list[str]) -> int:
             return
         now = time.monotonic()
         deadlines.update(terminate=now + _GRACEFUL_SHUTDOWN_S, kill=now + _GRACEFUL_SHUTDOWN_S + _FORCED_SHUTDOWN_S)
-        print(
-            f"\n[INFO] Received {signal.Signals(signum).name}; shutting down distributed workers."
-            " Press Ctrl-C again to kill them immediately.",
-            file=sys.stderr,
+        logger.info(
+            f"Received {signal.Signals(signum).name}; shutting down distributed workers."
+            " Press Ctrl-C again to kill them immediately."
         )
         _signal_group(pgid, signum)
 

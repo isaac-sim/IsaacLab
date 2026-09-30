@@ -140,12 +140,14 @@ class DirectRLEnvWarp(DirectRLEnv):
             torch.cuda.set_device(self.device)
 
         # print useful information
-        print("[INFO]: Base environment:")
-        print(f"\tEnvironment device    : {self.device}")
-        print(f"\tEnvironment seed      : {self.cfg.seed}")
-        print(f"\tPhysics step-size     : {self.physics_dt}")
-        print(f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}")
-        print(f"\tEnvironment step-size : {self.step_dt}")
+        logger.info(
+            "Base environment:\n"
+            f"\tEnvironment device    : {self.device}\n"
+            f"\tEnvironment seed      : {self.cfg.seed}\n"
+            f"\tPhysics step-size     : {self.physics_dt}\n"
+            f"\tRendering step-size   : {self.physics_dt * self.cfg.sim.render_interval}\n"
+            f"\tEnvironment step-size : {self.step_dt}"
+        )
 
         if self.cfg.sim.render_interval < self.cfg.decimation:
             msg = (
@@ -162,7 +164,7 @@ class DirectRLEnvWarp(DirectRLEnv):
                 self.scene = instantiate(self.cfg.scene)
                 self._setup_scene()
                 # attach_stage_to_usd_context()
-        print("[INFO]: Scene manager: ", self.scene)
+        logger.info("Scene manager: %s", self.scene)
 
         # create event manager
         # note: this is needed here (rather than after simulation play) to allow USD-related randomization events
@@ -246,7 +248,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         # perform events at the start of the simulation
         if self.cfg.events:
             # we print it here to make the logging consistent
-            print("[INFO] Event Manager: ", self.event_manager)
+            logger.info("Event Manager: %s", self.event_manager)
 
             if "startup" in self.event_manager.available_modes:
                 self.event_manager.apply(mode="startup")
@@ -256,7 +258,7 @@ class DirectRLEnvWarp(DirectRLEnv):
         self.metadata["render_fps"] = 1 / self.step_dt
 
         # print the environment information
-        print("[INFO]: Completed setting up the environment...")
+        logger.info("Completed setting up the environment...")
 
     def __del__(self):
         """Cleanup for the environment."""
