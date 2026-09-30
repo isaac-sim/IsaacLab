@@ -18,13 +18,20 @@ import warp as wp
 class StepPhase(enum.IntEnum):
     """Where a :class:`StepStage` runs inside the Newton step program."""
 
-    CONTROL = 0
-    """Once per physics step, after collision and Newton actuators, before the solver substeps."""
+    COMMAND = 0
+    """Once per physics step, after collision and before Newton actuators.
 
-    SUBSTEP = 1
+    Controllers and action terms write joint targets and efforts here, so actuators consume commands computed from
+    the current physics step's state.
+    """
+
+    CONTROL = 1
+    """Once per physics step, after Newton actuators and before the solver substeps."""
+
+    SUBSTEP = 2
     """Before every solver substep. The callable receives the substep's input :class:`newton.State`."""
 
-    POST_STEP = 2
+    POST_STEP = 3
     """Once after the final physics step of the program, before Newton sensors update."""
 
 
@@ -32,8 +39,9 @@ class StepPhase(enum.IntEnum):
 class StepStage:
     """A consumer operation scheduled into every Newton step program.
 
-    Stages compose the step: controllers and actuator telemetry run in :attr:`StepPhase.CONTROL`, applied forces in
-    :attr:`StepPhase.SUBSTEP`, and state republishing in :attr:`StepPhase.POST_STEP`. A graph-safe stage is recorded
+    Stages compose the step: controllers run in :attr:`StepPhase.COMMAND`, actuator telemetry in
+    :attr:`StepPhase.CONTROL`, applied forces in :attr:`StepPhase.SUBSTEP`, and state republishing in
+    :attr:`StepPhase.POST_STEP`. A graph-safe stage is recorded
     into the CUDA graph together with its neighbors; any other stage runs eagerly at the same position in the program.
     """
 

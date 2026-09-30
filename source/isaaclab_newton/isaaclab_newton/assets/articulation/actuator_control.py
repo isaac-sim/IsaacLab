@@ -66,6 +66,9 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         articulation.newton_actuator_adapter = None
 
         if not getattr(articulation._sim_cfg, "use_newton_actuators", False):
+            # Isaac Lab actuator models compute efforts on the host before every physics step.
+            if any(not _is_implicit_actuator_cfg(actuator_cfg) for actuator_cfg in actuator_cfgs.values()):
+                SimulationManager.require_host_physics_steps()
             return set()
 
         validate_newton_native_actuator_cfgs(actuator_cfgs)

@@ -172,6 +172,8 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
     events = []
 
     class State:
+        body_count = particle_count = 0
+
         def clear_forces(self):
             pass
 

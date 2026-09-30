@@ -38,6 +38,8 @@ class FixedTendonPositionAction(ActionTerm):
     articulation decides how a tendon target reaches its solver, so this term is backend-neutral.
     """
 
+    apply_every_physics_step = False
+
     cfg: actions_cfg.FixedTendonPositionActionCfg
     """The configuration of the action term."""
     _scale: torch.Tensor | float

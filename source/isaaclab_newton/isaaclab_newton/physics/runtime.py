@@ -89,17 +89,21 @@ _MARK_RESET_FROM_IDS = IndexKernelDispatcher(_mark_reset_from_ids, ("env_ids",))
 
 
 @wp.kernel(enable_backward=False)
-def _mark_worlds_from_mask(env_mask: wp.array(dtype=wp.bool), world_mask: wp.array(dtype=wp.bool)):
-    """Flag masked worlds for a solver reset without requesting FK."""
-    world = wp.tid()
-    if env_mask[world]:
-        world_mask[world] = True
+def _mark_worlds_from_mask(
+    env_mask: wp.array(dtype=wp.bool), row_worlds: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)
+):
+    """Flag the worlds of masked view rows for a solver reset without requesting FK."""
+    row = wp.tid()
+    if env_mask[row]:
+        world_mask[row_worlds[row]] = True
 
 
 @wp.kernel(enable_backward=False)
-def _mark_worlds_from_ids(env_ids: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)):
-    """Flag selected worlds for a solver reset without requesting FK."""
-    world_mask[env_ids[wp.tid()]] = True
+def _mark_worlds_from_ids(
+    env_ids: wp.array(dtype=wp.int32), row_worlds: wp.array(dtype=wp.int32), world_mask: wp.array(dtype=wp.bool)
+):
+    """Flag the worlds of selected view rows for a solver reset without requesting FK."""
+    world_mask[row_worlds[env_ids[wp.tid()]]] = True
 
 
 # ----- Immutable world description -------------------------------------------
@@ -478,8 +482,12 @@ class NewtonRuntime:
     actuators: NewtonActuatorAdapter | None = None
     """Newton actuators run inside the step program, once an articulation activates them."""
 
-    owns_decimation: bool = False
-    """Whether one step advances the whole decimation loop; set when Newton actuators are active."""
+    newton_actuators_active: bool = False
+    """Whether an articulation runs its explicit actuators as Newton actuators inside the step program."""
+
+    host_physics_steps: bool = False
+    """Whether a consumer does host work between physics steps (e.g. Isaac Lab actuator models), so the environment
+    must drive the decimation loop one physics step at a time."""
 
     solver: NewtonSolverBinding | None = None
     """Solver binding, set by :func:`bind_solver`."""
@@ -495,6 +503,14 @@ class NewtonRuntime:
 
     program: StepProgram | None = None
     """Compiled step program; ``None`` until the next step compiles it."""
+
+    applied_forces: dict[str, wp.array] | None = None
+    """Snapshot buffers of the force arrays consumers author before a step, by :class:`newton.State` attribute.
+
+    Allocated when the first program is compiled."""
+
+    identity_rows: wp.array | None = None
+    """Cached identity row-to-world map for views that span every world."""
 
 
 def create_runtime(backend: NewtonBackend, schema: NewtonSchema) -> NewtonRuntime:
@@ -620,24 +636,56 @@ def invalidate_fk(
         runtime.fk_mask.fill_(True)
 
 
+def view_row_worlds(runtime: NewtonRuntime, articulation_ids: wp.array) -> wp.array:
+    """Return the world of each row of an articulation view.
+
+    Rows equal worlds only while every view spans all worlds; heterogeneous scenes map them through the model.
+
+    Args:
+        runtime: Runtime of the view's model.
+        articulation_ids: Model articulation index of each ``(row, articulation)``.
+
+    Returns:
+        World index of each row, shape ``(num_rows,)``; ``-1`` for global articulations.
+    """
+    worlds = runtime.backend.model.articulation_world.numpy()[articulation_ids.numpy()[:, 0]]
+    return wp.array(worlds.astype(np.int32), dtype=wp.int32, device=runtime.schema.device)
+
+
 def invalidate_body_state(
-    runtime: NewtonRuntime, env_ids: wp.array | None = None, env_mask: wp.array | None = None
+    runtime: NewtonRuntime,
+    env_ids: wp.array | None = None,
+    env_mask: wp.array | None = None,
+    row_worlds: wp.array | None = None,
 ) -> None:
     """Flag worlds whose maximal-coordinate body state was written, without requesting FK.
 
     Args:
         runtime: Runtime to flag.
-        env_ids: Selected worlds.
-        env_mask: Mask over worlds.
+        env_ids: Selected view rows.
+        env_mask: Mask over view rows.
+        row_worlds: World of each view row (see :func:`view_row_worlds`); ``None`` when rows are worlds.
     """
     runtime.kinematics_dirty = True
     device = runtime.schema.device
-    if env_mask is not None:
-        wp.launch(_mark_worlds_from_mask, env_mask.shape[0], [env_mask], [runtime.world_mask], device=device)
-    elif env_ids is not None:
-        wp.launch(_mark_worlds_from_ids, env_ids.shape[0], [env_ids], [runtime.world_mask], device=device)
-    else:
+    selection = env_mask if env_mask is not None else env_ids
+    if selection is None:
         runtime.world_mask[: runtime.schema.world_count].fill_(True)
+        return
+    if row_worlds is None:
+        row_worlds = _identity_rows(runtime)
+    kernel = _mark_worlds_from_mask if env_mask is not None else _mark_worlds_from_ids
+    wp.launch(kernel, selection.shape[0], [selection, row_worlds], [runtime.world_mask], device=device)
+
+
+def _identity_rows(runtime: NewtonRuntime) -> wp.array:
+    """Return the cached identity row-to-world map of views that span every world."""
+    rows = runtime.identity_rows
+    if rows is None:
+        rows = runtime.identity_rows = wp.array(
+            np.arange(runtime.schema.world_count, dtype=np.int32), dtype=wp.int32, device=runtime.schema.device
+        )
+    return rows
 
 
 def reconcile(runtime: NewtonRuntime) -> None:
@@ -716,8 +764,23 @@ def remove_stage(runtime: NewtonRuntime, stage: StepStage) -> None:
         invalidate_program(runtime)
 
 
+def owns_decimation(runtime: NewtonRuntime, fold: bool | None) -> bool:
+    """Return whether one step advances the whole decimation loop.
+
+    The program folds the loop unless a consumer needs host work between physics steps. Without an explicit request
+    from the environment, it folds only when Newton actuators run inside the program.
+
+    Args:
+        runtime: Runtime to query.
+        fold: The environment's folding request; see :meth:`~isaaclab.physics.PhysicsManager.set_decimation`.
+    """
+    if runtime.host_physics_steps or fold is False:
+        return False
+    return fold is True or runtime.newton_actuators_active
+
+
 def activate_actuators(runtime: NewtonRuntime) -> None:
-    """Run the model's Newton actuators inside the step program, which then owns the decimation loop.
+    """Run the model's Newton actuators inside the step program.
 
     Idempotent. The adapter addresses the model's flat DOF space, and articulations bind their own views of it, so
     worlds may hold different DOF layouts.
@@ -725,7 +788,7 @@ def activate_actuators(runtime: NewtonRuntime) -> None:
     Args:
         runtime: Runtime to extend.
     """
-    runtime.owns_decimation = True
+    runtime.newton_actuators_active = True
     invalidate_program(runtime)
     model = runtime.backend.model
     if runtime.actuators is not None or not model.actuators:
@@ -851,10 +914,15 @@ def invalidate_program(runtime: NewtonRuntime) -> None:
 def compile_program(runtime: NewtonRuntime, steps: int) -> StepProgram:
     """Compile ``steps`` physics steps into one program with every buffer bound.
 
-    Each physics step runs ``collide -> Newton actuators -> CONTROL stages -> substeps``, where every substep runs
-    ``SUBSTEP stages -> solver -> clear forces`` and an optional mid-step collision. ``POST_STEP`` stages and sensors
-    run once at the end. Double-buffered states alternate at compile time, and each physics step ends in
+    Each physics step runs ``collide -> COMMAND stages -> Newton actuators -> CONTROL stages -> substeps``, where every
+    substep runs
+    ``apply authored forces -> SUBSTEP stages -> solver`` and an optional mid-step collision. ``POST_STEP`` stages and
+    sensors run once at the end. Double-buffered states alternate at compile time, and each physics step ends in
     :attr:`NewtonBackend.state_0`, so stages and bound consumer views always observe the canonical state.
+
+    Forces written to ``state_0`` before the step (external wrenches, particle forces) are snapshotted once and
+    re-applied before every substep of every physics step, then cleared after the program, so each write applies to
+    exactly the next step regardless of substeps or who owns the decimation loop.
 
     Args:
         runtime: Runtime with a bound solver.
@@ -875,12 +943,20 @@ def compile_program(runtime: NewtonRuntime, steps: int) -> StepProgram:
     def emit(fn: Callable[[], None], name: str, graph_safe: bool = True) -> None:
         ops.append(StepOp(fn, graph_safe, name))
 
+    if runtime.applied_forces is None:
+        counts = (("body_f", state_0.body_count), ("particle_f", state_0.particle_count))
+        runtime.applied_forces = {name: wp.empty_like(getattr(state_0, name)) for name, count in counts if count}
+    applied = list(runtime.applied_forces.items())
+    for name, buffer in applied:
+        emit(partial(wp.copy, buffer, getattr(state_0, name)), f"forces.snapshot.{name}")
     actuator_steps = 0
     for _ in range(steps):
         if solver.prepares_step:
             emit(partial(solver.prepare_step, state_0), "solver.prepare_step")
         if pipeline is not None:
             emit(partial(pipeline.collide, state_0, contacts), "collide")
+        for stage in stages[StepPhase.COMMAND]:
+            emit(stage.fn, stage.name, stage.graph_safe)
         if runtime.actuators is not None:
             _emit_actuators(emit, runtime.actuators, state_0, control, schema.physics_dt, actuator_steps % 2)
             actuator_steps += 1
@@ -888,12 +964,13 @@ def compile_program(runtime: NewtonRuntime, steps: int) -> StepProgram:
             emit(stage.fn, stage.name, stage.graph_safe)
         state_in, state_out = state_0, spare
         for substep in range(schema.num_substeps):
+            for name, buffer in applied:
+                emit(partial(wp.copy, getattr(state_in, name), buffer), f"forces.apply.{name}")
             for stage in stages[StepPhase.SUBSTEP]:
                 emit(partial(stage.fn, state_in), stage.name, stage.graph_safe)
             emit(partial(solver.step, state_in, state_out, control, contacts, schema.solver_dt), "solver.step")
             if not solver.single_state:
                 state_in, state_out = state_out, state_in
-            emit(state_in.clear_forces, "clear_forces")
             if collide_every > 0 and (substep + 1) % collide_every == 0 and substep + 1 < schema.num_substeps:
                 emit(partial(pipeline.collide, state_in, contacts), "collide")
         if state_in is not state_0:
@@ -909,6 +986,8 @@ def compile_program(runtime: NewtonRuntime, steps: int) -> StepProgram:
     sensors = runtime.sensors
     if sensors.contact or sensors.frame_transform or sensors.imu:
         emit(partial(update_sensors, sensors, state_0, runtime.contacts, solver), "sensors")
+    # Forces apply to one step; consumers author them again before the next.
+    emit(state_0.clear_forces, "clear_forces")
     return StepProgram(ops, steps)
 
 
@@ -927,14 +1006,38 @@ def _emit_actuators(
         emit(step_actuator, f"actuator.{type(actuator.controller).__name__}", actuator.is_graphable())
 
 
+def prepare(
+    runtime: NewtonRuntime, steps: int, capture: Callable[[Callable[[], None]], wp.Graph] | None = None
+) -> StepProgram:
+    """Compile, and capture, the program for ``steps`` physics steps unless the current one already matches.
+
+    Compilation and capture do all host work of a step ahead of time and never advance physics, so callers such as a
+    task compiler can prepare before their own capture.
+
+    Args:
+        runtime: Runtime with a bound solver.
+        steps: Physics steps per program.
+        capture: Records a callable into a CUDA graph, or ``None`` to keep the program eager.
+
+    Returns:
+        The prepared program.
+    """
+    program = runtime.program
+    if program is None or program.steps != steps:
+        program = runtime.program = compile_program(runtime, steps)
+        if capture is not None and runtime.solver.supports_graph_capture:
+            program.capture(capture)
+    return program
+
+
 def step(
     runtime: NewtonRuntime, steps: int, capture: Callable[[Callable[[], None]], wp.Graph] | None = None
 ) -> StepProgram:
     """Advance ``steps`` physics steps.
 
-    Notifies model changes and reconciles authored state, compiles the program when its structure or length changed
-    (capturing its graph-safe segments with ``capture``), and runs it. Only compilation and capture do host work
-    beyond launching; a caller that owns an outer capture passes ``capture=None`` and records this call.
+    Notifies model changes, reconciles authored state, prepares the program (see :func:`prepare`), and runs it. Only
+    preparation does host work beyond launching; a caller that owns an outer capture passes ``capture=None`` and
+    records this call.
 
     Args:
         runtime: Runtime with a bound solver.
@@ -946,11 +1049,7 @@ def step(
     """
     apply_model_changes(runtime)
     reconcile(runtime)
-    program = runtime.program
-    if program is None or program.steps != steps:
-        program = runtime.program = compile_program(runtime, steps)
-        if capture is not None and runtime.solver.supports_graph_capture:
-            program.capture(capture)
+    program = prepare(runtime, steps, capture)
     if program.is_captured and program.graph_safe:
         # Graph replays carry their device; skip the host-side device scope.
         program.run()

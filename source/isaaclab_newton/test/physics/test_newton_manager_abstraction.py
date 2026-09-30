@@ -719,7 +719,11 @@ def test_production_imports_scope_mujoco_joint_properties(
     monkeypatch.setattr(PhysicsManager, "_sim", sim)
     monkeypatch.setattr(PhysicsManager, "_cfg", physics_cfg)
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", newton_manager_module.NewtonSceneDataBackend())
+    monkeypatch.setattr(
+        NewtonManager,
+        "_scene_data_backend",
+        newton_manager_module.NewtonSceneDataBackend(lambda: NewtonManager._runtime),
+    )
     monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests())
 
     builder, _ = newton_physics_replicate(
@@ -1369,6 +1373,8 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
 class _State:
     """Named state stand-in that records force clearing."""
 
+    body_count = particle_count = 0
+
     def __init__(self, name, events):
         self.name, self._events = name, events
 
@@ -1408,7 +1414,6 @@ def test_state_force_stage_runs_before_every_solver_substep(use_single_state):
         assert events == [
             ("force", "state_0"),
             ("step", "state_0", "state_0"),
-            ("clear", "state_0"),
             ("force", "state_0"),
             ("step", "state_0", "state_0"),
             ("clear", "state_0"),
@@ -1417,7 +1422,6 @@ def test_state_force_stage_runs_before_every_solver_substep(use_single_state):
         assert events == [
             ("force", "state_0"),
             ("step", "state_0", "state_1"),
-            ("clear", "state_1"),
             ("force", "state_1"),
             ("step", "state_1", "state_0"),
             ("clear", "state_0"),
@@ -1436,8 +1440,8 @@ def test_program_orders_stages_and_ends_each_physics_step_in_state_0():
     program = runtime_module.compile_program(runtime, steps=2)
     program.run()
 
-    step = [("control",), ("step", "state_0", "state_1"), ("clear", "state_1"), ("assign", "state_0", "state_1")]
-    assert events == step * 2 + [("post",)]
+    step = [("control",), ("step", "state_0", "state_1"), ("assign", "state_0", "state_1")]
+    assert events == step * 2 + [("post",), ("clear", "state_0")]
     assert program.steps == 2
 
 
@@ -1538,17 +1542,24 @@ def _count_physics_steps(counter: wp.array(dtype=wp.int32)):
 
 
 @pytest.mark.parametrize(
-    ("solver_cfg", "rtx_capture"),
-    [(MJWarpSolverCfg(use_mujoco_contacts=True), True), (KaminoPADMMSolverCfg(), False)],
-    ids=["mjwarp_rtx", "kamino_standard"],
+    ("solver_cfg", "rtx_capture", "num_substeps", "decimation"),
+    [
+        (MJWarpSolverCfg(use_mujoco_contacts=True), True, 1, 1),
+        (KaminoPADMMSolverCfg(), False, 1, 1),
+        (MJWarpSolverCfg(use_mujoco_contacts=True), False, 2, 3),
+        (KaminoPADMMSolverCfg(), False, 2, 3),
+    ],
+    ids=["mjwarp_rtx", "kamino_standard", "mjwarp_substeps_decimation", "kamino_substeps_decimation"],
 )
-def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cfg, rtx_capture):
-    """Capturing and recapturing preserve staged forces and execute callbacks once per step."""
+def test_graph_capture_preserves_first_step_and_recapture(
+    monkeypatch, solver_cfg, rtx_capture, num_substeps, decimation
+):
+    """Staged forces hold for every substep and physics step of a captured program; stages run once per step."""
     sim_cfg = SimulationCfg(
         dt=0.005,
         device="cuda:0",
         gravity=(0.0, 0.0, -9.81),
-        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=1, use_cuda_graph=True),
+        physics=NewtonCfg(solver_cfg=solver_cfg, num_substeps=num_substeps, use_cuda_graph=True),
     )
     with build_simulation_context(sim_cfg=sim_cfg) as sim:
         builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=sim.cfg.physics))
@@ -1564,7 +1575,7 @@ def test_graph_capture_preserves_first_step_and_recapture(monkeypatch, solver_cf
         wrench = wp.array([[0.0, 0.0, 9.81, 0.0, 0.0, 0.0]], dtype=wp.spatial_vector, device="cuda:0")
         for step in range(3):
             if step != 1:
-                NewtonManager.set_decimation(1)
+                NewtonManager.set_decimation(decimation)
             NewtonManager.get_state_0().body_f.assign(wrench)
             sim.step(render=False)
             assert NewtonManager._runtime.program.is_captured

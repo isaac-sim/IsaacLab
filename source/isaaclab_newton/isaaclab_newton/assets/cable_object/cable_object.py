@@ -189,6 +189,7 @@ class CableObject(BaseCableObject):
             path_expr_to_glob(articulation_path_expr),
             verbose=False,
         )
+        self._row_worlds = SimulationManager.view_row_worlds(self._root_view.articulation_ids)
         topology_error = "CableObject requires one standalone, unwelded cable articulation per simulation world."
         expected_joint_count = num_segments - 1
         joint_types = self.root_view.get_attribute("joint_type", model).numpy()
@@ -247,9 +248,9 @@ class CableObject(BaseCableObject):
                 device=self.device,
             )
         if use_mask:
-            SimulationManager.invalidate_body_state(env_mask=selector)
+            SimulationManager.invalidate_body_state(env_mask=selector, row_worlds=self._row_worlds)
         else:
-            SimulationManager.invalidate_body_state(selector)
+            SimulationManager.invalidate_body_state(selector, row_worlds=self._row_worlds)
         self.update(0.0)
 
     def _iter_states(self):

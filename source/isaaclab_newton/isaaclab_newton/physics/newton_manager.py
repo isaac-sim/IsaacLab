@@ -216,7 +216,13 @@ class NewtonSceneDataBackend(SceneDataBackend):
     Body paths come from the model's ``body_label`` attribute.
     """
 
-    def __init__(self):
+    def __init__(self, runtime: Callable[[], NewtonRuntime | None]):
+        """Initialize the backend.
+
+        Args:
+            runtime: Returns the runtime whose state to publish; the runtime changes on every hard reset.
+        """
+        self._runtime = runtime
         self._transforms = SceneDataFormat.Transform()
         self.transforms_timestamp = 0
         self.geometry_timestamp = 0
@@ -228,7 +234,7 @@ class NewtonSceneDataBackend(SceneDataBackend):
         Args:
             cable_bindings: Native capsule shape indices of each open cable.
         """
-        state = NewtonManager.get_state_0()
+        state = self._runtime().backend.state_0
         self._geometry_batches = [
             (source, ranges)
             for source, ranges in self._geometry_batches
@@ -293,18 +299,22 @@ class NewtonSceneDataBackend(SceneDataBackend):
         return []
 
     @property
-    def model(self) -> Model:
-        return NewtonManager.get_model()
+    def model(self) -> Model | None:
+        runtime = self._runtime()
+        return None if runtime is None else runtime.backend.model
 
     @property
-    def state(self) -> State:
-        """Return native physics state without entering the rendering consumer path."""
-        if NewtonManager.transforms_may_change_on_graph_replay():
+    def state(self) -> State | None:
+        """Return native physics state, reconciled with authored state, without entering the rendering path."""
+        runtime = self._runtime()
+        if runtime is None:
+            return None
+        if runtime.transforms_may_change_on_graph_replay:
             # Raw external graph replays bypass Python invalidation, so these reads must stay conservative.
             self.transforms_timestamp += 1
             self.geometry_timestamp += 1
-        NewtonManager.forward()
-        return NewtonManager.get_state_0()
+        newton_runtime.reconcile(runtime)
+        return runtime.backend.state_0
 
 
 class NewtonManager(PhysicsManager):
@@ -338,6 +348,7 @@ class NewtonManager(PhysicsManager):
     _runtime: ClassVar[NewtonRuntime | None] = None
     _scene_data_backend: ClassVar[NewtonSceneDataBackend | None] = None
     _decimation: ClassVar[int] = 1
+    _fold_decimation: ClassVar[bool | None] = None
 
     # ----- PhysicsManager lifecycle -------------------------------------------
 
@@ -354,7 +365,7 @@ class NewtonManager(PhysicsManager):
         from isaaclab_newton.cloner import NewtonReplicateContext  # noqa: PLC0415
 
         cls.clone_context_type = NewtonReplicateContext
-        NewtonManager._scene_data_backend = NewtonSceneDataBackend()
+        NewtonManager._scene_data_backend = NewtonSceneDataBackend(lambda: NewtonManager._runtime)
 
     @classmethod
     def reset(cls, soft: bool = False) -> None:
@@ -393,7 +404,7 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         runtime = NewtonManager._runtime
-        steps = NewtonManager._decimation if runtime.owns_decimation else 1
+        steps = NewtonManager._decimation if cls.handles_decimation() else 1
         capture = cls._capture_graph if cls._uses_cuda_graph() else None
         program = newton_runtime.step(runtime, steps, capture)
         PhysicsManager._sim_time += runtime.schema.physics_dt * program.steps
@@ -401,6 +412,19 @@ class NewtonManager(PhysicsManager):
         runtime.solver.check_status(program.is_captured)
         if PhysicsManager._cfg.debug_mode:
             runtime.solver.log_debug()
+
+    @classmethod
+    def prepare(cls) -> None:
+        """Compile and capture the step program ahead of the next step, without advancing physics.
+
+        Authored state is reconciled first, so capture sees the state the next step starts from.
+        """
+        runtime = NewtonManager._runtime
+        newton_runtime.apply_model_changes(runtime)
+        newton_runtime.reconcile(runtime)
+        steps = NewtonManager._decimation if cls.handles_decimation() else 1
+        with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
+            newton_runtime.prepare(runtime, steps, cls._capture_graph if cls._uses_cuda_graph() else None)
 
     @classmethod
     def close(cls) -> None:
@@ -415,6 +439,7 @@ class NewtonManager(PhysicsManager):
         NewtonManager._requests = NewtonBuildRequests()
         NewtonManager._scene_data_backend = None
         NewtonManager._decimation = 1
+        NewtonManager._fold_decimation = None
         for key in [key for key in NewtonManager.views if key[0] is NewtonManager]:
             del NewtonManager.views[key]
 
@@ -764,9 +789,8 @@ class NewtonManager(PhysicsManager):
         """Run the articulations' Newton actuators inside the step program.
 
         Idempotent; called by every articulation whose explicit actuators run as Newton actuators. The first call
-        builds the single :class:`NewtonActuatorAdapter` over the model's actuators. Once active, one :meth:`step`
-        advances the whole decimation loop, including actuators that are not graph-safe, which run eagerly between
-        captured segments.
+        builds the single :class:`NewtonActuatorAdapter` over the model's actuators. Actuators that are not graph-safe
+        run eagerly between captured segments of the same program.
         """
         newton_runtime.activate_actuators(NewtonManager._runtime)
 
@@ -777,23 +801,35 @@ class NewtonManager(PhysicsManager):
         return None if runtime is None else runtime.actuators
 
     @classmethod
-    def set_decimation(cls, decimation: int) -> None:
+    def set_decimation(cls, decimation: int, *, fold: bool | None = None) -> None:
         """Set the physics steps one :meth:`step` advances when the manager owns the decimation loop.
 
         Args:
             decimation: Physics steps per environment step.
+            fold: Whether the environment allows folding the loop into one :meth:`step`. ``None`` folds only when
+                Newton actuators run inside the step program.
         """
         NewtonManager._decimation = max(1, decimation)
+        NewtonManager._fold_decimation = fold
 
     @classmethod
     def handles_decimation(cls) -> bool:
         """Whether one :meth:`step` advances the whole decimation loop.
 
-        This holds when Newton actuators run inside the step program, regardless of whether each actuator is
-        graph-safe.
+        The loop folds unless a consumer does host work between physics steps; graph safety of individual
+        operations does not matter, because operations that cannot be captured run eagerly inside the program.
         """
         runtime = NewtonManager._runtime
-        return runtime is not None and runtime.owns_decimation
+        return runtime is not None and newton_runtime.owns_decimation(runtime, NewtonManager._fold_decimation)
+
+    @classmethod
+    def require_host_physics_steps(cls) -> None:
+        """Declare host work between physics steps, so the environment drives the decimation loop.
+
+        Consumers call this while ``PHYSICS_READY`` dispatches, for example articulations whose explicit actuators run
+        as Isaac Lab actuator models.
+        """
+        NewtonManager._runtime.host_physics_steps = True
 
     @classmethod
     def _uses_cuda_graph(cls) -> bool:
@@ -836,17 +872,30 @@ class NewtonManager(PhysicsManager):
 
     @classmethod
     def invalidate_body_state(
-        cls, env_ids: wp.array(dtype=wp.int32) | None = None, env_mask: wp.array(dtype=wp.bool) | None = None
+        cls,
+        env_ids: wp.array(dtype=wp.int32) | None = None,
+        env_mask: wp.array(dtype=wp.bool) | None = None,
+        row_worlds: wp.array(dtype=wp.int32) | None = None,
     ) -> None:
         """Mark worlds whose maximal-coordinate body state was written, without requesting FK.
 
         Args:
-            env_ids: Integer indices of dirtied worlds.
-            env_mask: Boolean mask of dirtied worlds.
+            env_ids: Integer indices of dirtied view rows.
+            env_mask: Boolean mask of dirtied view rows.
+            row_worlds: World of each view row, from :meth:`view_row_worlds`; ``None`` when rows are worlds.
         """
         cls._mark_transforms_changed()
         if NewtonManager._runtime is not None:
-            newton_runtime.invalidate_body_state(NewtonManager._runtime, env_ids, env_mask)
+            newton_runtime.invalidate_body_state(NewtonManager._runtime, env_ids, env_mask, row_worlds)
+
+    @classmethod
+    def view_row_worlds(cls, articulation_ids: wp.array) -> wp.array:
+        """Return the world of each row of an articulation view; see :func:`runtime.view_row_worlds`.
+
+        Args:
+            articulation_ids: ``ArticulationView.articulation_ids``.
+        """
+        return newton_runtime.view_row_worlds(NewtonManager._runtime, articulation_ids)
 
     @classmethod
     def add_model_change(cls, change: ModelFlags) -> None:

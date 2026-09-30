@@ -133,10 +133,13 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
 
     _reset_newton_manager_state()
     monkeypatch.setattr(PhysicsManager, "_device", "cpu")
-    state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
-    backend = NewtonSceneDataBackend()
+    state = SimpleNamespace(
+        body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"),
+        body_f=wp.zeros(1, dtype=wp.spatial_vectorf, device="cpu"),
+    )
+    backend = NewtonSceneDataBackend(lambda: NewtonManager._runtime)
     provider = SceneDataProvider(backend)
-    model = SimpleNamespace(body_count=1, world_count=1, articulation_count=1)
+    model = SimpleNamespace(body_count=1, world_count=1, articulation_count=1, particle_count=0)
     schema = NewtonSchema(
         device="cpu",
         world_count=1,

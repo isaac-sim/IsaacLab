@@ -140,7 +140,7 @@ def test_explicit_global_import_uses_global_world(
     )
     sim.get_or_create_backend = lambda cfg: SimulationContext.get_or_create_backend(sim, cfg)
     monkeypatch.setattr(replicate_module.PhysicsManager, "_sim", sim)
-    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend())
+    monkeypatch.setattr(NewtonManager, "_scene_data_backend", NewtonSceneDataBackend(lambda: NewtonManager._runtime))
     monkeypatch.setattr(NewtonManager, "_requests", NewtonBuildRequests())
 
     env_ids, mapping = np.arange(2, dtype=np.int64), np.empty((0, 2), dtype=np.bool_)

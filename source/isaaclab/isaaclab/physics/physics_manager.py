@@ -583,16 +583,18 @@ class PhysicsManager(ABC):
         pass
 
     @classmethod
-    def set_decimation(cls, decimation: int) -> None:
-        """Inform the physics backend how many substeps the environment runs per policy step.
+    def set_decimation(cls, decimation: int, *, fold: bool | None = None) -> None:
+        """Inform the physics backend how many physics steps the environment runs per policy step.
 
-        Backends that can fold the full decimation loop into a single
-        :meth:`step` call (e.g. Newton with active Newton actuators) use this
-        to size their internal loop / CUDA graph.  The default implementation
-        is a no-op.
+        Backends that can fold the full decimation loop into a single :meth:`step` call (e.g. Newton) use this to
+        size their internal loop and CUDA graph; :meth:`handles_decimation` reports whether they do. The default
+        implementation is a no-op.
 
         Args:
             decimation: Number of physics steps per environment step.
+            fold: Whether the environment allows folding the loop. ``True`` means the environment does no host work
+                between physics steps that the backend cannot, ``False`` forbids folding, and ``None`` leaves the
+                decision to the backend's default policy.
         """
         pass
 
