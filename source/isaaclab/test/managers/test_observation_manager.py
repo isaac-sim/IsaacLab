@@ -371,9 +371,9 @@ def test_compute_preserves_shared_scratch_outputs(setup_env):
     torch.testing.assert_close(result[:, 3:], torch.full_like(env.data.pos_w, 2.0))
 
 
-def in_place_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
-    """Custom noise that modifies its input."""
-    return data.add_(0.2)
+def custom_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
+    """Custom noise owns any storage it modifies; absolute mode returns an unchanged view."""
+    return data.view_as(data) if cfg.operation == "abs" else data.clone().add_(0.2)
 
 
 @pytest.mark.parametrize(
@@ -381,9 +381,11 @@ def in_place_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
     [
         (noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1), None),
         (noise.UniformNoiseCfg(n_min=0.0, n_max=0.0), 0.0),
-        (noise.NoiseCfg(func=in_place_noise), 0.2),
+        (noise.NoiseCfg(func=custom_noise), 0.2),
+        (noise.NoiseCfg(func=custom_noise, operation="abs"), 0.0),
+        (noise.NoiseModelCfg(noise_cfg=noise.NoiseCfg(func=custom_noise, operation="abs")), 0.0),
     ],
-    ids=["out_of_place", "same_input", "in_place"],
+    ids=["out_of_place", "same_input", "custom", "view", "model_view"],
 )
 def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_delta):
     """Noise ownership paths preserve source storage, clipping, scaling, and random samples."""
@@ -401,10 +403,12 @@ def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_de
     torch.testing.assert_close(env.data.pos_w, source)
     torch.testing.assert_close(result, expected)
 
-    manager.cfg["policy"].position.noise.func = in_place_noise
+    # Without post-processing, the returned observation must still own its storage.
+    manager.cfg["policy"].position.clip = None
+    manager.cfg["policy"].position.scale = None
     result = manager.compute()["policy"]
+    result.zero_()
     torch.testing.assert_close(env.data.pos_w, source)
-    torch.testing.assert_close(result, (source + 0.2).clip(0.0, 0.5) * 2.0)
 
 
 def test_compute_with_2d_history(setup_env):

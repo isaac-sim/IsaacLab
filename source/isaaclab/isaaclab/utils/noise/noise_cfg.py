@@ -25,7 +25,9 @@ class NoiseCfg:
     """The function to be called for applying the noise.
 
     Note:
-        The shape of the input and output tensors must be the same.
+        The shape of the input and output tensors must be the same. The function must not
+        modify its input, including through a view. Callers do not provide a defensive copy;
+        use out-of-place operations or clone the input before modifying it.
     """
     operation: Literal["add", "scale", "abs"] = "add"
     """The operation to apply the noise on the data. Defaults to "add"."""
@@ -84,7 +86,9 @@ class NoiseModelCfg:
     """Function or callable class used by this noise model.
 
     The function must take a single `torch.Tensor` (the batch of observations) as input
-    and return a `torch.Tensor` of the same shape with noise applied.
+    and return a `torch.Tensor` of the same shape with noise applied. It must not modify
+    its input, including through a view. Use out-of-place operations or clone the input
+    before modifying it; callers do not provide a defensive copy.
 
     It also supports `callable classes <https://docs.python.org/3/reference/datamodel.html#object.__call__>`_,
     i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the

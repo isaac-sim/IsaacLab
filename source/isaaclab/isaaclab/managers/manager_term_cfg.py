@@ -171,7 +171,11 @@ class ObservationTermCfg(ManagerTermBaseCfg):
     """
 
     noise: NoiseCfg | NoiseModelCfg | None = None
-    """The noise to add to the observation. Defaults to None, in which case no noise is added."""
+    """The noise to add to the observation. Defaults to None, in which case no noise is added.
+
+    Noise callbacks must not modify their input. Use out-of-place operations or clone the
+    input inside the callback before modifying it.
+    """
 
     clip: tuple[float, float] | None = None
     """The clipping range for the observation after adding noise. Defaults to None,

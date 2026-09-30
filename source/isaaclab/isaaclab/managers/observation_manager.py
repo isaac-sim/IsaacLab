@@ -8,7 +8,7 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable, Sequence
+from collections.abc import Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -16,21 +16,13 @@ import torch
 from prettytable import PrettyTable
 
 from ..envs.utils.io_descriptors import _warn_io_descriptors_deprecated
-from ..utils import callable_to_string, instantiate, modifiers, noise, to_dict
+from ..utils import instantiate, modifiers, noise, to_dict
 from ..utils.buffers import CircularBuffer, DelayBuffer
 from .manager_base import ManagerBase, ManagerTermBase
 from .manager_term_cfg import ObservationGroupCfg, ObservationTermCfg
 
 if TYPE_CHECKING:
     from ..envs import ManagerBasedEnv
-
-# Built-in noise functions that never modify their input, so the manager can skip the defensive copy.
-# Configurations hold them as callables or as unresolved ``module:function`` strings.
-_OUT_OF_PLACE_NOISE_FUNCS = tuple(
-    ref
-    for func in (noise.constant_noise, noise.gaussian_noise, noise.uniform_noise)
-    for ref in (func, callable_to_string(func))
-)
 
 
 class ObservationManager(ManagerBase):
@@ -425,10 +417,10 @@ class ObservationManager(ManagerBase):
         group_term_names = self._group_obs_term_names[group_name]
         group_obs = dict.fromkeys(group_term_names, None)
         term_cfgs = self._group_obs_term_cfgs[group_name]
-        obs_terms = zip(group_term_names, term_cfgs, self._group_obs_term_safe_noise_funcs[group_name])
+        obs_terms = zip(group_term_names, term_cfgs)
 
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for term_name, term_cfg, safe_noise_func in obs_terms:
+        for term_name, term_cfg in obs_terms:
             output_spec = self._term_output_specs.get((group_name, term_name))
             owned = output_spec is not None
             if output_spec is not None:
@@ -450,17 +442,12 @@ class ObservationManager(ManagerBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
+            # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                if term_cfg.noise.func is safe_noise_func:
-                    noisy_obs = term_cfg.noise.func(obs, term_cfg.noise)
-                    # a new result is owned; a returned input keeps its ownership
-                    owned = owned or noisy_obs is not obs
-                    obs = noisy_obs
-                else:
-                    obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
-                    owned = False
+                obs = term_cfg.noise.func(obs, term_cfg.noise)
+                owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs.clone())
+                obs = term_cfg.noise.func(obs)
                 owned = False
             if term_cfg.clip:
                 obs = (
@@ -565,7 +552,6 @@ class ObservationManager(ManagerBase):
         self._group_obs_term_names: dict[str, list[str]] = {}
         self._group_obs_term_dim: dict[str, list[tuple[int, ...]]] = {}
         self._group_obs_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
-        self._group_obs_term_safe_noise_funcs: dict[str, list[Callable | str | None]] = {}
         self._group_obs_class_term_cfgs: dict[str, list[ObservationTermCfg]] = {}
         self._group_obs_concatenate: dict[str, bool] = {}
         self._group_obs_concatenate_dim: dict[str, int] = {}
@@ -605,7 +591,6 @@ class ObservationManager(ManagerBase):
             self._group_obs_term_names[group_name] = []
             self._group_obs_term_dim[group_name] = []
             self._group_obs_term_cfgs[group_name] = []
-            self._group_obs_term_safe_noise_funcs[group_name] = []
             self._group_obs_class_term_cfgs[group_name] = []
 
             # history buffers
@@ -666,13 +651,6 @@ class ObservationManager(ManagerBase):
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-                # Keep custom noise isolated even if its function is replaced after setup.
-                self._group_obs_term_safe_noise_funcs[group_name].append(
-                    term_cfg.noise.func
-                    if isinstance(term_cfg.noise, noise.NoiseCfg) and term_cfg.noise.func in _OUT_OF_PLACE_NOISE_FUNCS
-                    else None
-                )
-
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
