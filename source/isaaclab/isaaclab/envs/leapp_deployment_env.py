@@ -27,11 +27,11 @@ try:
 except ImportError as e:
     raise ImportError("LEAPP package is required for policy deployment testing. Install with: pip install leapp") from e
 
-from isaaclab.managers import CommandManager, EventManager
-from isaaclab.scene import InteractiveScene
-from isaaclab.sim import SimulationContext
-from isaaclab.sim.utils.stage import use_stage
-from isaaclab.utils.configclass import resolve_cfg_presets
+from ..managers import CommandManager, EventManager
+from ..scene import InteractiveScene
+from ..sim import SimulationContext
+from ..sim.utils.stage import use_stage
+from ..utils import validate
 
 logger = logging.getLogger(__name__)
 
@@ -164,10 +164,8 @@ class LeappDeploymentEnv:
             cfg: A ``ManagerBasedRLEnvCfg`` (or compatible) task config.
             leapp_yaml_path: Path to the LEAPP ``.yaml`` pipeline description.
         """
-
         cfg.scene.num_envs = 1
-        cfg.validate()
-        resolve_cfg_presets(cfg)
+        validate(cfg)
         self.cfg = cfg
         self._is_closed = False
         self._leapp_yaml_path = leapp_yaml_path

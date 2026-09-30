@@ -1,0 +1,16 @@
+{
+  "_comment": "Performance smoke policy. Relative thresholds are compared against baseline history. No hard FPS floors are calibrated for the Kit-free matrix.",
+  "schema_version": 1,
+  "defaults": {
+    "warn_regression_pct": 5.0,
+    "fail_regression_pct": 10.0,
+    "_todo": "Both defaults are placeholders. Set them from measured run-to-run spread on the real L40S runners, not from the desktop RTX 5090 sweep in temp/matrix_run (that host showed 13% CV on Cartpole, which is likely runner-specific)."
+  },
+  "per_task_regression_pct": {
+    "_comment": "Overrides for tasks whose run-to-run noise makes the default threshold unusable.",
+    "Isaac-Cartpole-Direct": {
+      "advisory_only": true,
+      "_comment": "Keep Cartpole advisory-only while spread is confirmed on runners."
+    }
+  }
+}

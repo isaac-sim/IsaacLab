@@ -143,7 +143,7 @@ class FrameTransformer(BaseFrameTransformer):
             source_indices,
             target_per_world,
             self._target_frame_body_names,
-            NewtonManager._builder.shape_label,
+            NewtonManager.backend.model.shape_label,
             world_origin_idx,
             num_envs,
         )

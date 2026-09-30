@@ -9,12 +9,14 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from typing import Any
 
 import omni.usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import SettingsManager, get_settings_manager
+from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 
 from .isaac_rtx_renderer_cfg import IsaacRtxRendererGlobalSettingsCfg
@@ -116,6 +118,8 @@ def _apply_isaac_rtx_global_settings(
 
     antialiasing_mode = getattr(global_settings, "antialiasing_mode", None)
     if antialiasing_mode is not None:
+        # Some Kit experiences (e.g. the viewport-only app) do not preload Replicator.
+        enable_extension("omni.replicator.core")
         import omni.replicator.core as rep
 
         rep.settings.set_render_rtx_realtime(antialiasing=antialiasing_mode)
@@ -131,6 +135,16 @@ def _get_stage_streaming_busy() -> bool:
     return usd_context.get_stage_streaming_status()
 
 
+def _pump_app_while(busy: Callable[[], bool], timeout_s: float) -> float:
+    """Pump ``app.update()`` while ``busy()`` holds, up to ``timeout_s`` seconds; return the elapsed time [s]."""
+    import omni.kit.app
+
+    start = time.monotonic()
+    while busy() and (time.monotonic() - start) < timeout_s:
+        omni.kit.app.get_app().update()
+    return time.monotonic() - start
+
+
 def _wait_for_streaming_complete() -> None:
     """Pump ``app.update()`` until RTX streaming reports idle or timeout.
 
@@ -139,11 +153,7 @@ def _wait_for_streaming_complete() -> None:
     """
     import omni.kit.app
 
-    start = time.monotonic()
-    while _get_stage_streaming_busy() and (time.monotonic() - start) < _STREAMING_WAIT_TIMEOUT_S:
-        omni.kit.app.get_app().update()
-
-    elapsed = time.monotonic() - start
+    elapsed = _pump_app_while(_get_stage_streaming_busy, _STREAMING_WAIT_TIMEOUT_S)
     if _get_stage_streaming_busy():
         logger.warning(
             "RTX streaming did not complete within %.1f s – proceeding anyway.",
@@ -153,6 +163,37 @@ def _wait_for_streaming_complete() -> None:
         logger.info("RTX streaming completed in %.2f s.", elapsed)
 
     omni.kit.app.get_app().update()
+
+
+def _get_stage_loading_count() -> int:
+    """Return the number of USD stage assets still loading."""
+    usd_context = omni.usd.get_context()
+    if usd_context is None:
+        return 0
+    # get_stage_loading_status -> (message, count_loaded, count_loading)
+    return usd_context.get_stage_loading_status()[2]
+
+
+def wait_for_stage_load(timeout_s: float, settle_frames: int = 0) -> None:
+    """Pump ``app.update()`` until the USD stage has no assets pending, then ``settle_frames`` more.
+
+    The extra frames let the renderer finish shader compilation and material warm-up after
+    every referenced asset has been resolved.
+
+    Args:
+        timeout_s: Upper bound on the wait for pending assets [s]; a warning is logged when reached.
+        settle_frames: Number of additional app updates pumped after loading completes.
+    """
+    import omni.kit.app
+
+    elapsed = _pump_app_while(lambda: _get_stage_loading_count() > 0, timeout_s)
+    pending = _get_stage_loading_count()
+    if pending:
+        logger.warning("Stage still reports %d assets pending after %.1f s; proceeding anyway.", pending, elapsed)
+    else:
+        logger.info("Stage load completed in %.2f s.", elapsed)
+    for _ in range(settle_frames):
+        omni.kit.app.get_app().update()
 
 
 def ensure_rtx_hydra_engine_attached() -> None:
@@ -219,32 +260,24 @@ def ensure_isaac_rtx_render_update(force: bool = False) -> None:
     if sim is None:
         return
 
-    render_generation = getattr(sim, "render_generation", getattr(sim, "_render_generation", 0))
-    key = (id(sim), sim._physics_step_count, render_generation)
+    key = (id(sim), sim.get_physics_step_count(), sim.render_generation)
     if _last_render_update_key == key:
         return  # Already pumped this step (by another camera or a visualizer)
 
-    # If a visualizer already pumps the Kit app loop, mark as done and skip.
-    # However, on the very first call for a new SimulationContext, the visualizer
-    # has not had a chance to pump yet (sim.render() was never called), so we
-    # must perform the initial app.update() ourselves to populate annotator buffers.
+    # Prime annotators once; afterward the Kit visualizer owns its app updates.
     first_call_for_sim = _last_render_update_key[0] != id(sim)
     if not first_call_for_sim and any(viz.pumps_app_update() for viz in sim.visualizers):
         _last_render_update_key = key
         return
 
-    # Pump when continuous rendering is active (GUI/RTX sensors/visualizers/XR). ``is_rendering``
-    # excludes headless offscreen rendering so the per-step loop does not pump between frames.
-    # Offscreen frames are produced on demand: the ``--video`` / ``rgb_array`` path calls this with
-    # ``force=True`` (see :func:`pump_kit_app_for_headless_video_render_if_needed`) to pump exactly
-    # when a frame is requested, without making every step pump.
+    # Headless offscreen capture requests a frame explicitly with force=True.
     if not force and not sim.is_rendering:
         return
 
-    # Sync physics results → Fabric so RTX sees updated positions.
-    # physics_manager.step() only runs simulate()/fetch_results() and does NOT
-    # call _update_fabric(), so without this the render would lag one frame behind.
-    sim.physics_manager.forward()
+    from .fabric import FabricBackendCfg  # noqa: PLC0415 - requires Kit
+
+    fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+    fabric.update_transforms(sim.get_scene_data_provider())
 
     import omni.kit.app
 

@@ -12,9 +12,8 @@ import warp as wp
 from isaaclab.assets.articulation.ordering_kernels import (
     launch_reorder_joint_targets_user_to_backend,
     reorder_2d_backend_to_user,
-    reorder_2d_user_to_backend,
-    reorder_3d_backend_to_user,
     reorder_body_state_backend_to_user,
+    reorder_generalized_vector_backend_to_user,
     reorder_joint_state_backend_to_user,
     write_2d_user_to_backend_with_indices,
     write_2d_user_to_backend_with_mask,
@@ -56,58 +55,6 @@ def test_reorder_2d_backend_to_user_gathers_user_axis() -> None:
 
     expected = np.asarray([[12.0, 10.0, 11.0], [22.0, 20.0, 21.0]], dtype=np.float32)
     np.testing.assert_allclose(user_data.numpy(), expected)
-
-
-def test_reorder_2d_user_to_backend_scatters_backend_axis() -> None:
-    """Reorder a 2-D public user buffer into backend order."""
-    user_data = wp.array(
-        np.asarray(
-            [
-                [12.0, 10.0, 11.0],
-                [22.0, 20.0, 21.0],
-            ],
-            dtype=np.float32,
-        ),
-        dtype=wp.float32,
-        device="cpu",
-    )
-    backend_to_user = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    backend_data = wp.zeros_like(user_data)
-
-    wp.launch(
-        reorder_2d_user_to_backend,
-        dim=backend_data.shape,
-        inputs=[user_data, backend_to_user],
-        outputs=[backend_data],
-        device="cpu",
-    )
-
-    expected = np.asarray([[10.0, 11.0, 12.0], [20.0, 21.0, 22.0]], dtype=np.float32)
-    np.testing.assert_allclose(backend_data.numpy(), expected)
-
-
-def test_reorder_3d_backend_to_user_gathers_user_axis() -> None:
-    """Reorder a 3-D backend buffer whose second axis is the public user axis."""
-    backend_data_np = np.asarray(
-        [
-            [[100.0, 101.0], [110.0, 111.0], [120.0, 121.0]],
-            [[200.0, 201.0], [210.0, 211.0], [220.0, 221.0]],
-        ],
-        dtype=np.float32,
-    )
-    backend_data = wp.array(backend_data_np, dtype=wp.float32, device="cpu")
-    user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_data = wp.zeros_like(backend_data)
-
-    wp.launch(
-        reorder_3d_backend_to_user,
-        dim=user_data.shape,
-        inputs=[backend_data, user_to_backend],
-        outputs=[user_data],
-        device="cpu",
-    )
-
-    np.testing.assert_allclose(user_data.numpy(), backend_data_np[:, [1, 2, 0], :])
 
 
 def test_reorder_joint_state_backend_to_user_gathers_position_and_velocity() -> None:
@@ -339,12 +286,17 @@ def test_fused_identity_writer_supports_aliased_outputs(selection: str, writer: 
 
 
 def test_write_float_scalar_user_to_backend_with_indices_updates_user_and_backend_buffers() -> None:
-    """Fuse indexed scalar writes into user and backend-order buffers."""
+    """Fuse indexed scalar writes into user and backend-order buffers.
+
+    The outputs are torch tensors so the launch wrapper's torch adaptation is covered as well.
+    """
+    import torch
+
     env_ids = wp.array(np.asarray([0, 2], dtype=np.int32), dtype=wp.int32, device="cpu")
     user_ids = wp.array(np.asarray([2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
     user_to_backend = wp.array(np.asarray([1, 2, 0], dtype=np.int32), dtype=wp.int32, device="cpu")
-    user_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
-    backend_data = wp.zeros((3, 3), dtype=wp.float32, device="cpu")
+    user_data = torch.zeros((3, 3), dtype=torch.float32, device="cpu")
+    backend_data = torch.zeros((3, 3), dtype=torch.float32, device="cpu")
 
     write_float_user_to_backend_with_indices(
         4.5, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
@@ -597,16 +549,6 @@ def test_write_3d_user_to_backend_updates_component_buffers(selection: str) -> N
     np.testing.assert_allclose(backend_data.numpy(), expected_backend)
 
 
-def test_directional_reorder_names_alias_the_gather_kernels() -> None:
-    """The four direction names are aliases: one kernel body per rank."""
-    from isaaclab.assets.articulation import ordering_kernels as k
-
-    assert k.reorder_2d_backend_to_user is k.gather_2d
-    assert k.reorder_2d_user_to_backend is k.gather_2d
-    assert k.reorder_3d_backend_to_user is k.gather_3d
-    assert k.reorder_3d_user_to_backend is k.gather_3d
-
-
 def test_write_2d_wrapper_adapts_torch_vec3_inputs() -> None:
     """The launch wrapper accepts torch tensors and folds trailing vec3 dims."""
     import torch
@@ -639,25 +581,6 @@ def test_write_2d_wrapper_adapts_torch_vec3_inputs() -> None:
     assert torch.equal(backend_data[:, [2, 0, 1], :], input_data)
 
 
-def test_write_float_wrapper_accepts_scalar_input() -> None:
-    """The float wrapper passes Python scalars straight to the scalar overload."""
-    import torch
-
-    from isaaclab.assets.articulation import ordering_kernels as k
-
-    user_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")
-    backend_data = torch.zeros((2, 3), dtype=torch.float32, device="cpu")
-    env_ids = wp.array([0, 1], dtype=wp.int32, device="cpu")
-    user_ids = wp.array([1], dtype=wp.int32, device="cpu")
-    user_to_backend = wp.array([2, 0, 1], dtype=wp.int32, device="cpu")
-
-    k.write_float_user_to_backend_with_indices(
-        7.5, env_ids, user_ids, user_to_backend, True, False, user_data, backend_data, device="cpu"
-    )
-    assert user_data[0, 1].item() == 7.5 and user_data[1, 1].item() == 7.5
-    assert backend_data[0, 0].item() == 7.5  # user index 1 -> backend index 0
-
-
 @pytest.mark.parametrize("env_dtype", [wp.int32, wp.int64])
 @pytest.mark.parametrize("joint_dtype", [wp.int32, wp.int64])
 def test_joint_state_writer_accepts_selector_widths(env_dtype: type, joint_dtype: type) -> None:
@@ -685,3 +608,33 @@ def test_joint_state_writer_accepts_selector_widths(env_dtype: type, joint_dtype
 
     np.testing.assert_array_equal(user_position.numpy(), [[121.0, 0.0, 120.0], [111.0, 0.0, 110.0]])
     np.testing.assert_array_equal(backend_position.numpy(), [[120.0, 121.0, 0.0], [110.0, 111.0, 0.0]])
+
+
+@pytest.mark.parametrize("num_base_dofs", [0, 6])
+@pytest.mark.parametrize("correct_signs", [False, True])
+def test_generalized_force_ordering_with_optional_signs(num_base_dofs, correct_signs):
+    """Preserve floating-base forces and optionally correct actuated-joint signs."""
+    device = "cpu"  # the kernel body is device-independent
+    joint_order = np.array([2, 0, 1], dtype=np.int32)
+    signs = np.array([1, -1, 1], dtype=np.int32)
+    values = np.arange(1, 2 * (num_base_dofs + len(joint_order)) + 1, dtype=np.float32).reshape(2, -1)
+    backend = wp.array(values, dtype=wp.float32, device=device)
+    result = wp.zeros_like(backend)
+    wp.launch(
+        reorder_generalized_vector_backend_to_user,
+        dim=result.shape,
+        inputs=[
+            backend,
+            wp.array(joint_order, dtype=wp.int32, device=device),
+            wp.array(signs, dtype=wp.int32, device=device) if correct_signs else None,
+            num_base_dofs,
+            True,
+        ],
+        outputs=[result],
+        device=device,
+    )
+    expected = values.copy()
+    expected[:, num_base_dofs:] = values[:, num_base_dofs:][:, joint_order]
+    if correct_signs:
+        expected[:, num_base_dofs:] *= signs[joint_order]
+    np.testing.assert_array_equal(result.numpy(), expected)

@@ -10,9 +10,15 @@
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 import ovstage
 import warp as wp
+
+from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
+
+logger = logging.getLogger(__name__)
 
 # DLDataType for a 4x4 double matrix (``omni:xform`` column). ovstage stores omni:xform as one
 # 16-lane float64 element per prim; wp.mat44d maps to the same layout via __dlpack__.
@@ -32,10 +38,11 @@ def create_ovstage(name: str) -> ovstage.Stage:
     Every Isaac Lab stage is therefore created through this helper so the whole process agrees on
     one model.
 
-    :attr:`~ovstage.HierarchyComputationModel.CPU_INCREMENTAL` is requested explicitly rather than
-    left implicit, so the model in force is visible at the call site.
-    :attr:`~ovstage.HierarchyComputationModel.GPU_INCREMENTAL` is currently not working - objects
-    are out-of-place.  Needs investigation
+    The model is requested explicitly rather than left implicit, so the model in force is visible
+    at the call site. Which one is requested depends on the installed ovstage version; see
+    :mod:`isaaclab_ov.ovstage_compat`. A selected model the installed enum does not carry falls
+    back to the host model, so a version gate that runs ahead of the runtime degrades rather than
+    preventing stage creation.
 
     Args:
         name: Instance name used for ovstage diagnostics.
@@ -43,9 +50,15 @@ def create_ovstage(name: str) -> ovstage.Stage:
     Returns:
         The created :class:`ovstage.Stage`.
     """
-    config = ovstage.StageConfig(
-        runtime_default_hierarchy_computation_model=ovstage.HierarchyComputationModel.CPU_INCREMENTAL
-    )
+    hierarchy_computation_model = getattr(ovstage.HierarchyComputationModel, HIERARCHY_COMPUTATION_MODEL, None)
+    if hierarchy_computation_model is None:
+        logger.warning(
+            "This ovstage does not expose HierarchyComputationModel.%s; falling back to CPU_INCREMENTAL.",
+            HIERARCHY_COMPUTATION_MODEL,
+        )
+        # Left unguarded: an ovstage without the host model is broken, and should say so loudly.
+        hierarchy_computation_model = ovstage.HierarchyComputationModel.CPU_INCREMENTAL
+    config = ovstage.StageConfig(runtime_default_hierarchy_computation_model=hierarchy_computation_model)
     return ovstage.Stage(name, config=config)
 
 
