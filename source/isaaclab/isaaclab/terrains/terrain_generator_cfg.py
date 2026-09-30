@@ -86,6 +86,26 @@ class TerrainGeneratorCfg:
     - "none": No color scheme.
     """
 
+    horizontal_scale: float = 0.1
+    """The discretization of the terrain along the x and y axes (in m). Defaults to 0.1.
+
+    Height-field sub-terrains inherit this value only when their ``horizontal_scale`` is None.
+    """
+
+    vertical_scale: float = 0.005
+    """The discretization of the terrain along the z axis (in m). Defaults to 0.005.
+
+    Height-field sub-terrains inherit this value only when their ``vertical_scale`` is None.
+    """
+
+    slope_threshold: float | None = 0.75
+    """The slope threshold above which surfaces are made vertical. Defaults to 0.75.
+
+    If None, no correction is applied to sub-terrains that inherit this value.
+
+    Height-field sub-terrains inherit this value only when their ``slope_threshold`` is None.
+    """
+
     sub_terrains: dict[str, SubTerrainBaseCfg] = MISSING
     """Dictionary of sub-terrain configurations.
 

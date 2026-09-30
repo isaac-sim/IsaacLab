@@ -55,14 +55,6 @@ class TerrainImporterCfg:
     Only used if ``terrain_type`` is set to "generator".
     """
 
-    heightfield_collider_resolution: float = 0.1
-    """Horizontal resolution of a generated heightfield collider (in m). Defaults to 0.1.
-
-    Used by the Newton backend when all sub-terrains request heightfield conversion. The generated
-    terrain is rasterized as one collider, so choose a resolution no larger than the finest
-    height-field sub-terrain scale when its detail must be preserved.
-    """
-
     usd_path: str | None = None
     """The path to the USD file containing the terrain.
 

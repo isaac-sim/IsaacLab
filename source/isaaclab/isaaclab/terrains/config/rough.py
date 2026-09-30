@@ -13,6 +13,9 @@ ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
     border_width=20.0,
     num_rows=10,
     num_cols=20,
+    horizontal_scale=0.1,
+    vertical_scale=0.005,
+    slope_threshold=0.75,
     use_cache=False,
     sub_terrains={
         "pyramid_stairs": terrain_gen.MeshPyramidStairsTerrainCfg(
@@ -41,13 +44,13 @@ ROUGH_TERRAINS_CFG = TerrainGeneratorCfg(
             convert_to_heightfield=True,
         ),
         "random_rough": terrain_gen.HfRandomUniformTerrainCfg(
-            proportion=0.2, noise_range=(0.02, 0.10), noise_step=0.02, border_width=0.25, slope_threshold=0.75
+            proportion=0.2, noise_range=(0.02, 0.10), noise_step=0.02, border_width=0.25
         ),
         "hf_pyramid_slope": terrain_gen.HfPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25, slope_threshold=0.75
+            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
         ),
         "hf_pyramid_slope_inv": terrain_gen.HfInvertedPyramidSlopedTerrainCfg(
-            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25, slope_threshold=0.75
+            proportion=0.1, slope_range=(0.0, 0.4), platform_width=2.0, border_width=0.25
         ),
     },
 )
