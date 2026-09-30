@@ -160,15 +160,16 @@ package version.
 
 .. note::
 
-   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled by CI from per-PR **fragment
-   files** — contributors do not edit them directly. For every package your PR touches
-   in ``source/<pkg>/`` (outside ``changelog.d/``), add one fragment under
-   ``source/<pkg>/changelog.d/<slug>.<tier>.rst``:
+   ``CHANGELOG.rst`` and the package version in ``pyproject.toml`` are compiled nightly by CI from
+   per-PR `towncrier <https://towncrier.readthedocs.io/>`__ **fragment files** — contributors do not
+   edit them directly. For every package your PR touches in ``source/<pkg>/`` (outside
+   ``changelog.d/``), add fragments under ``source/<pkg>/changelog.d/``:
 
-   * ``<slug>.rst`` — patch bump
-   * ``<slug>.minor.rst`` — minor bump (new public API)
-   * ``<slug>.major.rst`` — major bump (breaking change)
-   * ``<slug>.skip`` — no entry, no bump (CI / docs / test-only PRs)
+   * ``<slug>.<type>.rst`` — one file per entry type, where ``<type>`` is ``added``, ``changed``,
+     ``deprecated``, ``removed`` or ``fixed``; the file holds that section's bullets.
+   * ``<slug>.minor`` or ``<slug>.major`` — an empty file that raises the version bump from patch
+     to minor (new public API) or major (breaking change).
+   * ``<slug>.skip`` — an empty file for no entry and no bump (CI / docs / test-only PRs).
 
    ``<slug>`` is any short, unique name; your branch name with ``/`` replaced by ``-``
    is the recommended default. Within a batch the highest tier wins for the package.
@@ -181,15 +182,15 @@ been made between each release of a package. This is a *MUST* for every release-
 
 For each fragment, please follow the following guidelines:
 
-* Each fragment is divided into subsections based on the type of changes made.
+* Each fragment's ``<type>`` names the changelog section its bullets appear under.
 
-  * ``Added``: For new features.
-  * ``Changed``: For changes in existing functionality.
-  * ``Deprecated``: For soon-to-be removed features.
-  * ``Removed``: For now removed features.
-  * ``Fixed``: For any bug fixes.
+  * ``added``: For new features.
+  * ``changed``: For changes in existing functionality.
+  * ``deprecated``: For soon-to-be removed features.
+  * ``removed``: For now removed features.
+  * ``fixed``: For any bug fixes.
 
-* Each change is described in its corresponding sub-section with a bullet point.
+* Each change is described with a ``*`` bullet point; continuation lines are indented.
 * Prefix breaking changes with **Breaking:** and provide migration guidance for deprecated, changed,
   or removed behavior that requires callers to adapt.
 * The bullet points are written in the **past tense**.
@@ -203,12 +204,9 @@ For each fragment, please follow the following guidelines:
 
    When in doubt, please check the style in the existing changelog files and follow the same style.
 
-For example, ``source/isaaclab/changelog.d/fix-partial-reset.rst``:
+For example, ``source/isaaclab/changelog.d/fix-partial-reset.fixed.rst``:
 
 .. code:: rst
-
-    Fixed
-    ^^^^^
 
     * Fixed contact sensor reset behavior when only a subset of environments was reset.
 
