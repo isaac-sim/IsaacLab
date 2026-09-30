@@ -224,7 +224,7 @@ simplest model that meets your requirements.
       - Identified voltage-domain servo: firmware P law, PWM duty, DC motor, load-dependent
         gearbox friction.
       - Duty clipped by the current limiter, torque by ``actuator_effort_limit``.
-      - ``params_file``, ``kp_fw``, ``vin``
+      - ``parameter_overrides``, ``kp_fw``, ``vin``
 
 **ImplicitActuator.** The default model. The solver applies the gains and limits. Isaac Lab
 estimates effort telemetry from the current state when the backend does not expose it.
@@ -313,21 +313,71 @@ One step of the model has six stages:
     :attr:`~isaaclab.actuators.ActuatorBaseCfg.damping` are unused and default to ``None``.
     Leave them unset and configure the firmware gain with ``kp_fw``.
 
-Vendored parameters
-^^^^^^^^^^^^^^^^^^^
+USD coefficients
+^^^^^^^^^^^^^^^^
 
-:attr:`~isaaclab.actuators.BamActuatorCfg.params_file` defaults to
-:data:`~isaaclab.actuators.BAM_XL330_M6_PARAMS_FILE`, the identified ``m6`` fit of the Dynamixel
-XL330 that Isaac Lab vendors in ``isaaclab/actuators/data/bam_xl330_m6.json``. It comes from
-``Rhoban/bam`` at commit ``62bd8ce`` of the ``mjlab_frictionloss`` branch and is licensed
-Apache-2.0; ``ATTRIBUTION.md`` next to the file records where every field comes from, including the
-firmware constants that upstream keeps in code rather than in the fit. Point ``params_file`` at
-your own JSON in the same layout to use a different identification. The
-:class:`~isaaclab.actuators.BamMotorParams` loader validates these configuration parameters.
+The asset carries its motor and friction coefficients on each ``NewtonActuator`` prim with
+``NewtonBamControlAPI``. Attributes use the ``newton:`` prefix and camel case, for example
+``newton:resistance`` and ``newton:frictionBase``. The prim's ``newton:targets`` relationship
+identifies its driven joint. Isaac Lab preserves these values per joint when authoring the
+configured actuator groups. Newton consumes the resolved coefficients without opening JSON files.
+Missing required coefficients raise an error; there is no implicit XL330 motor default.
 
-The parameter file does not configure the solver's rotor inertia. Author it in the asset or set
-:attr:`~isaaclab.actuators.ActuatorBaseCfg.armature` to the identified
-:attr:`~isaaclab.actuators.BamMotorParams.armature` value when the asset does not supply it.
+:attr:`~isaaclab.actuators.BamActuatorCfg.parameter_overrides` accepts explicit overrides using
+snake-case names from the table below. For example, ``parameter_overrides={"friction_base": 0.005}``
+changes Coulomb friction for a group while retaining its other asset coefficients. ``kp_fw`` and
+``vin`` default to ``None`` (preserve USD) and take precedence over the corresponding mapping entries
+when set. Delay configuration and start-up randomization retain their documented config defaults.
+
+.. list-table:: BAM coefficients (rotational servo)
+   :header-rows: 1
+   :widths: 38 62
+
+   * - Name
+     - Meaning and units
+   * - ``kt``, ``resistance``
+     - Motor torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
+   * - ``armature``
+     - Reflected rotor inertia [kg.m^2] for the fallback load estimator. Required.
+   * - ``error_gain``, ``max_pwm``
+     - Position-error-to-duty-cycle factor [1/rad] and maximum duty-cycle magnitude [-]. Required.
+   * - ``kp_fw``, ``vin``
+     - Firmware proportional gain [-] and nominal supply voltage [V]. Required.
+   * - ``max_current``
+     - Current limit [A]. Defaults to 0 (disabled).
+   * - ``friction_base``, ``friction_viscous``
+     - Coulomb friction [N.m] and viscous coefficient [N.m.s/rad]. Required.
+   * - ``stribeck``, ``load_dependent``, ``quadratic``
+     - Integer flags selecting friction terms; default 0. Quadratic requires both other flags.
+       Load-dependent friction uses separate motor-side and external-side coefficients.
+   * - ``friction_stribeck``, ``dtheta_stribeck``, ``alpha``
+     - Near-rest friction [N.m], decay velocity [rad/s], and exponent [-]. Required with Stribeck.
+   * - ``load_friction_motor``, ``load_friction_external``
+     - Friction per transmitted motor/external torque [-]. Required with load-dependent friction.
+   * - ``load_friction_motor_stribeck``, ``load_friction_external_stribeck``
+     - Near-rest load-dependent coefficients [-]. Required when both terms are enabled.
+   * - ``load_friction_motor_quad``, ``load_friction_external_quad``
+     - Quadratic load-coupling coefficients [1/(N.m)]. Required with quadratic friction.
+
+The actuator's ``newton:armature`` coefficient does not configure the solver's rotor inertia.
+Author solver inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
+The two values serve different consumers and should reflect the same identified rotor inertia.
+
+JSON import is an optional **asset authoring** step. The importer accepts the supported BAM
+``m1``, ``m2``, ``m5`` and ``m6`` fits, extended with the firmware constants that upstream keeps
+in code. It writes coefficients directly into the output USD; the JSON is unnecessary afterwards:
+
+.. code-block:: bash
+
+    uv run python scripts/tools/import_bam_parameters.py \
+        --input robot.usd --output robot_bam.usda --articulation /Robot \
+        --joint_names '.*' \
+        --params_file source/isaaclab/isaaclab/actuators/data/bam_xl330_m6.json
+
+The example JSON contains the Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit
+``62bd8ce`` of ``mjlab_frictionloss`` and is licensed Apache-2.0. ``ATTRIBUTION.md`` next to it
+records the origin of every field. To migrate an earlier version of this draft, bake the file
+previously named by ``BamActuatorCfg.params_file`` into the asset, then remove that config argument.
 
 .. _actuators-bam-paths:
 
@@ -432,8 +482,12 @@ Known constraints
   the live dry-friction budget.
 * **Merged robots must agree.** Newton merges structurally identical joints into one actuator, and
   the start-up ranges and ``stiff_frictionloss`` are not part of its grouping key. Two articulations
-  that merge but configure them differently raise at start-up; give them different ``params_file``
-  values to keep them apart.
+  that merge but configure them differently raise at start-up. Use matching ranges and
+  ``stiff_frictionloss`` for articulations with the same shared controller settings. Motor
+  coefficients are per DOF and do not separate controller groups. Supply sag sums torque
+  over each merged controller's DOFs within an environment. Such a group therefore represents
+  one shared battery; independent batteries on multiple robots within the same environment
+  are not represented by this model.
 
 
 .. _actuators-parameter-reference:

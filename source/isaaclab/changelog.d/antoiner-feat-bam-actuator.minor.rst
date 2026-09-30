@@ -10,10 +10,10 @@ Added
   external loads from the solver's generalized forces. Other native Newton solvers retained the
   controller's torque-level friction clip and momentum-based load estimate. PhysX, OVPhysX and
   the Isaac Lab actuator loop rejected this configuration.
-* Added :class:`~isaaclab.actuators.BamMotorParams` and
-  :data:`~isaaclab.actuators.BAM_XL330_M6_PARAMS_FILE` for loading the vendored Dynamixel XL330
-  ``m6`` identification. Recorded upstream motor and friction samples checked controller behavior
-  without requiring an upstream BAM installation for routine tests.
+* Stored BAM motor and friction coefficients directly in USD actuator prims, with explicit
+  configuration overrides. Added an optional ``scripts/tools/import_bam_parameters.py`` utility
+  to bake a JSON fit into an asset. Simulation did not require a parameter sidecar. Recorded
+  upstream motor and friction samples checked controller behavior without an upstream BAM installation.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and

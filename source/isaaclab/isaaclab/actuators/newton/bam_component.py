@@ -11,8 +11,7 @@ load and resolves the load-dependent friction budget alongside its other constra
 
 The controller owns the stochastic command delay, battery sag, firmware PWM controller, DC-motor
 equation and gearbox friction. State is
-double-buffered and CUDA-graph-safe. Identified parameters are loaded by
-:class:`~isaaclab.actuators.BamMotorParams`.
+double-buffered and CUDA-graph-safe. Identified coefficients are carried by the USD actuator prim.
 
 The effort clamp is part of the controller: mixing a registered clamping schema with the
 unregistered ``NewtonBamControlAPI`` token can hide BAM from Newton's actuator schema discovery.
@@ -26,8 +25,6 @@ from typing import Any
 
 import warp as wp
 from newton.actuators import ComponentKind, Controller, register_actuator_component
-
-from isaaclab.actuators.bam_model import BamMotorParams
 
 BAM_CONTROL_API: str = "NewtonBamControlAPI"
 """USD API schema token that maps an actuator prim onto :class:`ControllerBam`."""
@@ -302,7 +299,6 @@ class ControllerBam(Controller):
     """
 
     SHARED_PARAMS = {
-        "params_file",
         "stribeck",
         "load_dependent",
         "quadratic",
@@ -466,26 +462,44 @@ class ControllerBam(Controller):
 
     @classmethod
     def resolve_arguments(cls, args: dict[str, Any]) -> dict[str, Any]:
-        """Fill the BAM parameter set from the authored attributes and the fit file.
-
-        The identified motor, firmware and friction constants come from the BAM parameter
-        file named by ``params_file``. Any of them may be overridden per joint by authoring
-        the matching attribute.
+        """Resolve scalar coefficients from a self-contained USD actuator prim.
 
         Args:
             args: Authored attribute values, keyed by snake-case name.
 
         Returns:
-            The complete argument set: the shared scalars of :attr:`SHARED_PARAMS` and one
-            scalar per entry of :attr:`_PER_DOF_PARAMS`.
+            Shared settings and per-DOF coefficients for Newton to assemble into arrays.
 
         Raises:
-            ValueError: If ``params_file`` is missing or a delay setting is out of range.
+            ValueError: If coefficients are missing, names are unknown, or delays are invalid.
         """
-        params_file = args.get("params_file")
-        if not params_file:
-            raise ValueError(f"{BAM_CONTROL_API} requires a non-empty 'params_file' attribute")
-        params = BamMotorParams.from_json(params_file)
+        unknown = set(args) - cls.SHARED_PARAMS - set(cls._PER_DOF_PARAMS)
+        if unknown:
+            raise ValueError(f"Unknown BAM parameter(s): {', '.join(sorted(unknown))}")
+        required = {
+            "kt",
+            "resistance",
+            "armature",
+            "error_gain",
+            "max_pwm",
+            "kp_fw",
+            "vin",
+            "friction_base",
+            "friction_viscous",
+        }
+        if args.get("stribeck", 0):
+            required.update(("friction_stribeck", "dtheta_stribeck", "alpha"))
+        if args.get("load_dependent", 0):
+            required.update(("load_friction_motor", "load_friction_external"))
+            if args.get("stribeck", 0):
+                required.update(("load_friction_motor_stribeck", "load_friction_external_stribeck"))
+        if args.get("quadratic", 0):
+            if not args.get("stribeck", 0) or not args.get("load_dependent", 0):
+                raise ValueError("BAM quadratic friction requires stribeck and load_dependent")
+            required.update(("load_friction_motor_quad", "load_friction_external_quad"))
+        missing = required - args.keys()
+        if missing:
+            raise ValueError(f"{BAM_CONTROL_API} is missing coefficient(s): {', '.join(sorted(missing))}")
 
         min_delay = int(args.get("min_delay", 0))
         max_delay = int(args.get("max_delay", 0))
@@ -498,10 +512,9 @@ class ControllerBam(Controller):
             raise ValueError(f"delay_hold_prob must lie in [0, 1], got {delay_hold_prob}")
 
         resolved: dict[str, Any] = {
-            "params_file": str(params_file),
-            "stribeck": int(params.stribeck),
-            "load_dependent": int(params.load_dependent),
-            "quadratic": int(params.quadratic),
+            "stribeck": int(args.get("stribeck", 0)),
+            "load_dependent": int(args.get("load_dependent", 0)),
+            "quadratic": int(args.get("quadratic", 0)),
             "vin_min": float(args.get("vin_min", -math.inf)),
             "min_delay": min_delay,
             "max_delay": max_delay,
@@ -510,34 +523,11 @@ class ControllerBam(Controller):
             "delay_seed": int(args.get("delay_seed", 0)),
         }
 
-        # ``max_current = 0`` disables the firmware current limiter, matching
-        # ``BamMotorParams.max_current = None``.
-        defaults: dict[str, float] = {
-            "kp_fw": params.kp,
-            "kp_scale": 1.0,
-            "kd_scale": 1.0,
-            "vin": params.vin,
-            "sag_gain": 0.0,
-            "friction_scale": 1.0,
-            "kt": params.kt,
-            "resistance": params.R,
-            "armature": params.armature,
-            "error_gain": params.error_gain,
-            "max_pwm": params.max_pwm,
-            "max_current": 0.0 if params.max_current is None else params.max_current,
-            "friction_base": params.friction_base,
-            "friction_viscous": params.friction_viscous,
-            "friction_stribeck": params.friction_stribeck,
-            "dtheta_stribeck": params.dtheta_stribeck,
-            "alpha": params.alpha,
-            "load_friction_motor": params.load_friction_motor,
-            "load_friction_external": params.load_friction_external,
-            "load_friction_motor_stribeck": params.load_friction_motor_stribeck,
-            "load_friction_external_stribeck": params.load_friction_external_stribeck,
-            "load_friction_motor_quad": params.load_friction_motor_quad,
-            "load_friction_external_quad": params.load_friction_external_quad,
-            "max_effort": math.inf,
-        }
+        # Zero disables optional friction terms and the firmware current limiter.
+        defaults = dict.fromkeys(cls._PER_DOF_PARAMS, 0.0)
+        defaults.update(
+            kp_scale=1.0, kd_scale=1.0, friction_scale=1.0, dtheta_stribeck=1.0, alpha=1.0, max_effort=math.inf
+        )
         for name in cls._PER_DOF_PARAMS:
             resolved[name] = float(args.get(name, defaults[name]))
         return resolved
@@ -545,7 +535,6 @@ class ControllerBam(Controller):
     def __init__(
         self,
         *,
-        params_file: str,
         stribeck: int = 0,
         load_dependent: int = 0,
         quadratic: int = 0,
@@ -560,8 +549,6 @@ class ControllerBam(Controller):
         """Initialize the controller from pre-built per-DOF parameter arrays.
 
         Args:
-            params_file: Path of the BAM parameter file the constants were read from. Kept
-                for provenance and as part of Newton's actuator-grouping key.
             stribeck: Whether the Stribeck friction terms are active.
             load_dependent: Whether the gearbox friction grows with the transmitted torque.
             quadratic: Whether the quadratic load-coupling term is active.
@@ -576,7 +563,6 @@ class ControllerBam(Controller):
         Raises:
             ValueError: If a per-DOF array is missing or its shape does not match the others.
         """
-        self.params_file = params_file
         self.stribeck = int(stribeck)
         self.load_dependent = int(load_dependent)
         self.quadratic = int(quadratic)
@@ -618,8 +604,6 @@ class ControllerBam(Controller):
         self.viscous_damping = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.effective_vin = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
-        # The indices start at zero and the mask beside them gates every read, so an unbound
-        # controller dereferences no second slot at all -- see :func:`_bam_motor_kernel`.
         self._next_state_arrays = {
             "prev_motor_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
             "prev_applied_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),

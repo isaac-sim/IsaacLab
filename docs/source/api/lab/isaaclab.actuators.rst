@@ -28,7 +28,6 @@
     ActuatorNetLSTM
     ActuatorNetLSTMCfg
     BamActuatorCfg
-    BamMotorParams
 
   .. rubric:: Functions
 
@@ -176,13 +175,6 @@ BAM Servo Model
   :inherited-members:
   :show-inheritance:
   :exclude-members: __init__, class_type
-
-.. autoclass:: BamMotorParams
-  :members:
-  :exclude-members: __init__
-
-.. autodata:: BAM_XL330_M6_PARAMS_FILE
-  :no-value:
 
 Newton Actuator Access
 ----------------------

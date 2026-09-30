@@ -24,6 +24,8 @@ from isaaclab_newton.physics import (
     NewtonManager,
 )
 
+from pxr import Usd
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg
 from isaaclab.actuators.newton import ControllerBam, read_group_parameter, write_group_parameter
@@ -135,6 +137,12 @@ def pendulum_usd(tmp_path_factory) -> str:
     """Write :data:`PENDULUM_USDA` to a temporary file and return its path."""
     path = tmp_path_factory.mktemp("bam_pendulum") / "single_joint_pendulum.usda"
     path.write_text(PENDULUM_USDA)
+    stage = Usd.Stage.Open(str(path))
+    prim = stage.DefinePrim("/Robot/asset_actuator", "NewtonActuator")
+    fixture = Path(__file__).resolve().parents[3] / "isaaclab/test/actuators/data/bam_xl330_m6.usda"
+    prim.GetReferences().AddReference(str(fixture), "/BamActuator")
+    prim.CreateRelationship("newton:targets").SetTargets(["/Robot/joint"])
+    stage.GetRootLayer().Save()
     return str(path)
 
 

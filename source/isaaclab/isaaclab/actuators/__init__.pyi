@@ -14,9 +14,7 @@ __all__ = [
     "ActuatorNetMLP",
     "ActuatorNetLSTMCfg",
     "ActuatorNetMLPCfg",
-    "BAM_XL330_M6_PARAMS_FILE",
     "BamActuatorCfg",
-    "BamMotorParams",
     "DCMotor",
     "DelayedPDActuator",
     "IdealPDActuator",
@@ -51,4 +49,3 @@ from .actuator_pd_cfg import (
     ImplicitActuatorCfg,
     RemotizedPDActuatorCfg,
 )
-from .bam_model import BAM_XL330_M6_PARAMS_FILE, BamMotorParams
