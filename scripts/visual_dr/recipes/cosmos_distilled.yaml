@@ -1,0 +1,24 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Runtime image transfer; task configuration supplies cameras and prompts.
+backend:
+  checkpoint: /path/to/exported-distilled-checkpoint  # Override with --checkpoint.
+  num_steps: 4
+  guidance: 1.0
+  control_kind: seg
+  control_guidance: 1.0
+  resolution: "480"
+  aspect_ratio: "4,3"
+  shift: 5.0
+  native_resolution: true  # Validated custom 640x480 export; not the public default.
+  mask_guidance: true
+  mask_strength: 1.0
+  mask_step_threshold: null  # All updates: 49 for public Nano, 3 for four-step exports.
+  mask_downsample_mode: area
+camera:
+  composite_foreground: false
+  boundary_px: 0
+  boundary_erosion_px: 8  # Shrink the union; radius is in input-camera pixels.
