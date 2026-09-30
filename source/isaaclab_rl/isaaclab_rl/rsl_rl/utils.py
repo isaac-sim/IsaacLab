@@ -12,6 +12,7 @@ import inspect
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
+import torch
 from packaging import version
 from rsl_rl.runners import DistillationRunner, OnPolicyRunner
 
@@ -60,6 +61,9 @@ def create_rsl_rl_runner(
 ) -> OnPolicyRunner | DistillationRunner:
     """Instantiate the RSL-RL runner selected by ``agent_cfg.class_name``.
 
+    The runner uses ``agent_cfg.device``, or the environment's device when that is a CUDA device and
+    CUDA is unavailable (e.g. on macOS), since the agent configuration defaults to ``cuda:0``.
+
     Args:
         env: Wrapped environment the runner trains or evaluates on.
         agent_cfg: Runner configuration.
@@ -68,10 +72,13 @@ def create_rsl_rl_runner(
     Raises:
         ValueError: If the configured runner class is not supported.
     """
+    device = agent_cfg.device
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        device = str(env.device)
     if agent_cfg.class_name == "OnPolicyRunner":
-        return OnPolicyRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
+        return OnPolicyRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=device)
     if agent_cfg.class_name == "DistillationRunner":
-        return DistillationRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=agent_cfg.device)
+        return DistillationRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=device)
     raise ValueError(f"Unsupported runner class: {agent_cfg.class_name}")
 
 
