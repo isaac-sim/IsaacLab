@@ -19,16 +19,10 @@ if TYPE_CHECKING:
 
 @configclass
 class NoiseCfg:
-    """Base configuration for a noise term."""
+    """Base configuration for noise that does not modify its input."""
 
     func: Callable[[torch.Tensor, NoiseCfg], torch.Tensor] = MISSING
-    """The function to be called for applying the noise.
-
-    Note:
-        The shape of the input and output tensors must be the same. The function must not
-        modify its input, including through a view. Callers do not provide a defensive copy;
-        use out-of-place operations or clone the input before modifying it.
-    """
+    """Function that applies noise without changing its input or shape."""
     operation: Literal["add", "scale", "abs"] = "add"
     """The operation to apply the noise on the data. Defaults to "add"."""
 
@@ -74,7 +68,7 @@ class GaussianNoiseCfg(NoiseCfg):
 
 @configclass
 class NoiseModelCfg:
-    """Configuration for a noise model."""
+    """Configuration for a noise model that does not modify its input."""
 
     class_type: type[NoiseModel] | str = "{DIR}.noise_model:NoiseModel"
     """The class type of the noise model."""
@@ -86,9 +80,7 @@ class NoiseModelCfg:
     """Function or callable class used by this noise model.
 
     The function must take a single `torch.Tensor` (the batch of observations) as input
-    and return a `torch.Tensor` of the same shape with noise applied. It must not modify
-    its input, including through a view. Use out-of-place operations or clone the input
-    before modifying it; callers do not provide a defensive copy.
+    and return a `torch.Tensor` of the same shape with noise applied.
 
     It also supports `callable classes <https://docs.python.org/3/reference/datamodel.html#object.__call__>`_,
     i.e. classes that implement the ``__call__()`` method. In this case, the class should inherit from the
