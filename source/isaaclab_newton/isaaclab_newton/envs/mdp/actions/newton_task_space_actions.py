@@ -107,11 +107,14 @@ class _NewtonTaskSpaceAction(ActionTerm):
         self._jacobian_b[:, :3] = torch.bmm(root_rot, jacobian_w[:, :3])
         self._jacobian_b[:, 3:] = torch.bmm(root_rot, jacobian_w[:, 3:])
         if self._offset_pos is not None:
-            # v_ee = v_link + w_link x r_link_ee, then rotate into the target frame
-            self._jacobian_b[:, :3] += torch.bmm(
-                -math_utils.skew_symmetric_matrix(self._offset_pos), self._jacobian_b[:, 3:]
+            # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
+            body_quat_b = math_utils.quat_mul(
+                math_utils.quat_inv(data.root_quat_w.torch), data.body_quat_w.torch[:, self._body_idx]
             )
-            self._jacobian_b[:, 3:] = torch.bmm(math_utils.matrix_from_quat(self._offset_rot), self._jacobian_b[:, 3:])
+            offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
+            self._jacobian_b[:, :3] += torch.bmm(
+                -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:]
+            )
         return self._jacobian_b
 
 
