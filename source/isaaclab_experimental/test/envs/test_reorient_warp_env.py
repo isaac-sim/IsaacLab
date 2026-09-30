@@ -27,7 +27,8 @@ from isaaclab_tasks.utils import resolve_task_config
 
 pytestmark = pytest.mark.skipif(not torch.cuda.is_available(), reason="The Warp twins capture CUDA graphs.")
 
-_TASKS = ["Isaac-Reorient-Cube-Allegro-Direct"]
+_SHADOW_TASK = "Isaac-Reorient-Cube-Shadow-Direct"
+_TASKS = ["Isaac-Reorient-Cube-Allegro-Direct", _SHADOW_TASK]
 
 
 @pytest.fixture(scope="module", params=_TASKS)
@@ -107,3 +108,52 @@ def test_observations_and_rewards_match_stable_task(env):
         torch.testing.assert_close(reward[untouched], expected[untouched], rtol=1e-4, atol=1e-4)
         num_compared += int(untouched.sum())
     assert num_compared > 0
+
+
+@pytest.mark.parametrize("env", [_SHADOW_TASK], indirect=True)
+def test_tendon_actions_curl_the_coupled_finger_joints(env):
+    """The tendon action columns drive the middle and distal finger joints, step after step.
+
+    Every finger is first opened, then half of the environments curl theirs; a tendon command
+    that never reached the solver, or reached it only once, leaves both halves open.
+    """
+    env.reset()
+    coupled_joints, _ = env.hand.find_joints("rh_(FF|MF|RF|LF)J[12]")
+    num_joint_actions = len(env.cfg.actuated_joint_names)
+    curling = torch.arange(env.num_envs, device=env.device) < env.num_envs // 2
+    actions = torch.zeros((env.num_envs, env.cfg.action_space), device=env.device)
+    actions[:, num_joint_actions:] = -1.0
+    for _ in range(10):
+        env.step(actions)
+    actions[curling, num_joint_actions:] = 1.0
+    was_reset = torch.zeros_like(curling)
+    for _ in range(30):
+        _, _, terminated, truncated, _ = env.step(actions)
+        was_reset |= terminated | truncated
+
+    curl = env.hand.data.joint_pos.torch[:, coupled_joints].sum(dim=-1)
+    assert (curl[curling & ~was_reset].min() - curl[~curling & ~was_reset].max()) > 1.0
+
+
+@pytest.mark.parametrize("env", [_SHADOW_TASK], indirect=True)
+def test_assigned_episode_lengths_time_out_only_their_envs(env):
+    """An episode-length buffer assigned from outside, as RSL-RL does, times out only the envs it ends.
+
+    The masked reset restarts those episodes and resamples their goals, leaving the others' alone.
+    """
+    env.reset()
+    episode_lengths = torch.zeros_like(env.episode_length_buf)
+    episode_lengths[0] = env.max_episode_length - 2
+    env.episode_length_buf = episode_lengths
+    goal_rot = wp.to_torch(env.goal_rot).clone()
+
+    _, _, terminated, truncated, _ = env.step(torch.zeros((env.num_envs, env.cfg.action_space), device=env.device))
+
+    assert truncated[0] and not truncated[1:].any()
+    continuing = ~(terminated | truncated)
+    assert env.episode_length_buf[0] == 0
+    assert (env.episode_length_buf[continuing] == 1).all()
+    new_goal_rot = wp.to_torch(env.goal_rot)
+    assert not torch.equal(new_goal_rot[0], goal_rot[0])
+    unreached = continuing & ~wp.to_torch(env.goal_reached)
+    torch.testing.assert_close(new_goal_rot[unreached], goal_rot[unreached])
