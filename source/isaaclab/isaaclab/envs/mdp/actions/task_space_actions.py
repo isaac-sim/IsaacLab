@@ -212,7 +212,6 @@ class DifferentialInverseKinematicsAction(ActionTerm):
         # compute the delta in joint-space
         jacobian = self._compute_frame_jacobian()
         joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
-        # hold the joints while the frame pose is uninitialized (all-zero quaternions), without a host sync
         joint_pos_des = torch.where(ee_quat_curr.norm() != 0, joint_pos_des, joint_pos)
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)

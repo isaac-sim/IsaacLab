@@ -57,7 +57,6 @@ class LocomotionDirectEnv(DirectRLEnv):
         # resolve against the sensor's own body list: its ordering is backend-specific and does not
         # necessarily match the articulation's body ordering
         feet_body_idx, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
-        # device indices: indexing a CUDA tensor with a host list uploads it on every call
         self._feet_body_idx = torch.tensor(feet_body_idx, dtype=torch.long, device=self.device)
 
         # walk target, placed far enough away that the robot never reaches it
@@ -170,7 +169,6 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         # log survival success rate before resetting (survived = timed out without falling)
         survived = self.reset_time_outs[env_ids].float()
-        # 0-dim device tensor: no host sync on reset
         self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
 
         super()._reset_idx(env_ids)

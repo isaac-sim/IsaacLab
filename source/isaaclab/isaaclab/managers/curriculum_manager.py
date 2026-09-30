@@ -102,7 +102,6 @@ class CurriculumManager(ManagerBase):
             Dictionary of curriculum terms and their states.
         """
         extras = {}
-        # tensors are snapshotted on device: a host read would synchronize, and terms may update state in place
         for term_name, term_state in self._curriculum_state.items():
             if term_state is not None:
                 # deal with dict

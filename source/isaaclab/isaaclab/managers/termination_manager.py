@@ -140,7 +140,6 @@ class TerminationManager(ManagerBase):
             env_ids = slice(None)
         # add to episode dict
         extras = {}
-        # log device scalars; a host read would synchronize the stream
         last_episode_done_stats = self._last_episode_dones.float().mean(dim=0)
         for i, key in enumerate(self._term_names):
             # store information

@@ -41,7 +41,6 @@ class EpisodeErrorRecorder:
         """
         self.minimum_error = torch.full((num_envs,), torch.inf, device=device)
         self._has_sample = torch.zeros(num_envs, dtype=torch.bool, device=device)
-        # host-side flag: before the first update no episode has a sample, known without a device read
         self._updated = False
 
     def update(self, error: torch.Tensor) -> None:
@@ -80,7 +79,6 @@ class EpisodeErrorRecorder:
             env_ids = slice(None)
         statistics = {}
         if self._updated:
-            # NaN marks environments without a sample; the nan-reductions skip them without a host sync
             values = torch.where(self._has_sample[env_ids], self.minimum_error[env_ids], torch.nan)
             statistics = {
                 "mean": values.nanmean(),

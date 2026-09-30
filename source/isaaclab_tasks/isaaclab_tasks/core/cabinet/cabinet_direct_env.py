@@ -31,7 +31,6 @@ class CabinetDirectEnv(DirectRLEnv):
         self._robot, self._cabinet = self.scene["robot"], self.scene["cabinet"]
         arm_joint_ids, _ = self._robot.find_joints(self.cfg.arm_joint_names)
         finger_joint_ids, _ = self._robot.find_joints(self.cfg.finger_joint_names)
-        # device indices: indexing a CUDA tensor with a host list uploads it on every call
         self.arm_joint_ids = torch.tensor(arm_joint_ids, dtype=torch.long, device=self.device)
         self.finger_joint_ids = torch.tensor(finger_joint_ids, dtype=torch.long, device=self.device)
         self.ee_body_idx = self._robot.find_bodies(self.cfg.ee_body_name)[0][0]
@@ -210,7 +209,6 @@ class CabinetDirectEnv(DirectRLEnv):
             env_ids = torch.arange(self.num_envs, device=self.device)
 
         log = self.extras.setdefault("log", {})
-        # 0-dim device tensors: no host sync on reset
         log["Metrics/success_rate"] = self._episode_succeeded[env_ids].float().mean()
         log["Metrics/drawer_pos"] = self._best_drawer_pos[env_ids].mean()
         for name, episode_sum in self._episode_reward_sums.items():

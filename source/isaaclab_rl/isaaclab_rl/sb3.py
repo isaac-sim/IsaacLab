@@ -252,7 +252,6 @@ class Sb3VecEnvWrapper(VecEnv):
         rewards = rew.detach().cpu().numpy()
         terminated = terminated.detach().cpu().numpy()
         truncated = truncated.detach().cpu().numpy()
-        # compute reset ids on the host copies, which saves a device-to-host transfer
         dones = terminated | truncated
 
         reset_ids = dones.nonzero()[0]

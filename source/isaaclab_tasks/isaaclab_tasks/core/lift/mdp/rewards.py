@@ -403,7 +403,6 @@ class _GoalDistanceReward(ManagerTermBase):
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         if env_ids is None:
             env_ids = slice(None)
-        # 0-dim device tensor: no host sync on reset
         self._env.extras.setdefault("log", {})["Metrics/success_rate"] = self._succeeded[env_ids].float().mean()
         index_fill_(self._succeeded, env_ids, False)
 

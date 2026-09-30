@@ -181,7 +181,6 @@ class UniformVelocityCommand(CommandTerm):
         """
         # Compute angular velocity from heading direction
         if self.cfg.heading_command:
-            # compute angular velocity for all envs, then select heading envs without a host sync
             heading_error = math_utils.wrap_to_pi(self.heading_target - self.robot.data.heading_w.torch)
             heading_ang_vel = torch.clip(
                 self.cfg.heading_control_stiffness * heading_error,

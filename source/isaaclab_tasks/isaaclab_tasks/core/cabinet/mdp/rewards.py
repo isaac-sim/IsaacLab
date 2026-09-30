@@ -155,7 +155,6 @@ class open_drawer_bonus(ManagerTermBase):
 
     def reset(self, env_ids: torch.Tensor):
         log = self._env.extras.setdefault("log", {})
-        # 0-dim device tensors: no host sync on reset
         log["Metrics/success_rate"] = self.succeeded[env_ids].float().mean()
         log["Metrics/drawer_pos"] = self.best_drawer_pos[env_ids].mean()
         index_fill_(self.succeeded, env_ids, False)

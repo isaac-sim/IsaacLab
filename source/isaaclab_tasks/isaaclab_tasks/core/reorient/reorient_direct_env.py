@@ -50,7 +50,6 @@ class ReorientDirectEnv(DirectRLEnv):
             raise ValueError(
                 f"Expected {len(cfg.actuated_joint_names)} actuated joints, found {len(actuated_dof_indices)}."
             )
-        # device indices: indexing a CUDA tensor with a host list uploads it on every call
         self.actuated_dof_indices = torch.tensor(actuated_dof_indices, dtype=torch.long, device=self.device)
         # a slice avoids the gather/scatter when every joint is actuated (``find_joints`` returns sorted ids)
         all_actuated = actuated_dof_indices == list(range(self.num_hand_dofs))
@@ -234,7 +233,6 @@ class ReorientDirectEnv(DirectRLEnv):
         # Per-attempt success rate, matching the manager workflow's metric of the same
         # name: reaching a goal draws a replacement, so exactly one goal is outstanding
         # when the episode ends and it presented ``successes + 1``.
-        # 0-dim device tensor: avoids a host sync here; consumers read it at logging cadence
         goals = self.successes[env_ids]
         self.extras.setdefault("log", {})["Metrics/success_rate"] = (goals / (goals + 1.0)).mean()
         for statistic, value in self._orientation_error.reset(env_ids).items():
