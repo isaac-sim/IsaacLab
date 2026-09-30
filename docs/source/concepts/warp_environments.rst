@@ -9,8 +9,10 @@ Warp Experimental Environments
    ``isaaclab_tasks_experimental``. It's an experimental feature.
 
 The experimental extensions introduce **warp-first** environment infrastructure with CUDA graph capture
-support. All environment-side computation (observations, rewards, resets, actions) runs as pure Warp
-kernels, eliminating Python overhead and enabling CUDA graph capture for maximum throughput.
+support. ``--frontend warp`` runs stable task configurations on Warp managers with Newton physics: MDP
+terms (observations, rewards, terminations, events, commands, actions) run as Warp kernels, and the
+capturable terms of each manager stage are recorded into CUDA graphs. Scene writes, actuator models, the
+stable curriculum and recorder managers, and terms marked non-capturable still run eagerly.
 
 Throughout this page, **stable** refers to the standard Torch-based implementations in the
 ``isaaclab`` and ``isaaclab_tasks`` packages (the default runtime, used when ``--frontend warp``
@@ -68,6 +70,11 @@ MDP term for its warp twin). Select the Newton solver explicitly with
 - ``Isaac-Velocity-Flat-G1``
 - ``Isaac-Velocity-Flat-H1``
 - ``Isaac-Velocity-Flat-UnitreeGo2``
+- ``Isaac-Velocity-Rough-AnymalD``
+- ``Isaac-Velocity-Rough-Cassie``
+- ``Isaac-Velocity-Rough-G1``
+- ``Isaac-Velocity-Rough-H1``
+- ``Isaac-Velocity-Rough-UnitreeGo2``
 
 The following contributed tasks also have full twin coverage:
 
@@ -75,12 +82,16 @@ The following contributed tasks also have full twin coverage:
 - ``IsaacContrib-Velocity-Flat-AnymalC``
 - ``IsaacContrib-Velocity-Flat-UnitreeA1``
 - ``IsaacContrib-Velocity-Flat-UnitreeGo1``
+- ``IsaacContrib-Velocity-Rough-AnymalB``
+- ``IsaacContrib-Velocity-Rough-AnymalC``
+- ``IsaacContrib-Velocity-Rough-UnitreeA1``
+- ``IsaacContrib-Velocity-Rough-UnitreeGo1``
 
 A missing twin is a hard error listing the affected terms, so a partially
 covered task fails at build time rather than silently changing behavior.
-Rough-terrain velocity configurations that use ``height_scan`` cannot currently be
-adapted: that observation term has no Warp twin. Check the terms used by a task rather
-than assuming that every terrain configuration has the same limitation.
+The Rough tasks keep the stable terrain curriculum. Their ``height_scan``
+observation, and ``base_height_l2`` when it reads the height scanner, read a ray
+caster whose refresh is decided on the host, so these terms run eagerly.
 
 
 Quick Start
@@ -255,6 +266,11 @@ specific to warp envs; for Newton physics maturity and specialist guides see
 - Some scene-side operations (asset write, actuator models, certain sensor types) still go
   through torch. They participate in the step but are not yet captured into the graph; they
   set the lower bound on observed step time.
+- A term marked ``@WarpCapturable(False)``, or rejected by its parameter predicate, runs eagerly
+  between the recorded runs of its stage. Observation and event terms, which draw from the shared
+  per-environment random state, and action terms keep their configured order, so an eager term there
+  splits the stage into several graphs. A non-capturable command term keeps the whole command stage
+  eager.
 - Sensors that depend on the Kit RTX renderer (camera-based observations) cannot be combined
   with the warp env path — they need Kit, which the warp runtime does not initialise.
 
