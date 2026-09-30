@@ -823,6 +823,7 @@ class _RecordingRenderVar:
 
     def __init__(self):
         self.ordering: list[str] = []
+        self.release_stream = None
 
     def map(self, *, device, sync_stream):
         if sync_stream:
@@ -836,15 +837,22 @@ class _RecordingRenderVar:
             def wait_on(self, stream):
                 recorder.ordering.append("gpu")
 
+            def unmap(self, *, stream):
+                recorder.ordering.append("release")
+                recorder.release_stream = stream
+
         return contextlib.nullcontext(_Mapping())
 
 
 @pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
-def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypatch, gpu_side, expected):
-    """The read is ordered exactly once -- by a GPU-side barrier or a host block, never by neither.
+@pytest.mark.parametrize("consumer_fails", [False, True])
+@pytest.mark.parametrize("cuda_stream", [0, 99])
+def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
+    monkeypatch, gpu_side, expected, consumer_fails, cuda_stream
+):
+    """Order producer completion before reading and buffer release after consumption.
 
-    Ordering by neither is a silent race on half-written render output rather than a failure, so
-    this asserts which mechanism ran and not which API call carries it.
+    Both stream kinds must use OVRTX's encoding, including when extraction raises after queuing work.
     """
     sentinel = object()
     render_var = _RecordingRenderVar()
@@ -853,11 +861,16 @@ def test_ovrtx_map_render_var_orders_the_read_against_render_completion(monkeypa
 
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._device = "cuda:0"
-    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=99))
-    with renderer._map_render_var_to_dlpack(render_var) as array:
-        assert array is sentinel
+    renderer._warp_device = types.SimpleNamespace(stream=types.SimpleNamespace(cuda_stream=cuda_stream))
+    with pytest.raises(ValueError, match="consumer failed") if consumer_fails else contextlib.nullcontext():
+        with renderer._map_render_var_to_dlpack(render_var) as array:
+            assert array is sentinel
+            render_var.ordering.append("consumer")
+            if consumer_fails:
+                raise ValueError("consumer failed")
 
-    assert render_var.ordering == [expected]
+    assert render_var.ordering == [expected, "consumer", "release"]
+    assert render_var.release_stream == (1 if cuda_stream == 0 else cuda_stream)
 
 
 @pytest.mark.parametrize(

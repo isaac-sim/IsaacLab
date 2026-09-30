@@ -1044,7 +1044,7 @@ class OVRTXRenderer(BaseRenderer):
         entirely means ``1``, not ``0``.
 
         The yielded array is a zero-copy view of the mapped memory and is only valid inside the
-        ``with`` block -- the mapping is released on exit.
+        ``with`` block. Release is ordered after consuming kernels on the current Warp stream.
 
         Args:
             render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
@@ -1053,11 +1053,18 @@ class OVRTXRenderer(BaseRenderer):
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        sync_stream = self._warp_device.stream.cuda_stream if gpu_side_sync else 0
+        # Warp/Torch use 0 for the default CUDA stream; OVRTX uses 1 (0 disables ordering).
+        consumer_stream = self._warp_device.stream.cuda_stream or 1
+        sync_stream = consumer_stream if gpu_side_sync else 0
         with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
-            if not gpu_side_sync:
-                mapping.wait()
-            yield wp.from_dlpack(mapping)
+            try:
+                if not gpu_side_sync:
+                    mapping.wait()
+                yield wp.from_dlpack(mapping)
+            finally:
+                # Extraction is asynchronous. Keep the native buffer alive until those reads finish,
+                # including when a consumer raises after queuing work. The first unmap call wins.
+                mapping.unmap(stream=consumer_stream)
 
     def _process_id_segmentation_render_var(
         self,
