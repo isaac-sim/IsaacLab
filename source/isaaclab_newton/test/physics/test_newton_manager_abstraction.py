@@ -1370,6 +1370,37 @@ def test_collision_decimation_invokes_mid_loop_collide(num_substeps, collision_d
         assert calls["n"] == 1 + expected_mid_loop_collides
 
 
+def test_record_step_requires_a_prepared_graph_safe_program():
+    """Recording into an outer capture neither compiles nor records operations that cannot be captured."""
+    events = []
+    eager = StepStage(lambda: events.append("eager"), StepPhase.CONTROL, graph_safe=False)
+    runtime = _recording_runtime(events, single_state=True, num_substeps=1, stages=[eager])
+
+    with pytest.raises(RuntimeError, match="Prepare the Newton step program"):
+        runtime_module.record_step(runtime, steps=1)
+
+    runtime_module.prepare(runtime, steps=1)
+    with pytest.raises(RuntimeError, match="not graph-safe"):
+        runtime_module.record_step(runtime, steps=1)
+
+
+def test_record_step_always_records_the_masked_reconcile():
+    """Each replay applies state authored since the previous one, even when nothing was dirty while recording."""
+    events = []
+    runtime = _recording_runtime(events, single_state=True, num_substeps=1)
+    runtime.world_mask = wp.zeros(2, dtype=wp.bool, device="cpu")
+    runtime.fk_mask = wp.zeros(1, dtype=wp.bool, device="cpu")
+    runtime.solver.reset = lambda state, worlds: events.append("reset")
+    runtime.solver.eval_fk = lambda state, worlds, articulations: events.append("fk")
+    runtime.schema.device = "cpu"
+    runtime_module.prepare(runtime, steps=1)
+
+    runtime_module.record_step(runtime, steps=1)
+
+    assert events[:2] == ["reset", "fk"]
+    assert ("step", "state_0", "state_0") in events
+
+
 class _State:
     """Named state stand-in that records force clearing."""
 

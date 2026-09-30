@@ -688,15 +688,18 @@ def _identity_rows(runtime: NewtonRuntime) -> wp.array:
     return rows
 
 
-def reconcile(runtime: NewtonRuntime) -> None:
+def reconcile(runtime: NewtonRuntime, *, force: bool = False) -> None:
     """Reset solver internals and run FK for the flagged worlds, then clear the flags.
 
-    Runs only when state was authored since the last boundary, or when an outer graph replay may have authored it.
+    Runs only when state was authored since the last boundary, when an outer graph replay may have authored it, or
+    when forced. The work is masked, so forcing it costs a few kernel launches and changes nothing unflagged.
 
     Args:
         runtime: Runtime to reconcile.
+        force: Launch the masked reconcile even without known authored state, e.g. while recording a graph whose
+            replays follow writes made outside it.
     """
-    if not (runtime.kinematics_dirty or runtime.transforms_may_change_on_graph_replay):
+    if not (force or runtime.kinematics_dirty or runtime.transforms_may_change_on_graph_replay):
         return
     solver = runtime.solver
     if solver is None:
@@ -1027,6 +1030,37 @@ def prepare(
         program = runtime.program = compile_program(runtime, steps)
         if capture is not None and runtime.solver.supports_graph_capture:
             program.capture(capture)
+    return program
+
+
+def record_step(runtime: NewtonRuntime, steps: int) -> StepProgram:
+    """Record ``steps`` physics steps into the caller's active CUDA graph capture.
+
+    The caller owns the capture of a larger graph, such as a whole environment step. The program must be prepared
+    before capture (see :func:`prepare`) so that recording allocates nothing, and every operation must be
+    graph-safe. The masked reconcile is always recorded, so each replay applies state authored since the previous
+    replay, whether inside or outside the graph.
+
+    Args:
+        runtime: Runtime with a bound solver.
+        steps: Physics steps to record.
+
+    Returns:
+        The recorded program.
+
+    Raises:
+        RuntimeError: If no program for ``steps`` was prepared, or it contains operations that cannot be recorded.
+    """
+    program = runtime.program
+    if program is None or program.steps != steps:
+        raise RuntimeError(
+            "Prepare the Newton step program before recording it into an outer CUDA graph (NewtonManager.prepare())."
+        )
+    program.require_graph_safe()
+    apply_model_changes(runtime)
+    reconcile(runtime, force=True)
+    with wp.ScopedDevice(runtime.schema.device):
+        program.record()
     return program
 
 

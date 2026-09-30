@@ -396,15 +396,26 @@ class NewtonManager(PhysicsManager):
     def step(cls) -> None:
         """Advance physics through the compiled step program.
 
-        The program covers the whole decimation loop when Newton actuators are active (see :meth:`handles_decimation`)
-        and one physics step otherwise. It is compiled, and captured on CUDA, on the first step after any change to
-        its structure, once authored state is reconciled. Capture does not advance physics.
+        The program covers the whole decimation loop when the manager owns it (see :meth:`handles_decimation`) and one
+        physics step otherwise. It is compiled, and captured on CUDA, on the first step after any change to its
+        structure, once authored state is reconciled. Capture does not advance physics.
+
+        Called while a caller records a CUDA graph on the simulation device (for example a whole environment step,
+        MDP included), the step records its operations into that graph instead of capturing its own. Call
+        :meth:`prepare` before such a capture. Host bookkeeping (simulation time, model-change notification) then
+        runs once, when the graph is recorded.
         """
         sim = PhysicsManager._sim
         if sim is None or not sim.is_playing():
             return
         runtime = NewtonManager._runtime
         steps = NewtonManager._decimation if cls.handles_decimation() else 1
+        if cls._recording_outer_capture():
+            # A caller records a larger graph, such as a whole environment step; record into it.
+            program = newton_runtime.record_step(runtime, steps)
+            PhysicsManager._sim_time += runtime.schema.physics_dt * program.steps
+            cls._mark_transforms_changed()
+            return
         capture = cls._capture_graph if cls._uses_cuda_graph() else None
         program = newton_runtime.step(runtime, steps, capture)
         PhysicsManager._sim_time += runtime.schema.physics_dt * program.steps
@@ -417,7 +428,8 @@ class NewtonManager(PhysicsManager):
     def prepare(cls) -> None:
         """Compile and capture the step program ahead of the next step, without advancing physics.
 
-        Authored state is reconciled first, so capture sees the state the next step starts from.
+        Authored state is reconciled first, so capture sees the state the next step starts from. Call this before a
+        caller records :meth:`step` into its own CUDA graph, so recording allocates nothing.
         """
         runtime = NewtonManager._runtime
         newton_runtime.apply_model_changes(runtime)
@@ -830,6 +842,12 @@ class NewtonManager(PhysicsManager):
         as Isaac Lab actuator models.
         """
         NewtonManager._runtime.host_physics_steps = True
+
+    @classmethod
+    def _recording_outer_capture(cls) -> bool:
+        """Whether a caller is recording a CUDA graph on the simulation device."""
+        device = PhysicsManager._device
+        return device is not None and "cuda" in device and wp.get_device(device).is_capturing
 
     @classmethod
     def _uses_cuda_graph(cls) -> bool:

@@ -12,11 +12,13 @@ launch_test_simulation()
 import gymnasium as gym
 import pytest
 import torch
+import warp as wp
 from isaaclab_newton.envs.mdp.actions.newton_task_space_actions import NewtonOperationalSpaceControllerAction
 
 import isaaclab.sim as sim_utils
 
 import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.newton_step_program.captured_cartpole import CapturedCartpole
 from isaaclab_tasks.utils.hydra import resolve_presets
 from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 
@@ -66,3 +68,50 @@ def test_newton_osc_in_step_program_matches_host_controller(monkeypatch: pytest.
     # The arm moves toward the targets, so the comparison is not between two resting trajectories.
     assert (on_host[-1] - on_host[0]).abs().max() > 0.05
     torch.testing.assert_close(in_program, on_host, atol=1e-4, rtol=0.0)
+
+
+def _rollout_cartpole(actions: list[torch.Tensor], captured: bool) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Step the Warp cart-pole MDP eagerly or as one captured environment-step graph."""
+    sim_utils.create_new_stage()
+    env_cfg = resolve_presets(
+        load_cfg_from_registry("Isaac-Cartpole", "env_cfg_entry_point"), selected=("newton_mjwarp",)
+    )
+    env_cfg.sim.device = "cuda:0"
+    env_cfg.scene.num_envs = 64
+    # Short episodes guarantee partial resets inside the rollout.
+    env_cfg.episode_length_s = 0.25
+    env_cfg.seed = 3
+    env = gym.make("Isaac-Cartpole", cfg=env_cfg)
+    try:
+        env.unwrapped.sim._app_control_on_stop_handle = None
+        env.reset()
+        mdp = CapturedCartpole(env.unwrapped)
+        if captured:
+            mdp.capture()
+        obs, reward, done = [], [], []
+        for action in actions:
+            wp.copy(mdp.actions, wp.from_torch(action))
+            mdp.replay() if captured else mdp.step()
+            obs.append(wp.to_torch(mdp.obs).clone())
+            reward.append(wp.to_torch(mdp.reward).clone())
+            done.append(wp.to_torch(mdp.truncated).clone() | wp.to_torch(mdp.terminated))
+        return torch.stack(obs), torch.stack(reward), torch.stack(done)
+    finally:
+        env.close()
+
+
+def test_whole_environment_step_captures_with_newton_physics():
+    """An environment step with MDP stages, partial resets, and the Newton step program replays as one graph.
+
+    The captured step records the physics program into the caller's graph and must reproduce eager stepping,
+    including worlds reset inside the graph.
+    """
+    generator = torch.Generator(device="cuda:0").manual_seed(0)
+    actions = [2 * torch.rand(64, 1, device="cuda:0", generator=generator) - 1 for _ in range(60)]
+    eager = _rollout_cartpole(actions, captured=False)
+    captured = _rollout_cartpole(actions, captured=True)
+
+    # Episodes last 15 steps, so every world resets several times.
+    assert int(eager[2].sum()) >= 3 * 64
+    for eager_values, captured_values in zip(eager, captured):
+        torch.testing.assert_close(captured_values, eager_values, atol=1e-5, rtol=0.0)

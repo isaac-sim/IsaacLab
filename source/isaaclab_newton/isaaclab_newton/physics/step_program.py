@@ -116,6 +116,27 @@ class StepProgram:
             capture(lambda ops=ops: run_ops(ops)) if graph_safe else None for graph_safe, ops in self.segments
         )
 
+    def require_graph_safe(self) -> None:
+        """Raise unless every operation can be recorded into a CUDA graph.
+
+        Raises:
+            RuntimeError: Naming the operations that cannot be recorded.
+        """
+        if not self.graph_safe:
+            eager = sorted({op.name for op in self.ops if not op.graph_safe})
+            raise RuntimeError(
+                f"The Newton step program cannot be recorded into an outer CUDA graph: {eager} are not graph-safe."
+            )
+
+    def record(self) -> None:
+        """Launch every operation in order, ignoring captured graphs, so a caller's capture records them.
+
+        Raises:
+            RuntimeError: If an operation cannot be recorded into a CUDA graph.
+        """
+        self.require_graph_safe()
+        run_ops(self.ops)
+
     def run(self) -> None:
         """Advance physics by :attr:`steps` physics steps."""
         if self._graphs is None:
