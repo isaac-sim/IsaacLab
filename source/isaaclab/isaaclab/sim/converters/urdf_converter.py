@@ -10,8 +10,7 @@ import os
 import pathlib
 import warnings
 
-from isaaclab.utils.version import has_kit
-
+from ...utils.version import has_kit
 from .asset_converter_base import AssetConverterBase
 from .urdf_converter_cfg import UrdfConverterCfg
 
@@ -82,7 +81,7 @@ class UrdfConverter(AssetConverterBase):
         # Inside Kit the importer ships as an extension and must be enabled before it can be
         # imported; kitlessly the same module resolves from the standalone importer wheel.
         if has_kit():
-            from isaaclab.sim.utils import enable_extension  # noqa: PLC0415
+            from ..utils import enable_extension  # noqa: PLC0415
 
             enable_extension("isaacsim.asset.importer.urdf")
         from isaacsim.asset.importer.urdf import URDFImporter, URDFImporterConfig  # noqa: PLC0415

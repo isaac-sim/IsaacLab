@@ -20,29 +20,27 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
 
 from isaaclab_tasks.utils import PresetCfg
 
 from ... import mdp
-from .franka_soft_env_cfg import (
-    FRANKA_CAMERA_CFG,
-    TABLE_SPAWN_CFG,
-    FrankaCameraObservationsCfg,
-    FrankaSoftEnvCfg,
-    _FrankaSoftSceneCfg,
-)
-from .franka_soft_env_cfg import EventCfg as FrankaSoftEventCfg
+from . import franka_soft_env_cfg as soft
 
 _CABLE_SEGMENT_COUNT = 12
 _CABLE_MIDDLE_SEGMENT_INDEX = _CABLE_SEGMENT_COUNT // 2
 
 
+##
+# Physics backend presets
+##
+
+
 @configclass
 class PhysicsCfg(PresetCfg):
-    """Newton proxy physics for rigid-cable coupling."""
+    """Physics backend presets for the cable environment: Newton proxy physics for rigid-cable coupling."""
 
     newton_mjwarp_vbd_proxy: NewtonCfg = NewtonCfg(
         solver_cfg=CouplerProxyCfg(
@@ -51,7 +49,7 @@ class PhysicsCfg(PresetCfg):
                     name="rigid",
                     solver_cfg=MJWarpSolverCfg(
                         cone="elliptic",
-                        ls_iterations=20,
+                        ls_iterations=50,
                         integrator="implicitfast",
                     ),
                     bodies=[r"/World/envs/env_.*/Robot"],
@@ -87,8 +85,13 @@ class PhysicsCfg(PresetCfg):
     default = newton_mjwarp_vbd_proxy
 
 
+##
+# Scene definition
+##
+
+
 @configclass
-class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
+class FrankaCableSceneCfg(soft.FrankaSoftBaseSceneCfg):
     """Scene for the Franka cable lifting environment."""
 
     deformable: None = None
@@ -96,8 +99,8 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
     table: AssetBaseCfg = AssetBaseCfg(
         prim_path="{ENV_REGEX_NS}/Table",
         init_state=AssetBaseCfg.InitialStateCfg(pos=[0.5, 0.0, -0.525]),
-        spawn=TABLE_SPAWN_CFG.replace(
-            physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01),
+        spawn=replace(
+            soft.TABLE_SPAWN_CFG, physics_material=RigidBodyMaterialBaseCfg(static_friction=0.01, dynamic_friction=0.01)
         ),
     )
 
@@ -112,7 +115,7 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
                 stretch_stiffness=1.0e6,
                 bend_stiffness=1.0e5,
             ),
-            collision_props=[sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True)],
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(collision_enabled=True),
         ),
         init_state=CableObjectCfg.InitialStateCfg(pos=(0.32, 0.0, 0.011)),
     )
@@ -122,12 +125,17 @@ class FrankaCableSceneCfg(_FrankaSoftSceneCfg):
 class FrankaCableCameraSceneCfg(FrankaCableSceneCfg):
     """Franka cable scene with a base camera."""
 
-    base_camera: CameraCfg = FRANKA_CAMERA_CFG
+    base_camera: CameraCfg = soft.FRANKA_CAMERA_CFG
+
+
+##
+# MDP settings
+##
 
 
 @configclass
 class CommandsCfg:
-    """Goal position for cable segment 6 in the robot root frame."""
+    """Goal position of the middle cable segment in the robot root frame."""
 
     cable_pose = mdp.CableUniformPoseCommandCfg(
         asset_name="robot",
@@ -147,11 +155,15 @@ class CommandsCfg:
         success_visualizer_cfg=VisualizationMarkersCfg(
             prim_path="/Visuals/SuccessMarkers",
             markers={
-                "failure": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)), visible=True
+                "failure": replace(
+                    soft.TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.8, 0.5, 0.5)),
+                    visible=True,
                 ),
-                "success": TABLE_SPAWN_CFG.replace(
-                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)), visible=True
+                "success": replace(
+                    soft.TABLE_SPAWN_CFG,
+                    visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.5, 0.8, 0.5)),
+                    visible=True,
                 ),
             },
         ),
@@ -164,6 +176,8 @@ class ObservationsCfg:
 
     @configclass
     class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
         joint_pos = ObsTerm(func=mdp.joint_pos_rel)
         joint_vel = ObsTerm(func=mdp.joint_vel_rel)
         cable_segment_positions = ObsTerm(
@@ -173,7 +187,7 @@ class ObservationsCfg:
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
         actions = ObsTerm(func=mdp.last_action)
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -181,21 +195,25 @@ class ObservationsCfg:
 
 
 @configclass
-class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
+class FrankaCableCameraObservationsCfg(soft.FrankaCameraObservationsCfg):
     """Observation groups for visual cable lifting."""
 
     @configclass
-    class PolicyCfg(FrankaCameraObservationsCfg.PolicyCfg):
+    class PolicyCfg(soft.FrankaCameraObservationsCfg.PolicyCfg):
+        """Observations for policy group."""
+
         target_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "cable_pose"})
 
     @configclass
     class PerceptionCfg(ObsGroup):
+        """Observations for perception group."""
+
         cable_segment_positions = ObsTerm(
             func=mdp.cable_segment_positions_in_robot_root_frame,
             params={"asset_cfg": SceneEntityCfg("cable")},
         )
 
-        def __post_init__(self) -> None:
+        def __post_init__(self):
             self.enable_corruption = True
             self.concatenate_terms = True
 
@@ -204,13 +222,13 @@ class FrankaCableCameraObservationsCfg(FrankaCameraObservationsCfg):
 
 
 @configclass
-class EventCfg(FrankaSoftEventCfg):
+class EventCfg(soft.EventCfg):
     """Reset events for the Franka cable environment."""
 
     reset_deformable: EventTerm | None = None
 
     reset_cable = EventTerm(
-        func="isaaclab_tasks.core.lift.mdp.events:reset_cable_state_uniform",
+        func=mdp.reset_cable_state_uniform,
         mode="reset",
         params={
             "position_range": {"x": (-0.15, 0.1), "y": (-0.2, 0.2), "z": (0.0, 0.0)},
@@ -295,8 +313,13 @@ class TerminationsCfg:
     )
 
 
+##
+# Environment configuration
+##
+
+
 @configclass
-class FrankaCableEnvCfg(FrankaSoftEnvCfg):
+class FrankaCableEnvCfg(soft.FrankaSoftEnvCfg):
     """Manager-based RL environment for lifting a 12-segment cable."""
 
     scene: FrankaCableSceneCfg = FrankaCableSceneCfg(num_envs=8192, env_spacing=2.0, replicate_physics=True)
@@ -306,10 +329,10 @@ class FrankaCableEnvCfg(FrankaSoftEnvCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         super().__post_init__()
         self.sim.physics = PhysicsCfg()
-        # Close the gripper on the thin cable; the shared beam default only closes to 0.01 m.
+        # fully close the gripper on the thin cable; the shared beam default only closes to 0.01 m
         self.actions.ik.gripper_action.close_command_expr = {"panda_finger_joint1": 0.0}
 
 
@@ -320,6 +343,6 @@ class FrankaCableCameraEnvCfg(FrankaCableEnvCfg):
     scene: FrankaCableCameraSceneCfg = FrankaCableCameraSceneCfg(num_envs=128, env_spacing=2.0, replicate_physics=True)
     observations: FrankaCableCameraObservationsCfg = FrankaCableCameraObservationsCfg()
 
-    def __post_init__(self) -> None:
+    def __post_init__(self):
         super().__post_init__()
         self.num_rerenders_on_reset = 2
