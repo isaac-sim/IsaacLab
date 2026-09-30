@@ -5,7 +5,6 @@
 
 """Configuration for the Franka lift environment."""
 
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
 from isaaclab.managers import CurriculumTermCfg as CurrTerm
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -28,11 +27,9 @@ FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_FLAT_CFG)
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # inspired by libfranka's joint_impedance_control.cpp; ``actuator_velocity_limit`` is the soft task
     # limit and ``joint_velocity_limit`` the separate solver request
-    "panda_arm": ImplicitActuatorCfg(
-        joint_names_expr=["panda_joint[1-7]"],
-        joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+    "panda_arm": replace(
+        FRANKA_PANDA_FLAT_CFG.actuators["panda_arm"],
         actuator_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
-        joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
         stiffness={
             "panda_joint[1-4]": 600.0,
             "panda_joint5": 250.0,
@@ -45,31 +42,26 @@ FRANKA_PANDA_LIFT_CFG.actuators = {
             "panda_joint6": 25.0,
             "panda_joint7": 15.0,
         },
-        viscous_friction=0.0,
         armature={
             "panda_joint[1-2]": 0.6057,
             "panda_joint[3-4]": 0.4625,
             "panda_joint[5-7]": 0.2055,
         },
     ),
-    "panda_hand": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint1"],
+    "panda_hand": replace(
+        FRANKA_PANDA_FLAT_CFG.actuators["panda_hand"],
         joint_effort_limit=70.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
         stiffness=350.0,
         damping=175.0,
-        viscous_friction=0.0,
         armature=0.1,
     ),
-    "panda_finger2_passive": ImplicitActuatorCfg(
-        joint_names_expr=["panda_finger_joint2"],
+    "panda_finger2_passive": replace(
+        FRANKA_PANDA_FLAT_CFG.actuators["panda_finger2_passive"],
         joint_effort_limit=1.0,
         actuator_velocity_limit=0.2,
         joint_velocity_limit=2.0,
-        stiffness=0.0,
-        damping=0.0,
-        viscous_friction=0.0,
         armature=0.1,
     ),
 }

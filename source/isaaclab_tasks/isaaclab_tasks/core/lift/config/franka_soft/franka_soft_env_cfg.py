@@ -21,7 +21,6 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxDeformableBodyPro
 from isaaclab_physx.sim.spawners.materials import PhysxDeformableBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.assets.deformable_object import DeformableObjectCfg
 from isaaclab.controllers import DifferentialIKControllerCfg
@@ -239,12 +238,11 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self):
-        # Task gains are checkpoint dynamics; zero viscous friction overrides authored USD damping.
+        # Inherit shared joint properties and override the checkpoint's task-specific gains and limits.
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
-            "panda_arm": ImplicitActuatorCfg(
-                joint_names_expr=["panda_joint[1-7]"],
-                joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
+            "panda_arm": replace(
+                FRANKA_PANDA_FLAT_CFG.actuators["panda_arm"],
                 joint_velocity_limit={"panda_joint[1-4]": 2.175, "panda_joint[5-7]": 2.61},
                 stiffness={
                     "panda_joint[1-4]": 600.0,
@@ -258,31 +256,26 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
                     "panda_joint6": 25.0,
                     "panda_joint7": 15.0,
                 },
-                viscous_friction=0.0,
                 armature={
                     "panda_joint[1-2]": 0.6057,
                     "panda_joint[3-4]": 0.4625,
                     "panda_joint[5-7]": 0.2055,
                 },
             ),
-            "panda_hand": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint1"],
-                joint_effort_limit=70.0,
+            "panda_hand": replace(
+                FRANKA_PANDA_FLAT_CFG.actuators["panda_hand"],
+                joint_effort_limit=500.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=350.0,
-                damping=175.0,
-                viscous_friction=0.0,
+                stiffness=1000.0,
+                damping=100.0,
                 armature=0.1,
             ),
-            "panda_finger2_passive": ImplicitActuatorCfg(
-                joint_names_expr=["panda_finger_joint2"],
+            "panda_finger2_passive": replace(
+                FRANKA_PANDA_FLAT_CFG.actuators["panda_finger2_passive"],
                 joint_effort_limit=1.0,
                 actuator_velocity_limit=0.2,
                 joint_velocity_limit=2.0,
-                stiffness=0.0,
-                damping=0.0,
-                viscous_friction=0.0,
                 armature=0.1,
             ),
         }
@@ -290,11 +283,6 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
         # disable gravity on the arm so the low-gain actuators do not fight gravity sag, the dominant
         # source of steady-state IK tracking error
         self.robot.spawn.rigid_props.disable_gravity = True
-
-        # increase franka gripper stiffness
-        self.robot.actuators["panda_hand"].joint_effort_limit = 500.0
-        self.robot.actuators["panda_hand"].stiffness = 1000.0
-        self.robot.actuators["panda_hand"].damping = 100.0
 
 
 @configclass
