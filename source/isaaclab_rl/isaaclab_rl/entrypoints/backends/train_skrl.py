@@ -124,7 +124,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             experiment_cfg["directory"] = log_root_path
             experiment_cfg["experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
             rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             manifest_metadata = {
                 "agent": agent_cfg_entry_point,
@@ -134,7 +134,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="skrl", task=args_cli.task, metadata=manifest_metadata)
-            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if args_cli.checkpoint in CHECKPOINT_SELECTORS:
                 resume_path = resolve_checkpoint_selector(

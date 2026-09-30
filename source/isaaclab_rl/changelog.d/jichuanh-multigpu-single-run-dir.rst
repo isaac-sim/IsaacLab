@@ -3,12 +3,10 @@ Fixed
 
 * Fixed multi-GPU training saving ``params/env.yaml`` and ``params/agent.yaml`` with the seed of
   whichever rank wrote last, and leaving extra settings-only folders when ranks started in different
-  seconds. All ranks of a ``train_multigpu`` launch now shared one run folder: rank 0 wrote the launch
-  settings to ``params/`` as before, every rank merged its settings into ``params/env_all_ranks.yaml``
-  and ``params/agent_all_ranks.yaml``, where a field that differs between ranks became a mapping
-  with ``type: per_rank`` and one entry per rank index, and ranks other than 0 wrote their videos and
-  sensor captures to ``rank_<rank>/`` instead of overwriting rank 0's. For multi-node jobs on shared storage,
-  pass the same ``--run_timestamp`` to ``train_multigpu`` on every node.
+  seconds. All ranks of a ``train_multigpu`` launch now shared one run folder: rank 0 wrote its settings,
+  videos, and sensor captures where a single-GPU run does, and every other rank wrote its own ``params/``,
+  videos, and sensor captures to ``rank_<rank>/``. For multi-node jobs on shared storage, pass the same
+  ``--run_timestamp`` to ``train_multigpu`` on every node.
 * Fixed skrl multi-GPU training saving the final checkpoint from every rank to the same file.
 * Fixed multi-GPU training ending with a ``destroy_process_group() was not called`` warning after a
   successful run.

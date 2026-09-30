@@ -312,8 +312,8 @@ class TestMultiGpuTrainingSmoke:
         The cheapest signal that the launcher and NCCL are healthy before any renderer is
         involved. Needs only two devices, so it still runs on hosts too small for the rest.
 
-        Each rank offsets the seed by its rank, so ``params`` must hold rank 0's launch settings and the
-        ``*_all_ranks.yaml`` files every rank's seed, all in one shared run directory.
+        Each rank offsets the seed by its rank, so the shared run directory's ``params`` must hold rank 0's
+        launch settings and ``rank_<rank>/params`` every other rank's.
         """
         num_gpus = 2
         _require_devices(num_gpus)
@@ -325,12 +325,11 @@ class TestMultiGpuTrainingSmoke:
         new_runs = set(runs_root.glob("*/*")) - runs_before
         assert len(new_runs) == 1, f"expected one run directory, found {sorted(map(str, new_runs))}"
         (run_dir,) = new_runs
-        params_dir = run_dir / "params"
-        for name in ("agent", "env"):
-            saved = yaml.full_load((params_dir / f"{name}.yaml").read_text(encoding="utf-8"))
-            assert saved["seed"] == _SEED, f"{name}.yaml saved seed {saved['seed']}, launched with {_SEED}"
-            all_ranks = yaml.full_load((params_dir / f"{name}_all_ranks.yaml").read_text(encoding="utf-8"))
-            assert all_ranks["seed"] == {"type": "per_rank", **{rank: _SEED + rank for rank in range(num_gpus)}}
+        for rank in range(num_gpus):
+            params_dir = run_dir / ("params" if rank == 0 else f"rank_{rank}/params")
+            for name in ("agent", "env"):
+                saved = yaml.full_load((params_dir / f"{name}.yaml").read_text(encoding="utf-8"))
+                assert saved["seed"] == _SEED + rank, f"rank {rank} {name}.yaml saved seed {saved['seed']}"
         assert "destroy_process_group() was not called" not in output
 
     @pytest.mark.rendering

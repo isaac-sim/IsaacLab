@@ -143,7 +143,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, run_name)
-            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
             rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
@@ -181,7 +181,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
                 # map to this process's device; the checkpoint's tensors otherwise land on the GPU that saved them
                 runner.load(resume_path, map_location=agent_cfg.device)
-            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
 
             if agent_cfg.logger == "wandb":
                 announce_new_run(agent_cfg.wandb_project, resolve_wandb_entity())

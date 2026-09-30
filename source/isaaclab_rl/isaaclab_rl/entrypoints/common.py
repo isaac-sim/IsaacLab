@@ -26,15 +26,12 @@ from typing import Any
 import gymnasium as gym
 import torch
 import warp as wp
-import yaml
-from filelock import FileLock
 from PIL import Image
 
 from isaaclab.app import LoadingScreen, scan
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
-from isaaclab.utils import to_dict
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
@@ -45,10 +42,6 @@ logger = logging.getLogger(__name__)
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
-# first line of a params/*_all_ranks.yaml file, listing the ranks merged into it
-_RANKS_HEADER = "# ranks: "
-# marks a field of a params/*_all_ranks.yaml file whose value differs between ranks
-_PER_RANK = "per_rank"
 
 _MISSING = object()
 _PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
@@ -778,68 +771,16 @@ Logging.
 """
 
 
-def dump_train_configs(log_dir: str, env_cfg: Any, agent_cfg: Any, rank: int | None = None) -> None:
+def dump_train_configs(log_dir: str, env_cfg: Any, agent_cfg: Any) -> None:
     """Dump the training configuration files under a run log directory.
-
-    Rank 0, or a single-process run, writes the launch settings to ``params/env.yaml`` and
-    ``params/agent.yaml``, where deployment tools read them. In a multi-GPU run every rank also merges
-    its settings into ``params/env_all_ranks.yaml`` and ``params/agent_all_ranks.yaml``: they keep the
-    same structure, and a field whose value differs between ranks becomes a mapping holding
-    ``type: per_rank`` and one entry per rank index.
 
     Args:
         log_dir: Training log directory.
         env_cfg: Isaac Lab environment config.
         agent_cfg: Reinforcement learning agent config.
-        rank: Distributed rank that resolved the configs, or None for a single-process run.
     """
-    params_dir = os.path.join(log_dir, "params")
-    for name, cfg in {"env": env_cfg, "agent": agent_cfg}.items():
-        if rank in (None, 0):
-            dump_yaml(os.path.join(params_dir, f"{name}.yaml"), cfg)
-        if rank is not None:
-            _merge_rank_config(os.path.join(params_dir, f"{name}_all_ranks.yaml"), rank, cfg)
-
-
-def _merge_rank_config(path: str, rank: int, cfg: Any) -> None:
-    """Merge one rank's settings into a file that every rank of the run writes to."""
-    # round-trip through YAML so this rank's values compare in their saved form
-    own = yaml.full_load(yaml.dump(cfg if isinstance(cfg, dict) else to_dict(cfg), sort_keys=False))
-    with FileLock(f"{path}.lock"):
-        merged, ranks = own, []
-        if os.path.exists(path):
-            with open(path, encoding="utf-8") as file:
-                text = file.read()
-            # the header lists the ranks already merged; YAML readers skip it as a comment
-            ranks = [int(r) for r in text.splitlines()[0].removeprefix(_RANKS_HEADER).split(",")]
-            merged = _merge_rank_values(yaml.full_load(text), own, ranks, rank)
-        ranks = sorted({*ranks, rank})
-        body = yaml.dump(merged, default_flow_style=False, sort_keys=False)
-        # write through a temporary file so a rank that fails mid-write cannot leave a partial file
-        temporary_path = f"{path}.{os.getpid()}.tmp"
-        with open(temporary_path, "w", encoding="utf-8") as file:
-            file.write(f"{_RANKS_HEADER}{', '.join(map(str, ranks))}\n{body}")
-        os.replace(temporary_path, path)
-
-
-def _merge_rank_values(merged: Any, own: Any, ranks: list[int], rank: int) -> Any:
-    """Return ``merged`` with ``rank``'s value added; a field that differs becomes a per-rank mapping.
-
-    A per-rank mapping holds ``type: per_rank`` and one entry per rank index. Configs use ``type`` only
-    for other values (e.g. ``GRU``), so the marker cannot be mistaken for a config field.
-    """
-    if isinstance(merged, dict) and merged.get("type") == _PER_RANK:
-        per_rank = {key: value for key, value in merged.items() if key != "type"}
-        per_rank[rank] = own
-    elif isinstance(merged, dict) and isinstance(own, dict) and merged.keys() == own.keys():
-        return {key: _merge_rank_values(value, own[key], ranks, rank) for key, value in merged.items()}
-    elif isinstance(merged, list) and isinstance(own, list) and len(merged) == len(own):
-        return [_merge_rank_values(value, own_value, ranks, rank) for value, own_value in zip(merged, own)]
-    elif repr(merged) == repr(own):
-        return merged
-    else:
-        per_rank = {**dict.fromkeys(ranks, merged), rank: own}
-    return {"type": _PER_RANK, **dict(sorted(per_rank.items()))}
+    dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)
+    dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
 
 
 class CaptureEnvSensors(gym.Wrapper):

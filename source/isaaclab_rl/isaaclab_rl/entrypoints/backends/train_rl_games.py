@@ -148,12 +148,12 @@ def run(argv: list[str]) -> None:
             config["train_dir"] = log_root_path
             config["full_experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            # rank 0 writes its settings and videos where a single-GPU run does; other ranks use rank_<rank>/
             rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
-            dump_train_configs(log_dir, env_cfg, agent_cfg, rank=rank)
+            dump_train_configs(rank_dir, env_cfg, agent_cfg)
             print(f"Exact experiment name requested from command line: {log_dir}")
 
             env_cfg.log_dir = rank_dir
