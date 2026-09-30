@@ -302,7 +302,7 @@ class WarpFrontend:
         searched: set[str] = set()  # module names, for the error message
 
         swapped = 0
-        missing: list[tuple[str, str, str]] = []  # (location, attr, symbol)
+        missing: list[str] = []
         for path, term in cls._walk_terms(cfg):
             if not path or path[0] not in cls.WARP_MANAGED_GROUPS:
                 continue  # term runs on a stable manager; leave it stable
@@ -317,15 +317,21 @@ class WarpFrontend:
                     searched.update(m.__name__ for m in module_cache[origin])
                 twin = cls._resolve_warp_twin(stable.__name__, module_cache[origin])
                 if twin is None:
-                    missing.append((location, attr, stable.__name__))  # collect every miss; report once below
+                    # collect every miss; report once below
+                    if cls._mirror_module(origin) is None:
+                        missing.append(f"{location}.{attr}: {stable.__name__!r} from {origin!r} is not a warp term")
+                    else:
+                        missing.append(f"{location}.{attr}: no warp twin for {stable.__name__!r}")
                     continue
                 setattr(term, attr, twin)
                 swapped += 1
 
         if missing:
-            lines = "\n  ".join(f"{loc}.{attr}: no warp twin for {sym!r}" for loc, attr, sym in missing)
+            lines = "\n  ".join(missing)
             raise FrontendIncompatibleError(
-                f"warp env {label!r}: missing warp MDP twins (searched {sorted(searched)}):\n  {lines}"
+                f"warp env {label!r}: missing warp MDP twins (searched {sorted(searched)}):\n  {lines}\n"
+                "Terms defined outside the mirrored packages are used as-is when they are warp terms: subclass"
+                " isaaclab_experimental.managers.ManagerTermBase, or declare a function term with @WarpCapturable."
             )
 
         logger.info("frontend.warp: swapped %d MDP symbol(s) to warp twins", swapped)
@@ -631,16 +637,20 @@ class WarpFrontend:
            from another task family and, for core-defined symbols, the shared
            :mod:`isaaclab_experimental.envs.mdp` twins (the mirror of
            :mod:`isaaclab.envs.mdp`).
+
+        A symbol defined outside the mirrored packages has no twin, so none are consulted: a
+        same-named warp term would be unrelated to it.
         """
+        mirrored = cls._mirror_module(symbol_module)
+        if mirrored is None:
+            return []
         modules = list(cfg_route_modules)
         # Fallback: the mirror of the package that defines the symbol.
-        mirrored = cls._mirror_module(symbol_module)
-        if mirrored is not None:
-            target = cls._nearest_mdp_module(mirrored)
-            if target is not None:
-                module = cls._import_twin_module(target)
-                if module not in modules:
-                    modules.append(module)
+        target = cls._nearest_mdp_module(mirrored)
+        if target is not None:
+            module = cls._import_twin_module(target)
+            if module not in modules:
+                modules.append(module)
         return modules
 
     @classmethod
@@ -657,13 +667,37 @@ class WarpFrontend:
 
     @classmethod
     def _is_swap_candidate(cls, value: Any) -> bool:
-        """Heuristic: callable or class whose origin is *not already* warp."""
+        """Whether a term callable or class must be swapped for its warp twin.
+
+        Terms from the warp packages are already warp (idempotent). A term defined outside the mirrored
+        packages, e.g. in an external project, is kept when it declares itself a warp term (see
+        :meth:`_is_native_warp_term`).
+        """
         if not callable(value):
             return False
         origin = getattr(value, "__module__", "") or ""
         if origin.startswith(cls.WARP_ROOT_PREFIXES):
             return False  # already a warp twin (idempotent)
+        if cls._mirror_module(origin) is None and cls._is_native_warp_term(value):
+            return False  # a warp term from another package
         return True
+
+    @staticmethod
+    def _is_native_warp_term(value: Any) -> bool:
+        """Whether a term defined outside the warp packages is a warp term.
+
+        A class term is one when it subclasses the warp :class:`~isaaclab_experimental.managers.ManagerTermBase`
+        (warp action and command terms included). A function term is one when it declares its capture
+        behavior with :class:`~isaaclab_experimental.utils.warp.WarpCapturable`.
+        """
+        from isaaclab.utils import string_to_callable
+
+        from isaaclab_experimental.managers import ManagerTermBase
+
+        term = string_to_callable(value) if isinstance(value, str) else value
+        if isinstance(term, type):
+            return issubclass(term, ManagerTermBase)
+        return any(hasattr(f, "_warp_capturable") for f in (term, getattr(term, "__wrapped__", None)) if f is not None)
 
     @staticmethod
     def _walk_terms(node: Any, path: tuple[str, ...] = ()) -> Iterator[tuple[tuple[str, ...], Any]]:

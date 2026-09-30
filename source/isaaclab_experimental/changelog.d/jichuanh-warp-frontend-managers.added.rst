@@ -6,3 +6,6 @@
   array.
 * Added a Warp twin of the ``height_scan`` observation, so the Rough velocity tasks run with
   ``--frontend warp``. It reads a ray caster refreshed on the host, so it runs eagerly.
+* Added support for Warp terms defined outside Isaac Lab on the Warp frontend: class terms that subclass
+  :class:`~isaaclab_experimental.managers.ManagerTermBase` and function terms decorated with
+  :class:`~isaaclab_experimental.utils.warp.WarpCapturable` are used as configured.
