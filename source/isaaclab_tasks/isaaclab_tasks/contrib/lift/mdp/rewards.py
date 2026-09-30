@@ -60,7 +60,7 @@ class object_goal_distance(ManagerTermBase):
 
     def __init__(self, cfg: RewardTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        self._track_success = cfg.params.get("success_threshold") is not None
+        self._track_success = cfg.params["success_threshold"] is not None
         if self._track_success:
             self._succeeded = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
