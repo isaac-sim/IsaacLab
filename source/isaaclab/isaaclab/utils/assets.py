@@ -21,8 +21,11 @@ import ntpath
 import os
 import posixpath
 import re
+import shutil
 import subprocess
 import tempfile
+import urllib.error
+import urllib.request
 import uuid
 from collections.abc import Iterator
 from types import ModuleType
@@ -172,6 +175,92 @@ def _get_omni_client() -> ModuleType:
 
     _configure_storage_profile(omni.client)
     return omni.client
+
+
+_HTTP_TIMEOUT_S = 60.0
+"""Timeout of a single HTTP request made when ``omni.client`` is unavailable."""
+
+
+def _omni_client_available() -> bool:
+    """Whether ``omni.client`` can be imported."""
+    try:
+        import omni.client  # noqa: F401, PLC0415
+    except ImportError:
+        return False
+    return True
+
+
+def _use_http(url: str) -> bool:
+    """Whether ``url`` is fetched with plain HTTP instead of ``omni.client``.
+
+    ``omniverseclient`` ships no macOS wheels, so macOS installs read the public HTTP(S) asset
+    root directly. Every other scheme still requires ``omni.client``.
+    """
+    return urlparse(url).scheme in ("http", "https") and not _omni_client_available()
+
+
+def _remote_stat(url: str) -> dict | None:
+    """Revision metadata of ``url``, or ``None`` when the server does not report the file."""
+    if _use_http(url):
+        try:
+            with urllib.request.urlopen(urllib.request.Request(url, method="HEAD"), timeout=_HTTP_TIMEOUT_S) as r:
+                headers = r.headers
+        except (urllib.error.URLError, TimeoutError):
+            return None
+        return {
+            "hash": headers.get("ETag", "").strip('"'),
+            "version": "",
+            "size": int(headers.get("Content-Length") or 0),
+            "modified_time": headers.get("Last-Modified", ""),
+        }
+
+    omni_client = _get_omni_client()
+    result, entry = omni_client.stat(url.replace(os.sep, "/"))
+    if result != omni_client.Result.OK:
+        return None
+    return {
+        "hash": str(entry.hash or ""),
+        "version": str(entry.version or ""),
+        "size": int(entry.size or 0),
+        "modified_time": str(entry.modified_time or ""),
+    }
+
+
+def _remote_copy(url: str, target: str) -> None:
+    """Download ``url`` to the local file ``target``.
+
+    Raises:
+        FileNotFoundError: When the server does not have the file.
+        RuntimeError: When the download fails.
+    """
+    if _use_http(url):
+        try:
+            with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_S) as r, open(target, "wb") as f:
+                shutil.copyfileobj(r, f)
+        except urllib.error.HTTPError as exc:
+            if exc.code == 404:
+                raise FileNotFoundError(f"Unable to find the file: {url}") from exc
+            raise RuntimeError(f"Unable to copy file: '{url}' (HTTP {exc.code})") from exc
+        except (urllib.error.URLError, TimeoutError) as exc:
+            raise RuntimeError(f"Unable to copy file: '{url}' ({exc})") from exc
+        return
+
+    omni_client = _get_omni_client()
+    result = omni_client.copy(url, target, omni_client.CopyBehavior.OVERWRITE)
+    if result != omni_client.Result.OK:
+        if check_file_path(url) == 0:
+            raise FileNotFoundError(f"Unable to find the file: {url}")
+        raise RuntimeError(f"Unable to copy file: '{url}' ({result})")
+
+
+def _remote_read(url: str) -> bytes:
+    """Read the contents of ``url``."""
+    if _use_http(url):
+        with urllib.request.urlopen(url, timeout=_HTTP_TIMEOUT_S) as r:
+            return r.read()
+
+    omni_client = _get_omni_client()
+    return memoryview(omni_client.read_file(url.replace(os.sep, "/"))[2]).tobytes()
 
 
 def _resolve_asset_root() -> str:
@@ -481,17 +570,10 @@ def _remote_fingerprint(url: str) -> dict | None:
         distinguish here.
     """
     if url not in _REMOTE_FINGERPRINTS:
-        omni_client = _get_omni_client()
-
-        result, entry = omni_client.stat(url.replace(os.sep, "/"))
-        if result != omni_client.Result.OK:
+        fingerprint = _remote_stat(url)
+        if fingerprint is None:
             return None
-        _REMOTE_FINGERPRINTS[url] = {
-            "hash": str(entry.hash or ""),
-            "version": str(entry.version or ""),
-            "size": int(entry.size or 0),
-            "modified_time": str(entry.modified_time or ""),
-        }
+        _REMOTE_FINGERPRINTS[url] = fingerprint
     return _REMOTE_FINGERPRINTS[url]
 
 
@@ -721,18 +803,13 @@ def _download_file(source: str, download_dir: str, force_download: bool) -> Iter
             raise FileNotFoundError(f"Unable to find the file: {source}")
         yield source
         return
-    omni_client = _get_omni_client()
     target = _mirror_path(source, download_dir)
     os.makedirs(os.path.dirname(target), exist_ok=True)
     with FileLock(target + ".lock"):
         if force_download or not _usable_mirror(source, download_dir):
             temporary_path = f"{target}.{uuid.uuid4().hex}.partial"
             try:
-                result = omni_client.copy(source, temporary_path, omni_client.CopyBehavior.OVERWRITE)
-                if result != omni_client.Result.OK:
-                    if check_file_path(source) == 0:
-                        raise FileNotFoundError(f"Unable to find the file: {source}")
-                    raise RuntimeError(f"Unable to copy file: '{source}' ({result})")
+                _remote_copy(source, temporary_path)
                 os.replace(temporary_path, target)
                 _write_mirror_fingerprint(source, target)
             finally:
@@ -767,10 +844,7 @@ def read_file(path: str) -> io.BytesIO:
             with open(mirrored, "rb") as f:
                 return io.BytesIO(f.read())
 
-        omni_client = _get_omni_client()
-
-        file_content = omni_client.read_file(path.replace(os.sep, "/"))[2]
-        data = memoryview(file_content).tobytes()
+        data = _remote_read(path)
         # cache what was just downloaded, so the next run reads it from disk
         _store_mirror(path, data)
         return io.BytesIO(data)

@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import functools
+import http.server
 import importlib
 import json
 import logging
@@ -650,6 +652,49 @@ def test_retrieve_file_path_retries_incomplete_tree(asset_cache, monkeypatch, fa
     stage = Usd.Stage.Open(resolved)
     assert stage.GetPrimAtPath("/child").IsValid()
     assert json.loads(Path(str(mirrored) + assets_utils._MIRROR_FINGERPRINT_SUFFIX).read_text()) == entries[_REMOTE_URL]
+
+
+class _QuietHandler(http.server.SimpleHTTPRequestHandler):
+    def log_message(self, format, *args):
+        pass
+
+
+@pytest.fixture
+def http_assets(tmp_path, monkeypatch):
+    """Serve a directory over local HTTP with ``omni.client`` unavailable, as on macOS."""
+    served = tmp_path / "served"
+    served.mkdir()
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(_QuietHandler, directory=served))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setitem(sys.modules, "omni.client", None)
+    yield served, f"http://127.0.0.1:{server.server_address[1]}"
+    server.shutdown()
+    server.server_close()
+
+
+def test_http_assets_are_retrieved_without_omni_client(asset_cache, http_assets):
+    """Test HTTP assets and their USD dependencies are downloaded and read without ``omni.client``."""
+    from pxr import Usd
+
+    served, root = http_assets
+    (served / "robot.usda").write_text('#usda 1.0\n(subLayers = [@./base.usda@])\ndef Xform "Robot" {}\n')
+    (served / "base.usda").write_text('#usda 1.0\ndef Xform "Base" {}\n')
+    (served / "actuator.pt").write_bytes(b"network weights")
+
+    assert assets_utils.check_file_path(f"{root}/robot.usda") == 2
+    stage = Usd.Stage.Open(assets_utils.retrieve_file_path(f"{root}/robot.usda"))
+    assert stage.GetPrimAtPath("/Robot").IsValid()
+    assert stage.GetPrimAtPath("/Base").IsValid()
+    assert assets_utils.read_file(f"{root}/actuator.pt").read() == b"network weights"
+
+
+def test_missing_http_asset_is_reported_without_omni_client(asset_cache, http_assets):
+    """Test a missing HTTP asset is reported as absent rather than as a download failure."""
+    _, root = http_assets
+
+    assert assets_utils.check_file_path(f"{root}/missing.usda") == 0
+    with pytest.raises(FileNotFoundError):
+        assets_utils.retrieve_file_path(f"{root}/missing.usda")
 
 
 def test_read_file_uses_the_local_copy_when_it_matches_the_server(asset_cache, monkeypatch):
