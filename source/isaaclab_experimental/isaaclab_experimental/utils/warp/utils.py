@@ -146,26 +146,33 @@ class WarpCapturable:
         def reset_root_state_uniform(env, env_mask, ...):
             ...
 
-        @WarpCapturable(False, reason="calls write_root_pose_to_sim")
-        def push_by_setting_velocity(env, env_mask, ...):
+        @WarpCapturable(False, reason="notifies the solver of a model change")
+        class randomize_rigid_body_com(ManagerTermBase):
             ...
 
     - ``@WarpCapturable(True)`` or no decorator: capturable, returned unwrapped.
-    - ``@WarpCapturable(False)``: sets ``func._warp_capturable = False``, wraps with
+    - ``@WarpCapturable(False)`` on a function: sets ``func._warp_capturable = False`` and wraps it with a
       runtime guard that raises if ``wp.get_device().is_capturing`` is ``True``.
+    - ``@WarpCapturable(False)`` on a class term: annotates the class and guards its ``__call__``.
     """
 
     def __init__(self, capturable: bool, *, reason: str | None = None):
         self._capturable = capturable
         self._reason = reason
 
-    def __call__(self, func):
-        """Decorate *func* with capture safety annotation and optional runtime guard."""
-        import functools
-
-        func._warp_capturable = self._capturable
+    def __call__(self, target):
+        """Decorate a term function or class with the capture safety annotation and runtime guard."""
+        target._warp_capturable = self._capturable
         if self._capturable:
-            return func
+            return target
+        if isinstance(target, type):
+            target.__call__ = self._guarded(target.__call__)
+            return target
+        return self._guarded(target)
+
+    def _guarded(self, func):
+        """Wrap *func* so that calling it during CUDA graph capture raises."""
+        import functools
 
         reason = self._reason
 

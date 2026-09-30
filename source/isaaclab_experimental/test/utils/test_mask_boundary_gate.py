@@ -137,6 +137,8 @@ def test_mask_first_code_has_no_unsanctioned_host_syncs():
 # ``@WarpCapturable(False)`` opt-outs, by (path suffix, name).
 EXPECTED_NON_CAPTURABLE = {
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
+    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_mass"),
+    ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_material"),
 }
 
 NON_CAPTURABLE_SCAN_ROOTS = [

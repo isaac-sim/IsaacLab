@@ -31,7 +31,7 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import EventTermCfg
 
-from .manager_base import ManagerBase
+from .manager_base import ManagerBase, ManagerTermBase
 
 logger = logging.getLogger(__name__)
 
@@ -223,14 +223,43 @@ class EventManager(ManagerBase):
         return list(self._mode_term_names.keys())
 
     def set_term_cfg(self, term_name: str, cfg: EventTermCfg):
-        term_found = False
+        """Set the configuration of an existing event term.
+
+        Recorded event stages read the replaced configuration, so they are recorded again on their next call.
+
+        Args:
+            term_name: Name of the event term.
+            cfg: Replacement event term configuration.
+
+        Raises:
+            ValueError: If the term does not exist, or the replacement changes its mode or interval timing.
+        """
         for mode, terms in self._mode_term_names.items():
-            if term_name in terms:
-                self._mode_term_cfgs[mode][terms.index(term_name)] = cfg
-                term_found = True
-                break
-        if not term_found:
-            raise ValueError(f"Event term '{term_name}' not found.")
+            if term_name not in terms:
+                continue
+            if cfg.mode != mode:
+                raise ValueError(f"Event term '{term_name}' has mode '{mode}', but the replacement has '{cfg.mode}'.")
+            term_index = terms.index(term_name)
+            if mode == "interval":
+                if cfg.interval_range_s is None:
+                    raise ValueError(f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not set.")
+                if cfg.is_global_time != self._mode_term_cfgs[mode][term_index].is_global_time:
+                    raise ValueError(f"Event term '{term_name}' cannot change 'is_global_time' at runtime.")
+            self._resolve_common_term_cfg(term_name, cfg, min_argc=2)
+            self._mode_term_cfgs[mode][term_index] = cfg
+            if mode == "interval":
+                lower, upper = cfg.interval_range_s
+                self._interval_term_ranges[term_index] = (float(lower), float(upper))
+            self._mode_class_term_cfgs[mode] = [
+                term_cfg
+                for term_cfg in self._mode_term_cfgs[mode]
+                if inspect.isclass(term_cfg.func) or isinstance(term_cfg.func, ManagerTermBase)
+            ]
+            graph_cache = getattr(self._env, "_warp_graph_cache", None)
+            if graph_cache is not None:
+                graph_cache.invalidate(type(self).__name__)
+            return
+        raise ValueError(f"Event term '{term_name}' not found.")
 
     def get_term_cfg(self, term_name: str) -> EventTermCfg:
         for mode, terms in self._mode_term_names.items():
@@ -394,6 +423,11 @@ class EventManager(ManagerBase):
                 device=self.device,
             )
             term_cfg.func(self._env, self._scratch_term_mask_wp, **term_cfg.params)
+
+    def _register_term_capturability(self, term_cfg: EventTermCfg) -> None:
+        # startup terms run once while the environment is built, outside the recorded stages
+        if term_cfg.mode not in ("prestartup", "startup"):
+            super()._register_term_capturability(term_cfg)
 
     def _prepare_terms(self):
         # check if config is dict already

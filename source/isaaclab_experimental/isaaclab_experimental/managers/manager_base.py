@@ -411,16 +411,23 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        # a non-capturable term keeps every stage of this manager eager
-        if not is_warp_capturable(term_cfg.func):
-            graph_cache = getattr(self._env, "_warp_graph_cache", None)
-            if graph_cache is not None:
-                graph_cache.register_capturability(type(self).__name__, False)
+        self._register_term_capturability(term_cfg)
 
         # process attributes at runtime
         # these properties are only resolvable once the simulation starts playing
         if self._env.sim.is_playing():
             self._process_term_cfg_at_play(term_name, term_cfg)
+
+    def _register_term_capturability(self, term_cfg: ManagerTermBaseCfg) -> None:
+        """Keep every stage of this manager eager when the term is not capturable.
+
+        Args:
+            term_cfg: The term configuration.
+        """
+        if not is_warp_capturable(term_cfg.func):
+            graph_cache = getattr(self._env, "_warp_graph_cache", None)
+            if graph_cache is not None:
+                graph_cache.register_capturability(type(self).__name__, False)
 
     def _process_term_cfg_at_play(self, term_name: str, term_cfg: ManagerTermBaseCfg):
         """Process the term configuration at runtime.
