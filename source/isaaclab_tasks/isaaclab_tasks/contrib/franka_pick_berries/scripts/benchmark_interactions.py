@@ -30,12 +30,14 @@ def main() -> None:
     parser.add_argument("--physics_resolution", choices=["full", "half"], default="half")
     parser.add_argument("--friction", type=float, default=0.4)
     parser.add_argument("--seconds", type=float, default=2.0)
+    parser.add_argument("--device", default="cuda:0", help="Warp device of the MPM solver")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args()
     if args.output.exists():
         parser.error("Choose a fresh output directory")
     if not np.isfinite([args.seconds, args.friction]).all() or args.seconds <= 0 or args.friction < 0:
         parser.error("Require positive finite duration and nonnegative finite friction")
+    wp.set_device(args.device)
     _, _, proxy, profile = load_berry(f"{berry_root()}/raspberry/raspberry_v2.usdz")
     params = simulation_parameters(profile, "handling")
     proxy, params, resolution = physics_resolution(proxy, params, args.physics_resolution)

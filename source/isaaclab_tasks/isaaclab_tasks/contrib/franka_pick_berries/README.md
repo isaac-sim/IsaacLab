@@ -24,6 +24,22 @@ franka_pick_berries/
   setup/                                         runtime installer (setup.sh)
 ```
 
+## Follow-up work
+
+This task was imported as a working, self-contained first version. Planned next steps:
+
+1. **Replace the explicit MPM solver with the Newton manager.** `physics/mpm/` is a standalone
+   solver adapted from an internal proof of concept and a third-party MPM sample, with its own
+   licensing and provenance still to be settled. Moving tissue simulation onto Newton removes it
+   together with the unused cube-tool and adhesion parameters, the CUDA-graph capture code and the
+   separate `mpm_device`.
+2. **Publish the assets publicly.** The berry USDZ packages and the EBC background are still read
+   from a personal Nucleus folder (`assets/asset_root.py`). Publish them in the public repository
+   that hosts the other assets used by the codebase and update the default URL.
+3. **Use the codebase's standard Gaussian binding.** `physics/mpm/binding.py` carries four custom
+   Gaussian-to-particle binding modes, and only the MLS modes work with `BerryGaussianStream`
+   (`affine4` does not). Replace it with the standard binding.
+
 ## 1. Install the task runtime
 
 Supported deployment: Linux x86-64, Python 3.12, NVIDIA RTX GPU with a compatible

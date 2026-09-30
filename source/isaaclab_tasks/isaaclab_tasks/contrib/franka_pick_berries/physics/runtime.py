@@ -5,6 +5,8 @@
 
 """Live MPM contact and reciprocal finger force at the robot's physics rate."""
 
+import functools
+
 import numpy as np
 import torch
 import warp as wp
@@ -168,10 +170,37 @@ class LiveContact(HandContact):
             self.tableware.particle_step(sim)
 
 
+def resolve_mpm_device(cfg, sim_device) -> str:
+    """Warp device of the MPM solver: ``cfg.mpm_device``, else the simulation device when CUDA, else ``cuda:0``.
+
+    The robot runs on the CPU MuJoCo backend by default, so the simulation device alone cannot host the solver.
+    """
+    if cfg.mpm_device is not None:
+        return cfg.mpm_device
+    device = str(sim_device)
+    return device if device.startswith("cuda") else "cuda:0"
+
+
+def _on_mpm_device(method):
+    """Run a :class:`BerryRuntime` method with its Warp device scoped, instead of changing the process default."""
+
+    @functools.wraps(method)
+    def wrapper(self, *args, **kwargs):
+        with wp.ScopedDevice(self.device):
+            return method(self, *args, **kwargs)
+
+    return wrapper
+
+
 class BerryRuntime:
     """Tissue solver state; Gaussian appearance never determines collision forces."""
 
     def __init__(self, cfg, robot, placements=None):
+        self.device = wp.get_device(resolve_mpm_device(cfg, robot.device))
+        with wp.ScopedDevice(self.device):
+            self._build(cfg, robot, placements)
+
+    def _build(self, cfg, robot, placements):
         self.folder = f"{cfg.asset_root}/{cfg.berry}"
         if cfg.berry_asset_version not in ("v1", "v2"):
             raise ValueError(f"Unknown berry asset version: {cfg.berry_asset_version}")
@@ -187,7 +216,6 @@ class BerryRuntime:
         # The two contact boxes cover the flat inner fingertip pads [m].
         self.pad_offsets = np.array([[0, 0.0054, 0.045], [0, -0.0054, 0.045]], np.float32)
         self.sizes = np.array([[0.009, 0.0054, 0.0089]] * 2, np.float32)
-        wp.set_device("cuda:0")
         poses = self.collider_poses(robot)
         params = simulation_parameters(self.profile, cfg.physics_profile, cfg.mpm_hz)
         self.proxy, params, self.resolution = physics_resolution(self.proxy, params, cfg.physics_resolution)
@@ -275,6 +303,7 @@ class BerryRuntime:
         p = p + Rotation.from_quat(q).apply(self.pad_offsets) - self.offset
         return np.column_stack([p, q]).astype(np.float32)
 
+    @_on_mpm_device
     def advance(self, robot, apply_force: bool = True) -> None:
         poses = self.collider_poses(robot)
         self.contact.samples.assign(np.stack([self.contact.previous, poses]))
@@ -289,6 +318,7 @@ class BerryRuntime:
             force = torch.as_tensor(self.last_force[None], dtype=torch.float32, device=robot.device)
             robot.set_external_force_and_torque(force, torch.zeros_like(force), body_ids=self.fingers, is_global=True)
 
+    @_on_mpm_device
     def reset(self, robot):
         for key, value in self.initial.items():
             getattr(self.sim, key).assign(value)
@@ -303,6 +333,7 @@ class BerryRuntime:
         zero = torch.zeros((1, 2, 3), dtype=torch.float32, device=robot.device)
         robot.set_external_force_and_torque(zero, zero, body_ids=self.fingers, is_global=True)
 
+    @_on_mpm_device
     def metrics(self):
         self.checker.check()
         x = self.sim.x.numpy()

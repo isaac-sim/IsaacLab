@@ -9,7 +9,6 @@ Forces act on MPM particles before P2G. No rendering state enters this model.
 This is a demo cohesive-contact approximation, not a calibrated juice model.
 """
 
-import numpy as np
 import warp as wp
 
 
@@ -175,20 +174,3 @@ class AdhesiveContact:
                 self.particle_weight,
             ],
         )
-
-    def snapshot(self):
-        return dict(
-            tack_tool=self.tool_face.numpy() != 0,
-            tack_plane=self.plane_active.numpy() != 0,
-            adhesion_tool_force=self.tool_force.numpy(),
-            adhesion_plane_force=self.plane_force.numpy(),
-        )
-
-
-def empty_snapshot(count):
-    return dict(
-        tack_tool=np.zeros(count, bool),
-        tack_plane=np.zeros(count, bool),
-        adhesion_tool_force=np.zeros((count, 3), np.float32),
-        adhesion_plane_force=np.zeros((count, 3), np.float32),
-    )

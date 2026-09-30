@@ -124,16 +124,6 @@ class BerrySortSequence:
         return target, float(aperture)
 
 
-def add_discard_marker(stage) -> None:
-    """Compatibility shim; the discard marker was replaced by the tableware reject dish."""
-    import warnings
-
-    from ..scene.tableware import add_tableware_visuals
-
-    warnings.warn("add_discard_marker is deprecated; use add_tableware_visuals for the reject dish", DeprecationWarning)
-    add_tableware_visuals(stage)
-
-
 def sorting_result(berries: dict) -> dict:
     """Measure the final physical outcome, without changing state or assuming success."""
     states = {name: berry.metrics() for name, berry in berries.items()}

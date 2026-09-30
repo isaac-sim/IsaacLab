@@ -11,49 +11,40 @@ from isaaclab.envs.mdp.actions.task_space_actions import (
     DifferentialInverseKinematicsAction,
 )
 from isaaclab.managers import ActionTerm, ActionTermCfg
-from isaaclab.utils import math as math_utils
 from isaaclab.utils.configclass import configclass
 
 
 class BerryIKAction(DifferentialInverseKinematicsAction):
     """Advance contact at the robot physics rate [120 Hz]."""
 
+    def __init__(self, cfg, env):
+        super().__init__(cfg, env)
+        self._ik_pending = True
+        # Keep carried tissue inside the explicitly allocated MPM work volume.
+        offset = torch.tensor(env.cfg.berry_position, device=self.device)
+        # All local grids must cover the commanded workspace, including edge berries.
+        reach = 0.065 if env.cfg.berry == "all" else 0.09
+        upper_y = 0.205 if env.cfg.background == "ebc" else reach
+        self._lower = offset + torch.tensor([-reach, -reach, 0.005], device=self.device)
+        self._upper = offset + torch.tensor([reach, upper_y, 0.18], device=self.device)
+
     def process_actions(self, actions):
         if not torch.isfinite(actions).all():
             raise ValueError("Nonfinite IK command")
-        # Keep carried tissue inside the explicitly allocated MPM work volume.
         pos, _ = self._compute_frame_pose()
-        offset = torch.tensor(self._env.cfg.berry_position, device=self.device)
-        # All local grids must cover the commanded workspace, including edge berries.
-        reach = 0.065 if self._env.cfg.berry == "all" else 0.09
-        lower = offset + torch.tensor([-reach, -reach, 0.005], device=self.device)
-        upper_y = 0.205 if self._env.cfg.background == "ebc" else reach
-        upper = offset + torch.tensor([reach, upper_y, 0.18], device=self.device)
         limited = actions.clone()
-        limited[:, :3] = (pos + actions[:, :3]).clamp(lower, upper) - pos
+        limited[:, :3] = (pos + actions[:, :3]).clamp(self._lower, self._upper) - pos
         super().process_actions(limited)
         self._ik_pending = True
 
     def apply_actions(self):
         # The teleop pose target changes at 30 Hz. Hold its joint solution while
         # the 120 Hz drives and two-way tissue contact continue to run.
-        if getattr(self, "_ik_pending", True):
+        if self._ik_pending:
             super().apply_actions()
             self._ik_pending = False
-        berry = getattr(self._env, "berry", None)
-        if berry is not None:
+        if self._env.berry is not None:
             self._env.advance_berries()
-
-    def _compute_frame_jacobian(self):
-        self._jacobian_b[:] = self.jacobian_b
-        body_quat = self._asset.data.body_quat_w.torch[:, self._body_idx]
-        base_quat = self._asset.data.root_quat_w.torch
-        hand_in_base = math_utils.quat_mul(math_utils.quat_inv(base_quat), body_quat)
-        offset_in_base = math_utils.quat_apply(hand_in_base, self._offset_pos)
-        self._jacobian_b[:, :3, :] -= torch.bmm(
-            math_utils.skew_symmetric_matrix(offset_in_base), self._jacobian_b[:, 3:, :]
-        )
-        return self._jacobian_b
 
 
 class BerryGraspAction(ActionTerm):
