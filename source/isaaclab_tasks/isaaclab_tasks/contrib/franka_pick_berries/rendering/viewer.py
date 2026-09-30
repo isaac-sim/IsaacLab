@@ -124,7 +124,6 @@ class BerryViewer(ViewerRTX):
     def _init_ovrtx(self):
         for stream in self.streams:
             stream.author(self.stage)
-        self._has_dynamic_gaussian_streaming = True
         if self.env.cfg.background == "ebc":
             add_tableware_visuals(self.stage)
             self.background_path = add_ebc_background(

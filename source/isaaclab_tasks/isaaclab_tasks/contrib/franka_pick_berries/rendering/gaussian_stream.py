@@ -41,9 +41,9 @@ class BerryGaussianStream:
             self.berry.proxy["regions"],
             self.berry.profile["simulation"]["binding"],
         )
-        with wp.ScopedDevice("cuda:0"):
+        with wp.ScopedDevice(self.berry.device):
             self.binding.deform_gpu(self.berry.sim.x, host=False)
-            self.frame = GaussianLocalFrame(self.berry.asset["xyz"], self.berry.asset["scales"], "cuda:0")
+            self.frame = GaussianLocalFrame(self.berry.asset["xyz"], self.berry.asset["scales"], self.berry.device)
             lower = np.max([self.berry.asset["xyz"][idx].min(0) for idx in self.indices], axis=0)
             upper = np.min([self.berry.asset["xyz"][idx].max(0) for idx in self.indices], axis=0)
             self.frame.center, self.frame.half = (
@@ -131,7 +131,7 @@ class BerryGaussianStream:
         }
 
     def prepare(self, sh_rotation):
-        with wp.ScopedDevice("cuda:0"):
+        with wp.ScopedDevice(self.berry.device):
             xyz, scales, quats = self.binding.deform_gpu(self.berry.sim.x, host=False)
             xyz, scales, transform = self.frame.evaluate(xyz, scales)
             shading = self.sh_frame.evaluate(self.berry.sim.damage, rotate=sh_rotation)

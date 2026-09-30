@@ -12,7 +12,8 @@ no separate download step is required.
 
 import os
 
-# The published bundle is currently shared with the tomato and gaussian_twin tasks.
+# Temporary: a personal Nucleus folder, shared with other demos. To be replaced by the public asset repository
+# (see "Follow-up work" in the README).
 _SHARED_BUNDLE_ROOT = "omniverse://content.ov.nvidia.com/Users/nicolasm@nvidia.com/isaaclab_assets/tasks"
 
 

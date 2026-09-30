@@ -21,6 +21,10 @@ class BerryPickEnv(ManagerBasedRLEnv):
         cfg.pair = cfg.pair or cfg.berry_count > 1
         if cfg.pair and cfg.berry_count == 1:
             cfg.berry_count = 2
+        # Read by _reset_idx and the IK action term, which can run during super().__init__.
+        self.berries = {}
+        self.berry_systems = []
+        self.berry = None
         super().__init__(cfg, **kwargs)
         if cfg.pair:
             placements = pair_offsets(cfg)
@@ -41,7 +45,7 @@ class BerryPickEnv(ManagerBasedRLEnv):
 
     def _reset_idx(self, env_ids):
         super()._reset_idx(env_ids)
-        for berry in getattr(self, "berry_systems", []):
+        for berry in self.berry_systems:
             berry.reset(self.scene["robot"])
 
     def step(self, action):

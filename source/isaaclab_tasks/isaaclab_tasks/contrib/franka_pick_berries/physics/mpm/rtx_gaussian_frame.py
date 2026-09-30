@@ -21,24 +21,6 @@ def gaussian_bounds(x: wp.array[wp.vec3], s: wp.array[wp.vec3], bounds: wp.array
 
 
 @wp.kernel
-def gaussian_bounds_reduced(x: wp.array[wp.vec3], s: wp.array[wp.vec3], bounds: wp.array2d[float]):
-    tid = wp.tid()
-    threads = (x.shape[0] + 15) // 16
-    lower = wp.vec3(INF)
-    upper = wp.vec3(-INF)
-    for j in range(16):
-        i = tid + j * threads
-        if i < x.shape[0]:
-            reach = 3.0 * wp.max(s[i][0], wp.max(s[i][1], s[i][2]))
-            for axis in range(3):
-                lower[axis] = wp.min(lower[axis], x[i][axis] - reach)
-                upper[axis] = wp.max(upper[axis], x[i][axis] + reach)
-    for axis in range(3):
-        wp.atomic_min(bounds, 0, axis, lower[axis])
-        wp.atomic_max(bounds, 1, axis, upper[axis])
-
-
-@wp.kernel
 def normalize_gaussians(
     x: wp.array[wp.vec3],
     s: wp.array[wp.vec3],

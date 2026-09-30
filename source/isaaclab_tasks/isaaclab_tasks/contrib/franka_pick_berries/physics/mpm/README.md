@@ -1,5 +1,7 @@
 # Tissue and appearance kernels
 
+> Scheduled for replacement by the Newton manager; see "Follow-up work" in the task README.
+
 Derived from the local Carsten POC at
 `/mnt/data/isaac_lab_poc/fruit_handling/carsten_experiments/squishy/`.
 The original source and prepared assets were not modified.

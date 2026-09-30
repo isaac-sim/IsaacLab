@@ -123,6 +123,7 @@ parser.add_argument(
     type=int,
     help="MPM steps/s; default: raspberry 5040, blueberry 6000, blackberry/strawberry 4560",
 )
+parser.add_argument("--mpm_device", help="Warp device of the MPM solver and Gaussian streams; default: cuda:0")
 parser.add_argument("--partitions", type=int, choices=[1, 4], default=1)
 parser.add_argument(
     "--render_aa",
@@ -239,6 +240,7 @@ cfg.berry_asset_version = args.asset_version
 cfg.physics_profile = args.physics_profile
 cfg.physics_resolution = args.physics_resolution
 cfg.mpm_hz = args.mpm_hz
+cfg.mpm_device = args.mpm_device
 cfg.sim.device = "cpu"
 with launch_simulation(cfg, args), ExitStack() as resources:
     import gymnasium as gym
@@ -529,6 +531,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                         "effective_material": berry.effective_parameters,
                         "physics_resolution": berry.resolution,
                         "mpm_hz": berry.sim.hz,
+                        "mpm_device": str(berry.device),
                         "gaussians": len(berry.asset["xyz"]),
                         "physical_particles": len(berry.sim.rest),
                     }
@@ -552,6 +555,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "sh_rotation_initial": args.sh_rotation,
                 "sh_rotation_final": ("on" if viewer.sh_rotation else "off") if viewer is not None else None,
                 "mpm_hz": env.berry.sim.hz,
+                "mpm_device": str(env.berry.device),
                 "mpm_cfl": float(env.berry.sim.cfl),
                 "width": args.width,
                 "height": args.height,

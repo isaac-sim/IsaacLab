@@ -94,7 +94,6 @@ class Binding:
     def deform_gpu(self, positions, frames, host=True):
         if self.gpu is None:
             wp.init()
-            wp.set_device("cuda:0")
             self.gpu = [
                 wp.array(self.ids, dtype=int),
                 wp.array(self.weights, dtype=float),
@@ -220,7 +219,6 @@ class MLSBinding:
     def _update(self, positions):
         if self.gpu is None:
             wp.init()
-            wp.set_device("cuda:0")
             self.gpu = [
                 wp.array(self.ids, dtype=int),
                 wp.array(self.weights, dtype=float),

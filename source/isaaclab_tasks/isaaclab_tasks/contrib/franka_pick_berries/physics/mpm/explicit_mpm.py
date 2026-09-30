@@ -472,7 +472,6 @@ class ExplicitMPM:
         interfield_contact=True,
     ):
         wp.init()
-        wp.set_device("cuda:0")
         self.rest = np.asarray(rest, np.float32)
         self.regions = np.zeros(len(rest), np.int32) if regions is None else np.asarray(regions, np.int32)
         self.interface = np.zeros(len(rest), np.int32) if interface is None else np.asarray(interface, np.int32)
@@ -496,7 +495,6 @@ class ExplicitMPM:
                 len(rest), adhesion, adhesion_range, spacing, self.mass, adhesion_lifetime, adhesion_plane_scale
             )
         self.contact = contact
-        self.juice = None
         if not np.isfinite([bruise_stress, bruise_rate]).all() or bruise_stress < 0 or bruise_rate < 0:
             raise ValueError("Bruise threshold and rate must be finite and nonnegative")
         self.bruise_stress, self.bruise_rate = bruise_stress, bruise_rate
@@ -595,8 +593,6 @@ class ExplicitMPM:
             )
         if self.contact:
             self.contact.begin_step(self)
-        if self.juice:
-            self.juice.begin_step(self)
         wp.launch(
             particle_affines,
             dim=len(self.rest),
@@ -618,77 +614,67 @@ class ExplicitMPM:
                 self.bruise_rate,
             ],
         )
-        if self.juice:
-            self.juice.affines(self)
-        if self.juice and self.juice.refinement > 1:
-            self.juice.p2g(self)
-        else:
-            wp.launch(
-                particle_to_grid,
-                dim=len(self.rest) * 27,
-                inputs=[
-                    self.x,
-                    self.v,
-                    self.affine,
-                    self.region_gpu,
-                    self.mass,
-                    self.h,
-                    self.origin,
-                    self.res,
-                    self.nodes,
-                    self.node_mass,
-                    self.node_momentum,
-                    self.node_gradient,
-                    self.node_moment,
-                    self.active,
-                    self.count,
-                    self.visited,
-                    self.errors,
-                    self.spacing / 2,
-                    self.node_lower,
-                    self.node_upper,
-                    self.fields,
-                ],
-            )
-        if self.juice:
-            self.juice.grid_step(self)
-        else:
-            wp.launch(
-                grid_solve,
-                dim=self.capacity,
-                inputs=[
-                    self.active,
-                    self.count,
-                    self.nodes,
-                    self.fields,
-                    self.node_mass,
-                    self.node_momentum,
-                    self.node_velocity,
-                    self.node_gradient,
-                    self.node_moment,
-                    self.released,
-                    self.origin,
-                    self.res,
-                    self.h,
-                    self.dt,
-                    self.gravity,
-                    self.damping,
-                    self.friction,
-                    self.cube,
-                    self.cube_speed,
-                    self.use_plane,
-                    self.use_cube,
-                    self.node_lower,
-                    self.node_upper,
-                    self.tool_half,
-                    self.contact_friction,
-                    self.interfield_contact,
-                ],
-            )
+        wp.launch(
+            particle_to_grid,
+            dim=len(self.rest) * 27,
+            inputs=[
+                self.x,
+                self.v,
+                self.affine,
+                self.region_gpu,
+                self.mass,
+                self.h,
+                self.origin,
+                self.res,
+                self.nodes,
+                self.node_mass,
+                self.node_momentum,
+                self.node_gradient,
+                self.node_moment,
+                self.active,
+                self.count,
+                self.visited,
+                self.errors,
+                self.spacing / 2,
+                self.node_lower,
+                self.node_upper,
+                self.fields,
+            ],
+        )
+        wp.launch(
+            grid_solve,
+            dim=self.capacity,
+            inputs=[
+                self.active,
+                self.count,
+                self.nodes,
+                self.fields,
+                self.node_mass,
+                self.node_momentum,
+                self.node_velocity,
+                self.node_gradient,
+                self.node_moment,
+                self.released,
+                self.origin,
+                self.res,
+                self.h,
+                self.dt,
+                self.gravity,
+                self.damping,
+                self.friction,
+                self.cube,
+                self.cube_speed,
+                self.use_plane,
+                self.use_cube,
+                self.node_lower,
+                self.node_upper,
+                self.tool_half,
+                self.contact_friction,
+                self.interfield_contact,
+            ],
+        )
         if self.contact:
             self.contact.grid_step(self)
-        if self.juice:
-            self.juice.contact_grid(self)
         wp.launch(
             grid_to_particle,
             dim=len(self.rest),
@@ -726,8 +712,6 @@ class ExplicitMPM:
         )
         if self.contact:
             self.contact.particle_step(self)
-        if self.juice:
-            self.juice.project(self)
 
     def prepare(self, depth=0.85):
         saved = [
@@ -748,7 +732,6 @@ class ExplicitMPM:
         ]
         saved_adhesion = [wp.clone(a) for a in self.adhesion.arrays] if self.adhesion else []
         saved_contact = [wp.clone(a) for a in self.contact.state_arrays] if self.contact else []
-        saved_juice = [wp.clone(a) for a in self.juice.state_arrays] if self.juice else []
         self.step(depth)
         with wp.ScopedCapture() as capture:
             for _ in range(self.hz // self.frame_hz):
@@ -776,9 +759,6 @@ class ExplicitMPM:
                 target.assign(source)
         if self.contact:
             for target, source in zip(self.contact.state_arrays, saved_contact):
-                target.assign(source)
-        if self.juice:
-            for target, source in zip(self.juice.state_arrays, saved_juice):
                 target.assign(source)
         self.errors.zero_()
         wp.synchronize()

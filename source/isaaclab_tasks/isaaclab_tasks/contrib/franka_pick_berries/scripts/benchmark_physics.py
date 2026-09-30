@@ -32,6 +32,7 @@ def main():
     parser.add_argument("--gap", type=float, help="Final inner-pad gap [m]; default: 85%% of settled width")
     parser.add_argument("--grid_shift", type=float, default=0, help="Shift only the grid origin along Y [m]")
     parser.add_argument("--friction", type=float, default=1.2, help="Finger Coulomb friction coefficient")
+    parser.add_argument("--device", default="cuda:0", help="Warp device of the MPM solver")
     parser.add_argument("--output", type=Path, required=True, help="New output directory")
     args = parser.parse_args()
     if args.output.exists():
@@ -46,7 +47,7 @@ def main():
     params = simulation_parameters(profile, args.physics_profile)
     proxy, params, resolution = physics_resolution(proxy, params, args.physics_resolution)
     wp.config.enable_backward = False
-    wp.set_device("cuda:0")
+    wp.set_device(args.device)
     rest = proxy["xyz"]
     center = (rest.min(0) + rest.max(0)) / 2
     sizes = np.array([[0.009, 0.0054, 0.0089]] * 2, np.float32)

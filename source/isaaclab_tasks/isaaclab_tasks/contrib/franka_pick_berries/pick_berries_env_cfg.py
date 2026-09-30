@@ -73,6 +73,8 @@ class BerryPickEnvCfg(FrankaCubeStackEnvCfg):
     physics_profile: str = "handling"
     physics_resolution: str = "full"
     mpm_hz: int | None = None
+    mpm_device: str | None = None
+    """Warp device of the MPM solver and Gaussian streams; ``None`` follows a CUDA sim device, else ``cuda:0``."""
     asset_root: str = berry_root()
     berry_position: tuple[float, float, float] = (0.48, 0.0, 0.0)
     background: str = "studio"
