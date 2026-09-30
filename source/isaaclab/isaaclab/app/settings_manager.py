@@ -58,21 +58,6 @@ class SettingsManager:
         self._backend = None
         self._needs_init = False
 
-    @classmethod
-    def instance(cls) -> "SettingsManager":
-        """Get the singleton instance of the settings manager.
-
-        Returns:
-            The singleton SettingsManager instance
-        """
-        # Get instance from sys.modules (survives module reloads)
-        instance = sys.modules.get(_SINGLETON_KEY)
-
-        if instance is None:
-            instance = cls()
-
-        return instance
-
     def set_backend(self, backend: Any) -> None:
         """Delegate all settings to *backend* from now on.
 
@@ -123,42 +108,6 @@ class SettingsManager:
         else:
             # Standalone mode - use dictionary
             return self._standalone_settings.get(path, default)
-
-    def set_bool(self, path: str, value: bool) -> None:
-        """Set a boolean setting value.
-
-        Args:
-            path: The settings path
-            value: The boolean value to set
-        """
-        self.set(path, value)
-
-    def set_int(self, path: str, value: int) -> None:
-        """Set an integer setting value.
-
-        Args:
-            path: The settings path
-            value: The integer value to set
-        """
-        self.set(path, value)
-
-    def set_float(self, path: str, value: float) -> None:
-        """Set a float setting value.
-
-        Args:
-            path: The settings path
-            value: The float value to set
-        """
-        self.set(path, value)
-
-    def set_string(self, path: str, value: str) -> None:
-        """Set a string setting value.
-
-        Args:
-            path: The settings path
-            value: The string value to set
-        """
-        self.set(path, value)
 
 
 def get_settings_manager() -> SettingsManager:

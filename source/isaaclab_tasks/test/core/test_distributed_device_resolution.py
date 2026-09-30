@@ -27,8 +27,6 @@ import sys
 import types
 from unittest.mock import patch
 
-import pytest
-
 import isaaclab.app.sim_launcher as sim_launcher
 
 # ---------------------------------------------------------------------------
@@ -106,7 +104,7 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=3, world_size=4)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:3"
         # the Kit launcher reads the resolved device from the launcher args
@@ -122,7 +120,7 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=1, world_size=2)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_called_once_with("cuda:0")
@@ -137,7 +135,7 @@ class TestResolveDistributedDeviceNamespace:
         env = _make_env_vars(local_rank=0, world_size=2, jax_local_rank=1)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:1"
         mock_set_device.assert_called_once_with("cuda:1")
@@ -174,13 +172,12 @@ class TestResolveDistributedDeviceDict:
 class TestResolveDistributedDeviceNoop:
     """Tests that non-distributed runs skip device resolution."""
 
-    @pytest.mark.parametrize("args", [argparse.Namespace(distributed=False), {"distributed": False}])
     @patch.object(sim_launcher, "set_cuda_device")
-    def test_not_distributed(self, mock_set_device, args):
-        """distributed=False as a namespace or dict → device unchanged, set_device not called."""
+    def test_not_distributed(self, mock_set_device):
+        """distributed=False → device unchanged, set_device not called."""
         env_cfg = _DummyEnvCfg(device="cuda:0")
 
-        sim_launcher._resolve_distributed_device(env_cfg, args)
+        sim_launcher._resolve_distributed_device(env_cfg, {"distributed": False})
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
@@ -192,16 +189,6 @@ class TestResolveDistributedDeviceNoop:
         args = {}
 
         sim_launcher._resolve_distributed_device(env_cfg, args)
-
-        assert env_cfg.sim.device == "cuda:0"
-        mock_set_device.assert_not_called()
-
-    @patch.object(sim_launcher, "set_cuda_device")
-    def test_none_launcher_args(self, mock_set_device):
-        """launcher_args=None → no-op."""
-        env_cfg = _DummyEnvCfg(device="cuda:0")
-
-        sim_launcher._resolve_distributed_device(env_cfg, None)
 
         assert env_cfg.sim.device == "cuda:0"
         mock_set_device.assert_not_called()
@@ -228,7 +215,7 @@ class TestResolveDistributedDeviceEdgeCases:
         env = _make_env_vars(local_rank=1, world_size=2)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         # Should still call set_device even without sim_cfg
         mock_set_device.assert_called_once_with("cuda:1")
@@ -248,7 +235,7 @@ class TestResolveDistributedDeviceEdgeCases:
         }
 
         with patch.dict(os.environ, clean_env, clear=True):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         # local_rank=0, 0 < 4 → cuda:0
         assert env_cfg.sim.device == "cuda:0"
@@ -275,7 +262,7 @@ class TestResolveDistributedDeviceMultiNode:
         env = _make_env_vars(local_rank=3, world_size=8, rank=7)
 
         with patch.dict(os.environ, env, clear=False):
-            sim_launcher._resolve_distributed_device(env_cfg, args)
+            sim_launcher._resolve_distributed_device(env_cfg, vars(args))
 
         assert env_cfg.sim.device == "cuda:3"
         mock_set_device.assert_called_once_with("cuda:3")

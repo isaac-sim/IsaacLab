@@ -28,7 +28,7 @@ def temp_dir():
     """Fixture to create and clean up a temporary directory for test datasets."""
     # this flag is necessary to prevent a bug where the simulation gets stuck randomly when running the
     # test on many environments.
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
     # create a temporary directory to store the test datasets
     temp_dir = tempfile.mkdtemp()
     yield temp_dir

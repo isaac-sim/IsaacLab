@@ -17,7 +17,7 @@ Use this skill in one of three modes that share one value bar:
 - **Audit**: sweep one area for tests that re-assert source, duplicate stronger proof, couple to implementation, or keep test-only production seams alive. Optimize for confidence, not deletion count; continue broad audits as separate coherent follow-up PRs.
 - **Campaign**: prune one package's or subsystem's whole test surface. Read [campaign.md](campaign.md) before starting one.
 
-Read `AGENTS.md` (especially *Testing and validation*) and any scoped `AGENTS.md` first. This skill decides *whether* a test earns its cost; `isaaclab-following-coding-style` covers how it is written.
+Read `AGENTS.md`, any scoped `AGENTS.md`, and the contribution guide's [Unit Testing section](../../../docs/source/refs/contributing.rst#unit-testing) first. This skill maintains the detailed criteria for *whether* a test earns its cost; `isaaclab-following-coding-style` covers how it is written.
 
 ## Workflow
 
@@ -116,7 +116,7 @@ Commit, push, or open a PR only when authorized, using `isaaclab-preparing-pr-wo
 
 Review this skill when these change:
 
-- `AGENTS.md` testing and validation rules;
+- the contribution guide's `Unit Testing` recommendations and `AGENTS.md` skill routing;
 - `tools/conftest.py` and `tools/test_settings.py` (per-file CI runner, timeouts, skips);
 - `source/isaaclab/isaaclab/test/utils/devices.py` (`test_devices` and `DeviceScope`).
 

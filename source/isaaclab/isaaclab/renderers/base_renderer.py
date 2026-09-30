@@ -116,6 +116,19 @@ class BaseRenderer(ABC):
         """
         pass
 
+    def prepare_capture(self, render_data: Any, camera_data: CameraData, frame: ProxyArray) -> None:
+        """Snapshot metadata for the next capture when its image will be delivered asynchronously.
+
+        Synchronous renderers need no snapshot. Delayed captures publish their pose, calibration,
+        and frame indices through ``camera_data.info[output_name]["capture"]`` without changing
+        the live camera fields.
+
+        Args:
+            render_data: Renderer-owned camera resources.
+            camera_data: Current camera pose and calibration.
+            frame: Current per-environment capture indices, shape (N,), dtype ``wp.int64``.
+        """
+
     @abstractmethod
     def update_transforms(self) -> None:
         """Update scene transforms before rendering.
@@ -176,7 +189,7 @@ class BaseRenderer(ABC):
 
     @abstractmethod
     def render(self, render_data: Any) -> None:
-        """Perform rendering and write to output buffers.
+        """Submit a capture; :meth:`read_output` publishes its camera's available observation.
 
         Args:
             render_data: The render data object from :meth:`create_render_data`.
@@ -184,7 +197,7 @@ class BaseRenderer(ABC):
         pass
 
     def render_batch(self, render_data: Sequence[Any]) -> None:
-        """Render a collection of cameras into their bound output buffers.
+        """Submit captures for a collection of cameras.
 
         All camera poses and shared scene state must be prepared before calling this method.
         An empty sequence is a no-op. Each object must belong to this renderer and appear once.
@@ -201,6 +214,9 @@ class BaseRenderer(ABC):
     def read_output(self, render_data: Any, camera_data: CameraData) -> None:
         """Read rendered outputs from the renderer into the camera data container.
 
+        Asynchronous renderers may return the previous capture with its matching metadata in
+        ``camera_data.info``. Publishing one camera must not change another camera's observations.
+
         Args:
             render_data: The render data object from :meth:`create_render_data`.
             camera_data: The :class:`~isaaclab.sensors.camera.camera_data.CameraData`
@@ -216,6 +232,19 @@ class BaseRenderer(ABC):
             render_data: The render data object to clean up, or ``None``.
         """
         pass
+
+    def reset(self, render_data: Any, env_ids: Sequence[int] | None = None) -> None:
+        """Reset the renderer-owned state of a camera when its environments reset.
+
+        A renderer implementation drops whatever per-camera state must not survive a reset.
+        Examples are pending asynchronous observations and accumulated temporal render history.
+        The default does nothing.
+
+        Args:
+            render_data: The render data object from :meth:`create_render_data`.
+            env_ids: Environments being reset, or ``None`` for all. An implementation may reset
+                more than the given environments when its state is not separable per environment.
+        """
 
     def close(self) -> None:
         """Release resources owned by the renderer itself rather than by a render data.

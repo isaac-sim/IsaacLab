@@ -24,7 +24,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
-from isaaclab_newton.physics import NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, NewtonManager, VBDSolverCfg, XPBDSolverCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
 from isaaclab_physx.renderers import IsaacRtxRendererCfg
 from isaaclab_physx.renderers.fabric import FabricBackend, FabricBackendCfg
@@ -32,12 +32,13 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 
 from pxr import Gf as UsdGf
-from pxr import Sdf, UsdGeom
+from pxr import Sdf, UsdGeom, UsdPhysics
 from usdrt import Gf, Rt, Vt
 from usdrt import Sdf as RtSdf
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import AssetBaseCfg, CableObjectCfg, RigidObjectCfg
+from isaaclab.actuators import ImplicitActuatorCfg
+from isaaclab.assets import ArticulationCfg, AssetBaseCfg, CableObjectCfg, RigidObjectCfg
 from isaaclab.envs.utils.video_recorder import VideoRecorder
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
@@ -75,6 +76,9 @@ class _RenderSceneCfg(InteractiveSceneCfg):
 @configclass
 class _CableRenderSceneCfg(InteractiveSceneCfg):
     camera: CameraCfg = _RenderSceneCfg().camera
+    cube: RigidObjectCfg = replace(
+        _RenderSceneCfg().cube, init_state=RigidObjectCfg.InitialStateCfg(pos=(1.0, 0.0, 1.0))
+    )
     cable: CableObjectCfg = CableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cable",
         spawn=CableCfg(
@@ -364,6 +368,65 @@ def test_nested_bodies_keep_independent_world_poses():
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
+def test_nested_articulation_follows_root_pose_writes():
+    """Rendering a nested child link must apply its parent's root displacement only once."""
+    sim_cfg = SimulationCfg(
+        device="cuda:0",
+        gravity=(0.0, 0.0, 0.0),
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(), use_cuda_graph=False),
+    )
+    scene_cfg = _RenderSceneCfg(num_envs=1, env_spacing=2.0)
+    scene_cfg.cube = None
+    scene_cfg.robot = ArticulationCfg(
+        prim_path="{ENV_REGEX_NS}/Robot",
+        spawn=None,
+        actuators={"all": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=0.0, damping=0.0)},
+    )
+    with build_simulation_context(sim_cfg=sim_cfg) as sim:
+        sim._app_control_on_stop_handle = None
+        root_path = "/World/envs/env_0/Robot"
+        root = UsdGeom.Xform.Define(sim.stage, root_path)
+        UsdPhysics.ArticulationRootAPI.Apply(root.GetPrim())
+        paths = [f"{root_path}/base", f"{root_path}/base/arm"]
+        for path, position in zip(paths, ((0.0, 0.0, 1.0), (0.0, 0.5, 0.0)), strict=True):
+            body = UsdGeom.Xform.Define(sim.stage, path)
+            body.AddTranslateOp().Set(UsdGf.Vec3d(*position))
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+            geometry = UsdGeom.Cube.Define(sim.stage, f"{path}/geometry")
+            geometry.GetSizeAttr().Set(0.2)
+            UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
+        joint = UsdPhysics.RevoluteJoint.Define(sim.stage, f"{root_path}/base/arm_joint")
+        joint.CreateBody0Rel().SetTargets([paths[0]])
+        joint.CreateBody1Rel().SetTargets([paths[1]])
+        joint.CreateAxisAttr("X")
+        joint.CreateLocalPos0Attr(UsdGf.Vec3f(0.0, 0.5, 0.0))
+        joint.CreateLocalPos1Attr(UsdGf.Vec3f(0.0))
+
+        scene = InteractiveScene(scene_cfg)
+        sim.register_interactive_scene(scene)
+        try:
+            sim.reset()
+            scene.reset()
+            _render(sim, scene)
+            indices = [NewtonManager.get_model().body_label.index(path) for path in paths]
+            pose = scene["robot"].data.default_root_pose.torch.clone()
+            physics_steps = sim.get_physics_step_count()
+            for displacement in (1.0, 2.0, 3.0):
+                pose[:, 0] = displacement
+                scene["robot"].write_root_link_pose_to_sim_index(root_pose=pose)
+                _render(sim, scene)
+                expected = wp.to_torch(NewtonManager.get_state_0().body_q)[indices, :3].cpu()
+                for path, position in zip(paths, expected, strict=True):
+                    _assert_position(_fabric_position(path), position)
+                    _assert_position(_fabric_position(f"{path}/geometry"), position)
+                assert sim.get_physics_step_count() == physics_steps
+        finally:
+            sim.register_interactive_scene(None)
+
+
+@pytest.mark.isaacsim_ci
+@pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatch):
     """Mesh, curve and cloud sinks consume only named SDP buffers, independent of Newton internals."""
     cfg = SimulationCfg(device="cuda:0", physics=NewtonCfg(), visualizer_cfgs=[])
@@ -447,7 +510,7 @@ def test_fabric_geometry_sink_uses_sdp_world_points_and_frame_cadence(monkeypatc
 @pytest.mark.isaacsim_ci
 @pytest.mark.skipif(not wp.get_cuda_device_count(), reason="CUDA is unavailable")
 def test_cable_points_follow_newton_segments_after_step_and_reset():
-    """Fabric cable points must follow Newton segments across steps and hard resets."""
+    """Cable segments and neighboring rigid bodies must render across steps and hard resets."""
     device = "cuda:0"
     sim_cfg = SimulationCfg(
         dt=1.0 / 120.0,
@@ -477,6 +540,12 @@ def test_cable_points_follow_newton_segments_after_step_and_reset():
                 for env_id, initial in enumerate(initial_points):
                     expected = _expected_cable_points_world(cable, env_id)
                     torch.testing.assert_close(initial, expected, rtol=0.0, atol=1.0e-4)
+                cube_pose = scene["cube"].data.default_root_pose.torch.clone()
+                cube_pose[:, :3] = scene.env_origins + torch.tensor([1.5, -0.75, 2.0], device=device)
+                scene["cube"].write_root_link_pose_to_sim_index(root_pose=cube_pose)
+                _render(sim, scene)
+                for env_path, pose in zip(scene.env_prim_paths, cube_pose.cpu(), strict=True):
+                    _assert_position(_fabric_position(f"{env_path}/Cube"), pose[:3])
                 for _ in range(8):
                     scene.write_data_to_sim()
                     sim.step(render=False)

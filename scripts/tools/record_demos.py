@@ -815,11 +815,11 @@ def main() -> None:
     global env_cfg  # Make env_cfg available to setup_teleop_device
     env_cfg, success_term, use_isaac_teleop = create_environment_config(output_dir, output_file_name)
 
-    with launch_simulation(env_cfg, args_cli):
-        record_demos(success_term, use_isaac_teleop)
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        record_demos(success_term, use_isaac_teleop, cleanup)
 
 
-def record_demos(success_term: object | None, use_isaac_teleop: bool) -> None:
+def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: contextlib.ExitStack) -> None:
     """Create the environment and record demonstrations until the session ends."""
     from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
     from isaaclab_teleop import XrCameraFeedSession
@@ -836,6 +836,7 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool) -> None:
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
     )
+    cleanup.callback(camera_feed_session.close)
     if camera_feed_session.requires_responsive_denoising:
         apply_isaac_rtx_global_settings(
             IsaacRtxRendererGlobalSettingsCfg(
