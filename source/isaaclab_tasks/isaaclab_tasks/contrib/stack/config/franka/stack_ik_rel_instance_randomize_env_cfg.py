@@ -5,14 +5,9 @@
 
 from isaaclab.controllers.differential_ik_cfg import DifferentialIKControllerCfg
 from isaaclab.envs.mdp.actions.actions_cfg import DifferentialInverseKinematicsActionCfg
-from isaaclab.utils import configclass, replace
+from isaaclab.utils import configclass
 
 from . import stack_joint_pos_instance_randomize_env_cfg
-
-##
-# Pre-defined configs
-##
-from isaaclab_assets.robots.franka import FRANKA_PANDA_FLAT_HIGH_PD_CFG  # isort: skip
 
 
 @configclass
@@ -23,11 +18,10 @@ class FrankaCubeStackInstanceRandomizeEnvCfg(
         # post init of parent
         super().__post_init__()
 
-        # Set Franka as robot
-        # We switch here to a stiffer PD controller for IK tracking to be better.
-        robot_variants = self.scene.robot.spawn.variants
-        self.scene.robot = replace(FRANKA_PANDA_FLAT_HIGH_PD_CFG, prim_path="{ENV_REGEX_NS}/Robot")
-        self.scene.robot.spawn.variants = robot_variants
+        # Use stiffer arm gains for IK without replacing the task's robot configuration.
+        self.scene.robot.spawn.rigid_props.disable_gravity = True
+        self.scene.robot.actuators["panda_arm"].stiffness = 400.0
+        self.scene.robot.actuators["panda_arm"].damping = 80.0
 
         # Set actions for the specific robot type (franka)
         self.actions.arm_action = DifferentialInverseKinematicsActionCfg(
