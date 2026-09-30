@@ -1,6 +1,48 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+23.0.0 (2026-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_tasks.core.velocity.mdp.rewards.feet_air_time_variance`, penalizing an
+  uneven swing/stance split between a biped's feet.
+
+Changed
+^^^^^^^
+
+* Enabled the heterogeneous shapes preset by default for KUKA–Allegro tasks with OvPhysX. Select the ``cube`` preset explicitly to retain the previous homogeneous object setup.
+* Changed ``Isaac-Velocity-Flat-Cassie``, ``Isaac-Velocity-Rough-Cassie`` and
+  ``Isaac-Velocity-Flat-H1`` to include the new ``air_time_variance`` reward term, which fixes the
+  tilted gait these tasks otherwise converge on. Policies trained on them will differ from ones
+  trained before this change; set the weight to ``0.0`` to recover the previous reward.
+* Changed ``Isaac-Velocity-Flat-UnitreeGo2`` and ``Isaac-Velocity-Rough-UnitreeGo2`` to add a
+  ``base_height_l2`` reward term at weight ``-30.0`` (rough, height-scanner adjusted) and disabled
+  on flat via ``sensor_cfg=None``. Without it, Go2's leg colliders let a policy rest its weight on
+  the legs and collect the full episode-length alive bonus from a permanent crouch, since torso
+  contact never fires and flat-orientation reward can't see it.
+* Changed ``action_rate_l2`` on both tasks from the shared default of ``-0.01`` to ``-0.005``. The
+  stronger penalty locked one hind foot into a low-amplitude, dragging gait on flat terrain with
+  the Newton backend. Policies trained on these tasks will differ from ones trained before this
+  change.
+
+Removed
+^^^^^^^
+
+* Removed the unsupported ``Isaac-Reorient-Franka`` task and its environment configuration. Migrate custom
+  reorientation experiments to a maintained task or keep a local copy of the old configuration.
+
+Fixed
+^^^^^
+
+* Stabilized the DR Legs Kamino P-ADMM preset by disabling its driven-joint effort limit; PhysX retained
+  the 3.1 N m limit.
+
+
 22.0.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~~
 

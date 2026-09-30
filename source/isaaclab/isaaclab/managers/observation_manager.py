@@ -442,11 +442,12 @@ class ObservationManager(ManagerBase):
                         obs = modifier.func(obs)
                     else:
                         obs = modifier.func(obs, **modifier.params)
+            # Noise callbacks must not modify their input, but may return borrowed storage.
             if isinstance(term_cfg.noise, noise.NoiseCfg):
-                obs = term_cfg.noise.func(obs.clone(), term_cfg.noise)
+                obs = term_cfg.noise.func(obs, term_cfg.noise)
                 owned = False
             elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                obs = term_cfg.noise.func(obs.clone())
+                obs = term_cfg.noise.func(obs)
                 owned = False
             if term_cfg.clip:
                 obs = (
@@ -462,7 +463,8 @@ class ObservationManager(ManagerBase):
                 obs = self._group_obs_term_delay_buffer[group_name][term_name].compute(
                     obs, update_history=update_history
                 )
-                owned = False
+                # the delay buffer returns storage independent of its history
+                owned = True
             # Update the history buffer if observation term has history enabled
             if term_cfg.history_length > 0:
                 circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
@@ -649,7 +651,6 @@ class ObservationManager(ManagerBase):
                 # add term config to list
                 self._group_obs_term_names[group_name].append(term_name)
                 self._group_obs_term_cfgs[group_name].append(term_cfg)
-
                 # call function the first time to fill up dimensions
                 obs_dims = self._prepare_term_output(group_name, term_name, term_cfg)
 
