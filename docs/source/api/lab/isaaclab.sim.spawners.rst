@@ -372,6 +372,7 @@ Physical Materials
     :exclude-members: __init__, func
 
 .. autoclass:: RigidBodyMaterialCfg
+    :no-index:
     :members:
     :exclude-members: __init__, func
 
