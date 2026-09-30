@@ -139,12 +139,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           New-Item -ItemType Directory -Force -Path "reports" | Out-Null
 
-      # ovrtx and usd-exchange each ship a MaterialX DLL under the same generic
-      # name; on Windows whichever loads second fails (nvbug 6817794). Linux is
-      # unaffected. ovrtx loads its runtime only when a renderer is created, so
-      # every case creates one, each in a fresh interpreter. ovrtx-alone is the
-      # control; usd-first separates the MaterialX clash from other
-      # usd-exchange libraries; isaaclab-render is the user-facing path.
+      # ovrtx and usd-exchange ship differently built DLLs under the same names
+      # (MaterialXCore, MaterialXFormat, tbb12); on Windows whichever loads
+      # second fails (nvbug 6817794). Linux is unaffected. ovrtx loads its
+      # runtime only when a renderer is created, so every case creates one, each
+      # in a fresh interpreter. ovrtx-alone is the control; usd-first loads no
+      # MaterialX; isaaclab-render is the user-facing path.
+      # The cases that load usd-exchange are expected to fail only for the
+      # known-broken version pair below. A version bump re-arms them, and an
+      # unexpected pass fails the step so the entry gets removed.
       - name: OV runtime coexistence (ovrtx + usd-exchange)
         id: test-ov-coexist
         if: always() && steps.sync-kitless.outcome == 'success'
@@ -214,6 +217,12 @@ jobs:
               print(f"{step.__name__}: ok", flush=True)
           '@
           $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
+          $knownBroken = @{ "usd-exchange 3.0.0 / ovrtx 0.5.0.377615" = @("usd-first", "materialx-first", "ovrtx-first", "isaaclab-render") }
+          $pair = uv run --frozen --no-sync python -c "import importlib.metadata as m; print('usd-exchange', m.version('usd-exchange'), '/ ovrtx', m.version('ovrtx'))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $pair = "$pair".Trim()
+          $expectedFailures = if ($knownBroken.ContainsKey($pair)) { $knownBroken[$pair] } else { @() }
+          Write-Host "Installed: $pair (expected failures: $($expectedFailures -join ', '))"
           $results = [ordered]@{}
           foreach ($case in @("ovrtx-alone", "usd-first", "materialx-first", "ovrtx-first", "isaaclab-render")) {
             Write-Host "=== $case ==="
@@ -231,12 +240,22 @@ jobs:
             }
           }
           Write-Host "=== ovrtx coexistence cases ==="
+          $failed = @()
           foreach ($k in $results.Keys) {
-            "{0,-16} {1}" -f $k, $results[$k]
+            $expected = $expectedFailures -contains $k
+            $verdict = if ($expected -and $results[$k] -eq "failure") { "xfail" }
+                       elseif ($expected -and $results[$k] -eq "success") { "XPASS" }
+                       elseif ($results[$k] -eq "success") { "pass" }
+                       else { $results[$k] }
+            if ($verdict -notin @("pass", "xfail")) { $failed += "$k ($verdict)" }
+            "{0,-16} {1}" -f $k, $verdict
           }
-          $failed = @($results.Keys | Where-Object { $results[$_] -ne "success" })
+          if ($expectedFailures.Count -gt 0) {
+            Write-Host "::warning::nvbug 6817794: ovrtx and usd-exchange cannot share a process on Windows ($pair); expected failures: $($expectedFailures -join ', ')"
+          }
           if ($failed.Count -gt 0) {
-            Write-Host "::error::ovrtx coexistence failed: $($failed -join ', ')"
+            $hint = if ($failed -match "XPASS") { " Remove the known-broken entry for $pair." } else { "" }
+            Write-Host "::error::ovrtx coexistence: $($failed -join ', ').$hint"
             exit 1
           }
 
