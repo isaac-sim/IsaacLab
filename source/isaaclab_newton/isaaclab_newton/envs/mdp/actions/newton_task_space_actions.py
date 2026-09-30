@@ -103,14 +103,13 @@ class _NewtonTaskSpaceAction(ActionTerm):
         """Compute the target-frame Jacobian in the root frame, shape (num_envs, 6, num_joints)."""
         data = self._asset.data
         jacobian_w = data.body_link_jacobian_w.torch[:, self._jacobi_body_idx, :, self._jacobi_joint_ids]
-        root_rot = math_utils.matrix_from_quat(math_utils.quat_inv(data.root_quat_w.torch))
+        root_quat_inv = math_utils.quat_inv(data.root_quat_w.torch)
+        root_rot = math_utils.matrix_from_quat(root_quat_inv)
         self._jacobian_b[:, :3] = torch.bmm(root_rot, jacobian_w[:, :3])
         self._jacobian_b[:, 3:] = torch.bmm(root_rot, jacobian_w[:, 3:])
         if self._offset_pos is not None:
             # Express the lever arm in root axes; a rigid offset leaves angular velocity unchanged.
-            body_quat_b = math_utils.quat_mul(
-                math_utils.quat_inv(data.root_quat_w.torch), data.body_quat_w.torch[:, self._body_idx]
-            )
+            body_quat_b = math_utils.quat_mul(root_quat_inv, data.body_quat_w.torch[:, self._body_idx])
             offset_pos_b = math_utils.quat_apply(body_quat_b, self._offset_pos)
             self._jacobian_b[:, :3] += torch.bmm(
                 -math_utils.skew_symmetric_matrix(offset_pos_b), self._jacobian_b[:, 3:]
