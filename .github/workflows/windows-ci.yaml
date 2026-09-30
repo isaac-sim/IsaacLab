@@ -141,23 +141,71 @@ jobs:
 
       # ovrtx and usd-exchange each ship a MaterialX DLL under the same generic
       # name; on Windows whichever loads second fails (nvbug 6817794). Linux is
-      # unaffected. Each import pair runs in a fresh interpreter.
+      # unaffected. ovrtx loads its runtime only when a renderer is created, so
+      # importing is not enough: each load order renders a kit-less Cartpole
+      # camera frame through ovrtx in a fresh interpreter.
       - name: OV runtime coexistence (ovrtx + usd-exchange)
         id: test-ov-coexist
         if: always() && steps.sync-kitless.outcome == 'success'
         continue-on-error: true
         shell: powershell
-        timeout-minutes: 5
+        timeout-minutes: 20
         run: |
           $ErrorActionPreference = "Stop"
+          $script = @'
+          import sys
+
+
+          def load_usd_exchange_materialx():
+              import usdex.core  # noqa: F401
+              from pxr import UsdMtlx  # noqa: F401
+
+
+          def render_with_ovrtx():
+              import torch
+
+              from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+              from isaaclab_tasks.utils import resolve_task_config
+
+              env_cfg, _ = resolve_task_config(
+                  "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=ovrtx")
+              )
+              env_cfg.scene.num_envs = 2
+              env_cfg.frame_stack = 1
+              env = CartpoleCameraEnv(cfg=env_cfg)
+              try:
+                  obs, _ = env.reset()
+                  image = obs["policy"]
+                  assert torch.isfinite(image).all(), "OVRTX camera observation contains NaN or infinity"
+                  assert image.amax() > image.amin(), "OVRTX camera observation is constant"
+              finally:
+                  env.close()
+
+
+          steps = [load_usd_exchange_materialx, render_with_ovrtx]
+          if sys.argv[1] == "ovrtx-first":
+              steps.reverse()
+          for step in steps:
+              step()
+              print(f"{step.__name__}: ok", flush=True)
+          '@
+          $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
           $failed = @()
-          foreach ($imports in @("ovrtx, usdex.core", "ovrtx, pxr.UsdMtlx")) {
-            Write-Host "=== import $imports ==="
-            uv run --frozen --no-sync python -c "import $imports; print('ok')"
-            if ($LASTEXITCODE -ne 0) { $failed += $imports }
+          foreach ($order in @("usdex-first", "ovrtx-first")) {
+            Write-Host "=== $order ==="
+            $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $order"
+            # Reading Handle keeps the process handle open so ExitCode survives the exit.
+            $null = $proc.Handle
+            if (-not $proc.WaitForExit(480000)) {
+              Write-Host "::error::$order hard timeout (8 min); killing process tree"
+              taskkill /PID $proc.Id /T /F | Out-Null
+              $failed += $order
+            } elseif ($proc.ExitCode -ne 0) {
+              $failed += $order
+            }
           }
           if ($failed.Count -gt 0) {
-            Write-Host "::error::Import failed in one interpreter: $($failed -join ' | ')"
+            Write-Host "::error::ovrtx and usd-exchange did not coexist: $($failed -join ', ')"
             exit 1
           }
 
@@ -352,6 +400,7 @@ jobs:
           name: windows-ci-reports
           path: |
             reports/
+            ov_coexist_probe.py
             kit_launch_smoke.py
             perception_smoke.py
           retention-days: 7
