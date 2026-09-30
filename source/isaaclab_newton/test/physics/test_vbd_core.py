@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import importlib
+import math
 from types import SimpleNamespace
 
 import pytest
@@ -164,6 +165,40 @@ def test_vbd_compliant_alm_cable_stiffness():
     # At equilibrium the spring force balances the weight: k * extension = m * g.
     expected_extension = mass * gravity / stretch_stiffness
     assert state_0.body_q.numpy()[body, 2] == pytest.approx(-expected_extension, rel=0.01)
+
+
+@pytest.mark.parametrize("stiffness", [None, (1.0e3, 1.0e2)], ids=["defaults", "finite-attachment"])
+def test_vbd_structural_joint_stiffness_under_load(stiffness):
+    """A fixed joint balances gravity with independently configured linear and angular springs."""
+    physics = importlib.import_module("isaaclab_newton.physics")
+    gravity, lever = 9.81, 0.1
+    builder = ModelBuilder(gravity=(0.0, 0.0, -gravity))
+    body = builder.add_link(xform=wp.transform(wp.vec3(lever, 0.0, 0.0), wp.quat_identity()))
+    builder.add_shape_sphere(body=body, radius=0.05)
+    mass = builder.body_mass[body]
+    joint = builder.add_joint_fixed(
+        parent=-1, child=body, child_xform=wp.transform(wp.vec3(-lever, 0.0, 0.0), wp.quat_identity())
+    )
+    builder.add_articulation([joint])
+    builder.color()
+    model = builder.finalize(device="cpu")
+    solver_cfg = physics.VBDSolverCfg(rigid_compliant_alm=True, iterations=15)
+    linear_ke, angular_ke = (1.0e5, 1.0e5) if stiffness is None else stiffness
+    if stiffness is not None:
+        solver_cfg = solver_cfg.replace(rigid_joint_linear_ke=linear_ke, rigid_joint_angular_ke=angular_ke)
+    solver = physics.NewtonVBDManager._create_solver(model, solver_cfg)
+    state_0, state_1, control = model.state(), model.state(), model.control()
+    for _ in range(480):
+        state_0.clear_forces()
+        solver.step(state_0, state_1, control, None, 1.0 / 240.0)
+        state_0, state_1 = state_1, state_0
+
+    pose = state_0.body_q.numpy()[body]
+    angle = 2.0 * math.atan2(float(pose[4]), float(pose[6]))
+    anchor_height = float(pose[2]) + lever * math.sin(angle)
+    # The joint's linear force balances weight; its angular torque balances the offset load.
+    assert -anchor_height * linear_ke == pytest.approx(mass * gravity, rel=0.01)
+    assert angle * angular_ke == pytest.approx(mass * gravity * lever * math.cos(angle), rel=0.01)
 
 
 def test_vbd_publishes_joint_state_after_body_motion(monkeypatch):

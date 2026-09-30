@@ -213,12 +213,22 @@ Core Solve
       - Default: ``10``. Number of VBD iterations per substep. Increasing this value improves deformation and contact convergence, especially for stiff materials or rigid gripper contacts, but increases runtime.
     * - ``rigid_compliant_alm``
       - Default: ``None``. Preserves Newton's rigid solver mode. In Newton 1.6, ``None`` selects deprecated legacy AVBD. Set to ``True`` to use compliant ALM for rigid joints and body-body contacts, or ``False`` to explicitly retain legacy AVBD.
+    * - ``rigid_joint_linear_ke``
+      - Default: ``1.0e5`` [N/m]. Structural linear stiffness for non-rod rigid joints, separate from actuator gains. Increase it when articulated links separate under load with compliant ALM.
+    * - ``rigid_joint_angular_ke``
+      - Default: ``1.0e5`` [N m/rad]. Structural angular stiffness for non-rod rigid joints, separate from actuator gains. Increase it when articulated links rotate about constrained axes with compliant ALM.
     * - ``rigid_body_contact_buffer_size``
       - Default: ``64``. Per-body capacity for body-body contacts when VBD integrates rigid bodies. Increase it if Newton reports a per-body body-body contact buffer overflow.
     * - ``rigid_body_particle_contact_buffer_size``
       - Default: ``256``. Per-body capacity for particle, edge, and face soft contacts. Increase it if Newton reports a per-body contact buffer overflow.
     * - ``integrate_with_external_rigid_solver``
       - Default: ``False``. Set to ``True`` only when a manual manager integrates rigid bodies in the shared model. Proxy-coupled entries use partitioned model views and leave this ``False``.
+
+Structural joint stiffness keeps rigid links attached; actuator stiffness drives
+the allowed joint coordinates toward their targets. Tune these separately under
+the intended contact loads. Higher structural stiffness can require more solver
+iterations for drive and contact convergence. Set it before creating the
+simulation because Newton captures these material values during solver construction.
 
 Contact Scheduling
 ^^^^^^^^^^^^^^^^^^
