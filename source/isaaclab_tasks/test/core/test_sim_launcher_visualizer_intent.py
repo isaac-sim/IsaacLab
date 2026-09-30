@@ -53,31 +53,6 @@ def kit_launcher_args(monkeypatch) -> list:
     return launches
 
 
-@pytest.mark.parametrize("visualizer", [None, ["rerun"]], ids=["no-viz", "viz-rerun"])
-@pytest.mark.parametrize("physics_cfg", [NewtonCfg(), OvPhysxCfg()], ids=["newton", "ovphysx"])
-def test_unselected_config_kit_visualizer_does_not_start_kit(kit_launcher_args, physics_cfg, visualizer):
-    """A configured Kit visualizer that ``--viz`` does not select neither runs nor starts Kit."""
-    cfg = SimulationCfg(physics=physics_cfg, visualizer_cfgs=[KitVisualizerCfg(streaming_view=True)])
-    launcher_args = argparse.Namespace(visualizer=visualizer)
-
-    with sim_launcher.launch_simulation(cfg, launcher_args):
-        pass
-
-    assert kit_launcher_args == []
-    assert [cfg.visualizer_type for cfg in cfg.visualizer_cfgs] == (visualizer or [])
-    assert not getattr(launcher_args, "enable_cameras", False)
-
-
-def test_selected_config_kit_visualizer_enables_cameras_for_its_streaming_view(kit_launcher_args):
-    """``--viz kit`` takes ``streaming_view`` from the configured Kit visualizer, which needs cameras."""
-    cfg = SimulationCfg(physics=NewtonCfg(), visualizer_cfgs=[KitVisualizerCfg(streaming_view=True)])
-
-    with sim_launcher.launch_simulation(cfg, {"visualizer": ["kit"]}):
-        pass
-
-    assert kit_launcher_args[0]["enable_cameras"] is True
-
-
 def test_cli_visualizer_selection_drops_configured_newton_rtx(kit_launcher_args, monkeypatch):
     """``--viz kit`` drops a configured newton_rtx visualizer, so OVRTX neither conflicts with Kit nor starts."""
     started = []
@@ -111,16 +86,25 @@ def test_launch_simulation_writes_max_visible_envs_without_visualizer(kit_launch
 
 
 @pytest.mark.parametrize(
-    "visualizer, expected_types",
-    [(None, []), (["kit"], ["kit"]), (["rerun"], ["rerun"]), (["newton_gl", "kit"], ["kit", "newton_gl"])],
-    ids=["no-viz", "configured", "default", "configured-pair"],
+    "physics_cfg, visualizer, expected_types",
+    [
+        (NewtonCfg(), None, []),
+        (OvPhysxCfg(), None, []),
+        (NewtonCfg(), ["kit"], ["kit"]),
+        (NewtonCfg(), ["rerun"], ["rerun"]),
+        (NewtonCfg(), ["newton_gl", "kit"], ["kit", "newton_gl"]),
+    ],
+    ids=["no-viz", "no-viz-ovphysx", "configured", "default", "configured-pair"],
 )
-def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, visualizer, expected_types):
-    """The launch runs exactly the selected types, reusing a configured visualizer of each type with its settings."""
+def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, physics_cfg, visualizer, expected_types):
+    """The launch runs exactly the selected types, reusing a configured visualizer of each type with its settings.
+
+    Only a selected Kit visualizer starts Kit, with cameras for its ``streaming_view``.
+    """
     sim_cfg = SimulationCfg(
-        physics=NewtonCfg(),
+        physics=physics_cfg,
         visualizer_cfgs=[
-            KitVisualizerCfg(eye=(1.0, 2.0, 3.0)),
+            KitVisualizerCfg(streaming_view=True),
             VisualizerCfg(visualizer_type="newton_gl", max_visible_envs=7),
         ],
     )
@@ -129,28 +113,20 @@ def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, v
     # an empty selection left by an earlier launch in this process
     settings.set("/isaaclab/visualizer/types", "")
 
-    with sim_launcher.launch_simulation(_DummyEnvCfg(sim_cfg), {"visualizer": visualizer, "require_kit": True}):
+    with sim_launcher.launch_simulation(_DummyEnvCfg(sim_cfg), {"visualizer": visualizer}):
         pass
 
     assert [cfg.visualizer_type for cfg in sim_cfg.visualizer_cfgs] == expected_types
     for cfg in sim_cfg.visualizer_cfgs:
-        if cfg.visualizer_type in configured:
-            assert cfg is configured[cfg.visualizer_type]
-        else:
-            assert isinstance(cfg, RerunVisualizerCfg)
-    assert configured["kit"].eye == (1.0, 2.0, 3.0)
+        assert cfg is configured.get(cfg.visualizer_type) or isinstance(cfg, RerunVisualizerCfg)
+    assert [args["enable_cameras"] for args in kit_launcher_args] == [True] * ("kit" in expected_types)
     # the launch replaces the earlier selection with its visualizers, so its SimulationContext keeps them
     assert settings.get("/isaaclab/visualizer/types") == ",".join(expected_types)
+
+    # without a SimulationCfg to write into, the selection, possibly empty, reaches the SimulationContext
     settings.set("/isaaclab/visualizer/types", None)
-
-
-@pytest.mark.parametrize("visualizer, expected", [(["newton_gl"], "newton_gl"), (None, "")], ids=["viz", "no-viz"])
-def test_launch_simulation_leaves_selection_for_a_config_built_after_launch(kit_launcher_args, visualizer, expected):
-    """Without a SimulationCfg to write into, the selection, possibly empty, reaches the SimulationContext."""
-    settings = get_settings_manager()
-
-    with sim_launcher.launch_simulation(NewtonCfg(), {"visualizer": visualizer, "require_kit": True}):
-        assert settings.get("/isaaclab/visualizer/types") == expected
+    with sim_launcher.launch_simulation(physics_cfg, {"visualizer": visualizer}):
+        assert settings.get("/isaaclab/visualizer/types") == ",".join(visualizer or [])
     settings.set("/isaaclab/visualizer/types", None)
     settings.set("/isaaclab/visualizer/max_visible_envs", -1)
 

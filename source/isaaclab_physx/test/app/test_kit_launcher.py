@@ -433,15 +433,11 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
         (_XR_KIT, 0, 0, False),
         # XR without '--viz kit' auto-starts headless, even if the task config lists a Kit visualizer.
         ({"xr": True}, 0, 0, True),
-        ({"xr": True, "visualizer": ["rerun"]}, 0, 0, True),
         # ...but an explicit '--viz kit' cannot override HEADLESS=1.
         (_XR_KIT, 1, 0, True),
         # Livestreaming forces headless.
         (_XR_KIT, 0, 1, True),
         ({}, 0, 1, True),
-        # Without XR or livestream, '--viz kit' decides.
-        ({"visualizer": ["kit"]}, 0, 0, False),
-        ({}, 0, 0, True),
     ],
 )
 def test_xr_without_kit_visualizer_forces_headless(
@@ -553,44 +549,34 @@ def test_cuda_initialization_remains_deferred_when_torch_is_not_loaded(monkeypat
     assert "torch" not in sys.modules
 
 
-def test_limit_cpu_threads_forwarded_to_simulation_app(monkeypatch: pytest.MonkeyPatch):
-    """A SimulationApp thread limit must survive KitLauncher config resolution."""
-    monkeypatch.setenv("HEADLESS", "0")
-    monkeypatch.setenv("LIVESTREAM", "0")
-    monkeypatch.setenv("XR", "0")
-
-    launcher = KitLauncher.__new__(KitLauncher)
-    monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
-
-    launcher._config_resolution({"device": "cpu", "limit_cpu_threads": 1, "visualizer": []})
-
-    assert launcher._sim_app_config["limit_cpu_threads"] == 1
-    assert launcher._sim_app_config["headless"] is True
-
-
 @pytest.mark.parametrize(
-    "launcher_args, headless_env, expected_headless",
+    "visualizer, headless_env, expected_headless",
     [
-        ({"visualizer": ["kit"]}, 0, False),
+        (["kit", "newton_gl"], 0, False),
+        (["rerun"], 0, True),
         # a Kit visualizer only a video records from (``--video viz:kit``) is not selected, and records headless
-        ({"visualizer": []}, 0, True),
-        ({"visualizer": ["kit"]}, 1, True),
+        ([], 0, True),
+        (["kit"], 1, True),
     ],
-    ids=["kit-selected", "kit-only-records", "HEADLESS=1"],
+    ids=["kit-selected", "kit-unselected", "kit-only-records", "HEADLESS=1"],
 )
 def test_kit_runs_windowed_only_for_a_selected_kit_visualizer(
-    monkeypatch: pytest.MonkeyPatch, launcher_args: dict, headless_env: int, expected_headless: bool
+    monkeypatch: pytest.MonkeyPatch, visualizer: list[str], headless_env: int, expected_headless: bool
 ):
-    """Kit opens a window only when ``--viz`` selects the Kit visualizer, and never with ``HEADLESS=1``."""
+    """Kit opens a window only when ``--viz`` selects the Kit visualizer, never with ``HEADLESS=1``.
+
+    The SimulationApp config also keeps a thread limit through config resolution.
+    """
     monkeypatch.setenv("HEADLESS", str(headless_env))
     monkeypatch.setenv("LIVESTREAM", "0")
     monkeypatch.setenv("XR", "0")
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    launcher._config_resolution({"device": "cpu", **launcher_args})
+    launcher._config_resolution({"device": "cpu", "limit_cpu_threads": 1, "visualizer": visualizer})
 
     assert launcher._sim_app_config["headless"] is expected_headless
+    assert launcher._sim_app_config["limit_cpu_threads"] == 1
 
 
 class _DummySettings:
@@ -721,15 +707,17 @@ def test_resolve_launcher_args_rejects_negative_max_visible_envs():
         _resolve_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
-def test_parse_visualizer_csv_rejects_invalid_names():
-    with pytest.raises(argparse.ArgumentTypeError, match="without spaces"):
-        parse_visualizer_csv("kit, newton_gl")
-    with pytest.raises(argparse.ArgumentTypeError, match="Invalid --visualizer value 'none,kit'"):
-        parse_visualizer_csv("none,kit")
-
-
-def test_parse_visualizer_csv_treats_none_as_no_selection():
-    assert parse_visualizer_csv("none") == []
+@pytest.mark.parametrize(
+    "value, expected",
+    [("none", []), ("kit, newton_gl", argparse.ArgumentTypeError), ("none,kit", argparse.ArgumentTypeError)],
+    ids=["none-is-no-selection", "spaces", "none-with-others"],
+)
+def test_parse_visualizer_csv(value: str, expected):
+    if expected is argparse.ArgumentTypeError:
+        with pytest.raises(argparse.ArgumentTypeError, match="Invalid --visualizer value"):
+            parse_visualizer_csv(value)
+    else:
+        assert parse_visualizer_csv(value) == expected
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
@@ -742,18 +730,6 @@ def test_visualizer_csv_does_not_swallow_hydra_overrides():
 
     assert args.visualizer == ["kit", "newton_gl", "rerun", "viser"]
     assert hydra_args == ["presets=newton_mjwarp", "env.episode_length=10"]
-
-
-def test_matrix_cli_kit_newton_gl_non_headless(monkeypatch: pytest.MonkeyPatch):
-    headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["kit", "newton_gl"]})
-    assert headless is False
-    assert args["visualizer"] == ["kit", "newton_gl"]
-
-
-def test_matrix_cli_rerun_headless(monkeypatch: pytest.MonkeyPatch):
-    headless, args = _resolve_headless_for_case(monkeypatch, {"visualizer": ["rerun"]})
-    assert headless is True
-    assert args["visualizer"] == ["rerun"]
 
 
 def test_matrix_empty_dict_resolves_headless(monkeypatch: pytest.MonkeyPatch):

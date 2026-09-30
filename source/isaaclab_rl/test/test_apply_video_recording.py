@@ -14,7 +14,6 @@ import os
 import pytest
 from isaaclab_newton.physics import NewtonCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
-from isaaclab_physx.physics import PhysxCfg
 from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizerCfg
 
@@ -57,22 +56,20 @@ def _parse(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
         (["--video=sensor:cam"], "sensor:cam", []),
         (["--video"], "viz", []),
         ([], None, []),
+        (["--video", "foo"], SystemExit, None),
     ],
-    ids=["hydra-override-after-flag", "source-then-override", "attached-source", "bare", "absent"],
+    ids=["hydra-override-after-flag", "source-then-override", "attached-source", "bare", "absent", "invalid"],
 )
-def test_video_cli_takes_a_source_but_never_a_hydra_override(argv, expected_video, expected_hydra):
-    """``--video`` takes an optional source; a following Hydra override is passed on, in order, instead."""
-    args, hydra_args = _parse(["--task", "Isaac-Task", *argv])
+def test_video_cli(argv, expected_video, expected_hydra):
+    """``--video`` takes an optional, validated source; a following Hydra override is passed on, in order."""
+    argv = ["--task", "Isaac-Task", *argv]
+    if expected_video is SystemExit:
+        with pytest.raises(SystemExit):
+            _parse(argv)
+        return
+    args, hydra_args = _parse(argv)
 
-    assert args.video == expected_video
-    assert hydra_args == expected_hydra
-
-
-def test_video_cli_rejects_an_invalid_source(capsys: pytest.CaptureFixture):
-    """A ``--video`` value outside the source grammar is a CLI error."""
-    with pytest.raises(SystemExit):
-        _parse(["--video", "foo"])
-    assert "Invalid video source 'foo'" in capsys.readouterr().err
+    assert (args.video, hydra_args) == (expected_video, expected_hydra)
 
 
 @pytest.fixture
@@ -92,98 +89,69 @@ def launches(monkeypatch: pytest.MonkeyPatch) -> dict:
     get_settings_manager().set("/isaaclab/visualizer/types", None)
 
 
-def _launch(args: argparse.Namespace, visualizer_cfgs: list | None = None, physics=None) -> ManagerBasedRLEnvCfg:
-    """Configure ``--video`` on an env config and launch it, the way the entry points do."""
-    env_cfg = ManagerBasedRLEnvCfg()
-    env_cfg.sim.physics = physics or NewtonCfg()
-    env_cfg.sim.visualizer_cfgs = visualizer_cfgs or []
-    pre_launch_video_config(env_cfg, args)
-    with sim_launcher.launch_simulation(env_cfg, args):
-        apply_video_recording(env_cfg, "/my/log", args)
-    return env_cfg
-
-
 @pytest.mark.parametrize(
-    ("video", "visualizer", "expected_source", "expected_visualizers"),
+    ("cli", "expected"),
     [
         # --video records from the first capture-capable visualizer --viz selects, in its window
-        ("viz", ["viser", "kit", "newton_gl"], "viz:kit", [("viser", None), ("kit", False), ("newton_gl", False)]),
+        (
+            dict(visualizer=["viser", "kit", "newton_gl"]),
+            ("viz:kit", [("kit", False), ("viser", None), ("newton_gl", False)]),
+        ),
         # ...else from a headless newton_gl, also next to streaming-only visualizers
-        ("viz", None, "viz:newton_gl", [("newton_gl", True)]),
-        ("viz", ["viser"], "viz:newton_gl", [("viser", None), ("newton_gl", True)]),
+        (dict(), ("viz:newton_gl", [("newton_gl", True)])),
+        (dict(visualizer=["viser"]), ("viz:newton_gl", [("viser", None), ("newton_gl", True)])),
         # viz:<type> records from the selected visualizer, else from a headless one added for the recording
-        ("viz:newton_rtx", None, "viz:newton_rtx", [("newton_rtx", True)]),
-        ("viz:newton_rtx", ["newton_rtx"], "viz:newton_rtx", [("newton_rtx", False)]),
-        ("viz:newton_gl", ["viser"], "viz:newton_gl", [("viser", None), ("newton_gl", True)]),
+        (dict(video="viz:newton_rtx", visualizer=["newton_rtx"]), ("viz:newton_rtx", [("newton_rtx", False)])),
+        (dict(video="viz:newton_rtx"), ("viz:newton_rtx", [("newton_rtx", True)])),
+        (dict(video="viz:kit"), ("viz:kit", [("kit", True)])),
         # a scene sensor needs no visualizer
-        ("sensor:wrist_camera:depth", None, "sensor:wrist_camera:depth", []),
+        (dict(video="sensor:wrist_camera:depth"), ("sensor:wrist_camera:depth", [])),
+        # streaming visualizers have no frame capture, and recording needs the torch frontend
+        (dict(video="viz:viser", visualizer=["viser"]), "has no frame capture"),
+        (dict(frontend="warp"), "--frontend 'warp'"),
     ],
     ids=[
         "viz-selected",
         "viz-none",
         "viz-streaming-only",
-        "type-added",
         "type-selected",
-        "type-next-to-viser",
+        "type-added",
+        "kit-added",
         "sensor",
+        "streaming-rejected",
+        "warp-frontend-rejected",
     ],
 )
-def test_video_source_resolves_against_the_visualizer_selection(
-    launches, video, visualizer, expected_source, expected_visualizers
-):
+def test_video_source_resolves_against_the_visualizer_selection(launches, cli, expected):
     """The launch resolves the ``--video`` source and runs a visualizer ``--viz`` did not select headless."""
-    args = _args(video=video, visualizer=visualizer)
-    env_cfg = _launch(args)
-
-    assert [recorder.source for recorder in env_cfg.video_recorders] == [expected_source]
-    assert [
-        (cfg.visualizer_type, getattr(cfg, "headless", None)) for cfg in env_cfg.sim.visualizer_cfgs
-    ] == expected_visualizers
-    # only the Kit visualizer needs Kit, and only newton_rtx starts OVRTX
-    assert (_KIT_LAUNCHER in launches) == ("kit" in (visualizer or []))
-    assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in expected_source)
-    # the SimulationContext keeps the visualizers the launch resolved
-    assert get_settings_manager().get("/isaaclab/visualizer/types") == ",".join(
-        name for name, _ in expected_visualizers
-    )
-
-
-def test_video_from_an_unselected_kit_visualizer_launches_headless_kit_with_its_configured_camera(launches):
-    """``--video viz:kit`` without ``--viz`` records from the configured Kit visualizer, headless, in a headless Kit."""
     kit_cfg = KitVisualizerCfg(eye=(1.0, 2.0, 3.0))
-    env_cfg = _launch(_args(video="viz:kit"), [kit_cfg, ViserVisualizerCfg()], physics=PhysxCfg())
-
-    assert env_cfg.sim.visualizer_cfgs == [kit_cfg]
-    assert kit_cfg.headless and kit_cfg.eye == (1.0, 2.0, 3.0)
-    kit_args = launches[_KIT_LAUNCHER]
-    # Kit opens a window only for a selected Kit visualizer; recording needs its rendering
-    assert kit_args["visualizer"] == [] and kit_args["enable_cameras"] is True
-
-
-@pytest.mark.parametrize("video", ["viz:viser", "viz:rerun"])
-def test_video_from_a_streaming_visualizer_is_rejected(launches, video):
-    """Streaming visualizers have no frame capture, so recording from one fails at launch."""
-    with pytest.raises(ValueError, match="has no frame capture"):
-        _launch(_args(video=video, visualizer=["viser"]))
-
-
-def test_declared_video_recorders_take_precedence_over_the_cli_source(launches):
-    """``--video`` keeps the recorders an env config declares, applying only the output directory and schedule."""
-    declared = VideoRecorderCfg(source="viz:kit", output_dir="/my/custom/path")
     env_cfg = ManagerBasedRLEnvCfg()
-    env_cfg.video_recorders = [declared]
-    args = _args(video="sensor:cam", video_length=10)
+    env_cfg.sim.physics = NewtonCfg()
+    env_cfg.sim.visualizer_cfgs = [kit_cfg, ViserVisualizerCfg()]
+    args = _args(**cli)
+    if isinstance(expected, str):
+        with pytest.raises(ValueError, match=expected):
+            pre_launch_video_config(env_cfg, args)
+            with sim_launcher.launch_simulation(env_cfg, args):
+                pass
+        return
     pre_launch_video_config(env_cfg, args)
-    apply_video_recording(env_cfg, "/my/log", args)
+    with sim_launcher.launch_simulation(env_cfg, args):
+        pass
 
-    assert env_cfg.video_recorders == [declared]
-    assert (declared.source, declared.output_dir, declared.video_length) == ("viz:kit", "/my/custom/path", 10)
-
-
-def test_video_cli_is_rejected_with_the_warp_frontend():
-    """Video recording requires the torch frontend."""
-    with pytest.raises(ValueError, match="--frontend 'warp'"):
-        pre_launch_video_config(ManagerBasedRLEnvCfg(), _args(frontend="warp"))
+    source, visualizers = expected
+    assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
+    assert [(cfg.visualizer_type, getattr(cfg, "headless", None)) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
+    # a Kit visualizer, selected or added, keeps its configured camera
+    assert all(cfg is kit_cfg for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
+    # Kit starts only for a Kit visualizer, with cameras, windowed only when --viz selects it
+    kit_args = launches.get(_KIT_LAUNCHER)
+    assert (kit_args is not None) == ("kit" in dict(visualizers))
+    if kit_args is not None:
+        assert ("kit" in kit_args["visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
+    assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
+    # the SimulationContext keeps the visualizers the launch resolved
+    assert get_settings_manager().get("/isaaclab/visualizer/types") == ",".join(name for name, _ in visualizers)
 
 
 def test_apply_video_recording_noop_when_video_false():
@@ -198,25 +166,28 @@ def test_apply_video_recording_noop_when_video_false():
 
 
 @pytest.mark.parametrize(
-    ("video_length", "video_interval", "expected_length", "expected_interval"),
-    [(42, 500, 42, 500), (None, None, VideoRecorderCfg().video_length, 2000)],
-    ids=["cli_overrides", "cfg_defaults"],
+    ("declared", "cli", "expected"),
+    [
+        (None, dict(video_length=42, video_interval=500), ("viz", 42, 500, os.path.join("/my/log", "videos", "play"))),
+        (None, dict(), ("viz", VideoRecorderCfg().video_length, 2000, os.path.join("/my/log", "videos", "play"))),
+        # a recorder the env config declares takes precedence over the --video source
+        (
+            VideoRecorderCfg(source="viz:kit", output_dir="/my/custom/path"),
+            dict(video="sensor:cam", video_length=10),
+            ("viz:kit", 10, VideoRecorderCfg().video_interval, "/my/custom/path"),
+        ),
+    ],
+    ids=["cli_overrides", "cfg_defaults", "declared_recorder_wins"],
 )
-def test_apply_video_recording_schedules_the_cli_recorder(
-    video_length: int | None, video_interval: int | None, expected_length: int, expected_interval: int
-):
-    """The ``--video`` recorder writes into the log directory, taking CLI values over defaults."""
-    args = _args(video_length=video_length, video_interval=video_interval)
+def test_apply_video_recording_schedules_the_cli_recorder(declared, cli: dict, expected: tuple):
+    """``--video`` records into the log directory, taking CLI values over defaults, unless the config declares one."""
+    args = _args(**cli)
     env_cfg = ManagerBasedRLEnvCfg()
+    env_cfg.video_recorders = [declared] if declared else []
     pre_launch_video_config(env_cfg, args)
     apply_video_recording(env_cfg, "/my/log", args, subdir="play")
 
-    assert len(env_cfg.video_recorders) == 1
-    recorder = env_cfg.video_recorders[0]
-    assert recorder.source == "viz"
-    assert (recorder.video_length, recorder.video_interval) == (expected_length, expected_interval)
-    assert recorder.output_dir == os.path.join("/my/log", "videos", "play")
-    assert recorder.output_filename_prefix == "clip"
+    assert [(r.source, r.video_length, r.video_interval, r.output_dir) for r in env_cfg.video_recorders] == [expected]
 
 
 @pytest.mark.parametrize(

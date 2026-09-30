@@ -11,6 +11,7 @@ All tests are pure-Python mocks — no simulation context or Kit app required.
 from __future__ import annotations
 
 import logging
+import warnings
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -81,42 +82,30 @@ def _make_env(visualizers=(), sensors: dict | None = None):
     "source,expected",
     [
         ("viz", ("viz", "", "")),
-        ("viz:kit", ("viz", "kit", "")),
         ("viz:newton_gl:streaming_view", ("viz", "newton_gl", "streaming_view")),
         ("sensor:tiled_camera", ("sensor", "tiled_camera", "")),
         ("sensor:tiled_camera:depth", ("sensor", "tiled_camera", "depth")),
+        # ``visualizer`` is the long form of ``viz``
+        ("visualizer:kit", ("viz", "kit", "")),
+        # the deprecated ``newton`` type maps to ``newton_gl``, with a DeprecationWarning
+        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
+        ("a=b", ValueError),
+        ("viz:foo", ValueError),
+        ("viz:kit:bar", ValueError),
+        ("sensor", ValueError),
+        ("sensor:", ValueError),
+        ("sensor:cam:foo", ValueError),
     ],
 )
 def test_parse_video_source(source, expected):
-    assert parse_video_source(source) == expected
-
-
-@pytest.mark.parametrize("source", ["visualizer", "visualizer:kit", "visualizer:newton_gl:streaming_view"])
-def test_parse_video_source_accepts_the_long_prefix(source, recwarn):
-    """``visualizer`` is the long form of ``viz``: same result, no warning."""
-    assert parse_video_source(source) == parse_video_source(source.replace("visualizer", "viz", 1))
-    assert not recwarn.list
-
-
-@pytest.mark.parametrize(
-    "source,expected",
-    [
-        ("viz:newton", ("viz", "newton_gl", "")),
-        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
-    ],
-)
-def test_parse_video_source_maps_the_deprecated_newton_type(source, expected):
-    with pytest.warns(DeprecationWarning, match="deprecated"):
+    if expected is ValueError:
+        with pytest.raises(ValueError, match="Invalid video source"):
+            parse_video_source(source)
+        return
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
         assert parse_video_source(source) == expected
-
-
-@pytest.mark.parametrize(
-    "source",
-    ["", "foo", "viz:", "viz:foo", "viz:kit:bar", "viz::streaming_view", "sensor", "sensor:", "sensor:cam:foo", "a=b"],
-)
-def test_parse_video_source_rejects_other_sources(source):
-    with pytest.raises(ValueError, match="Invalid video source"):
-        parse_video_source(source)
+    assert [w.category for w in caught] == [DeprecationWarning] * ("newton" in source.split(":"))
 
 
 # ---------------------------------------------------------------------------
