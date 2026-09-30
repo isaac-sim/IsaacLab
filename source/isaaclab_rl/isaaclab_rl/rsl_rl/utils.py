@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import inspect
+import logging
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any
 
@@ -30,6 +31,8 @@ from .rl_cfg import (
 
 if TYPE_CHECKING:
     from rsl_rl.env import VecEnv
+
+logger = logging.getLogger(__name__)
 
 RSL_RL_MIN_VERSION = "5.0.1"
 """Oldest rsl-rl-lib release supported by the entrypoints."""
@@ -74,6 +77,12 @@ def create_rsl_rl_runner(
     """
     device = agent_cfg.device
     if device.startswith("cuda") and not torch.cuda.is_available():
+        logger.warning(
+            "Agent device '%s' is unavailable because CUDA is not available; using the environment device '%s'"
+            " instead.",
+            device,
+            env.device,
+        )
         device = str(env.device)
     if agent_cfg.class_name == "OnPolicyRunner":
         return OnPolicyRunner(env, to_dict(agent_cfg), log_dir=log_dir, device=device)

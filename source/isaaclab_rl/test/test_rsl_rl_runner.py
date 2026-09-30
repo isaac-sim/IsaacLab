@@ -5,6 +5,8 @@
 
 """Tests for create_rsl_rl_runner device selection."""
 
+import logging
+
 import torch
 from rsl_rl.env import VecEnv
 from tensordict import TensorDict
@@ -57,13 +59,15 @@ def _runner_cfg() -> RslRlOnPolicyRunnerCfg:
     return handle_deprecated_rsl_rl_cfg(cfg, check_rsl_rl_version())
 
 
-def test_runner_falls_back_to_env_device_without_cuda(monkeypatch):
-    """The ``cuda:0`` default must not be used on hosts without CUDA, such as macOS."""
+def test_runner_falls_back_to_env_device_without_cuda(monkeypatch, caplog):
+    """The ``cuda:0`` default must not be used on hosts without CUDA, such as macOS, and the switch is reported."""
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     agent_cfg = _runner_cfg()
     assert agent_cfg.device == "cuda:0"
 
-    runner = create_rsl_rl_runner(_CpuEnv(), agent_cfg)
+    with caplog.at_level(logging.WARNING, logger="isaaclab_rl.rsl_rl.utils"):
+        runner = create_rsl_rl_runner(_CpuEnv(), agent_cfg)
 
     assert runner.device == "cpu"
     assert all(p.device.type == "cpu" for p in runner.alg.actor.parameters())
+    assert any("'cuda:0' is unavailable" in record.getMessage() for record in caplog.records)
