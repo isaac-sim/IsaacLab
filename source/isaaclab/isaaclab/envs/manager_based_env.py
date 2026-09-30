@@ -546,7 +546,7 @@ class ManagerBasedEnv:
         self.recorder_manager.record_pre_step()
 
         # check if we need to do rendering within the physics loop
-        # note: uses cached property to avoid settings lookup every step
+        # note: evaluated once per step rather than once per physics substep
         is_rendering = self.sim.is_rendering
 
         # physics-owned decimation covers all substeps in one call
@@ -562,7 +562,7 @@ class ManagerBasedEnv:
             self.scene.update(dt=self.physics_dt * steps_per_call)
 
         # post-step: step interval event
-        if "interval" in self.event_manager.available_modes:
+        if "interval" in self.event_manager.active_terms:
             self.event_manager.apply(mode="interval", dt=self.step_dt)
 
         # advance video recorders (after render, before obs)
@@ -631,7 +631,7 @@ class ManagerBasedEnv:
         self.scene.reset(env_ids)
 
         # apply events such as randomization for environments that need a reset
-        if "reset" in self.event_manager.available_modes:
+        if "reset" in self.event_manager.active_terms:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self.event_manager.apply(mode="reset", env_ids=env_ids, global_env_step_count=env_step_count)
 

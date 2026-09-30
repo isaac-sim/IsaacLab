@@ -70,7 +70,7 @@ class HandoverEnv(DirectMARLEnv):
 
         # Motors that pull a tendon rather than drive a joint. Both hands are the same model, so
         # one index set serves both.
-        self.actuated_tendon_indices: list[int] = []
+        self.actuated_tendon_indices = torch.empty(0, dtype=torch.long, device=self.device)
         if cfg.actuated_tendon_names:
             self.actuated_tendon_indices, self.tendon_lower_limits, self.tendon_upper_limits = resolve_actuated_tendons(
                 self.right_hand,
@@ -146,7 +146,7 @@ class HandoverEnv(DirectMARLEnv):
         prev_targets[:, idx] = targets
         hand.set_joint_position_target_index(target=targets, joint_ids=idx)
 
-        if self.actuated_tendon_indices:
+        if len(self.actuated_tendon_indices) > 0:
             # No moving average on the tendon target: the manager task's action term applies none,
             # and the two task variants have to stay comparable.
             # saturate like the joint target above: a Gaussian policy samples past the action range,
