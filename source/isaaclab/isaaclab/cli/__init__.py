@@ -279,6 +279,11 @@ def cli() -> None:
         help="Build the documentation from source using sphinx.",
     )
     parser.add_argument(
+        "--docs_multi",
+        action="store_true",
+        help="Build the multi-version documentation from source using sphinx-multiversion.",
+    )
+    parser.add_argument(
         "-n",
         "--new",
         nargs=argparse.REMAINDER,
@@ -306,6 +311,9 @@ def cli() -> None:
 
     elif args.docs:
         command_build_docs()
+
+    elif args.docs_multi:
+        command_build_docs(multi_version=True)
 
     elif args.docker is not None:
         command_run_docker(args.docker)

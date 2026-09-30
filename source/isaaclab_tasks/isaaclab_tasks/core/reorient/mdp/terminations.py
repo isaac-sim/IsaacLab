@@ -42,6 +42,6 @@ def object_away_from_goal(
 
     # object pos
     asset_pos_e = asset.data.root_pos_w.torch - env.scene.env_origins
-    goal_pos_e = command_term.command[:, :3]
+    goal_pos_e = command_term.pos_command_e
 
     return torch.linalg.norm(asset_pos_e - goal_pos_e, ord=2, dim=1) > threshold

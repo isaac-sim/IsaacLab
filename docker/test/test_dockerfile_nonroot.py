@@ -44,7 +44,6 @@ DOCKERFILE_RUNTIME_USERS = {
     "Dockerfile.curobo": "isaaclab",
     "Dockerfile.installci": "isaaclab",
     "Dockerfile.kitless": "isaaclab",
-    "Dockerfile.ros2": "isaaclab",
 }
 
 # Dockerfiles that are expected to *create* the non-root runtime user
@@ -109,12 +108,6 @@ def test_dockerfile_creates_non_root_runtime_user(dockerfile_name: str):
     assert re.search(r"\bgroupadd\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
     assert re.search(r"\buseradd\b.*--uid\s+1000\b.*--gid\s+1000\b.*\bisaaclab\b", dockerfile_text, re.DOTALL)
     assert "USER isaaclab" in dockerfile_text
-
-
-def test_ros2_dockerfile_restores_non_root_runtime_user():
-    dockerfile_text = (DOCKER_DIR / "Dockerfile.ros2").read_text(encoding="utf-8")
-
-    assert _user_directives(dockerfile_text) == ["root", "isaaclab"]
 
 
 def test_images_share_one_pinned_uv():

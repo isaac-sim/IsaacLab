@@ -438,8 +438,8 @@ rendering, then read each camera's output. An empty sequence performs no renderi
 
 :meth:`~isaaclab.renderers.BaseRenderer.render` continues to accept a single render-data object.
 The default ``render_batch()`` implementation calls ``render()`` for each entry, so existing
-custom renderers and single-camera callers need no changes. OVRTX overrides ``render_batch()``
-to submit the requested camera products in one native renderer step.
+custom renderers and single-camera callers need no changes. OVRTX steps all registered render
+products together but publishes only the requested cameras' observations.
 
 With eager sensor updates (``scene.cfg.lazy_sensor_update=False``), ``scene.update()`` advances
 sensor clocks in scene order and collects batch-capable sensors. After the loop, the camera
@@ -507,6 +507,55 @@ Or install the public ``ovrtx`` package directly from PyPI:
 .. note::
 
    The :class:`~isaaclab.renderers.BaseRenderer` class is under active development and may change without notice.
+
+.. _renderers-async-data-flow:
+
+Asynchronous Rendering
+----------------------
+
+:attr:`~isaaclab_ov.renderers.OVRTXRendererCfg.async_rendering` returns a camera's previous capture
+while rendering its next image. This allows rendering to overlap simulation and Python work.
+The first capture, including after reset, waits for a fresh image. The ovstage path stays synchronous.
+
+Latency is one capture, not necessarily one physics or control step. State observations remain
+current, so enabling this option changes the policy's observation timing; training may need to
+account for that delay. Physics and policy computation may also use the GPU.
+
+For a camera capturing once per environment step, steady-state operation is:
+
+.. code-block:: text
+
+   Synchronous:   physics k -> submit image k -> wait/read image k -> policy
+   Asynchronous:  physics k -> submit image k -> wait/read image k-1 -> policy
+                                   |                                 |
+                                   +---- image k renders ------------+--> physics k+1
+
+The first image is returned immediately after priming and repeated once on the next capture.
+
+Each camera owns its pending observations. Reading camera A never changes camera B's pixels or
+metadata, even when they share a native render submission. Reset discards that camera's pending
+observations. A partial environment reset re-primes the whole tiled camera product, without
+invalidating other cameras.
+
+Live fields such as ``camera.data.pos_w`` and ``camera.data.intrinsic_matrices`` remain current.
+Use the capture metadata when pairing delayed pixels with a pose or calibration, for example
+when deprojecting depth:
+
+.. code-block:: python
+
+   data = camera.data
+   depth = data.output["distance_to_image_plane"]
+   capture = data.info["distance_to_image_plane"]["capture"]
+   position, orientation = capture["pos_w"], capture["quat_w_world"]
+   intrinsics, frame = capture["intrinsic_matrices"], capture["frame"]
+
+Capture metadata remains unchanged on later captures. Direct renderer callers use
+:meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` before submitting a capture and
+:meth:`~isaaclab.renderers.BaseRenderer.read_output` to publish it.
+
+SDP fills renderer-owned transform and geometry buffers, including deformable meshes, particles,
+and cables. Two buffers alternate per write and are reused only after OVRTX consumes them.
+Physics can therefore update its live arrays while the previous capture renders.
 
 See Also
 --------

@@ -18,8 +18,7 @@ from rendering_test_utils import (
     rendering_test_lift_kuka,
 )
 
-# The OVPhysX preset selects the homogeneous cube because heterogeneous multi-asset scenes are unsupported;
-# OVPhysX Kuka goldens live in test_rendering_lift_kuka_homo_kitless.py.
+# OVPhysX heterogeneous rendering goldens are not available yet.
 _RENDERING_PARAMS = group_rendering_params(
     [param for param in make_kitless_rendering_params_lift() if param.values[1] != "ovphysx"]
 )

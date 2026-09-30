@@ -33,7 +33,6 @@ def container_context(tmp_path: Path) -> Path:
         ),
         encoding="utf-8",
     )
-    (tmp_path / ".env.ros2").write_text("ROS2_APT_PACKAGE=ros-base\n", encoding="utf-8")
     (tmp_path / ".env.kitless").write_text(
         "\n".join(
             (
@@ -62,7 +61,6 @@ def make_interface(container_context: Path) -> Callable[[str], ContainerInterfac
     ("profile", "expected_env_files"),
     (
         ("base", ["--env-file", ".env.base"]),
-        ("ros2", ["--env-file", ".env.base", "--env-file", ".env.ros2"]),
         ("kitless", ["--env-file", ".env.kitless"]),
     ),
 )
@@ -76,13 +74,6 @@ def test_profile_environment_inheritance(
     if profile == "kitless":
         assert "ISAACSIM_BASE_IMAGE" not in interface.dot_vars
         assert interface.dot_vars["DOCKER_USER_HOME"] == "/home/isaaclab"
-
-
-def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface]):
-    """Only profiles derived from the Isaac Sim base image require it to be built first."""
-    assert not make_interface("base").requires_base_image
-    assert make_interface("ros2").requires_base_image
-    assert not make_interface("kitless").requires_base_image
 
 
 @pytest.mark.parametrize(
@@ -103,37 +94,6 @@ def test_profile_capabilities(make_interface: Callable[[str], ContainerInterface
                     "build",
                     "isaac-lab-base",
                 ]
-            ],
-        ),
-        (
-            "ros2",
-            [
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "base",
-                    "--env-file",
-                    ".env.base",
-                    "build",
-                    "isaac-lab-base",
-                ],
-                [
-                    "docker",
-                    "compose",
-                    "--file",
-                    "docker-compose.yaml",
-                    "--profile",
-                    "ros2",
-                    "--env-file",
-                    ".env.base",
-                    "--env-file",
-                    ".env.ros2",
-                    "build",
-                    "isaac-lab-ros2",
-                ],
             ],
         ),
         (
@@ -234,7 +194,7 @@ def test_x11_overlay_covers_every_profile():
     """Compose merges the X11 override by service name, so each profile needs an entry."""
     overlay = yaml.safe_load((DOCKER_DIR / "x11.yaml").read_text(encoding="utf-8"))
 
-    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-ros2", "isaac-lab-kitless"}
+    assert set(overlay["services"]) == {"isaac-lab-base", "isaac-lab-kitless"}
     for name, service in overlay["services"].items():
         assert "DISPLAY" in service["environment"], name
         assert any("X11-unix" in mount["source"] for mount in service["volumes"]), name

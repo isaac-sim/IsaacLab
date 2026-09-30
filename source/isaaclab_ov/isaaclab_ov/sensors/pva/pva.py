@@ -272,6 +272,7 @@ class Pva(BasePva):
         # safely return if the sensor has not been bound yet (matches the PhysX `_view is None` idiom)
         if self._root_view is None:
             return
+        self._update_outdated_buffers()
         # get marker location
         # -- base state (convert warp -> torch for visualization)
         base_pos_w = self._data.pos_w.torch.clone()

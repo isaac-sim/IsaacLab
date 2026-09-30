@@ -88,7 +88,7 @@ class survival_success_rate(ManagerTermBase):
 
     def reset(self, env_ids: torch.Tensor) -> None:
         survived = self._env.termination_manager.time_outs[env_ids]
-        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean().item()
+        self._env.extras.setdefault("log", {})["Metrics/success_rate"] = survived.float().mean()
 
     def __call__(self, env: ManagerBasedRLEnv) -> torch.Tensor:
         return torch.zeros(env.num_envs, device=env.device)
@@ -131,12 +131,22 @@ def base_height_l2(
     Note:
         For flat terrain, target height is in the world frame. For rough terrain,
         sensor readings can adjust the target height to account for the terrain.
+
+    Note:
+        A ray that hits nothing within its ``max_distance`` reports ``inf`` rather than a clamped
+        value, so only finite hits are averaged into the terrain-adjusted target height. An
+        environment whose rays all miss falls back to the unadjusted ``target_height``.
     """
     asset: RigidObject = env.scene[asset_cfg.name]
     if sensor_cfg is not None:
         sensor: RayCaster = env.scene[sensor_cfg.name]
-        # Adjust the target height using the sensor data
-        adjusted_target_height = target_height + torch.mean(sensor.data.ray_hits_w.torch[..., 2], dim=1)
+        # Adjust the target height using the sensor data, ignoring rays that missed the terrain
+        ray_hits_z = sensor.data.ray_hits_w.torch[..., 2]
+        finite_hits = torch.isfinite(ray_hits_z)
+        safe_hits = torch.where(finite_hits, ray_hits_z, torch.zeros_like(ray_hits_z))
+        hit_count = finite_hits.sum(dim=1).clamp(min=1)
+        terrain_height = safe_hits.sum(dim=1) / hit_count
+        adjusted_target_height = target_height + terrain_height
     else:
         # Use the provided target height directly for flat terrain
         adjusted_target_height = target_height
