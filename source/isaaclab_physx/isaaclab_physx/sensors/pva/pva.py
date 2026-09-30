@@ -333,6 +333,7 @@ class Pva(BasePva):
         # note: this invalidity happens because of isaac sim view callbacks
         if self._view is None:
             return
+        self._update_outdated_buffers()
         # get marker location
         # -- base state (convert warp -> torch for visualization)
         base_pos_w = self._data.pos_w.torch.clone()

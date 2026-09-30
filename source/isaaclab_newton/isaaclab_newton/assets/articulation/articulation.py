@@ -1797,7 +1797,11 @@ class Articulation(BaseArticulation):
         """
         env_ids = self._resolve_env_ids(env_ids)
         joint_ids = self._resolve_joint_ids(joint_ids)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype(limits, (env_ids.shape[0], joint_ids.shape[0]), wp.vec2f, "limits")
@@ -1829,20 +1833,17 @@ class Articulation(BaseArticulation):
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
         self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
         SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_position_limit_to_sim_mask(
@@ -1871,7 +1872,11 @@ class Articulation(BaseArticulation):
         """
         env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
         joint_mask = self._resolve_mask(joint_mask, self._ALL_JOINT_MASK)
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        # Count clamped defaults (a host sync) only when the resulting message would be logged.
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         if isinstance(limits, float):
             raise ValueError("Joint position limits must be a tensor or array, not a float.")
         self.assert_shape_and_dtype_mask(limits, (env_mask, joint_mask), wp.vec2f, "limits")
@@ -1903,20 +1908,17 @@ class Articulation(BaseArticulation):
                 self.data._sim_bind_joint_pos_limits_upper,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
             ],
             device=self.device,
         )
         self.data._joint_pos_limits.timestamp = self.data._sim_timestamp
-        if clamped_defaults.numpy()[0] > 0:
-            violation_message = (
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
+            logger.log(
+                log_level,
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
-                " will be clamped to be within the new joint limits."
+                " will be clamped to be within the new joint limits.",
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
         SimulationManager.add_model_change(ModelFlags.JOINT_DOF_PROPERTIES)
 
     def write_joint_velocity_limit_to_sim_index(
@@ -3451,6 +3453,8 @@ class Articulation(BaseArticulation):
             np.arange(self.num_spatial_tendons, dtype=np.int32), device=self.device
         )
         self._ALL_SPATIAL_TENDON_MASK = wp.ones((self.num_spatial_tendons,), dtype=wp.bool, device=self.device)
+        # Scratch counter for default joint positions clamped by a joint position-limit write.
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self.device)
 
         # Lazily-filled cache of backend-order collision-shape counts (see ``backend_num_shapes_per_body``).
         self._num_shapes_per_body_backend: list[int] | None = None

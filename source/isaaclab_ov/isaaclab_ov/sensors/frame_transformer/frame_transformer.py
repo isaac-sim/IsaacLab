@@ -485,6 +485,7 @@ class FrameTransformer(BaseFrameTransformer):
     def _debug_vis_callback(self, event) -> None:
         if not self.is_initialized or self._raw_transforms is None or not hasattr(self, "frame_visualizer"):
             return
+        self._update_outdated_buffers()
 
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)

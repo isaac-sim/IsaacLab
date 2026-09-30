@@ -496,6 +496,7 @@ class FrameTransformer(BaseFrameTransformer):
                 self.frame_visualizer.set_visibility(False)
 
     def _debug_vis_callback(self, event):
+        self._update_outdated_buffers()
         # Convert warp -> torch at the boundary for visualization
         source_pos_w = wp.to_torch(self._data._source_pos_w)
         source_quat_w = wp.to_torch(self._data._source_quat_w)
