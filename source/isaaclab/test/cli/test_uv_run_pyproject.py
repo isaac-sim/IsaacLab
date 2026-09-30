@@ -128,8 +128,12 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
     optional = pyproject["project"]["optional-dependencies"]
     overrides = pyproject["tool"]["uv"]["override-dependencies"]
 
+    def pins(requirements: list[str]) -> list[str]:
+        """Requirements without their platform markers, which do not change the pinned version."""
+        return [requirement.split(";", 1)[0].strip() for requirement in requirements]
+
     # Isaac Sim extra mirrors the table; it is the only place the wheel is pinned.
-    assert optional["isaacsim"] == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
+    assert pins(optional["isaacsim"]) == [f"isaacsim[all,extscache]=={versions['isaacsim']}"]
 
     # OV extras mirror the table. Table values may be an exact version ("1.2.3",
     # mirrored as ``pkg==1.2.3``) or a range spec (">=1.2.3", mirrored as ``pkg>=1.2.3``).
@@ -137,10 +141,10 @@ def test_version_single_source_matches_literal_pins(source_checkout_root: Path):
         value = versions[package]
         return f"{package}=={value}" if value[0].isdigit() else f"{package}{value}"
 
-    assert spec("ovphysx") in optional["ovphysx"]
-    assert spec("ovrtx") in optional["ovrtx"]
-    assert spec("ovstage") in optional["ovphysx"]
-    assert spec("ovstage") in optional["ovrtx"]
+    assert spec("ovphysx") in pins(optional["ovphysx"])
+    assert spec("ovrtx") in pins(optional["ovrtx"])
+    assert spec("ovstage") in pins(optional["ovphysx"])
+    assert spec("ovstage") in pins(optional["ovrtx"])
 
     # CI installs OVRTX through a generic pip-package input (a bare ``pip install
     # ovrtx`` ignores this ceiling). Each such install must therefore be pinned:

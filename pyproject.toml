@@ -58,7 +58,8 @@ dependencies = [
     "pillow>=12.3.0",
     "botocore",  # omni.replicator.core S3 backend
     "starlette>=1.3.1",  # livestream; minimum patched for current security advisories
-    "omniverseclient==2.74.0",
+    # no macOS wheels; isaaclab.utils.assets reads HTTP(S) assets directly without it
+    "omniverseclient==2.74.0 ; sys_platform != 'darwin'",
     "filelock",
     "lazy_loader>=0.4",
     # ----- project template generator -----
@@ -72,7 +73,9 @@ dependencies = [
     # packages so another complete ``pxr`` runtime cannot co-install with it. Two providers in
     # one environment overwrite each other's files, and removing either then breaks ``pxr``.
     # usd-exchange 3.0.0 vendors USD 26.08; the isaacsim 6.1 importer pins are overridden below.
-    "usd-exchange==3.0.0",
+    "usd-exchange==3.0.0 ; sys_platform != 'darwin'",
+    # usd-exchange ships no macOS wheels, so macOS uses usd-core as its only pxr provider.
+    "usd-core ; sys_platform == 'darwin'",
     # avoid broken hf-xet pre-release cached on NVIDIA Artifactory
     "hf-xet>=1.4.1,<2.0.0 ; platform_machine == 'x86_64' or platform_machine == 'AMD64' or platform_machine == 'aarch64'",
     # ----- tasks -----
@@ -117,7 +120,7 @@ tetrahedralization = ["pytetwild[all]>=0.3.0,<0.4"]
 video = ["moviepy>=1.0.3,<2.0.0.dev0"]
 
 importers = [
-    "isaacsim-asset-isolated==6.1.0.0",
+    "isaacsim-asset-isolated==6.1.0.0 ; sys_platform != 'darwin'",  # depends on usd-optimize, which has no macOS wheels
     "tinyobjloader==2.0.0rc13",
 ]
 
@@ -175,11 +178,17 @@ rerun = [
     "pyarrow==23.0.1",
 ]
 
-isaacsim = ["isaacsim[all,extscache]==6.1.0.0"]
+# Isaac Sim does not support macOS.
+isaacsim = ["isaacsim[all,extscache]==6.1.0.0 ; sys_platform != 'darwin'"]
 
-ov = ["ovphysx==0.6.3", "ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
-ovphysx = ["ovphysx==0.6.3", "ovstage==0.2.0.377349"]
-ovrtx = ["ovrtx==0.5.0.377615", "ovstage==0.2.0.377349"]
+# The OV runtimes ship no macOS wheels.
+ov = [
+    "ovphysx==0.6.3 ; sys_platform != 'darwin'",
+    "ovrtx==0.5.0.377615 ; sys_platform != 'darwin'",
+    "ovstage==0.2.0.377349 ; sys_platform != 'darwin'",
+]
+ovphysx = ["ovphysx==0.6.3 ; sys_platform != 'darwin'", "ovstage==0.2.0.377349 ; sys_platform != 'darwin'"]
+ovrtx = ["ovrtx==0.5.0.377615 ; sys_platform != 'darwin'", "ovstage==0.2.0.377349 ; sys_platform != 'darwin'"]
 
 mimic = [
     "isaaclab-mimic",
@@ -397,12 +406,13 @@ index-strategy = "unsafe-best-match"
 prerelease = "allow"
 # Platforms Isaac Lab supports (docs/source/setup/installation/index.rst and the
 # install CI matrix): Ubuntu 22.04 x86_64, Linux aarch64 (DGX Spark / Jetson), and
-# Windows 11 x86_64. Restricting the resolution universe keeps macOS and other
-# unsupported wheels out of uv.lock.
+# Windows 11 x86_64, plus experimental CPU-only macOS on Apple silicon. Restricting the
+# resolution universe keeps other unsupported wheels out of uv.lock.
 environments = [
     "sys_platform == 'linux' and platform_machine == 'x86_64'",
     "sys_platform == 'linux' and platform_machine == 'aarch64'",
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
+    "sys_platform == 'darwin' and platform_machine == 'arm64'",
 ]
 # Isaac Lab owns the Newton, MuJoCo, and torch versions. Overrides replace requirements
 # for every requester, unlike constraints, which only intersect. The ``isaacsim`` and
@@ -416,7 +426,8 @@ override-dependencies = [
     # Force the Newton-matched schemas over isaacsim's ==0.2.0 pin.
     "newton-usd-schemas>=0.5.0",
     # isaacsim-asset-isolated and isaacsim-robot-schema 6.1 pin usd-exchange ==2.3.0.
-    "usd-exchange==3.0.0",
+    # Overrides replace markers too, so this one repeats the macOS exclusion.
+    "usd-exchange==3.0.0 ; sys_platform != 'darwin'",
     "torch==2.12.0",
     "torchvision==0.27.0",
     # ovphysx caps packaging at <24 and isaacsim-core pins ==26.0; both caps are
@@ -448,9 +459,19 @@ isaaclab = { path = "source/isaaclab", editable = true }
 "isaaclab-tasks-experimental" = { path = "source/isaaclab_tasks_experimental", editable = true }
 "isaaclab-teleop" = { path = "source/isaaclab_teleop", editable = true }
 "isaaclab-visualizers" = { path = "source/isaaclab_visualizers", editable = true }
-torch = { index = "pytorch-cu130" }
-torchaudio = { index = "pytorch-cu130" }
-torchvision = { index = "pytorch-cu130" }
+# macOS has no CUDA build; PyPI ships its CPU/MPS wheels.
+torch = [
+    { index = "pytorch-cu130", marker = "sys_platform != 'darwin'" },
+    { index = "pypi-public", marker = "sys_platform == 'darwin'" },
+]
+torchaudio = [
+    { index = "pytorch-cu130", marker = "sys_platform != 'darwin'" },
+    { index = "pypi-public", marker = "sys_platform == 'darwin'" },
+]
+torchvision = [
+    { index = "pytorch-cu130", marker = "sys_platform != 'darwin'" },
+    { index = "pypi-public", marker = "sys_platform == 'darwin'" },
+]
 
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"
