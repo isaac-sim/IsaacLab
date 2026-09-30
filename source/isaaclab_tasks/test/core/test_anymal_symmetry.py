@@ -69,3 +69,8 @@ def test_symmetry_mirrors_joints_by_name(joint_names):
         for offset, block in enumerate(range(12, 48, 12)):
             obs_block = obs_aug["policy"][row, block : block + 12]
             torch.testing.assert_close(obs_block, expected + torch.sign(expected) * 100.0 * offset)
+
+
+def test_symmetry_without_inputs_returns_none():
+    """Calling without observations and actions returns ``(None, None)`` without touching the scene."""
+    assert anymal.compute_symmetric_states(SimpleNamespace()) == (None, None)

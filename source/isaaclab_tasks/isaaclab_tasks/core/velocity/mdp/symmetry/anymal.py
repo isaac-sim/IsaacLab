@@ -43,6 +43,9 @@ def compute_symmetric_states(
         Augmented observations and actions tensors, or None if the respective input was None.
     """
 
+    if obs is None and actions is None:
+        return None, None
+
     # resolve the joint permutations from the robot's joint names (cached per joint order)
     joint_names = env.unwrapped.scene["robot"].joint_names
     device = obs["policy"].device if obs is not None else actions.device
