@@ -292,7 +292,9 @@ class modify_term_cfg(modify_env_param):
         # the simplified address starts with the manager's configuration group and the term name
         group, _, term_path = self._address.partition(".")
         self._manager_name = f"{group[:-1]}_manager"
-        self._term_name = re.split(r"[.\[]", term_path, maxsplit=1)[0]
+        names = re.split(r"[.\[]", term_path)
+        # observation terms are nested in observation groups and named "<group>/<term>"
+        self._term_name = "/".join(names[:2]) if group == "observations" else names[0]
         # overwrite the simplified address with the full manager path
         self._address = self._address.replace("s.", "_manager.cfg.", 1)
 

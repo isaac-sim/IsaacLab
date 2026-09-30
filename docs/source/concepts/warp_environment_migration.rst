@@ -214,12 +214,12 @@ part of it:
   properties refresh through a host-side timestamp that does not replay, and a view cached across
   a rebind points at freed memory.
 - **Change settings through the managers** — a scalar read in Python, such as a configuration value
-  or ``env.common_step_counter``, is frozen into the graph when the stage records. The reward, event,
-  termination and command managers' ``set_term_cfg`` records their stages again, and the
-  ``modify_reward_weight`` and ``modify_term_cfg`` curricula go through it. A value that changes every
-  step belongs in a device buffer that the kernel reads. Writing a term configuration directly, bypassing
-  ``set_term_cfg``, is not supported while stages are recorded; the observation manager has no
-  ``set_term_cfg``, so observation settings are fixed once their stage records.
+  or ``env.common_step_counter``, is frozen into the graph when the stage records. The managers'
+  ``set_term_cfg`` records their stages again (observation terms are named ``"<group>/<term>"``), and the
+  ``modify_reward_weight`` and ``modify_term_cfg`` curricula go through it, so an observation noise
+  curriculum applies to recorded observations. A value that changes every step belongs in a device buffer
+  that the kernel reads. Writing a term configuration directly, bypassing ``set_term_cfg``, is not supported
+  while stages are recorded.
 - **Mark host-dependent terms** — a term that relies on host-side work, such as a sensor whose
   refresh is decided on the host, is decorated with ``@WarpCapturable(False, reason=...)``. It runs
   eagerly between the recorded parts of its stage and raises if it is ever called while a stage

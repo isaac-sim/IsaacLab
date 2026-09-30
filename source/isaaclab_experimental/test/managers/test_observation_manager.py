@@ -3,14 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tests for the Warp observation manager configuration parsing."""
+"""Tests for the Warp observation manager."""
 
 from types import SimpleNamespace
 
+import pytest
+import torch
 import warp as wp
 from isaaclab_experimental.managers import ObservationManager
+from isaaclab_experimental.utils import WarpGraphCache
+from isaaclab_experimental.utils.noise import ConstantNoiseCfg
 
-from isaaclab.managers import ObservationGroupCfg, ObservationTermCfg
+import isaaclab.envs.mdp as mdp
+from isaaclab.managers import CurriculumTermCfg, ObservationGroupCfg, ObservationTermCfg
 from isaaclab.utils import configclass
 
 
@@ -35,3 +40,60 @@ def test_group_settings_are_not_parsed_as_terms():
 
     assert manager.active_terms["policy"] == ["first", "second"]
     assert manager.group_obs_dim["policy"] == (5,)
+
+
+@configclass
+class NoisyPolicyCfg(ObservationGroupCfg):
+    """Group with one term corrupted by a constant bias."""
+
+    value = ObservationTermCfg(func=constant_obs, params={"out_dim": 2}, noise=ConstantNoiseCfg(bias=0.0))
+
+    def __post_init__(self):
+        self.enable_corruption = True
+
+
+@configclass
+class ObservationsCfg:
+    policy: NoisyPolicyCfg = NoisyPolicyCfg()
+
+
+def _override(env, env_ids, data, value):
+    return value
+
+
+@pytest.mark.skipif(not wp.is_cuda_available(), reason="CUDA device required")
+def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage():
+    """An observation noise curriculum changes the observations of a recorded stage, as noise ADR expects.
+
+    The noise parameters are kernel arguments read while the stage records, so a replay without recording again
+    keeps applying the old noise.
+    """
+    graph_cache = WarpGraphCache("cuda:0")
+    env = SimpleNamespace(
+        num_envs=4,
+        device="cuda:0",
+        sim=SimpleNamespace(is_playing=lambda: True),
+        rng_state_wp=wp.zeros(4, dtype=wp.uint32, device="cuda:0"),
+        _warp_graph_cache=graph_cache,
+    )
+    env.observation_manager = ObservationManager(ObservationsCfg(), env)
+    params = {
+        "address": "observations.policy.value.noise.bias",
+        "modify_fn": _override,
+        "modify_params": {"value": 0.5},
+    }
+    curriculum = mdp.modify_term_cfg(CurriculumTermCfg(func=mdp.modify_term_cfg, params=params), env)
+    graph_cache.arm()
+    graph_cache.call_steps(
+        "ObservationManager_compute", env.observation_manager.stage_steps("compute"), return_cloned_output=False
+    )
+    assert graph_cache.captured_stages == ("ObservationManager_compute",)
+
+    curriculum(env, None, **params)
+    obs = graph_cache.call_steps(
+        "ObservationManager_compute", env.observation_manager.stage_steps("compute"), return_cloned_output=False
+    )
+    wp.synchronize()
+
+    assert torch.equal(obs["policy"], torch.full((4, 2), 1.5, device="cuda:0"))
+    graph_cache.close()

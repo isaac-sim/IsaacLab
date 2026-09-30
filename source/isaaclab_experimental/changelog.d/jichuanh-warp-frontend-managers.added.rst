@@ -14,3 +14,6 @@
   :class:`~isaaclab_experimental.managers.CommandManager`. Setting a term configuration records the manager's
   stages again, so a curriculum that changes a termination parameter or a command range through
   ``modify_term_cfg`` takes effect under CUDA graph capture.
+* Added ``set_term_cfg`` and ``get_term_cfg`` to the Warp :class:`~isaaclab_experimental.managers.ObservationManager`.
+  Observation terms are named ``"<group>/<term>"``. Setting a term configuration records the observation stages
+  again.

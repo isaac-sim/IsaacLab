@@ -4,3 +4,5 @@
   ray-caster height scanner. It now runs eagerly in that configuration.
 * Fixed the Warp frontend replacing a Torch term defined outside Isaac Lab with an unrelated built-in Warp
   term of the same name. Such a term is now reported as not being a Warp term.
+* Fixed observation noise curricula that change a noise configuration through ``modify_term_cfg`` having no effect
+  on the observations of a Warp environment under CUDA graph capture.
