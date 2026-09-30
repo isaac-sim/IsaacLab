@@ -162,9 +162,8 @@ class MjWarpActuatorBridge:
     def is_available(solver: object) -> bool:
         """Return whether *solver* exposes the MuJoCo Warp device model this bridge needs.
 
-        The only solver that can apply joint dry friction is MuJoCo's, and only through its
-        device-side model; the CPU MuJoCo backend does not publish one. Callers use this to
-        select a documented fallback instead of constructing a bridge that would raise.
+        BAM requires MuJoCo's Warp model to publish its per-step friction budget. The
+        native CPU MuJoCo backend does not expose that model and is unsupported.
 
         Args:
             solver: The active Newton solver, or ``None``.

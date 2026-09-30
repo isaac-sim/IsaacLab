@@ -146,7 +146,6 @@ def _bam_friction_kernel(
     vel_indices: wp.array[wp.uint32],
     motor_torque: wp.array[float],
     external_torque_in: wp.array[float],
-    armature: wp.array[float],
     friction_scale: wp.array[float],
     friction_base: wp.array[float],
     friction_viscous: wp.array[float],
@@ -161,42 +160,19 @@ def _bam_friction_kernel(
     load_friction_external_quad: wp.array[float],
     max_effort: wp.array[float],
     prev_motor_torque: wp.array[float],
-    prev_applied_torque: wp.array[float],
-    prev_joint_vel: wp.array[float],
-    needs_velocity_seed: wp.array[wp.int32],
-    dt: float,
     stribeck: int,
     load_dependent: int,
     quadratic: int,
-    solver_applies_friction: int,
     forces: wp.array[float],
     friction_budget: wp.array[float],
     viscous_damping: wp.array[float],
     next_prev_motor: wp.array[float],
-    next_prev_applied: wp.array[float],
-    next_prev_vel: wp.array[float],
-    next_needs_seed: wp.array[wp.int32],
 ):
-    """Size the gearbox friction budget and emit the actuator torque.
-
-    Uses the solver's external load when bound, otherwise a rotor-momentum estimate.
-    Solver-hosted execution publishes the budget for the solver to resolve; standalone
-    controller execution applies a torque-level stiction clip.
-    """
+    """Publish the friction budget for MJWarp and emit the clamped motor torque."""
     i = wp.tid()
-
     joint_vel = velocities[vel_indices[i]]
-    # A freshly reset joint has no previous velocity to differentiate against; reporting a
-    # zero acceleration on that step avoids the spike a zeroed cache would produce.
-    previous_vel = prev_joint_vel[i]
-    if needs_velocity_seed[i] != 0:
-        previous_vel = joint_vel
-
     motor_tau = motor_torque[i]
-    if external_torque_in:
-        ext_tau = external_torque_in[i]
-    else:
-        ext_tau = armature[i] * (joint_vel - previous_vel) / dt - prev_applied_torque[i]
+    ext_tau = external_torque_in[i]
 
     stribeck_coeff = float(0.0)
     if stribeck != 0:
@@ -226,33 +202,17 @@ def _bam_friction_kernel(
     friction_budget[i] = budget
     viscous_damping[i] = friction_viscous[i]
 
-    applied = motor_tau
-    if solver_applies_friction == 0:
-        net_tau = motor_tau + ext_tau
-        # Torque that would bring the joint to a stop in one timestep.
-        tau_stop = (armature[i] / dt) * joint_vel + net_tau
-        clip = budget + friction_viscous[i] * wp.abs(joint_vel)
-        applied = motor_tau - wp.sign(tau_stop) * wp.min(wp.abs(tau_stop), clip)
-    # The safety clamp on top of the electrical limit the duty-cycle model already enforces.
-    # Owned here rather than composed as a clamping component, so that the cached previous
-    # effort is the one that was really applied -- and so that the actuator prim carries no
-    # USD-registered schema alongside the unregistered BAM token (see the module docstring).
-    applied = wp.clamp(applied, -max_effort[i], max_effort[i])
-    forces[i] = applied
+    # BAM owns its effort clamp so a registered clamping schema cannot hide its
+    # unregistered controller token from Newton's USD component discovery.
+    forces[i] = wp.clamp(motor_tau, -max_effort[i], max_effort[i])
 
     next_prev_motor[i] = motor_tau
-    next_prev_applied[i] = applied
-    next_prev_vel[i] = joint_vel
-    next_needs_seed[i] = 0
 
 
 @wp.kernel
 def _bam_state_reset_kernel(
     mask: wp.array[wp.bool],
     prev_motor_torque: wp.array[float],
-    prev_applied_torque: wp.array[float],
-    prev_joint_vel: wp.array[float],
-    needs_velocity_seed: wp.array[wp.int32],
     delay_ring: wp.array2d[float],
     delay_lag: wp.array[wp.int32],
     delay_fill: wp.array[wp.int32],
@@ -267,9 +227,6 @@ def _bam_state_reset_kernel(
         if not mask[i]:
             return
     prev_motor_torque[i] = 0.0
-    prev_applied_torque[i] = 0.0
-    prev_joint_vel[i] = 0.0
-    needs_velocity_seed[i] = 1
     delay_lag[i] = 0
     delay_fill[i] = 0
     delay_step_count[i] = 0
@@ -287,8 +244,8 @@ class ControllerBam(Controller):
     One step runs: delay the position command, sag the supply with the previous step's
     load, run the firmware proportional controller to a PWM duty cycle, convert that to a
     motor torque through the DC-motor equation, size the gearbox friction budget from the
-    previous motor torque and the external load, and finally either publish the budget to
-    the solver (:attr:`solver_applies_friction`) or clip the torque with it in place.
+    previous motor torque and the external load, and publish the budget to MJWarp.
+    MJWarp applies friction alongside its other constraints; other solvers are unsupported.
 
     The model consumes only the position target; the modelled firmware has no torque input,
     so feed-forward efforts and velocity targets are ignored.
@@ -311,18 +268,10 @@ class ControllerBam(Controller):
     }
 
     external_torque: wp.array[float] | None
-    """External torque on the gearbox [N.m], shape ``(N,)``, or None to use the estimator.
+    """Previous MJWarp solve's external gearbox load [N.m], shape ``(N,)``.
 
-    A backend that can read the true generalized forces binds its own array here before the
-    first step; otherwise the controller falls back to a rotor-momentum
-    estimate ``armature * (dq - dq_prev) / dt - tau_applied_prev``.
-    """
-
-    solver_applies_friction: bool
-    """Whether the physics solver, rather than this controller, applies the friction budget.
-
-    Must be set before the first step, and therefore before CUDA-graph capture: the flag is
-    passed to the kernel as a launch scalar and is baked into a captured graph.
+    The MJWarp bridge must bind this array before the first step and CUDA graph capture.
+    Stepping an unbound controller raises an error.
     """
 
     env_dof_stride: int
@@ -354,7 +303,6 @@ class ControllerBam(Controller):
         "friction_scale",
         "kt",
         "resistance",
-        "armature",
         "error_gain",
         "max_pwm",
         "max_current",
@@ -379,15 +327,6 @@ class ControllerBam(Controller):
 
         prev_motor_torque: wp.array[float] | None = None
         """Motor-side torque of the previous step [N.m], shape ``(N,)``."""
-
-        prev_applied_torque: wp.array[float] | None = None
-        """Actuator torque emitted on the previous step [N.m], shape ``(N,)``."""
-
-        prev_joint_vel: wp.array[float] | None = None
-        """Joint velocity of the previous step [rad/s or m/s], shape ``(N,)``."""
-
-        needs_velocity_seed: wp.array[wp.int32] | None = None
-        """``1`` while the previous-velocity cache still has to be seeded, shape ``(N,)``."""
 
         delay_ring: wp.array2d[float] | None = None
         """Ring of past position commands [rad or m], shape ``(N, max(max_delay, 1))``."""
@@ -446,9 +385,6 @@ class ControllerBam(Controller):
                 inputs=[
                     mask,
                     self.prev_motor_torque,
-                    self.prev_applied_torque,
-                    self.prev_joint_vel,
-                    self.needs_velocity_seed,
                     self.delay_ring,
                     self.delay_lag,
                     self.delay_fill,
@@ -479,7 +415,6 @@ class ControllerBam(Controller):
         required = {
             "kt",
             "resistance",
-            "armature",
             "error_gain",
             "max_pwm",
             "kp_fw",
@@ -587,7 +522,6 @@ class ControllerBam(Controller):
             setattr(self, name, array)
 
         self.external_torque = None
-        self.solver_applies_friction = False
         self.env_dof_stride = 1
         self.friction_budget = None
         self.viscous_damping = None
@@ -606,9 +540,6 @@ class ControllerBam(Controller):
         self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self._next_state_arrays = {
             "prev_motor_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            "prev_applied_torque": wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            "prev_joint_vel": wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            "needs_velocity_seed": wp.zeros(num_actuators, dtype=wp.int32, device=device),
             "delay_ring": wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
             "delay_lag": wp.zeros(num_actuators, dtype=wp.int32, device=device),
             "delay_fill": wp.zeros(num_actuators, dtype=wp.int32, device=device),
@@ -635,9 +566,6 @@ class ControllerBam(Controller):
     def state(self, num_actuators: int, device: wp.Device) -> ControllerBam.State:
         state = ControllerBam.State(
             prev_motor_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            prev_applied_torque=wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            prev_joint_vel=wp.zeros(num_actuators, dtype=wp.float32, device=device),
-            needs_velocity_seed=wp.ones(num_actuators, dtype=wp.int32, device=device),
             delay_ring=wp.zeros((num_actuators, max(self.max_delay, 1)), dtype=wp.float32, device=device),
             delay_lag=wp.zeros(num_actuators, dtype=wp.int32, device=device),
             delay_fill=wp.zeros(num_actuators, dtype=wp.int32, device=device),
@@ -655,9 +583,6 @@ class ControllerBam(Controller):
                 inputs=[
                     None,
                     state.prev_motor_torque,
-                    state.prev_applied_torque,
-                    state.prev_joint_vel,
-                    state.needs_velocity_seed,
                     state.delay_ring,
                     state.delay_lag,
                     state.delay_fill,
@@ -686,7 +611,9 @@ class ControllerBam(Controller):
         dt: float,
         device: wp.Device | None = None,
     ) -> None:
-        del target_vel, feedforward, target_vel_indices  # the modelled firmware has no torque input
+        del target_vel, feedforward, target_vel_indices, dt  # the modelled firmware has no torque input
+        if self.external_torque is None:
+            raise RuntimeError("BAM requires an MJWarp bridge with external torque bound before stepping")
         num_actuators = len(forces)
         scratch = self._next_state_arrays
         wp.launch(
@@ -741,7 +668,6 @@ class ControllerBam(Controller):
                 vel_indices,
                 self.motor_torque,
                 self.external_torque,
-                self.armature,
                 self.friction_scale,
                 self.friction_base,
                 self.friction_viscous,
@@ -756,23 +682,15 @@ class ControllerBam(Controller):
                 self.load_friction_external_quad,
                 self.max_effort,
                 state.prev_motor_torque,
-                state.prev_applied_torque,
-                state.prev_joint_vel,
-                state.needs_velocity_seed,
-                dt,
                 self.stribeck,
                 self.load_dependent,
                 self.quadratic,
-                int(self.solver_applies_friction),
             ],
             outputs=[
                 forces,
                 self.friction_budget,
                 self.viscous_damping,
                 scratch["prev_motor_torque"],
-                scratch["prev_applied_torque"],
-                scratch["prev_joint_vel"],
-                scratch["needs_velocity_seed"],
             ],
             device=device,
         )

@@ -125,7 +125,7 @@ def _validate_native_only_actuator_cfgs(actuator_cfgs: dict[str, Any], native_gr
     if degraded_groups:
         raise ValueError(
             f"{', '.join(degraded_groups)} has no Isaac Lab-executed implementation and this actuator group is"
-            " not executed by the backend. Set 'use_newton_actuators=True' and run on the Newton backend."
+            " not executed by the backend. Set 'use_newton_actuators=True' and run on the Newton backend with MJWarp."
         )
 
 
@@ -164,10 +164,11 @@ def validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any], *, host_
         )
     if solver_hosted_groups:
         raise ValueError(
-            f"Native actuator execution of {', '.join(solver_hosted_groups)} requires the Newton backend: the model"
+            f"Native actuator execution of {', '.join(solver_hosted_groups)} requires the Newton backend"
+            " with MJWarp: the model"
             " publishes its friction budget into the solver's joint dry friction and reads the external load back"
             " out of the solver, and this backend runs native actuators through the host adapter, which provides"
-            " neither. Use the Newton backend."
+            " neither. Use the Newton backend with MJWarp."
         )
 
 

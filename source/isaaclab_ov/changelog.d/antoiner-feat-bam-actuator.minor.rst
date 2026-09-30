@@ -3,6 +3,5 @@ Added
 
 * Rejected :class:`~isaaclab.actuators.BamActuatorCfg` groups with a message naming the required
   native Newton configuration. OVPhysX's native actuator host adapter did not support BAM.
-  MJWarp provided the solver-hosted friction behavior; other native Newton solvers retained the
-  controller's torque-level fallback.
+  BAM required the MJWarp solver for solver-hosted friction; other Newton solvers also raised.
   Other supported actuator configurations were unaffected.

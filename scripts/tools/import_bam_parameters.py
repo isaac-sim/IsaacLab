@@ -34,7 +34,8 @@ def main() -> None:
     model = values.pop("model", None)
     if model not in ("m1", "m2", "m5", "m6"):
         parser.error(f"Unsupported BAM model {model!r}; expected m1, m2, m5, or m6")
-    for metadata in ("actuator", "q_offset"):
+    # Rotor inertia belongs on the joint; this tool only authors controller coefficients.
+    for metadata in ("actuator", "q_offset", "armature"):
         values.pop(metadata, None)
     values["resistance"] = values.pop("R")
     values["kp_fw"] = values.pop("kp")
