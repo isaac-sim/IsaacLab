@@ -287,6 +287,9 @@ def test_lift_success_material_must_be_per_environment(monkeypatch: pytest.Monke
         success_vis_asset_name=None,
         success_vis_material_name="table_material",
         success_vis_colors=((0.0, 0.0, 0.0), (1.0, 1.0, 1.0)),
+        position_only=True,
+        cmd_kind=None,
+        element_names=None,
     )
     monkeypatch.setattr(CommandTerm, "__init__", _initialize_command_term)
 
