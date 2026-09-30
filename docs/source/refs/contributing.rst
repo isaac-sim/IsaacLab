@@ -89,9 +89,8 @@ the externally hosted file from the documentation.
 .. caution::
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
-  the documentation. The build command creates a temporary environment for the
-  ``dev`` extra, which includes documentation requirements, leaving the
-  repository's ``.venv`` unchanged.
+  the documentation. The build command syncs the ``dev`` extra, which includes
+  documentation requirements, into the repository's ``.venv``.
 
 
 To build the documentation, run the following command from the repository root. It installs
@@ -99,29 +98,11 @@ the documentation packages and builds the current version:
 
 .. code:: bash
 
-   uv run isaaclab --docs
+   uv run --extra dev isaaclab --docs
 
-The documentation is generated in the ``docs/_build`` directory. To view the documentation, open
-the ``index.html`` file in ``docs/_build/current``. This can be done by running the following command
-in the terminal:
-
-.. code:: bash
-
-   xdg-open docs/_build/current/index.html
-
-.. hint::
-
-   The ``xdg-open`` command is used to open the ``index.html`` file in the default browser. If you are
-   using a different operating system, you can use the appropriate command to open the file in the browser.
-
-
-For PR validation, remove the generated HTML before building so deleted pages cannot leave stale output.
-Run these commands from the repository root; they preserve the Sphinx cache:
-
-.. code:: bash
-
-   uv run python -c "import shutil; shutil.rmtree('docs/_build/current', ignore_errors=True)"
-   uv run isaaclab --docs
+The documentation is generated in ``docs/_build/current``. Open
+``docs/_build/current/index.html`` in a browser to view it. Each build clears the current
+HTML output and its Sphinx cache so deleted pages and cached warnings cannot be carried over.
 
 
 Contributing assets
