@@ -57,24 +57,6 @@ class _FakeMultiAgentEnv:
         pass
 
 
-def test_multi_agent_to_single_agent_reset_concatenates_agents():
-    """The adapter reset should concatenate the agents' observations."""
-    env = multi_agent_to_single_agent(_FakeMultiAgentEnv())
-
-    observations, _ = env.reset()
-
-    torch.testing.assert_close(observations["policy"], torch.tensor([[1.0, 2.0, 5.0], [3.0, 4.0, 6.0]]))
-
-
-def test_multi_agent_to_single_agent_reset_can_use_state():
-    """The adapter reset should support the state-as-observation mode."""
-    env = multi_agent_to_single_agent(_FakeMultiAgentEnv(), state_as_observation=True)
-
-    observations, _ = env.reset()
-
-    torch.testing.assert_close(observations["policy"], torch.tensor([[7.0, 8.0], [9.0, 10.0]]))
-
-
 def test_multi_agent_to_single_agent_forwards_episode_lengths():
     """RSL-RL episode randomization should update the wrapped environment buffer in place."""
     source_env = _FakeMultiAgentEnv()
@@ -109,6 +91,7 @@ def test_multi_agent_to_single_agent_state_observation_tracks_steps():
 
     reset_obs, _ = env.reset()
     torch.testing.assert_close(env.obs_buf["policy"], reset_obs["policy"])
+    torch.testing.assert_close(reset_obs["policy"], torch.tensor([[7.0, 8.0], [9.0, 10.0]]))
 
     step_obs = env.step(torch.zeros(2, 2))[0]
     torch.testing.assert_close(env.obs_buf["policy"], step_obs["policy"])

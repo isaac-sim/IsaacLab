@@ -27,7 +27,6 @@ Example usage::
 """
 
 import ast
-import functools
 import sys
 import warnings
 from collections import deque
@@ -38,7 +37,13 @@ from hydra.core.config_store import ConfigStore
 from omegaconf import OmegaConf
 
 from isaaclab.envs.utils.spaces import replace_env_cfg_spaces_with_strings, replace_strings_with_env_cfg_spaces
-from isaaclab.utils import configclass, replace_slices_with_strings, replace_strings_with_slices
+from isaaclab.utils import (
+    configclass,
+    replace_slices_with_strings,
+    replace_strings_with_slices,
+    to_dict,
+    update_from_dict,
+)
 
 from .preset_target import PresetTarget
 
@@ -68,11 +73,6 @@ def user_stacklevel() -> int:
         if level > max_walk:
             return 2
     return level
-
-
-def _known_preset_names(presets: dict) -> set[str]:
-    """Return all preset names declared in a collected preset dictionary."""
-    return {name for section in presets.values() for fields in section.values() for name in fields}
 
 
 def _normalize_preset_name(name: str, known_names: set[str]) -> str:
@@ -437,32 +437,6 @@ def resolve_presets(cfg, selected=()):
 # ============================================================================
 
 
-def _run_hydra(task, env_cfg, agent_cfg, hydra_args, callback):
-    """Shared Hydra entry point for :func:`resolve_task_config` and :func:`hydra_task_config`."""
-    if not hydra_args:
-        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
-        callback(env_cfg, agent_cfg)
-        return
-
-    original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
-
-    @hydra.main(config_path=None, config_name=task, version_base="1.3")
-    def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
-        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
-        env_cfg.from_dict(hydra_cfg["env"])
-        env_cfg = replace_strings_with_env_cfg_spaces(env_cfg)
-        if isinstance(agent_cfg, dict) or agent_cfg is None:
-            agent_cfg = hydra_cfg["agent"]
-        else:
-            agent_cfg.from_dict(hydra_cfg["agent"])
-        callback(env_cfg, agent_cfg)
-
-    try:
-        hydra_main()
-    finally:
-        sys.argv = original_argv
-
-
 def resolve_task_config(
     task_name: str,
     agent_cfg_entry_point: str | None,
@@ -491,34 +465,27 @@ def resolve_task_config(
     env_cfg, agent_cfg, hydra_args = register_task(
         task, agent_cfg_entry_point, play_mode=play_mode, overrides=overrides
     )
+    if not hydra_args:
+        return replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg
+
     resolved = {}
-    _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: resolved.update(env_cfg=e, agent_cfg=a))
+    original_argv, sys.argv = sys.argv, [sys.argv[0]] + hydra_args
+
+    @hydra.main(config_path=None, config_name=task, version_base="1.3")
+    def hydra_main(hydra_cfg, env_cfg=env_cfg, agent_cfg=agent_cfg):
+        hydra_cfg = replace_strings_with_slices(OmegaConf.to_container(hydra_cfg, resolve=True))
+        update_from_dict(env_cfg, hydra_cfg["env"])
+        if isinstance(agent_cfg, dict) or agent_cfg is None:
+            agent_cfg = hydra_cfg["agent"]
+        else:
+            agent_cfg.from_dict(hydra_cfg["agent"])
+        resolved.update(env_cfg=replace_strings_with_env_cfg_spaces(env_cfg), agent_cfg=agent_cfg)
+
+    try:
+        hydra_main()
+    finally:
+        sys.argv = original_argv
     return resolved["env_cfg"], resolved["agent_cfg"]
-
-
-def hydra_task_config(task_name: str, agent_cfg_entry_point: str, play_mode: bool = False) -> Callable:
-    """Decorator for Hydra config with REPLACE-only preset semantics.
-
-    Args:
-        task_name: Task name (e.g., "Isaac-Reach-Franka")
-        agent_cfg_entry_point: Agent config entry point key
-        play_mode: Whether to apply the play-mode overrides defined by the environment
-            configuration's ``play_mode`` method after loading. Defaults to False.
-
-    Returns:
-        Decorated function receiving ``(env_cfg, agent_cfg, *args, **kwargs)``
-    """
-
-    def decorator(func):
-        @functools.wraps(func)
-        def wrapper(*args, **kwargs):
-            task = task_name.split(":")[-1]
-            env_cfg, agent_cfg, hydra_args = register_task(task, agent_cfg_entry_point, play_mode=play_mode)
-            _run_hydra(task, env_cfg, agent_cfg, hydra_args, lambda e, a: func(e, a, *args, **kwargs))
-
-        return wrapper
-
-    return decorator
 
 
 def _format_unknown_presets_error(unknown: set[str], name_to_paths: dict[str, list[str]], max_paths: int = 5) -> str:
@@ -713,105 +680,12 @@ def register_task(
     # Convert to dict for Hydra (handle gym spaces and slices)
     env_cfg = replace_env_cfg_spaces_with_strings(env_cfg)
     agent_dict = agent_cfg.to_dict() if agent_cfg is not None and hasattr(agent_cfg, "to_dict") else agent_cfg
-    env_dict = env_cfg.to_dict()  # type: ignore[union-attr]
+    env_dict = to_dict(env_cfg)  # type: ignore[union-attr]
     cfg_dict = replace_slices_with_strings({"env": env_dict, "agent": agent_dict})
 
     # Register plain config (no groups) - Hydra only handles global scalars
     ConfigStore.instance().store(name=task_name, node=OmegaConf.create(cfg_dict))
     return env_cfg, agent_cfg, hydra_args
-
-
-def parse_overrides(args: list[str], presets: dict) -> tuple:
-    """Categorize command line args by type.
-
-    Args:
-        args: Command line args (without script name)
-        presets: {"env": {"path": {"name": cfg}}, "agent": {...}}
-
-    Returns:
-        (global_presets, preset_sel, preset_scalar, global_scalar) where:
-        - global_presets: [name, ...] - apply to all matching configs
-        - preset_sel: [(section, path, name), ...] - REPLACE selections
-        - preset_scalar: [(full_path, value), ...] - scalars in preset paths
-        - global_scalar: [arg, ...] - pass to Hydra
-    """
-    preset_paths = {f"{s}.{p}" if p else s for s, v in presets.items() for p in v}
-    global_presets, preset_sel, preset_scalar, global_scalar = [], [], [], []
-
-    for arg in args:
-        if "=" not in arg:
-            global_scalar.append(arg)
-            continue
-        key, val = arg.split("=", 1)
-        if key == "presets":
-            known_names = _known_preset_names(presets)
-            global_presets.extend(_normalize_preset_name(v.strip(), known_names) for v in val.split(",") if v.strip())
-        elif key in preset_paths:
-            sec, path = key.split(".", 1) if "." in key else (key, "")
-            known_names = set(presets[sec][path])
-            preset_sel.append((sec, path, _normalize_preset_name(val, known_names)))
-        elif any(key.startswith(pp + ".") for pp in preset_paths):
-            preset_scalar.append((key, val))
-        else:
-            global_scalar.append(arg)
-
-    preset_sel.sort(key=lambda x: x[1].count("."))
-    return global_presets, preset_sel, preset_scalar, global_scalar
-
-
-def apply_overrides(
-    env_cfg,
-    agent_cfg,
-    hydra_cfg: dict,
-    global_presets: list,
-    preset_sel: list,
-    preset_scalar: list,
-    presets: dict,
-):
-    """Apply preset selections and scalar overrides with REPLACE semantics.
-
-    Presets are resolved by walking the active tree from root to leaves. A
-    nested preset is only considered after its parent branch has been selected,
-    which prevents inactive sibling branches from contributing colliding
-    descendant paths.
-
-    Returns:
-        (env_cfg, agent_cfg) -- possibly replaced if root-level PresetCfg was resolved.
-
-    Raises:
-        ValueError: If multiple global presets conflict on an active path, or
-            an explicit preset path is not reachable in the active tree.
-    """
-    cfgs = {"env": env_cfg, "agent": agent_cfg}
-
-    explicit = {f"{sec}.{path}" if path else sec: name for sec, path, name in preset_sel}
-    for sec in ("env", "agent"):
-        if cfgs[sec] is None:
-            continue
-        section_explicit = {path: name for path, name in explicit.items() if path == sec or path.startswith(sec + ".")}
-        cfgs[sec] = _resolve_active_presets(cfgs[sec], global_presets, section_explicit, root_path=sec)
-        hydra_cfg[sec] = (
-            cfgs[sec].to_dict()
-            if hasattr(cfgs[sec], "to_dict")
-            else dict(cfgs[sec])
-            if isinstance(cfgs[sec], Mapping)
-            else cfgs[sec]
-        )
-
-    _apply_preset_scalars(cfgs, hydra_cfg, preset_scalar)
-    return cfgs["env"], cfgs["agent"]
-
-
-def _apply_preset_scalars(cfgs: dict, hydra_cfg: dict, preset_scalar: list) -> None:
-    for full_path, val_str in preset_scalar:
-        sec = full_path.split(".", 1)[0]
-        if sec not in cfgs:
-            continue
-        path = full_path[len(sec) + 1 :]
-        if cfgs[sec] is not None:
-            val = _parse_val(val_str)
-            _setattr(cfgs[sec], path, val)
-            _setattr(hydra_cfg, full_path, val)
 
 
 def _setattr(obj, path: str, val):

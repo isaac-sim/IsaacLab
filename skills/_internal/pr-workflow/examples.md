@@ -23,7 +23,7 @@ Input: a PR modifies `docs/source/overview/`.
 
 Expected workflow:
 
-1. Run `uv run --isolated --extra test -- make -C docs current-docs` and require the build to complete without warnings or errors.
+1. Follow the contribution guide's PR validation commands to clear generated HTML and build without warnings or errors.
 2. Run `uv run isaaclab -f`.
 3. Do not add a package changelog fragment unless `source/<package>/` changed.
 
@@ -34,5 +34,5 @@ Input: a PR modifies `skills/user/isaaclab-randomizing-with-events/SKILL.md`.
 Expected workflow:
 
 1. Run `uv run --no-project python tools/skills/cli.py check`.
-2. Inspect `skills/user/isaaclab-randomizing-with-events/evaluations.md` and directly linked `examples.md` or `reference.md` to confirm scenarios, examples, and source references still match the changed guidance.
+2. Inspect `skills/user/isaaclab-randomizing-with-events/evaluations.md` when present, and directly linked `examples.md` or `reference.md` to confirm scenarios, examples, and source references still match the changed guidance.
 3. Let the path-scoped skills CI gate validate the change on the PR.

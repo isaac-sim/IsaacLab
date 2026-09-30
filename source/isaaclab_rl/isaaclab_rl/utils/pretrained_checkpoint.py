@@ -459,6 +459,7 @@ def _get_physics_backend_name(physics_cfg: PhysicsCfg | None) -> str:
         if solver_name is None:
             raise ValueError(f"Unsupported Newton solver for pretrained checkpoints: {type(solver_cfg).__name__}")
         return f"newton{solver_name}"
+    # OVPhysX configs match too: they run the same PhysX engine, so they share the PhysX checkpoints
     if "physx" in type_path:
         return "physx"
     raise ValueError(f"Unable to identify physics backend from {type(physics_cfg).__name__}")

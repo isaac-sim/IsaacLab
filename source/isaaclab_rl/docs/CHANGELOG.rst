@@ -1,6 +1,66 @@
 Changelog
 ---------
 
+1.3.1 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed train/play entrypoints leaving environments open after setup failures or interrupts.
+  Cleanup closed the final environment wrapper and ignored further Ctrl+C presses during teardown.
+  Random/zero agents used the same cleanup and propagated interrupts instead of reporting success.
+
+
+1.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``use_mixed_precision`` to :class:`~isaaclab_rl.rsl_rl.RslRlPpoAlgorithmCfg` and
+  ``torch_compile_mode`` to :class:`~isaaclab_rl.rsl_rl.RslRlOnPolicyRunnerCfg` to configure RSL-RL's
+  bfloat16 policy update and ``torch.compile`` of the actor and critic. Both options remained disabled by default.
+  Set ``torch_compile_mode="default"`` (CLI: ``agent.torch_compile_mode=default``) to enable compilation.
+  Compilation added startup overhead and could change floating-point results and sampled training trajectories.
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation to reset recurrent policy state during RL-Games playback.
+* Enabled ``torch.backends.cudnn.benchmark`` in the RSL-RL training entrypoint, matching the existing
+  non-deterministic environment seeding behavior.
+
+
+1.2.1 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Removed the redundant RL-Games action clone before out-of-place clipping.
+
+
+1.2.0 (2026-09-23)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--video``, ``--video_length``, and ``--video_interval`` CLI arguments to the zero and
+  random checkpoint-free agents (:mod:`isaaclab_rl.entrypoints.simple_agents`), reusing the video
+  recording infrastructure shared with the train and play entrypoints.
+* Added :attr:`~isaaclab_rl.entrypoints.SimpleAgentRequest.video` to request video recording from the
+  typed zero and random agent APIs.
+
+Fixed
+^^^^^
+
+* Fixed ``--video`` playback stopping before every video recorder had finished its first clip. Playback
+  now runs until the recorder whose first clip ends last is done, including its ``step_offset`` when
+  ``--video_length`` is passed.
+
+
 1.1.1 (2026-09-22)
 ~~~~~~~~~~~~~~~~~~
 

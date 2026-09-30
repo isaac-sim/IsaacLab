@@ -167,6 +167,7 @@ Guidelines for modifications:
 * Oyindamola Omotuyi
 * Özhan Özen
 * Patrick Yin
+* Patrick-SCH03
 * Paul Reeves
 * Peter Du
 * Peter Verswyvelen
@@ -218,12 +219,14 @@ Guidelines for modifications:
 * Xiaodi Yuan
 * Xinjie Yao
 * Xinpeng Liu
+* Xin Xu
 * Xu Li
 * Yang Jin
 * Yanzi Zhu
 * Yijie Guo
 * Yize Wang
 * Yohan Choi
+* Yuguo Shan
 * Yujian Zhang
 * Yun Liu
 * YuTeh Shen

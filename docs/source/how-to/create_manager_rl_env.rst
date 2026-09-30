@@ -51,7 +51,7 @@ The script for running the environment ``run_cartpole_rl_env.py`` is present in 
 
    .. literalinclude:: ../../../scripts/tutorials/03_envs/run_cartpole_rl_env.py
       :language: python
-      :emphasize-lines: 38-42, 56-57
+      :emphasize-lines: 45-52, 67
       :linenos:
 
 
@@ -147,8 +147,8 @@ Running the simulation loop
 ---------------------------
 
 Coming back to the ``run_cartpole_rl_env.py`` script, the simulation loop is similar to the previous tutorial.
-The only difference is that we create an instance of :class:`envs.ManagerBasedRLEnv` instead of the
-:class:`envs.ManagerBasedEnv`. Consequently, now the :meth:`envs.ManagerBasedRLEnv.step` method returns additional signals
+The only difference is that the configuration's ``class_type`` creates an instance of :class:`envs.ManagerBasedRLEnv`
+instead of the :class:`envs.ManagerBasedEnv`. Consequently, now the :meth:`envs.ManagerBasedRLEnv.step` method returns additional signals
 such as the reward and termination status. The information dictionary also maintains logging of quantities
 such as the reward contribution from individual terms, the termination status of each term, the episode length etc.
 

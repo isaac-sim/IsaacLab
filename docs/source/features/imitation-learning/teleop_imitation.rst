@@ -444,6 +444,8 @@ Inspect the generated data (``generated_dataset_small.hdf5``) and if satisfactor
 
 
 The number of demonstrations ``--generation_num_trials`` can be adjusted to your policy needs.
+Use ``--max_num_failures`` to stop after a specified number of failed attempts when a task rarely succeeds.
+Without this option, generation continues until the requested number of demonstrations succeeds.
 1000 demonstrations have been shown to provide good training results for the BC RNN policy used in this tutorial.
 
 The number of environments in the ``--num_envs`` parameter can be adjusted to speed up or slow down data generation.

@@ -8,8 +8,8 @@ from __future__ import annotations
 from dataclasses import MISSING
 from typing import TYPE_CHECKING, Any, Literal
 
-from isaaclab.sim import SpawnerCfg
-from isaaclab.utils import configclass
+from ..sim import SpawnerCfg
+from ..utils import configclass
 
 if TYPE_CHECKING:
     from .asset import Asset

@@ -73,13 +73,20 @@ Enable optional buffers only when they are needed. Their backend support differs
 
 * Isaac Sim PhysX supports pose, filtered contact-point, and filtered friction-force
   tracking, but not aggregate friction-force tracking.
-* OvPhysX supports pose tracking for a single sensor body per environment, but not contact-point or
-  friction-force tracking.
+* OvPhysX supports filtered contact-point and filtered friction-force tracking, but not aggregate
+  friction-force tracking. Pose tracking is supported for a single sensor body per environment.
 * Newton supports filtered contact-point and aggregate or filtered friction-force tracking, but not
   pose tracking.
 
-Filtered contact points and friction-force matrices require filters. Contact-rich Isaac
-Sim PhysX scenes may require a larger ``max_contact_data_count_per_prim``.
+Filtered contact points and friction-force matrices require filters. Isaac Sim PhysX and OvPhysX
+require a positive ``max_contact_data_count_per_prim`` for these features. Contact-rich scenes may
+require a larger value. OvPhysX warns and truncates detailed contacts when capacity is exceeded;
+increase the configured capacity before recreating the sensor to retain all contacts.
+
+Contact positions are averaged over each sensor/filter pair and are ``NaN`` when the pair has no
+contacts. OvPhysX also resets contact positions to ``NaN``. Filtered friction forces sum the pair's
+friction forces and are zero without contact. On PhysX and OvPhysX, contact points and friction
+anchors can have different counts.
 
 Read the data
 -------------
@@ -108,19 +115,19 @@ principal Torch views have these contracts:
      - Normal force [N] from each filtered partner
    * - ``friction_force_matrix_w.torch``
      - ``(E, S, F, 3)``
-     - Friction force [N] from each filtered partner; Isaac Sim PhysX and Newton
+     - Friction force [N] from each filtered partner; Isaac Sim PhysX, OvPhysX, and Newton
    * - ``contact_pos_w.torch``
      - ``(E, S, F, 3)``
-     - Average filtered contact position [m] in world frame; unavailable on OvPhysX
+     - Average filtered contact position [m] in world frame
    * - ``current_air_time.torch`` / ``current_contact_time.torch``
      - ``(E, S)``
      - Current mode duration [s]
 
 Supported optional buffers are ``None`` unless their matching tracking option or filter is enabled.
 Normal and friction force histories follow the same shapes with an added ``H`` dimension.
-OvPhysX rejects unsupported tracking options during initialization. Reading aggregate friction on
-PhysX or OvPhysX raises ``NotImplementedError``. The compatibility alias ``friction_forces_w``
-returns the aggregate on Newton; on PhysX it returns ``friction_force_matrix_w`` with a warning.
+Reading aggregate friction on PhysX or OvPhysX raises ``NotImplementedError``. The compatibility
+alias ``friction_forces_w`` returns the aggregate on Newton; on PhysX and OvPhysX it returns
+``friction_force_matrix_w`` with a warning.
 Reading pose data on Newton raises ``NotImplementedError``.
 
 .. code-block:: python
@@ -137,9 +144,8 @@ sensor contacts but does not change the reported data.
    :figwidth: 100%
    :alt: Contact sensor debug visualization
 
-A complete runnable example is available in
-``scripts/demos/sensors/contact_sensor.py``:
+A complete runnable example is available as ``contact-sensor``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/contact_sensor.py
+   uv run isaaclab example contact-sensor

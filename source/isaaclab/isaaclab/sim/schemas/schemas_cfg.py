@@ -11,7 +11,7 @@ from typing import ClassVar, Literal
 
 from typing_extensions import deprecated
 
-from isaaclab.utils import configclass
+from ...utils import configclass
 
 # Names that moved out of this submodule into ``isaaclab_physx.sim.schemas.schemas_cfg``.
 # Resolved lazily so callers using ``from isaaclab.sim.schemas.schemas_cfg import
@@ -88,7 +88,7 @@ def __getattr__(name):
     raise AttributeError(f"module 'isaaclab.sim.schemas.schemas_cfg' has no attribute {name!r}")
 
 
-def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
+def deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     """Forward a deprecated cfg field to its canonical replacement.
 
     If ``alias`` is set on the cfg instance, emit a ``DeprecationWarning`` and copy the
@@ -108,7 +108,7 @@ def _deprecate_field_alias(cfg, alias: str, canonical: str) -> None:
     setattr(cfg, alias, None)
 
 
-def _deprecated_schema_cfg(replacement: str):
+def deprecated_schema_cfg(replacement: str):
     """Warn when a legacy schema cfg is constructed.
 
     Apply above @configclass. Name all replacement fragments and fields moved to the spawner.
@@ -163,8 +163,6 @@ class SchemaFragment:
 class RigidBodyFragment(SchemaFragment):
     """Marker base for rigid-body fragments; types the ``rigid_props`` slot."""
 
-    pass
-
 
 @configclass
 class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
@@ -194,8 +192,6 @@ class UsdPhysicsRigidBodyCfg(RigidBodyFragment):
 class CollisionFragment(SchemaFragment):
     """Marker base for collision fragments; types the ``collision_props`` slot."""
 
-    pass
-
 
 @configclass
 class ArticulationRootFragment(SchemaFragment):
@@ -209,14 +205,10 @@ class ArticulationRootFragment(SchemaFragment):
     :func:`~isaaclab.sim.schemas.modify_articulation_root_properties` behaviour).
     """
 
-    pass
-
 
 @configclass
 class JointDriveFragment(SchemaFragment):
     """Marker base for joint-drive fragments; types the ``joint_drive_props`` slot."""
-
-    pass
 
 
 @configclass
@@ -248,8 +240,6 @@ class FixedTendonFragment(SchemaFragment):
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 
-    pass
-
 
 @configclass
 class SpatialTendonFragment(SchemaFragment):
@@ -262,7 +252,41 @@ class SpatialTendonFragment(SchemaFragment):
     :attr:`~isaaclab.sim.schemas.SchemaFragment.func`.
     """
 
-    pass
+
+@configclass
+class DeformableBodyFragment(SchemaFragment):
+    """Marker base for deformable-body fragments; types the ``volume_deformable_props`` and
+    ``surface_deformable_props`` slots.
+
+    The deformable anchor schemas (sim and body APIs) are applied by the family writers through
+    the active physics backend, so fragments never own the anchor. A fragment meaningful for only
+    one deformable type narrows :attr:`_deformable_types`; the family writers warn (but still
+    author) when a fragment is passed to the other type's writer.
+    """
+
+    _deformable_types: ClassVar[tuple[str, ...]] = ("volume", "surface")
+
+
+@configclass
+class OmniPhysicsDeformableBodyCfg(DeformableBodyFragment):
+    """``omniphysics:*`` deformable-body attributes from ``OmniPhysicsDeformableBodyAPI``.
+
+    The ``OmniPhysicsDeformableBodyAPI`` anchor is applied by the family writer through the
+    active physics backend, so this fragment owns no applied schema of its own.
+    """
+
+    _usd_namespace: ClassVar[str | None] = "omniphysics"
+    _usd_applied_schema: ClassVar[str | None] = None  # anchor applied by the backend manager
+
+    deformable_body_enabled: bool | None = None
+    """Whether the deformable body participates in the simulation."""
+
+    kinematic_enabled: bool | None = None
+    """Whether the body is kinematic (driven by animated or user-defined poses)."""
+
+    mass: float | None = None
+    """The body mass [kg]. Overrides material-density-derived mass; ``UsdPhysics.MassAPI`` is
+    ignored for deformable bodies."""
 
 
 @configclass
@@ -315,7 +339,7 @@ class UsdPhysicsDriveCfg(JointDriveFragment):
     def __post_init__(self):
         # Deprecation alias: ``max_effort`` -> ``max_force`` (the USD attr is ``maxForce``).
         # Mirrors the legacy :class:`JointDriveBaseCfg` alias forwarding.
-        _deprecate_field_alias(self, "max_effort", "max_force")
+        deprecate_field_alias(self, "max_effort", "max_force")
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -398,7 +422,7 @@ class UsdPhysicsMeshCollisionCfg(MeshCollisionFragment):
     """
 
 
-@_deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
+@deprecated_schema_cfg("[PhysxArticulationCfg(...)] (and set fix_root_link on the spawner cfg)")
 @configclass
 class ArticulationRootBaseCfg:
     """Solver-common properties to apply to the root of an articulation.
@@ -475,7 +499,7 @@ class ArticulationRootBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
+@deprecated_schema_cfg("[UsdPhysicsRigidBodyCfg(...), PhysxRigidBodyCfg(...)]")
 @configclass
 class RigidBodyBaseCfg:
     """Solver-common properties to apply to a rigid body.
@@ -547,7 +571,7 @@ class RigidBodyBaseCfg:
     """
 
 
-@_deprecated_schema_cfg(
+@deprecated_schema_cfg(
     "[UsdPhysicsCollisionCfg(...), PhysxCollisionCfg(...)] (and move mesh_collision_property to the"
     " spawner's mesh_collision_props slot)"
 )
@@ -632,7 +656,7 @@ class CollisionBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("[MassCfg(...)]")
+@deprecated_schema_cfg("[MassCfg(...)]")
 @configclass
 class MassPropertiesCfg:
     """Properties to define explicit mass properties of a rigid body.
@@ -674,8 +698,6 @@ class MassPropertiesCfg:
 class MassFragment(SchemaFragment):
     """Marker base for mass fragments; types the ``mass_props`` slot."""
 
-    pass
-
 
 @configclass
 class MassCfg(MassFragment):
@@ -712,9 +734,7 @@ class MassCfg(MassFragment):
     """
 
 
-@_deprecated_schema_cfg(
-    "[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)"
-)
+@deprecated_schema_cfg("[UsdPhysicsDriveCfg(...), PhysxJointCfg(...)] (and set ensure_drives_exist on the spawner cfg)")
 @configclass
 class JointDriveBaseCfg:
     """Solver-common properties to define the drive mechanism of a joint.
@@ -758,8 +778,8 @@ class JointDriveBaseCfg:
         # Deprecation aliases: project convention is that python ``snake_case`` cfg field
         # names map identity-style to USD ``camelCase`` attrs. Legacy short names that
         # diverged are forwarded here.
-        _deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
-        _deprecate_field_alias(self, "max_effort", "max_force")
+        deprecate_field_alias(self, "max_velocity", "max_joint_velocity")
+        deprecate_field_alias(self, "max_effort", "max_force")
 
     drive_type: Literal["force", "acceleration"] | None = None
     """Joint drive type to apply.
@@ -839,7 +859,7 @@ class JointDriveBaseCfg:
     """
 
 
-@_deprecated_schema_cfg("[UsdPhysicsMeshCollisionCfg(...)]")
+@deprecated_schema_cfg("[UsdPhysicsMeshCollisionCfg(...)]")
 @configclass
 class MeshCollisionBaseCfg:
     """Solver-common properties to apply to a mesh in regards to collision.
@@ -910,7 +930,7 @@ class MeshCollisionBaseCfg:
         raise AttributeError(f"{type(self).__name__!r} object has no attribute {name!r}")
 
 
-@_deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]')
+@deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingCube")]')
 @configclass
 class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-cube mesh collision approximation. USD-only; authors no PhysX schema.
@@ -930,7 +950,7 @@ class BoundingCubePropertiesCfg(MeshCollisionBaseCfg):
     """Name of mesh collision approximation method. Default: "boundingCube"."""
 
 
-@_deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]')
+@deprecated_schema_cfg('[UsdPhysicsMeshCollisionCfg(mesh_approximation_name="boundingSphere")]')
 @configclass
 class BoundingSpherePropertiesCfg(MeshCollisionBaseCfg):
     """Bounding-sphere mesh collision approximation. USD-only; authors no PhysX schema.
@@ -957,5 +977,3 @@ class DeformableBodyPropertiesBaseCfg:
     This class is currently empty. It will be populated once the USD deformable
     schemas can be unified more cleanly between physics backends.
     """
-
-    pass

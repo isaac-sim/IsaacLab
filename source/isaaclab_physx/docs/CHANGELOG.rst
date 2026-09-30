@@ -1,6 +1,179 @@
 Changelog
 ---------
 
+7.4.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.wait_for_stage_load` to run Kit app updates
+  until the USD stage has no assets left to load.
+* Added the PhysX deformable-body fragments :class:`~isaaclab_physx.sim.schemas.PhysxDeformableBodyCfg`
+  and :class:`~isaaclab_physx.sim.schemas.PhysxSurfaceDeformableBodyCfg`, covering the solver,
+  damping, and self-collision attributes from ``PhysxBaseDeformableBodyAPI`` and the
+  surface-only collision attributes from ``PhysxSurfaceDeformableBodyAPI``.
+* Added the PhysX deformable material fragments
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxDeformableMaterialCfg` and
+  :class:`~isaaclab_physx.sim.spawners.materials.PhysxSurfaceDeformableMaterialCfg`, authoring
+  ``physxDeformableMaterial:*`` attributes from ``PhysxDeformableMaterialAPI`` and
+  ``PhysxSurfaceDeformableMaterialAPI``.
+* Added :meth:`~isaaclab_physx.physics.PhysxManager.setup_deformable_body`, applying the
+  OmniPhysics deformable sim and body anchor APIs, rest state, and visual bind pose to a prepared
+  deformable mesh.
+
+Changed
+^^^^^^^
+
+* **Breaking:** Renamed ``KitLauncher.add_app_launcher_args`` to
+  :meth:`~isaaclab_physx.app.KitLauncher.add_launcher_args`, matching :func:`~isaaclab.app.add_launcher_args`.
+  Replace the calls, or call :func:`~isaaclab.app.add_launcher_args`.
+
+Removed
+^^^^^^^
+
+* Removed ``isaaclab_physx.app.show_stage_in_viewport``. Preview a USD file by spawning it into a scene and
+  rendering it with the visualizer selected with ``--viz``, as the ``convert_*`` tools do.
+
+Fixed
+^^^^^
+
+* Prevented repeated Ctrl+C presses from interrupting Kit shutdown, restoring the previous signal
+  handler when shutdown returned.
+
+
+7.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added :class:`~isaaclab_physx.app.KitLauncher`, the Isaac Sim / Kit launcher formerly
+  ``isaaclab.app.AppLauncher``. :func:`~isaaclab.app.launch_simulation` constructs it; scripts do not.
+* Added ``launcher_type`` to :class:`~isaaclab_physx.physics.PhysxCfg`, naming the launcher its runtime needs.
+* Added :class:`~isaaclab_physx.app.KitStageBackendCfg`, the simulation backend that attaches the stage to
+  Kit's USD context and closes it with the simulation.
+* Added :func:`~isaaclab_physx.app.show_stage_in_viewport`, which replaces ``isaaclab.sim.utils.show_stage_in_viewport``.
+* Added ``set_gravity`` to :class:`~isaaclab_physx.physics.PhysxManager` to set the scene-wide gravity.
+
+Changed
+^^^^^^^
+
+* Moved physics randomization implementations into backend ``envs.mdp.events`` modules.
+  The shared ``isaaclab.envs.mdp`` terms kept their API and selected the backend internally.
+* Moved Replicator color and texture implementations into the Isaac Sim backend while
+  preserving the shared terms and their material and RNG attributes. Selection remained
+  independent of physics; kitless runtimes reported the Kit requirement at construction.
+* Removed the ``carb.Float3`` conversion from PhysX gravity randomization.
+* Acquired the shared Fabric resource from an explicit stage/device configuration in Kit rendering
+  consumers, without relying on a backend-specific field on ``SimulationContext``.
+* Changed the Isaac RTX renderer to enable ``omni.replicator.core`` itself, so scripts no longer load it.
+* Changed the ``randomize_visual_color`` and ``randomize_visual_texture_material`` Replicator event terms
+  to seed Replicator with ``env.cfg.seed`` when set, since the environments' ``seed()`` no longer does.
+
+Fixed
+^^^^^
+
+* Published canonical articulation-link paths for SDP and moved foreign-physics Fabric prim
+  preparation into the shared rendering resource.
+* Avoided reloading GPU PhysX scenes after explicit attachment while preserving CPU initialization
+  through the Kit bridge.
+* Waited for GPU-to-host copies before PhysX consumed rigid-body mass, center-of-mass, and inertia
+  updates, preventing stale pinned-memory reads.
+
+
+7.2.5 (2026-09-27)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used timestamped buffers for native pose/geometry reads and Fabric geometry destinations,
+  retaining native geometry batches across reads and preserving rendering cadence.
+* Removed redundant zero initialization from fully overwritten asset read caches.
+* Allocated articulation Jacobian, mass-matrix, and gravity-compensation outputs only when
+  requested, retaining native views when no reordering was required. With CUDA memory pools
+  disabled, access these quantities before graph capture.
+
+Fixed
+^^^^^
+
+* Accepted partial environment slices at indexed asset write boundaries using views of cached device
+  indices, without creating or uploading host index lists.
+* Shared pending kinematic refresh between articulation and scene-data reads so one state write
+  did not trigger redundant FK for separate consumers.
+* Fixed PVA and contact-sensor diagnostic timings to measure device-synchronized update durations.
+  Contact-sensor samples were recorded after synchronization rather than while GPU work could still be pending.
+
+
+7.2.4 (2026-09-26)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Initialized PhysX deformable publications from clone-plan paths and unpadded node counts,
+  including partially replicated assets and shared geometry, without completed-stage discovery.
+* Published native padded nodal views and Fabric points through SDP. Moved foreign geometry updates
+  into the shared Fabric resource, including same-step position changes and MPM render cadence.
+* Removed redundant native Fabric geometry requests, preserving standalone rendering without a clone plan.
+* Converted foreign mesh geometry directly into GPU Fabric destinations. Routed Points and
+  BasisCurves through CPU Fabric for Hydra without USD point writes, transferring only due geometry.
+* Fixed :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab_physx.assets.Articulation.set_fixed_tendon_position_limit_mask` rejecting position limits in
+  the layout the asset stores and reports them in. They now take ``wp.vec2f`` arrays of shape
+  (num_envs, num_fixed_tendons), or torch tensors with a trailing dimension of 2, like the joint position limits.
+* Corrected tendon configuration documentation that incorrectly described tendons as a PhysX-only feature.
+
+
+7.2.3 (2026-09-25)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the ``body_ids`` argument of the :class:`~isaaclab_physx.assets.RigidObjectCollection` mask writers
+  listed above. Pass a boolean ``body_mask`` of shape (num_bodies,) instead, or use the ``*_index`` writers with
+  ``body_ids``.
+
+Fixed
+^^^^^
+
+* Avoided repeated Isaac RTX render-update checks by checking once per camera batch before
+  extracting each camera's annotator outputs.
+* Fixed :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_pose_to_sim_mask`,
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_com_velocity_to_sim_mask`, and
+  :meth:`~isaaclab_physx.assets.RigidObjectCollection.write_body_link_velocity_to_sim_mask` not accepting the
+  ``body_mask`` argument that the base class and the other backends declare.
+
+
+7.2.2 (2026-09-24)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the external-wrench writers to submit through
+  :meth:`~isaaclab.utils.wrench_composer.WrenchComposer.get_forces_and_torques`, so a wrench that is
+  already local-frame, or already global-frame at the center of mass, is sent to PhysX without
+  reading the body transforms.
+* Published PhysX rigid transforms and their producer-owned version through SDP, and routed Isaac RTX
+  transform updates through one simulation-owned ``FabricBackend`` shared with Kit while preserving
+  native PhysX Fabric updates. Stage/device identified the resource; transforms remained binding state,
+  with SDP passed explicitly to updates. Fabric selection and hierarchy state moved out of core ``RenderContext``.
+  Kit app updates requested current SDP transforms without an additional physics ``forward()`` call.
+
+Fixed
+^^^^^
+
+* Fixed joint-wrench sensors applying an extra frame transformation to PhysX readings, which already used
+  the child-side joint frame and anchor. Removed the redundant USD frame buffers. Force and torque values
+  changed for joints with non-identity child frames; the sensor's documented frame convention was preserved.
+* Replaced circular frame-conversion checks with a shared Newton/PhysX integration test using a known mass,
+  gravity, and lever arm to calculate the expected nonzero wrench independently.
+
+
 7.2.1 (2026-09-22)
 ~~~~~~~~~~~~~~~~~~
 

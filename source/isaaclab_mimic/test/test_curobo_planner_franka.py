@@ -12,11 +12,11 @@ import pytest
 SEED: int = 42
 random.seed(SEED)
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils import replace
 
 headless = True
-app_launcher = AppLauncher(headless=headless)
-simulation_app: Any = app_launcher.app
+launch_test_simulation(headless=headless)
 
 import gymnasium as gym
 import torch
@@ -79,7 +79,7 @@ def curobo_test_env() -> Generator[dict[str, Any], None, None]:
 
     goal_pose_visualizer = None
     if not headless:
-        goal_marker_cfg = FRAME_MARKER_CFG.replace(prim_path="/World/Visuals/goal_poses")
+        goal_marker_cfg = replace(FRAME_MARKER_CFG, prim_path="/World/Visuals/goal_poses")
         goal_marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         goal_pose_visualizer = VisualizationMarkers(goal_marker_cfg)
 

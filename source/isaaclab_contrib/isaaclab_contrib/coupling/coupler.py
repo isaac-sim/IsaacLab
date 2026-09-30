@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from functools import partial
 
@@ -128,6 +129,21 @@ class NewtonCouplerManager(NewtonVBDManager):
         if not solver_cfg.entries:
             raise ValueError("CouplerCfg.entries must contain at least one solver entry.")
 
+        if isinstance(solver_cfg, CouplerAdmmCfg):
+            capacity = solver_cfg.contact_max_triangle_pairs
+            if capacity is not None and (type(capacity) is not int or capacity <= 0):
+                raise ValueError("CouplerAdmmCfg.contact_max_triangle_pairs must be a positive integer or None.")
+            if capacity is not None and capacity >= 2**20 and solver_cfg.rigid_contact_matching in ("latest", "sticky"):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_max_triangle_pairs must be less than 2**20 when "
+                    "rigid_contact_matching is 'latest' or 'sticky'."
+                )
+            factor = solver_cfg.contact_reduction_hashtable_size_factor
+            if factor is not None and (not math.isfinite(factor) or factor <= 0.0):
+                raise ValueError(
+                    "CouplerAdmmCfg.contact_reduction_hashtable_size_factor must be finite and positive or None."
+                )
+
         if any(not isinstance(entry.name, str) or not entry.name for entry in solver_cfg.entries):
             raise ValueError("CouplerCfg entry names must be non-empty strings.")
 
@@ -202,10 +218,10 @@ class NewtonCouplerManager(NewtonVBDManager):
 
     @classmethod
     def _prepare_builder_for_finalize(cls, builder: ModelBuilder) -> None:
-        """Normalize kinematic colliders when a coupled entry uses implicit MPM."""
-        super()._prepare_builder_for_finalize(builder)
-        for entry in PhysicsManager._cfg.solver_cfg.entries:
-            entry.solver_cfg.class_type._prepare_builder_for_finalize(builder)
+        """Prepare the shared builder once per selected solver manager."""
+        entries = PhysicsManager._cfg.solver_cfg.entries
+        for prepare in dict.fromkeys(entry.solver_cfg.class_type._prepare_builder_for_finalize for entry in entries):
+            prepare(builder)
 
     @classmethod
     def _initialize_contacts(cls) -> None:
@@ -224,11 +240,6 @@ class NewtonCouplerManager(NewtonVBDManager):
         """Clear VBD hooks and cached nested-MPM solver references."""
         super()._solver_specific_clear()
         NewtonMPMManager._solver_specific_clear()
-
-    @classmethod
-    def _requires_initial_reset_before_graph_capture(cls) -> bool:
-        """Capture coupled MPM only after the task authors its initial particle state."""
-        return bool(NewtonMPMManager._implicit_mpm_solvers())
 
     @classmethod
     def _supports_cuda_graph_capture(cls) -> bool:
@@ -407,6 +418,9 @@ class NewtonCouplerManager(NewtonVBDManager):
         solver_cfg: CouplerAdmmCfg,
     ) -> SolverCoupledADMM:
         values = cls._filter_solver_kwargs(SolverCoupledADMM.Config, solver_cfg)
+        for name in ("contact_max_triangle_pairs", "contact_reduction_hashtable_size_factor"):
+            if getattr(solver_cfg, name) is not None and name not in values:
+                raise RuntimeError(f"The installed Newton version does not support {name}.")
         if solver_cfg.contact_pairs is None:
             values["contact_pairs"] = SolverCoupledADMM.auto_detect_contact_pairs(entries)
         else:

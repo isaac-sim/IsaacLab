@@ -3,20 +3,22 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Behavioral tests for the unified dexterous Lift and Reorient tasks."""
+"""Behavioral tests for the dexterous Lift tasks."""
 
 from types import SimpleNamespace
 
 import pytest
 import torch
+import warp as wp
 
 from pxr import Usd
 
-from isaaclab.managers import CommandTerm
+from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
 from isaaclab.sim import select_usd_variants
+from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
-from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg, FrankaReorientEnvCfg
+from isaaclab_tasks.core.lift.config.franka.franka_env_cfg import FrankaLiftEnvCfg
 from isaaclab_tasks.core.lift.config.franka_soft.franka_soft_env_cfg import FrankaSoftEnvCfg
 from isaaclab_tasks.core.lift.mdp.commands import pose_commands
 from isaaclab_tasks.core.lift.mdp.commands.pose_commands import (
@@ -63,10 +65,9 @@ def test_franka_soft_robot_physics_variant_matches_backend(
     assert cfg.scene.robot.spawn.variants == {"Physics": expected_physics}
 
 
-@pytest.mark.parametrize("cfg_type", [FrankaLiftEnvCfg, FrankaReorientEnvCfg])
-def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type) -> None:
+def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
     """Reset validation keeps the original arm meshes when the asset defaults to capsules."""
-    cfg = cfg_type()
+    cfg = FrankaLiftEnvCfg()
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")
@@ -86,32 +87,63 @@ def test_franka_rigid_tasks_select_collision_meshes_for_reset_clearance(cfg_type
     assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
 
 
-def _make_vision_camera(data_type: str, images: torch.Tensor) -> mdp.vision_camera:
+def _make_vision_camera(data_type: str, images: torch.Tensor) -> tuple[mdp.vision_camera, SimpleNamespace]:
     """Build a ``vision_camera`` term around a fake single-data-type camera sensor."""
     sensor = SimpleNamespace(
-        cfg=SimpleNamespace(data_types=[data_type]), data=SimpleNamespace(output={data_type: images})
+        cfg=SimpleNamespace(data_types=[data_type]),
+        data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(images))}),
     )
-    term = object.__new__(mdp.vision_camera)
-    term.sensor = sensor
-    term.sensor_type = data_type
-    term._is_depth = data_type in ("distance_to_image_plane", "depth")
-    return term
+    env = SimpleNamespace(num_envs=images.shape[0], device="cpu", scene=SimpleNamespace(sensors={"camera": sensor}))
+    cfg = ObservationTermCfg(func=mdp.vision_camera, params={"sensor_cfg": SceneEntityCfg("camera")})
+    return mdp.vision_camera(cfg, env), env
 
 
-def test_camera_normalization_is_stationary() -> None:
+def test_legacy_camera_normalization_is_stationary() -> None:
     """RGB and depth normalization must map fixed inputs to fixed outputs, independent of per-frame statistics."""
     rgb = torch.tensor([0.0, 127.5, 255.0]).view(1, 1, 1, 3)
     depth = torch.tensor([0.0, 2.0]).view(1, 1, 2, 1)
-    env = SimpleNamespace()
+    rgb_term, rgb_env = _make_vision_camera("rgb", rgb)
+    depth_term, depth_env = _make_vision_camera("depth", depth)
 
-    rgb_obs = _make_vision_camera("rgb", rgb)(env, sensor_cfg=None)
-    depth_obs = _make_vision_camera("depth", depth)(env, sensor_cfg=None)
+    rgb_obs = rgb_term(rgb_env, sensor_cfg=None)
+    depth_obs = depth_term(depth_env, sensor_cfg=None)
 
     # channel-first output with the value range mapped to [-0.5, 0.5)
     assert rgb_obs.shape == (1, 3, 1, 1)
     assert torch.allclose(rgb_obs.flatten(), torch.tensor([-0.5, 0.0, 0.5]))
     assert depth_obs.shape == (1, 1, 1, 2)
     assert torch.allclose(depth_obs.flatten(), torch.tanh(torch.tensor([0.0, 2.0]) / 2) - 0.5)
+
+
+@pytest.mark.parametrize("data_type", ["rgb", "depth", "albedo", "semantic_segmentation"])
+def test_camera_normalization_is_stationary(data_type: str) -> None:
+    """Configured camera terms keep raw images, and the policy applies stationary normalization."""
+    from isaaclab_tasks.core.lift.config.kuka_allegro.agents.models import CameraImageNormalizer
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import KukaAllegroLiftCameraEnvCfg
+
+    cfg = resolve_presets(KukaAllegroLiftCameraEnvCfg(), {"duo_camera", f"{data_type}128"})
+    cfg.validate()
+    if data_type == "depth":
+        images = torch.tensor([0.0, 2.0, float("nan")]).view(1, 1, 3, 1)
+        expected = torch.tanh(torch.tensor([0.0, 1.0, 20.0])) - 0.5
+    else:
+        images = torch.tensor([0, 51, 255, 255], dtype=torch.uint8).view(1, 1, 1, 4)
+        if data_type == "rgb":
+            images = images[..., :3]
+        expected = torch.tensor([-0.5, -0.3, 0.5, 0.5])
+        if data_type != "semantic_segmentation":
+            expected = expected[:3]
+    sensor = SimpleNamespace(data=SimpleNamespace(output={data_type: ProxyArray(wp.from_torch(images))}))
+    env = SimpleNamespace(
+        num_envs=1, device="cpu", scene=SimpleNamespace(sensors={"base_camera": sensor, "wrist_camera": sensor})
+    )
+    for term_cfg in (cfg.observations.base_image.object_observation_b, cfg.observations.wrist_image.wrist_observation):
+        term = term_cfg.func(term_cfg, env)
+        raw = term(env, **term_cfg.params)
+        assert raw.dtype == images.dtype
+        assert raw.shape == (1, 1, 1, 3) if data_type == "depth" else raw.shape == (1, len(expected), 1, 1)
+        output = CameraImageNormalizer(raw.dtype == torch.uint8)(raw)
+        torch.testing.assert_close(output.flatten(), expected)
 
 
 def test_lift_pose_markers_forward_environment_ids(monkeypatch: pytest.MonkeyPatch) -> None:

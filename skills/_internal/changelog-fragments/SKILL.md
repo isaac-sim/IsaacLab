@@ -18,14 +18,8 @@ Do not use this skill for pure docs, CI, tools, or skills changes unless they al
 
 1. Identify each changed package under `source/`.
 2. Add one fragment per touched package under `source/<package>/changelog.d/`.
-3. Choose the suffix:
-   - `<slug>.rst` for patch changes.
-   - `<slug>.minor.rst` for minor changes.
-   - `<slug>.major.rst` for major changes.
-   - `<slug>.skip` for package changes that intentionally have no user-facing entry.
-4. Place entries under `Added`, `Changed`, `Deprecated`, `Removed`, or `Fixed`.
-5. Include migration guidance for `Deprecated`, `Changed`, and `Removed` entries.
-6. Prefix breaking changes with `**Breaking:**`.
+3. Follow the contribution guide's [changelog section](../../../docs/source/refs/contributing.rst#maintaining-package-changelogs-and-versions)
+   for fragment tiers, entry format, breaking-change labels, and migration guidance.
 
 ## Validation
 

@@ -1,6 +1,208 @@
 Changelog
 ---------
 
+22.0.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed the Kuka Allegro Lift camera observations to use the shared
+  :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`, and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` terms and to emit raw camera images, uint8 for
+  color. The spatial-softmax policy model now applies the fixed-range normalization, including in
+  exported JIT and ONNX policies, which cuts rollout image memory 4x. Existing RGB and depth checkpoints loaded
+  unchanged; policies exported before this change expect normalized images. Albedo observations
+  now discard the unused alpha channel; keep ``vision_camera`` for existing four-channel albedo
+  policies, or retrain with the three-channel observation.
+* Disabled the RSL-RL per-step NaN check for the Kuka Allegro camera runners.
+* Enabled the calibrated ``robot_pov_cam`` as a head-locked XR picture-in-picture
+  panel for the G1 locomanipulation and fixed-base upper-body IK tasks. Fixed-base
+  G1 gained a camera sensor for PiP without changing its policy observations.
+  XR runs with enabled PiP now require ``--num_envs 1``. To retain multi-environment
+  XR operation, set ``env.isaac_teleop.xr_camera_feeds=[]`` to disable PiP without
+  removing the camera sensor or recorded observations.
+* **Breaking:** Changed the canonical render task's unset ``BENCHMARK_MODE`` default to
+  ``None``, disabling benchmark animation and scope profiling. Set ``BENCHMARK_MODE=render``
+  to retain direct posing or ``BENCHMARK_MODE=physics_render`` for actuator tracking;
+  scope timings remained opt-in through their profiling flags. Renderer sweep users must
+  also set an explicit benchmark mode to collect timings.
+
+Removed
+^^^^^^^
+
+* Removed the ``partition_bounds_marker_min`` and ``partition_bounds_marker_max`` scene
+  entries from ``Isaac-Lift-Cable-Franka`` and ``Isaac-Lift-Cable-Franka-Camera``. Those
+  millimetre-scale cubes pinned each Isaac RTX scene partition to the workspace as a
+  workaround for Kit RTX not refreshing animated ``UsdGeom.BasisCurves`` bounding boxes
+  (OMPE-105749 / NVBug 6602254). Custom environments that copied the markers can drop
+  them; ``test_franka_cable_partition_bounds.py`` remains as the regression guard.
+* **Breaking:** Removed ``isaaclab_tasks.utils.hydra_task_config``. Call
+  :func:`~isaaclab_tasks.utils.resolve_task_config` and pass the returned ``(env_cfg, agent_cfg)`` to your
+  entry function.
+* **Breaking:** Removed ``isaaclab_tasks.utils.hydra.parse_overrides`` and
+  ``isaaclab_tasks.utils.hydra.apply_overrides``. Pass the same command-line tokens to
+  :func:`~isaaclab_tasks.utils.resolve_task_config` through its ``overrides`` argument.
+
+Fixed
+^^^^^
+
+* Added the missing ``ovphysx`` physics preset to ``Isaac-RenderBenchmark-Franka-Cabinet``
+  and enabled automatic ``physx`` selection to use OvPhysX when running without Kit.
+
+
+21.3.0 (2026-09-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``class_type`` to the environment configs that use a custom environment class, naming that class.
+* Added a ``valid`` mask argument to :meth:`~isaaclab_tasks.utils.success_monitor.SuccessMonitor.success_update`
+  so callers can skip outcomes without filtering them first.
+
+Changed
+^^^^^^^
+
+* Avoided scalar uploads and CUDA synchronization in indexed task resets and sampling masks.
+* Replaced per-step host reads of scene-entity selections in task terms with device gathers.
+* Removed the ``carb`` imports from the factory, AutoMate, deploy, and NIST tasks; factory and AutoMate set
+  gravity through the physics manager.
+* Changed the stack task's ``randomize_visual_texture_material`` event to seed Replicator with ``env.cfg.seed``
+  when set, since the environments' ``seed()`` no longer does.
+* Removed per-step host synchronizations from the Lift progress rewards.
+* Disabled point-cloud markers in the Lift observation config. Drawing every point each step was
+  costly and, with RTX rendering, put the markers into camera images. Set
+  ``observations.perception.object_point_cloud.params["visualize"] = True`` to draw them.
+* Stored Cartpole direct joint indices on the device, removing host-to-device index uploads and CUDA
+  synchronizations from its observations, rewards, terminations, resets, and effort writes.
+* Removed redundant action copies in the Cartpole and Reorient direct tasks.
+* Made :class:`~isaaclab_tasks.utils.success_monitor.SuccessMonitor` updates free of host synchronizations,
+  removing about 8.5 synchronizations per step from the Lift camera task.
+* Changed :meth:`~isaaclab_tasks.utils.success_monitor.SuccessMonitor.get_mean_success_rate` to return a 0-d
+  tensor instead of a Python float, so per-step logging does not synchronize. Call ``.item()`` where a float
+  is needed.
+* Stored Pendulum MARL joint indices on the device, removing host-to-device index uploads and CUDA
+  synchronizations from its terminations, resets, and effort writes.
+* Logged the Cartpole direct and Pendulum MARL success rates as device tensors instead of synchronizing
+  with ``.item()`` on every reset.
+
+
+21.2.0 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed camera tasks to use the per-modality image terms :class:`~isaaclab.envs.mdp.observations.image_rgb`,
+  :class:`~isaaclab.envs.mdp.observations.image_depth`,
+  :class:`~isaaclab.envs.mdp.observations.image_normals` and
+  :class:`~isaaclab.envs.mdp.observations.image_segmentation` instead of the removed
+  ``isaaclab.envs.mdp.image``.
+* Changed the Cartpole camera, Kuka Allegro ``vision_camera`` and drone VAE observations to use the
+  shared normalizers and frame stack in :mod:`isaaclab.utils.images`. Observation values are unchanged,
+  except that NaN depth is now replaced like infinite depth.
+* **Breaking:** Removed ``frame_stack`` from the manager-based Cartpole camera environment
+  configuration. Set it on the image term instead, e.g. ``env.observations.policy.image.params.frame_stack=4``.
+  The direct Cartpole camera environment keeps its ``frame_stack`` field.
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated :class:`isaaclab_tasks.core.cartpole.mdp.CameraImageStack`. Use ``image_rgb``,
+  ``image_depth`` or ``image_segmentation`` with ``channel_first=True`` and ``frame_stack``.
+
+Fixed
+^^^^^
+
+* Handled full and strided reset slices in sampled deformable observations and deployment noise models.
+* Used existing device indices for multitask reset slices without implicitly converting caller-provided indices.
+* Preserved full and partial slices in task reset events, curricula, and commands, using selected data
+  shapes or slice bounds when only a batch size was required.
+* Fixed keyboard reset-buffer partial batches to sample distinct environments across the full scene
+  instead of favoring its first clone variants. Buffer capacity was unchanged.
+
+
+21.1.1 (2026-09-26)
+~~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Updated Cartpole camera observations to use shared fused image normalization, including direct
+  channel-first output conversion where needed.
+
+Fixed
+^^^^^
+
+* Removed the redundant backend-specific Jacobian refresh from the NIST
+  ``reset_end_effector_around_asset`` event. Articulation data refreshes forward kinematics on demand
+  after joint writes, avoiding access to ``root_physx_view`` on OVPhysX.
+* Fixed the Cartpole camera observations reading the sensor's ``ProxyArray`` directly, which left
+  colorized semantic segmentation unscaled.
+* Corrected the SO101 Keyboard task's initial pose for the SysID asset: rotated
+  the robot base toward the keyboard and restored the task's zero joint-position
+  reset-IK seed. Shared SO101 defaults, actuator parameters, and reset IK budgets
+  remained unchanged. Removed the need for a manual task-specific base rotation.
+* Fixed :func:`~isaaclab_tasks.contrib.stack.mdp.terminations.cubes_stacked` reporting success for a
+  cube that is still falling: the check tested an instantaneous configuration, which a dropped cube
+  satisfies on the way down. Cubes must now also be at rest, controlled by the new ``max_lin_vel``
+  argument (default ``0.05`` m/s). Reported stack success rates drop slightly as a result; pass
+  ``max_lin_vel=None`` to restore the previous behaviour.
+
+
+21.1.0 (2026-09-24)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added a ``benchmark_mode`` option to the ``Isaac-RenderBenchmark-Franka-Cabinet`` task, read from the
+  ``BENCHMARK_MODE`` environment variable. The default ``"render"`` mode wrote analytic joint poses after
+  physics and required ``scene.lazy_sensor_update=True`` so rendering followed the pose write.
+  Isaac RTX direct posing also rejected visualizers that pumped the Kit app; use ``--visualizer none``.
+  Set ``BENCHMARK_MODE=physics_render`` to preserve actuator-driven animation. Both modes still stepped physics.
+  The renderer sweep enabled physics and render timers and reported per-frame and combined timings
+  from the profiling JSON file.
+
+Changed
+^^^^^^^
+
+* Changed the reach table collider, the UR10 particle-push colliders, and the NIST factory Newton
+  Franka rigid-body properties to author their physics schemas with schema fragments
+  (:class:`~isaaclab.sim.schemas.UsdPhysicsCollisionCfg`,
+  :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`, and
+  :class:`~isaaclab_newton.sim.schemas.MujocoRigidBodyCfg`) instead of the deprecated legacy
+  property configs, so loading these tasks no longer emits their ``DeprecationWarning``. The
+  authored USD is unchanged. Configurations that tune these spawner slots in place should select
+  the fragment that owns the field (e.g. the :class:`~isaaclab_newton.sim.schemas.NewtonCollisionCfg`
+  entry of the UR10 particle-push ``collision_props`` list for ``contact_margin``).
+
+Fixed
+^^^^^
+
+* Fixed the Kuka Allegro wrist camera rendering from its reset pose for the whole episode in the
+  ``duo_camera`` presets. The camera is mounted on the palm, so ``update_latest_camera_pose`` is now
+  enabled and its rendered view follows the arm.
+* Fixed :func:`~isaaclab_tasks.contrib.forge.forge_utils.change_FT_frame` applying the inverse rotation and the
+  wrong lever-arm sign when re-expressing a force/torque reading in another frame. The FORGE force observation
+  is unchanged because the environment uses identity rotations and only consumes the force components.
+
+
+21.0.3 (2026-09-23)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Increased the MJWarp line-search iteration limit for lift tasks to prevent solver overflow warnings from
+  degrading simulation performance in contact-rich states.
+* Fixed the KukaAllegro Lift and Reorient camera tasks defaulting to state-based
+  RSL-RL actors. They now select the single-camera CNN actor without requiring
+  an explicit ``single_camera`` preset.
+
+
 21.0.2 (2026-09-22)
 ~~~~~~~~~~~~~~~~~~~
 

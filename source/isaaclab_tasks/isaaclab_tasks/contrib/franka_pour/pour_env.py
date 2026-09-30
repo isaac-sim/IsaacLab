@@ -29,6 +29,7 @@ from isaaclab_newton.cloner import newton_builder_world_hook
 from isaaclab_newton.physics import NewtonMPMManager
 
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils import math as math_utils
 from isaaclab.utils.assets import retrieve_file_path
 
@@ -620,8 +621,8 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         )
 
         particle_count = self._num_particles
-        local_position = self._reset_particle_local_position[None].expand(len(env_ids), -1, -1)
-        local_velocity = self._reset_particle_local_velocity[None].expand(len(env_ids), -1, -1)
+        local_position = self._reset_particle_local_position[None].expand(rows.shape[0], -1, -1)
+        local_velocity = self._reset_particle_local_velocity[None].expand(rows.shape[0], -1, -1)
         source_quat = source_pose[:, None, 3:7].expand(-1, particle_count, -1)
         particle_position = math_utils.quat_apply(source_quat, local_position) + source_pose[:, None, :3]
         particle_velocity = math_utils.quat_apply(source_quat, local_velocity)
@@ -638,20 +639,18 @@ class FrankaPourEnv(ManagerBasedRLEnv):
         self._particle_region_cache_step = -1
         self._particle_pos_e_cache = None
         self._particle_pos_e_cache_step = -1
-        self.episode_succeeded[env_ids] = False
-        self._success_dwell_count[env_ids] = 0
-        self._lost_grasp_dwell_count[env_ids] = 0
+        index_fill_(self.episode_succeeded, env_ids, False)
+        index_fill_(self._success_dwell_count, env_ids, 0)
+        index_fill_(self._lost_grasp_dwell_count, env_ids, 0)
         # Seed the dropped-grasp latch for validated grasp rows; non-grasp rows start clear.
         self._lifted_grasp_seen[env_ids] = states["category"][rows] == GRASPING_CATEGORY
 
     def reset_pour_scene(self, env_ids: torch.Tensor) -> None:
         """Restore selected environments from reset-dataset rows."""
-        if not isinstance(env_ids, torch.Tensor):
-            env_ids = torch.as_tensor(env_ids, device=self.device, dtype=torch.long)
-        env_ids = env_ids.to(device=self.device, dtype=torch.long).flatten()
-        if env_ids.numel() == 0:
+        num_envs = len(range(self.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if num_envs == 0:
             return
         # Newton reset masks include one trailing slot for global (world -1) entities.
         world_mask = torch.zeros(self.num_envs + 1, device=self.device, dtype=torch.bool)
-        world_mask[env_ids] = True
+        index_fill_(world_mask, env_ids, True)
         self._reset_from_dataset(env_ids, world_mask)

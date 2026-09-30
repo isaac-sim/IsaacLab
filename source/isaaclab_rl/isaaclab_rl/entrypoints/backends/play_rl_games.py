@@ -17,6 +17,7 @@ from rl_games.torch_runner import Runner
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -29,6 +30,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -105,7 +107,7 @@ def run(argv: list[str]) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="rl_games", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             apply_env_overrides(args_cli, env_cfg)
             params = agent_cfg["params"]
             args_cli.seed = resolve_seed(args_cli.seed)
@@ -129,6 +131,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
             env = RlGamesVecEnvWrapper.from_agent_cfg(env, agent_cfg)
@@ -161,8 +164,7 @@ def run(argv: list[str]) -> None:
                 # reset recurrent states for episodes that have terminated
                 if agent.is_rnn and agent.states is not None and len(dones) > 0:
                     for state in agent.states:
-                        state[:, dones, :] = 0.0
+                        index_fill_(state, dones, 0.0, dim=1)
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

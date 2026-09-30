@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import ManagerTermBase, RewardTermCfg, SceneEntityCfg
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import combine_frame_transforms
 
 if TYPE_CHECKING:
@@ -68,7 +69,7 @@ class object_goal_distance(ManagerTermBase):
             self._env.extras.setdefault("log", {})["Metrics/success_rate"] = (
                 self._succeeded[env_ids].float().mean().item()
             )
-            self._succeeded[env_ids] = False
+            index_fill_(self._succeeded, env_ids, False)
 
     def __call__(
         self,

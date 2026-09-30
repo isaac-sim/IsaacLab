@@ -28,7 +28,7 @@ from isaaclab.sensors import CameraCfg
 
 # from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
 
 from isaaclab_tasks.utils.presets import set_isaac_rtx_global_settings
@@ -108,7 +108,8 @@ class ObjectTableSceneCfg(InteractiveSceneCfg):
         ),
     )
 
-    robot: ArticulationCfg = GR1T2_CFG.replace(
+    robot: ArticulationCfg = replace(
+        GR1T2_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
         init_state=ArticulationCfg.InitialStateCfg(
             pos=(0, 0, 0.93),
@@ -225,8 +226,8 @@ class ObservationsCfg:
         )
 
         robot_pov_cam = ObsTerm(
-            func=mdp.image,
-            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "data_type": "rgb", "normalize": False},
+            func=mdp.image_rgb,
+            params={"sensor_cfg": SceneEntityCfg("robot_pov_cam"), "normalize": False},
         )
 
         def __post_init__(self):
