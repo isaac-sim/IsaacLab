@@ -64,9 +64,6 @@ def create_rsl_rl_runner(
 ) -> OnPolicyRunner | DistillationRunner:
     """Instantiate the RSL-RL runner selected by ``agent_cfg.class_name``.
 
-    The runner uses ``agent_cfg.device``, or the environment's device when that is a CUDA device and
-    CUDA is unavailable (e.g. on macOS), since the agent configuration defaults to ``cuda:0``.
-
     Args:
         env: Wrapped environment the runner trains or evaluates on.
         agent_cfg: Runner configuration.
