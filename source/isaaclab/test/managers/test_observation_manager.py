@@ -392,7 +392,7 @@ def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_de
     cfg = ObservationGroupCfg(enable_corruption=True)
     cfg.position = ObservationTermCfg(func=pos_w_data, noise=noise_cfg, clip=(0.0, 0.5), scale=2.0)
     manager = ObservationManager({"policy": cfg}, env)
-    source = env.data.pos_w.clone()
+    source = torch.clone(env.data.pos_w)
     torch.manual_seed(0)
     if expected_delta is None:
         expected_delta = torch.rand_like(source) * 0.2 - 0.1

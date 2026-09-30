@@ -93,7 +93,7 @@ class DummyVisSensor(DummySensor):
 
     def _debug_vis_callback(self, event):
         if self._is_initialized:
-            self.visualized_counts.append(self.data.count.clone())
+            self.visualized_counts.append(torch.clone(self.data.count))
 
 
 def _populate_scene():
