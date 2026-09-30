@@ -249,6 +249,11 @@ def test_frame_created_before_model_covers_selected_envs(device, parent, envs, c
         expected = parent_pos + torch.tensor(CHILD_OFFSET, device=device)
         torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
         assert "could not pair its sites" not in caplog.text
+        # each frame is paired with its own env's prim, in view order, so pose writes mirror to that prim
+        assert view._site_prim_paths == [f"/World/envs/env_{i}/{parent}/Mount" for i in env_ids]
+        new_pos = expected + torch.tensor([0.0, 0.0, 0.5], device=device)
+        view.set_world_poses(positions=_wp_vec3f(new_pos.tolist(), device=device))
+        torch.testing.assert_close(view.get_world_poses()[0].torch, new_pos, atol=1e-5, rtol=0)
 
 
 # ==================================================================
