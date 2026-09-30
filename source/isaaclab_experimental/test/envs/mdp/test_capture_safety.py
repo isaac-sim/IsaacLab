@@ -332,7 +332,6 @@ CAPTURE_SPECS: list[CaptureSpec] = [
     CaptureSpec(_LOCO_REW, "terminated_penalty", "reward", _build_terminated_penalty),
     CaptureSpec(_LOCO_REW, "survival_success_rate", "reward", _build_survival_success_rate, expect_nonzero=False),
     CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=False)),
-    CaptureSpec(_SHARED_REW, "base_height_l2", "reward", partial(_build_base_height_l2, terrain=True)),
     CaptureSpec(
         "isaaclab_tasks_experimental.core.velocity.mdp.rewards",
         "feet_air_time_variance",
@@ -574,6 +573,16 @@ def test_term_is_capture_safe(spec: CaptureSpec):
         assert_equal(actual, expected)
     if spec.expect_nonzero:
         assert expected.any(), "mutated inputs produced a degenerate expectation; the replay proves little"
+
+
+def test_base_height_l2_with_height_scanner_matches_stable():
+    """With a height scanner the term runs eagerly (reading the sensor refreshes it on the host)."""
+    case = _build_base_height_l2(terrain=True)
+    out = wp.zeros((NUM_ENVS,), dtype=wp.float32, device=DEVICE)
+
+    case.warp_fn(case.warp_env, out, **case.params)
+
+    assert_close(wp.to_torch(out), case.stable_fn(case.stable_env, **case.params))
 
 
 def test_feet_air_time_variance_requires_two_feet():

@@ -25,6 +25,7 @@ from isaaclab_newton.kernels.state_kernels import (
 )
 
 from isaaclab_experimental.managers import ManagerTermBase, SceneEntityCfg
+from isaaclab_experimental.utils.warp import WarpCapturable
 
 if TYPE_CHECKING:
     from isaaclab.assets import Articulation
@@ -226,6 +227,10 @@ def _base_height_l2_kernel(
     out[i] = error * error
 
 
+@WarpCapturable(
+    lambda params: params.get("sensor_cfg") is None,
+    reason="Ray-caster reads refresh the sensor through host-side timestamps and scene transforms.",
+)
 def base_height_l2(
     env: ManagerBasedRLEnv,
     out: wp.array(dtype=wp.float32),
