@@ -1699,7 +1699,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "32.0.0"
+version = "32.1.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -2067,7 +2067,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.2.3"
+version = "0.2.4"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2095,7 +2095,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.1.0"
+version = "9.1.1"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2106,7 +2106,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "4.0.0"
+version = "4.1.0"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2160,7 +2160,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "22.0.0"
+version = "23.0.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
