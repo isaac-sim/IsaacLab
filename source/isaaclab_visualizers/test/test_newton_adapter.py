@@ -913,7 +913,8 @@ def test_newton_visualizer_headless_renders_frame_on_demand(monkeypatch, cfg_typ
     assert visualizer.render_rgb_array().shape == (4, 6, 3)
     assert viewer.logged_state is state
     assert viewer.events == ["begin_frame", "log_state", "end_frame"]
-    assert markers.call_count == (0 if is_rtx else 1)
+    assert markers.call_count == 1
+    assert markers.call_args.kwargs["sanitize_group_ids"] is is_rtx
     provider.get_geometry_points.assert_called_once_with(output=state.particle_q, offsets={"/Cloth": 0})
 
     viewer.paused = True
