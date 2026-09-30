@@ -90,8 +90,7 @@ the externally hosted file from the documentation.
 
   Install `uv <https://docs.astral.sh/uv/getting-started/installation/>`__ before building
   the documentation. The build command creates a temporary environment for the
-  ``dev`` extra, which includes documentation requirements, leaving the
-  repository's ``.venv`` unchanged.
+  ``dev`` extra, which includes documentation requirements.
 
 
 To build the documentation, run the following command from the repository root. It installs

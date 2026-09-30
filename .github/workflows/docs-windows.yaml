@@ -1,0 +1,33 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+name: Windows Docs
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/docs-windows.yaml'
+      - 'docs/**'
+      - 'pyproject.toml'
+      - 'uv.lock'
+      - 'source/isaaclab/isaaclab/cli/**'
+
+jobs:
+  build-docs:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          python-version: '3.12'
+          enable-cache: true
+      - name: Build current documentation
+        run: uv run isaaclab --docs
+      - name: Verify output
+        shell: pwsh
+        run: |
+          if (-not (Test-Path docs/_build/current/index.html)) {
+            throw 'Documentation index was not generated'
+          }

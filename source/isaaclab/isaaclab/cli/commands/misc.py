@@ -6,6 +6,7 @@
 """Misc commands"""
 
 import argparse
+import os
 import platform
 import shutil
 import sys
@@ -82,7 +83,7 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
         parser.error(str(error))
 
 
-def command_build_docs() -> None:
+def command_build_docs(multi_version: bool = False) -> None:
     """Build the documentation."""
     print_info("Building documentation...")
     docs_dir = ISAACLAB_ROOT / "docs"
@@ -93,29 +94,36 @@ def command_build_docs() -> None:
         print_error("https://docs.astral.sh/uv/getting-started/installation/")
         raise SystemExit(1)
 
-    out_dir = docs_dir / "_build" / "current"
-    cmd = [
-        uv_exe,
-        "run",
-        "--isolated",
-        "--extra",
-        "dev",
-        "--",
-        "python",
-        "-m",
-        "sphinx",
-        "-W",
-        "--keep-going",
-        "-j",
-        "auto",
-        "-b",
-        "html",
-        "-d",
-        "_build/doctrees",
-        ".",
-        str(out_dir),
-    ]
-    run_command(cmd, cwd=docs_dir)
+    out_dir = docs_dir / "_build"
+    cmd = [uv_exe, "run", "--isolated", "--extra", "dev", "--"]
+    if multi_version:
+        default_ref = os.getenv("DOCS_DEFAULT_REF", "v3.0.0-EA")
+        run_command(cmd + ["sphinx-multiversion", ".", str(out_dir), "--jobs=auto"], cwd=docs_dir)
+        if not (out_dir / default_ref / "index.html").is_file():
+            raise RuntimeError(f"Default docs ref '{default_ref}' was not built")
+        template = (docs_dir / "_redirect" / "index.html").read_text(encoding="utf-8")
+        (out_dir / "index.html").write_text(template.replace("__DOCS_DEFAULT_REF__", default_ref), encoding="utf-8")
+    else:
+        out_dir /= "current"
+        run_command(
+            cmd
+            + [
+                "python",
+                "-m",
+                "sphinx",
+                "-W",
+                "--keep-going",
+                "-j",
+                "auto",
+                "-b",
+                "html",
+                "-d",
+                "_build/doctrees",
+                ".",
+                str(out_dir),
+            ],
+            cwd=docs_dir,
+        )
 
     index_path = out_dir / "index.html"
     print_info(f"Documentation built at {index_path}")

@@ -80,6 +80,29 @@ def test_build_docs_explains_how_to_install_uv():
     ]
 
 
+def test_build_multi_docs_writes_redirect_to_built_ref(tmp_path):
+    """The multi-version command must create a landing page for the selected built ref."""
+    docs_dir = tmp_path / "docs"
+    redirect_dir = docs_dir / "_redirect"
+    redirect_dir.mkdir(parents=True)
+    (redirect_dir / "index.html").write_text("url=./__DOCS_DEFAULT_REF__/index.html", encoding="utf-8")
+
+    def build_docs(*_args, **_kwargs):
+        index = docs_dir / "_build" / "develop" / "index.html"
+        index.parent.mkdir(parents=True)
+        index.write_text("Built docs", encoding="utf-8")
+
+    with (
+        mock.patch.object(misc, "ISAACLAB_ROOT", tmp_path),
+        mock.patch.dict("os.environ", {"DOCS_DEFAULT_REF": "develop"}),
+        mock.patch("shutil.which", return_value="/usr/bin/uv"),
+        mock.patch.object(misc, "run_command", side_effect=build_docs),
+    ):
+        misc.command_build_docs(multi_version=True)
+
+    assert (docs_dir / "_build" / "index.html").read_text(encoding="utf-8") == "url=./develop/index.html"
+
+
 def test_build_isaacsim_links_incremental_build_without_packaging(tmp_path):
     """The source workflow must link the live build without creating Python wheels."""
     isaacsim_root = tmp_path / "IsaacSim"
