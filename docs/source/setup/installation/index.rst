@@ -703,10 +703,8 @@ developer ``test`` tooling remain opt-in.
 
 .. note::
 
-   On Linux, the source checkout's ``mimic`` extra may build its ``egl-probe`` dependency from
-   source. Install CMake and a C++ compiler first with ``sudo apt install cmake build-essential``.
-   Isaac Lab provides the CMake policy compatibility required by this legacy package, including
-   when using CMake 4.
+   On Linux, the ``mimic`` extra may build its ``egl-probe`` dependency from source. Install
+   CMake and a C++ compiler first with ``sudo apt install cmake build-essential``.
 
 .. _installation-importers-extra:
 
