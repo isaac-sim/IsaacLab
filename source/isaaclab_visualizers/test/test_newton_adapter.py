@@ -137,38 +137,44 @@ def test_newton_visualizer_log_mesh_requires_initialized_viewer():
         visualizer.log_mesh("/surface", points, indices)
 
 
-def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
-    """Construction caches the registry; close survives context teardown and is idempotent."""
+class _MarkerRegistry:
+    def __init__(self) -> None:
+        self.groups: dict[str, object] = {}
 
-    class _Registry:
-        def __init__(self) -> None:
-            self.groups: dict[str, object] = {}
+    def set_group(self, group_id: str, marker) -> None:
+        self.groups[group_id] = marker
 
-        def set_group(self, group_id: str, marker) -> None:
-            self.groups[group_id] = marker
+    def remove_group(self, group_id: str) -> None:
+        self.groups.pop(group_id)
 
-        def remove_group(self, group_id: str) -> None:
-            self.groups.pop(group_id)
+    def get_groups(self) -> dict[str, object]:
+        return self.groups
 
-    class _FakeContext:
-        def __init__(self, registry: _Registry) -> None:
-            self.vis_marker_registry = registry
 
-    class _FakeSimulationContext:
-        current: object | None = None
+class _FakeSimulationContext:
+    current: object | None = None
 
-        @classmethod
-        def instance(cls):
-            return cls.current
+    @classmethod
+    def instance(cls):
+        return cls.current
 
-    registry = _Registry()
+
+@pytest.fixture
+def marker_registry(monkeypatch: pytest.MonkeyPatch):
+    """Marker registry that ``NewtonVisualizationMarkers`` finds through a fake simulation context."""
+    registry = _MarkerRegistry()
     monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
-    _FakeSimulationContext.current = _FakeContext(registry)
+    _FakeSimulationContext.current = SimpleNamespace(vis_marker_registry=registry)
+    yield registry
+    _FakeSimulationContext.current = None
 
+
+def test_newton_marker_registry_lifecycle(marker_registry: _MarkerRegistry):
+    """Construction caches the registry; close survives context teardown and is idempotent."""
     marker = newton_markers.NewtonVisualizationMarkers(
         newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
     )
-    assert registry.groups == {marker.group_id: marker}
+    assert marker_registry.groups == {marker.group_id: marker}
 
     # the context is torn down before markers close during interpreter shutdown
     _FakeSimulationContext.current = None
@@ -177,7 +183,7 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
     marker.close()
 
     assert marker._registry is None
-    assert registry.groups == {}
+    assert marker_registry.groups == {}
 
 
 def test_newton_rtx_viewer_aliases_render_var_paths_to_short_names():
@@ -204,94 +210,28 @@ def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
     assert newton_markers._sanitize_newton_marker_group_id("/a b::c") == "/a_b_c"
 
 
-def test_render_newton_visualization_markers_sanitizes_group_id_and_restores(monkeypatch: pytest.MonkeyPatch):
-    """RTX rendering logs the marker under a sanitized id and restores the registry key."""
-
-    class _Registry:
-        def __init__(self) -> None:
-            self.groups: dict[str, object] = {}
-
-        def set_group(self, group_id: str, marker) -> None:
-            self.groups[group_id] = marker
-
-        def remove_group(self, group_id: str) -> None:
-            self.groups.pop(group_id)
-
-    class _FakeContext:
-        def __init__(self, registry: _Registry) -> None:
-            self.vis_marker_registry = registry
-
-    class _FakeSimulationContext:
-        current: object | None = None
-
-        @classmethod
-        def instance(cls):
-            return cls.current
-
-    registry = _Registry()
-    registry.get_groups = lambda: registry.groups
-    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
-    _FakeSimulationContext.current = _FakeContext(registry)
-
+@pytest.mark.parametrize("sanitize", [True, False])
+def test_render_newton_visualization_markers_sanitizes_render_id_only_for_rtx(
+    marker_registry: _MarkerRegistry, sanitize: bool
+):
+    """RTX renders under a USD-safe id while the GL path keeps the raw key; the registry key never changes."""
     marker = newton_markers.NewtonVisualizationMarkers(
         newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
     )
-    original_group_id = marker.group_id
-    assert "::" in original_group_id  # the raw registry key the RTX stage rejects
+    group_id = marker.group_id
+    assert "::" in group_id  # the raw registry key the RTX stage rejects
+    marker.render = Mock()
 
-    rendered_group_ids: list[str] = []
-    marker.render = lambda *args, **kwargs: rendered_group_ids.append(marker.group_id)
-
-    render_newton_visualization_markers = newton_markers.render_newton_visualization_markers
-    render_newton_visualization_markers(viewer=Mock(), visible_env_ids=None, num_envs=1, sanitize_group_ids=True)
-
-    # rendered under the sanitized id, and the original registry key is restored afterwards
-    assert rendered_group_ids == [newton_markers._sanitize_newton_marker_group_id(original_group_id)]
-    assert "::" not in rendered_group_ids[0]
-    assert marker.group_id == original_group_id
-
-
-def test_render_newton_visualization_markers_keeps_raw_group_id_without_sanitizing(monkeypatch: pytest.MonkeyPatch):
-    """The GL path is unchanged: markers render under the raw registry key."""
-
-    class _Registry:
-        def __init__(self) -> None:
-            self.groups: dict[str, object] = {}
-
-        def set_group(self, group_id: str, marker) -> None:
-            self.groups[group_id] = marker
-
-        def remove_group(self, group_id: str) -> None:
-            self.groups.pop(group_id)
-
-    class _FakeContext:
-        def __init__(self, registry: _Registry) -> None:
-            self.vis_marker_registry = registry
-
-    class _FakeSimulationContext:
-        current: object | None = None
-
-        @classmethod
-        def instance(cls):
-            return cls.current
-
-    registry = _Registry()
-    registry.get_groups = lambda: registry.groups
-    monkeypatch.setattr(newton_markers.sim_utils, "SimulationContext", _FakeSimulationContext)
-    _FakeSimulationContext.current = _FakeContext(registry)
-
-    marker = newton_markers.NewtonVisualizationMarkers(
-        newton_markers.VisualizationMarkersCfg(prim_path="/Visuals/test", markers={}), visible=False
+    newton_markers.render_newton_visualization_markers(
+        viewer=Mock(), visible_env_ids=None, num_envs=1, sanitize_group_ids=sanitize
     )
-    original_group_id = marker.group_id
 
-    rendered_group_ids: list[str] = []
-    marker.render = lambda *args, **kwargs: rendered_group_ids.append(marker.group_id)
-
-    newton_markers.render_newton_visualization_markers(viewer=Mock(), visible_env_ids=None, num_envs=1)
-
-    assert rendered_group_ids == [original_group_id]
-    assert marker.group_id == original_group_id
+    marker.render.assert_called_once()
+    render_id = marker.render.call_args.kwargs["render_id"]
+    assert render_id == (newton_markers._sanitize_newton_marker_group_id(group_id) if sanitize else None)
+    assert sanitize == (render_id is not None and "::" not in render_id)
+    assert marker.group_id == group_id
+    assert list(marker_registry.groups) == [group_id]
 
 
 def test_newton_visualizer_set_camera_view_updates_cfg_without_viewer():

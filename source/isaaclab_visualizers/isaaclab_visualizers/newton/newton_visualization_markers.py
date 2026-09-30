@@ -67,25 +67,10 @@ def render_newton_visualization_markers(
     for marker in sim.vis_marker_registry.get_groups().values():
         if not isinstance(marker, NewtonVisualizationMarkers):
             continue
-        if not sanitize_group_ids:
-            marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
-            continue
         # TODO: Workaround for the experimental Newton RTX viewer; replace with a native
-        # RTX marker path instead of renaming groups at render time.
-        # The registry is keyed on the original group id and remove_group() removes
-        # it by that key, so render under a sanitized id and restore the original.
-        original_group_id = marker.group_id
-        marker.group_id = _sanitize_newton_marker_group_id(original_group_id)
-        try:
-            marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
-        finally:
-            marker.group_id = original_group_id
-
-
-def _sanitize_newton_marker_group_id(group_id: str) -> str:
-    """Rewrite a marker group id into a USD-safe prim path for the RTX viewer."""
-    sanitized = re.sub(r"[^A-Za-z0-9_/]+", "_", group_id)
-    return sanitized if sanitized.startswith("/") else f"/{sanitized}"
+        # RTX marker path instead of renaming the logged groups at render time.
+        render_id = _sanitize_newton_marker_group_id(marker.group_id) if sanitize_group_ids else None
+        marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs, render_id=render_id)
 
 
 class NewtonVisualizationMarkers:
@@ -156,12 +141,25 @@ class NewtonVisualizationMarkers:
             self.marker_indices = marker_indices.detach().to(dtype=torch.int32)
             self.count = marker_indices.shape[0]
 
-    def render(self, viewer: ViewerBase, visible_env_ids: list[int] | None, num_envs: int) -> None:
+    def render(
+        self,
+        viewer: ViewerBase,
+        visible_env_ids: list[int] | None,
+        num_envs: int,
+        render_id: str | None = None,
+    ) -> None:
         """Render marker state to a Newton viewer.
 
         Marker batches divisible by ``num_envs`` are interpreted as dense environment-major arrays
         with shape ``(num_envs, markers_per_env, ...)``. Other batches are rendered as global markers.
+
+        Args:
+            viewer: The Newton-family viewer the marker batches are logged into.
+            visible_env_ids: The env ids to draw markers for, or None for all envs.
+            num_envs: The number of environments the marker state is batched over.
+            render_id: Name the batches and meshes are logged under. Defaults to :attr:`group_id`.
         """
+        render_id = self.group_id if render_id is None else render_id
         translations = self.translations
         orientations = self.orientations
         scales = self.scales
@@ -170,7 +168,7 @@ class NewtonVisualizationMarkers:
 
         if not self.visible:
             for name, newton_cfg in self._marker_specs.items():
-                self._hide_batch(viewer, name, newton_cfg)
+                self._hide_batch(viewer, name, newton_cfg, render_id)
             return
 
         if count > 0 and num_envs > 0 and count % num_envs == 0:
@@ -192,7 +190,7 @@ class NewtonVisualizationMarkers:
 
         if count == 0:
             for name, newton_cfg in self._marker_specs.items():
-                self._hide_batch(viewer, name, newton_cfg)
+                self._hide_batch(viewer, name, newton_cfg, render_id)
             return
 
         if translations is None:
@@ -202,16 +200,16 @@ class NewtonVisualizationMarkers:
 
         for proto_index, (name, marker_cfg) in enumerate(self.cfg.markers.items()):
             newton_cfg = self._marker_specs[name]
-            batch_name = f"{self.group_id}/{name}"
+            batch_name = f"{render_id}/{name}"
             if marker_indices is None:
                 if proto_index != 0:
-                    self._hide_batch(viewer, name, newton_cfg)
+                    self._hide_batch(viewer, name, newton_cfg, render_id)
                     continue
                 selected = slice(None)
             else:
                 selected = marker_indices == proto_index
                 if not torch.any(selected):
-                    self._hide_batch(viewer, name, newton_cfg)
+                    self._hide_batch(viewer, name, newton_cfg, render_id)
                     continue
 
             if newton_cfg.renderer == "none":
@@ -241,7 +239,7 @@ class NewtonVisualizationMarkers:
                 selected_scales = scales[selected] * default_scale_tensor
 
             if newton_cfg.renderer == "mesh":
-                mesh_name = f"{self.group_id}/meshes/{name}"
+                mesh_name = f"{render_id}/meshes/{name}"
                 self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
                 color = newton_cfg.color or _extract_color(marker_cfg)
                 colors = selected_translations.new_tensor(color).expand(selected_count, -1)
@@ -270,10 +268,10 @@ class NewtonVisualizationMarkers:
                     hidden=False,
                 )
 
-    def _hide_batch(self, viewer: ViewerBase, name: str, newton_cfg: _NewtonMarkerSpec) -> None:
-        batch_name = f"{self.group_id}/{name}"
+    def _hide_batch(self, viewer: ViewerBase, name: str, newton_cfg: _NewtonMarkerSpec, render_id: str) -> None:
+        batch_name = f"{render_id}/{name}"
         if newton_cfg.renderer == "mesh" and newton_cfg.mesh_type is not None:
-            mesh_name = f"{self.group_id}/meshes/{name}"
+            mesh_name = f"{render_id}/meshes/{name}"
             self._ensure_mesh_registered(viewer, mesh_name, newton_cfg)
             viewer.log_instances(batch_name, mesh_name, None, None, None, None, hidden=True)
         elif newton_cfg.renderer == "frame":
@@ -304,6 +302,12 @@ class NewtonVisualizationMarkers:
             hidden=True,
         )
         self._registered_meshes.add(registered_key)
+
+
+def _sanitize_newton_marker_group_id(group_id: str) -> str:
+    """Rewrite a marker group id into a USD-safe prim path for the RTX viewer."""
+    sanitized = re.sub(r"[^A-Za-z0-9_/]+", "_", group_id)
+    return sanitized if sanitized.startswith("/") else f"/{sanitized}"
 
 
 def _infer_newton_marker_cfg(marker_cfg: object) -> _NewtonMarkerSpec:
