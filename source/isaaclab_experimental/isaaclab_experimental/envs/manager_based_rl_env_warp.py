@@ -77,6 +77,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
         # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
@@ -445,6 +446,16 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         if not has_resets:
             return
 
+        # capture the terminal observation before reset and expose it for Same-Step autoreset.
+        # the reset overwrites the persistent observation buffers, so keep a copy
+        if self.cfg.compute_final_obs:
+            final_obs = self._warp_graph_cache.call_steps(
+                "ObservationManager_compute_no_history",
+                self.observation_manager.stage_steps("compute"),
+                return_cloned_output=False,
+                timer=DEBUG_TIMER_STEP,
+            )
+            self.extras["final_obs"] = clone_obs_buffer(final_obs)
         # trigger recorder terms for pre-reset calls
         self.recorder_manager.record_pre_reset(reset_env_ids)
 

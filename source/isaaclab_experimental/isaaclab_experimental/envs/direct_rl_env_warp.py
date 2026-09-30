@@ -98,6 +98,7 @@ class DirectRLEnvWarp(DirectRLEnv):
     """Whether the environment is a vectorized environment."""
     metadata: ClassVar[dict[str, Any]] = {
         "render_modes": [None, "human", "rgb_array"],
+        "autoreset_mode": gym.vector.AutoresetMode.SAME_STEP,
         # "isaac_sim_version": get_version(),
     }
     """Metadata for the environment."""
@@ -445,6 +446,11 @@ class DirectRLEnvWarp(DirectRLEnv):
             self._warp_graph_cache.call("DirectEndPre_step", self._step_warp_end_pre)
         # one host predicate per step skips the reset stage when no environment terminated
         if self._torch_reset_buf.any().item():
+            # capture the terminal observation before reset and expose it for Same-Step autoreset.
+            # the reset overwrites the persistent observation buffer, so keep a copy
+            if self.cfg.compute_final_obs:
+                self._warp_graph_cache.call("DirectFinalObs_step", self._get_observations)
+                self.extras["final_obs"] = {"policy": self.torch_obs_buf.clone()}
             with Timer(name="reset_graph", msg="Reset graph took:", enable=DEBUG_TIMERS):
                 self._warp_graph_cache.call("DirectReset_step", self._step_warp_reset)
         # write_data_to_sim runs uncaptured — it uses torch ops that cross CUDA streams.

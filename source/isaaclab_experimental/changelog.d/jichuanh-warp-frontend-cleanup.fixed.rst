@@ -4,6 +4,10 @@
   step when the physics backend runs the whole decimation loop. Like the stable environments, they now do it
   once per environment step, so contact histories, air times and the rewards and terminations reading them
   match the stable environments.
+* Fixed :class:`~isaaclab_experimental.envs.ManagerBasedRLEnvWarp` and
+  :class:`~isaaclab_experimental.envs.DirectRLEnvWarp` ignoring ``compute_final_obs``. A step that resets
+  environments now stores the observations from before the reset in ``extras["final_obs"]``, and the
+  environments declare Same-Step autoreset in their metadata, like the stable environments.
 * Fixed :attr:`~isaaclab_experimental.utils.buffers.CircularBuffer.max_length` synchronizing with the GPU.
 * Fixed the Warp ``randomize_rigid_body_com`` event accumulating offsets across calls. It now offsets the
   center of mass the term finds on its first call, like the stable term.
