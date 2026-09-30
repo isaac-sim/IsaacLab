@@ -7,6 +7,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pxr import Usd
+
 
 def props_expr(prim_path: str, pattern: str) -> str:
     """Append a cfg-relative target pattern to an anchor prim path.
@@ -81,6 +87,30 @@ def bare_fragments(value) -> bool:
     return isinstance(value, (list, tuple)) and all(isinstance(item, SchemaFragment) for item in value)
 
 
+def apply_schema_props(
+    value, anchor_path: str, apply_func: Callable, define_func: Callable, stage: Usd.Stage | None
+) -> None:
+    """Author a schema family from a spawner-configuration value onto a freshly spawned prim.
+
+    A fragment mapping applies one ``apply_func`` call per entry, in insertion order, with the
+    pattern anchored at ``anchor_path`` (so ``""`` targets the anchor itself) and the API created
+    when missing. A legacy dataclass configuration routes to ``define_func``.
+
+    Args:
+        value: The value of the spawner-configuration field.
+        anchor_path: The absolute path of the prim the target patterns anchor on.
+        apply_func: The fragment family writer, e.g. ``schemas.apply_mass_properties``.
+        define_func: The legacy writer, e.g. ``schemas.define_mass_properties``.
+        stage: The stage containing the prim.
+    """
+    mapping = fragment_mapping(value)
+    if mapping is None:
+        define_func(anchor_path, value, stage=stage)
+        return
+    for pattern, fragments in mapping.items():
+        apply_func(props_expr(anchor_path, pattern), fragments, create_if_missing=True, stage=stage)
+
+
 def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
     """Report whether a prim or any of its descendants carries a USD API schema.
 
@@ -101,3 +131,27 @@ def subtree_carries_api(prim_path: str, api_type, stage) -> bool:
         if candidate.HasAPI(api_type):
             return True
     return False
+
+
+def resolve_deformable_slot(cfg) -> tuple[str, dict] | None:
+    """Select one deformable family; convenience forms target only the spawn prim.
+
+    Unlike rigid-body tuning, deformable creation must not expand to every mesh in a file.
+    Setting an empty slot still requests a deformable body with default properties.
+    """
+    active = [
+        (kind, value)
+        for kind, value in (("volume", cfg.volume_deformable_props), ("surface", cfg.surface_deformable_props))
+        if value is not None
+    ]
+    if len(active) + (cfg.deformable_props is not None) > 1:
+        raise ValueError(
+            "Set only one deformable slot: volume_deformable_props, surface_deformable_props, or deformable_props."
+        )
+    if not active:
+        return None
+    kind, value = active[0]
+    mapping = fragment_mapping(value)
+    if mapping is None:
+        raise TypeError(f"{kind}_deformable_props requires a fragment, fragment sequence, or target mapping.")
+    return kind, mapping or {"": []}

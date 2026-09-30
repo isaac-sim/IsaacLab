@@ -280,11 +280,7 @@ def test_simple_shading_configures_its_render_product(
     # The shading level must not leak into process-wide state, where the last camera would win.
     global_setting_calls = [
         setting_call
-        for setting_call in (
-            *settings.set_int.call_args_list,
-            *settings.set.call_args_list,
-            *settings.set_bool.call_args_list,
-        )
+        for setting_call in settings.set.call_args_list
         if setting_call.args
         and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode", "/rtx/sdg/force/disableColorRender")
     ]
@@ -338,7 +334,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
 
     color_render_calls = [
         setting_call
-        for setting_call in settings.set_bool.call_args_list
+        for setting_call in settings.set.call_args_list
         if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
     ]
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)

@@ -15,6 +15,7 @@ is the signal that the Kit branch was taken. No Kit/GPU required.
 """
 
 import argparse
+import signal
 import sys
 import types
 
@@ -26,6 +27,7 @@ import isaaclab.utils.assets as assets_utils
 from isaaclab.app import SimulationLauncher, launch_simulation
 from isaaclab.physics import PhysicsCfg
 from isaaclab.renderers import RendererCfg
+from isaaclab.visualizers import VisualizerCfg
 
 
 @pytest.fixture
@@ -135,7 +137,7 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     monkeypatch.setattr(assets_utils, "configure_storage_profile", lambda: calls.append("storage"))
     cfg = argparse.Namespace(
         physics=sim_launcher.NewtonCfg(),
-        visualizer_cfgs=argparse.Namespace(visualizer_type="newton_rtx"),
+        visualizer_cfgs=VisualizerCfg(visualizer_type="newton_rtx"),
     )
 
     with launch_simulation(cfg):
@@ -144,8 +146,9 @@ def test_kitless_ovrtx_registers_before_user_code(monkeypatch: pytest.MonkeyPatc
     assert calls == ["register", "storage", "user"]
 
 
-def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch):
-    """A launcher named by a config's ``launcher_type`` starts with the simulation and closes after it."""
+@pytest.mark.parametrize("interrupt", [False, True])
+def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch, interrupt):
+    """A config-selected launcher closes on success or interruption with the correct exit status."""
     events = []
 
     class FakeLauncher(SimulationLauncher):
@@ -153,7 +156,7 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
             events.append("start")
 
         def close(self, exit_code=0):
-            events.append("close")
+            events.append(exit_code)
 
     class CustomRendererCfg(RendererCfg):
         launcher_type = "fake_runtime:FakeLauncher"
@@ -161,15 +164,22 @@ def test_config_named_launcher_starts_and_closes(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setitem(sys.modules, "fake_runtime", types.SimpleNamespace(FakeLauncher=FakeLauncher))
     cfg = argparse.Namespace(physics=sim_launcher.NewtonCfg(), renderer=CustomRendererCfg())
 
-    with launch_simulation(cfg):
-        events.append("user")
+    try:
+        with launch_simulation(cfg):
+            events.append("user")
+            if interrupt:
+                signal.raise_signal(signal.SIGINT)
+    except KeyboardInterrupt:
+        assert interrupt
+    else:
+        assert not interrupt
 
-    assert events == ["start", "user", "close"]
+    assert events == ["start", "user", 130 if interrupt else 0]
 
 
 def test_require_kit_false_does_not_suppress_a_kit_config(kit_branch_taken):
     # '--viz kit' requires Kit on its own; require_kit=False must not override that
-    launcher_args = {"visualizer": ["kit"], "visualizer_explicit": True, "require_kit": False}
+    launcher_args = {"visualizer": ["kit"], "require_kit": False}
 
     with launch_simulation(cfg=PhysicsCfg(), launcher_args=launcher_args):
         pass

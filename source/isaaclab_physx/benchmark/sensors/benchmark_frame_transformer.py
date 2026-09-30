@@ -19,7 +19,7 @@ import argparse
 from functools import partial
 
 from isaaclab.app import add_launcher_args, launch_simulation
-from isaaclab.benchmark._cli import parse_positive_int
+from isaaclab.benchmark.cli import parse_positive_int
 from isaaclab.benchmark.sensor_suites import add_sensor_benchmark_args
 
 parser = argparse.ArgumentParser(description="Benchmark the PhysX FrameTransformer update path.")

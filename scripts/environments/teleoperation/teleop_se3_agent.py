@@ -27,6 +27,7 @@ wp.config.enable_backward = False
 import argparse
 import sys
 from collections.abc import Callable
+from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
@@ -276,11 +277,11 @@ def main() -> None:  # noqa: C901
         if args_cli.disable_external_cameras:
             env_cfg = remove_camera_configs(env_cfg)
 
-    with launch_simulation(env_cfg, args_cli):
-        run_teleoperation(env_cfg, use_isaac_teleop)
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
+        run_teleoperation(env_cfg, use_isaac_teleop, cleanup)
 
 
-def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool) -> None:  # noqa: C901
+def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cleanup: ExitStack) -> None:  # noqa: C901
     """Create the environment and teleop device, then run the teleoperation loop until the app is closed."""
     from isaaclab_physx.renderers.isaac_rtx_renderer_utils import apply_isaac_rtx_global_settings
     from isaaclab_teleop import XrCameraFeedSession
@@ -294,6 +295,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool) -> 
         enabled=args_cli.xr and use_isaac_teleop,
         camera_rendering_enabled=not args_cli.disable_external_cameras,
     )
+    cleanup.callback(camera_feed_session.close)
 
     # Apply the RTX/DLSS global settings when an RTX render pipeline will run (Kit visualizer,
     # external cameras, or XR).

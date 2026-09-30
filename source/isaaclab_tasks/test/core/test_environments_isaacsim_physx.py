@@ -5,7 +5,7 @@
 
 from isaaclab.test.utils import launch_test_simulation
 
-launch_test_simulation(enable_cameras=True, limit_cpu_threads=1)
+launch_test_simulation(enable_cameras=True)
 
 import pytest
 

@@ -105,7 +105,7 @@ def test_apply_video_recording_patches_existing_recorders():
 @pytest.mark.parametrize(
     ("visualizer_args", "message"),
     [
-        (dict(visualizer=None, visualizer_explicit=True), "--video is not compatible with --viz none"),
+        (dict(visualizer=[]), "--video is not compatible with --viz none"),
         (dict(visualizer=["rerun"]), "--video is not supported"),
         (dict(visualizer=["viser"]), "--video is not supported"),
     ],

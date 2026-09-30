@@ -92,7 +92,7 @@ class ContactSensor(BaseContactSensor):
         super().__init__(cfg)
 
         # Enable contact processing
-        get_settings_manager().set_bool("/physics/disableContactProcessing", False)
+        get_settings_manager().set("/physics/disableContactProcessing", False)
 
         # Create empty variables for storing output data
         self._data: ContactSensorData = ContactSensorData()

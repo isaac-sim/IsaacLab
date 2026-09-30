@@ -18,7 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
-from isaaclab.utils import clone, replace, to_dict
+from isaaclab.utils import clone, replace
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -736,13 +736,17 @@ def maybe_save_stage(
 
 
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
-    """Apply override args to env_cfg using parse_overrides and apply_overrides."""
-    from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
+    """Return a copy of env_cfg with override args applied by the production task-config resolver."""
+    import gymnasium as gym
 
-    presets = {"env": collect_presets(env_cfg)}
-    global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": to_dict(env_cfg)}
-    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Rendering-Test-Overrides"
+    gym.register(id=task, entry_point="dummy:Env", kwargs={"env_cfg_entry_point": lambda: clone(env_cfg)})
+    try:
+        env_cfg, _ = resolve_task_config(task, None, overrides=override_args)
+    finally:
+        del gym.registry[task]
     return env_cfg
 
 
@@ -1127,11 +1131,7 @@ def make_require_ovlibs_install_fixture():
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
-        # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
-        # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
-        monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
-
+    def _require_ovlibs_install(request):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
@@ -1706,6 +1706,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
+    async_rendering: bool = False,
 ) -> None:
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -1766,6 +1767,8 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
+    if async_rendering:
+        env_cfg.scene.tiled_camera.renderer_cfg.async_rendering = True
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 

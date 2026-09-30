@@ -18,14 +18,13 @@ from typing import TYPE_CHECKING
 import torch
 
 from ..utils.string import _resolve_matching_values_dense
-
 from .actuator_base_cfg import _is_implicit_actuator_cfg
 
 if TYPE_CHECKING:
     from .actuator_base_cfg import ActuatorBaseCfg
 
 
-def _limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
+def limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> bool:
     """Return whether two constructor limit arguments are equivalent."""
     if isinstance(first, torch.Tensor):
         if isinstance(second, torch.Tensor):
@@ -36,7 +35,7 @@ def _limits_equal(first: torch.Tensor | float, second: torch.Tensor | float) -> 
     return float(first) == float(second)
 
 
-def _resolve_limit_aliases(
+def resolve_limit_aliases(
     actuator_name: str,
     cfg: ActuatorBaseCfg,
     joint_names: list[str],
@@ -55,7 +54,12 @@ def _resolve_limit_aliases(
         # Deprecated implicit behavior: without a separate solver clamp, the rated
         # effort limit also reaches the solver.
         cfg.joint_effort_limit = cfg.effort_limit
-    if implicit and cfg.actuator_velocity_limit is None and cfg.velocity_limit is None and cfg.velocity_limit_sim is not None:
+    if (
+        implicit
+        and cfg.actuator_velocity_limit is None
+        and cfg.velocity_limit is None
+        and cfg.velocity_limit_sim is not None
+    ):
         # Deprecated implicit behavior: the solver clamp doubles as the soft joint
         # velocity limit so the data buffers stay meaningful.
         cfg.actuator_velocity_limit = cfg.velocity_limit_sim
@@ -83,7 +87,6 @@ def _resolve_limit_aliases(
             alias_value, joint_names
         ):
             raise ValueError(
-                f"Actuator group '{actuator_name}' has conflicting '{new_name}' and "
-                f"deprecated '{old_name}' values."
+                f"Actuator group '{actuator_name}' has conflicting '{new_name}' and deprecated '{old_name}' values."
             )
         setattr(cfg, old_name, None)
