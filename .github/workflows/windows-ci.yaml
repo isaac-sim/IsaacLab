@@ -142,18 +142,25 @@ jobs:
       # ovrtx and usd-exchange each ship a MaterialX DLL under the same generic
       # name; on Windows whichever loads second fails (nvbug 6817794). Linux is
       # unaffected. ovrtx loads its runtime only when a renderer is created, so
-      # importing is not enough: each load order renders a kit-less Cartpole
-      # camera frame through ovrtx in a fresh interpreter.
+      # every case creates one, each in a fresh interpreter. ovrtx-alone is the
+      # control; usd-first separates the MaterialX clash from other
+      # usd-exchange libraries; isaaclab-render is the user-facing path.
       - name: OV runtime coexistence (ovrtx + usd-exchange)
         id: test-ov-coexist
         if: always() && steps.sync-kitless.outcome == 'success'
         continue-on-error: true
         shell: powershell
-        timeout-minutes: 20
+        timeout-minutes: 35
         run: |
           $ErrorActionPreference = "Stop"
           $script = @'
           import sys
+
+          import psutil
+
+
+          def load_usd_exchange_usd():
+              from pxr import Usd  # noqa: F401
 
 
           def load_usd_exchange_materialx():
@@ -161,7 +168,13 @@ jobs:
               from pxr import UsdMtlx  # noqa: F401
 
 
-          def render_with_ovrtx():
+          def create_ovrtx_renderer():
+              import ovrtx
+
+              ovrtx.Renderer()
+
+
+          def render_isaaclab_ovrtx_camera():
               import torch
 
               from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
@@ -182,30 +195,48 @@ jobs:
                   env.close()
 
 
-          steps = [load_usd_exchange_materialx, render_with_ovrtx]
-          if sys.argv[1] == "ovrtx-first":
-              steps.reverse()
-          for step in steps:
-              step()
+          PROBES = {
+              "ovrtx-alone": [create_ovrtx_renderer],
+              "usd-first": [load_usd_exchange_usd, create_ovrtx_renderer],
+              "materialx-first": [load_usd_exchange_materialx, create_ovrtx_renderer],
+              "ovrtx-first": [create_ovrtx_renderer, load_usd_exchange_materialx],
+              "isaaclab-render": [render_isaaclab_ovrtx_camera],
+          }
+
+          for step in PROBES[sys.argv[1]]:
+              try:
+                  step()
+              except BaseException:
+                  keys = ("materialx", "tbb", "usd", "crender")
+                  libs = sorted({m.path for m in psutil.Process().memory_maps() if any(k in m.path.lower() for k in keys)})
+                  print("Loaded libraries at failure:", *libs, sep="\n  ", flush=True)
+                  raise
               print(f"{step.__name__}: ok", flush=True)
           '@
           $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
-          $failed = @()
-          foreach ($order in @("usdex-first", "ovrtx-first")) {
-            Write-Host "=== $order ==="
-            $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $order"
+          $results = [ordered]@{}
+          foreach ($case in @("ovrtx-alone", "usd-first", "materialx-first", "ovrtx-first", "isaaclab-render")) {
+            Write-Host "=== $case ==="
+            $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $case"
             # Reading Handle keeps the process handle open so ExitCode survives the exit.
             $null = $proc.Handle
-            if (-not $proc.WaitForExit(480000)) {
-              Write-Host "::error::$order hard timeout (8 min); killing process tree"
+            if (-not $proc.WaitForExit(360000)) {
+              Write-Host "::error::$case hard timeout (6 min); killing process tree"
               taskkill /PID $proc.Id /T /F | Out-Null
-              $failed += $order
+              $results[$case] = "timeout"
             } elseif ($proc.ExitCode -ne 0) {
-              $failed += $order
+              $results[$case] = "failure"
+            } else {
+              $results[$case] = "success"
             }
           }
+          Write-Host "=== ovrtx coexistence cases ==="
+          foreach ($k in $results.Keys) {
+            "{0,-16} {1}" -f $k, $results[$k]
+          }
+          $failed = @($results.Keys | Where-Object { $results[$_] -ne "success" })
           if ($failed.Count -gt 0) {
-            Write-Host "::error::ovrtx and usd-exchange did not coexist: $($failed -join ', ')"
+            Write-Host "::error::ovrtx coexistence failed: $($failed -join ', ')"
             exit 1
           }
 
