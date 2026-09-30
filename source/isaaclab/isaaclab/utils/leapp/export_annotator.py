@@ -42,10 +42,10 @@ import torch
 from leapp import annotate
 from leapp.utils.tensor_description import TensorSemantics
 
-from isaaclab.assets.articulation.base_articulation import BaseArticulation
-from isaaclab.managers import ManagerTermBase
-from isaaclab.utils.array import convert_to_torch
-
+from ...actuators import IdealPDActuator, ImplicitActuator
+from ...assets.articulation.base_articulation import BaseArticulation
+from ...managers import ManagerTermBase
+from ..array import convert_to_torch
 from .leapp_semantics import select_element_names
 from .proxy import _ArticulationWriteProxy, _DataProxy, _EnvProxy, _ManagerTermProxy
 from .utils import (
@@ -55,10 +55,27 @@ from .utils import (
 )
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
+    from ...envs import ManagerBasedEnv
 
+
+logger = logging.getLogger(__name__)
 
 VARIABLE_IMPEDANCE_MODES = frozenset({"variable", "variable_kp"})
+
+_GAIN_WRITE_METHODS = {"kp": "write_joint_stiffness_to_sim_index", "kd": "write_joint_damping_to_sim_index"}
+
+
+def _gain_semantics(
+    term_name: str, scene_key: str, kind: str, ref: torch.Tensor, element_names: list[str] | None
+) -> TensorSemantics:
+    """Build the exported ``kp``/``kd`` gain tensor for an action term."""
+    return TensorSemantics(
+        name=f"{term_name}_{kind}_gains",
+        ref=ref,
+        kind=kind,
+        element_names=element_names,
+        extra=build_write_connection(scene_key, _GAIN_WRITE_METHODS[kind]),
+    )
 
 
 def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tensor | None]:
@@ -82,6 +99,8 @@ def _effective_joint_gains(real_asset) -> tuple[torch.Tensor | None, torch.Tenso
     kp = stiffness.torch.clone() if stiffness is not None else None
     kd = damping.torch.clone() if damping is not None else None
     for actuator in getattr(real_asset, "actuators", {}).values():
+        if not isinstance(actuator, (ImplicitActuator, IdealPDActuator)):
+            continue
         if kp is not None:
             kp[:, actuator.joint_indices] = actuator.stiffness
         if kd is not None:
@@ -136,7 +155,7 @@ class ExportPatcher:
         self._captured_write_term_names: set[str] = set()
         self._fallback_term_names: set[str] = set()
         self._pending_action_output_export: bool = False
-        self._uses_last_action_state: bool = False
+        self._last_action_state_terms: dict[str, str | None] = {}
         self._action_term_scene_keys: dict[str, str] = {}
 
     def setup(self, env):
@@ -185,9 +204,6 @@ class ExportPatcher:
         _zero_reward = torch.zeros(num_envs, device=device)
         _no_termination = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
-        def _noop_curriculum(env_ids=None):
-            return None
-
         def _zero_reward_compute(dt):
             return _zero_reward
 
@@ -198,7 +214,7 @@ class ExportPatcher:
             return None
 
         if hasattr(unwrapped, "curriculum_manager"):
-            unwrapped.curriculum_manager.compute = _noop_curriculum
+            unwrapped.curriculum_manager.compute = _noop
 
         if hasattr(unwrapped, "reward_manager"):
             unwrapped.reward_manager.compute = _zero_reward_compute
@@ -327,7 +343,6 @@ class ExportPatcher:
                 func_name = getattr(original_func, "__name__", None)
 
                 if func_name == "last_action":
-                    self._uses_last_action_state = True
                     term_cfg.func = self._wrap_last_action(original_func)
                 elif func_name == "generated_commands":
                     term_cfg.func = self._wrap_generated_commands(original_func, term_cfg)
@@ -433,8 +448,14 @@ class ExportPatcher:
 
             self._action_output_cache.extend(self._collect_action_outputs(action_manager))
             self._action_output_cache.extend(self._collect_processed_action_fallbacks(action_manager))
-            if self._uses_last_action_state:
-                annotate.update_state(task_name, {"last_action": action_manager._action})
+            if self._last_action_state_terms:
+                last_action_updates = {}
+                for state_name, action_name in self._last_action_state_terms.items():
+                    if action_name is None:
+                        last_action_updates[state_name] = action_manager._action
+                    else:
+                        last_action_updates[state_name] = action_manager.get_term(action_name).raw_actions
+                annotate.update_state(task_name, last_action_updates)
             fallback_terms = self._fallback_term_names
             static_values = self._collect_action_static_outputs(action_manager, fallback_terms)
             annotate.output_tensors(
@@ -464,7 +485,6 @@ class ExportPatcher:
         Returns:
             Wrapped callable that substitutes ``proxy_env`` for the real env.
         """
-
         if isinstance(original_func, ManagerTermBase):
             return _ManagerTermProxy(original_func, proxy_env)
 
@@ -518,10 +538,10 @@ class ExportPatcher:
     def _wrap_last_action(self, original_func):
         """Wrap ``last_action`` as a LEAPP state tensor.
 
-        ``last_action`` is feedback state, not a regular dangling input.  We
-        therefore register it through ``annotate.state_tensors(...)`` on the
-        observation side and update it through ``annotate.update_state(...)``
-        after the traced action pass.
+        ``last_action`` is feedback state, not a regular dangling input.  Each
+        named action term is registered as its own state so LEAPP does not need
+        to preserve tracing through a slice between task boundaries.  An
+        unnamed observation keeps the full action as a separate state.
 
         Args:
             original_func: Original ``last_action`` observation term.
@@ -543,7 +563,9 @@ class ExportPatcher:
                 Annotated last-action tensor.
             """
             result = original_func(env, action_name, **kwargs)
-            return annotate.state_tensors(task_name, {"last_action": result})
+            state_name = "last_action" if action_name is None else f"last_action_{action_name}"
+            self._last_action_state_terms[state_name] = action_name
+            return annotate.state_tensors(task_name, {state_name: result})
 
         wrapped.__name__ = original_func.__name__
         return wrapped
@@ -613,24 +635,10 @@ class ExportPatcher:
                 joint_ids = getattr(term, "_joint_ids", None)
                 joint_names = getattr(real_asset, "joint_names", None) if real_asset else None
                 scene_key = self._action_term_scene_keys.get(term_name, "ego")
-                tensors.append(
-                    TensorSemantics(
-                        name=f"{term_name}_kp_gains",
-                        ref=torch.diagonal(osc._motion_p_gains_task, dim1=-2, dim2=-1),
-                        kind="kp",
-                        element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
-                    )
-                )
-                tensors.append(
-                    TensorSemantics(
-                        name=f"{term_name}_kd_gains",
-                        ref=torch.diagonal(osc._motion_d_gains_task, dim1=-2, dim2=-1),
-                        kind="kd",
-                        element_names=select_element_names(joint_names, joint_ids),
-                        extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
-                    )
-                )
+                element_names = select_element_names(joint_names, joint_ids)
+                for kind, gains in (("kp", osc._motion_p_gains_task), ("kd", osc._motion_d_gains_task)):
+                    ref = torch.diagonal(gains, dim1=-2, dim2=-1)
+                    tensors.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
         return tensors
 
     def _collect_processed_action_fallbacks(self, action_manager) -> list[TensorSemantics]:
@@ -646,7 +654,6 @@ class ExportPatcher:
         Returns:
             Fallback tensor semantics built from ``processed_actions``.
         """
-        logger = logging.getLogger(__name__)
         fallback_terms: set[str] = set()
         tensors: list[TensorSemantics] = []
         for term_name, term in action_manager._terms.items():
@@ -713,26 +720,12 @@ class ExportPatcher:
                 if joint_ids is not None and not isinstance(joint_ids, slice) and gain_reference is not None:
                     joint_ids = convert_to_torch(joint_ids, dtype=torch.long, device=gain_reference.device)
 
-                if kp_gains is not None:
-                    static_values.append(
-                        TensorSemantics(
-                            name=f"{term_name}_kp_gains",
-                            ref=kp_gains if joint_ids is None else kp_gains[:, joint_ids],
-                            kind="kp",
-                            element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_stiffness_to_sim_index"),
-                        )
-                    )
-                if kd_gains is not None:
-                    static_values.append(
-                        TensorSemantics(
-                            name=f"{term_name}_kd_gains",
-                            ref=kd_gains if joint_ids is None else kd_gains[:, joint_ids],
-                            kind="kd",
-                            element_names=select_element_names(joint_names, joint_ids),
-                            extra=build_write_connection(scene_key, "write_joint_damping_to_sim_index"),
-                        )
-                    )
+                element_names = select_element_names(joint_names, joint_ids)
+                for kind, gains in (("kp", kp_gains), ("kd", kd_gains)):
+                    if gains is None:
+                        continue
+                    ref = gains if joint_ids is None else gains[:, joint_ids]
+                    static_values.append(_gain_semantics(term_name, scene_key, kind, ref, element_names))
         return static_values
 
 

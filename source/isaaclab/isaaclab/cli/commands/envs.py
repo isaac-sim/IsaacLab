@@ -14,6 +14,7 @@ from pathlib import Path
 from ..utils import (
     ISAACLAB_ROOT,
     determine_python_version,
+    is_isaac_sim_source_build,
     is_windows,
     print_debug,
     print_error,
@@ -21,6 +22,25 @@ from ..utils import (
     print_warning,
     run_command,
 )
+
+
+def _reject_downloaded_isaac_sim(environment_type: str) -> None:
+    """Reject virtual environments combined with a downloaded Isaac Sim package.
+
+    Args:
+        environment_type: User-facing environment type requested by the command.
+
+    Raises:
+        SystemExit: If ``_isaac_sim`` is not a marked live source build.
+    """
+    isaac_sim_path = ISAACLAB_ROOT / "_isaac_sim"
+    if isaac_sim_path.exists() and not is_isaac_sim_source_build(isaac_sim_path):
+        print_error(f"Downloaded Isaac Sim packages cannot be combined with a {environment_type} environment.")
+        print_error(
+            "Use the bundled Python through isaaclab.sh/isaaclab.bat, or remove '_isaac_sim' and install "
+            "Isaac Sim from pip in the virtual environment."
+        )
+        raise SystemExit(1)
 
 
 def _sanitized_conda_env() -> dict[str, str]:
@@ -496,7 +516,8 @@ def command_setup_conda(env_name: str) -> None:
         env_name: Name for the conda environment to create or reuse.
     """
 
-    # Check if conda is installed.
+    _reject_downloaded_isaac_sim("conda")
+
     if not shutil.which("conda"):
         print_error("Conda could not be found. Please install conda and try again.")
         sys.exit(1)
@@ -520,12 +541,8 @@ def command_setup_conda(env_name: str) -> None:
     if symlink_missing and pip_package_missing:
         print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
         print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-        print(
-            "\tIf you are using a binary installation of Isaac Sim, please ensure the "
-            + "symlink is created before setting up the conda environment."
-        )
+        print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with conda.")
 
-    # Check if the environment exists.
     conda_env = _sanitized_conda_env()
     result = run_command(["conda", "env", "list", "--json"], capture_output=True, text=True, check=False, env=conda_env)
     if '"' + env_name + '"' in result.stdout:
@@ -557,13 +574,11 @@ def command_setup_conda(env_name: str) -> None:
             if temp_yml.exists():
                 temp_yml.unlink()
 
-    # Now configure activation scripts.
     conda_prefix = _get_conda_prefix(env_name)
     if not conda_prefix:
         print_error(f"Could not determine prefix for env {env_name}")
         return
 
-    # Setup Isaac Lab and Isaac Sim environment variables through conda hooks.
     _write_conda_env_hooks(conda_prefix)
 
     if not is_windows():
@@ -598,7 +613,6 @@ def _check_venv_python_version(env_path: Path, required_ver: str) -> None:
         python_exe = env_path / "Scripts" / "python.exe"
     else:
         python_exe = env_path / "bin" / "python"
-
     if not python_exe.exists():
         return
 
@@ -633,7 +647,8 @@ def command_setup_uv(env_name: str) -> None:
             the active environment is configured for Isaac Lab instead of
             creating a new one.
     """
-    # Check if uv is installed.
+    _reject_downloaded_isaac_sim("uv")
+
     if not shutil.which("uv"):
         print_error("uv could not be found. Please install uv and try again.")
         print_error("uv can be installed here:")
@@ -654,10 +669,7 @@ def command_setup_uv(env_name: str) -> None:
             if result.returncode != 0 and not (ISAACLAB_ROOT / "_isaac_sim").exists():
                 print_warning(f"_isaac_sim symlink not found at {ISAACLAB_ROOT}/_isaac_sim")
                 print("\tThis warning can be ignored if you plan to install Isaac Sim via pip.")
-                print(
-                    "\tIf you are using a binary installation of Isaac Sim, please ensure "
-                    + "the symlink is created before setting up the uv environment."
-                )
+                print("\tDownloaded Isaac Sim packages use their bundled Python and cannot be combined with uv.")
         except Exception:
             pass
 
@@ -670,11 +682,7 @@ def command_setup_uv(env_name: str) -> None:
     if active_venv:
         env_path = Path(active_venv)
         print_info(f"Detected active virtual environment: {env_path}")
-
-        # Validate Python version.
         _check_venv_python_version(env_path, py_ver)
-
-        # Inject Isaac Lab hooks into the existing environment.
         _write_uv_env_hooks(env_path)
 
         print_info("Added Isaac Lab environment hooks to the active virtual environment.")
@@ -687,17 +695,13 @@ def command_setup_uv(env_name: str) -> None:
         return
 
     env_path = ISAACLAB_ROOT / env_name
-
-    # Check if the environment exists.
     if not env_path.exists():
         print_info(f"Creating uv environment named '{env_name}'...")
         run_command(["uv", "venv", "--clear", "--seed", "--python", py_ver, str(env_path)])
     else:
         print_info(f"uv environment '{env_name}' already exists.")
-        # Validate Python version of existing environment.
         _check_venv_python_version(env_path, py_ver)
 
-    # Setup Isaac Lab and Isaac Sim environment variables through uv activation hooks.
     _write_uv_env_hooks(env_path)
 
     print_info("Added environment hooks to uv activation scripts.")

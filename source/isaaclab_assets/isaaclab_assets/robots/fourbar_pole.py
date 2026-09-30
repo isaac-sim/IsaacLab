@@ -5,6 +5,9 @@
 
 """Configuration for a parallel four-bar linkage with an inverted pendulum pole on the coupler."""
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import ArticulationCfg
@@ -19,20 +22,25 @@ _FOURBAR_POLE_USD = retrieve_git_asset_path(NEWTON_ASSET_DIR, "fourbar_pole/usd/
 FOURBAR_POLE_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=_FOURBAR_POLE_USD,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            rigid_body_enabled=True,
-            max_linear_velocity=1000.0,
-            max_angular_velocity=1000.0,
-            max_depenetration_velocity=100.0,
-            enable_gyroscopic_forces=True,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=4,
-            solver_velocity_iteration_count=0,
-            sleep_threshold=0.005,
-            stabilization_threshold=0.001,
-        ),
+        rigid_props=[
+            sim_utils.UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
+            PhysxRigidBodyCfg(
+                max_linear_velocity=1000.0,
+                max_angular_velocity=1000.0,
+                max_depenetration_velocity=100.0,
+                enable_gyroscopic_forces=True,
+            ),
+        ],
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False,
+                solver_position_iteration_count=4,
+                solver_velocity_iteration_count=0,
+                sleep_threshold=0.005,
+                stabilization_threshold=0.001,
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         pos=(0.0, 0.0, 1.5),
@@ -46,7 +54,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
     actuators={
         "fourbar_actuator": ImplicitActuatorCfg(
             joint_names_expr=["ground_to_crank"],
-            effort_limit_sim=400.0,
+            joint_effort_limit=400.0,
             stiffness=0.0,
             damping=10.0,
         ),
@@ -55,7 +63,7 @@ FOURBAR_POLE_CFG = ArticulationCfg(
         # an actuated joint and preserve its user-specified joint position on resets.
         "pole_actuator": ImplicitActuatorCfg(
             joint_names_expr=["coupler_to_pole"],
-            effort_limit_sim=400.0,
+            joint_effort_limit=400.0,
             stiffness=0.0,
             damping=0.0,
         ),

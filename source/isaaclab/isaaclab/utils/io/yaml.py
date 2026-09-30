@@ -9,7 +9,7 @@ import os
 
 import yaml
 
-from isaaclab.utils import class_to_dict
+from .. import to_dict
 
 
 def load_yaml(filename: str) -> dict:
@@ -46,11 +46,12 @@ def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
     if not filename.endswith("yaml"):
         filename += ".yaml"
     # create directory
-    if not os.path.exists(os.path.dirname(filename)):
-        os.makedirs(os.path.dirname(filename), exist_ok=True)
+    directory = os.path.dirname(filename)
+    if directory:
+        os.makedirs(directory, exist_ok=True)
     # convert data into dictionary
     if not isinstance(data, dict):
-        data = class_to_dict(data)
+        data = to_dict(data)
     # save data
     with open(filename, "w") as f:
         yaml.dump(data, f, default_flow_style=False, sort_keys=sort_keys)

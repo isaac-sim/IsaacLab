@@ -3,16 +3,33 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""
-ShadowHand Over environment.
-"""
+"""Shadow Hand handover environments (direct and manager-based workflows)."""
 
 import gymnasium as gym
 
 from . import agents
 
 ##
-# Register Gym environments.
+# Register Gym environments -- direct workflow.
+##
+
+gym.register(
+    id="Isaac-Shadow-Handover-Direct",
+    entry_point=f"{__name__}.handover_env:HandoverEnv",
+    disable_env_checker=True,
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.handover_env_cfg:HandoverEnvCfg",
+        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HandoverPPORunnerCfg",
+        "default_agent": "rsl_rl",
+        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
+        "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",
+        "skrl_mappo_cfg_entry_point": f"{agents.__name__}:skrl_mappo_cfg.yaml",
+    },
+)
+
+##
+# Register Gym environments -- manager-based workflow.
 ##
 
 gym.register(
@@ -22,20 +39,6 @@ gym.register(
     kwargs={
         "env_cfg_entry_point": f"{__name__}.handover_manager_env_cfg:HandoverManagerEnvCfg",
         "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HandoverPPORunnerCfg",
-    },
-)
-
-gym.register(
-    id="Isaac-Shadow-Handover-Direct",
-    entry_point=f"{__name__}.handover_env:HandoverEnv",
-    disable_env_checker=True,
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.handover_env_cfg:HandoverEnvCfg",
-        "rsl_rl_cfg_entry_point": f"{agents.__name__}.rsl_rl_ppo_cfg:HandoverPPORunnerCfg",
         "default_agent": "rsl_rl",
-        "rl_games_cfg_entry_point": f"{agents.__name__}:rl_games_ppo_cfg.yaml",
-        "skrl_cfg_entry_point": f"{agents.__name__}:skrl_ppo_cfg.yaml",
-        "skrl_ippo_cfg_entry_point": f"{agents.__name__}:skrl_ippo_cfg.yaml",
-        "skrl_mappo_cfg_entry_point": f"{agents.__name__}:skrl_mappo_cfg.yaml",
     },
 )

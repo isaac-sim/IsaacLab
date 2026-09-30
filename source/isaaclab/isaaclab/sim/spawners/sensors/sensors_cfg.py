@@ -5,13 +5,15 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from dataclasses import MISSING
 from typing import Literal
 
 import isaaclab.utils.sensors as sensor_utils
-from isaaclab.sim.spawners.spawner_cfg import SpawnerCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
+
+from ..spawner_cfg import SpawnerCfg
 
 
 @configclass
@@ -19,9 +21,9 @@ class OpenCvDistortionCfg:
     """Base configuration for an OpenCV lens-distortion model carried on a camera cfg.
 
     The distortion model is renderer-agnostic: it is stored on the camera spawn configuration
-    and each renderer decides how to consume it. Under the RTX/OVRTX renderer the fields are
+    and each renderer decides how to consume it. Under the RTX/OVRTX renderer, the fields are
     authored as the ``omni:lensdistortion:*`` USD API, which the renderer honors natively. The
-    Newton renderer does not yet apply this model.
+    Newton renderer consumes the same configuration to generate calibrated, distorted camera rays.
 
     The intrinsic parameters (:attr:`fx`, :attr:`fy`, :attr:`cx`, :attr:`cy`) follow the OpenCV
     convention. When a distortion model is present, they take precedence over the focal-length
@@ -131,6 +133,9 @@ class OpenCvFisheyeDistortionCfg(OpenCvDistortionCfg):
     k4: float = 0.0
     """Fourth fisheye distortion coefficient. Defaults to 0.0."""
 
+    max_fov: float = math.pi
+    """Full angular domain for Newton's inverse fisheye model [rad]. Defaults to pi (180 degrees)."""
+
 
 @configclass
 class PinholeCameraCfg(SpawnerCfg):
@@ -151,18 +156,18 @@ class PinholeCameraCfg(SpawnerCfg):
     Note:
         The stock projection is ``"pinhole"``. An OpenCV ``fx/fy/cx/cy`` + distortion-coefficient
         intrinsic model can be applied on top via :attr:`distortion` (see
-        :class:`OpenCvPinholeDistortionCfg` / :class:`OpenCvFisheyeDistortionCfg`), which the
-        RTX/OVRTX renderer honors natively.
+        :class:`OpenCvPinholeDistortionCfg` / :class:`OpenCvFisheyeDistortionCfg`). The RTX/OVRTX
+        renderer honors this model natively, while the Newton renderer generates calibrated
+        per-pixel rays from it.
     """
 
     distortion: OpenCvDistortionCfg | None = None
     """OpenCV lens-distortion model to author on the camera. Defaults to None (no distortion).
 
-    When set, the OpenCV intrinsics and distortion coefficients are authored on the camera prim.
-    Under the RTX/OVRTX renderer they drive the projection natively and, when a real calibration is
-    used (``fx != fy`` or an off-center principal point), take precedence over the focal-length and
-    aperture projection. The Newton renderer does not yet apply this model; the camera renders
-    undistorted there.
+    When set, the OpenCV intrinsics and distortion coefficients drive the camera projection. The
+    RTX/OVRTX renderer consumes the authored ``omni:lensdistortion:*`` USD API, while the Newton
+    renderer generates calibrated per-pixel rays directly from this configuration. In both cases,
+    the calibrated intrinsics take precedence over the focal-length and aperture projection.
     """
 
     clipping_range: tuple[float, float] = (0.01, 1e6)

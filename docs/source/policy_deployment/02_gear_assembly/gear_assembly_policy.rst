@@ -36,7 +36,7 @@ This environment has been successfully deployed on real UR10e and Flexiv Rizon 4
 
 **Scope of This Tutorial:**
 
-This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_.
+This tutorial focuses exclusively on the **training part** of the sim-to-real transfer workflow in Isaac Lab. For the complete deployment workflow on the real robot, including the exact steps to set up the vision pipeline, robot interface and the ROS inference node to run your trained policy on real hardware, please refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_.
 
 Overview
 --------
@@ -369,8 +369,8 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
                 "arm": ImplicitActuatorCfg(
                     joint_names_expr=["shoulder_pan_joint", "shoulder_lift_joint",
                                     "elbow_joint", "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"],
-                    effort_limit=87.0,           # From UR10e specifications
-                    velocity_limit=2.0,          # From UR10e specifications
+                    joint_effort_limit=87.0,       # From UR10e specifications
+                    joint_velocity_limit=2.0,      # From UR10e specifications
                     stiffness=800.0,             # Calibrated to match real behavior
                     damping=40.0,                # Calibrated to match real behavior
                 ),
@@ -385,27 +385,27 @@ For the UR10e and Flexiv Rizon 4s deployments, we use an impedance controller in
             actuators = {
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
-                    effort_limit=123.0, velocity_limit=2.094,
+                    joint_effort_limit=123.0, joint_velocity_limit=2.094,
                     stiffness=6000.0, damping=108.4,
                 ),
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
-                    effort_limit=64.0, velocity_limit=2.443,
+                    joint_effort_limit=64.0, joint_velocity_limit=2.443,
                     stiffness=4200.0, damping=90.7,
                 ),
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
-                    effort_limit=39.0, velocity_limit=4.887,
+                    joint_effort_limit=39.0, joint_velocity_limit=4.887,
                     stiffness=1500.0, damping=54.2,
                 ),
                 "gripper_drive": ImplicitActuatorCfg(
                     joint_names_expr=["finger_joint"],
-                    effort_limit=2.0, velocity_limit=1.0,
+                    joint_effort_limit=2.0, joint_velocity_limit=1.0,
                     stiffness=2e3, damping=1e1,
                 ),
                 "gripper_passive": ImplicitActuatorCfg(
                     joint_names_expr=[".*_knuckle_joint"],
-                    effort_limit=1.0, velocity_limit=1.0,
+                    joint_effort_limit=1.0, joint_velocity_limit=1.0,
                     stiffness=0.0, damping=0.0,
                 ),
             }
@@ -877,7 +877,7 @@ Replace the log directory path with your actual training log location if differe
 Step 3: Deploy on Real Robot
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ to deploy your policy.
+Once training is complete, follow the `Isaac ROS inference documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/packages/isaac_ros_manipulation_dnn_policy/index.html>`_ to deploy your policy.
 
 The Isaac ROS deployment pipeline directly uses the trained model checkpoint (``.pt`` file) along with the ``agent.yaml`` and ``env.yaml`` configuration files generated during training. No additional export step is required.
 
@@ -1068,6 +1068,6 @@ Further Resources
 
 - `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
-- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
-- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/tutorials/sim_to_real/tutorial_gear_assembly.html>`_
+- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_
+- `Isaac ROS Gear Assembly Tutorial <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/tutorials/sim_to_real/tutorial_gear_assembly.html>`_
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`
