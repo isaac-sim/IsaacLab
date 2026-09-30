@@ -18,7 +18,7 @@ import isaaclab.sim as sim_utils
 from isaaclab import cloner
 from isaaclab.managers import EventTermCfg, ManagerTermBase, ManagerTermBaseCfg, SceneEntityCfg
 from isaaclab.utils import instantiate
-from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform
+from isaaclab.utils.math import quat_apply, quat_mul, random_orientation, sample_uniform, sample_uniform_from_ranges
 
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
@@ -82,8 +82,7 @@ def reset_cable_state_uniform(
     asset: CableObject = env.scene[asset_cfg.name]
     segment_pose = asset.data.default_segment_pose_w.torch[env_ids].clone()
     segment_velocity = asset.data.default_segment_velocity_w.torch[env_ids].clone()
-    ranges = torch.tensor([position_range.get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=asset.device)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (segment_pose.shape[0], 3), device=asset.device)
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), segment_pose.shape[0], device=asset.device)
     segment_pose[..., :3] += offset.unsqueeze(1)
     asset.write_segment_pose_to_sim_index(segment_pose=segment_pose, env_ids=env_ids)
     asset.write_segment_velocity_to_sim_index(segment_velocity=segment_velocity, env_ids=env_ids)
@@ -937,9 +936,8 @@ def reset_deformable_over_support(
     deformable: DeformableObject = env.scene[asset_cfg.name]
     supports: tuple[RigidObject, RigidObject] = (env.scene[support_cfg[0].name], env.scene[support_cfg[1].name])
 
-    ranges = torch.tensor([position_range.get(key, (0.0, 0.0)) for key in ("x", "y", "z")], device=deformable.device)
     num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-    offset = sample_uniform(ranges[:, 0], ranges[:, 1], (num_envs, 3), device=deformable.device)
+    offset = sample_uniform_from_ranges(position_range, ("x", "y", "z"), num_envs, device=deformable.device)
 
     nodal_state = deformable.data.default_nodal_state_w.torch[env_ids].clone()
     nodal_state[..., :3] += offset.unsqueeze(1)
