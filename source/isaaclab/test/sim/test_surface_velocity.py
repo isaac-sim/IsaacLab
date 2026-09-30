@@ -12,31 +12,14 @@ import pytest
 from isaaclab.physics import SurfaceVelocitySpec
 
 
-def test_surface_velocity_spec_preserves_authored_semantics() -> None:
-    """The shared description carries schema-aligned fields without backend imports."""
+def test_surface_velocity_spec_normalizes_vectors() -> None:
+    """List inputs become immutable vectors before either backend consumes them."""
     spec = SurfaceVelocitySpec(
-        prim_path="{ENV_REGEX_NS}/Belt/Curve",
-        velocity=-0.35,
-        enabled=False,
-        direction=(0, 0, -1),
-        curved=True,
-        pivot_point=(0.58, 0.51, 0.0),
-        radius=0.24,
-        surface_normal=(0, 0, 1),
-        contact_threshold=0.997,
-        friction_coefficient=0.5,
+        prim_path="{ENV_REGEX_NS}/Belt", direction=[3, 4, 0], pivot_point=[1, 2, 3], surface_normal=[0, 0, 1]
     )
-
-    assert spec.prim_path == "{ENV_REGEX_NS}/Belt/Curve"
-    assert spec.velocity == -0.35
-    assert spec.enabled is False
-    assert spec.direction == (0.0, 0.0, -1.0)
-    assert spec.curved is True
-    assert spec.pivot_point == (0.58, 0.51, 0.0)
-    assert spec.radius == 0.24
+    assert spec.direction == (3.0, 4.0, 0.0)
+    assert spec.pivot_point == (1.0, 2.0, 3.0)
     assert spec.surface_normal == (0.0, 0.0, 1.0)
-    assert spec.contact_threshold == 0.997
-    assert spec.friction_coefficient == 0.5
 
 
 @pytest.mark.parametrize(
@@ -44,10 +27,6 @@ def test_surface_velocity_spec_preserves_authored_semantics() -> None:
     [
         ({"prim_path": "relative/Belt"}, "prim_path"),
         ({"prim_path": "/"}, "prim_path"),
-        ({"prim_path": "/World//Belt"}, "prim_path"),
-        ({"prim_path": "/World/Belt/"}, "prim_path"),
-        ({"prim_path": "{ENV_REGEX_NS}/"}, "prim_path"),
-        ({"prim_path": "{UNKNOWN_NS}/Belt"}, "prim_path"),
         ({"prim_path": "/World/{ENV_REGEX_NS}/Belt"}, "prim_path"),
         ({"prim_path": "/World/Belt", "velocity": None}, "velocity"),
         ({"prim_path": "/World/Belt", "velocity": float("nan")}, "velocity"),

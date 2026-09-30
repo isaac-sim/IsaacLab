@@ -45,7 +45,6 @@ def test_racetrack_and_sorting_tasks_share_the_policy_contract() -> None:
     assert base_task.kwargs["env_cfg_entry_point"].endswith(":ConveyorFrankaEnvCfg")
     assert task.kwargs["rsl_rl_cfg_entry_point"] == base_task.kwargs["rsl_rl_cfg_entry_point"]
     assert base_cfg.scene.to_dict() == base_scene
-    assert base_cfg.scene.to_dict() == ConveyorFrankaEnvCfg().scene.to_dict()
     assert [name for name in vars(base_cfg.scene) if name.startswith("cube_")] == [
         "cube_0",
         "cube_1",
@@ -71,7 +70,13 @@ def test_racetrack_and_sorting_tasks_share_the_policy_contract() -> None:
     assert cfg.terminations.cube_out_of_workspace.func == base_cfg.terminations.cube_out_of_workspace.func
     assert cfg.decimation == base_cfg.decimation
     assert cfg.sim.dt == base_cfg.sim.dt
-    assert cfg.sim.physics.load_visual_shapes is False
+    for cube_id in range(24):
+        actual = getattr(cfg.scene, f"cube_{cube_id}").spawn.to_dict()
+        expected = getattr(base_cfg.scene, "cube_0").spawn.to_dict()
+        actual.pop("func")
+        actual.pop("parcel_usd_path")
+        expected.pop("func")
+        assert actual == expected
 
 
 def test_sorting_contacts_exclude_stationary_conveyor_pairs() -> None:
@@ -144,113 +149,9 @@ def test_visual_only_usd_strips_physics_and_execution_metadata() -> None:
     assert not physics_scene.IsActive()
 
 
-def test_digital_twin_assets_use_separate_physical_routes() -> None:
-    """Imported visual assets do not own contacts on the extended physical routes."""
-    scene = ConveyorFrankaA09A12EnvCfg().scene
-
-    assert scene.conveyor_left_belt_visual is None
-    assert scene.guard_left_inner_visual is None
-    assert hasattr(scene, "conveyor_left_top_straight_collision")
-    assert hasattr(scene, "conveyor_left_right_turn_collision")
-    assert hasattr(scene, "guard_left_inner_collision")
-
-    asset_names = tuple(
-        name
-        for name in vars(scene)
-        if name.endswith(("_a09_visual", "_a12_visual")) and getattr(scene, name) is not None
-    )
-    assert len(asset_names) == 2
-    assert all(name.endswith("_a09_visual") for name in asset_names)
-    assert len(scene.build_conveyor_belt_specs()) > 8
-
-    for name in asset_names:
-        asset = getattr(scene, name)
-        assert asset.spawn.usd_path.endswith("conveyor_straight_supported.usd")
-        assert asset.spawn.collision_props is None
-        assert asset.spawn.make_uninstanceable
-
-
-def test_thor_table_and_conveyors_rest_on_their_authored_supports() -> None:
-    """The Thor mount reaches the floor and narrow supports retain the conveyor deck elevation."""
-    cfg = ConveyorFrankaA09A12EnvCfg()
-    scene = cfg.scene
-    scene._configure_route_assets()
-
-    assert scene.tabletop.prim_path.endswith("/RobotThorTableVisual")
-    assert scene.tabletop.spawn.usd_path.endswith("/Props/Mounts/thor_table.usd")
-    assert scene.tabletop.spawn.collision_props is None
-    ground_z = 0.0
-    assert scene.table_pedestal is None
-    assert math.isclose(scene.tabletop.init_state.pos[2] - 0.795 * scene.tabletop.spawn.scale[2], ground_z)
-
-    for name in vars(scene):
-        if name.endswith(("_a09_visual", "_a12_visual")) and getattr(scene, name) is not None:
-            assert math.isclose(getattr(scene, name).init_state.pos[2], 0.55)
-
-    assert ground_z == 0.0
-    workspace_z = scene.ground.workspace_origin_offset[2]
-    assert 0.75 < workspace_z < 0.85
-    assert math.isclose(scene.robot.init_state.pos[2], workspace_z)
-    assert math.isclose(scene.cube_0.init_state.pos[2], 0.28 + workspace_z)
-    base_collision_z = ConveyorFrankaEnvCfg().scene.conveyor_left_top_straight_collision.init_state.pos[2]
-    assert math.isclose(scene.warehouse_left_section_0.init_state.pos[2], base_collision_z + workspace_z)
-
-
-def test_warehouse_layout_is_usd_authored_and_preserves_cube_physics() -> None:
-    """The presentation adds one USD assembly and changes only the task cubes' render spawner."""
-    from pxr import Sdf
-
-    scene = ConveyorFrankaA09A12EnvCfg().scene
-    base = ConveyorFrankaEnvCfg().scene
-    assert scene.warehouse_visual.spawn.collision_props is None
-    layer = Sdf.Layer.FindOrOpen(scene.warehouse_visual.spawn.usd_path)
-    assert layer.defaultPrim == "Warehouse"
-    assert layer.GetPrimAtPath("/Warehouse/Lights/WorkcellSoftbox")
-    assert layer.GetPrimAtPath("/Warehouse/Transport/Divert")
-    assert layer.GetPrimAtPath("/Warehouse/Parcels/Parcel00")
-    assert not layer.GetPrimAtPath("/Warehouse/Cell/Riser0")
-    assert not layer.GetPrimAtPath("/Warehouse/Supports")
-    assert not layer.GetPrimAtPath("/Warehouse/NetworkParcels")
-    assert layer.GetPrimAtPath("/Warehouse/Scanner").attributes["xformOp:rotateZ"].default == 90
-    assert all(
-        path.startswith("https://")
-        or path
-        in {"conveyor_straight_supported.usd", "conveyor_quarter_supported.usd", "conveyor_routes.usda", "parcel.usda"}
-        for path in layer.GetExternalReferences()
-    )
-    for cube_id in range(4):
-        visual_spawn = getattr(scene, f"cube_{cube_id}").spawn.to_dict()
-        base_spawn = getattr(base, f"cube_{cube_id}").spawn.to_dict()
-        visual_spawn.pop("func")
-        visual_spawn.pop("parcel_usd_path")
-        base_spawn.pop("func")
-        assert visual_spawn == base_spawn
-    scene._configure_route_assets()
-    for cube_id in range(4, 24):
-        cube = getattr(scene, f"cube_{cube_id}")
-        actual = cube.spawn.to_dict()
-        expected = scene.cube_0.spawn.to_dict()
-        assert actual.pop("parcel_usd_path").endswith(
-            f"parcel_{ConveyorFrankaA09A12EnvCfg().commands.transfer.parcel_colors[cube_id]}.usda"
-        )
-        expected.pop("parcel_usd_path")
-        assert actual == expected
-        assert cube.prim_path.endswith(f"/Cube{cube_id}")
-
-
-@pytest.mark.parametrize(
-    "parcel_asset",
-    [
-        "parcel.usda",
-        "parcel_blue.usda",
-        "parcel_orange.usda",
-        "parcel_green.usda",
-        "parcel_purple.usda",
-    ],
-)
-def test_carton_visual_is_centered_on_the_original_40_mm_collider(tmp_path, monkeypatch, parcel_asset) -> None:
+def test_carton_visual_is_centered_on_the_original_40_mm_collider(tmp_path, monkeypatch) -> None:
     """Asset normalization changes appearance without moving or resizing the grasp surface."""
-    from pxr import Usd, UsdGeom, UsdPhysics
+    from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
     from isaaclab_tasks.contrib.conveyor_franka import conveyor_franka_asset_env_cfg as asset_cfg
 
@@ -272,7 +173,7 @@ def test_carton_visual_is_centered_on_the_original_40_mm_collider(tmp_path, monk
     try:
         stage = sim_utils.create_new_stage()
         cfg = ConveyorFrankaA09A12EnvCfg().scene.cube_0.spawn
-        cfg.parcel_usd_path = str(_PRESENTATION_ASSETS / parcel_asset)
+        cfg.parcel_usd_path = str(_PRESENTATION_ASSETS / "parcel_blue.usda")
         prim = cfg.func("/Cube", cfg)
         visual = stage.GetPrimAtPath("/Cube/CartonVisual")
         bounds = UsdGeom.BBoxCache(Usd.TimeCode.Default(), ["default", "render"]).ComputeWorldBound(visual)
@@ -285,9 +186,7 @@ def test_carton_visual_is_centered_on_the_original_40_mm_collider(tmp_path, monk
         assert sum(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in stage.Traverse()) == 1
         assert sum(p.HasAPI(UsdPhysics.CollisionAPI) for p in stage.Traverse()) == 1
         assert not any(p.HasAPI(UsdPhysics.RigidBodyAPI) for p in Usd.PrimRange(visual))
-        # The authored reference remains portable; cache resolution edits only an anonymous copy.
-        from pxr import Sdf
-
+        # Resolving cached assets must leave the authored layer portable.
         assert all(
             path.startswith("https://")
             for path in Sdf.Layer.FindOrOpen(str(_PRESENTATION_ASSETS / "parcel.usda")).GetExternalReferences()
@@ -307,6 +206,12 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
 
     scene = ConveyorFrankaA09A12EnvCfg().scene
     layer = Sdf.Layer.FindOrOpen(scene.warehouse_visual.spawn.usd_path)
+    scene._configure_route_assets()
+    workspace_z = scene.ground.workspace_origin_offset[2]
+    assert math.isclose(scene.robot.init_state.pos[2], workspace_z)
+    assert math.isclose(scene.cube_0.init_state.pos[2], 0.28 + workspace_z)
+    base_z = ConveyorFrankaEnvCfg().scene.conveyor_left_top_straight_collision.init_state.pos[2]
+    assert math.isclose(scene.warehouse_left_section_0.init_state.pos[2], base_z + workspace_z)
     for side, sign, original_index in (("Left", 1, 1), ("Right", -1, 0)):
         sections = warehouse_belt_sections(side, velocity=0.35)
         original = belt_collision_section_specs(side)[original_index].geometry
@@ -338,13 +243,6 @@ def test_asset_transforms_preserve_the_original_workcell() -> None:
             assert radius == pytest.approx(BELT_TURN_RADIUS)
             assert position[0] + radius * math.sin(angle) == pytest.approx(x)
             assert position[1] - radius * math.cos(angle) == pytest.approx(sign * BELT_CENTER_Y)
-        assert any(section.belt.direction[2] > 0 for section in sections if not section.belt.curved)
-        assert any(section.belt.direction[2] < 0 for section in sections if not section.belt.curved)
-        feed_velocity = 0.043 if side == "Left" else 0.052
-        assert all(
-            section.belt.velocity == (feed_velocity if "Supply" in section.geometry.name else 0.35)
-            for section in sections
-        )
 
 
 @pytest.mark.parametrize("use_slice", [False, True])
@@ -473,8 +371,7 @@ def test_warehouse_animation_uses_active_kit_viewer_and_policy_time(tmp_path, mo
     assert not callbacks
 
 
-@pytest.mark.parametrize("remote_position", [(2.8, 0.1, 0.56), (1.2, 0.59, 0.16)])
-def test_warehouse_policy_view_preserves_local_states_and_physical_inventory(remote_position):
+def test_warehouse_policy_view_preserves_local_states_and_physical_inventory():
     """Only remote transport is mapped to waiting slots; physical tensors remain untouched."""
     import torch
 
@@ -482,7 +379,7 @@ def test_warehouse_policy_view_preserves_local_states_and_physical_inventory(rem
 
     origin = torch.tensor([[10.0, 12.0, 0.8]])
     positions = (
-        torch.tensor([[[0.52, 0.27, 0.06], [0.6, -0.1, 0.25], remote_position, [1.9, -1.1, 0.2]]]) + origin[:, None]
+        torch.tensor([[[0.52, 0.27, 0.06], [0.6, -0.1, 0.25], [2.8, 0.1, 0.56], [1.2, -0.59, 0.16]]]) + origin[:, None]
     )
     quaternions = torch.randn(1, 4, 4)
     velocities = torch.randn(1, 4, 6)

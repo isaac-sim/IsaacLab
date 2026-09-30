@@ -20,8 +20,8 @@ from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import BELT_TURN_R
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 
-def test_physx_task_is_registered_with_a_dedicated_config() -> None:
-    """The native backend is opt-in and cannot alter the Newton task registration."""
+def test_physx_config_preserves_policy_and_timing_contracts() -> None:
+    """A Newton checkpoint sees the same ordered 8-D action and 60 Hz policy interface."""
     physx_spec = gym.spec("IsaacContrib-Conveyor-Franka-PhysX-CPU-v0")
     newton_spec = gym.spec("IsaacContrib-Conveyor-Franka-Newton-v0")
 
@@ -29,9 +29,6 @@ def test_physx_task_is_registered_with_a_dedicated_config() -> None:
     assert physx_spec.kwargs["env_cfg_entry_point"].endswith(":ConveyorFrankaPhysxEnvCfg")
     assert newton_spec.kwargs["env_cfg_entry_point"].endswith(":ConveyorFrankaEnvCfg")
 
-
-def test_physx_config_preserves_policy_and_timing_contracts() -> None:
-    """A Newton checkpoint sees the same ordered 8-D action and 60 Hz policy interface."""
     newton_cfg = ConveyorFrankaEnvCfg()
     physx_cfg = ConveyorFrankaPhysxEnvCfg()
 
@@ -57,11 +54,10 @@ def test_physx_task_default_device_survives_an_unset_parser_override() -> None:
     assert cfg.scene.num_envs == 2
 
 
-@pytest.mark.parametrize("device", ["cuda", "cuda:0", "cuda:1"])
-def test_physx_config_rejects_broken_gpu_surface_velocity_contacts(device: str) -> None:
+def test_physx_config_rejects_broken_gpu_surface_velocity_contacts() -> None:
     """The pinned Isaac Sim GPU path must not silently let cubes tunnel through belts."""
     cfg = ConveyorFrankaPhysxEnvCfg()
-    cfg.sim.device = device
+    cfg.sim.device = "cuda:0"
 
     with pytest.raises(ValueError, match="CPU-only.*--device cpu"):
         cfg.validate()

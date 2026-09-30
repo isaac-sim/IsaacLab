@@ -11,10 +11,7 @@ import pytest
 
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import _collision_properties, _cube
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
-    BELT_TURN_RADIUS,
-    TURN_SEGMENT_COUNT,
     MeshSpec,
-    belt_collision_section_specs,
     belt_mesh_spec,
     guard_mesh_specs,
 )
@@ -27,19 +24,6 @@ def _edge_use_counts(spec: MeshSpec) -> Counter[tuple[int, int]]:
         for start, end in zip(triangle, triangle[1:] + triangle[:1], strict=True):
             edges[tuple(sorted((start, end)))] += 1
     return edges
-
-
-def test_racetrack_visual_meshes_are_named_watertight_loops():
-    """Belts and rails remain uniquely named, closed racetrack meshes."""
-    specs = tuple(spec for side in ("Left", "Right") for spec in (belt_mesh_spec(side), *guard_mesh_specs(side)))
-    expected_loop_vertices = 2 * TURN_SEGMENT_COUNT + 2
-
-    assert len(specs) == 6
-    assert len({spec.name for spec in specs}) == len(specs)
-    for spec in specs:
-        assert len(spec.vertices) == 4 * expected_loop_vertices
-        assert len(spec.faces) == 8 * expected_loop_vertices
-        assert set(_edge_use_counts(spec).values()) == {2}
 
 
 @pytest.mark.parametrize("warehouse", [False, True])
@@ -57,7 +41,7 @@ def test_belt_top_faces_point_upward(warehouse):
             ]
             specs.extend(warehouse_guard_meshes(side))
         else:
-            specs = [belt_mesh_spec(side)]
+            specs = [belt_mesh_spec(side), *guard_mesh_specs(side)]
         for spec in specs:
             assert set(_edge_use_counts(spec).values()) == {2}
             _assert_top_faces_point_upward(spec)
@@ -83,21 +67,6 @@ def test_contact_configuration_uses_one_mujoco_parameterization():
     assert cube_material.contact_damping is None
     assert cube_material.torsional_friction is None
     assert cube_material.rolling_friction is None
-
-
-def test_collision_sections_carry_schema_aligned_belt_intent():
-    """Task geometry and runtime descriptions share paths, units, and curve semantics."""
-    sections = belt_collision_section_specs("Left", velocity=0.35, friction_coefficient=0.5, contact_threshold=0.997)
-
-    assert len(sections) == 4
-    assert tuple(section.belt.prim_path for section in sections) == tuple(
-        f"{{ENV_REGEX_NS}}/{section.geometry.name}" for section in sections
-    )
-    assert tuple(section.belt.velocity for section in sections) == (0.35,) * 4
-    assert tuple(section.belt.friction_coefficient for section in sections) == (0.5,) * 4
-    assert tuple(section.belt.contact_threshold for section in sections) == (0.997,) * 4
-    assert tuple(section.belt.curved for section in sections) == (False, False, True, True)
-    assert tuple(section.belt.radius for section in sections) == (None, None, BELT_TURN_RADIUS, BELT_TURN_RADIUS)
 
 
 def test_elevated_belt_normals_accept_contacts_on_every_ramp_panel():

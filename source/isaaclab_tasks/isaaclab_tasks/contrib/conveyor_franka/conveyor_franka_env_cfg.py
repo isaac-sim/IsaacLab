@@ -57,6 +57,18 @@ _SUBGOAL_TIMEOUT_S = 20.0
 _TRANSFER_SEQUENCE_LENGTH = 8
 _ARM_JOINT_NAMES = tuple(f"panda_joint{joint_id}" for joint_id in range(1, 8))
 _FINGER_JOINT_NAMES = ("panda_finger_joint1", "panda_finger_joint2")
+_ROBOT_INITIAL_STATE = ArticulationCfg.InitialStateCfg(
+    joint_pos={
+        "panda_joint1": 0.0,
+        "panda_joint2": -0.35,
+        "panda_joint3": 0.0,
+        "panda_joint4": -2.35,
+        "panda_joint5": 0.0,
+        "panda_joint6": 2.0,
+        "panda_joint7": 0.78,
+        "panda_finger_joint.*": 0.04,
+    }
+)
 
 
 def _validate_common_config(cfg: ConveyorFrankaEnvCfg) -> None:
@@ -442,62 +454,34 @@ def _collision_material(friction: float) -> NewtonMaterialPropertiesCfg:
     )
 
 
-def _hidden_collision_mesh(
-    prim_path: str,
-    spec: MeshSpec,
-    friction: float,
-    mujoco_priority: int,
-) -> AssetBaseCfg:
-    """Build a hidden static triangle-mesh collider."""
-    spawn = sim_utils.MeshCustomCfg(
-        vertices=spec.vertices,
-        faces=spec.faces,
-        visible=False,
-        collision_props=_collision_properties(mujoco_priority=mujoco_priority),
-        physics_material=_collision_material(friction),
-    )
-    spawn.func = _spawn_hidden_collision_mesh
-    return AssetBaseCfg(prim_path=prim_path, spawn=spawn)
-
-
-def _hidden_collision_cuboid(
-    prim_path: str,
-    spec: CuboidSpec,
-    friction: float,
-    mujoco_priority: int,
-) -> AssetBaseCfg:
-    """Build a hidden native cuboid collider."""
-    return AssetBaseCfg(
-        prim_path=prim_path,
-        init_state=AssetBaseCfg.InitialStateCfg(pos=spec.position),
-        spawn=sim_utils.CuboidCfg(
-            size=spec.size,
-            visible=False,
-            collision_props=_collision_properties(mujoco_priority=mujoco_priority),
-            physics_material=_collision_material(friction),
-        ),
-    )
-
-
 def _hidden_collision_geometry(
     prim_path: str,
     spec: MeshSpec | CuboidSpec,
     friction: float,
     mujoco_priority: int,
 ) -> AssetBaseCfg:
-    """Build hidden collision geometry while preferring native primitives where possible."""
+    """Build a hidden collider, using native cuboids for straight sections."""
+    properties = _collision_properties(mujoco_priority=mujoco_priority)
+    material = _collision_material(friction)
     if isinstance(spec, CuboidSpec):
-        return _hidden_collision_cuboid(
-            prim_path=prim_path,
-            spec=spec,
-            friction=friction,
-            mujoco_priority=mujoco_priority,
+        spawn = sim_utils.CuboidCfg(
+            size=spec.size, visible=False, collision_props=properties, physics_material=material
         )
-    return _hidden_collision_mesh(
+        position = spec.position
+    else:
+        spawn = sim_utils.MeshCustomCfg(
+            vertices=spec.vertices,
+            faces=spec.faces,
+            visible=False,
+            collision_props=properties,
+            physics_material=material,
+        )
+        spawn.func = _spawn_hidden_collision_mesh
+        position = (0.0, 0.0, 0.0)
+    return AssetBaseCfg(
         prim_path=prim_path,
-        spec=spec,
-        friction=friction,
-        mujoco_priority=mujoco_priority,
+        init_state=AssetBaseCfg.InitialStateCfg(pos=position),
+        spawn=spawn,
     )
 
 
@@ -536,18 +520,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
     # Use the MuJoCo Menagerie-derived model with explicit manipulation gains.
     robot = FRANKA_PANDA_CONVEYOR_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "panda_joint1": 0.0,
-                "panda_joint2": -0.35,
-                "panda_joint3": 0.0,
-                "panda_joint4": -2.35,
-                "panda_joint5": 0.0,
-                "panda_joint6": 2.0,
-                "panda_joint7": 0.78,
-                "panda_finger_joint.*": 0.04,
-            }
-        ),
+        init_state=_ROBOT_INITIAL_STATE,
     )
 
     tabletop = _static_cuboid(
@@ -626,7 +599,7 @@ class ConveyorFrankaSceneCfg(InteractiveSceneCfg):
                 setattr(
                     self,
                     f"guard_{side.lower()}_{boundary}_collision",
-                    _hidden_collision_mesh(
+                    _hidden_collision_geometry(
                         prim_path=f"{{ENV_REGEX_NS}}/{spec.name}Collision",
                         spec=spec,
                         # The compact turns need freely sliding guide contacts;

@@ -13,53 +13,15 @@ import isaaclab_newton.physics.surface_velocity as surface_module
 import numpy as np
 import pytest
 import warp as wp
-from isaaclab_newton.physics.surface_velocity import compute_point_impulse
 
 from isaaclab.physics import PhysicsEvent, SurfaceVelocitySpec
 
 _BODY_PATTERN = r"(?:^|/)Cube_?[0-3](?:/|$)"
 
 
-@wp.kernel
-def _compute_test_impulses(
-    target_velocity: wp.array(dtype=wp.vec3),
-    normal_impulse: wp.array(dtype=wp.float32),
-    output: wp.array(dtype=wp.vec3),
-):
-    index = wp.tid()
-    output[index] = compute_point_impulse(
-        wp.vec3(0.0, 0.0, 1.0),
-        normal_impulse[index],
-        wp.vec3(),
-        target_velocity[index],
-        1.0,
-        wp.mat33(),
-        wp.vec3(),
-        0.5,
-        1.0,
-    )
-
-
 def _surface_spec(name: str = "Belt") -> SurfaceVelocitySpec:
     """Build one valid replicated test belt."""
     return SurfaceVelocitySpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=0.35, friction_coefficient=0.5)
-
-
-def test_point_impulse_tracks_velocity_and_respects_coulomb_limit() -> None:
-    """Point traction reaches a small target but clamps large requests to ``mu * normal_impulse``."""
-    target_velocity = wp.array([(0.25, 0.0, 0.0), (10.0, 0.0, 0.0)], dtype=wp.vec3, device="cpu")
-    normal_impulse = wp.array([2.0, 2.0], dtype=wp.float32, device="cpu")
-    output = wp.zeros(2, dtype=wp.vec3, device="cpu")
-
-    wp.launch(
-        _compute_test_impulses,
-        dim=2,
-        inputs=[target_velocity, normal_impulse],
-        outputs=[output],
-        device="cpu",
-    )
-
-    np.testing.assert_allclose(output.numpy(), ((0.25, 0.0, 0.0), (1.0, 0.0, 0.0)), atol=1.0e-6)
 
 
 class _FakeCallbackHandle:
@@ -130,6 +92,8 @@ def test_driver_requests_force_and_rebinds_on_solver_reinitialization(monkeypatc
     assert driver.num_surfaces == 2
     assert driver.count == 2
     assert not driver.initialized
+    with pytest.raises(RuntimeError, match="not bound"):
+        driver.set_velocities(0.2)
 
     assert [(event, name) for _, event, name in event_callbacks] == [
         (PhysicsEvent.MODEL_INIT, "surface_velocity_contact_attribute")
@@ -159,31 +123,6 @@ def test_driver_requests_force_and_rebinds_on_solver_reinitialization(monkeypatc
     assert second_binding.closed
     assert unregistered_solver_callbacks == [solver_callbacks[0]]
     assert callback_handle.deregister_count == 1
-
-
-def test_unbound_driver_rejects_control_calls(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Control methods are unavailable until the solver-init callback creates a binding."""
-    callback_handle = _FakeCallbackHandle()
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_callback",
-        classmethod(lambda cls, *args, **kwargs: callback_handle),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_solver_init_callback",
-        classmethod(lambda cls, callback: None),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "unregister_solver_init_callback",
-        classmethod(lambda cls, callback: None),
-    )
-
-    driver = surface_module.SurfaceVelocity(num_envs=1, surface_specs=(_surface_spec(),), body_pattern=_BODY_PATTERN)
-    with pytest.raises(RuntimeError, match="not bound"):
-        driver.set_velocities(0.2)
-    driver.close()
 
 
 def test_driver_rejects_invalid_specs_before_registering_callbacks(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -15,7 +15,7 @@ from isaaclab_physx.sim.schemas import PhysxCollisionCfg, PhysxSDFMeshCfg
 from isaaclab_physx.sim.spawners.materials import PhysxRigidBodyMaterialCfg
 
 import isaaclab.sim as sim_utils
-from isaaclab.assets import ArticulationCfg, AssetBaseCfg, RigidObjectCfg
+from isaaclab.assets import AssetBaseCfg
 from isaaclab.physics import SurfaceVelocitySpec
 from isaaclab.sim import SimulationCfg
 from isaaclab.sim.schemas import CollisionFragment, UsdPhysicsCollisionCfg
@@ -24,31 +24,21 @@ from isaaclab.utils.configclass import configclass
 from .conveyor_franka_env_cfg import (
     _CONTACT_GAP,
     _CUBE_CONTACT_MARGIN,
+    _ROBOT_INITIAL_STATE,
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
     _spawn_hidden_collision_mesh,
-    _spawn_shape_with_display_color,
     _validate_common_config,
-    _visual_mesh,
 )
 from .conveyor_geometry import (
-    BELT_COLOR,
-    BELT_INNER_STRAIGHT_Y,
-    BELT_OUTER_STRAIGHT_Y,
-    CUBE_COLORS,
-    CUBE_INNER_SLOT_X,
-    CUBE_OUTER_SLOT_X,
-    GUARD_COLOR,
     ConveyorSectionSpec,
     CuboidSpec,
     MeshSpec,
     belt_collision_section_specs,
-    belt_mesh_spec,
     guard_mesh_specs,
 )
 from .franka_robot_cfg import FRANKA_PANDA_CONVEYOR_PHYSX_CFG
 
-_PHYSX_DYNAMIC_PROPERTIES = sim_utils.RigidBodyBaseCfg()
 _PHYSX_KINEMATIC_PROPERTIES = sim_utils.RigidBodyBaseCfg(
     rigid_body_enabled=True,
     kinematic_enabled=True,
@@ -72,54 +62,6 @@ def _physx_material(friction: float) -> PhysxRigidBodyMaterialCfg:
         restitution=0.0,
         friction_combine_mode="min",
         restitution_combine_mode="min",
-    )
-
-
-def _physx_static_cuboid(
-    prim_path: str,
-    size: tuple[float, float, float],
-    pos: tuple[float, float, float],
-    color: tuple[float, float, float],
-) -> AssetBaseCfg:
-    """Build one static PhysX support cuboid."""
-    spawn = sim_utils.CuboidCfg(
-        size=size,
-        collision_props=_physx_collision_properties(),
-        physics_material=_physx_material(0.7),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75),
-    )
-    spawn.func = _spawn_shape_with_display_color
-    return AssetBaseCfg(
-        prim_path=prim_path,
-        init_state=AssetBaseCfg.InitialStateCfg(pos=pos),
-        spawn=spawn,
-    )
-
-
-def _physx_cube(
-    name: str,
-    color: tuple[float, float, float],
-    pos: tuple[float, float, float],
-) -> RigidObjectCfg:
-    """Build one numbered dynamic cube with native PhysX contact properties."""
-    spawn = sim_utils.CuboidCfg(
-        size=(0.04, 0.04, 0.04),
-        rigid_props=_PHYSX_DYNAMIC_PROPERTIES,
-        mass_props=sim_utils.MassPropertiesCfg(mass=0.05),
-        collision_props=_physx_collision_properties(contact_offset=_CUBE_CONTACT_MARGIN),
-        physics_material=PhysxRigidBodyMaterialCfg(
-            static_friction=0.8,
-            dynamic_friction=0.6,
-            restitution=0.0,
-            restitution_combine_mode="min",
-        ),
-        visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=color, roughness=0.75),
-    )
-    spawn.func = _spawn_shape_with_display_color
-    return RigidObjectCfg(
-        prim_path=f"{{ENV_REGEX_NS}}/{name}",
-        init_state=RigidObjectCfg.InitialStateCfg(pos=pos),
-        spawn=spawn,
     )
 
 
@@ -240,54 +182,25 @@ class ConveyorFrankaPhysxSceneCfg(ConveyorFrankaSceneCfg):
 
     robot = FRANKA_PANDA_CONVEYOR_PHYSX_CFG.replace(
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=ArticulationCfg.InitialStateCfg(
-            joint_pos={
-                "panda_joint1": 0.0,
-                "panda_joint2": -0.35,
-                "panda_joint3": 0.0,
-                "panda_joint4": -2.35,
-                "panda_joint5": 0.0,
-                "panda_joint6": 2.0,
-                "panda_joint7": 0.78,
-                "panda_finger_joint.*": 0.04,
-            }
-        ),
+        init_state=_ROBOT_INITIAL_STATE,
     )
-
-    tabletop = _physx_static_cuboid(
-        prim_path="{ENV_REGEX_NS}/Tabletop",
-        size=(2.0, 1.9, 0.08),
-        pos=(0.50, 0.0, -0.04),
-        color=(0.32, 0.34, 0.37),
-    )
-    table_pedestal = _physx_static_cuboid(
-        prim_path="{ENV_REGEX_NS}/TablePedestal",
-        size=(0.75, 0.55, 0.76),
-        pos=(0.25, 0.0, -0.46),
-        color=(0.18, 0.20, 0.23),
-    )
-
-    cube_0 = _physx_cube("Cube0", CUBE_COLORS[0], (CUBE_INNER_SLOT_X, BELT_INNER_STRAIGHT_Y, 0.06))
-    cube_1 = _physx_cube("Cube1", CUBE_COLORS[1], (CUBE_OUTER_SLOT_X, BELT_OUTER_STRAIGHT_Y, 0.06))
-    cube_2 = _physx_cube("Cube2", CUBE_COLORS[2], (CUBE_INNER_SLOT_X, -BELT_INNER_STRAIGHT_Y, 0.06))
-    cube_3 = _physx_cube("Cube3", CUBE_COLORS[3], (CUBE_OUTER_SLOT_X, -BELT_OUTER_STRAIGHT_Y, 0.06))
 
     def __post_init__(self) -> None:
-        """Generate visuals plus native PhysX belt and guide collision bodies."""
-        for side in ("Left", "Right"):
-            visual = belt_mesh_spec(side)
-            setattr(
-                self,
-                f"conveyor_{side.lower()}_belt_visual",
-                _visual_mesh(
-                    prim_path=f"{{ENV_REGEX_NS}}/{visual.name}",
-                    spec=visual,
-                    color=BELT_COLOR,
-                    roughness=0.9,
-                    metallic=0.0,
-                ),
+        """Reuse the racetrack layout and visuals, replacing only backend physics properties."""
+        super().__post_init__()
+        for support in (self.tabletop, self.table_pedestal):
+            support.spawn.collision_props = _physx_collision_properties()
+            support.spawn.physics_material = _physx_material(0.7)
+        for cube_id in range(4):
+            cube = getattr(self, f"cube_{cube_id}")
+            cube.spawn.collision_props = _physx_collision_properties(contact_offset=_CUBE_CONTACT_MARGIN)
+            cube.spawn.physics_material = PhysxRigidBodyMaterialCfg(
+                static_friction=0.8,
+                dynamic_friction=0.6,
+                restitution=0.0,
+                restitution_combine_mode="min",
             )
-
+        for side in ("Left", "Right"):
             section_keys = ("top_straight", "bottom_straight", "right_turn", "left_turn")
             for section_key, (section, root_position) in zip(section_keys, physx_belt_section_specs(side), strict=True):
                 setattr(
@@ -303,17 +216,6 @@ class ConveyorFrankaPhysxSceneCfg(ConveyorFrankaSceneCfg):
 
             for guard in guard_mesh_specs(side):
                 boundary = "inner" if guard.name.endswith("Inner") else "outer"
-                setattr(
-                    self,
-                    f"guard_{side.lower()}_{boundary}_visual",
-                    _visual_mesh(
-                        prim_path=f"{{ENV_REGEX_NS}}/{guard.name}Visual",
-                        spec=guard,
-                        color=GUARD_COLOR,
-                        roughness=0.3,
-                        metallic=0.8,
-                    ),
-                )
                 setattr(
                     self,
                     f"guard_{side.lower()}_{boundary}_collision",

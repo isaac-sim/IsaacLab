@@ -23,11 +23,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv
 
 
-def _transfer_command(env: ManagerBasedRLEnv, command_name: str = "transfer"):
-    """Return the configured transfer command."""
-    return env.command_manager.get_term(command_name)
-
-
 def _cube_state(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Stack cube world positions, orientations, and spatial velocities."""
     state = (
@@ -39,22 +34,15 @@ def _cube_state(env: ManagerBasedRLEnv) -> tuple[torch.Tensor, torch.Tensor, tor
     return state if adapter is None else adapter(*state)
 
 
-def _active_cube_values(values: torch.Tensor, target_cube_ids: torch.Tensor) -> torch.Tensor:
-    """Gather one cube row for every vectorized environment."""
-    shape = (values.shape[0], 1, *values.shape[2:])
-    index = target_cube_ids.view(values.shape[0], 1, *([1] * (values.ndim - 2))).expand(shape)
-    return torch.gather(values, 1, index).squeeze(1)
-
-
 def target_cube_one_hot(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Encode which numbered cube the policy must transfer."""
-    command = _transfer_command(env, command_name)
+    command = env.command_manager.get_term(command_name)
     return torch.nn.functional.one_hot(command.target_cube_ids.long(), num_classes=CUBE_COUNT).float()
 
 
 def target_side_one_hot(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Encode the destination conveyor, opposite the reset source side."""
-    command = _transfer_command(env, command_name)
+    command = env.command_manager.get_term(command_name)
     return torch.nn.functional.one_hot(1 - command.source_side_ids.long(), num_classes=2).float()
 
 
@@ -102,9 +90,9 @@ def transfer_object_observation(env: ManagerBasedRLEnv) -> torch.Tensor:
 
 def active_transfer_features(env: ManagerBasedRLEnv, command_name: str = "transfer") -> torch.Tensor:
     """Return active-cube and destination-relative position features [m]."""
-    command = _transfer_command(env, command_name)
+    command = env.command_manager.get_term(command_name)
     positions, _, _ = _cube_state(env)
-    active_position = _active_cube_values(positions, command.target_cube_ids.long())
+    active_position = positions[torch.arange(env.num_envs, device=env.device), command.target_cube_ids.long()]
     local_active_position = active_position - env.scene.env_origins
     tool_position, _ = end_effector_pose(env)
     target_side_ids = 1 - command.source_side_ids.long()

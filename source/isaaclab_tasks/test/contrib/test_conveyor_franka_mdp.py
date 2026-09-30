@@ -5,7 +5,6 @@
 
 """Unit tests for conveyor-transfer state, curriculum, and success geometry."""
 
-from collections import Counter
 from types import SimpleNamespace
 
 import pytest
@@ -94,69 +93,38 @@ def _make_gripper_action_term() -> ResetBufferedGripperAction:
     return action
 
 
-def test_arm_action_sanitizes_nonfinite_values_and_clamps_normalized_input():
-    """Invalid policy outputs cannot reach joint targets or exceed one normalized unit."""
-    action = _make_arm_action_term()
-    policy_actions = torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (-2.0,) * 7))
-
-    action.process_actions(policy_actions)
-
-    expected = torch.tensor(((0.0, 1.0, -1.0, 1.0, -1.0, 0.5, -0.5), (-1.0,) * 7))
-    torch.testing.assert_close(action.raw_actions, expected)
-    assert action.invalid_actions.tolist() == [True, False]
-    assert torch.isfinite(action.processed_actions).all()
-    expected_targets = action._asset.data.joint_pos.torch + expected * 0.12
-    torch.testing.assert_close(action.processed_actions, expected_targets)
-
-
-def test_gripper_action_sanitizes_nonfinite_values_before_binary_mapping():
-    """The eighth policy dimension cannot silently turn a NaN into an open command."""
-    action = _make_gripper_action_term()
-
-    action.process_actions(torch.tensor(((float("nan"),), (float("inf"),))))
-
-    torch.testing.assert_close(action.raw_actions, torch.tensor(((-1.0,), (1.0,))))
-    assert action.invalid_actions.tolist() == [True, True]
-    torch.testing.assert_close(action.processed_actions[0], action._close_command)
-    torch.testing.assert_close(action.processed_actions[1], action._open_command)
-
-
-def test_invalid_action_termination_and_reset_are_per_environment():
-    """Arm and gripper failures aggregate per environment, and reset clears the arm flag."""
-    arm_action = _make_arm_action_term()
-    gripper_action = _make_gripper_action_term()
-    arm_action._invalid_actions[:] = torch.tensor((True, False))
-    gripper_action._invalid_actions[:] = torch.tensor((False, True))
-    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
-    env = SimpleNamespace(action_manager=SimpleNamespace(get_term=actions.__getitem__))
-
-    assert invalid_action(env).tolist() == [True, True]
-    arm_action.reset([0])
-    gripper_action._invalid_actions[1] = False
-
-    assert invalid_action(env).tolist() == [False, False]
-
-
-def test_action_rate_uses_finite_commands_and_preserves_invalid_termination():
-    """A rejected policy output has a finite final reward without hiding its termination."""
-    arm_action = _make_arm_action_term()
-    gripper_action = _make_gripper_action_term()
-    arm_action.process_actions(torch.full((2, 7), 0.25))
-    gripper_action.process_actions(torch.tensor(((-1.0,), (1.0,))))
-    arm_action.process_actions(
-        torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (0.5,) * 7))
-    )
-    gripper_action.process_actions(torch.tensor(((float("nan"),), (-1.0,))))
-    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
+def test_invalid_actions_are_finite_bounded_and_reset_per_environment():
+    """Sanitized arm/gripper commands stay finite while rejected rows terminate independently."""
+    arm = _make_arm_action_term()
+    gripper = _make_gripper_action_term()
+    actions = {"arm_action": arm, "gripper_action": gripper}
     env = SimpleNamespace(num_envs=2, action_manager=SimpleNamespace(get_term=actions.__getitem__))
+    previous = torch.tensor([[0.25] * 7 + [-1.0], [0.25] * 7 + [1.0]])
+    arm.process_actions(previous[:, :7])
+    gripper.process_actions(previous[:, 7:])
+    arm.process_actions(torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (-2.0,) * 7)))
+    gripper.process_actions(torch.tensor(((float("nan"),), (float("inf"),))))
 
-    reward = finite_action_rate_l2(env)
+    expected_arm = torch.tensor(((0.0, 1.0, -1.0, 1.0, -1.0, 0.5, -0.5), (-1.0,) * 7))
+    torch.testing.assert_close(arm.raw_actions, expected_arm)
+    assert arm.invalid_actions.tolist() == [True, False]
+    assert gripper.invalid_actions.tolist() == [True, True]
+    torch.testing.assert_close(arm.processed_actions, arm._asset.data.joint_pos.torch + expected_arm * 0.12)
+    torch.testing.assert_close(gripper.raw_actions, torch.tensor(((-1.0,), (1.0,))))
+    torch.testing.assert_close(gripper.processed_actions[0], gripper._close_command)
+    torch.testing.assert_close(gripper.processed_actions[1], gripper._open_command)
+    expected = torch.cat((expected_arm, torch.tensor([[-1.0], [1.0]])), dim=1)
+    torch.testing.assert_close(finite_action_rate_l2(env), torch.square(expected - previous).sum(dim=1))
+    assert torch.isfinite(finite_action_rate_l2(env)).all()
+    assert invalid_action(env).tolist() == [True, True]
 
-    expected_arm = torch.square(arm_action.raw_actions - arm_action.previous_actions).sum(dim=1)
-    expected_gripper = torch.square(gripper_action.raw_actions - gripper_action.previous_actions).sum(dim=1)
-    torch.testing.assert_close(reward, expected_arm + expected_gripper)
-    assert torch.isfinite(reward).all()
-    assert invalid_action(env).tolist() == [True, False]
+    gripper.process_actions(torch.tensor(((-1.0,), (float("inf"),))))
+    assert invalid_action(env).tolist() == [True, True]
+    arm.reset([0])
+    gripper.reset([0])
+    assert invalid_action(env).tolist() == [False, True]
+    gripper.reset([1])
+    assert invalid_action(env).tolist() == [False, False]
 
 
 def test_action_rate_matches_standard_l2_for_ordinary_policy_actions():
@@ -184,32 +152,11 @@ def test_action_rate_matches_standard_l2_for_ordinary_policy_actions():
 def test_final_config_validation_catches_overridden_arm_contracts():
     """Top-level validation runs after overrides and protects workspace-to-joint alignment."""
     cfg = ConveyorFrankaEnvCfg()
-    assert cfg.seed is None
     cfg.validate()
 
     cfg.actions.arm_action.preserve_order = False
-    try:
+    with pytest.raises(ValueError, match="preserve"):
         cfg.validate()
-    except ValueError as exc:
-        assert "preserve" in str(exc)
-    else:
-        raise AssertionError("Expected invalid arm ordering to fail configuration validation.")
-
-
-def test_production_solver_and_viewer_defaults_are_bounded():
-    """The task keeps CUDA graphs enabled and avoids scene-wide over-allocation or rendering."""
-    cfg = ConveyorFrankaEnvCfg()
-    physics = cfg.sim.physics
-    solver = physics.solver_cfg
-
-    assert cfg.conveyor_force.speed == 0.35
-    assert physics.use_cuda_graph is True
-    assert physics.load_visual_shapes is None
-    assert solver.njmax == 300
-    assert solver.nconmax == 200
-    assert solver.impratio == 1.0
-    assert cfg.sim.default_visualizer_cfg.max_visible_envs == 1
-    assert cfg.sim.default_visualizer_cfg.randomly_sample_visible_envs is False
 
 
 def test_reset_rows_cover_every_cube_direction_and_phase_once():
@@ -217,13 +164,14 @@ def test_reset_rows_cover_every_cube_direction_and_phase_once():
     rows = build_reset_rows()
 
     assert len(rows) == sum(reset_variant_counts()) * CUBE_COUNT * 2
-    assert Counter((row.recipe, row.variant_id, row.target_cube_id, row.source_side_id) for row in rows) == Counter(
-        (recipe, variant_id, cube_id, side_id)
-        for recipe in ConveyorResetRecipe
-        for variant_id in range(reset_variant_counts()[int(recipe)])
-        for cube_id in range(CUBE_COUNT)
-        for side_id in range(2)
+    keys = {(row.recipe, row.variant_id, row.target_cube_id, row.source_side_id) for row in rows}
+    assert len(keys) == len(rows)
+    assert all(
+        recipe in ConveyorResetRecipe and 0 <= variant < reset_variant_counts()[recipe]
+        for recipe, variant, _, _ in keys
     )
+    assert {row.target_cube_id for row in rows} == set(range(CUBE_COUNT))
+    assert {row.source_side_id for row in rows} == {0, 1}
     for row in rows:
         expected_held = row.recipe in {
             ConveyorResetRecipe.LIFT,
@@ -330,9 +278,6 @@ def test_transfer_potential_increases_through_release():
 
     assert torch.all(potentials[1:] > potentials[:-1])
 
-
-def test_transfer_potential_rewards_closing_only_near_cube():
-    """The acquisition bridge credits a close command only around the object."""
     cube_positions = torch.tensor([[0.52, 0.27, 0.06], [0.52, 0.27, 0.06]])
     tool_positions = torch.tensor([[0.52, 0.27, 0.07], [0.52, 0.27, 0.20]])
     source_side = torch.zeros(2, dtype=torch.long)

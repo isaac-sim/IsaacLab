@@ -28,7 +28,6 @@ from .conveyor_franka_env_cfg import (
     ConveyorFrankaEnvCfg,
     ConveyorFrankaSceneCfg,
     _hidden_collision_geometry,
-    _hidden_collision_mesh,
     _spawn_shape_with_display_color,
 )
 from .conveyor_geometry import (
@@ -357,7 +356,7 @@ class ConveyorFrankaA09A12SceneCfg(ConveyorFrankaSceneCfg):
             for boundary in ("inner", "outer"):
                 setattr(self, f"guard_{side.lower()}_{boundary}_collision", None)
             for guard in warehouse_guard_meshes(side):
-                asset = _hidden_collision_mesh(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard, 1.1e-5, 1)
+                asset = _hidden_collision_geometry(f"{{ENV_REGEX_NS}}/{guard.name}Collision", guard, 1.1e-5, 1)
                 asset.init_state.pos = (0.0, 0.0, _WORKSPACE_ELEVATION)
                 setattr(self, f"warehouse_{guard.name}_collision", asset)
 
