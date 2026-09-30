@@ -1,6 +1,8 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
 21.0.0 (2026-09-30)
 ~~~~~~~~~~~~~~~~~~~
 
