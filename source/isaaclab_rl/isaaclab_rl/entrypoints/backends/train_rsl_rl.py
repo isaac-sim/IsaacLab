@@ -11,6 +11,9 @@ import argparse
 import contextlib
 import os
 import time
+from datetime import datetime
+
+import torch.distributed as dist
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
@@ -36,14 +39,10 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
-    distributed_rank,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
-    rank_log_dir,
-    release_process_group,
     resolve_checkpoint_selector,
-    run_timestamp,
     scoped_torch_backend_flags,
     set_hydra_args,
     show_run_summary,
@@ -131,7 +130,7 @@ def _run(args_cli: argparse.Namespace) -> None:
             validate_distributed_device(args_cli)
             if args_cli.max_iterations is not None:
                 agent_cfg.max_iterations = args_cli.max_iterations
-            rank = distributed_rank(args_cli)
+            rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
                 agent_cfg.device = env_cfg.sim.device
                 agent_cfg.seed += rank
@@ -139,12 +138,13 @@ def _run(args_cli: argparse.Namespace) -> None:
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            run_name = run_timestamp()
+            run_name = args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
             print(f"Exact experiment name requested from command line: {run_name}")
             if agent_cfg.run_name:
                 run_name += f"_{agent_cfg.run_name}"
             log_dir = os.path.join(log_root_path, run_name)
-            rank_dir = rank_log_dir(log_dir, rank)
+            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="rsl_rl", task=args_cli.task, metadata={"agent": args_cli.agent})
@@ -193,4 +193,6 @@ def _run(args_cli: argparse.Namespace) -> None:
                     init_at_random_ep_len=agent_cfg.init_at_random_ep_len,
                 )
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                release_process_group()
+                # the RL library creates the process group but never destroys it, which torch warns about at exit
+                if dist.is_initialized():
+                    dist.destroy_process_group()

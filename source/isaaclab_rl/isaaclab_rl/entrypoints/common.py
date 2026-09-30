@@ -44,8 +44,6 @@ logger = logging.getLogger(__name__)
 
 RUN_MANIFEST_FILENAME = "run.json"
 RUN_MANIFEST_VERSION = 1
-# train_multigpu sets this once per launch so every rank names the same run folder
-RUN_TIMESTAMP_ENV = "ISAACLAB_RUN_TIMESTAMP"
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 # first line of a params/*_all_ranks.yaml file, listing the ranks merged into it
 _RANKS_HEADER = "# ranks: "
@@ -193,6 +191,12 @@ def add_common_train_args(
     if include_distributed:
         parser.add_argument(
             "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
+        )
+        parser.add_argument(
+            "--run_timestamp",
+            type=str,
+            default=None,
+            help="Timestamp naming the run folder; train_multigpu passes one so that every rank shares the folder.",
         )
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
@@ -645,34 +649,6 @@ def resolve_play_checkpoint(
     return path
 
 
-def run_timestamp() -> str:
-    """Return the timestamp that names a training run folder.
-
-    ``train_multigpu`` shares one timestamp with every rank through :data:`RUN_TIMESTAMP_ENV`, so all
-    ranks write into the same folder; any other run uses the current time.
-    """
-    return os.environ.get(RUN_TIMESTAMP_ENV) or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
-
-
-def distributed_rank(args_cli: argparse.Namespace, *, rank_env: str = "RANK") -> int | None:
-    """Return the global rank of a distributed training process, or None for a single-process run.
-
-    Args:
-        args_cli: Parsed training arguments.
-        rank_env: Environment variable holding the rank; skrl's JAX launcher exports ``JAX_RANK``.
-    """
-    return int(os.getenv(rank_env, "0")) if args_cli.distributed else None
-
-
-def rank_log_dir(log_dir: str, rank: int | None) -> str:
-    """Return the folder for one training process's own outputs, such as its settings and videos.
-
-    Ranks of a multi-GPU run share ``log_dir`` for the model and logs and write their own outputs to
-    ``rank_<rank>``; a single-process run writes them to ``log_dir``.
-    """
-    return log_dir if rank is None else os.path.join(log_dir, f"rank_{rank}")
-
-
 def write_run_manifest(
     log_dir: str,
     *,
@@ -864,16 +840,6 @@ def _merge_rank_values(merged: Any, own: Any, ranks: list[int], rank: int) -> An
     else:
         per_rank = {**dict.fromkeys(ranks, merged), rank: own}
     return {"type": _PER_RANK, **dict(sorted(per_rank.items()))}
-
-
-def release_process_group() -> None:
-    """Destroy the distributed process group the RL library initialized, if any.
-
-    The RL libraries never destroy it, which torch reports at exit. Call only after training has
-    completed, where every rank reaches the teardown; interrupted runs skip it.
-    """
-    if torch.distributed.is_initialized():
-        torch.distributed.destroy_process_group()
 
 
 class CaptureEnvSensors(gym.Wrapper):

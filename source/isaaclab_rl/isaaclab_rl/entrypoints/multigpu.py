@@ -18,7 +18,8 @@ import warp as wp
 wp.config.enable_backward = False
 
 import argparse  # noqa: E402
-import os  # noqa: E402
+import sys  # noqa: E402
+from datetime import datetime  # noqa: E402
 from pathlib import Path  # noqa: E402
 
 from torch.distributed.elastic.multiprocessing.errors import record  # noqa: E402
@@ -35,7 +36,6 @@ from isaaclab.cli.multigpu import (  # noqa: E402
 
 # Absolute imports: each rank runs this file as a script, where relative imports have no package.
 from isaaclab_rl.entrypoints.api import MULTI_GPU_BACKENDS  # noqa: E402
-from isaaclab_rl.entrypoints.common import RUN_TIMESTAMP_ENV, run_timestamp  # noqa: E402
 from isaaclab_rl.entrypoints.dispatch import run_train_cli  # noqa: E402
 
 __all__ = ["SKRL_JAX_ARGS", "SKRL_JAX_TORCHRUN_ONLY_ARGS", "TORCHRUN_ARGS", "WORKER_SCRIPT", "run_train_multigpu_cli"]
@@ -77,8 +77,10 @@ def run_train_multigpu_cli(argv: list[str] | None = None) -> int:
     Returns:
         Process exit code.
     """
-    # Ranks inherit one timestamp so they all write into the same run folder; an exported value is kept.
-    os.environ[RUN_TIMESTAMP_ENV] = run_timestamp()
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # every rank must name the same run folder, so forward one launch timestamp unless the user passed one
+    if not any(arg == "--run_timestamp" or arg.startswith("--run_timestamp=") for arg in argv):
+        argv.append(f"--run_timestamp={datetime.now().strftime('%Y-%m-%d_%H-%M-%S')}")
     return run_multigpu_cli(argv, LAUNCHER_CFG)
 
 

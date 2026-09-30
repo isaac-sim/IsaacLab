@@ -11,8 +11,10 @@ import argparse
 import contextlib
 import os
 import time
+from datetime import datetime
 
 import skrl
+import torch.distributed as dist
 
 from isaaclab.app import add_launcher_args, launch_simulation, report_activity
 from isaaclab.envs import DirectMARLEnvCfg
@@ -36,16 +38,12 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
-    distributed_rank,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
     preserve_attribute,
-    rank_log_dir,
-    release_process_group,
     resolve_checkpoint_selector,
     resolve_seed,
-    run_timestamp,
     set_hydra_args,
     show_run_summary,
     startup_screen,
@@ -108,7 +106,8 @@ def _run(args_cli: argparse.Namespace) -> None:
             args_cli.seed = resolve_seed(args_cli.seed)
             if args_cli.seed is not None:
                 agent_cfg["seed"] = args_cli.seed
-            rank = distributed_rank(args_cli, rank_env="JAX_RANK" if args_cli.ml_framework == "jax" else "RANK")
+            rank_env = "JAX_RANK" if args_cli.ml_framework == "jax" else "RANK"
+            rank = int(os.getenv(rank_env, "0")) if args_cli.distributed else None
             if rank is not None:
                 agent_cfg["seed"] += rank
             env_cfg.seed = agent_cfg["seed"]
@@ -116,14 +115,17 @@ def _run(args_cli: argparse.Namespace) -> None:
             experiment_cfg = agent_cfg["agent"]["experiment"]
             log_root_path = os.path.abspath(os.path.join("logs", "skrl", experiment_cfg["directory"]))
             print(f"[INFO] Logging experiment in directory: {log_root_path}")
-            run_name = run_timestamp() + f"_{algorithm}_{args_cli.ml_framework}"
+            run_name = (
+                args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            ) + f"_{algorithm}_{args_cli.ml_framework}"
             print(f"Exact experiment name requested from command line: {run_name}")
             if experiment_cfg["experiment_name"]:
                 run_name += f"_{experiment_cfg['experiment_name']}"
             experiment_cfg["directory"] = log_root_path
             experiment_cfg["experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            rank_dir = rank_log_dir(log_dir, rank)
+            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             manifest_metadata = {
                 "agent": agent_cfg_entry_point,
                 "algorithm": algorithm,
@@ -185,4 +187,6 @@ def _run(args_cli: argparse.Namespace) -> None:
                     os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
                     runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
                     print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
-                release_process_group()
+                # the RL library creates the process group but never destroys it, which torch warns about at exit
+                if dist.is_initialized():
+                    dist.destroy_process_group()

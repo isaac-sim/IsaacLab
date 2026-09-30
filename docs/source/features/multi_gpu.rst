@@ -56,8 +56,8 @@ its rank on its own GPU. ``params/env.yaml`` and ``params/agent.yaml`` hold the
 launch settings (rank 0). ``params/env_all_ranks.yaml`` and
 ``params/agent_all_ranks.yaml`` keep the same structure for all ranks: a field
 whose value differs between ranks, such as the seed or device, becomes a mapping
-with ``type: per_rank`` and one entry per rank index. Each rank's recorded
-videos go to ``rank_<rank>/``.
+with ``type: per_rank`` and one entry per rank index. Rank 0 records videos
+where a single-GPU run does; every other rank records to ``rank_<rank>/``.
 
 .. tip::
 
@@ -294,8 +294,8 @@ elastic ``torchrun`` rendezvous. Add ``--dry_run`` first to verify the command o
 each node.
 
 Each node names the run folder from its own launch time. When the nodes share
-storage, export the same ``ISAACLAB_RUN_TIMESTAMP`` value (format
-``YYYY-MM-DD_HH-MM-SS``) on every node so that all ranks write into one run folder.
+storage, pass the same ``--run_timestamp`` value (format ``YYYY-MM-DD_HH-MM-SS``)
+to ``train_multigpu`` on every node so that all ranks write into one run folder.
 
 For skrl with JAX, pass ``--nnodes``, ``--node_rank``, an integer
 ``--num_gpus``, and the same ``--coordinator_address`` on every node. Do not pass

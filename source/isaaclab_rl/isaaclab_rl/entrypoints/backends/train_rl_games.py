@@ -12,8 +12,10 @@ import contextlib
 import os
 import re
 import time
+from datetime import datetime
 from distutils.util import strtobool
 
+import torch.distributed as dist
 from rl_games.common.algo_observer import IsaacAlgoObserver
 from rl_games.torch_runner import Runner
 
@@ -34,15 +36,11 @@ from ..common import (
     apply_video_recording,
     close_env,
     create_isaaclab_env,
-    distributed_rank,
     dump_train_configs,
     enable_cameras_for_video,
     pre_launch_video_config,
-    rank_log_dir,
-    release_process_group,
     resolve_checkpoint_selector,
     resolve_seed,
-    run_timestamp,
     set_hydra_args,
     show_run_summary,
     startup_screen,
@@ -122,7 +120,7 @@ def run(argv: list[str]) -> None:
                 params["seed"] = args_cli.seed
             if args_cli.max_iterations is not None:
                 config["max_epochs"] = args_cli.max_iterations
-            rank = distributed_rank(args_cli)
+            rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
                 params["seed"] += rank
                 config["device"] = env_cfg.sim.device
@@ -144,11 +142,14 @@ def run(argv: list[str]) -> None:
                 params["load_path"] = resume_path
                 print(f"[INFO]: Loading model checkpoint from: {resume_path}")
 
-            run_name = config.get("full_experiment_name", run_timestamp())
+            run_name = config.get(
+                "full_experiment_name", args_cli.run_timestamp or datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+            )
             config["train_dir"] = log_root_path
             config["full_experiment_name"] = run_name
             log_dir = os.path.join(log_root_path, run_name)
-            rank_dir = rank_log_dir(log_dir, rank)
+            # rank 0 writes its videos and sensor captures where a single-GPU run does; other ranks use rank_<rank>/
+            rank_dir = log_dir if rank in (None, 0) else os.path.join(log_dir, f"rank_{rank}")
             # All ranks share the run folder, so its manifest is written once.
             if rank in (None, 0):
                 write_run_manifest(log_dir, library="rl_games", task=args_cli.task, metadata={"agent": args_cli.agent})
@@ -216,4 +217,6 @@ def run(argv: list[str]) -> None:
             with contextlib.suppress(KeyboardInterrupt):
                 runner.run(run_args)
                 print(f"Training time: {round(time.time() - start_time, 2)} seconds")
-                release_process_group()
+                # the RL library creates the process group but never destroys it, which torch warns about at exit
+                if dist.is_initialized():
+                    dist.destroy_process_group()
