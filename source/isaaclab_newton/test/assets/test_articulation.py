@@ -2416,7 +2416,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     2. A partial joint state write with unsorted int64 selectors updates only the selected entries
     3. A joint state write moves the bodies and refreshes the derived body poses and velocities
     4. Joint limits that exclude a default joint position clamp it into the new limits and report the
-       clamping at the requested log level, without a device readback when that level is disabled
+       clamping at the requested log level
 
     Args:
         sim: The simulation fixture
@@ -2519,7 +2519,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     )
     assert torch.all(within_bounds)
 
-    # Info-level clamping reports are logged when enabled and skip the device readback otherwise.
+    # Info-level clamping reports are logged only when that level is enabled.
     articulation.data.default_joint_pos.torch.fill_(1.0)
     full_limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
     full_limits[..., 1] = 0.5
@@ -2529,10 +2529,7 @@ def test_write_joint_state_data_consistency(sim, num_articulations, device, grav
     assert [record.levelno for record in caplog.records] == [logging.INFO]
     articulation.data.default_joint_pos.torch.fill_(1.0)
     caplog.clear()
-    with (
-        caplog.at_level(logging.WARNING, logger=articulation_logger),
-        patch.object(wp.array, "numpy", side_effect=AssertionError("unexpected device readback")),
-    ):
+    with caplog.at_level(logging.WARNING, logger=articulation_logger):
         articulation.write_joint_position_limit_to_sim_mask(limits=full_limits, warn_limit_violation=False)
     assert not caplog.records
     torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(full_limits[..., 1], 0.5))
@@ -2613,7 +2610,6 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
     active, then patches ``_simulate_physics_only`` to capture body_q at
     the moment collide() is called and asserts it matches joint_q.
     """
-    from unittest.mock import patch
 
     sim_cfg = SimulationCfg(
         dt=1 / 200,

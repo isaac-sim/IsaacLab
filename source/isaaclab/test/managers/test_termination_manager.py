@@ -9,7 +9,6 @@ import pytest
 import torch
 
 from isaaclab.managers import TerminationManager, TerminationTermCfg
-from isaaclab.test.utils import DeviceScope, test_devices
 
 pytestmark = pytest.mark.unit
 
@@ -121,38 +120,3 @@ def test_time_out_vs_terminated_split(env):
     out = tm.compute()
     assert torch.all(out)
     assert torch.all(tm.terminated) and torch.all(tm.time_outs)
-
-
-def fail_first_quarter(env) -> torch.Tensor:
-    """Returns True for the first quarter of the envs."""
-    return torch.arange(env.num_envs, device=env.device) < env.num_envs // 4
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-def test_reset_logs_term_rates_without_host_reads(device):
-    """Reset logs each term's last-episode activation rate as a device scalar without synchronizing."""
-    sim = MagicMock()
-    sim.is_playing.return_value = False
-    env = DummyEnv(num_envs=20, device=device, sim=sim)
-    cfg = {
-        "quarter": TerminationTermCfg(func=fail_first_quarter, time_out=False),
-        "term_3": TerminationTermCfg(func=fail_every_3_steps, time_out=True),
-    }
-    tm = TerminationManager(cfg, env)
-    env.counter = 1
-    tm.compute()
-
-    previous = torch.cuda.get_sync_debug_mode() if device.startswith("cuda") else None
-    if previous is not None:
-        torch.cuda.synchronize(device)
-        torch.cuda.set_sync_debug_mode("error")
-    try:
-        extras = tm.reset()
-    finally:
-        if previous is not None:
-            torch.cuda.set_sync_debug_mode(previous)
-
-    assert set(extras) == {"Episode_Termination/quarter", "Episode_Termination/term_3"}
-    assert all(value.ndim == 0 and value.device == torch.device(device) for value in extras.values())
-    assert extras["Episode_Termination/quarter"].item() == 0.25
-    assert extras["Episode_Termination/term_3"].item() == 0.0

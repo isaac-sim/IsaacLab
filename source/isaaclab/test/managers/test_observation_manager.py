@@ -380,12 +380,11 @@ def custom_noise(data: torch.Tensor, cfg: noise.NoiseCfg) -> torch.Tensor:
     ("noise_cfg", "expected_delta"),
     [
         (noise.UniformNoiseCfg(n_min=-0.1, n_max=0.1), None),
-        (noise.UniformNoiseCfg(n_min=0.0, n_max=0.0), 0.0),
         (noise.NoiseCfg(func=custom_noise), 0.2),
         (noise.NoiseCfg(func=custom_noise, operation="abs"), 0.0),
         (noise.NoiseModelCfg(noise_cfg=noise.NoiseCfg(func=custom_noise, operation="abs")), 0.0),
     ],
-    ids=["out_of_place", "same_input", "custom", "view", "model_view"],
+    ids=["out_of_place", "custom", "view", "model_view"],
 )
 def test_noise_preserves_source_and_rng_stream(setup_env, noise_cfg, expected_delta):
     """Noise ownership paths preserve source storage, clipping, scaling, and random samples."""

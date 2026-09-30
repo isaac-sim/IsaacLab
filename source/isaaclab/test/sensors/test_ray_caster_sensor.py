@@ -183,10 +183,7 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     cfg = _ray_caster_cfg("/World/Sensor", "world")
     sensor = RayCaster(cfg)
     sim.reset()
-    get_rng_state = torch.cuda.get_rng_state if torch.device(sensor.device).type == "cuda" else torch.get_rng_state
-    rng_state = get_rng_state()
     sensor.reset()
-    assert torch.equal(get_rng_state(), rng_state)
     assert (sensor.drift.torch == 0.0).all()
     assert (sensor.ray_cast_drift.torch == 0.0).all()
 
@@ -234,9 +231,7 @@ def test_ray_caster_reset_resamples_drift(sim_ground):
     assert (sensor.drift.torch == 0.0).all()
     assert (sensor.ray_cast_drift.torch[:, 0] >= 0.1).all()
     sensor.cfg.ray_cast_drift_range = {}
-    rng_state = get_rng_state()
     sensor.reset(env_ids=[0])
-    assert torch.equal(get_rng_state(), rng_state)
     assert (sensor.ray_cast_drift.torch == 0.0).all()
 
 

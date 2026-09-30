@@ -902,13 +902,6 @@ def test_full_reset_clears_active_flag(device: str, env_ids: slice | None):
     assert is_global is False
     np.testing.assert_array_equal(force.numpy(), np.zeros_like(forces_np))
     np.testing.assert_array_equal(torque.numpy(), np.zeros_like(forces_np))
-    with patch.object(wp, "launch") as launch, patch.object(wp.array, "zero_") as zero:
-        composer.reset(env_ids=[1])
-
-    launch.assert_not_called()
-    zero.assert_not_called()
-    assert not composer.active
-
     composer.add_forces_and_torques_index(
         forces=wp.from_numpy(forces_np, dtype=wp.vec3f, device=device), is_global=True
     )

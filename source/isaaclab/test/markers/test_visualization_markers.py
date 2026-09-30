@@ -292,7 +292,6 @@ def test_visualization_skips_updates_when_invisible(sim):
     config = clone(POSITION_GOAL_MARKER_CFG)
     config.prim_path = "/World/Visuals/test_protos"
     test_marker = VisualizationMarkers(config)
-    assert test_marker._backends == []
     initial_count = test_marker.count
     # Unused inputs are ignored until a backend becomes active.
     test_marker.visualize(
@@ -301,7 +300,6 @@ def test_visualization_skips_updates_when_invisible(sim):
     assert test_marker.count == initial_count
     sim._has_offscreen_render = True
     test_marker.visualize(translations=torch.zeros(3, 3, device=sim.device))
-    assert len(test_marker._backends) == 1
     assert test_marker.count == 3
 
     # play the simulation

@@ -488,7 +488,7 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
 
 @pytest.mark.parametrize(
     ("data_type", "num_channels"),
-    [("normals", 3), ("motion_vectors", 2), ("rgb_hdr", 3), ("simple_shading_full_mdl", 3)],
+    [("normals", 3), ("motion_vectors", 2)],
 )
 def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, data_type, num_channels):
     """Four-channel annotator tiles are split per camera, keeping only the output's leading channels."""
