@@ -10,6 +10,7 @@ Imports the shared contract tests and provides the Newton-specific
 the world-attached prim edge case.
 """
 
+import logging
 import sys
 from pathlib import Path
 
@@ -200,6 +201,54 @@ def test_close_before_reset_cancels_deferred_initialization(device):
     with pytest.raises(ValueError, match="collision shape"):
         FrameView(shape_labels[0], device=device)
     ctx.__exit__(None, None, None)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+@pytest.mark.parametrize(
+    "parent, envs, created",
+    [
+        ("Prop", "env_[^/]+", "before_reset"),
+        ("Prop", "env_1", "before_replication"),
+        ("Cube", "env_1", "before_reset"),
+        ("Cube", "env_[^/]+", "before_replication"),
+    ],
+)
+def test_frame_created_before_model_covers_selected_envs(device, parent, envs, created, caplog):
+    """A view created before the Newton model exists has one frame per selected env, at that env's pose.
+
+    ``Prop`` is a non-physics Xform (static frame), ``Cube`` a rigid body (body-local frame). Every frame is
+    paired with its env's prim, so pose writes reach the renderer.
+    """
+    num_envs, prop_pos = 3, (0.3, 0.2, 0.0)
+    with _sim_context(device, num_envs=num_envs) as sim:
+        sim._app_control_on_stop_handle = None
+        sim_utils.create_prim("/World/envs/env_0", "Xform")
+        cube_cfg = _SceneCfg(num_envs=num_envs, env_spacing=2.0).cube.spawn
+        cube_cfg.func("/World/envs/env_0/Cube", cube_cfg, translation=(0.0, 0.0, 1.0))
+        sim_utils.create_prim("/World/envs/env_0/Prop", "Xform", translation=prop_pos)
+        sim_utils.create_prim(f"/World/envs/env_0/{parent}/Mount", translation=CHILD_OFFSET)
+        assets = [AssetBaseCfg(prim_path=f"/World/envs/env_.*/{name}") for name in ("Cube", "Prop")]
+        assets.append(AssetBaseCfg(prim_path="/World/defaultGroundPlane"))
+        plan = cloner.clone_plan_from_env_0(cloner.CloneCfg(), assets, num_envs, 2.0)
+        path = f"/World/envs/{envs}/{parent}/Mount"
+
+        if created == "before_replication":
+            view = FrameView(path, device=device)
+        cloner.replicate(plan)
+        if created == "before_reset":
+            view = FrameView(path, device=device)
+        with caplog.at_level(logging.WARNING):
+            sim.reset()
+
+        env_ids = list(range(num_envs)) if envs == "env_[^/]+" else [1]
+        if parent == "Cube":
+            parent_pos = _get_body_positions(num_envs, device)[env_ids]
+        else:
+            parent_pos = torch.as_tensor(plan.positions, device=device)[env_ids] + torch.tensor(prop_pos, device=device)
+        assert view.count == len(env_ids)
+        expected = parent_pos + torch.tensor(CHILD_OFFSET, device=device)
+        torch.testing.assert_close(view.get_world_poses()[0].torch, expected, atol=1e-5, rtol=0)
+        assert "could not pair its sites" not in caplog.text
 
 
 # ==================================================================
