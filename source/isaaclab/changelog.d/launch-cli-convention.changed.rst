@@ -28,3 +28,6 @@
   ``HEADLESS=1`` or livestreaming; a Kit visualizer only a video records from runs headless.
 * ``/isaaclab/visualizer/types`` holds the launch's visualizers on every launch: a comma-separated list of the
   selected types and the types video recorders add, empty when there are none.
+* The ``h1-locomotion`` demo and the ``visual-color-randomization`` and ``multi-mesh-ray-caster`` examples default
+  to the Kit visualizer with ``--physics isaacsim_physx``, as the Newton GL visualizer cannot build its model from
+  their PhysX scenes, and keep ``newton_gl`` on Newton physics.

@@ -22,3 +22,6 @@
   ``--capture_env_sensors``; the launch enables the rendering a video source needs.
 * The ``video`` field of the :mod:`isaaclab_rl.entrypoints.api` requests takes a ``--video`` source string as
   well as a bool.
+* ``get_pretrained_checkpoint_backend_names`` ignores the renderers of visualizer configs, so a published
+  checkpoint lookup with a visualizer selected, e.g. ``--visualizer newton_gl`` or ``--visualizer kit``, no longer
+  asks for a ``newton`` or ``rtx`` render-backend checkpoint.
