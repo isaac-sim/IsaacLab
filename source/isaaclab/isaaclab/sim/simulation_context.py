@@ -879,7 +879,6 @@ def build_simulation_context(
     add_ground_plane: bool = False,
     add_lighting: bool = False,
     auto_add_lighting: bool = False,
-    visualizers: list[str] | None = None,
 ) -> Iterator[SimulationContext]:
     """Context manager to build a simulation context with the provided settings.
 
@@ -896,11 +895,6 @@ def build_simulation_context(
         add_ground_plane: Whether to add a ground plane. Defaults to False.
         add_lighting: Whether to add a dome light. Defaults to False.
         auto_add_lighting: Whether to auto-add lighting if GUI present. Defaults to False.
-        visualizers: List of visualizer backend keys to enable (e.g. ``["kit", "newton_gl", "rerun"]``).
-            Valid types: ``"kit"``, ``"newton_gl"``, ``"newton_rtx"``, ``"rerun"``, ``"viser"``.
-            ``"newton"`` is a deprecated alias for ``"newton_gl"``.
-            When provided, :attr:`SimulationCfg.visualizer_cfgs` keeps exactly these types, as with
-            ``--visualizer`` in :func:`~isaaclab.app.launch_simulation`. Defaults to None.
 
     Yields:
         The simulation context to use for the simulation.
@@ -925,18 +919,13 @@ def build_simulation_context(
             # untouched sim_cfg.
             sim_cfg.device = device
 
-        if visualizers:
-            sim_cfg.visualizer_cfgs = resolve_visualizer_cfgs(
-                sim_cfg.visualizer_cfgs, parse_visualizer_csv(visualizers)
-            )
-
         sim = SimulationContext(sim_cfg)
 
         if add_ground_plane:
             cfg = GroundPlaneCfg()
             cfg.func("/World/defaultGroundPlane", cfg)
 
-        if add_lighting or (auto_add_lighting and (sim.has_gui or visualizers)):
+        if add_lighting or (auto_add_lighting and sim.has_gui):
             cfg = DomeLightCfg(
                 color=(0.1, 0.1, 0.1), enable_color_temperature=True, color_temperature=5500, intensity=10000
             )

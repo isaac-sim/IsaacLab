@@ -18,7 +18,6 @@ Changed
 * :class:`~isaaclab.sim.SimulationContext` creates the visualizers of
   :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` as given, and
   :meth:`~isaaclab.sim.SimulationContext.has_active_visualizers` counts configured non-headless visualizers.
-  :func:`~isaaclab.sim.build_simulation_context` applies ``visualizers`` to the config the same way.
 * :class:`~isaaclab.sim.SimulationContext` normalizes :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` to a
   list, so a single config becomes a one-element list and None becomes ``[]``.
 
@@ -38,5 +37,8 @@ Removed
   config holds no :class:`~isaaclab.sim.SimulationCfg` (``types`` is then a comma-separated selection, ``none``
   for ``--visualizer none``). Read :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` or
   :meth:`~isaaclab.sim.SimulationContext.resolve_visualizer_types` instead.
+* **Breaking:** Removed the ``visualizers`` argument of :func:`~isaaclab.sim.build_simulation_context`, which only
+  set a setting and never created the visualizers. Set :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` on
+  the ``sim_cfg`` you pass instead.
 * **Breaking:** Removed the ``has_kit_streaming_view`` key of the ``visualizer_intent`` launcher argument of
   :func:`~isaaclab.app.launch_simulation`; only ``has_kit_visualizer`` is read.
