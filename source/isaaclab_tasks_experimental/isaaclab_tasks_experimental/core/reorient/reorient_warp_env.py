@@ -359,16 +359,15 @@ def compute_full_observations(
     observations[env_id, offset + 3] = obj_rot[3]
     offset += 4
 
-    # spatial_vectorf layout: [0:3]=angular, [3:6]=linear
-    # torch reference order: linear (unscaled) first, then angular (scaled)
-    observations[env_id, offset + 0] = object_vels[env_id][3]
-    observations[env_id, offset + 1] = object_vels[env_id][4]
-    observations[env_id, offset + 2] = object_vels[env_id][5]
+    # root velocities are laid out [lin_vel, ang_vel]; only the angular part is scaled
+    observations[env_id, offset + 0] = object_vels[env_id][0]
+    observations[env_id, offset + 1] = object_vels[env_id][1]
+    observations[env_id, offset + 2] = object_vels[env_id][2]
     offset += 3
 
-    observations[env_id, offset + 0] = vel_obs_scale * object_vels[env_id][0]
-    observations[env_id, offset + 1] = vel_obs_scale * object_vels[env_id][1]
-    observations[env_id, offset + 2] = vel_obs_scale * object_vels[env_id][2]
+    observations[env_id, offset + 0] = vel_obs_scale * object_vels[env_id][3]
+    observations[env_id, offset + 1] = vel_obs_scale * object_vels[env_id][4]
+    observations[env_id, offset + 2] = vel_obs_scale * object_vels[env_id][5]
     offset += 3
 
     # goal
@@ -535,12 +534,10 @@ def randomize_rotation(rand0: wp.float32, rand1: wp.float32, x_axis: wp.vec3f, y
 
 @wp.func
 def rotation_distance(object_rot: wp.quatf, target_rot: wp.quatf) -> wp.float32:
-    # Orientation alignment for the cube in hand and goal cube
+    """Angle [rad] between two ``(x, y, z, w)`` orientations, as :func:`~isaaclab.utils.math.quat_error_magnitude`."""
     quat_diff = object_rot * wp.quat_inverse(target_rot)
-    # Match Torch env convention: uses indices [1:4] for the vector part (see `rotation_distance` in Torch env).
-    v_norm = wp.sqrt(quat_diff[1] * quat_diff[1] + quat_diff[2] * quat_diff[2] + quat_diff[3] * quat_diff[3])
-    v_norm = wp.min(v_norm, wp.float32(1.0))
-    return wp.float32(2.0) * wp.asin(v_norm)
+    v_norm = wp.length(wp.vec3f(quat_diff[0], quat_diff[1], quat_diff[2]))
+    return wp.float32(2.0) * wp.asin(wp.min(v_norm, wp.float32(1.0)))
 
 
 class ReorientDirectWarpEnv(DirectRLEnvWarp):
