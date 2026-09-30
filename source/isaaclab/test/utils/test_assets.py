@@ -156,17 +156,16 @@ def test_asset_root_ignores_empty_environment_override(monkeypatch):
     assert assets_utils._resolve_asset_root() == "https://example.com/kit-assets"
 
 
-def test_kit_experience_asset_roots_use_production():
-    """Test every shipped experience uses the canonical production asset root."""
+def test_kit_experience_asset_roots_use_staging_6_2():
+    """Test every shipped experience uses the Isaac Sim 6.2 staging asset root."""
     kit_directory = Path(assets_utils._KIT_EXPERIENCE_PATH).parent
-    production_root = assets_utils._parse_kit_asset_root()
+    staging_root = assets_utils._parse_kit_asset_root()
 
-    assert "omniverse-content-production" in production_root
+    assert staging_root == "https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/6.2"
     for kit_path in kit_directory.glob("*.kit"):
         kit_config = kit_path.read_text(encoding="utf-8")
-        assert "omniverse-content-staging" not in kit_config
         for setting in ("default", "cloud", "nvidia"):
-            assert f'persistent.isaac.asset_root.{setting} = "{production_root}"' in kit_config
+            assert f'persistent.isaac.asset_root.{setting} = "{staging_root}"' in kit_config
 
 
 def test_kit_asset_root_prefers_default_setting(tmp_path, monkeypatch):
