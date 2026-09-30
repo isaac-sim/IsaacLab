@@ -273,9 +273,9 @@ def _author_xform_rooted_articulation(usd_path: str) -> None:
 
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_frame_below_non_body_articulation_root_is_static(device, tmp_path):
-    """A frame below an ``ArticulationRootAPI`` Xform but outside every rigid body stays in place.
+    """The ``ArticulationRootAPI`` Xform and frames below it but outside every rigid body stay in place.
 
-    The root Xform is not simulated, so, as on PhysX, the frame must not follow the robot, while a
+    The root Xform is not simulated, so, as on PhysX, these frames must not follow the robot, while a
     frame on the root link must.
     """
     num_envs = 2
@@ -298,14 +298,17 @@ def test_frame_below_non_body_articulation_root_is_static(device, tmp_path):
     scene = InteractiveScene(_RobotSceneCfg(num_envs=num_envs, env_spacing=2.0))
     sim.reset()
     # Created after reset, as a camera sensor creates its view once the Newton model exists.
+    root_view = FrameView("/World/envs/env_[^/]+/Robot", device=device)
     static_view = FrameView("/World/envs/env_[^/]+/Robot/Mount", device=device)
     body_view = FrameView("/World/envs/env_[^/]+/Robot/base/Mount", device=device)
     for _ in range(20):
         sim.step()
 
-    assert static_view.count == num_envs and body_view.count == num_envs
+    assert root_view.count == num_envs and static_view.count == num_envs and body_view.count == num_envs
     offset = torch.tensor(CHILD_OFFSET, device=device)
     env_origins = scene.env_origins.to(device)
+    expected_root = env_origins + torch.tensor(robot_pos, device=device)
+    torch.testing.assert_close(root_view.get_world_poses()[0].torch, expected_root, atol=1e-5, rtol=0)
     expected_static = env_origins + torch.tensor(robot_pos, device=device) + offset
     torch.testing.assert_close(static_view.get_world_poses()[0].torch, expected_static, atol=1e-5, rtol=0)
 

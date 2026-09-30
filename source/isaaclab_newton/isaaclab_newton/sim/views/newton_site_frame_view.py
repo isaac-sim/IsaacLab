@@ -380,7 +380,7 @@ class NewtonSiteFrameView(BaseFrameView):
                 f"FrameView prim '{prim_path}' is a Newton collision shape. "
                 "FrameView should only be used for non-physics frames."
             )
-        if prim.HasAPI(UsdPhysics.RigidBodyAPI) or prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
             raise ValueError(
                 f"FrameView prim '{prim_path}' is a Newton physics body. "
                 "FrameView should only be used for non-physics frames."
