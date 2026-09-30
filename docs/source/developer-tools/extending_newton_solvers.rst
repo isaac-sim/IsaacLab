@@ -121,6 +121,10 @@ physics step otherwise. Every physics step runs ``collide -> Newton actuators ->
 every substep runs ``SUBSTEP stages -> binding.step() -> clear forces``; ``POST_STEP`` stages and sensors run once at
 the end.
 
+The runtime is plain data. The functions in :mod:`isaaclab_newton.physics.runtime` take it explicitly
+(``runtime.step(rt, steps, capture)``, ``runtime.add_stage(rt, stage)``), and the manager only supplies the active
+simulation's runtime, so runtimes bound to different Newton backends can be driven side by side.
+
 The program binds every buffer when it is compiled. Double-buffered solvers alternate input and output states at
 compile time, and each physics step ends in ``state_0``, so ``NewtonManager.get_state_0()`` is always the same object.
 Consecutive graph-safe operations are captured together; operations that are not graph-safe, such as TorchScript

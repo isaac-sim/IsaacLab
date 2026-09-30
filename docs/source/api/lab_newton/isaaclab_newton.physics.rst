@@ -9,6 +9,7 @@
 
     NewtonManager
     NewtonSolverBinding
+    NewtonRuntime
     NewtonSchema
     NewtonCloneRecord
     StepPhase
@@ -55,6 +56,11 @@ Physics Manager
 .. autoclass:: NewtonSolverBinding
   :members:
   :show-inheritance:
+
+.. autoclass:: NewtonRuntime
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
 
 .. autoclass:: NewtonSchema
   :members:

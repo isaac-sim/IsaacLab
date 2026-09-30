@@ -10,3 +10,7 @@
   :meth:`~isaaclab_newton.physics.NewtonManager.get_newton_backend`, ``get_solver``, ``get_actuator_adapter``,
   ``get_site_index_map``, ``get_world_xforms``, ``get_clone_source_builders``, ``build_requests``, and
   ``mark_particles_dirty``.
+* Added a functional runtime API in :mod:`isaaclab_newton.physics.runtime`: :class:`~isaaclab_newton.physics.NewtonRuntime`
+  is plain data bound to one Newton backend, and free functions such as ``create_runtime``, ``bind_solver``,
+  ``invalidate_fk``, ``reconcile``, ``add_stage``, ``compile_program``, and ``step`` take it explicitly. Several
+  runtimes on different backends can coexist; :class:`~isaaclab_newton.physics.NewtonManager` drives the active one.

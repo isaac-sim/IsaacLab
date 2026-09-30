@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 import warp as wp
 from isaaclab_newton.physics import NewtonCfg, XPBDSolverCfg
+from isaaclab_newton.physics import runtime as newton_runtime
 from isaaclab_newton.physics.runtime import NewtonRuntime
 from newton import CollisionPipeline, Mesh, Model, ModelBuilder
 from newton.solvers import SolverXPBD
@@ -32,9 +33,12 @@ from isaaclab_contrib.coupling import (
 def _bind_coupler(model: Model, solver_cfg: CouplerProxyCfg | CouplerAdmmCfg) -> NewtonRuntime:
     """Bind the coupler to a runtime on ``model``, constructing its solver and contacts."""
     backend = SimpleNamespace(model=model, state_1=model.state())
-    runtime = NewtonRuntime(backend, SimpleNamespace(device="cpu"))
-    runtime.bind_solver(
-        NewtonCouplerManager.solver_binding, NewtonCfg(solver_cfg=solver_cfg), wp.DeterministicMode.NOT_GUARANTEED
+    runtime = newton_runtime.create_runtime(backend, SimpleNamespace(device="cpu"))
+    newton_runtime.bind_solver(
+        runtime,
+        NewtonCouplerManager.solver_binding,
+        NewtonCfg(solver_cfg=solver_cfg),
+        wp.DeterministicMode.NOT_GUARANTEED,
     )
     return runtime
 

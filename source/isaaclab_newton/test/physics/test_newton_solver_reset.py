@@ -18,6 +18,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics import runtime as newton_runtime
 from isaaclab_newton.physics.step_program import StepProgram
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
@@ -129,8 +130,8 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
 
         # Compile an empty step program so only the step boundary's reconcile touches the solver.
         runtime = SimulationManager._runtime
-        runtime.invalidate_program()
-        with patch.object(runtime, "compile", lambda steps: StepProgram((), steps)):
+        runtime.program = None
+        with patch.object(newton_runtime, "compile_program", lambda runtime, steps: StepProgram((), steps)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

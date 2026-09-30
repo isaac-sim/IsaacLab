@@ -11,7 +11,7 @@ from unittest.mock import MagicMock
 import pytest
 import warp as wp
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
-from isaaclab_newton.physics.runtime import NewtonRuntime
+from isaaclab_newton.physics import runtime as newton_runtime
 from newton import ModelBuilder
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
@@ -119,13 +119,14 @@ def test_build_solver_rejects_invalid_configuration(solver_cfg: CoupledMJWarpVBD
 def test_build_solver_rejects_contact_sensors(monkeypatch: pytest.MonkeyPatch) -> None:
     solver_cfg = CoupledMJWarpVBDSolverCfg()
     _stub_subsolvers(monkeypatch, solver_cfg)
-    runtime = NewtonRuntime(
+    runtime = newton_runtime.create_runtime(
         SimpleNamespace(model=SimpleNamespace(world_count=1, articulation_count=0)), SimpleNamespace(device="cpu")
     )
     runtime.sensors.contact[("body", None, None, None)] = object()
 
     with pytest.raises(NotImplementedError, match="contact sensors are not yet supported"):
-        runtime.bind_solver(
+        newton_runtime.bind_solver(
+            runtime,
             NewtonCoupledMJWarpVBDManager.solver_binding,
             NewtonCfg(solver_cfg=solver_cfg),
             wp.DeterministicMode.NOT_GUARANTEED,

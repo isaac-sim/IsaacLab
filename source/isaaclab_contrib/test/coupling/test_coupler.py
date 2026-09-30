@@ -30,9 +30,9 @@ from isaaclab_newton.physics import (
     VBDSolverCfg,
     XPBDSolverCfg,
 )
+from isaaclab_newton.physics import runtime as newton_runtime
 from isaaclab_newton.physics.mpm_manager import MPMSolverBinding
 from isaaclab_newton.physics.newton_manager import NewtonManager
-from isaaclab_newton.physics.runtime import NewtonRuntime
 from isaaclab_newton.physics.solver_binding import NewtonSolverBinding
 from newton import ModelBuilder, ShapeFlags
 from newton.solvers.experimental.coupled import SolverCoupledADMM, SolverCoupledProxy
@@ -766,14 +766,17 @@ def test_admm_always_requests_outer_collision_pipeline(monkeypatch):
 def test_contact_sensor_guard_rejects_coupler_before_allocating_contacts(monkeypatch):
     """Binding a coupler with a registered contact sensor fails before the step can use its contacts."""
     model = SimpleNamespace(world_count=1, articulation_count=0)
-    runtime = NewtonRuntime(SimpleNamespace(model=model), SimpleNamespace(device="cpu"))
+    runtime = newton_runtime.create_runtime(SimpleNamespace(model=model), SimpleNamespace(device="cpu"))
     runtime.sensors.contact[("body", None, None, None)] = object()
     monkeypatch.setattr(CouplerSolverBinding, "construct", lambda self: object())
     solver_cfg = CouplerProxyCfg(entries=[CouplerEntryCfg(name="rigid", solver_cfg=XPBDSolverCfg())])
 
     with pytest.raises(NotImplementedError, match="contact sensors"):
-        runtime.bind_solver(
-            NewtonCouplerManager.solver_binding, NewtonCfg(solver_cfg=solver_cfg), wp.DeterministicMode.NOT_GUARANTEED
+        newton_runtime.bind_solver(
+            runtime,
+            NewtonCouplerManager.solver_binding,
+            NewtonCfg(solver_cfg=solver_cfg),
+            wp.DeterministicMode.NOT_GUARANTEED,
         )
 
     assert runtime.contacts is None

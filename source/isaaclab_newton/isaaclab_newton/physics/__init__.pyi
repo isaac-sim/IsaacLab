@@ -33,6 +33,7 @@ __all__ = [
     "NewtonMJWarpManager",
     "NewtonMPMManager",
     "NewtonQueries",
+    "NewtonRuntime",
     "NewtonSchema",
     "NewtonShapeCfg",
     "NewtonSoftContactCfg",
@@ -68,7 +69,7 @@ from .mpm_manager import MPMSolverBinding, NewtonMPMManager
 from .mpm_manager_cfg import MPMSolverCfg
 from .newton_collision_cfg import HydroelasticSDFCfg, NewtonCollisionPipelineCfg
 from .newton_manager import NewtonManager, NewtonQueries, create_newton_builder
-from .runtime import NewtonCloneRecord, NewtonSchema
+from .runtime import NewtonCloneRecord, NewtonRuntime, NewtonSchema
 from .solver_binding import NewtonSolverBinding
 from .step_program import StepPhase, StepStage
 from .newton_manager_cfg import (

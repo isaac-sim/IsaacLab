@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+from functools import partial
 from types import SimpleNamespace
 
 import isaaclab_newton.physics.newton_manager as newton_manager_module
@@ -50,6 +51,7 @@ from isaaclab_newton.physics import (
     NewtonMJWarpManager,
     NewtonMPMManager,
     NewtonQueries,
+    NewtonSchema,
     NewtonShapeCfg,
     NewtonSolverBinding,
     NewtonVBDManager,
@@ -57,6 +59,7 @@ from isaaclab_newton.physics import (
     StepPhase,
     StepStage,
     VBDSolverCfg,
+    XPBDSolverBinding,
     XPBDSolverCfg,
 )
 from isaaclab_newton.physics.mpm_manager import (
@@ -82,7 +85,7 @@ from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.physics import PhysicsEvent, PhysicsManager
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
 from isaaclab.sim import SimulationCfg, SimulationContext, build_simulation_context
-from isaaclab.test.utils import test_devices
+from isaaclab.test.utils import DeviceScope, test_devices
 
 # ---------------------------------------------------------------------------
 # Lightweight (no sim) parametrisation
@@ -261,18 +264,17 @@ def test_deterministic_collision_pipeline_matches_expanded_contact_capacity(
             return SimpleNamespace(rigid_contact_max=self._rigid_contact_max)
 
     monkeypatch.setattr(runtime_module, "CollisionPipeline", FakeCollisionPipeline)
-    runtime = object.__new__(NewtonRuntime)
-    runtime.backend = SimpleNamespace(model=SimpleNamespace())
-    runtime.schema = SimpleNamespace(device="cpu")
-    runtime.collision_pipeline = runtime.contacts = runtime.program = None
-    runtime.solver = SimpleNamespace(
+    solver = SimpleNamespace(
         needs_collision_pipeline=True,
         deterministic_mode=wp.DeterministicMode.GPU_TO_GPU,
         minimum_contact_capacity=lambda: 2,
         prepare_contacts=lambda contacts, pipeline: None,
     )
+    runtime = NewtonRuntime(
+        SimpleNamespace(model=SimpleNamespace()), SimpleNamespace(device="cpu"), None, None, solver=solver
+    )
 
-    runtime.allocate_contacts(None)
+    runtime_module.allocate_contacts(runtime)
 
     assert pipeline_calls == [
         {"broad_phase": "explicit", "deterministic": True},
@@ -1000,13 +1002,8 @@ def test_fixed_root_pose_write_updates_solver(monkeypatch, asset_class, writer, 
 
 def _runtime_with_masks(world_mask: wp.array, fk_mask: wp.array, solver) -> NewtonRuntime:
     """Build a runtime holding authored-state masks and a solver binding, without a model."""
-    runtime = object.__new__(NewtonRuntime)
-    runtime.backend = SimpleNamespace(state_0=object())
-    runtime.world_mask, runtime.fk_mask = world_mask, fk_mask
-    runtime.kinematics_dirty = True
-    runtime.transforms_may_change_on_graph_replay = False
-    runtime.solver = solver
-    return runtime
+    backend = SimpleNamespace(state_0=object())
+    return NewtonRuntime(backend, None, world_mask, fk_mask, kinematics_dirty=True, solver=solver)
 
 
 def test_forward_consumes_existing_reset_masks(monkeypatch):
@@ -1384,21 +1381,18 @@ class _State:
 
 def _recording_runtime(events, *, single_state, num_substeps, stages=()):
     """Build a runtime whose solver and states record every operation of a compiled program."""
-    runtime = object.__new__(NewtonRuntime)
     state_0, state_1 = _State("state_0", events), _State("state_1", events)
-    runtime.backend = SimpleNamespace(state_0=state_0, state_1=state_1, control=object())
-    runtime.schema = SimpleNamespace(physics_dt=0.002, num_substeps=num_substeps, solver_dt=0.002 / num_substeps)
-    runtime.schema.collision_decimation = 0
-    runtime.solver = SimpleNamespace(
+    backend = SimpleNamespace(state_0=state_0, state_1=state_1, control=object())
+    schema = SimpleNamespace(
+        physics_dt=0.002, num_substeps=num_substeps, solver_dt=0.002 / num_substeps, collision_decimation=0
+    )
+    solver = SimpleNamespace(
         single_state=single_state,
         needs_collision_pipeline=False,
         prepares_step=False,
         step=lambda state_in, state_out, *_args: events.append(("step", state_in.name, state_out.name)),
     )
-    runtime.collision_pipeline = runtime.contacts = runtime.actuators = None
-    runtime.stages = list(stages)
-    runtime.sensors = runtime_module.NewtonSensors()
-    return runtime
+    return NewtonRuntime(backend, schema, None, None, stages=list(stages), solver=solver)
 
 
 @pytest.mark.parametrize("use_single_state", [True, False], ids=["single_state", "double_state"])
@@ -1408,7 +1402,7 @@ def test_state_force_stage_runs_before_every_solver_substep(use_single_state):
     stage = StepStage(lambda state: events.append(("force", state.name)), StepPhase.SUBSTEP)
     runtime = _recording_runtime(events, single_state=use_single_state, num_substeps=2, stages=[stage])
 
-    runtime.compile(steps=1).run()
+    runtime_module.compile_program(runtime, steps=1).run()
 
     if use_single_state:
         assert events == [
@@ -1439,7 +1433,7 @@ def test_program_orders_stages_and_ends_each_physics_step_in_state_0():
     ]
     runtime = _recording_runtime(events, single_state=False, num_substeps=1, stages=stages)
 
-    program = runtime.compile(steps=2)
+    program = runtime_module.compile_program(runtime, steps=2)
     program.run()
 
     step = [("control",), ("step", "state_0", "state_1"), ("clear", "state_1"), ("assign", "state_0", "state_1")]
@@ -1455,7 +1449,7 @@ def test_program_captures_graph_safe_runs_and_keeps_other_stages_eager(monkeypat
         StepStage(lambda: events.append("eager"), StepPhase.CONTROL, graph_safe=False),
     ]
     runtime = _recording_runtime(events, single_state=True, num_substeps=1, stages=stages)
-    program = runtime.compile(steps=2)
+    program = runtime_module.compile_program(runtime, steps=2)
     launched = []
     monkeypatch.setattr(wp, "capture_launch", lambda graph: (launched.append(graph), graph()))
 
@@ -1671,6 +1665,40 @@ def test_actuators_follow_world_varying_dof_layouts():
                 samples.append(np.concatenate((NewtonManager.get_state_0().joint_q.numpy(), applied)))
             trajectories.append(np.asarray(samples))
     np.testing.assert_allclose(trajectories[1], trajectories[0], atol=1e-6, rtol=1e-5)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_independent_runtimes_step_without_manager_state(monkeypatch, device):
+    """The functional core drives several runtimes on separate models without the manager's active runtime.
+
+    One runtime advances ten eager one-step programs; the other advances one captured ten-step program. Each only
+    moves its own model, and both reach the same free-fall state.
+    """
+    monkeypatch.setattr(NewtonManager, "_runtime", None)
+    cfg = NewtonCfg(solver_cfg=XPBDSolverCfg())
+    runtimes = []
+    for _ in range(2):
+        builder = ModelBuilder()
+        body = builder.add_body(mass=1.0, xform=wp.transform(wp.vec3(0.0, 0.0, 1.0), wp.quat_identity()))
+        builder.add_shape_sphere(body=body, radius=0.05)
+        model = builder.finalize(device=device)
+        backend = SimpleNamespace(model=model, state_0=model.state(), state_1=model.state(), control=model.control())
+        runtime = runtime_module.create_runtime(backend, NewtonSchema.from_model(model, physics_dt=0.01))
+        runtime_module.bind_solver(runtime, XPBDSolverBinding, cfg, wp.DeterministicMode.NOT_GUARANTEED)
+        runtimes.append(runtime)
+    eager, captured = runtimes
+    start = captured.backend.state_0.body_q.numpy().copy()
+
+    for _ in range(10):
+        runtime_module.step(eager, steps=1)
+    np.testing.assert_array_equal(captured.backend.state_0.body_q.numpy(), start)
+
+    program = runtime_module.step(captured, steps=10, capture=partial(NewtonQueries.capture_graph, device))
+
+    assert program.is_captured and program.steps == 10
+    fallen = eager.backend.state_0.body_q.numpy()
+    assert fallen[0, 2] < start[0, 2] - 0.02
+    np.testing.assert_allclose(captured.backend.state_0.body_q.numpy(), fallen, atol=1e-6)
 
 
 def _build_collision_scene(sim, num_boxes=8):

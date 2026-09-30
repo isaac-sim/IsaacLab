@@ -125,8 +125,8 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
     from isaaclab_newton.physics import NewtonManager, NewtonSchema, NewtonXPBDManager
+    from isaaclab_newton.physics import runtime as newton_runtime
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
-    from isaaclab_newton.physics.runtime import NewtonRuntime
 
     from isaaclab.physics import PhysicsManager
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
@@ -148,7 +148,7 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
         joint_dof_count=0,
         articulation_count=1,
     )
-    runtime = NewtonRuntime(SimpleNamespace(model=model, state_0=state), schema)
+    runtime = newton_runtime.create_runtime(SimpleNamespace(model=model, state_0=state), schema)
     monkeypatch.setattr(NewtonManager, "_runtime", runtime)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
     # Fabric may bind between native allocation and solver initialization.

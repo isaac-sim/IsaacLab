@@ -136,7 +136,7 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
             category=DeprecationWarning,
         )
         from isaaclab_newton.physics import NewtonSchema
-        from isaaclab_newton.physics.runtime import NewtonRuntime
+        from isaaclab_newton.physics import runtime as newton_runtime
 
     articulation_world = wp.array(np.asarray([0, 0, 1, 1, 2, -1], dtype=np.int32), dtype=wp.int32, device="cpu")
     model = SimpleNamespace(world_count=3, articulation_count=6, articulation_world=articulation_world)
@@ -151,11 +151,11 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
         joint_dof_count=0,
         articulation_count=6,
     )
-    runtime = NewtonRuntime(SimpleNamespace(model=model), schema)
+    runtime = newton_runtime.create_runtime(SimpleNamespace(model=model), schema)
     env_ids = _selector([2, 0], index_dtype)
     articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
 
-    runtime.invalidate_fk(env_ids=env_ids, articulation_ids=articulation_ids)
+    newton_runtime.invalidate_fk(runtime, env_ids=env_ids, articulation_ids=articulation_ids)
 
     assert runtime.kinematics_dirty
     np.testing.assert_array_equal(runtime.world_mask.numpy(), np.asarray([True, False, True, False]))

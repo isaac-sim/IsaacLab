@@ -45,6 +45,7 @@ from isaaclab_newton.renderers.visual_material import (
     VisualShapeColorWriter,
 )
 
+from . import runtime as newton_runtime
 from .runtime import (
     NewtonBuildRequests,
     NewtonCloneRecord,
@@ -61,13 +62,6 @@ if TYPE_CHECKING:
     from isaaclab.actuators.newton import NewtonActuatorAdapter
     from isaaclab.assets import BaseArticulation
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
-
-
-def _compile_label_pattern(expr: str | list[str] | None) -> re.Pattern[str] | None:
-    """Compile selector expressions for Newton's full label matching."""
-    if not expr:
-        return None
-    return re.compile("|".join((expr,) if isinstance(expr, str) else expr))
 
 
 logger = logging.getLogger(__name__)
@@ -326,6 +320,10 @@ class NewtonManager(PhysicsManager):
       Newton actuators, and consumer stages, compiled to straight-line operations over explicit buffers. Graph-safe
       segments replay from CUDA graphs; other operations run eagerly at the same position.
 
+    The runtime is plain data driven by the functions in :mod:`isaaclab_newton.physics.runtime`, which take it
+    explicitly (``runtime.step(rt, steps, capture)``). The manager only supplies the active simulation's runtime, so
+    the functional core already supports several runtimes bound to different Newton backends.
+
     Solver-specific behavior lives in a :class:`~isaaclab_newton.physics.solver_binding.NewtonSolverBinding`.
     Concrete managers only select the binding through :attr:`solver_binding`, and
     :meth:`NewtonCfg.__post_init__` selects the manager from :attr:`NewtonSolverCfg.class_type`.
@@ -381,7 +379,7 @@ class NewtonManager(PhysicsManager):
         """Reset solver internals and run FK for worlds whose state was authored since the last boundary."""
         runtime = NewtonManager._runtime
         if runtime is not None:
-            runtime.reconcile()
+            newton_runtime.reconcile(runtime)
 
     @classmethod
     def step(cls) -> None:
@@ -395,16 +393,9 @@ class NewtonManager(PhysicsManager):
         if sim is None or not sim.is_playing():
             return
         runtime = NewtonManager._runtime
-        runtime.apply_model_changes()
-        runtime.reconcile()
-        program = runtime.program
-        if program is None:
-            program = runtime.program = runtime.compile(cls._decimation if runtime.owns_decimation else 1)
-            if cls._uses_cuda_graph():
-                with Timer(name="newton_cuda_graph", msg="CUDA graph took:"):
-                    program.capture(cls._capture_graph)
-        with wp.ScopedDevice(PhysicsManager._device):
-            program.run()
+        steps = NewtonManager._decimation if runtime.owns_decimation else 1
+        capture = cls._capture_graph if cls._uses_cuda_graph() else None
+        program = newton_runtime.step(runtime, steps, capture)
         PhysicsManager._sim_time += runtime.schema.physics_dt * program.steps
         cls._mark_transforms_changed()
         runtime.solver.check_status(program.is_captured)
@@ -642,18 +633,14 @@ class NewtonManager(PhysicsManager):
         if clone is not None:
             model.num_envs = clone.num_envs
         physics_cfg = PhysicsManager._cfg
-        schema = NewtonSchema(
-            device=device,
-            world_count=model.world_count,
-            world_prototypes=None if clone is None else clone.world_prototypes,
+        schema = NewtonSchema.from_model(
+            model,
             physics_dt=cls.get_physics_dt(),
             num_substeps=physics_cfg.num_substeps,
             collision_decimation=physics_cfg.collision_decimation,
-            body_count=model.body_count,
-            joint_dof_count=model.joint_dof_count,
-            articulation_count=model.articulation_count,
+            world_prototypes=None if clone is None else clone.world_prototypes,
         )
-        NewtonManager._runtime = NewtonRuntime(backend, schema)
+        NewtonManager._runtime = newton_runtime.create_runtime(backend, schema)
 
         NewtonManager._scene_data_backend.initialize_geometry({} if clone is None else clone.cable_bindings)
         logger.info("Dispatching PHYSICS_READY callbacks")
@@ -679,7 +666,7 @@ class NewtonManager(PhysicsManager):
         ):
             mode = resolve_deterministic_mode(cfg)
             validate_deterministic_mode(cfg, mode, NewtonManager._requests.state_attributes)
-            runtime.bind_solver(cls.solver_binding, cfg, mode)
+            newton_runtime.bind_solver(runtime, cls.solver_binding, cfg, mode)
 
         # Picking applies forces inside solver substeps, so its stage must exist before the first capture.
         sim = PhysicsManager._sim
@@ -759,7 +746,8 @@ class NewtonManager(PhysicsManager):
         Returns:
             The stage, for :meth:`remove_stage`.
         """
-        return NewtonManager._runtime.add_stage(StepStage(fn, phase, graph_safe, name or getattr(fn, "__name__", "")))
+        stage = StepStage(fn, phase, graph_safe, name or getattr(fn, "__name__", ""))
+        return newton_runtime.add_stage(NewtonManager._runtime, stage)
 
     @classmethod
     def remove_stage(cls, stage: StepStage) -> None:
@@ -769,7 +757,7 @@ class NewtonManager(PhysicsManager):
             stage: Stage returned by :meth:`add_stage`.
         """
         if NewtonManager._runtime is not None:
-            NewtonManager._runtime.remove_stage(stage)
+            newton_runtime.remove_stage(NewtonManager._runtime, stage)
 
     @classmethod
     def activate_newton_actuator_path(cls) -> None:
@@ -780,26 +768,7 @@ class NewtonManager(PhysicsManager):
         advances the whole decimation loop, including actuators that are not graph-safe, which run eagerly between
         captured segments.
         """
-        runtime = NewtonManager._runtime
-        runtime.owns_decimation = True
-        runtime.invalidate_program()
-        model = runtime.backend.model
-        if runtime.actuators is not None or not model.actuators:
-            return
-        from isaaclab.actuators.newton import NewtonActuatorAdapter  # noqa: PLC0415
-
-        # Actuator indices address the model's flat DOF space; articulations bind their own views of it, so worlds
-        # may hold different robots.
-        num_envs = model.num_envs
-        runtime.actuators = NewtonActuatorAdapter(
-            actuators=list(model.actuators),
-            num_envs=num_envs,
-            num_joints=model.joint_dof_count // num_envs,
-            dof_offset=0,
-            device=runtime.schema.device,
-            dof_count=model.joint_dof_count,
-        )
-        runtime.actuators.finalize(runtime.backend.control)
+        newton_runtime.activate_actuators(NewtonManager._runtime)
 
     @classmethod
     def get_actuator_adapter(cls) -> NewtonActuatorAdapter | None:
@@ -815,9 +784,6 @@ class NewtonManager(PhysicsManager):
             decimation: Physics steps per environment step.
         """
         NewtonManager._decimation = max(1, decimation)
-        runtime = NewtonManager._runtime
-        if runtime is not None and runtime.owns_decimation:
-            runtime.invalidate_program()
 
     @classmethod
     def handles_decimation(cls) -> bool:
@@ -866,7 +832,7 @@ class NewtonManager(PhysicsManager):
         """
         cls._mark_transforms_changed()
         if NewtonManager._runtime is not None:
-            NewtonManager._runtime.invalidate_fk(env_mask, env_ids, articulation_ids)
+            newton_runtime.invalidate_fk(NewtonManager._runtime, env_mask, env_ids, articulation_ids)
 
     @classmethod
     def invalidate_body_state(
@@ -880,7 +846,7 @@ class NewtonManager(PhysicsManager):
         """
         cls._mark_transforms_changed()
         if NewtonManager._runtime is not None:
-            NewtonManager._runtime.invalidate_body_state(env_ids, env_mask)
+            newton_runtime.invalidate_body_state(NewtonManager._runtime, env_ids, env_mask)
 
     @classmethod
     def add_model_change(cls, change: ModelFlags) -> None:
@@ -947,47 +913,20 @@ class NewtonManager(PhysicsManager):
         Returns:
             The Newton contact sensor updated at the end of every step.
         """
-        runtime = NewtonManager._runtime
-        if runtime.solver is not None and not runtime.solver.supports_contact_sensors:
-            raise NotImplementedError(
-                "Newton contact sensors are not yet supported by the active coupled solver because its "
-                "contact forces live in per-entry buffers."
-            )
-        if body_names_expr is None and shape_names_expr is None:
-            raise ValueError("At least one of body_names_expr or shape_names_expr must be provided")
-        if body_names_expr is not None and shape_names_expr is not None:
-            raise ValueError("Only one of body_names_expr or shape_names_expr must be provided")
-        if contact_partners_body_expr is not None and contact_partners_shape_expr is not None:
-            raise ValueError("Only one of contact_partners_body_expr or contact_partners_shape_expr must be provided")
-
-        exprs = (body_names_expr, shape_names_expr, contact_partners_body_expr, contact_partners_shape_expr)
-        key = tuple(tuple(expr) if isinstance(expr, list) else expr for expr in exprs)
-        sensor = runtime.sensors.contact.get(key)
-        if sensor is not None:
-            return sensor
-        partner_filter = contact_partners_body_expr or contact_partners_shape_expr or "all bodies/shapes"
-        logger.info(f"Adding contact sensor for {body_names_expr or shape_names_expr} with filter {partner_filter}")
         with Timer(
             name="newton_contact_sensor",
             msg="Contact sensor construction took:",
             synchronize="both",
             device=cls.get_device(),
         ):
-            sensor = SensorContact(
-                runtime.backend.model,
-                sensing_bodies=_compile_label_pattern(body_names_expr),
-                sensing_shapes=_compile_label_pattern(shape_names_expr),
-                counterpart_bodies=_compile_label_pattern(contact_partners_body_expr),
-                counterpart_shapes=_compile_label_pattern(contact_partners_shape_expr),
-                measure_total=True,
-                verbose=verbose,
+            return newton_runtime.add_contact_sensor(
+                NewtonManager._runtime,
+                body_names_expr,
+                shape_names_expr,
+                contact_partners_body_expr,
+                contact_partners_shape_expr,
+                verbose,
             )
-        runtime.sensors.contact[key] = sensor
-        runtime.invalidate_program()
-        # Contacts allocated before the sensor requested the force attribute must be reallocated.
-        if runtime.contacts is not None and runtime.contacts.force is None:
-            runtime.allocate_contacts(PhysicsManager._cfg.collision_cfg)
-        return sensor
 
     @classmethod
     def add_frame_transform_sensor(cls, shapes: list[int], reference_sites: list[int]) -> SensorFrameTransform:
@@ -1000,12 +939,7 @@ class NewtonManager(PhysicsManager):
         Returns:
             The Newton sensor updated at the end of every step.
         """
-        runtime = NewtonManager._runtime
-        sensor = SensorFrameTransform(runtime.backend.model, shapes=shapes, reference_sites=reference_sites)
-        runtime.sensors.frame_transform.append(sensor)
-        runtime.invalidate_program()
-        logger.info(f"Added frame transform sensor (shapes={len(shapes)})")
-        return sensor
+        return newton_runtime.add_frame_transform_sensor(NewtonManager._runtime, shapes, reference_sites)
 
     @classmethod
     def add_imu_sensor(cls, sites: list[int]) -> SensorIMU:
@@ -1017,15 +951,9 @@ class NewtonManager(PhysicsManager):
         Returns:
             The Newton sensor updated at the end of every step.
         """
-        runtime = NewtonManager._runtime
-        if runtime is None:
+        if NewtonManager._runtime is None:
             raise RuntimeError("add_imu_sensor called before model finalization (start_simulation).")
-        # The body_qdd state attribute is requested through the build requests before finalization.
-        sensor = SensorIMU(runtime.backend.model, sites=sites, request_state_attributes=False)
-        runtime.sensors.imu.append(sensor)
-        runtime.invalidate_program()
-        logger.info(f"Added IMU sensor (sites={len(sites)})")
-        return sensor
+        return newton_runtime.add_imu_sensor(NewtonManager._runtime, sites)
 
     # ----- Accessors ---------------------------------------------------------
 

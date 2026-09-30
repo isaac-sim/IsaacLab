@@ -21,7 +21,7 @@ from isaaclab_newton.physics import (
     NewtonSoftContactCfg,
     NewtonSolverBinding,
 )
-from isaaclab_newton.physics.runtime import NewtonRuntime
+from isaaclab_newton.physics import runtime as newton_runtime
 from newton import ModelBuilder
 from newton.solvers import SolverVBD
 
@@ -200,11 +200,11 @@ def test_vbd_rebuilds_particle_bvh_before_physics_step(monkeypatch):
         joint_dof_count=0,
         articulation_count=0,
     )
-    runtime = NewtonRuntime(backend, schema)
+    runtime = newton_runtime.create_runtime(backend, schema)
     runtime.solver = physics.NewtonVBDManager.solver_binding(
         model, physics.VBDSolverCfg(), wp.DeterministicMode.NOT_GUARANTEED
     )
 
-    runtime.compile(1).run()
+    newton_runtime.compile_program(runtime, 1).run()
 
     assert events == [("rebuild", state_0), ("step", state_0)]

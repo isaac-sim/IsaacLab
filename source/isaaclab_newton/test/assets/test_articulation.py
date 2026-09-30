@@ -2666,10 +2666,10 @@ def test_body_q_consistent_after_root_write(num_articulations, device, articulat
             captured["jq_root"] = jq[jc0 : jc0 + 3].clone()
             original_collide(state, contacts, *args, **kwargs)
 
-        runtime.invalidate_program()
+        runtime.program = None
         with patch.object(pipeline, "collide", _capturing_collide):
             sim.step()
-        runtime.invalidate_program()
+        runtime.program = None
         articulation.update(sim.cfg.dt)
 
         assert captured, "collision pipeline did not run in the step program"
