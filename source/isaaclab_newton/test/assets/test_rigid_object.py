@@ -501,7 +501,7 @@ def test_body_root_state_properties(num_cubes, device):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager.get_solver().notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -604,7 +604,7 @@ def test_write_root_state(num_cubes, device, state_location):
         com_pos = offset.unsqueeze(1)  # (N, 1, 3)
         cube_object.set_coms_index(coms=wp.from_torch(com_pos, dtype=wp.vec3f))
         with wp.ScopedDevice(device):
-            SimulationManager._solver.notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
+            SimulationManager.get_solver().notify_model_changed(ModelFlags.BODY_INERTIAL_PROPERTIES)
 
         # check center of mass has been set
         torch.testing.assert_close(cube_object.data.body_com_pos_b.torch.squeeze(1), offset)
@@ -712,13 +712,13 @@ def test_body_link_pose_w_fresh_after_root_pose_write(device):
     (Newton ``body_q``) is stale until forward kinematics is re-evaluated. The getter must call
     :meth:`SimulationManager.forward` so the returned tensor matches the written pose. Without the fix,
     the getter returns the pre-write value. The write must also dirty the simulator-side
-    ``_fk_reset_mask`` so collision queries (which read ``body_q`` directly, not via the property)
+    runtime ``fk_mask`` so collision queries (which read ``body_q`` directly, not via the property)
     re-run FK before the next step.
     """
 
     def _fk_reset_mask_dirty() -> bool:
-        assert SimulationManager._fk_reset_mask is not None
-        return bool(wp.to_torch(SimulationManager._fk_reset_mask).any().item())
+        assert SimulationManager._runtime.fk_mask is not None
+        return bool(wp.to_torch(SimulationManager._runtime.fk_mask).any().item())
 
     num_cubes = 2
     with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:

@@ -658,13 +658,15 @@ def test_newton_visualizer_forwards_and_neutralizes_picking():
 
 @pytest.mark.parametrize("picking", [False, True])
 def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking):
-    from isaaclab_newton.physics import NewtonBackendCfg
+    from isaaclab_newton.physics import NewtonBackendCfg, NewtonManager, StepPhase
 
     new_model = SimpleNamespace(body_label=["/Object"])
     new_state = object()
     backend = SimpleNamespace(model=new_model, state_0=new_state)
     sim = SimpleNamespace(get_or_create_backend=Mock(return_value=backend))
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    add_stage = Mock()
+    monkeypatch.setattr(NewtonManager, "add_stage", add_stage)
 
     viewer = _Viewer()
     viewer.picking_enabled = False
@@ -692,6 +694,12 @@ def test_newton_visualizer_hard_reset_rebinds_viewer_model(monkeypatch, picking)
     assert viewer.picking_enabled is picking
     if picking:
         assert viewer.wind is None
+        # The hard reset discarded the old runtime's stages, so picking forces join the new step program.
+        add_stage.assert_called_once_with(
+            visualizer._viewer_picking_binding.apply, StepPhase.SUBSTEP, name="viewer.picking"
+        )
+    else:
+        add_stage.assert_not_called()
     assert visualizer._viewer_picking_binding._viewer is viewer
 
 

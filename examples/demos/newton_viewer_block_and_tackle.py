@@ -292,7 +292,7 @@ def _initialize_wrapped_cable(cable_body_start: int, wrapped_xforms: list[wp.tra
         wp.copy(state.body_qd, model.body_qd)
         wp.copy(state.body_q, wrapped, dest_offset=cable_body_start, count=len(wrapped_xforms))
         state.body_f.zero_()
-    NewtonManager._solver.reset(NewtonManager.get_state_0(), flags=0)
+    NewtonManager.get_solver().reset(NewtonManager.get_state_0(), flags=0)
 
 
 def run_simulator(sim: sim_utils.SimulationContext) -> None:

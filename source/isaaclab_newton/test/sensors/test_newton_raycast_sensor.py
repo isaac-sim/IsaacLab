@@ -311,6 +311,6 @@ def test_renderer_and_raycast_share_backend_with_independent_query_graphs(sim):
             torch.testing.assert_close(distances, torch.full_like(distances, height), atol=1e-3, rtol=0)
 
         camera, raycast = scene["camera"], scene["raycast"]
-        assert camera._renderer.backend is raycast.backend is NewtonManager.backend
+        assert camera._renderer.backend is raycast.backend is NewtonManager.get_newton_backend()
         assert (raycast._graph is not None) == cfg.raycast.use_cuda_graph
         assert (camera._render_data.graph is not None) == cfg.camera.renderer_cfg.use_cuda_graph

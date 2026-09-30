@@ -18,6 +18,7 @@ import warp as wp
 from isaaclab_newton.assets import Articulation
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
+from isaaclab_newton.physics.step_program import StepProgram
 from isaaclab_physx.sim.schemas import PhysxJointCfg
 from newton.solvers import SolverMuJoCo
 
@@ -85,7 +86,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         articulation = _generate_single_joint_articulations(num_articulations=2, device=device)
         sim.reset()
 
-        solver = SimulationManager._solver
+        solver = SimulationManager.get_solver()
         assert isinstance(solver, SolverMuJoCo)
         warm_start = wp.to_torch(solver.mjw_data.qacc_warmstart)
         assert warm_start.shape[0] == 2
@@ -100,7 +101,7 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
             env_ids=env_ids,
         )
 
-        state = SimulationManager.backend.state_0
+        state = SimulationManager.get_state_0()
         joint_q_before = wp.to_torch(state.joint_q).clone()
         joint_qd_before = wp.to_torch(state.joint_qd).clone()
         warm_start[0].fill_(13.0)
@@ -126,10 +127,10 @@ def test_env_reset_clears_selected_mjwarp_solver_internals(device):
         warm_start[1].fill_(29.0)
         wp.synchronize_device(device)
 
-        with (
-            patch.object(SimulationManager, "_simulate_full", classmethod(lambda cls: None)),
-            patch.object(SimulationManager, "_simulate_physics_only", classmethod(lambda cls: None)),
-        ):
+        # Compile an empty step program so only the step boundary's reconcile touches the solver.
+        runtime = SimulationManager._runtime
+        runtime.invalidate_program()
+        with patch.object(runtime, "compile", lambda steps: StepProgram((), steps)):
             sim.step(render=False)
         wp.synchronize_device(device)
 

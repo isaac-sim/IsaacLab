@@ -181,12 +181,7 @@ def _run_simulation(
         if use_newton_actuators and decimation > 1:
             SimulationManager.set_decimation(decimation)
 
-        handles_dec = (
-            use_newton_actuators
-            and decimation > 1
-            and SimulationManager._is_all_graphable()
-            and SimulationManager._decimation > 1
-        )
+        handles_dec = use_newton_actuators and decimation > 1 and SimulationManager.handles_decimation()
 
         joint_names = tuple(articulation.joint_names)
         backend_joint_names = tuple(articulation.backend_joint_names)
@@ -448,7 +443,7 @@ def _run_anymal_and_cartpole(use_newton_actuators: bool, *, num_steps: int = NUM
 class TestHeterogeneousMultiArticulationNewton(unittest.TestCase):
     """Two structurally-different articulations (ANYmal floating + Cartpole fixed) on Newton.
 
-    Regression for the singleton-clobber bug in ``NewtonManager._adapter``
+    Regression for the singleton-clobber bug in the shared Newton actuator adapter
     / ``_post_actuator_callback`` — fixed by the global-adapter refactor
     + callback-list multiplexing. Heterogeneous DOF counts (12 vs 2) and
     base types (floating vs fixed) stress the global adapter's handling
@@ -535,7 +530,7 @@ class TestRandomizeActuatorGainsViaEventsNewton(unittest.TestCase):
             replicate(sim.get_clone_plan())
             sim.reset()
 
-            self.assertIsNotNone(SimulationManager._adapter)
+            self.assertIsNotNone(SimulationManager.get_actuator_adapter())
 
             anymal_read = functools.partial(read_group_parameter, anymal.actuators)
             cartpole_read = functools.partial(read_group_parameter, cartpole.actuators)
@@ -694,7 +689,7 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
         return articulation
 
     def _get_adapter(self, articulation):
-        return SimulationManager._adapter
+        return SimulationManager.get_actuator_adapter()
 
 
 # ---------------------------------------------------------------------------

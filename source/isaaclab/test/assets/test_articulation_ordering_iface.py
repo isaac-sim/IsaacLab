@@ -20,6 +20,15 @@ from isaaclab.utils import replace
 from isaaclab.utils.buffers import TimestampedBuffer
 
 
+@pytest.fixture(autouse=True)
+def _record_newton_model_changes(monkeypatch):
+    """Record Newton model-change notifications; the mock shells have no finalized model to notify."""
+    if "newton" in BACKENDS:
+        from isaaclab_newton.physics import NewtonManager
+
+        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
+
+
 def _make_body_ordering_backend_data(num_instances: int, num_bodies: int) -> tuple[np.ndarray, ...]:
     """Create deterministic backend-order body data with identity rotations."""
     root_pose = np.zeros((num_instances, 7), dtype=np.float32)

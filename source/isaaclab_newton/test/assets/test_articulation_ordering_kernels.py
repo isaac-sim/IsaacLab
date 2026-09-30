@@ -4,6 +4,7 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import warnings
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -118,7 +119,11 @@ def test_write_joint_limit_data_to_user_and_backend_mask_reorders_backend_buffer
 
 @pytest.mark.parametrize("index_dtype", [wp.int32, wp.int64])
 def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> None:
-    """Set exact world and articulation reset masks from nonidentity environment IDs."""
+    """Set exact world and articulation reset masks from nonidentity environment IDs.
+
+    View rows map to worlds through the model's articulation-to-world table; a global articulation (world -1)
+    only requests FK and never flags the global world slot.
+    """
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -130,20 +135,28 @@ def test_scatter_reset_masks_from_ids_accepts_index_dtype(index_dtype: type) -> 
             ),
             category=DeprecationWarning,
         )
-        from isaaclab_newton.physics import newton_manager
+        from isaaclab_newton.physics import NewtonSchema
+        from isaaclab_newton.physics.runtime import NewtonRuntime
 
+    articulation_world = wp.array(np.asarray([0, 0, 1, 1, 2, -1], dtype=np.int32), dtype=wp.int32, device="cpu")
+    model = SimpleNamespace(world_count=3, articulation_count=6, articulation_world=articulation_world)
+    schema = NewtonSchema(
+        device="cpu",
+        world_count=3,
+        world_prototypes=None,
+        physics_dt=0.01,
+        num_substeps=1,
+        collision_decimation=0,
+        body_count=0,
+        joint_dof_count=0,
+        articulation_count=6,
+    )
+    runtime = NewtonRuntime(SimpleNamespace(model=model), schema)
     env_ids = _selector([2, 0], index_dtype)
     articulation_ids = wp.array(np.asarray([[0, 1], [2, 3], [4, 5]], dtype=np.int32), dtype=int, device="cpu")
-    world_mask = wp.zeros(3, dtype=wp.bool, device="cpu")
-    fk_mask = wp.zeros(6, dtype=wp.bool, device="cpu")
 
-    wp.launch(
-        newton_manager._scatter_reset_masks_from_ids,
-        dim=(env_ids.shape[0], articulation_ids.shape[1]),
-        inputs=[env_ids, articulation_ids],
-        outputs=[world_mask, fk_mask],
-        device="cpu",
-    )
+    runtime.invalidate_fk(env_ids=env_ids, articulation_ids=articulation_ids)
 
-    np.testing.assert_array_equal(world_mask.numpy(), np.asarray([True, False, True]))
-    np.testing.assert_array_equal(fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))
+    assert runtime.kinematics_dirty
+    np.testing.assert_array_equal(runtime.world_mask.numpy(), np.asarray([True, False, True, False]))
+    np.testing.assert_array_equal(runtime.fk_mask.numpy(), np.asarray([True, True, False, False, True, True]))

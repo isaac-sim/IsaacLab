@@ -108,7 +108,7 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
     late = sim.get_or_create_backend(NewtonWarpRendererCfg(max_distance=12))
     assert sim.get_or_create_backend(late.newton_cfg) is first
     assert finalized == [builder]
-    assert NewtonManager.backend is None
+    assert NewtonManager.get_newton_backend() is None
     sim.close_backend(first)
     assert len(sim._backend_registry) == 4
     assert first.model is first.state_0 is None
@@ -124,8 +124,9 @@ def test_clone_inputs_create_one_registry_resource_until_closed(monkeypatch):
 def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monkeypatch, invalidate):
     """Clean native reads reuse FK and conversions; writes and solver-buffer swaps refresh their values."""
     import warp as wp
-    from isaaclab_newton.physics import NewtonManager, NewtonXPBDManager
+    from isaaclab_newton.physics import NewtonManager, NewtonSchema, NewtonXPBDManager
     from isaaclab_newton.physics.newton_manager import NewtonSceneDataBackend
+    from isaaclab_newton.physics.runtime import NewtonRuntime
 
     from isaaclab.physics import PhysicsManager
     from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
@@ -135,43 +136,52 @@ def test_native_publication_reuses_clean_fk_and_refreshes_writes_and_swaps(monke
     state = SimpleNamespace(body_q=wp.array([[0, 0, 0, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu"))
     backend = NewtonSceneDataBackend()
     provider = SceneDataProvider(backend)
-    monkeypatch.setattr(
-        NewtonManager, "backend", SimpleNamespace(model=SimpleNamespace(body_count=1, world_count=1), state_0=state)
+    model = SimpleNamespace(body_count=1, world_count=1, articulation_count=1)
+    schema = NewtonSchema(
+        device="cpu",
+        world_count=1,
+        world_prototypes=None,
+        physics_dt=0.01,
+        num_substeps=1,
+        collision_decimation=0,
+        body_count=1,
+        joint_dof_count=0,
+        articulation_count=1,
     )
+    runtime = NewtonRuntime(SimpleNamespace(model=model, state_0=state), schema)
+    monkeypatch.setattr(NewtonManager, "_runtime", runtime)
     monkeypatch.setattr(NewtonManager, "_scene_data_backend", backend)
-    monkeypatch.setattr(NewtonManager, "_world_reset_mask", wp.zeros(2, dtype=wp.bool, device="cpu"))
-    monkeypatch.setattr(NewtonManager, "_fk_reset_mask", wp.zeros(1, dtype=wp.bool, device="cpu"))
-    # Fabric may bind between native allocation and the solver's FK-hook initialization.
+    # Fabric may bind between native allocation and solver initialization.
     assert backend.transforms.transforms is state.body_q
-    monkeypatch.setattr(NewtonManager, "_eval_fk", Mock())
-    monkeypatch.setattr(NewtonManager, "_reset_solver_internals_delegate", Mock())
+    runtime.solver = Mock()
+    eval_fk = runtime.solver.eval_fk
     monkeypatch.setattr(wp, "launch", Mock(wraps=wp.launch))
 
     output = SceneDataFormat.Matrix44()
     assert provider.get_transforms(output)
     matrices = output.matrices
     NewtonManager.pre_render()
-    NewtonManager._eval_fk.assert_not_called()
+    eval_fk.assert_not_called()
     assert provider.get_transforms(SceneDataFormat.Transform())
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     assert wp.launch.call_count == 1
-    NewtonManager._eval_fk.assert_not_called()
+    eval_fk.assert_not_called()
 
     state.body_q.assign([[1, 2, 3, 0, 0, 0, 1]])
     getattr(NewtonXPBDManager, invalidate)()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     np.testing.assert_allclose(output.matrices.numpy()[0, :3, 3], [1, 2, 3])
-    NewtonManager._eval_fk.assert_called_once()
+    eval_fk.assert_called_once()
     assert provider.get_transforms(output)
     assert output.matrices is matrices
     NewtonManager.pre_render()
-    NewtonManager._eval_fk.assert_called_once()
+    eval_fk.assert_called_once()
     assert wp.launch.call_count == 2
 
     replacement = wp.array([[3, 2, 1, 0, 0, 0, 1]], dtype=wp.transformf, device="cpu")
-    NewtonManager.backend.state_0 = SimpleNamespace(body_q=replacement)
+    runtime.backend.state_0 = SimpleNamespace(body_q=replacement)
     native = SceneDataFormat.Transform()
     assert provider.get_transforms(native)
     assert native.transforms is replacement

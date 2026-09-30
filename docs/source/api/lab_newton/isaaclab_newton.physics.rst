@@ -8,6 +8,11 @@
   .. autosummary::
 
     NewtonManager
+    NewtonSolverBinding
+    NewtonSchema
+    NewtonCloneRecord
+    StepPhase
+    StepStage
     NewtonCfg
     NewtonBackendCfg
     NewtonBuilderCfg
@@ -46,6 +51,29 @@ Physics Manager
   :members:
   :inherited-members:
   :show-inheritance:
+
+.. autoclass:: NewtonSolverBinding
+  :members:
+  :show-inheritance:
+
+.. autoclass:: NewtonSchema
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: NewtonCloneRecord
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
+
+.. autoclass:: StepPhase
+  :members:
+  :show-inheritance:
+
+.. autoclass:: StepStage
+  :members:
+  :show-inheritance:
+  :exclude-members: __init__
 
 Physics Configuration
 ---------------------

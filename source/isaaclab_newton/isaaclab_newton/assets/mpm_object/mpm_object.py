@@ -226,7 +226,9 @@ class MPMObject(BaseDeformableObject):
     def _initialize_impl(self):
         expression = re.compile(self.cfg.prim_path + _SIMULATION_POINTS_SUFFIX)
         ranges = [
-            value for path, value in SimulationManager.backend.particle_ranges.items() if expression.fullmatch(path)
+            value
+            for path, value in SimulationManager.get_newton_backend().particle_ranges.items()
+            if expression.fullmatch(path)
         ]
         if not ranges:
             raise RuntimeError(f"No imported MPM particles match '{self.cfg.prim_path}'.")
@@ -330,7 +332,7 @@ class MPMObject(BaseDeformableObject):
             self._data._particle_vel_w.timestamp = -1.0
             self._data._root_vel_w.timestamp = -1.0
         self._data._particle_state_w.timestamp = -1.0
-        SimulationManager._mark_particles_dirty()
+        SimulationManager.mark_particles_dirty()
 
     def _set_debug_vis_impl(self, debug_vis: bool):
         raise NotImplementedError("Debug visualization is not implemented for MPMObject.")

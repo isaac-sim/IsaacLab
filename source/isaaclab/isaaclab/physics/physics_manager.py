@@ -587,7 +587,7 @@ class PhysicsManager(ABC):
         """Inform the physics backend how many substeps the environment runs per policy step.
 
         Backends that can fold the full decimation loop into a single
-        :meth:`step` call (e.g. Newton with all-graphable actuators) use this
+        :meth:`step` call (e.g. Newton with active Newton actuators) use this
         to size their internal loop / CUDA graph.  The default implementation
         is a no-op.
 

@@ -36,7 +36,7 @@ from isaaclab_newton.cloner.newton_clone_utils import (
     build_source_builders,
     replicate_builder_mapping,
 )
-from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonManager
+from isaaclab_newton.physics import NewtonBuilderCfg, NewtonCfg, NewtonCloneRecord, NewtonManager
 from isaaclab_newton.sim.spawners.mpm.mpm import _SIMULATION_POINTS_SUFFIX
 
 if TYPE_CHECKING:
@@ -56,7 +56,7 @@ def copy_newton_clone_source(source_path: str, xform: wp.transform | None = None
     Raises:
         RuntimeError: If Newton replication did not retain the requested source.
     """
-    source = NewtonManager._cl_protos.get(source_path)
+    source = NewtonManager.get_clone_source_builders().get(source_path)
     if source is None:
         raise RuntimeError(f"No retained Newton clone source for {source_path!r}.")
     builder = ModelBuilder(up_axis=source.up_axis)
@@ -86,7 +86,7 @@ def newton_builder_world_hook(
     Raises:
         RuntimeError: If the callback is already registered.
     """
-    hooks = NewtonManager._per_world_builder_hooks
+    hooks = NewtonManager.build_requests().world_builder_hooks
     if hook in hooks:
         raise RuntimeError("Newton world-builder hook is already registered.")
     hooks.append(hook)
@@ -131,7 +131,7 @@ def _replicate_newton(
         quaternions[:, 3] = 1.0
 
     manager_cls = sim.physics_manager if simulation else NewtonManager
-    schema_resolvers = manager_cls._get_usd_import_schema_resolvers()
+    schema_resolvers = manager_cls.get_usd_import_schema_resolvers()
     create_builder = partial(manager_cls.create_builder if simulation else ModelBuilder, up_axis=up_axis)
     load_visual_shapes = cfg.load_visual_shapes if simulation else True
     if load_visual_shapes is None:
@@ -147,7 +147,7 @@ def _replicate_newton(
             is_mesh_body = prim and not prim.IsA(UsdGeom.Points) and not prim.IsA(UsdGeom.BasisCurves)
             if is_mesh_body and has_deformable_body_api(prim):
                 deformable_paths.append(source)
-        ignore_paths = manager_cls._inject_terrain_heightfields(stage, builder, root_paths=import_paths)
+        ignore_paths = manager_cls.inject_terrain_heightfields(stage, builder, root_paths=import_paths)
         ignore_paths.extend((*exclude_paths, *deformable_paths))
     else:
         entries = deformable_prototypes(stage, plan, exclude_paths=exclude_paths)
@@ -204,7 +204,7 @@ def _replicate_newton(
                 continue
             cables[path] = [shapes[f"{path}_edge_capsule_{segment}"] for segment in range(len(bodies))]
     if simulation:
-        global_sites, source_sites, root_sites = NewtonManager._cl_inject_sites(builder, source_builders)
+        global_sites, source_sites, root_sites = NewtonManager.build_requests().inject_sites(builder, source_builders)
     else:
         # Clear imported filters before merging into a fresh, compact final filter store.
         for imported in source_builders.values():
@@ -232,7 +232,7 @@ def _replicate_newton(
                 visual_ranges[cloner_path.rebase(particle_visual_paths[path], source, destination)] = native_range
 
     options = dict(env_ids=env_ids, source_site_indices=source_sites, env_root_sites=root_sites)
-    options["per_world_builder_hooks"] = NewtonManager._per_world_builder_hooks if simulation else ()
+    options["per_world_builder_hooks"] = NewtonManager.build_requests().world_builder_hooks if simulation else ()
     has_geometry = any(source_cables.values()) or any(result["path_particle_map"] for result in import_results.values())
     options["source_builder_added"] = record_geometry if has_geometry else None
     local_site_map, world_xforms = replicate_builder_mapping(
@@ -241,7 +241,6 @@ def _replicate_newton(
     site_index_map = {label: (idx, None) for label, idx in global_sites.items()}
     site_index_map.update((label, (None, per_world)) for label, per_world in local_site_map.items())
     if simulation:
-        NewtonManager._cable_bindings = cable_bindings
         geometry = expand_deformable_entries(entries, plan, env_ids, positions)
         ranges = {
             label: start
@@ -254,12 +253,16 @@ def _replicate_newton(
         batches = deformable_geometry_batches(geometry, offsets, device=sim.device)
         if visual_ranges:
             batches.append((SceneDataFormat.Points(), visual_ranges))
-        NewtonManager._scene_data_backend._geometry_batches = batches
-        NewtonManager._cl_site_index_map = site_index_map
-        NewtonManager._world_xforms = world_xforms
-        NewtonManager._cl_protos = source_builders
-        NewtonManager._particle_ranges = particle_ranges
-        NewtonManager._num_envs = len(env_ids)
+        record = NewtonCloneRecord(
+            num_envs=len(env_ids),
+            world_prototypes=np.asarray(plan.topology.world_prototype_layout),
+            site_index_map=site_index_map,
+            world_xforms=world_xforms,
+            source_builders=source_builders,
+            particle_ranges=particle_ranges,
+            cable_bindings=cable_bindings,
+        )
+        NewtonManager.record_clone(record, batches)
     return builder, stage_info, site_index_map
 
 

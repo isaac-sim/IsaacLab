@@ -28,6 +28,15 @@ from isaaclab.test.utils import DeviceScope, test_devices
 pytestmark = pytest.mark.integration
 
 
+@pytest.fixture(autouse=True)
+def _record_newton_model_changes(monkeypatch):
+    """Record Newton model-change notifications; the mock shells have no finalized model to notify."""
+    if "newton" in BACKENDS:
+        from isaaclab_newton.physics import NewtonManager
+
+        monkeypatch.setattr(NewtonManager, "add_model_change", MagicMock())
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -216,11 +225,12 @@ class TestFixedTendonTargetScheduling:
         """A solver with no tendon transmission says so, rather than returning nothing."""
         if "newton" not in BACKENDS:
             pytest.skip(BACKEND_UNAVAILABLE_REASONS.get("newton", "newton backend unavailable"))
-        from isaaclab_newton.physics import NewtonManager
+        from isaaclab_newton.physics import NewtonXPBDManager
 
         art = self._articulation("newton")
+        # XPBD transmits nothing to tendons; the shell has no model, which the refusal does not need.
         with pytest.raises(NotImplementedError, match="does not drive fixed tendons"):
-            NewtonManager.create_fixed_tendon_control(art)
+            NewtonXPBDManager.create_fixed_tendon_control(art)
 
 
 # ---------------------------------------------------------------------------

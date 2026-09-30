@@ -442,7 +442,7 @@ class NewtonSiteFrameView(BaseFrameView):
 
     def _initialize_from_site_map(self, model) -> None:
         """Initialize arrays from injected Newton sites."""
-        site_map = NewtonManager._cl_site_index_map
+        site_map = NewtonManager.get_site_index_map()
         body_t = wp.to_torch(model.shape_body)
         xform_t = wp.to_torch(model.shape_transform)
         site_bodies: list[int] = []
@@ -482,11 +482,12 @@ class NewtonSiteFrameView(BaseFrameView):
         for body_patterns, xform, scale, per_world, env_ids, spec_paths in self._site_specs:
             if body_patterns is None:
                 if per_world:
-                    if NewtonManager._world_xforms is None:
+                    world_xforms = NewtonManager.get_world_xforms()
+                    if world_xforms is None:
                         raise RuntimeError(f"FrameView '{self._prim_path}' needs Newton cloned-world transforms.")
-                    world_ids = range(len(NewtonManager._world_xforms)) if env_ids is None else env_ids
+                    world_ids = range(len(world_xforms)) if env_ids is None else env_ids
                     for world_id in world_ids:
-                        world_xform = NewtonManager._world_xforms[world_id]
+                        world_xform = world_xforms[world_id]
                         site_bodies.append(WORLD_BODY_INDEX)
                         site_locals.append([float(v) for v in wp.transform_multiply(world_xform, xform)])
                         site_scales.append(scale)
