@@ -67,6 +67,39 @@ def feet_air_time_positive_biped(
     return reward
 
 
+def feet_air_time_variance(
+    env: ManagerBasedRLEnv, command_name: str, sensor_cfg: SceneEntityCfg, max_time: float = 0.5
+) -> torch.Tensor:
+    """Penalize an uneven swing/stance split between the feet.
+
+    The penalty is the variance across feet of the last completed swing and stance durations [s],
+    each clipped at ``max_time`` [s], and is zero for near-zero commands.
+
+    Raises:
+        RuntimeError: If ``sensor_cfg`` resolves to fewer than two bodies, where :func:`torch.var`
+            would return ``nan``.
+    """
+    # extract the used quantities (to enable type-hinting)
+    contact_sensor: ContactSensor = env.scene.sensors[sensor_cfg.name]
+    # compute the penalty
+    last_air_time = contact_sensor.data.last_air_time.torch[:, sensor_cfg.body_ids]
+    last_contact_time = contact_sensor.data.last_contact_time.torch[:, sensor_cfg.body_ids]
+    # ``body_ids`` may be a slice, so count the bodies the selection actually resolved to
+    num_feet = last_air_time.shape[1]
+    if num_feet < 2:
+        raise RuntimeError(
+            f"'feet_air_time_variance' needs at least two bodies to take a variance across feet, but"
+            f" '{sensor_cfg.name}' resolved to {num_feet}. Widen 'body_names' on its 'sensor_cfg' to"
+            " cover every foot."
+        )
+    penalty = torch.var(torch.clip(last_air_time, max=max_time), dim=1) + torch.var(
+        torch.clip(last_contact_time, max=max_time), dim=1
+    )
+    # no penalty for zero command
+    penalty *= torch.linalg.norm(env.command_manager.get_command(command_name)[:, :2], dim=1) > 0.1
+    return penalty
+
+
 def feet_slide(
     env: ManagerBasedRLEnv, sensor_cfg: SceneEntityCfg, asset_cfg: SceneEntityCfg = SceneEntityCfg("robot")
 ) -> torch.Tensor:

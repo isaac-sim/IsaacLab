@@ -3,6 +3,28 @@ Changelog
 
 .. towncrier release notes start
 
+32.1.0 (2026-09-30)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Attached capture poses, calibration, and frame indices to delayed OVRTX images through
+  ``CameraData.info[output_name]["capture"]`` while preserving the live camera fields.
+* Added :meth:`~isaaclab.renderers.BaseRenderer.prepare_capture` and
+  :meth:`~isaaclab.renderers.BaseRenderer.reset` hooks for delayed camera observations.
+  Asynchronous renderers can publish matching image metadata through ``CameraData.info`` and
+  discard pending observations on reset without changing live camera fields.
+
+Fixed
+^^^^^
+
+* Fixed :func:`~isaaclab.envs.mdp.rewards.base_height_l2` returning an infinite reward for any
+  environment whose own height scan contained a missed ray, since ``ray_hits_w`` reports ``inf``
+  for a ray that finds nothing within its ``max_distance`` rather than a clamped value. Now only
+  finite ray hits are averaged into the terrain-adjusted target height.
+
+
 32.0.0 (2026-09-29)
 ~~~~~~~~~~~~~~~~~~~
 
