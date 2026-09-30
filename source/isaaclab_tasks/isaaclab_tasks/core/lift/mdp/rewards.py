@@ -67,7 +67,7 @@ def contacts(env: ManagerBasedRLEnv, threshold: float, thumb_name: str, finger_n
     Returns:
         Boolean tensor indicating good contact condition per environment.
     """
-    in_contact = _contact_force_mags(env, [thumb_name, *finger_names]) > threshold
+    in_contact = _contact_force_mag(env, [thumb_name, *finger_names]) > threshold
     return in_contact[:, 0] & in_contact[:, 1:].any(dim=1)
 
 
@@ -85,7 +85,7 @@ def contact_count(env: ManagerBasedRLEnv, threshold: float, sensor_names: list[s
     Returns:
         Tensor of shape (num_envs,) with the count of sensors in contact per environment.
     """
-    count = (_contact_force_mags(env, sensor_names) > threshold).float().sum(dim=1)
+    count = (_contact_force_mag(env, sensor_names) > threshold).float().sum(dim=1)
     return count / len(sensor_names)
 
 
@@ -503,7 +503,7 @@ def cable_segment_goal_reached(
     return (distance < success_threshold).float()
 
 
-def _contact_force_mags(env: ManagerBasedRLEnv, sensor_names: Sequence[str]) -> torch.Tensor:
+def _contact_force_mag(env: ManagerBasedRLEnv, sensor_names: Sequence[str]) -> torch.Tensor:
     """Per-environment contact force magnitudes [N] of single-body, single-filter contact sensors.
 
     The forces are stacked so a single norm covers every sensor.
