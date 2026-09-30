@@ -20,14 +20,14 @@ if TYPE_CHECKING:
 
 
 VISUALIZER_TYPES = {
-    "kit": "isaaclab_visualizers.kit:KitVisualizerCfg",
-    "newton_gl": "isaaclab_visualizers.newton:NewtonGLVisualizerCfg",
-    "newton_rtx": "isaaclab_visualizers.newton:NewtonRTXVisualizerCfg",
-    "rerun": "isaaclab_visualizers.rerun:RerunVisualizerCfg",
-    "viser": "isaaclab_visualizers.viser:ViserVisualizerCfg",
+    "kit": "kit:KitVisualizerCfg",
+    "newton_gl": "newton:NewtonGLVisualizerCfg",
+    "newton_rtx": "newton:NewtonRTXVisualizerCfg",
+    "rerun": "rerun:RerunVisualizerCfg",
+    "viser": "viser:ViserVisualizerCfg",
 }
 """Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`, mapped to
-the ``module:Class`` of their default config."""
+the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, imported only when needed."""
 
 VISUALIZER_ALIASES = {"newton": "newton_gl"}
 """Deprecated ``--visualizer`` names and their replacements."""
@@ -96,7 +96,7 @@ def parse_visualizer_csv(value: str | list[str]) -> list[str]:
 def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
     """Construct the default config of a visualizer type, importing only its backend package."""
     try:
-        cfg_class = string_to_callable(VISUALIZER_TYPES[visualizer_type])
+        cfg_class = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[visualizer_type]}")
     except (ImportError, ValueError) as exc:  # string_to_callable reports a missing module as ValueError
         raise RuntimeError(
             f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "

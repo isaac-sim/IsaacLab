@@ -167,13 +167,13 @@ Launcher Argument Helpers.
 """
 
 
-def _normalize_launcher_args(args: dict) -> None:
+def _resolve_launcher_args(args: dict) -> None:
     """Resolve the livestream mode and the visualizer selection in place, once for every consumer.
 
     Writes ``livestream`` (the effective mode: ``--livestream`` when set (>= 0), else the ``LIVESTREAM``
     environment variable) and ``visualizer``: canonical names, an empty list when ``--viz none`` disabled
     all visualizers, or None when no visualizer was requested. Livestreaming adds the Kit visualizer, whose
-    viewport produces the stream. Normalizing twice gives the same result.
+    viewport produces the stream. Resolving twice gives the same result.
     """
     livestream = args.get("livestream", -1)
     if livestream is None or int(livestream) < 0:
@@ -284,7 +284,7 @@ def scan(cfg, launcher_args: argparse.Namespace | dict | None = None) -> Scan:
     args = vars(launcher_args) if isinstance(launcher_args, argparse.Namespace) else launcher_args
     args = {} if args is None else args
     # Livestreaming implies a Kit visualizer; make that visible to auto RTX resolution.
-    _normalize_launcher_args(args)
+    _resolve_launcher_args(args)
 
     physics_str = args.get("physics")
     physics_cfgs: list[PhysicsCfg] = []
@@ -423,7 +423,7 @@ Launch Decisions (derived purely from a scan).
 
 
 def _get_kit_runtime_sources(config_scan: Scan, args: dict) -> tuple[str, ...]:
-    """Return the config and launcher components that require Isaac Sim / Kit; *args* are normalized by :func:`scan`."""
+    """Return the config and launcher components that require Isaac Sim / Kit; *args* are resolved by :func:`scan`."""
     kit_sources = []
     if config_scan.has_kit_physics:
         kit_sources.append("Isaac Sim PhysX physics (`PhysxCfg`)")

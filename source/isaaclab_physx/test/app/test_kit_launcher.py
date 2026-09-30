@@ -18,7 +18,7 @@ from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_
 
 import isaaclab.app.sim_launcher as sim_launcher
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
+from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _resolve_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
 from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
@@ -291,7 +291,7 @@ def test_livestream_request_resolves_headless_livestream_launch(
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    _normalize_launcher_args(launcher_args)
+    _resolve_launcher_args(launcher_args)
     launcher._config_resolution(launcher_args)
 
     assert launcher._livestream == 1
@@ -384,7 +384,7 @@ def test_make_physics_cfg_builds_core_vbd():
 def test_livestream_injects_kit_visualizer_when_missing():
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    _normalize_launcher_args(vars(args))
+    _resolve_launcher_args(vars(args))
 
     assert args.visualizer == ["kit"]
 
@@ -393,14 +393,14 @@ def test_livestream_rejects_disabled_visualizers():
     args = argparse.Namespace(livestream=2, visualizer=[])
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        _normalize_launcher_args(vars(args))
+        _resolve_launcher_args(vars(args))
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        _normalize_launcher_args({})
+        _resolve_launcher_args({})
 
 
 def test_explicit_experience_requires_isaac_sim_runtime():
@@ -417,7 +417,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
         needs_kit=False,
     )
     args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    _normalize_launcher_args(args)
+    _resolve_launcher_args(args)
 
     assert _get_kit_runtime_sources(scan, args)
 
@@ -431,7 +431,7 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    _normalize_launcher_args(launcher_args)
+    _resolve_launcher_args(launcher_args)
     visualizer_cfgs = [VisualizerCfg(visualizer_type="kit")] if cfg_has_kit else []
     intent = sim_launcher._get_visualizer_intent(visualizer_cfgs, launcher_args)
     launcher_args["kit_visualizer"] = intent["has_kit_visualizer"]
@@ -711,9 +711,9 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_normalize_launcher_args_rejects_negative_max_visible_envs():
+def test_resolve_launcher_args_rejects_negative_max_visible_envs():
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        _normalize_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
+        _resolve_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
@@ -723,7 +723,7 @@ def test_parse_visualizer_csv_rejects_spaces_between_entries():
 
 def test_normalize_visualizers_rejects_none_with_others():
     with pytest.raises(ValueError, match="'none' cannot be combined"):
-        _normalize_launcher_args({"visualizer": ["none", "kit"]})
+        _resolve_launcher_args({"visualizer": ["none", "kit"]})
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
