@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Behavioral tests for the unified dexterous Lift and Reorient tasks."""
+"""Behavioral tests for the dexterous Lift tasks."""
 
 from types import SimpleNamespace
 from unittest.mock import Mock
