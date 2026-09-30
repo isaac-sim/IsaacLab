@@ -18,8 +18,7 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     Maps to :class:`~isaacsim.asset.importer.mjcf.MJCFImporterConfig` from the Isaac Sim
     MJCF importer. All post-import USD edits (fix-base, density override, actuator gain
     overrides, self-collision, mesh merging, asset transformer profile) are performed by
-    the Isaac Sim importer — this config just forwards the user's choices. The converter only roots a
-    fixed-base articulation at its world joint afterwards, see :attr:`fix_base`.
+    the Isaac Sim importer — this config just forwards the user's choices.
 
     .. note::
         From Isaac Sim 5.0 onwards, the MJCF importer was rewritten to use the
@@ -47,12 +46,11 @@ class MjcfConverterCfg(AssetConverterBaseCfg):
     """Import the physics scene (time step per second, gravity, etc.) from the MJCF file. Defaults to False."""
 
     fix_base: bool = False
-    """Fix the root body of the articulation to the world. Defaults to False.
+    """Add a fixed joint from the world to the root rigid-body link. Defaults to False.
 
-    When enabled, :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` adds a ``FixedJoint`` between the world and
-    a free root body and keeps the weld of a root body without joints, and the articulation is rooted at that fixed
-    joint so that PhysX treats it as fixed-base. A root body with hinge or slide joints stays attached to the world
-    by those joints, which PhysX simulates outside the articulation.
+    When enabled, :class:`~isaacsim.asset.importer.mjcf.MJCFImporter` inserts a ``FixedJoint``
+    between the world and the articulation root and relocates ``ArticulationRootAPI`` onto the
+    appropriate ancestor prim so PhysX treats the articulation as fixed-base.
     """
 
     link_density: float = 0.0

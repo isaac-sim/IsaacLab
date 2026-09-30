@@ -1,1 +1,1 @@
-Added PhysX articulation tests for URDF assets converted with a fixed base, with physics replication.
+Added PhysX articulation tests for an articulation rooted at its fixed world joint, with physics replication.

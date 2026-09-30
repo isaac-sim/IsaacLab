@@ -406,6 +406,37 @@ def test_modify_articulation_root_fix_root_link_uses_given_stage(setup_simulatio
     assert joint.GetJointEnabledAttr().Get() is False
 
 
+@pytest.mark.parametrize("legacy_writer", [False, True], ids=["fragments", "legacy"])
+def test_fix_root_link_enables_fixed_world_joint_root(setup_simulation, legacy_writer):
+    """``fix_root_link=True`` must enable the fixed joint that roots an articulation and attaches it to the world.
+
+    The joint targets the asset prim, which is not a rigid body, so it attaches the root link to the world. No second
+    world joint is created and the root stays on the joint.
+    """
+    stage = sim_utils.get_current_stage()
+    sim_utils.create_prim("/World/Robot", prim_type="Xform")
+    UsdPhysics.RigidBodyAPI.Apply(sim_utils.create_prim("/World/Robot/base", prim_type="Xform"))
+    joint = UsdPhysics.FixedJoint.Define(stage, "/World/Robot/root_joint")
+    joint.CreateBody0Rel().SetTargets(["/World/Robot"])
+    joint.CreateBody1Rel().SetTargets(["/World/Robot/base"])
+    joint.CreateJointEnabledAttr(False)
+    UsdPhysics.ArticulationRootAPI.Apply(joint.GetPrim())
+
+    if legacy_writer:
+        with pytest.warns(DeprecationWarning, match="modify_articulation_root_properties"):
+            schemas.modify_articulation_root_properties(
+                "/World/Robot/root_joint", schemas.ArticulationRootBaseCfg(fix_root_link=True)
+            )
+    else:
+        schemas.apply_articulation_root_properties("/World/Robot/root_joint", [], fix_root_link=True)
+
+    assert joint.GetJointEnabledAttr().Get() is True
+    robot = stage.GetPrimAtPath("/World/Robot")
+    assert [prim.GetName() for prim in Usd.PrimRange(robot) if prim.IsA(UsdPhysics.Joint)] == ["root_joint"]
+    roots = [prim.GetName() for prim in Usd.PrimRange(robot) if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
+    assert roots == ["root_joint"]
+
+
 @pytest.mark.parametrize("static_base", [False, True], ids=["rigid_base", "static_collider_base"])
 def test_fix_root_link_rejects_internal_fixed_joint_root(setup_simulation, static_base):
     """``fix_root_link=True`` must not treat an articulation root on a fixed joint between two bodies as fixed.

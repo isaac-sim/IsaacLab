@@ -57,24 +57,68 @@ from isaaclab_assets import (  # isort:skip
 )
 from isaaclab_assets.robots.shadow_hand import SHADOW_HAND_PHYSX_CFG
 
-# Base link with one revolute child. The URDF importer attaches the base link to the asset's root prim.
-_FIXED_BASE_URDF = """
-<robot name="fixed_base">
-  <link name="base_link">
-    <inertial><mass value="5.0"/><inertia ixx="0.05" ixy="0" ixz="0" iyy="0.05" iyz="0" izz="0.05"/></inertial>
-    <collision><geometry><box size="0.2 0.2 0.2"/></geometry></collision>
-  </link>
-  <link name="arm_link">
-    <inertial>
-      <origin xyz="0.15 0 0"/><mass value="1.0"/><inertia ixx="0.001" ixy="0" ixz="0" iyy="0.01" iyz="0" izz="0.01"/>
-    </inertial>
-    <collision><origin xyz="0.15 0 0"/><geometry><box size="0.3 0.04 0.04"/></geometry></collision>
-  </link>
-  <joint name="hinge" type="revolute">
-    <parent link="base_link"/><child link="arm_link"/><origin xyz="0.1 0 0"/><axis xyz="0 1 0"/>
-    <limit lower="-1.0" upper="1.0" effort="10.0" velocity="5.0"/>
-  </joint>
-</robot>
+# Base link with one revolute child, rooted at the fixed joint that attaches the base link to the asset prim, the
+# fixed-base layout that UsdPhysics recommends.
+_FIXED_JOINT_ROOT_USDA = """#usda 1.0
+(
+    defaultPrim = "Robot"
+    metersPerUnit = 1
+    upAxis = "Z"
+)
+
+def Xform "Robot"
+{
+    def Xform "base" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        float physics:mass = 5
+        float3 physics:diagonalInertia = (0.05, 0.05, 0.05)
+
+        def Cube "collision" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            double size = 0.2
+        }
+    }
+
+    def Xform "arm" (
+        prepend apiSchemas = ["PhysicsRigidBodyAPI", "PhysicsMassAPI"]
+    )
+    {
+        float physics:mass = 1
+        float3 physics:diagonalInertia = (0.001, 0.01, 0.01)
+        double3 xformOp:translate = (0.25, 0, 0)
+        uniform token[] xformOpOrder = ["xformOp:translate"]
+
+        def Cube "collision" (
+            prepend apiSchemas = ["PhysicsCollisionAPI"]
+        )
+        {
+            double size = 0.1
+        }
+    }
+
+    def PhysicsFixedJoint "root_joint" (
+        prepend apiSchemas = ["PhysicsArticulationRootAPI"]
+    )
+    {
+        rel physics:body0 = </Robot>
+        rel physics:body1 = </Robot/base>
+    }
+
+    def PhysicsRevoluteJoint "hinge"
+    {
+        rel physics:body0 = </Robot/base>
+        rel physics:body1 = </Robot/arm>
+        uniform token physics:axis = "Y"
+        point3f physics:localPos0 = (0.1, 0, 0)
+        point3f physics:localPos1 = (-0.15, 0, 0)
+        float physics:lowerLimit = -60
+        float physics:upperLimit = 60
+    }
+}
 """
 
 
@@ -807,19 +851,16 @@ def test_initialization_floating_base_made_fixed_base(sim, num_articulations, de
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 @pytest.mark.parametrize("fix_root_link", [None, True])
-def test_initialization_fixed_base_urdf(sim, num_articulations, device, fix_root_link, tmp_path):
-    """Test that a URDF converted with ``fix_base=True`` initializes as a fixed-base articulation.
+def test_initialization_fixed_joint_root(sim, num_articulations, device, fix_root_link, tmp_path):
+    """Test an articulation rooted at the fixed joint that attaches its root link to the asset prim.
 
-    The importer attaches the root link to the world with the fixed joint ``root_joint``. The articulation has to be
-    rooted at that joint, since PhysX simulates an articulation rooted at the root link as a floating base. With
-    physics replication, each environment has to keep its base at its origin. Fixing the root link through the
-    spawner as well must reuse that joint instead of adding a second one.
+    It initializes as a fixed-base articulation, and with physics replication each environment keeps its base at its
+    origin. Fixing the root link through the spawner as well must enable that joint instead of raising or adding a
+    second one.
     """
-    urdf_path = tmp_path / "fixed_base.urdf"
-    urdf_path.write_text(_FIXED_BASE_URDF)
-    spawn = sim_utils.UrdfFileCfg(
-        asset_path=str(urdf_path), usd_dir=str(tmp_path / "usd"), fix_base=True, fix_root_link=fix_root_link
-    )
+    usd_path = tmp_path / "fixed_joint_root.usda"
+    usd_path.write_text(_FIXED_JOINT_ROOT_USDA)
+    spawn = sim_utils.UsdFileCfg(usd_path=str(usd_path), fix_root_link=fix_root_link)
     cfg = ArticulationCfg(prim_path="/World/Env_[^/]*/Robot", spawn=spawn, actuators={})
     sim_utils.create_prim("/World/Env_0", "Xform")
     # the grid places every environment away from the world origin

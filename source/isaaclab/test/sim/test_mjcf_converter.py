@@ -42,22 +42,6 @@ _MJCF_IMPORTER_MODULE = "isaacsim.asset.importer.mjcf"
 # Portable NVIDIA Ant MJCF; ``newton`` is a base dependency of every environment.
 _PORTABLE_MJCF = os.path.join(os.path.dirname(newton.__file__), "examples", "assets", "nv_ant.xml")
 
-# Root body with one hinge child. Without a joint of its own, MJCF welds the root body to the world.
-_FIXED_BASE_MJCF = """
-<mujoco model="fixed_base">
-  <worldbody>
-    <body name="base" pos="0 0 1">
-      {root_joint}
-      <geom type="box" size="0.1 0.1 0.1" mass="1"/>
-      <body name="link" pos="0.2 0 0">
-        <joint name="hinge" type="hinge" axis="0 1 0"/>
-        <geom type="sphere" size="0.05" mass="1"/>
-      </body>
-    </body>
-  </worldbody>
-</mujoco>
-"""
-
 
 @pytest.fixture(autouse=True)
 def test_setup_teardown():
@@ -306,43 +290,6 @@ def test_run_asset_transformer_disabled(test_setup_teardown, tmp_path):
     prim_path = "/World/Robot"
     sim_utils.create_prim(prim_path, usd_path=mjcf_converter.usd_path)
     assert sim.stage.GetPrimAtPath(prim_path).IsValid()
-
-
-@pytest.mark.parametrize(
-    "root_joint, root_name, root_is_fixed_joint",
-    [
-        ('<freejoint name="root"/>', "fix_base_joint", True),
-        ("", "PhysicsFixedJoint", True),
-        ('<joint type="slide"/>', "base", False),
-    ],
-    ids=["free", "welded", "slide"],
-)
-def test_fix_base_roots_articulation_at_world_joint(
-    test_setup_teardown, tmp_path, root_joint, root_name, root_is_fixed_joint
-):
-    """Verify that fix_base=True roots the articulation at the fixed joint that attaches the root body to the world.
-
-    The importer adds ``fix_base_joint`` for a free root body and keeps the weld of a root body without joints.
-    UsdPhysics roots a fixed-base articulation at its world joint, while an articulation rooted at the root body is
-    floating. A root body on a slide joint keeps the root, since PhysX would weld an articulation rooted at the
-    slide joint.
-    """
-    sim, config = test_setup_teardown
-    mjcf_path = tmp_path / "fixed_base.xml"
-    mjcf_path.write_text(_FIXED_BASE_MJCF.format(root_joint=root_joint))
-
-    config.asset_path = str(mjcf_path)
-    config.fix_base = True
-    config.force_usd_conversion = True
-    config.usd_dir = str(tmp_path / "usd")
-    mjcf_converter = MjcfConverter(config)
-
-    from pxr import Usd, UsdPhysics
-
-    stage = Usd.Stage.Open(mjcf_converter.usd_path)
-    roots = [prim for prim in stage.Traverse() if prim.HasAPI(UsdPhysics.ArticulationRootAPI)]
-    assert [root.GetName() for root in roots] == [root_name]
-    assert roots[0].IsA(UsdPhysics.FixedJoint) is root_is_fixed_joint
 
 
 @pytest.mark.isaacsim_ci
