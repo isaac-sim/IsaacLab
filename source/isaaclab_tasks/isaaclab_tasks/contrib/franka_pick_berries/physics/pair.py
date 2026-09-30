@@ -95,7 +95,7 @@ class BerryInstance:
 
     def __init__(self, owner: BerryRuntime, index: int, shift: np.ndarray):
         self.owner = owner
-        self.device = owner.device
+        self.mpm_device = owner.mpm_device
         count = len(owner.instance_proxy["xyz"])
         selection = slice(index * count, (index + 1) * count)
         self.usd_path, self.usd_stage, self.profile = owner.usd_path, owner.usd_stage, owner.profile

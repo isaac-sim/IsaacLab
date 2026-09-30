@@ -14,6 +14,7 @@ from newton.viewer import ViewerRTX
 
 from pxr import Gf, Sdf, UsdGeom, UsdLux, UsdShade
 
+from ..physics.device import on_device
 from ..scene.background import add_ebc_background
 from ..scene.tableware import add_tableware_visuals
 from .gaussian_stream import BerryGaussianStream
@@ -38,6 +39,9 @@ class BerryViewer(ViewerRTX):
         require_live_gaussian_renderer()
         self.env = env
         self.berry = env.berry
+        # The renderer and GL window live on the preferred CUDA device; each stream scopes its own MPM device.
+        # Not ``device``: Newton's viewer owns that name and resets it to the (CPU) model device in set_model.
+        self.render_device = wp.get_preferred_device()
         self.aperture = 0.08
         self.pipeline = pipeline
         self.sh_rotation = sh_rotation
@@ -58,8 +62,9 @@ class BerryViewer(ViewerRTX):
             )
             for name, berry in env.berries.items()
         ]
-        super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
-        self.set_model(NewtonManager.get_model())
+        with wp.ScopedDevice(self.render_device):
+            super().__init__(**kwargs, environment="studio", fps=30, async_rendering=False)
+            self.set_model(NewtonManager.get_model())
         if view == "auto":
             view = "workcell" if env.cfg.background == "ebc" or len(env.berries) > 1 else "berry"
         self.set_view(view)
@@ -180,6 +185,7 @@ class BerryViewer(ViewerRTX):
         if self.pipeline:
             self.pending_frame = self._rtx.step_async(render_products={self._render_product_path}, delta_time=1 / 30)
 
+    @on_device("render_device")
     def capture_image(self):
         # OVRTX 0.6 keys render vars by prim path, not by source name.
         from ovrtx import Device
@@ -195,11 +201,13 @@ class BerryViewer(ViewerRTX):
             f"No color output: {[(str(k), str(v), str(v.frames)) for k, v in self._render_products.items()]}"
         )
 
+    @on_device("render_device")
     def save_screenshot(self, path):
         from PIL import Image
 
         Image.fromarray(self.capture_image()).save(path)
 
+    @on_device("render_device")
     def draw(self, time_s):
         self.prepared = [stream.prepare(self.sh_rotation) for stream in self.streams]
         center = self.berry.sim.x.numpy().mean(0)
@@ -217,16 +225,19 @@ class BerryViewer(ViewerRTX):
         if getattr(self, "gui", None) is not None:
             self.gui.update_camera_from_keys = lambda *args: None
 
+    @on_device("render_device")
     def finish_frame(self):
         if self.pending_frame is not None:
             self._render_products = self.pending_frame.wait().fetch()
             self.pending_frame = None
 
+    @on_device("render_device")
     def verify_geometry(self):
         """Verify every berry’s native Gaussian arrays, including static SH and opacity."""
         self.finish_frame()
         return all(stream.verify(prepared) for stream, prepared in zip(self.streams, self.prepared))
 
+    @on_device("render_device")
     def close(self):
         self.finish_frame()
         renderer = self._rtx

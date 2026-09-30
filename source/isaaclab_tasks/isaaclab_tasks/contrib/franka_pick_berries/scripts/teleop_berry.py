@@ -531,7 +531,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                         "effective_material": berry.effective_parameters,
                         "physics_resolution": berry.resolution,
                         "mpm_hz": berry.sim.hz,
-                        "mpm_device": str(berry.device),
+                        "mpm_device": str(berry.mpm_device),
                         "gaussians": len(berry.asset["xyz"]),
                         "physical_particles": len(berry.sim.rest),
                     }
@@ -555,7 +555,7 @@ with launch_simulation(cfg, args), ExitStack() as resources:
                 "sh_rotation_initial": args.sh_rotation,
                 "sh_rotation_final": ("on" if viewer.sh_rotation else "off") if viewer is not None else None,
                 "mpm_hz": env.berry.sim.hz,
-                "mpm_device": str(env.berry.device),
+                "mpm_device": str(env.berry.mpm_device),
                 "mpm_cfl": float(env.berry.sim.cfl),
                 "width": args.width,
                 "height": args.height,
