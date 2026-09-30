@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
+import torch
 import warp as wp
 
 from isaaclab.utils.warp.index_kernel import IndexKernelDispatcher
@@ -1347,142 +1348,6 @@ def write_body_com_position_to_buffer_mask(
 
 
 @wp.kernel
-def split_transform_to_pos_1d(
-    transform: wp.array(dtype=wp.transformf),
-    pos: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D transform array into a position array.
-
-    This kernel splits a 1D transform array into a position array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, 7).
-        pos: Output array where positions are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    pos[i] = wp.transform_get_translation(transform[i])
-
-
-@wp.kernel
-def split_transform_to_quat_1d(
-    transform: wp.array(dtype=wp.transformf),
-    quat: wp.array(dtype=wp.quatf),
-):
-    """Split a 1D transform array into a quaternion array.
-
-    This kernel splits a 1D transform array into a quaternion array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, 7).
-        quat: Output array where quaternions are written. Shape is (num_envs, 4).
-    """
-    i = wp.tid()
-    quat[i] = wp.transform_get_rotation(transform[i])
-
-
-@wp.kernel
-def split_transform_to_pos_2d(
-    transform: wp.array2d(dtype=wp.transformf),
-    pos: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D transform array into a position array.
-
-    This kernel splits a 2D transform array into a position array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, num_bodies, 7).
-        pos: Output array where positions are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    pos[i, j] = wp.transform_get_translation(transform[i, j])
-
-
-@wp.kernel
-def split_transform_to_quat_2d(
-    transform: wp.array2d(dtype=wp.transformf),
-    quat: wp.array2d(dtype=wp.quatf),
-):
-    """Split a 2D transform array into a quaternion array.
-
-    This kernel splits a 2D transform array into a quaternion array.
-
-    Args:
-        transform: Input array of transforms. Shape is (num_envs, num_bodies, 7).
-        quat: Output array where quaternions are written. Shape is (num_envs, num_bodies, 4).
-    """
-    i, j = wp.tid()
-    quat[i, j] = wp.transform_get_rotation(transform[i, j])
-
-
-@wp.kernel
-def split_spatial_vector_to_top_1d(
-    spatial_vector: wp.array(dtype=wp.spatial_vectorf),
-    top_part: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D spatial vector array into a top part array.
-
-    This kernel splits a 1D spatial vector array into a top part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, 6).
-        top_part: Output array where top parts are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    top_part[i] = wp.spatial_top(spatial_vector[i])
-
-
-@wp.kernel
-def split_spatial_vector_to_bottom_1d(
-    spatial_vector: wp.array(dtype=wp.spatial_vectorf),
-    bottom_part: wp.array(dtype=wp.vec3f),
-):
-    """Split a 1D spatial vector array into a bottom part array.
-
-    This kernel splits a 1D spatial vector array into a bottom part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, 6).
-        bottom_part: Output array where bottom parts are written. Shape is (num_envs, 3).
-    """
-    i = wp.tid()
-    bottom_part[i] = wp.spatial_bottom(spatial_vector[i])
-
-
-@wp.kernel
-def split_spatial_vector_to_top_2d(
-    spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
-    top_part: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D spatial vector array into a top part array.
-
-    This kernel splits a 2D spatial vector array into a top part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, num_bodies, 6).
-        top_part: Output array where top parts are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    top_part[i, j] = wp.spatial_top(spatial_vector[i, j])
-
-
-@wp.kernel
-def split_spatial_vector_to_bottom_2d(
-    spatial_vector: wp.array2d(dtype=wp.spatial_vectorf),
-    bottom_part: wp.array2d(dtype=wp.vec3f),
-):
-    """Split a 2D spatial vector array into a bottom part array.
-
-    This kernel splits a 2D spatial vector array into a bottom part array.
-
-    Args:
-        spatial_vector: Input array of spatial vectors. Shape is (num_envs, num_bodies, 6).
-        bottom_part: Output array where bottom parts are written. Shape is (num_envs, num_bodies, 3).
-    """
-    i, j = wp.tid()
-    bottom_part[i, j] = wp.spatial_bottom(spatial_vector[i, j])
-
-
-@wp.kernel
 def make_dummy_body_com_pose_b(
     body_com_pos_b: wp.array2d(dtype=wp.vec3f),
     body_com_pose_b: wp.array2d(dtype=wp.transformf),
@@ -1556,3 +1421,23 @@ def update_wrench_array_with_force_and_torque(
             torques[env_index, body_index],
             body_rot_w,
         )
+
+
+def com_positions(coms: float | torch.Tensor | wp.array) -> float | torch.Tensor | wp.array:
+    """Return center of mass positions, dropping the orientation when poses are given.
+
+    Newton models a body's center of mass as a position, while the asset API also accepts poses
+    (position and quaternion (x, y, z, w)) like the other backends. The orientation is ignored.
+
+    Args:
+        coms: Center of mass positions [m] with a trailing dimension of 3 (or dtype ``wp.vec3f``), or poses with a
+            trailing dimension of 7 (or dtype ``wp.transformf``).
+
+    Returns:
+        The center of mass positions [m]; inputs that are already positions are returned unchanged.
+    """
+    if isinstance(coms, wp.array) and coms.dtype == wp.transformf:
+        coms = wp.to_torch(coms)
+    if isinstance(coms, torch.Tensor) and coms.shape[-1] == 7:
+        return coms[..., :3].contiguous()
+    return coms

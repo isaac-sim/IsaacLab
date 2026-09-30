@@ -5,7 +5,7 @@
 
 
 from isaaclab.envs.mimic_env_cfg import MimicEnvCfg, SubTaskConfig
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 from isaaclab_tasks.contrib.stack.config.galbot.stack_rmp_rel_env_cfg import (
     RmpFlowGalbotLeftArmCubeStackEnvCfg,
@@ -19,6 +19,8 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
     Isaac Lab Mimic environment config class for Galbot Gripper Cube Stack IK Rel env.
     """
 
+    class_type: type | str = "{DIR}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()
@@ -31,7 +33,6 @@ class RmpFlowGalbotLeftArmGripperCubeStackAbsMimicEnvCfg(RmpFlowGalbotLeftArmCub
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.
@@ -145,6 +146,8 @@ class RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg(RmpFlowGalbotRightArmC
     Isaac Lab Mimic environment config class for Galbot Suction Gripper Cube Stack RmpFlow Abs env.
     """
 
+    class_type: type | str = "{DIR}.galbot_stack_rmp_abs_mimic_env:RmpFlowGalbotCubeStackAbsMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()
@@ -157,7 +160,6 @@ class RmpFlowGalbotRightArmSuctionCubeStackAbsMimicEnvCfg(RmpFlowGalbotRightArmC
         self.datagen_config.generation_select_src_per_subtask = True
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.

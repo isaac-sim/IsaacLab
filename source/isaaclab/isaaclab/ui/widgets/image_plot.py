@@ -24,7 +24,6 @@ if TYPE_CHECKING:
     import isaacsim.gui.components
     import omni.ui
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -74,7 +73,6 @@ class ImagePlot(UIWidgetWrapper):
             min_value: Minimum value for manual normalization/colorization. Defaults to 0.0.
             max_value: Maximum value for manual normalization/colorization. Defaults to 1.0.
         """
-
         self._curr_mode = "None"
 
         self._has_built = False
