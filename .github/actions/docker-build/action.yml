@@ -187,7 +187,9 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        # pip needs root; restore the image's own default user afterwards.
+        # Install as root, then restore the image's default user. Disable the
+        # build-time cache so it cannot leave root-owned files in the runtime
+        # user's uv cache when both users share HOME.
         image_user="$(docker image inspect --format '{{.Config.User}}' "${{ inputs.image-tag }}")"
         # Dockerfile on stdin (no context to stage). Quoted heredoc so the
         # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
@@ -198,7 +200,7 @@ runs:
         FROM ${{ inputs.image-tag }}
         ARG IMAGE_USER
         USER root
-        RUN uv pip install --python ${VIRTUAL_ENV}/bin/python \
+        RUN uv pip install --no-cache --python ${VIRTUAL_ENV}/bin/python \
               pytest pytest-mock junitparser flaky "coverage>=7.6.1"
         USER ${IMAGE_USER}
         DOCKERFILE
