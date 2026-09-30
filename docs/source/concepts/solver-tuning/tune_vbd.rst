@@ -39,6 +39,19 @@ Run it with the lightweight Newton GL visualizer:
 The script declares its ground, tables, cloth, and tableware with
 ``InteractiveSceneCfg`` and uses the standard scene write/step/update lifecycle.
 
+For a robot-manipulation example, run the scripted expert for the manager-based
+``IsaacContrib-Tablecloth-H1`` task:
+
+.. code-block:: bash
+
+   uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py \
+      --device cuda:0 --max_steps 312
+
+Both examples use the default Isaac Lab ground plane and share SimReady kitchen
+assets with analytic collision proxies. The H1 task owns the scene, Newton IK
+actions, observations, resets, rewards, and terminations; its expert script
+only supplies actions. No trained policy or RL-library configuration is included.
+
 Start from a Supported Deformable Task
 --------------------------------------
 

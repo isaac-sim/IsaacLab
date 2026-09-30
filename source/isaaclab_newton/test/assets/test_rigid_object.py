@@ -20,7 +20,7 @@ import torch
 import warp as wp
 from flaky import flaky
 from isaaclab_newton.assets import RigidObject
-from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg, VBDSolverCfg
 from isaaclab_newton.physics import NewtonManager as SimulationManager
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 from newton import ModelFlags
@@ -121,6 +121,30 @@ def generate_cubes_scene(
     cube_object = RigidObject(cfg=cube_object_cfg)
 
     return cube_object, torch.as_tensor(origins, device=device)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_vbd_root_state_tracks_integrated_body(device):
+    """The public rigid-object root pose and velocity must follow a VBD-integrated free body."""
+    sim_cfg = SimulationCfg(
+        device=device, physics=NewtonCfg(solver_cfg=VBDSolverCfg(iterations=5, rigid_compliant_alm=True))
+    )
+    with build_simulation_context(sim_cfg=sim_cfg, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(device=device)
+        replicate(sim.get_clone_plan())
+        sim.reset()
+
+        initial_height = cube_object.data.root_link_pose_w.torch[0, 2].item()
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        body_pose = cube_object.data.body_link_pose_w.torch[:, 0]
+        body_velocity = cube_object.data.body_com_vel_w.torch[:, 0]
+        assert body_pose[0, 2] < initial_height
+        assert body_velocity[0, 2] < 0.0
+        torch.testing.assert_close(cube_object.data.root_link_pose_w.torch, body_pose)
+        torch.testing.assert_close(cube_object.data.root_com_vel_w.torch, body_velocity)
 
 
 @pytest.mark.isaacsim_ci

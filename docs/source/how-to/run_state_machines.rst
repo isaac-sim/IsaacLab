@@ -47,6 +47,20 @@ and releases it:
    uv run python scripts/environments/state_machine/open_cabinet_sm.py \
       --num_envs 32 --viz kit
 
-Each script defines its states, wait times, transition kernel, and action loop
-in one file. Start with ``lift_cube_sm.py`` when adapting the pattern to a new
-manipulation task.
+Pull a tablecloth with H1
+-------------------------
+
+This example runs a bimanual Warp state machine against the manager-based
+``IsaacContrib-Tablecloth-H1`` task. It uses Newton VBD for the cloth and rigid
+tableware, Newton IK for the hands, and a downloaded H1 asset. The Newton GL
+visualizer opens by default; the SimReady table and tableware require asset
+access.
+
+.. code-block:: bash
+
+   uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py \
+      --max_steps 312
+
+Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
+The H1 example shows how to keep scene, observations, rewards, and terminations
+in a reusable task while the scripted expert supplies only actions.
