@@ -250,6 +250,15 @@ class Articulation(BaseArticulation):
         return self.root_view.is_fixed_base
 
     @property
+    def num_base_dofs(self) -> int:
+        """Number of free DoFs of the floating base.
+
+        Only a free root joint contributes base DoFs. The DoFs of any other root joint, such as a
+        revolute or prismatic joint to the world, are joints of the articulation and contribute none.
+        """
+        return 6 if self.root_view.root_joint_type == JointType.FREE else 0
+
+    @property
     def num_joints(self) -> int:
         """Number of joints in articulation."""
         return self.root_view.joint_dof_count

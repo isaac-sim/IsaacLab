@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import warp as wp
+from newton import JointType
 
 from isaaclab.assets.articulation import ordering_kernels
 from isaaclab.assets.articulation.base_articulation_data import BaseArticulationData
@@ -1833,7 +1834,9 @@ class ArticulationData(BaseArticulationData):
         # -- optional task-space quantities: retain ordering metadata, but defer large
         # model-wide scratch until the corresponding accessor is actually used.
         self._jacobian_link_offset = 1 if self._root_view.is_fixed_base else 0
-        self._num_base_dofs = 0 if self._root_view.is_fixed_base else 6
+        # The root view excludes FREE joints (see ``exclude_joint_types``), so only a free root's six
+        # DoFs lie outside the joint axis; every other root joint's DoFs are regular view joints.
+        self._num_base_dofs = 6 if self._root_view.root_joint_type == JointType.FREE else 0
         self._jacobian_body_user_to_backend: wp.array | None = None
         self._jacobian_view_art_ids = self._root_view.articulation_ids.reshape((-1,))
         self._jacobian_buf_flat: wp.array | None = None
