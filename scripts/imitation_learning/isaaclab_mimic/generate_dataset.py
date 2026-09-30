@@ -7,17 +7,17 @@
 Main data generation script.
 """
 
-"""Launch Isaac Sim Simulator first."""
-
 import argparse
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
 
-# add argparse arguments
 parser = argparse.ArgumentParser(description="Generate demonstrations for Isaac Lab environments.")
 parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--generation_num_trials", type=int, help="Number of demos to be generated.", default=None)
+parser.add_argument(
+    "--max_num_failures", type=int, default=None, help="Stop after this many failed generation attempts."
+)
 parser.add_argument(
     "--num_envs", type=int, default=1, help="Number of environments to instantiate for generating datasets."
 )
@@ -51,15 +51,14 @@ parser.add_argument(
     help="Fully qualified path to an externally defined callback.",
 )
 
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
+add_launcher_args(parser)
 args_cli, remaining_args = parser.parse_known_args()
+if args_cli.max_num_failures is not None and args_cli.max_num_failures < 1:
+    parser.error("--max_num_failures must be positive")
 
 # Mimic environments may use camera observations or an RTX renderer. Request
 # rendering support here so callers do not need a legacy CLI flag.
-app_launcher = AppLauncher(args_cli, enable_cameras=True)
-simulation_app = app_launcher.app
+args_cli.enable_cameras = True
 
 # Call an external callback if requested.
 remaining_args_env_registration = None
@@ -72,22 +71,21 @@ unrecognized_args = list_intersection(remaining_args, remaining_args_env_registr
 if unrecognized_args:
     parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
 
-"""Rest everything follows."""
-
 import asyncio
 import inspect
 import logging
+import os
 import random
 
 import gymnasium as gym
 import numpy as np
 import torch
 
-from isaaclab.envs import ManagerBasedRLMimicEnv
+from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
 import isaaclab_mimic.envs  # noqa: F401
-from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
-from isaaclab_mimic.datagen.utils import get_env_name_from_dataset, setup_output_paths
+
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -96,12 +94,37 @@ logger = logging.getLogger(__name__)
 def main():
     num_envs = args_cli.num_envs
 
-    # Setup output paths and get env name
-    output_dir, output_file_name = setup_output_paths(args_cli.output_file)
+    # Get env name
     task_name = args_cli.task
     if task_name:
         task_name = args_cli.task.split(":")[-1]
-    env_name = task_name or get_env_name_from_dataset(args_cli.input_file)
+    if not task_name:
+        if not os.path.exists(args_cli.input_file):
+            raise FileNotFoundError(f"The dataset file {args_cli.input_file} does not exist.")
+        dataset_file_handler = HDF5DatasetFileHandler()
+        dataset_file_handler.open(args_cli.input_file)
+        task_name = dataset_file_handler.get_env_name()
+        if task_name is None:
+            raise ValueError("Environment name not found in dataset")
+    env_name = task_name
+
+    # Launch the runtime the task needs before loading the mimic helpers, which import USD
+    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    with launch_simulation(env_cfg, args_cli):
+        generate(env_name, env_cfg)
+
+
+def generate(env_name: str, env_cfg):
+    """Configure and create the environment, then run the (optionally SkillGen-based) data generation."""
+    from isaaclab.envs import ManagerBasedRLMimicEnv
+
+    from isaaclab_mimic.datagen.generation import env_loop, setup_async_generation, setup_env_config
+    from isaaclab_mimic.datagen.utils import setup_output_paths
+
+    num_envs = args_cli.num_envs
+
+    # Setup output paths
+    output_dir, output_file_name = setup_output_paths(args_cli.output_file)
 
     # Configure environment
     env_cfg, success_term = setup_env_config(
@@ -112,7 +135,10 @@ def main():
         device=args_cli.device,
         generation_num_trials=args_cli.generation_num_trials,
         dataset_compression=not args_cli.disable_dataset_compression,
+        env_cfg=env_cfg,
     )
+    if args_cli.max_num_failures is not None:
+        env_cfg.datagen_config.max_num_failures = args_cli.max_num_failures
 
     # Create environment
     env = gym.make(env_name, cfg=env_cfg).unwrapped
@@ -214,5 +240,3 @@ if __name__ == "__main__":
         main()
     except KeyboardInterrupt:
         print("\nProgram interrupted by user. Exiting...")
-    # Close sim app
-    simulation_app.close()

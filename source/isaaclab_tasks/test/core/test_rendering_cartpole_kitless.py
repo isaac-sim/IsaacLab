@@ -9,7 +9,8 @@ from pathlib import Path
 
 import pytest
 from rendering_test_utils import (
-    KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    group_rendering_params,
     make_attach_comparison_properties_fixture,
     make_determinism_fixture,
     make_generate_html_report_fixture,
@@ -18,9 +19,17 @@ from rendering_test_utils import (
     rendering_test_cartpole,
 )
 
-pytestmark = [pytest.mark.isaacsim_ci, pytest.mark.arm_ci]
+pytestmark = pytest.mark.arm_ci
 
-_RENDERING_PARAMS = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+_RENDERING_PARAMS = [
+    pytest.param(*param.values, False, marks=param.marks, id=param.id)
+    for param in group_rendering_params(
+        make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    )
+] + [
+    pytest.param("legacy", physics, "ovrtx_renderer", ["rgb"], True, id=f"legacy-{physics}-ovrtx-async")
+    for physics in ("newton", "ovphysx")
+]
 _COMPARISON_SCORES: list[dict] = []
 
 _determinism_fixture = make_determinism_fixture()
@@ -30,8 +39,10 @@ _require_ovlibs_install_fixture = make_require_ovlibs_install_fixture()
 
 
 @pytest.mark.parametrize(
-    "ovstage_variant,physics_backend,renderer,data_type", _RENDERING_PARAMS, indirect=["ovstage_variant"]
+    "ovstage_variant,physics_backend,renderer,data_types,async_rendering",
+    _RENDERING_PARAMS,
+    indirect=["ovstage_variant"],
 )
-def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_type):
+def test_rendering_cartpole_kitless(ovstage_variant, physics_backend, renderer, data_types, async_rendering):
     """Camera output must match golden images (Cartpole camera presets env)."""
-    rendering_test_cartpole(physics_backend, renderer, data_type, _COMPARISON_SCORES)
+    rendering_test_cartpole(physics_backend, renderer, data_types, _COMPARISON_SCORES, async_rendering=async_rendering)
