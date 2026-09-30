@@ -36,7 +36,12 @@ import pytest
 import torch
 import warp as wp
 from isaaclab_visualizers.kit import KitVisualizer, KitVisualizerCfg
-from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonVisualizer
+from isaaclab_visualizers.newton import (
+    NewtonGLVisualizerCfg,
+    NewtonRTXVisualizer,
+    NewtonRTXVisualizerCfg,
+    NewtonVisualizer,
+)
 
 import isaaclab.sim as sim_utils
 from isaaclab.envs.utils.camera_view import camera_rgb_batch, compose_rgb_grid_tensor
@@ -226,6 +231,7 @@ _BACKEND_DISPLAY_NAMES = {
 _VISUALIZER_DISPLAY_NAMES = {
     "kit": "Kit Visualizer",
     "newton": "Newton Visualizer",
+    "newton_rtx": "Newton RTX Visualizer",
     "rerun": "Rerun Visualizer",
     "viser": "Viser Visualizer",
 }
@@ -345,6 +351,20 @@ def _get_visualizer_cfg(visualizer_kind: str, *, tiled_camera: bool = False, all
                 **cam,
             ),
             NewtonVisualizer,
+        )
+    if visualizer_kind == "newton_rtx":
+        __import__("newton")
+        nw, nh = _CARTPOLE_NEWTON_INTEGRATION_WINDOW_SIZE
+        # The RTX viewer has no tiled camera panel, so no streaming kwargs here.
+        return (
+            NewtonRTXVisualizerCfg(
+                headless=True,
+                window_width=nw,
+                window_height=nh,
+                randomly_sample_visible_envs=False,
+                **cam,
+            ),
+            NewtonRTXVisualizer,
         )
     if visualizer_kind == "viser":
         __import__("newton")
@@ -964,6 +984,9 @@ def _flush_newton_render_for_motion_capture(visualizer) -> None:
     call uses the latest physics state.
     """
     visualizer.step(0.0)
+    if isinstance(visualizer, NewtonRTXVisualizer):
+        # Async OVRTX hands back the previous submission, so one extra capture pushes the latest state through.
+        visualizer.render_rgb_array()
 
 
 def _prepare_visualizer_test_process() -> None:
@@ -1539,7 +1562,10 @@ def _make_cartpole_camera_env(
     if tiled_camera and all_envs_perspective:
         raise ValueError("Tiled-camera and all-environment perspective modes are mutually exclusive.")
     physics = "newton_mjwarp" if backend_kind == "newton" else "physx"
-    env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, "renderer=isaacsim_rtx")
+    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
+    # OVRTX cannot share a process with Kit, so the Newton RTX viewer needs a kit-less renderer.
+    renderer = "newton_renderer" if "newton_rtx" in visualizer_kinds else "isaacsim_rtx"
+    env_cfg = _compose_task_cfg("Isaac-Cartpole-Camera-Direct", physics, f"renderer={renderer}")
     env_cfg.scene.num_envs = (
         _CARTPOLE_TILED_CAMERA_INTEGRATION_NUM_ENVS
         if tiled_camera
@@ -1558,7 +1584,6 @@ def _make_cartpole_camera_env(
     if isinstance(env_cfg.observation_space, list) and len(env_cfg.observation_space) >= 3:
         env_cfg.observation_space = [th, tw, env_cfg.observation_space[2]]
     env_cfg.seed = None
-    visualizer_kinds = (visualizer_kind,) if isinstance(visualizer_kind, str) else tuple(visualizer_kind)
     visualizer_cfgs = [
         _get_visualizer_cfg(
             kind,
@@ -1606,7 +1631,11 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                     _run_kit_viewport_frame_motion_test(env, kit_visualizers[0], physics_kind=backend_kind)
 
             if "newton" in visualizer_kinds:
-                newton_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonVisualizer)]
+                newton_visualizers = [
+                    viz
+                    for viz in env.sim.visualizers
+                    if isinstance(viz, NewtonVisualizer) and not isinstance(viz, NewtonRTXVisualizer)
+                ]
                 assert newton_visualizers, "Expected an initialized Newton visualizer."
                 viewer = getattr(newton_visualizers[0], "_viewer", None)
                 assert viewer is not None, "Newton viewer was not created."
@@ -1622,6 +1651,26 @@ def run_cartpole_env_visualizers_motion_with_play_pause(
                         step_hook=_step_env,
                         get_physics_step_count=lambda: env.sim._physics_step_count,
                         physics_kind=backend_kind,
+                    )
+
+            if "newton_rtx" in visualizer_kinds:
+                rtx_visualizers = [viz for viz in env.sim.visualizers if isinstance(viz, NewtonRTXVisualizer)]
+                assert rtx_visualizers, "Expected an initialized Newton RTX visualizer."
+                rtx_viewer = getattr(rtx_visualizers[0], "_viewer", None)
+                assert rtx_viewer is not None, "Newton RTX viewer was not created."
+
+                def _step_env_rtx() -> None:
+                    env.step(action=actions)
+
+                with _visualizer_debug_case("newton_rtx", backend_kind):
+                    _run_newton_viewer_frame_motion_test(
+                        env,
+                        rtx_viewer,
+                        visualizer=rtx_visualizers[0],
+                        step_hook=_step_env_rtx,
+                        get_physics_step_count=lambda: env.sim._physics_step_count,
+                        physics_kind=backend_kind,
+                        viz_kind="newton_rtx",
                     )
 
             if "rerun" in visualizer_kinds:
