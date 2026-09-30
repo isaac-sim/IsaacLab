@@ -636,10 +636,8 @@ def _install_isaacsim() -> None:
     extra_flags = []
     if using_uv:
         # uv needs unsafe-best-match to resolve packages across multiple indexes
-        # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org), and
-        # prerelease=allow because uv rejects transitive pre-release pins
-        # (isaacsim depends on e.g. tinyobjloader==2.0.0rc13); pip allows both.
-        extra_flags = ["--index-strategy", "unsafe-best-match", "--prerelease=allow"]
+        # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
+        extra_flags = ["--index-strategy", "unsafe-best-match"]
 
     _run_package_install(
         pip_cmd
@@ -851,12 +849,8 @@ def _install_extra_feature(feature_name: str, selector: str = "") -> None:
     elif feature_name == "rl":
         extra = selector if selector else "all"
         # rl[all] installs every RL framework extra; other selectors map by name
-        # (rsl_rl -> rsl-rl, skrl, sb3, rl-games) and may be comma-separated
-        # (e.g. rl[rsl_rl,rl_games]), mirroring the ov selector handling.
-        if extra == "all":
-            frameworks = {"sb3", "skrl", "rl-games", "rsl-rl"}
-        else:
-            frameworks = {item.strip().replace("_", "-") for item in extra.split(",") if item.strip()}
+        # (rsl_rl -> rsl-rl, skrl, sb3, rl-games).
+        frameworks = {"sb3", "skrl", "rl-games", "rsl-rl"} if extra == "all" else {extra.replace("_", "-")}
         print_info(f"Installing RL framework extras: {extra}...")
         for framework in sorted(frameworks):
             _install_root_extra(framework)
