@@ -75,9 +75,8 @@ SANCTIONED_BOUNDARIES = {
     ("isaaclab/sensors/camera/camera.py", "_env_mask_has_any"),
     # backends without a mask-native actuator reset fall back to indices; Newton and OVPhysX override it
     ("isaaclab/actuators/actuator_control.py", "reset_native_actuators_mask"),
-    # joint-limit and tendon-property writes mutate the solver model (event-driven, not per-step)
+    # joint-limit writes mutate the solver model (event-driven, not per-step)
     ("isaaclab_newton/assets/articulation/articulation.py", "write_joint_position_limit_to_sim_mask"),
-    ("isaaclab_newton/assets/articulation/articulation.py", "_mask_to_ids"),
 }
 
 
