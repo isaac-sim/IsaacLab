@@ -79,6 +79,7 @@ PER_TEST_STARTUP_TIMEOUTS = {
     "test_environments_newton.py": GIT_ASSET_STARTUP_TIMEOUT,
     "test_environments_ovphysx.py": GIT_ASSET_STARTUP_TIMEOUT,
     "test_multi_agent_environments.py": GIT_ASSET_STARTUP_TIMEOUT,
+    "test_tablecloth_h1_stance.py": GIT_ASSET_STARTUP_TIMEOUT,
 }
 """Per-test startup timeouts for cold external asset downloads."""
 

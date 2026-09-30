@@ -56,6 +56,16 @@ tableware, Newton IK for the hands, and a downloaded H1 asset. The Newton GL
 visualizer opens by default; the SimReady table and tableware require asset
 access.
 
+The pelvis is fixed and the leg actuators hold a grounded standing pose; this
+example demonstrates manipulation, not humanoid balance. Absolute hand and
+torso pose targets are expressed in the robot root frame, while the fingers
+receive joint-position targets.
+
+The expert lifts the cloth's overhanging corners before pinching, then follows a
+constant-attitude arc reachable by H1's five-DOF arms, accelerating and braking
+to rest. The grasp is calibrated for the task's cloth resolution; changing
+the mesh or hand asset requires revalidating acquisition and retention.
+
 .. code-block:: bash
 
    uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py \

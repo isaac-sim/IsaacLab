@@ -31,7 +31,7 @@ parser = argparse.ArgumentParser(description="Run the scripted H1 tablecloth exp
 parser.add_argument("--task", type=str, default="IsaacContrib-Tablecloth-H1", help="Task to run.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of parallel environments.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
-parser.add_argument("--pull_speed", type=float, default=2.0, help="Task-space pull speed [m/s].")
+parser.add_argument("--pull_speed", type=float, default=2.0, help="Peak X withdrawal speed [m/s].")
 parser.add_argument("--video", action="store_true", help="Record the rollout to videos/tablecloth_h1/.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
@@ -51,7 +51,6 @@ from isaaclab_tasks.utils import parse_env_cfg
 FPS = 60
 VIDEO_STEPS = 312
 PULL_DISTANCE = 0.40
-PULL_RAMP_TIME = wp.constant(0.40)
 ARM_ACTION_DIM = 21
 
 FINGERS_OPEN = (0.0, 0.0, 0.0, 0.0, 0.0)
@@ -60,7 +59,7 @@ FINGERS_INSERTED = (0.0, 0.0, 0.75, 0.75, 0.80)
 FINGERS_PREPINCHED = (0.0, 0.0, 0.737080, 0.713855, 0.80)
 FINGERS_PINCHED = (1.0, 1.0, 0.737080, 0.713855, 0.80)
 
-PHASE_DURATIONS = (0.50, 0.80, 0.60, 0.50, 0.60, 0.40, 0.10, 0.10)
+PHASE_DURATIONS = (0.50, 0.80, 0.60, 0.50, 0.60, 0.60, 0.10, 0.10)
 PHASE_KEYFRAMES = ((0, 0), (0, 2), (2, 4), (4, 6), (6, 8), (8, 8), (8, 10), (10, 10))
 PHASE_FINGERS = (
     (FINGERS_OPEN, FINGERS_OPEN),
@@ -79,20 +78,25 @@ STATE_HOLD = wp.constant(len(PHASE_DURATIONS) + 1)
 HAND_KEYFRAMES = (
     (0.27, 0.24, 0.140),
     (0.27, -0.24, 0.140),
-    (0.45, 0.24, 0.060),
-    (0.45, -0.24, 0.060),
-    (0.45, 0.24, -0.050),
-    (0.45, -0.24, -0.048),
-    (0.525, 0.24, -0.050),
-    (0.525, -0.24, -0.048),
-    (0.555, 0.24, 0.010),
-    (0.555, -0.24, 0.010),
-    (0.555, 0.24, 0.015),
-    (0.555, -0.24, 0.015),
+    (0.43, 0.38, 0.060),
+    (0.43, -0.38, 0.060),
+    (0.43, 0.38, -0.050),
+    (0.43, -0.38, -0.048),
+    (0.545, 0.38, -0.050),
+    (0.545, -0.38, -0.048),
+    (0.545, 0.38, -0.020),
+    (0.545, -0.38, -0.020),
+    (0.545, 0.38, -0.015),
+    (0.545, -0.38, -0.015),
 )
 HAND_ROTATIONS = (
     (-0.09022585, 0.46115433, 0.03007528, 0.88220828),
     (0.09023000, 0.46114998, -0.03008000, 0.88220997),
+)
+# Feasible corner-grasp attitudes for H1's five-DOF arms, calibrated with forward kinematics.
+GRASP_HAND_ROTATIONS = (
+    (-0.07698878, 0.37041666, 0.08826291, 0.92145205),
+    (0.07860907, 0.37042228, -0.08392787, 0.92171799),
 )
 FINGER_CLOSED_VALUES = (
     1.273907,
@@ -127,6 +131,17 @@ FINGER_GROUPS = (0, 0, 0, 0, 2, 2, 4, 4, 4, 4, 4, 4, 1, 1, 1, 1, 3, 3, 4, 4, 4, 
 def _smoothstep(value: float) -> float:
     value = wp.clamp(value, 0.0, 1.0)
     return value * value * (3.0 - 2.0 * value)
+
+
+@wp.func
+def _pull_offset(distance: float) -> wp.vec3:
+    # This arc preserves the grasp attitude within the arms' reachable pose manifold.
+    radius = 0.3072
+    center = 0.2248
+    height = wp.sqrt(radius * radius - center * center) - wp.sqrt(
+        radius * radius - (distance - center) * (distance - center)
+    )
+    return wp.vec3(-distance, 0.0, height)
 
 
 @wp.kernel
@@ -169,13 +184,11 @@ def _infer_state_machine(
             index = current_state * 5 + group
             finger_fractions[env_id, group] = wp.lerp(phase_start_fingers[index], phase_end_fingers[index], alpha)
     elif current_state == STATE_PULL:
-        speed_ramp = _smoothstep(elapsed / PULL_RAMP_TIME)
-        distance = wp.min(pull_distance[env_id] + speed_ramp * pull_speed * dt, PULL_DISTANCE)
+        # Accelerate and brake to rest without a velocity discontinuity at the final hold.
+        duration = 1.5 * PULL_DISTANCE / pull_speed
+        distance = PULL_DISTANCE * _smoothstep(elapsed / duration)
         pull_distance[env_id] = distance
-        drop = 0.0
-        if distance > 0.08:
-            drop = 0.175 * _smoothstep((distance - 0.08) / (PULL_DISTANCE - 0.08))
-        offset = wp.vec3(-distance, 0.0, -drop)
+        offset = _pull_offset(distance)
         left = keyframes[10] + offset
         right = keyframes[11] + offset
         for group in range(5):
@@ -184,19 +197,27 @@ def _infer_state_machine(
             current_state = STATE_HOLD
     else:
         distance = pull_distance[env_id]
-        drop = 0.175 * _smoothstep((distance - 0.08) / (PULL_DISTANCE - 0.08))
-        offset = wp.vec3(-distance, 0.0, -drop)
+        offset = _pull_offset(distance)
         left = keyframes[10] + offset
         right = keyframes[11] + offset
         for group in range(5):
             finger_fractions[env_id, group] = phase_end_fingers[(STATE_PULL - 1) * 5 + group]
 
+    # Finish changing attitude before closing the thumb, not while transporting the cloth.
+    rotation_alpha = 0.0
+    if current_state >= 5:
+        rotation_alpha = 1.0
+    elif current_state == 4:
+        rotation_alpha = _smoothstep(elapsed / phase_durations[4])
+    left_rotation = wp.normalize(wp.lerp(hand_rotations[0], hand_rotations[2], rotation_alpha))
+    right_rotation = wp.normalize(wp.lerp(hand_rotations[1], hand_rotations[3], rotation_alpha))
+
     for axis in range(3):
         actions[env_id, axis] = left[axis]
         actions[env_id, 7 + axis] = right[axis]
     for axis in range(4):
-        actions[env_id, 3 + axis] = hand_rotations[0][axis]
-        actions[env_id, 10 + axis] = hand_rotations[1][axis]
+        actions[env_id, 3 + axis] = left_rotation[axis]
+        actions[env_id, 10 + axis] = right_rotation[axis]
     for axis in range(7):
         actions[env_id, 14 + axis] = torso_pose[env_id, axis]
 
@@ -223,7 +244,9 @@ class H1TableclothStateMachine:
 
         phases = list(zip(PHASE_DURATIONS, PHASE_KEYFRAMES, PHASE_FINGERS, strict=True))
         self._keyframes = wp.array(HAND_KEYFRAMES, dtype=wp.vec3, device=self._warp_device)
-        self._hand_rotations = wp.array(HAND_ROTATIONS, dtype=wp.vec4, device=self._warp_device)
+        self._hand_rotations = wp.array(
+            (*HAND_ROTATIONS, *GRASP_HAND_ROTATIONS), dtype=wp.vec4, device=self._warp_device
+        )
         self._torso_pose = wp.from_torch(torso_pose.contiguous(), dtype=wp.float32)
         self._phase_durations = wp.array([phase[0] for phase in phases], dtype=float, device=self._warp_device)
         self._phase_start_keyframes = wp.array(

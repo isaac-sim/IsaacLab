@@ -49,7 +49,6 @@ from .assets import (
     FORK_ROTATION,
     FORK_SCALE,
     FORK_USD,
-    H1_PELVIS_HEIGHT,
     KITCHEN_ISLAND_SIZE,
     KITCHEN_ISLAND_USD,
     RIGID_GAP,
@@ -67,7 +66,9 @@ from .assets import (
 
 FPS = 60
 SUBSTEPS = 16
-TABLE_TOP_Z = 1.09
+# The straight-leg H1 sole is 1.0442 m below its pelvis; keep the tabletop 1 cm below the pelvis.
+H1_STANDING_HEIGHT = 1.0442 + RIGID_GAP
+TABLE_TOP_Z = H1_STANDING_HEIGHT - 0.01
 TABLEWARE_CLEARANCE = 0.008
 CLOTH_Z = TABLE_TOP_Z + 0.002
 TABLEWARE_NAMES = ("bowl", "glass", "fork")
@@ -167,6 +168,8 @@ H1_CFG = H1ArticulationCfg(
         usd_path="",
         make_uninstanceable=True,
         fix_root_link=True,
+        # A compliant VBD world joint alone lets the base bounce under manipulation loads.
+        rigid_props={"/Geometry/pelvis": [sim_utils.UsdPhysicsRigidBodyCfg(kinematic_enabled=True)]},
         collision_props=collision_properties(),
         physics_material=rigid_material(
             density=None,
@@ -176,8 +179,10 @@ H1_CFG = H1ArticulationCfg(
         ),
     ),
     init_state=ArticulationCfg.InitialStateCfg(
-        pos=(-0.75, 0.0, H1_PELVIS_HEIGHT),
+        pos=(-0.75, 0.0, H1_STANDING_HEIGHT),
         joint_pos={
+            ".*(hip|knee|ankle).*": 0.0,
+            "torso_joint": 0.0,
             "left_shoulder_pitch_joint": -0.333745,
             "left_shoulder_roll_joint": 1.362674,
             "left_shoulder_yaw_joint": -1.246960,
@@ -203,8 +208,8 @@ H1_CFG = H1ArticulationCfg(
         ),
         "fingers": ImplicitActuatorCfg(
             joint_names_expr=[r"[LR]_(?:thumb|index|middle|ring|pinky)_.+"],
-            stiffness=4.0e4,
-            damping=1.0e2,
+            stiffness=1.0e3,
+            damping=2.0,
         ),
     },
 )
@@ -245,7 +250,8 @@ class H1TableclothSceneCfg(InteractiveSceneCfg):
     cloth = DeformableObjectCfg(
         prim_path="{ENV_REGEX_NS}/Cloth",
         spawn=sim_utils.MeshRectangleCfg(
-            size=(0.42, 0.70),
+            # Corner overhang lets the index fingers lift the cloth without pressing against the tabletop.
+            size=(0.48, 0.80),
             edge_refinement=24,
             deformable_props=NewtonDeformableBodyPropertiesCfg(),
             visual_material=sim_utils.PreviewSurfaceCfg(diffuse_color=(0.76, 0.05, 0.05)),
@@ -332,11 +338,11 @@ class H1TableclothSceneCfg(InteractiveSceneCfg):
 
 @configclass
 class ActionsCfg:
-    """Absolute bimanual task-space control and direct finger joint targets."""
+    """Absolute arm/torso poses and finger targets; leg actuators hold the standing pose."""
 
     arm_action = NewtonInverseKinematicsActionCfg(
         asset_name="robot",
-        joint_names=[r"(?![LR]_(?:thumb|index|middle|ring|pinky)_).*"],
+        joint_names=["torso_joint", "(left|right)_(shoulder_.*|elbow|hand)_joint"],
         controller=NewtonIKSolverCfg(iterations=24, lambda_initial=0.1),
         objectives=[
             NewtonIKPoseObjectiveCfg(
@@ -495,8 +501,11 @@ class H1TableclothEnvCfg(ManagerBasedRLEnvCfg):
                     enable_rigid_soft_full_surface_contact=True,
                 ),
                 solver_cfg=VBDSolverCfg(
-                    iterations=15,
+                    iterations=30,
                     rigid_compliant_alm=True,
+                    # Structural attachment stiffness is independent of the actuator's position gains.
+                    rigid_joint_linear_ke=1.0e7,
+                    rigid_joint_angular_ke=1.0e7,
                     rigid_body_particle_contact_buffer_size=8192,
                 ),
             ),
