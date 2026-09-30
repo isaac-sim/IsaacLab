@@ -1,6 +1,3 @@
-Changed
-^^^^^^^
-
 * **Breaking:** Height-field sub-terrains now retain non-None ``horizontal_scale``, ``vertical_scale``,
   and ``slope_threshold`` values instead of being overwritten by ``TerrainGeneratorCfg``.
   Set child fields to None to inherit the corresponding generator value. Child scale defaults
