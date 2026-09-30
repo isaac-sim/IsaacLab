@@ -93,7 +93,7 @@ class TerrainImporter:
             # mesh for an equivalent heightfield at solver-init time; other backends
             # ignore the attribute.
             if self._is_heightfield_collider_requested(self.cfg.terrain_generator):
-                self._tag_heightfield_collider(self.terrain_prim_paths[-1], terrain_generator.cfg.horizontal_scale)
+                self._tag_heightfield_collider(self.terrain_prim_paths[-1], self.cfg.heightfield_collider_resolution)
             if self.cfg.use_terrain_origins:
                 # configure the terrain origins based on the terrain generator
                 self.configure_env_origins(terrain_generator.terrain_origins)

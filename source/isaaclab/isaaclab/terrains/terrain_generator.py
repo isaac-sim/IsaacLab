@@ -116,17 +116,9 @@ class TerrainGenerator:
         self.cfg = cfg
         self.device = device
 
-        # set common values to all sub-terrains config
-        from .height_field import HfTerrainBaseCfg  # prevent circular import
-
+        # set the common size for all sub-terrains
         for sub_cfg in self.cfg.sub_terrains.values():
-            # size of all terrains
             sub_cfg.size = self.cfg.size
-            # params for height field terrains
-            if isinstance(sub_cfg, HfTerrainBaseCfg):
-                sub_cfg.horizontal_scale = self.cfg.horizontal_scale
-                sub_cfg.vertical_scale = self.cfg.vertical_scale
-                sub_cfg.slope_threshold = self.cfg.slope_threshold
 
         # throw a warning if the cache is enabled but the seed is not set
         if self.cfg.use_cache and self.cfg.seed is None:

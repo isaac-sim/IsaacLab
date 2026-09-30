@@ -141,6 +141,40 @@ def test_inverted_pyramid_origin_matches_platform(platform_width: float, border_
     assert origin[2] == pytest.approx(center_vertices[0, 2])
 
 
+def test_height_field_sub_terrains_keep_individual_settings():
+    """Generating a terrain must preserve each height field's resolution and slope correction."""
+    cfg = TerrainGeneratorCfg(
+        size=(2.0, 2.0),
+        num_rows=1,
+        num_cols=2,
+        curriculum=True,
+        seed=0,
+        sub_terrains={
+            "fine": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=0.5,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=0.05,
+                vertical_scale=0.01,
+                slope_threshold=None,
+            ),
+            "coarse": HfInvertedPyramidSlopedTerrainCfg(
+                proportion=0.5,
+                slope_range=(0.1, 0.1),
+                horizontal_scale=0.2,
+                vertical_scale=0.02,
+                slope_threshold=1.0,
+            ),
+        },
+    )
+
+    generator = TerrainGenerator(cfg)
+
+    fine, coarse = generator.cfg.sub_terrains.values()
+    assert (fine.horizontal_scale, fine.vertical_scale, fine.slope_threshold) == (0.05, 0.01, None)
+    assert (coarse.horizontal_scale, coarse.vertical_scale, coarse.slope_threshold) == (0.2, 0.02, 1.0)
+    assert len(generator.terrain_meshes[0].vertices) > len(generator.terrain_meshes[1].vertices)
+
+
 @pytest.mark.parametrize("use_global_seed", [True, False])
 def test_generation_reproducibility(use_global_seed):
     """Generates assorted terrains and tests that the resulting mesh is reproducible.
