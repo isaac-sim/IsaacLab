@@ -367,35 +367,57 @@ class RecorderManager(ManagerBase):
         for value_index, env_id in enumerate(env_ids):
             self._episodes[env_id].success = success_values[value_index].item()
 
-    def record_pre_step(self) -> None:
-        """Trigger recorder terms for pre-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
+    def record_pre_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect pre-step data for selected episodes from full-batch recorder terms.
+
+        Args:
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_pre_step", env_ids)
+
+    def record_post_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect post-step data for selected episodes from full-batch recorder terms.
+
+        Args:
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_post_step", env_ids)
+
+    def record_post_physics_decimation_step(self, env_ids: Sequence[int] | None = None) -> None:
+        """Collect physics-substep data for selected episodes from full-batch recorder terms.
+
+        Args:
+            env_ids: Environment IDs whose episodes should be recorded. None records all environments;
+                an empty sequence records none.
+        """
+        self._record_step("record_post_physics_decimation_step", env_ids)
+
+    def _record_step(self, recorder_callback_name: str, env_ids: Sequence[int] | None) -> None:
+        """Select environment rows before appending a step callback's full-batch output."""
+        if len(self.active_terms) == 0 or (env_ids is not None and len(env_ids) == 0):
             return
+        for recorder_term in self._terms.values():
+            data_key, recorder_data = getattr(recorder_term, recorder_callback_name)()
+            if data_key is None:
+                continue
+            if env_ids is not None:
+                recorder_data = self._select_environment_rows(recorder_data, env_ids)
+            self.add_to_episodes(data_key, recorder_data, env_ids)
 
-        for term in self._terms.values():
-            key, value = term.record_pre_step()
-            self.add_to_episodes(key, value)
-
-    def record_post_step(self) -> None:
-        """Trigger recorder terms for post-step functions."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        for term in self._terms.values():
-            key, value = term.record_post_step()
-            self.add_to_episodes(key, value)
-
-    def record_post_physics_decimation_step(self) -> None:
-        """Trigger recorder terms for post-physics step functions in the decimation loop."""
-        # Do nothing if no active recorder terms are provided
-        if len(self.active_terms) == 0:
-            return
-
-        for term in self._terms.values():
-            key, value = term.record_post_physics_decimation_step()
-            self.add_to_episodes(key, value)
+    @staticmethod
+    def _select_environment_rows(recorder_data: torch.Tensor | dict, env_ids: Sequence[int]) -> torch.Tensor | dict:
+        """Select rows recursively while preserving recorder terms' nested data structure."""
+        if isinstance(recorder_data, dict):
+            return {
+                data_key: RecorderManager._select_environment_rows(child_data, env_ids)
+                for data_key, child_data in recorder_data.items()
+            }
+        if isinstance(recorder_data, wp.array):
+            recorder_data = wp.to_torch(recorder_data)
+        environment_row_indices = torch.as_tensor(env_ids, dtype=torch.long, device=recorder_data.device)
+        return recorder_data[environment_row_indices]
 
     def record_pre_reset(self, env_ids: Sequence[int] | None, force_export_or_skip=None) -> None:
         """Trigger recorder terms for pre-reset functions.

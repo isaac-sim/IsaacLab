@@ -94,6 +94,16 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
     """
 
     @property
+    def active_episode_mask(self) -> torch.Tensor:
+        """Parallel environments with an assigned episode, shape ``(num_envs,)``.
+
+        The default keeps every environment active. Evaluation subclasses can derive this mask
+        from their episode scheduler. Inactive environments produce no completion signals or
+        trajectory records, but their physics, manager computations, and clocks still advance.
+        """
+        return torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
+
+    @property
     def max_episode_length_s(self) -> float:
         """Maximum episode length in seconds."""
         return self.cfg.episode_length_s
@@ -204,10 +214,14 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
+        # Recording and completion belong to the assignments at entry, before any replacements.
+        active_episode_mask_at_step_start = self.active_episode_mask.clone()
+        active_env_ids_at_step_start = active_episode_mask_at_step_start.nonzero(as_tuple=False).squeeze(-1).int()
+
         # process actions
         self.action_manager.process_action(action.to(self.device))
 
-        self.recorder_manager.record_pre_step()
+        self.recorder_manager.record_pre_step(active_env_ids_at_step_start)
 
         # check if we need to do rendering within the physics loop
         # note: uses cached property to avoid settings lookup every step
@@ -219,7 +233,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
             self.action_manager.apply_action()
             self.scene.write_data_to_sim()
             self.sim.step(render=False)
-            self.recorder_manager.record_post_physics_decimation_step()
+            self.recorder_manager.record_post_physics_decimation_step(active_env_ids_at_step_start)
             # render only when a render_interval boundary falls within this decimation block,
             # mirroring the per-sub-step check in the else branch.
             if self._sim_step_counter % self.cfg.sim.render_interval == 0 and is_rendering:
@@ -234,7 +248,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
                 self.scene.write_data_to_sim()
                 # simulate
                 self.sim.step(render=False)
-                self.recorder_manager.record_post_physics_decimation_step()
+                self.recorder_manager.record_post_physics_decimation_step(active_env_ids_at_step_start)
                 # render between steps only if the GUI or an RTX sensor needs it.
                 # When render_enabled is False, Kit visualizer (camera/GUI) is skipped
                 # but standalone visualizers (Newton, Rerun, Viser) still update.
@@ -248,49 +262,61 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         self.episode_length_buf += 1  # step in current episode (per env)
         self.common_step_counter += 1  # total step (common for all envs)
         # -- check terminations
-        self.reset_buf = self.termination_manager.compute()
-        self.reset_terminated = self.termination_manager.terminated
-        self.reset_time_outs = self.termination_manager.time_outs
+        self.reset_buf = self.termination_manager.compute() & active_episode_mask_at_step_start
+        self.reset_terminated = self.termination_manager.terminated & active_episode_mask_at_step_start
+        self.reset_time_outs = self.termination_manager.time_outs & active_episode_mask_at_step_start
         # -- reward computation
-        self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
+        self.reward_buf = self.reward_manager.compute(dt=self.step_dt).masked_fill(
+            ~active_episode_mask_at_step_start, 0.0
+        )
 
         if len(self.recorder_manager.active_terms) > 0:
             # update observations for recording if needed
             self.obs_buf = self.observation_manager.compute()
-            self.recorder_manager.record_post_step()
+            self.recorder_manager.record_post_step(active_env_ids_at_step_start)
 
         # -- reset envs that terminated/timed-out and log the episode information
-        reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
-        if len(reset_env_ids) > 0:
+        completed_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1).int()
+        if len(completed_env_ids) > 0:
             # capture the terminal observation before reset and expose it for Same-Step autoreset.
             if self.cfg.compute_final_obs:
                 self.extras["final_obs"] = self.observation_manager.compute()
-            # trigger recorder terms for pre-reset calls
-            self.recorder_manager.record_pre_reset(reset_env_ids)
-
-            self._reset_idx(reset_env_ids)
+            self._finish_episodes(completed_env_ids)
+            replacement_env_ids = self._select_episode_start_env_ids(completed_env_ids)
+            if len(replacement_env_ids) > 0:
+                self._reset_idx(replacement_env_ids)
 
             # if sensors are added to the scene, make sure we render to reflect changes in reset
-            if self.render_enabled and is_rendering and self.has_rtx_sensors and self.cfg.num_rerenders_on_reset > 0:
+            if (
+                len(replacement_env_ids) > 0
+                and self.render_enabled
+                and is_rendering
+                and self.has_rtx_sensors
+                and self.cfg.num_rerenders_on_reset > 0
+            ):
                 for _ in range(self.cfg.num_rerenders_on_reset):
                     self.sim.render()
 
             # trigger recorder terms for post-reset calls
-            self.recorder_manager.record_post_reset(reset_env_ids)
+            if len(replacement_env_ids) > 0:
+                self.recorder_manager.record_post_reset(replacement_env_ids)
 
         # -- handle episode reset requested from visualizer UI controls
         if self.sim.consume_reset_request():
+            self._validate_reset_request("manual")
             # Only reset envs not already reset this step to avoid redundant resets.
-            not_yet_reset = torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
-            not_yet_reset[reset_env_ids] = False
-            manual_reset_ids = not_yet_reset.nonzero(as_tuple=False).squeeze(-1).int()
-            if len(manual_reset_ids) > 0:
+            manual_reset_env_mask = active_episode_mask_at_step_start.clone()
+            manual_reset_env_mask[completed_env_ids] = False
+            manual_reset_env_ids = manual_reset_env_mask.nonzero(as_tuple=False).squeeze(-1).int()
+            if len(manual_reset_env_ids) > 0:
                 # mark as terminated so RL wrappers observe the episode boundary
-                self.reset_terminated[manual_reset_ids] = True
+                self.reset_terminated[manual_reset_env_ids] = True
                 # mirror the recorder lifecycle used for normal resets
-                self.recorder_manager.record_pre_reset(manual_reset_ids)
-                self._reset_idx(manual_reset_ids)
-                self.recorder_manager.record_post_reset(manual_reset_ids)
+                self._finish_episodes(manual_reset_env_ids)
+                replacement_env_ids = self._select_episode_start_env_ids(manual_reset_env_ids)
+                if len(replacement_env_ids) > 0:
+                    self._reset_idx(replacement_env_ids)
+                    self.recorder_manager.record_post_reset(replacement_env_ids)
 
         # -- update command
         self.command_manager.compute(dt=self.step_dt)

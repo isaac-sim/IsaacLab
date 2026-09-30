@@ -8,10 +8,12 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 
 from isaaclab.envs import ManagerBasedRLEnv
 
@@ -102,3 +104,164 @@ def test_obs_space_follows_clip_constraint():
             assert term_space.shape == expected_shapes[term_name]
             assert np.all(term_space.low == low)
             assert np.all(term_space.high == high)
+
+
+class FiniteEpisodeTestEnv(ManagerBasedRLEnv):
+    """Exercise the public environment lifecycle with physics and managers replaced by test doubles."""
+
+    def __init__(self, episode_limit: int):
+        self._is_closed = True
+        self.episode_limit = episode_limit
+        self.num_episodes_started = 0
+        self.completed_episode_env_ids = []
+        self.reset_env_ids_by_call = []
+        self.assigned_episode_mask = torch.zeros(3, dtype=torch.bool)
+        self.episode_length_buf = torch.zeros(3, dtype=torch.long)
+        self.episode_step_limits = torch.tensor([1, 2, 4])
+        self.common_step_counter = 0
+        self._sim_step_counter = 0
+        self._physics_handles_decimation = False
+        self.render_enabled = False
+        self.has_rtx_sensors = False
+        self.video_recorders = []
+        self.extras = {}
+        self.cfg = SimpleNamespace(
+            decimation=1,
+            sim=SimpleNamespace(dt=0.1, render_interval=1),
+            compute_final_obs=True,
+            num_rerenders_on_reset=0,
+            wait_for_textures=False,
+        )
+        self.sim = SimpleNamespace(
+            device="cpu", is_rendering=False, step=Mock(), forward=Mock(), consume_reset_request=lambda: False
+        )
+        self.scene = SimpleNamespace(num_envs=3, write_data_to_sim=Mock(), update=Mock())
+        self.action_manager = SimpleNamespace(process_action=Mock(), apply_action=Mock())
+        self.observation_manager = SimpleNamespace(compute=lambda **kwargs: self.episode_length_buf.clone())
+        self.recorder_manager = Mock(active_terms=["trajectory"])
+        self.termination_manager = SimpleNamespace(
+            terminated=torch.zeros(3, dtype=torch.bool),
+            time_outs=torch.zeros(3, dtype=torch.bool),
+            compute=self._compute_terminations,
+        )
+        self.reward_manager = SimpleNamespace(compute=lambda **kwargs: torch.ones(3))
+        self.command_manager = SimpleNamespace(compute=Mock())
+        self.event_manager = SimpleNamespace(available_modes=[])
+
+    @property
+    def active_episode_mask(self):
+        return self.assigned_episode_mask
+
+    def _validate_reset_request(self, reset_kind):
+        if self.num_episodes_started or reset_kind != "reset":
+            raise RuntimeError("Finite evaluation does not accept external resets")
+
+    def _select_episode_start_env_ids(self, candidate_env_ids):
+        episode_start_env_ids = candidate_env_ids.sort().values[: self.episode_limit - self.num_episodes_started]
+        self.num_episodes_started += len(episode_start_env_ids)
+        self.assigned_episode_mask[episode_start_env_ids] = True
+        return episode_start_env_ids
+
+    def _finish_episodes(self, env_ids):
+        completed_env_ids = env_ids[self.assigned_episode_mask[env_ids]]
+        if len(completed_env_ids) == 0:
+            return
+        super()._finish_episodes(completed_env_ids)
+        self.completed_episode_env_ids.extend(completed_env_ids.tolist())
+        self.assigned_episode_mask[completed_env_ids] = False
+
+    def _reset_idx(self, env_ids):
+        self.reset_env_ids_by_call.append(env_ids.tolist())
+        self.episode_length_buf[env_ids] = 0
+        # Manager resets must not erase completion flags returned by this step.
+        self.termination_manager.terminated[env_ids] = False
+        self.termination_manager.time_outs[env_ids] = False
+
+    def _compute_terminations(self):
+        episode_length_reached = self.episode_length_buf >= self.episode_step_limits
+        self.termination_manager.terminated.copy_(episode_length_reached & torch.tensor([True, False, False]))
+        self.termination_manager.time_outs.copy_(episode_length_reached & torch.tensor([False, True, True]))
+        return episode_length_reached
+
+
+@pytest.mark.parametrize("physics_handles_decimation", [False, True])
+def test_finite_episode_limit_completes_active_episodes(physics_handles_decimation):
+    """Completed episodes emit no duplicate done signals while the slowest episode completes."""
+    env = FiniteEpisodeTestEnv(episode_limit=4)
+    env._physics_handles_decimation = physics_handles_decimation
+    env.reset()
+    step_results = [env.step(torch.zeros(3, 1)) for _ in range(5)]
+
+    assert env.num_episodes_started == len(env.completed_episode_env_ids) == 4
+    assert env.reset_env_ids_by_call == [[0, 1, 2], [0]]
+    assert [terminated.tolist() for _, _, terminated, _, _ in step_results] == [
+        [True, False, False],
+        [True, False, False],
+        [False, False, False],
+        [False, False, False],
+        [False, False, False],
+    ]
+    assert [truncated.tolist() for _, _, _, truncated, _ in step_results] == [
+        [False, False, False],
+        [False, True, False],
+        [False, False, False],
+        [False, False, True],
+        [False, False, False],
+    ]
+    assert [call.args[0].tolist() for call in env.recorder_manager.record_pre_step.call_args_list] == [
+        [0, 1, 2],
+        [0, 1, 2],
+        [2],
+        [2],
+        [],
+    ]
+    assert [call.args[0].tolist() for call in env.recorder_manager.record_post_reset.call_args_list] == [
+        [0, 1, 2],
+        [0],
+    ]
+    assert step_results[-1][1].tolist() == [0.0, 0.0, 0.0]
+    assert env.episode_length_buf.tolist() == [4, 5, 5]
+
+
+def test_initial_reset_can_leave_environments_unused():
+    """A smaller episode limit does not initialize unused environments or record their later timeouts."""
+    env = FiniteEpisodeTestEnv(episode_limit=1)
+    env.reset()
+    for _ in range(5):
+        env.step(torch.zeros(3, 1))
+    assert env.reset_env_ids_by_call == [[0]]
+    assert env.completed_episode_env_ids == [0]
+    assert env.recorder_manager.record_pre_reset.call_count == 1
+
+
+@pytest.mark.parametrize("env_ids", [[1, 2], [2, 0]])
+def test_state_restoration_starts_replacement_episodes(env_ids):
+    """An evaluator allowing explicit state restoration assigns episodes to the restored environments."""
+    env = FiniteEpisodeTestEnv(episode_limit=5)
+    env._validate_reset_request = Mock()
+    env.scene.reset_to = Mock()
+    env.reset()
+    env.reset_to({}, env_ids=env_ids)
+    assert env.num_episodes_started == 5
+    assert env.completed_episode_env_ids == env_ids
+    assert env.active_episode_mask.tolist() == [True, True, True]
+    assert env.reset_env_ids_by_call == [[0, 1, 2], env_ids]
+    assert env.scene.reset_to.call_args.args[1].tolist() == env_ids
+
+
+@pytest.mark.parametrize("reset_kind", ["reset", "reset_to", "manual"])
+def test_external_reset_guard_prevents_new_episode_starts(reset_kind):
+    """Every public or visualizer reset passes validation before resetting an environment."""
+    env = FiniteEpisodeTestEnv(episode_limit=4)
+    env.reset()
+    env.episode_step_limits[:] = 10
+    with pytest.raises(RuntimeError, match="external resets"):
+        if reset_kind == "reset":
+            env.reset()
+        elif reset_kind == "reset_to":
+            env.reset_to({}, env_ids=None)
+        else:
+            env.sim.consume_reset_request = lambda: True
+            env.step(torch.zeros(3, 1))
+    assert env.reset_env_ids_by_call == [[0, 1, 2]]
+    assert env.completed_episode_env_ids == []

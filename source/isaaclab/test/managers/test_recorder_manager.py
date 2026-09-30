@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, cast
 import h5py
 import pytest
 import torch
+import warp as wp
 
 from isaaclab.managers import DatasetExportMode, RecorderManager, RecorderManagerBaseCfg, RecorderTerm, RecorderTermCfg
 from isaaclab.test.utils import DeviceScope, test_devices
@@ -242,3 +243,58 @@ def test_close(device, dataset_dir):
     recorder_manager.close()
     data_post_close = get_file_contents(file_name, num_steps)
     assert len(data_post_close.keys()) == 2 * env.num_envs
+
+
+class EnvironmentIndexRecorderTerm(RecorderTerm):
+    """Identify each full-batch row across all three recording stages."""
+
+    def record_pre_step(self):
+        return "pre", torch.arange(self._env.num_envs).reshape(-1, 1)
+
+    def record_post_step(self):
+        return "post", {"nested": {"index": torch.arange(self._env.num_envs).reshape(-1, 1)}}
+
+    def record_post_physics_decimation_step(self):
+        environment_indices = torch.arange(self._env.num_envs, dtype=torch.float32).reshape(-1, 1)
+        return "physics", wp.from_torch(environment_indices)
+
+
+def test_step_recording_selects_full_batch_rows(dataset_dir):
+    """Selected rows retain their environment IDs and retired rows stay empty after export."""
+
+    @configclass
+    class SelectedEpisodeRecorderCfg(RecorderManagerBaseCfg):
+        step = RecorderTermCfg(class_type=EnvironmentIndexRecorderTerm)
+
+    recorder_cfg = SelectedEpisodeRecorderCfg()
+    recorder_cfg.dataset_export_dir_path = dataset_dir
+    recorder_manager = RecorderManager(recorder_cfg, create_dummy_env(num_envs=3))
+    selected_env_ids = torch.tensor([2, 0])
+    recording_callbacks = (
+        recorder_manager.record_pre_step,
+        recorder_manager.record_post_step,
+        recorder_manager.record_post_physics_decimation_step,
+    )
+    try:
+        for record_step in recording_callbacks:
+            record_step(selected_env_ids)
+            record_step(torch.empty(0, dtype=torch.int64))
+        assert recorder_manager.get_episode(1).is_empty()
+        for env_id in selected_env_ids.tolist():
+            episode_data = recorder_manager.get_episode(env_id).data
+            assert (
+                len(episode_data["pre"])
+                == len(episode_data["post"]["nested"]["index"])
+                == len(episode_data["physics"])
+                == 1
+            )
+            assert episode_data["pre"][0].item() == env_id
+            assert episode_data["post"]["nested"]["index"][0].item() == env_id
+            assert episode_data["physics"][0].item() == env_id
+        recorder_manager.record_pre_reset(selected_env_ids)
+        for record_step in recording_callbacks:
+            record_step([0])
+        assert recorder_manager.get_episode(2).is_empty()
+        assert not recorder_manager.get_episode(0).is_empty()
+    finally:
+        recorder_manager.close()

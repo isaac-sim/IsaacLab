@@ -408,18 +408,21 @@ class ManagerBasedEnv:
         Returns:
             A tuple containing the observations and extras.
         """
+        self._validate_reset_request("reset")
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
+        else:
+            env_ids = torch.as_tensor(env_ids, dtype=torch.int32, device=self.device)
 
-        # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
+        self._finish_episodes(env_ids)
 
         # set the seed
         if seed is not None:
             self.seed(seed)
 
-        # reset state of scene
-        self._reset_idx(env_ids)
+        episode_start_env_ids = self._select_episode_start_env_ids(env_ids)
+        if len(episode_start_env_ids) > 0:
+            self._reset_idx(episode_start_env_ids)
 
         # update articulation kinematics
         self.scene.write_data_to_sim()
@@ -430,7 +433,8 @@ class ManagerBasedEnv:
                 self.sim.render()
 
         # trigger recorder terms for post-reset calls
-        self.recorder_manager.record_post_reset(env_ids)
+        if len(episode_start_env_ids) > 0:
+            self.recorder_manager.record_post_reset(episode_start_env_ids)
 
         # compute observations
         self.obs_buf = self.observation_manager.compute(update_history=True)
@@ -468,17 +472,25 @@ class ManagerBasedEnv:
             is_relative: If set to True, the state is considered relative to the environment origins.
                 Defaults to False.
         """
+        self._validate_reset_request("reset_to")
         # reset all envs in the scene if env_ids is None
         if env_ids is None:
             env_ids = torch.arange(self.num_envs, dtype=torch.int32, device=self.device)
+        else:
+            env_ids = torch.as_tensor(env_ids, dtype=torch.int32, device=self.device)
 
         # trigger recorder terms for pre-reset calls
-        self.recorder_manager.record_pre_reset(env_ids)
+        self._finish_episodes(env_ids)
 
         # set the seed
         if seed is not None:
             self.seed(seed)
 
+        episode_start_env_ids = self._select_episode_start_env_ids(env_ids)
+        assert torch.equal(episode_start_env_ids.sort().values, env_ids.sort().values), (
+            "reset_to() requires a new episode in every requested environment. "
+            "Reject state restoration in _validate_reset_request() when not all requested episodes can start."
+        )
         self._reset_idx(env_ids)
 
         # set the state
@@ -633,6 +645,43 @@ class ManagerBasedEnv:
     """
     Helper functions.
     """
+
+    def _validate_reset_request(self, reset_kind: str) -> None:
+        """Validate an explicit ``reset``, ``reset_to``, or visualizer ``manual`` reset.
+
+        Evaluation environments can reject requests that would interrupt an assigned episode.
+        Automatic episode completion does not call this hook.
+
+        Args:
+            reset_kind: The requested reset operation.
+        """
+
+    def _select_episode_start_env_ids(self, candidate_env_ids: torch.Tensor) -> torch.Tensor:
+        """Select environments that will start episodes before reset events consume episode inputs.
+
+        Called by ``reset()``, ``reset_to()``, and automatic or visualizer resets in ``ManagerBasedRLEnv``.
+        The default starts an episode in every candidate environment. Overrides must return a subset of the
+        supplied IDs and assign any episode inputs before returning. ``reset_to()`` requires a new episode
+        in every requested environment and retains the caller's ID order when applying supplied states.
+
+        Args:
+            candidate_env_ids: Environment IDs available for a new episode.
+
+        Returns:
+            Environment IDs whose scene and managers should be reset.
+        """
+        return candidate_env_ids
+
+    def _finish_episodes(self, env_ids: Sequence[int]) -> None:
+        """Collect terminal recorder data and export episodes before starting replacements.
+
+        Completion does not require a subsequent reset. Subclasses that limit episode starts
+        must restrict this operation to assigned episodes and retire them after recording.
+
+        Args:
+            env_ids: Environment IDs whose episodes are ending.
+        """
+        self.recorder_manager.record_pre_reset(env_ids)
 
     def _reset_idx(self, env_ids: Sequence[int]):
         """Reset environments based on specified indices.
