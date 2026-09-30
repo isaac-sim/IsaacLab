@@ -565,4 +565,6 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             recorder_info,
         ):
             log.update(info)
-        self.extras["log"] = log
+        # the managers log persistent buffers that the next reset overwrites, and RL libraries keep the log of
+        # every step until they average it, so hand out copies like the stable managers' fresh tensors
+        self.extras["log"] = {key: value.clone() if torch.is_tensor(value) else value for key, value in log.items()}

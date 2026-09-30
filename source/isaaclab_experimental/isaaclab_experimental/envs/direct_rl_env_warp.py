@@ -212,6 +212,8 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # allocate dictionary to store metrics
         self.extras = {}
+        # the log the task writes; the environment returns copies of it (see :meth:`step`)
+        self._task_log: dict | None = None
 
         # initialize data and constants
         # -- counter for simulation steps
@@ -401,6 +403,9 @@ class DirectRLEnvWarp(DirectRLEnv):
 
         # stages start recording at the first step after construction or an invalidation
         self._warp_graph_cache.arm()
+        # task code that runs during this step writes into its own log, not into the copy returned last step
+        if self._task_log is not None:
+            self.extras["log"] = self._task_log
         action = action.to(self.device)
         # add action noise
         if self.cfg.action_noise_model:
@@ -463,6 +468,14 @@ class DirectRLEnvWarp(DirectRLEnv):
         # to update markers or other non-graphable visual elements.
         with Timer(name="visualize", msg="Visualize took:", enable=DEBUG_TIMERS):
             self._post_step_visualize()
+
+        # tasks log persistent buffers that later steps overwrite, and RL libraries keep the log of every step
+        # until they average it, so hand out copies like the fresh tensors of stable tasks
+        self._task_log = self.extras.get("log")
+        if self._task_log:
+            self.extras["log"] = {
+                key: value.clone() if torch.is_tensor(value) else value for key, value in self._task_log.items()
+            }
 
         # return observations, rewards, resets and extras
         # store the returned buffer so RslRlVecEnvWrapper.get_observations() can read env.obs_buf
