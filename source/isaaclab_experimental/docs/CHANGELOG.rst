@@ -1,6 +1,43 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+0.2.4 (2026-09-30)
+~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Added the Warp implementation of ``base_height_l2``, restoring Warp frontend support for
+  Unitree Go2 tasks with the base-height reward enabled.
+
+
+0.2.3 (2026-09-28)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Used the shared indexed fill operation for environment and circular-buffer resets.
+* Changed ``seed()`` of the Warp environments to no longer seed Replicator; the Replicator event terms seed it
+  with ``env.cfg.seed``.
+* Changed ``render()`` with ``render_mode="rgb_array"`` in the Warp environments to warn and return ``None``,
+  matching the core environments. Use ``VideoRecorderCfg`` on ``env_cfg.video_recorders`` to capture frames.
+
+
+0.2.2 (2026-09-20)
+~~~~~~~~~~~~~~~~~~
+
+Deprecated
+^^^^^^^^^^
+
+* Deprecated the Warp-specific IO descriptor APIs. They remain available for
+  compatibility and will be removed in Isaac Lab 3.2. LEAPP is the recommended
+  alternative for supported RSL-RL/PyTorch deployments but does not currently
+  replace Warp-first descriptor export.
+
+
 0.2.1 (2026-08-14)
 ~~~~~~~~~~~~~~~~~~
 

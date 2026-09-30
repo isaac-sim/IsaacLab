@@ -8,7 +8,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 from dataclasses import MISSING
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
 
 
 @configclass
@@ -39,9 +39,9 @@ class JointImpedanceControllerCfg:
     stiffness: float | Sequence[float] = MISSING
     """The positional gain for determining desired torques based on joint position error."""
 
-    damping_ratio: float | Sequence[float] | None = None
+    damping_ratio: float | Sequence[float] = 1.0
     """The damping ratio is used in-conjunction with positional gain to compute desired torques
-    based on joint velocity error.
+    based on joint velocity error. Defaults to 1.0.
 
     The following math operation is performed for computing velocity gains:
         :math:`d_gains = 2 * sqrt(p_gains) * damping_ratio`.

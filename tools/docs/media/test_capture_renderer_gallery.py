@@ -1,0 +1,96 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+import argparse
+
+import numpy as np
+import pytest
+import torch
+
+from tools.docs.media import capture_renderer_gallery
+from tools.docs.media.capture_renderer_gallery import motion_vectors_to_image, thumbnail_frame_index
+
+
+@pytest.mark.parametrize(
+    ("depth", "expected"),
+    [
+        (torch.tensor([[float("nan"), 1.5, 4.0, float("inf")]]), (1.5, 4.0)),
+        (torch.tensor([[4.0, 20.0]]), (4.0, 20.0)),
+    ],
+)
+def test_depth_display_bounds_use_finite_frame_extents(depth, expected):
+    assert capture_renderer_gallery.depth_display_bounds(depth) == expected
+
+
+def test_depth_display_bounds_reject_frame_with_no_finite_samples():
+    depth = torch.tensor([[float("nan"), float("inf")]])
+
+    with pytest.raises(ValueError, match="finite"):
+        capture_renderer_gallery.depth_display_bounds(depth)
+
+
+def test_gallery_capture_defaults_to_published_scene():
+    parser = argparse.ArgumentParser()
+    capture_renderer_gallery.add_gallery_arguments(parser)
+
+    args = parser.parse_args(["--renderer-backend", "newton"])
+
+    assert args.scene == (
+        "omniverse://isaac-dev.ov.nvidia.com/Isaac/IsaacLab/Docs/Renderers/renderer_gallery_scene.usda"
+    )
+
+
+def test_gallery_scene_preserves_nucleus_uri():
+    scene_uri = "omniverse://example.com/path/to/scene.usda"
+
+    assert capture_renderer_gallery.resolve_gallery_scene(scene_uri) == scene_uri
+
+
+def test_gallery_scene_resolves_existing_local_path(tmp_path, monkeypatch):
+    scene_path = tmp_path / "scene.usda"
+    scene_path.touch()
+    monkeypatch.chdir(tmp_path)
+
+    assert capture_renderer_gallery.resolve_gallery_scene("scene.usda") == str(scene_path)
+
+
+def test_gallery_scene_rejects_missing_local_path(tmp_path):
+    scene_path = tmp_path / "missing.usda"
+
+    with pytest.raises(ValueError, match="Scene does not exist"):
+        capture_renderer_gallery.resolve_gallery_scene(str(scene_path))
+
+
+def test_thumbnail_uses_sixth_captured_frame():
+    assert thumbnail_frame_index(6) == 5
+
+
+@pytest.mark.parametrize("frame_count", [0, 5])
+def test_thumbnail_requires_six_frames(frame_count):
+    with pytest.raises(ValueError, match="six"):
+        thumbnail_frame_index(frame_count)
+
+
+def test_motion_vector_image_includes_direction_arrows():
+    vectors = torch.zeros((64, 64, 4), dtype=torch.float32)
+    vectors[8:56, 8:56, 0] = 1.0
+    vectors[8:56, 8:56, 1] = 0.5
+
+    image = motion_vectors_to_image(vectors)
+
+    pixels = np.asarray(image)
+    assert pixels.shape == (64, 64, 3)
+    assert np.any(np.all(pixels == 255, axis=-1))
+
+
+def test_motion_vector_arrows_convert_v_axis_to_screen_y():
+    vectors = torch.zeros((64, 64, 4), dtype=torch.float32)
+    vectors[32, 32, 1] = -1.0
+
+    pixels = np.asarray(motion_vectors_to_image(vectors))
+    white_pixels = np.all(pixels == 255, axis=-1)
+
+    assert np.any(white_pixels[33:, 28:37])
+    assert not np.any(white_pixels[:32])

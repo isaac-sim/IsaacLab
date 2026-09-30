@@ -4,9 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 """Script to replay demonstrations with Isaac Lab environments."""
 
-"""Launch Isaac Sim Simulator first."""
-
-
 # Isaac Lab does not use Warp autodiff; skipping adjoint codegen roughly halves the
 # time spent building kernels on a cold kernel cache.
 import warp as wp
@@ -14,11 +11,13 @@ import warp as wp
 wp.config.enable_backward = False
 
 import argparse
+import sys
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.utils.string import list_intersection, string_to_callable
 
-# add argparse arguments
+from isaaclab_tasks.utils import setup_preset_cli
+
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to replay episodes.")
 parser.add_argument("--task", type=str, default=None, help="Force to use the specified task.")
@@ -56,15 +55,10 @@ parser.add_argument(
 )
 
 parser.add_argument("--external_callback", default=None, help="Fully qualified path to an externally defined callback.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
-# parse the arguments
-args_cli, remaining_args = parser.parse_known_args()
-# args_cli.headless = True
-
-# launch the simulator
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
+add_launcher_args(parser)
+args_cli, hydra_args = setup_preset_cli(parser)
+# the pause/resume keyboard is a Kit input device, so the Kit runtime is required
+args_cli.require_kit = True
 
 # Call an external callback if requested.
 remaining_args_env_registration = None
@@ -72,12 +66,9 @@ if args_cli.external_callback:
     external_callback_function = string_to_callable(args_cli.external_callback, separator=".")
     remaining_args_env_registration = external_callback_function()
 
-# Error on unrecognized arguments.
-unrecognized_args = list_intersection(remaining_args, remaining_args_env_registration)
-if unrecognized_args:
-    parser.error(f"unrecognized arguments: {' '.join(unrecognized_args)}")
-
-"""Rest everything follows."""
+# Hand arguments consumed by neither this parser nor the callback over to Hydra.
+hydra_args = list_intersection(hydra_args, remaining_args_env_registration)
+sys.argv = [sys.argv[0]] + hydra_args
 
 import contextlib
 import os
@@ -85,11 +76,10 @@ import os
 import gymnasium as gym
 import torch
 
-from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 import isaaclab_tasks  # noqa: F401
-from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from isaaclab_tasks.utils import resolve_task_config
 
 is_paused = False
 
@@ -157,7 +147,7 @@ def replay_episodes_loop(  # noqa: C901
     failed_demo_ids: list[int] = []
 
     with contextlib.suppress(KeyboardInterrupt) and torch.inference_mode():
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+        while env.sim.is_running():
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True
@@ -283,7 +273,9 @@ def main():
             f"Got num_envs={num_envs}. Use --num_envs 1 or disable --reset_sim_buffer_each_episode."
         )
 
-    env_cfg = parse_env_cfg(env_name, device=args_cli.device, num_envs=num_envs)
+    env_cfg, _ = resolve_task_config(env_name, "")
+    env_cfg.sim.device = args_cli.device
+    env_cfg.scene.num_envs = num_envs
 
     # extract success checking function to invoke in the main loop
     success_term = None
@@ -300,6 +292,23 @@ def main():
     # Disable all recorders and terminations
     env_cfg.recorders = {}
     env_cfg.terminations = {}
+
+    with launch_simulation(env_cfg, args_cli):
+        replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)
+
+
+def replay_dataset(
+    env_cfg,
+    dataset_file_handler: HDF5DatasetFileHandler,
+    episode_count: int,
+    episode_indices_to_replay: list[int],
+    success_term,
+):
+    """Create the environment and replay the selected episodes of the dataset."""
+    # the keyboard device needs the Kit runtime, which is running at this point
+    from isaaclab.devices import Se3Keyboard, Se3KeyboardCfg
+
+    num_envs = args_cli.num_envs
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
@@ -357,7 +366,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # run the main function
     main()
-    # close sim app
-    simulation_app.close()
