@@ -11,6 +11,7 @@ import json
 import logging
 import math
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, NoReturn
 
@@ -23,11 +24,13 @@ from pxr import Sdf, Usd, UsdGeom
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.renderers import BaseRenderer, RenderBufferKind, RenderBufferSpec
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
+from isaaclab.sim import SimulationContext
 from isaaclab.sim.utils import enable_extension
 from isaaclab.utils.version import get_isaac_sim_version
 from isaaclab.utils.warp.kernels import reshape_tiled_image
 from isaaclab.utils.warp.warp_math import clamp_depth_to_inf_wp, replace_inf_depth_wp
 
+from .fabric import FabricBackendCfg
 from .isaac_rtx_renderer_utils import (
     apply_isaac_rtx_determinism_settings,
     apply_isaac_rtx_global_settings,
@@ -195,6 +198,12 @@ class IsaacRtxRenderer(BaseRenderer):
         ensure_rtx_hydra_engine_attached()
         # ``/isaaclab/render/rtx_sensors`` is owned by ``Camera.__init__`` (must be set pre-``sim.reset()``).
 
+    def initialize(self) -> None:
+        """Bind shared Fabric destinations after scene creation."""
+        sim = SimulationContext.instance()
+        self._fabric = sim.get_or_create_backend(FabricBackendCfg(stage=sim.stage, device=sim.device))
+        self._fabric.bind_transforms(sim.get_scene_data_provider())
+
     @property
     def visual_material_writer(self):
         """Write material channels directly through Fabric."""
@@ -314,7 +323,7 @@ class IsaacRtxRenderer(BaseRenderer):
             )
             has_gui = settings.get("/isaaclab/has_gui")
             if simple_shading_mode is None and (not needs_color_render or has_gui):
-                settings.set_bool("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
+                settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
         else:
             unsupported = []
             if "albedo" in spec.cfg.data_types:
@@ -571,14 +580,13 @@ class IsaacRtxRenderer(BaseRenderer):
             )
 
     def update_transforms(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_transforms`."""
-        pass
+        """Update shared Fabric transforms and propagate the visual hierarchy."""
+        self._fabric.update_transforms(SimulationContext.instance().get_scene_data_provider())
 
     def update_geometries(self) -> None:
-        """No-op for Isaac RTX - uses USD scene directly.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.update_geometries`."""
-        pass
+        """Update shared Fabric geometry from SDP's visual point publication."""
+        sim = SimulationContext.instance()
+        self._fabric.update_geometries(sim.get_scene_data_provider(), sim.render_generation)
 
     def update_camera(
         self,
@@ -606,18 +614,34 @@ class IsaacRtxRenderer(BaseRenderer):
             device=parameters.device,
         )
 
-    def render(self, render_data: IsaacRtxRenderData):
-        """Extract data from annotators and write to output buffers.
-        See :meth:`~isaaclab.renderers.base_renderer.BaseRenderer.render`."""
-        spec = render_data.spec
-        output_data = render_data.output_data
-        if output_data is None or spec is None:
+    def render(self, render_data: IsaacRtxRenderData) -> None:
+        """Render one camera product into its bound output buffers."""
+        self.render_batch((render_data,))
+
+    def render_batch(self, render_data: Sequence[IsaacRtxRenderData]) -> None:
+        """Ensure a shared RTX update once, then extract each camera's annotator outputs.
+
+        Args:
+            render_data: Cameras whose poses and output buffers have been prepared. Entries
+                without a spec or output buffers are skipped. An empty sequence performs no work.
+        """
+        cameras = [data for data in render_data if data.output_data is not None and data.spec is not None]
+        if not cameras:
             return
 
         # Ensure the RTX renderer has been pumped so annotator buffers are fresh.
         # This is a no-op if another camera instance already triggered the update
         # for the current physics step, or if a visualizer already pumped it.
         ensure_isaac_rtx_render_update()
+
+        for data in cameras:
+            self._read_annotator_output(data)
+
+    def _read_annotator_output(self, render_data: IsaacRtxRenderData) -> None:
+        """Extract one camera's annotator data into its bound output buffers."""
+        spec = render_data.spec
+        output_data = render_data.output_data
+        assert output_data is not None and spec is not None
 
         view_count = spec.view_count
         cfg = spec.cfg
@@ -671,19 +695,14 @@ class IsaacRtxRenderer(BaseRenderer):
                     ptr=tiled_data_buffer.ptr, shape=(*tiled_data_buffer.shape, 4), dtype=wp.uint8, device=device
                 )
 
-            # For motion vectors, use specialized kernel that reads 4 channels but only writes 2
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/2003)
-            if data_type == "motion_vectors":
-                tiled_data_buffer = tiled_data_buffer[:, :, :2].contiguous()
-
-            # For normals, we only require the first three channels of the tiled buffer
-            # Note: Not doing this breaks the alignment of the data (check: https://github.com/isaac-sim/IsaacLab/issues/4239)
-            if data_type == "normals":
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type in SIMPLE_SHADING_MODES:
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
-            if data_type == str(RenderBufferKind.RGB_HDR):
-                tiled_data_buffer = tiled_data_buffer[:, :, :3].contiguous()
+            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
+            # Motion vectors, normals, HDR color, and simple shading annotators return 4 channels while the
+            # outputs keep only the leading ones. Index the source with its own channel count so the
+            # kernel, which copies only the destination channels, stays aligned without a compacting copy
+            # (see https://github.com/isaac-sim/IsaacLab/issues/2003 and #4239).
+            source_channels = num_channels
+            if data_type in ("motion_vectors", "normals", str(RenderBufferKind.RGB_HDR), *SIMPLE_SHADING_MODES):
+                source_channels = int(tiled_data_buffer.shape[2])
 
             # ``reshape_tiled_image`` indexes the tiled buffer as
             # (num_tiles_y * height, num_tiles_x * width, channels), but annotators hand this data back
@@ -694,12 +713,11 @@ class IsaacRtxRenderer(BaseRenderer):
             # are ignored exactly as the previous flattened indexing ignored them. Keeping the view 3D
             # instead of 1D also keeps every dimension within Warp's per-dimension array size limit, so
             # large environment counts and camera resolutions no longer overflow a flattened dimension.
-            tile_height, tile_width, num_channels = (int(dim) for dim in buf_wp.shape[1:])
             # ``tiled_source`` must outlive the view below: the view does not own the annotator memory.
             tiled_source = tiled_data_buffer
             tiled_data_buffer = wp.array(
                 ptr=tiled_source.ptr,
-                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, num_channels),
+                shape=(num_tiles_y * tile_height, num_tiles_x * tile_width, source_channels),
                 dtype=tiled_source.dtype,
                 device=device,
             )

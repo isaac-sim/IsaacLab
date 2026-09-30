@@ -35,6 +35,7 @@ from ..common import (
     add_common_train_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     dump_train_configs,
     enable_cameras_for_video,
@@ -100,7 +101,7 @@ def _run(args_cli: argparse.Namespace) -> None:
         pre_launch_video_config(env_cfg, args_cli)
         show_run_summary(screen, args_cli, env_cfg, library="skrl", action="train")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
             runner_cls = import_skrl_runner(args_cli.ml_framework)
             apply_env_overrides(args_cli, env_cfg)
             validate_distributed_device(args_cli)
@@ -156,6 +157,7 @@ def _run(args_cli: argparse.Namespace) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg) and algorithm == "ppo",
             )
+            cleanup.callback(lambda: close_env(env))
             env = wrap_sensor_capture(env, log_dir, args_cli)
 
             screen.stage("Preparing agent")
@@ -182,4 +184,3 @@ def _run(args_cli: argparse.Namespace) -> None:
                 os.makedirs(os.path.join(log_dir, "checkpoints"), exist_ok=True)
                 runner.agent.write_checkpoint(timestep=total_timesteps, timesteps=total_timesteps)
                 print(f"[INFO] Saved final agent checkpoint to: {log_dir}/checkpoints")
-            env.close()

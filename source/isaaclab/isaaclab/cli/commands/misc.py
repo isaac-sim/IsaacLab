@@ -6,6 +6,7 @@
 """Misc commands"""
 
 import argparse
+import os
 import platform
 import shutil
 import sys
@@ -29,7 +30,6 @@ def command_run_isaacsim(sim_args: list[str]) -> None:
     Args:
         sim_args: Additional arguments passed to the Isaac Sim executable.
     """
-
     isaacsim_exe = extract_isaacsim_exe()
     print_info(f"Running Isaac Sim from: {isaacsim_exe}")
 
@@ -83,8 +83,13 @@ def command_editor(editor_args: list[str], project_dir: Path | None = None) -> N
         parser.error(str(error))
 
 
-def command_build_docs() -> None:
-    """Build the documentation."""
+def command_build_docs(multi_version: bool = False) -> None:
+    """Build the documentation using the repository's uv environment.
+
+    Args:
+        multi_version: Build all selected Git refs and a root redirect instead of the current checkout.
+            ``DOCS_DEFAULT_REF`` selects the redirect target, defaulting to ``v3.0.0-EA``.
+    """
     print_info("Building documentation...")
     docs_dir = ISAACLAB_ROOT / "docs"
 
@@ -94,34 +99,43 @@ def command_build_docs() -> None:
         print_error("https://docs.astral.sh/uv/getting-started/installation/")
         raise SystemExit(1)
 
-    out_dir = docs_dir / "_build" / "current"
-    cmd = [
-        uv_exe,
-        "run",
-        "--isolated",
-        "--extra",
-        "dev",
-        "--",
-        "python",
-        "-m",
-        "sphinx",
-        "-W",
-        "--keep-going",
-        "-j",
-        "auto",
-        "-b",
-        "html",
-        "-d",
-        "_build/doctrees",
-        ".",
-        str(out_dir),
-    ]
-    run_command(cmd, cwd=docs_dir)
+    out_dir = docs_dir / "_build"
+    cmd = [uv_exe, "run", "--extra", "dev", "--"]
+    if multi_version:
+        default_ref = os.getenv("DOCS_DEFAULT_REF", "v3.0.0-EA")
+        run_command(cmd + ["sphinx-multiversion", ".", str(out_dir), "--jobs=auto"], cwd=docs_dir)
+        if not (out_dir / default_ref / "index.html").is_file():
+            print_error(f"Default docs ref '{default_ref}' was not built. Fetch the Git refs or set DOCS_DEFAULT_REF.")
+            raise SystemExit(1)
+        template = (docs_dir / "_redirect" / "index.html").read_text(encoding="utf-8")
+        (out_dir / "index.html").write_text(template.replace("__DOCS_DEFAULT_REF__", default_ref), encoding="utf-8")
+    else:
+        out_dir /= "current"
+        if out_dir.exists():
+            shutil.rmtree(out_dir)
+        run_command(
+            cmd
+            + [
+                "python",
+                "-m",
+                "sphinx",
+                "-W",
+                "--keep-going",
+                "-j",
+                "auto",
+                "-b",
+                "html",
+                "-d",
+                str(out_dir / ".doctrees"),
+                ".",
+                str(out_dir),
+            ],
+            cwd=docs_dir,
+        )
 
     index_path = out_dir / "index.html"
     print_info(f"Documentation built at {index_path}")
-    if not is_windows():
-        print_info(f"Open with: xdg-open {index_path}")
+    print_info(f"Open {index_path} in a browser.")
 
 
 def command_build_isaacsim(source_path: str) -> None:

@@ -39,7 +39,7 @@ Let's take a look at the Python script:
 
    .. literalinclude:: ../../../scripts/tutorials/00_sim/spawn_prims.py
       :language: python
-      :emphasize-lines: 40-88, 100-101
+      :emphasize-lines: 38-86, 100-101
       :linenos:
 
 

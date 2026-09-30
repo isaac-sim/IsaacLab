@@ -251,7 +251,7 @@ class Articulation(BaseArticulation):
                 composer.add_raw_buffers_from(self._permanent_wrench_composer)
             else:
                 composer = self._permanent_wrench_composer
-            composer.compose_to_body_frame()
+            force_user, torque_user, is_global = composer.get_forces_and_torques()
             if self.data.has_body_ordering:
                 force_backend = self._body_wrench_force_backend
                 torque_backend = self._body_wrench_torque_backend
@@ -259,8 +259,8 @@ class Articulation(BaseArticulation):
                     ordering_kernels.reorder_body_wrench_user_to_backend,
                     dim=(self.num_instances, self.num_bodies),
                     inputs=[
-                        composer.out_force_b.warp,
-                        composer.out_torque_b.warp,
+                        force_user,
+                        torque_user,
                         self.data.body_ordering.backend_to_user,
                     ],
                     outputs=[force_backend, torque_backend],
@@ -269,14 +269,13 @@ class Articulation(BaseArticulation):
                 force_data = force_backend
                 torque_data = torque_backend
             else:
-                force_data = composer.out_force_b.warp
-                torque_data = composer.out_torque_b.warp
+                force_data, torque_data = force_user, torque_user
             self.root_view.apply_forces_and_torques_at_position(
                 force_data=force_data.flatten().view(wp.float32),
                 torque_data=torque_data.flatten().view(wp.float32),
                 position_data=None,
                 indices=self._ALL_INDICES,
-                is_global=False,
+                is_global=is_global,
             )
         if self._instantaneous_wrench_composer.active:
             self._instantaneous_wrench_composer.reset()
@@ -561,6 +560,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose()
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_link_pose_to_sim_mask(
         self,
@@ -658,6 +658,7 @@ class Articulation(BaseArticulation):
             self.data._reset_pose(from_link=False)
         # set into simulation
         self.root_view.set_root_transforms(self.data._root_link_pose_w.data.view(wp.float32), indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_root_com_pose_to_sim_mask(
         self,
@@ -1058,6 +1059,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
         self.root_view.set_dof_velocities(joint_vel_backend, indices=sim_env_ids)
 
     def write_joint_state_to_sim_mask(
@@ -1162,6 +1164,7 @@ class Articulation(BaseArticulation):
             self.data._reset_velocity()
         # set into simulation
         self.root_view.set_dof_positions(joint_pos_backend, indices=sim_env_ids)
+        SimulationManager.invalidate_transforms(kinematics=True)
 
     def write_joint_position_to_sim_mask(
         self,
@@ -1600,7 +1603,10 @@ class Articulation(BaseArticulation):
         if env_ids.shape[0] == 0 or joint_ids.shape[0] == 0:
             return
 
-        clamped_defaults = wp.zeros(1, dtype=wp.int32, device=self.device)
+        log_level = logging.WARNING if warn_limit_violation else logging.INFO
+        report_clamping = logger.isEnabledFor(log_level)
+        if report_clamping:
+            self._clamped_default_count.zero_()
         sim_env_ids = self._sim_env_ids_view(env_ids.shape[0])
         # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         # Note: we are doing a single launch for faster performance. Prior versions would do this in multiple launches.
@@ -1620,21 +1626,18 @@ class Articulation(BaseArticulation):
                 self.data._joint_pos_limits,
                 self.data._soft_joint_pos_limits,
                 self.data._default_joint_pos,
-                clamped_defaults,
+                self._clamped_default_count,
                 sim_env_ids,
             ],
             device=self.device,
         )
         # Log a warning if the default joint positions are outside of the new limits.
-        if clamped_defaults.numpy()[0] > 0:
+        if report_clamping and self._clamped_default_count.numpy()[0] > 0:
             violation_message = (
                 "Some default joint positions are outside of the range of the new joint limits. Default joint positions"
                 " will be clamped to be within the new joint limits."
             )
-            if warn_limit_violation:
-                logger.warning(violation_message)
-            else:
-                logger.info(violation_message)
+            logger.log(log_level, violation_message)
         # Set into simulation, note that when updating "model" properties with PhysX we need to do it on CPU.
         cpu_env_ids = self._get_cpu_env_ids(env_ids, sim_env_ids)
         joint_pos_limits_backend = self._get_backend_ordered_joint_buffer(
@@ -3034,8 +3037,9 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (len(env_ids), len(fixed_tendon_ids)) or
-                (num_instances, num_fixed_tendons) if full_data.
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (len(env_ids), len(fixed_tendon_ids))
+                or (num_instances, num_fixed_tendons) if full_data, with dtype wp.vec2f. A torch tensor has a
+                trailing dimension of 2.
             fixed_tendon_ids: The tendon indices to set the position limit for. Defaults to None (all fixed tendons).
             env_ids: Environment indices. If None, then all indices are used.
             full_data: Whether to expect full data. Defaults to False.
@@ -3043,41 +3047,17 @@ class Articulation(BaseArticulation):
         # resolve indices
         env_ids = self._resolve_env_ids(env_ids)
         fixed_tendon_ids = self._resolve_fixed_tendon_ids(fixed_tendon_ids)
-        if full_data:
-            self.assert_shape_and_dtype(limit, (self.num_instances, self.num_fixed_tendons), wp.float32, "limit")
-        else:
-            self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.float32, "limit")
-        # Warp kernels can ingest torch tensors directly, so we don't need to convert to warp arrays here.
         if isinstance(limit, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit,
-                    env_ids,
-                    fixed_tendon_ids,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_pos_limits,
-                ],
-                device=self.device,
-            )
+            raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
+        if full_data:
+            self.assert_shape_and_dtype(limit, (self.num_instances, self.num_fixed_tendons), wp.vec2f, "limit")
         else:
-            wp.launch(
-                shared_kernels.write_2d_data_to_buffer_with_indices_kernel(env_ids, fixed_tendon_ids),
-                dim=(env_ids.shape[0], fixed_tendon_ids.shape[0]),
-                inputs=[
-                    limit,
-                    env_ids,
-                    fixed_tendon_ids,
-                    full_data,
-                ],
-                outputs=[
-                    self.data._fixed_tendon_pos_limits,
-                ],
-                device=self.device,
-            )
-        # Only updates internal buffers, does not apply the position limit to the simulation.
+            self.assert_shape_and_dtype(limit, (env_ids.shape[0], fixed_tendon_ids.shape[0]), wp.vec2f, "limit")
+        # the (num_instances, num_fixed_tendons, 2) buffer and a vec2f input both view as (..., 2) torch tensors
+        limit = wp.to_torch(limit) if isinstance(limit, wp.array) else limit
+        rows = (wp.to_torch(env_ids) if isinstance(env_ids, wp.array) else env_ids).long()[:, None]
+        cols = (wp.to_torch(fixed_tendon_ids) if isinstance(fixed_tendon_ids, wp.array) else fixed_tendon_ids).long()
+        wp.to_torch(self.data._fixed_tendon_pos_limits)[rows, cols] = limit[rows, cols] if full_data else limit
 
     def set_fixed_tendon_position_limit_mask(
         self,
@@ -3100,7 +3080,8 @@ class Articulation(BaseArticulation):
             is only supporting indexing, hence masks need to be converted to indices.
 
         Args:
-            limit: Fixed tendon position limit. Shape is (num_instances, num_fixed_tendons).
+            limit: Fixed tendon position limits ``[lower, upper]`` [m]. Shape is (num_instances, num_fixed_tendons)
+                with dtype wp.vec2f. A torch tensor has a trailing dimension of 2.
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
@@ -3990,6 +3971,7 @@ class Articulation(BaseArticulation):
     def _create_buffers(self):
         self._ALL_INDICES = wp.array(np.arange(self.num_instances, dtype=np.int32), device=self.device)
         self._ALL_JOINT_INDICES = wp.array(np.arange(self.num_joints, dtype=np.int32), device=self.device)
+        self._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=self.device)
         self._ALL_BODY_INDICES = wp.array(np.arange(self.num_bodies, dtype=np.int32), device=self.device)
         self._ALL_FIXED_TENDON_INDICES = wp.array(np.arange(self.num_fixed_tendons, dtype=np.int32), device=self.device)
         self._ALL_SPATIAL_TENDON_INDICES = wp.array(
@@ -4003,8 +3985,8 @@ class Articulation(BaseArticulation):
         self._cpu_env_ids_views: dict[int, wp.array] = {}
 
         # external wrench composer
-        self._instantaneous_wrench_composer = WrenchComposer(self)
-        self._permanent_wrench_composer = WrenchComposer(self)
+        self._instantaneous_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
+        self._permanent_wrench_composer = WrenchComposer(self, supports_world_at_com=True)
 
         # asset named data
         self._joint_pos_target_backend: wp.array | None = None
@@ -4476,6 +4458,8 @@ class Articulation(BaseArticulation):
         """
         if env_ids is None or (isinstance(env_ids, slice) and env_ids == slice(None)):
             return self._ALL_INDICES
+        if isinstance(env_ids, slice):
+            return wp.from_torch(wp.to_torch(self._ALL_INDICES)[env_ids])
         if isinstance(env_ids, ProxyArray):
             raise TypeError("ProxyArray is output-only; pass .warp or .torch explicitly.")
         if isinstance(env_ids, list):

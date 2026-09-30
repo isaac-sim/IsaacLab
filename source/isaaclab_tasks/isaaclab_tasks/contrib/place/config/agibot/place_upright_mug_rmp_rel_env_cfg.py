@@ -21,7 +21,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.sensors import ContactSensorCfg, FrameTransformerCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR, ISAACLAB_NUCLEUS_DIR
 from isaaclab.visualizers import VisualizerCfg
 
@@ -165,7 +165,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         self.sim.default_visualizer_cfg = VisualizerCfg(eye=(1.8, -1.8, 1.8), lookat=(0.3, 0.0, 0.8))
 
         # Set Agibot as robot
-        self.scene.robot = AGIBOT_A2D_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(AGIBOT_A2D_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.init_state.pos = (-0.60, 0.0, 0.0)
 
         # reset obs and termination terms
@@ -241,7 +241,7 @@ class RmpFlowAgibotPlaceUprightMugEnvCfg(place_toy2box_rmp_rel_env_cfg.PlaceToy2
         )
 
         # Listens to the required transforms
-        self.marker_cfg = FRAME_MARKER_CFG.copy()
+        self.marker_cfg = clone(FRAME_MARKER_CFG)
         self.marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         self.marker_cfg.prim_path = "/Visuals/FrameTransformer"
 

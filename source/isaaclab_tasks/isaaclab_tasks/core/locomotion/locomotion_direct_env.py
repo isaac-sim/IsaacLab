@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.envs import DirectRLEnv
+from isaaclab.utils import index_fill_
 from isaaclab.utils.math import (
     euler_xyz_from_quat,
     normalize,
@@ -55,7 +56,8 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.gear_ratio_scaled = self.joint_gears / torch.max(self.joint_gears)
         # resolve against the sensor's own body list: its ordering is backend-specific and does not
         # necessarily match the articulation's body ordering
-        self._feet_body_idx, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
+        feet_body_idx, _ = self.joint_wrench.find_bodies(self.cfg.feet_body_names)
+        self._feet_body_idx = torch.tensor(feet_body_idx, dtype=torch.long, device=self.device)
 
         # walk target, placed far enough away that the robot never reaches it
         self.targets = self.scene.env_origins + torch.tensor(
@@ -68,7 +70,7 @@ class LocomotionDirectEnv(DirectRLEnv):
         self.actions = actions.clone()
         # the action is clamped before scaling: unbounded joint efforts drive the solver to NaN
         forces = self.action_scale * self.joint_gears * torch.clamp(self.actions, -1.0, 1.0)
-        self.robot.set_joint_effort_target_index(target=forces)
+        self.robot.actuators.target_command.set_effort_index(value=forces)
 
     def _apply_action(self) -> None:
         # Joint effort targets persist in the articulation command buffer across decimation substeps.
@@ -167,10 +169,10 @@ class LocomotionDirectEnv(DirectRLEnv):
 
         # log survival success rate before resetting (survived = timed out without falling)
         survived = self.reset_time_outs[env_ids].float()
-        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean().item()
+        self.extras.setdefault("log", {})["Metrics/success_rate"] = survived.mean()
 
         super()._reset_idx(env_ids)
-        self.actions[env_ids] = 0.0
+        index_fill_(self.actions, env_ids, 0.0)
 
         # root state is reset to the default pose, offset into the environment
         default_root_pose = self.robot.data.default_root_pose.torch[env_ids]

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 from isaaclab_newton.assets import MPMObjectCfg
 from isaaclab_newton.physics import MJWarpSolverCfg, MPMSolverCfg, NewtonCfg, NewtonCollisionPipelineCfg
-from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionPropertiesCfg
+from isaaclab_newton.sim.schemas import MujocoJointCfg, NewtonCollisionCfg
 from isaaclab_newton.sim.spawners.mpm import MPMGridCfg, MPMParticleMaterialCfg
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
@@ -31,9 +31,9 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.markers import VisualizationMarkersCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.sim.schemas import UsdPhysicsRigidBodyCfg
+from isaaclab.sim.schemas import UsdPhysicsCollisionCfg, UsdPhysicsRigidBodyCfg
 from isaaclab.sim.spawners.materials import RigidBodyMaterialBaseCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_contrib.coupling import CouplerEntryCfg, CouplerProxyCfg, CouplerProxyMappingCfg
@@ -281,12 +281,14 @@ def _kinematic_box(
                 rigid_body_enabled=True,
                 kinematic_enabled=True,
             ),
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=MPM_COLLIDER_MARGIN,
-                # Implicit MPM consumes shape margin; gap is a rigid-contact parameter.
-                contact_gap=0.0,
-            ),
+            collision_props=[
+                UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(
+                    contact_margin=MPM_COLLIDER_MARGIN,
+                    # Implicit MPM consumes shape margin; gap is a rigid-contact parameter.
+                    contact_gap=0.0,
+                ),
+            ],
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=0.8,
                 dynamic_friction=0.7,
@@ -312,11 +314,10 @@ def _static_collision_box(
         init_state=AssetBaseCfg.InitialStateCfg(pos=position),
         spawn=sim_utils.CuboidCfg(
             size=size,
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=0.004,
-                contact_gap=0.002,
-            ),
+            collision_props=[
+                UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=0.004, contact_gap=0.002),
+            ],
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=0.8,
                 dynamic_friction=0.7,
@@ -353,7 +354,7 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
         spawn=sim_utils.DomeLightCfg(color=(0.8, 0.8, 0.8), intensity=2500.0),
     )
 
-    robot = UR10_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    robot = replace(UR10_CFG, prim_path="{ENV_REGEX_NS}/Robot")
     robot.init_state.joint_pos = dict(zip(UR10_JOINT_NAMES, UR10_PUSH_HOME, strict=True))
     # Override arm drive gains; preserve the USD inertia, limits, and effort cap.
     robot.actuators["arm"].stiffness = 2400.0
@@ -370,11 +371,10 @@ class UR10ParticlePushSceneCfg(InteractiveSceneCfg):
             size=PADDLE_SIZE,
             rigid_props=UsdPhysicsRigidBodyCfg(rigid_body_enabled=True),
             mass_props=sim_utils.MassCfg(mass=PADDLE_MASS),
-            collision_props=NewtonCollisionPropertiesCfg(
-                collision_enabled=True,
-                contact_margin=PADDLE_CONTACT_MARGIN,
-                contact_gap=0.002,
-            ),
+            collision_props=[
+                UsdPhysicsCollisionCfg(collision_enabled=True),
+                NewtonCollisionCfg(contact_margin=PADDLE_CONTACT_MARGIN, contact_gap=0.002),
+            ],
             physics_material=RigidBodyMaterialBaseCfg(
                 static_friction=0.8,
                 dynamic_friction=0.7,
@@ -585,6 +585,8 @@ class CurriculumCfg:
 @configclass
 class UR10ParticlePushEnvCfg(ManagerBasedRLEnvCfg):
     """Manager-based, relative-joint-control UR10 particle-pushing task."""
+
+    class_type: type | str = "{DIR}.ur10_particle_push_env:UR10ParticlePushEnv"
 
     decimation = 2
     # One approach and sweep comfortably fits within this horizon.

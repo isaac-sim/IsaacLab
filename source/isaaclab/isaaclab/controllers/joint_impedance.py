@@ -58,14 +58,6 @@ class JointImpedanceController:
         # -- position offsets
         if self.cfg.dof_pos_offset is not None:
             self._dof_pos_offset[:] = torch.tensor(self.cfg.dof_pos_offset, device=self._device)
-        # -- position gain limits
-        self._p_gains_limits = torch.zeros_like(self._dof_pos_limits)
-        self._p_gains_limits[..., 0] = self.cfg.stiffness_limits[0]
-        self._p_gains_limits[..., 1] = self.cfg.stiffness_limits[1]
-        # -- damping ratio limits
-        self._damping_ratio_limits = torch.zeros_like(self._dof_pos_limits)
-        self._damping_ratio_limits[..., 0] = self.cfg.damping_ratio_limits[0]
-        self._damping_ratio_limits[..., 1] = self.cfg.damping_ratio_limits[1]
 
     """
     Properties.
@@ -119,7 +111,7 @@ class JointImpedanceController:
             # split input command
             dof_pos_command, stiffness = torch.tensor_split(command, 2, dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[0], max=self._p_gains_limits[1])
+            stiffness = stiffness.clip_(min=self.cfg.stiffness_limits[0], max=self.cfg.stiffness_limits[1])
             # joint positions + stiffness
             self._dof_pos_target[:] = dof_pos_command
             self._p_gains[:] = stiffness
@@ -128,8 +120,10 @@ class JointImpedanceController:
             # split input command
             dof_pos_command, stiffness, damping_ratio = torch.tensor_split(command, 3, dim=-1)
             # format command
-            stiffness = stiffness.clip_(min=self._p_gains_limits[0], max=self._p_gains_limits[1])
-            damping_ratio = damping_ratio.clip_(min=self._damping_ratio_limits[0], max=self._damping_ratio_limits[1])
+            stiffness = stiffness.clip_(min=self.cfg.stiffness_limits[0], max=self.cfg.stiffness_limits[1])
+            damping_ratio = damping_ratio.clip_(
+                min=self.cfg.damping_ratio_limits[0], max=self.cfg.damping_ratio_limits[1]
+            )
             # joint positions + stiffness + damping
             self._dof_pos_target[:] = dof_pos_command
             self._p_gains[:] = stiffness
@@ -165,8 +159,9 @@ class JointImpedanceController:
             desired_dof_pos = self._dof_pos_target + dof_pos
         else:
             raise ValueError(f"Invalid dof position command mode: {self.cfg.command_type}.")
-        # compute errors
+        # clip to the joint limits
         desired_dof_pos = desired_dof_pos.clip_(min=self._dof_pos_limits[..., 0], max=self._dof_pos_limits[..., 1])
+        # compute errors
         dof_pos_error = desired_dof_pos - dof_pos
         dof_vel_error = -dof_vel
         # compute acceleration
@@ -175,7 +170,7 @@ class JointImpedanceController:
         # -- inertial compensation
         if self.cfg.inertial_compensation:
             # inverse dynamics control
-            desired_torques = mass_matrix @ des_dof_acc
+            desired_torques = (mass_matrix @ des_dof_acc.unsqueeze(-1)).squeeze(-1)
         else:
             # decoupled spring-mass control
             desired_torques = des_dof_acc

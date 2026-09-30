@@ -18,6 +18,7 @@ import pytest
 import torch
 from PIL import Image, ImageChops
 
+from isaaclab.utils import clone, replace
 from isaaclab.utils.images import make_camera_output_grid, normalize_camera_output_for_display
 from isaaclab.utils.warp import ProxyArray
 
@@ -246,37 +247,6 @@ _OVRTX_DATA_TYPES = tuple(dt for dt in _DEFAULT_SENSOR_DATA_TYPES if dt != "inst
 _KITLESS_STAGE_VARIANTS = ("legacy", "ovstage")
 
 
-def make_xfail_rendering_params(
-    params: list[pytest.param],
-    expected_failures: dict[tuple[str, ...], str],
-) -> list[pytest.param]:
-    """Mark selected rendering parameter combinations as expected failures.
-
-    Args:
-        params: Rendering parameters containing physics backend, renderer, and data type values.
-        expected_failures: Mapping from parameter value tuples to expected-failure reasons.
-
-    Returns:
-        Rendering parameters with non-strict ``xfail`` marks applied to matching combinations.
-    """
-    marked_params = []
-    for param in params:
-        reason = expected_failures.get(tuple(param.values))
-        if reason is None:
-            marked_params.append(param)
-            continue
-        # Expected failures should run once and carry one unambiguous reason.
-        marks = [mark for mark in param.marks if mark.name not in ("flaky", "xfail")]
-        marked_params.append(
-            pytest.param(
-                *param.values,
-                id=param.id,
-                marks=[*marks, pytest.mark.xfail(reason=reason, strict=False)],
-            )
-        )
-    return marked_params
-
-
 def make_skip_rendering_params(
     params: list[pytest.param],
     expected_skips: dict[tuple[str, ...], str],
@@ -416,9 +386,17 @@ def _make_sensor_data_type_params(
     ]
 
 
+# RTX Minimal mode (the ``simple_shading_*`` outputs) is a per-render-product renderer setting that does not
+# depend on the physics backend, so it is rendered with one physics backend per RTX renderer and only in the
+# Cartpole and Shadow Hand scenes. Cartpole's flat materials look the same under every shading level, so the
+# textured Shadow Hand scene is the golden that tells the MDL levels apart. Other scenes cover the remaining
+# data types.
+_NON_MINIMAL_SENSOR_DATA_TYPES = (*_STATIC_SENSOR_DATA_TYPES, *_TEMPORAL_SENSOR_DATA_TYPES)
+_OVRTX_NON_MINIMAL_DATA_TYPES = tuple(dt for dt in _OVRTX_DATA_TYPES if dt not in _MINIMAL_SENSOR_DATA_TYPES)
+
 PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("physx", "isaacsim_rtx"),
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("physx", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
     *_make_sensor_data_type_params(
         "physx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
@@ -426,24 +404,36 @@ PHYSICS_RENDERER_AOV_COMBINATIONS = [
 
 PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(PHYSICS_RENDERER_AOV_COMBINATIONS)
 
+MINIMAL_PHYSICS_RENDERER_AOV_GROUPS = group_rendering_params(
+    [
+        *PHYSICS_RENDERER_AOV_COMBINATIONS,
+        *_make_sensor_data_type_params("physx", "isaacsim_rtx", _MINIMAL_SENSOR_DATA_TYPES),
+    ]
+)
+
 # MPM particles are simulated only by Newton's coupled MPM solver, so there is no PhysX or OVPhysX arm.
 # Only the RTX arm is covered: it draws the ``UsdGeom.Points`` clouds on the USD stage, whereas the Warp
 # rasterizer draws particles straight from Newton state as synthetic hits, which is a separate code path.
 MPM_PARTICLE_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("newton", "isaacsim_rtx"),
+    *_make_sensor_data_type_params("newton", "isaacsim_rtx", _NON_MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 MPM_PARTICLE_AOV_GROUPS = group_rendering_params(MPM_PARTICLE_AOV_COMBINATIONS)
 
 KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
-    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_DATA_TYPES),
-    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_DATA_TYPES),
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
+    *_make_sensor_data_type_params("newton", "ovrtx", _OVRTX_NON_MINIMAL_DATA_TYPES),
     *_make_sensor_data_type_params(
         "ovphysx", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
     *_make_sensor_data_type_params(
         "newton", "newton", _NEWTON_WARP_DATA_TYPES, flaky=False, renderer_label="newton_warp"
     ),
+]
+
+MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS = [
+    *KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS,
+    *_make_sensor_data_type_params("ovphysx", "ovrtx", _MINIMAL_SENSOR_DATA_TYPES),
 ]
 
 _VISUAL_MATERIAL_KITLESS_COMBINATIONS = [
@@ -458,8 +448,13 @@ def make_kitless_rendering_params_lift() -> list[pytest.param]:
 
 
 def make_kitless_rendering_params_franka() -> list[pytest.param]:
-    """Create kitless Franka rendering parameters."""
-    params = make_kitless_rendering_params(KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
+    """Create kitless Franka rendering parameters.
+
+    The Franka deformable (cloth, soft, cable) configs declare no OVPhysX preset, so OVPhysX is left out.
+    """
+    params = make_kitless_rendering_params(
+        [param for param in KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS if param.values[0] != "ovphysx"]
+    )
     params = [
         (
             pytest.param(
@@ -741,13 +736,17 @@ def maybe_save_stage(
 
 
 def _apply_overrides_to_env_cfg(env_cfg: Any, override_args: list[str]) -> Any:
-    """Apply override args to env_cfg using parse_overrides and apply_overrides."""
-    from isaaclab_tasks.utils.hydra import apply_overrides, collect_presets, parse_overrides
+    """Return a copy of env_cfg with override args applied by the production task-config resolver."""
+    import gymnasium as gym
 
-    presets = {"env": collect_presets(env_cfg)}
-    global_presets, preset_sel, preset_scalar, _ = parse_overrides(override_args, presets)
-    hydra_cfg = {"env": env_cfg.to_dict()}
-    env_cfg, _ = apply_overrides(env_cfg, None, hydra_cfg, global_presets, preset_sel, preset_scalar, presets)
+    from isaaclab_tasks.utils import resolve_task_config
+
+    task = "Isaac-Rendering-Test-Overrides"
+    gym.register(id=task, entry_point="dummy:Env", kwargs={"env_cfg_entry_point": lambda: clone(env_cfg)})
+    try:
+        env_cfg, _ = resolve_task_config(task, None, overrides=override_args)
+    finally:
+        del gym.registry[task]
     return env_cfg
 
 
@@ -1132,11 +1131,7 @@ def make_require_ovlibs_install_fixture():
     """
 
     @pytest.fixture(autouse=True)
-    def _require_ovlibs_install(request, monkeypatch: pytest.MonkeyPatch):
-        # TODO: Remove once usd-core>=26.5 is the minimum - that release fixes the race condition.
-        # Limit OpenUSD's work-thread pool to one thread to avoid race condition in usd-core<26.5
-        monkeypatch.setenv("PXR_WORK_THREAD_LIMIT", "1")
-
+    def _require_ovlibs_install(request):
         callspec = getattr(request.node, "callspec", None)
         if callspec is None:
             return
@@ -1484,9 +1479,7 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(
-    env: Any, renderer: str, data_type: str, num_steps: int = 2, action_value: float = 0.0
-) -> None:
+def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1496,7 +1489,6 @@ def maybe_step_env_for_motion(
     Args:
         env: The environment to step. Must expose ``action_space`` and ``step`` (``DirectRLEnv`` /
             ``ManagerBasedRLEnv``).
-        renderer: The renderer under test.
         data_type: The camera data type under test.
         num_steps: Number of steps to take before capturing camera output.
         action_value: Constant value applied to every action component on every step. Defaults to
@@ -1505,10 +1497,6 @@ def maybe_step_env_for_motion(
     """
     if data_type != "motion_vectors":
         return
-
-    # Remove the extra step when NVBug 6565960 is fixed.
-    if renderer == "ovrtx_renderer":
-        num_steps += 1
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
     for _ in range(num_steps):
@@ -1522,7 +1510,7 @@ def _motion_data_type(data_types: list[str]) -> str:
 
 def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
     """Create a Cartpole camera environment that exposes every configured test AOV."""
-    from isaaclab.utils.buffers import CircularBuffer
+    from isaaclab.utils.images import CameraFrameStack
 
     from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
 
@@ -1539,11 +1527,7 @@ def make_cartpole_rendering_test_env(env_cfg: Any) -> Any:
             super(CartpoleCameraEnv, self).__init__(cfg)
 
             self._tiled_camera = self.scene["tiled_camera"]
-            self._stack = None
-            if frame_stack > 1:
-                self._stack = CircularBuffer(
-                    max_len=frame_stack, batch_size=self.num_envs, device=self.device, stack_dim=1
-                )
+            self._frames = CameraFrameStack(self.num_envs, self.device, frame_stack, channel_first=True)
 
     return _CartpoleRenderingTestEnv(env_cfg)
 
@@ -1603,7 +1587,7 @@ def rendering_test_shadow_hand(
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        maybe_step_env_for_motion(env, motion_data_type)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_types[0])
 
         validate_camera_outputs(
@@ -1715,6 +1699,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
+    async_rendering: bool = False,
 ) -> None:
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -1744,9 +1729,10 @@ def rendering_test_cartpole(
 
     @configclass
     class _CartpoleCameraTestSceneCfg(CartpoleCameraSceneCfg):
-        cartpole = CARTPOLE_CFG.replace(
+        cartpole = replace(
+            CARTPOLE_CFG,
             prim_path="{ENV_REGEX_NS}/Robot",
-            spawn=CARTPOLE_CFG.spawn.replace(semantic_tags=[("class", "cartpole")]),
+            spawn=replace(CARTPOLE_CFG.spawn, semantic_tags=[("class", "cartpole")]),
         )
         tiled_camera = _CartpoleTiledCameraTestCfg()
 
@@ -1774,6 +1760,8 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
+    if async_rendering:
+        env_cfg.scene.tiled_camera.renderer_cfg.async_rendering = True
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
@@ -1786,7 +1774,7 @@ def rendering_test_cartpole(
         env = make_cartpole_rendering_test_env(env_cfg)
         # Nudge the cart with a small constant force so motion vectors also capture cart translation,
         # not just pole dynamics already in flight from the randomized reset.
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         camera_outputs = env._tiled_camera.data.output
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
@@ -1862,6 +1850,7 @@ def rendering_test_lift_kuka(
         _skip_if_newton_motion_vectors(physics_backend, data_type)
 
     from isaaclab.envs import ManagerBasedRLEnv
+    from isaaclab.managers import ObservationTermCfg
     from isaaclab.sensors import CameraCfg
     from isaaclab.utils import configclass
 
@@ -1881,34 +1870,36 @@ def rendering_test_lift_kuka(
 
     @configclass
     class _LiftBaseTiledCameraTestCfg(BaseTiledCameraCfg):
-        distance_to_camera64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=64, height=64)
-        distance_to_camera128 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=128, height=128)
-        distance_to_camera256 = BASE_CAMERA_CFG.replace(data_types=["distance_to_camera"], width=256, height=256)
-        distance_to_image_plane64 = BASE_CAMERA_CFG.replace(data_types=["distance_to_image_plane"], width=64, height=64)
-        distance_to_image_plane128 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=128, height=128
+        distance_to_camera64 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=64, height=64)
+        distance_to_camera128 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=128, height=128)
+        distance_to_camera256 = replace(BASE_CAMERA_CFG, data_types=["distance_to_camera"], width=256, height=256)
+        distance_to_image_plane64 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=64, height=64
         )
-        distance_to_image_plane256 = BASE_CAMERA_CFG.replace(
-            data_types=["distance_to_image_plane"], width=256, height=256
+        distance_to_image_plane128 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=128, height=128
         )
-        normals64 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=64, height=64)
-        normals128 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=128, height=128)
-        normals256 = BASE_CAMERA_CFG.replace(data_types=["normals"], width=256, height=256)
-        instance_segmentation64 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=64, height=64)
-        instance_segmentation128 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=128, height=128)
-        instance_segmentation256 = BASE_CAMERA_CFG.replace(data_types=["instance_segmentation"], width=256, height=256)
-        instance_id_segmentation_fast64 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=64, height=64
+        distance_to_image_plane256 = replace(
+            BASE_CAMERA_CFG, data_types=["distance_to_image_plane"], width=256, height=256
         )
-        instance_id_segmentation_fast128 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=128, height=128
+        normals64 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=64, height=64)
+        normals128 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=128, height=128)
+        normals256 = replace(BASE_CAMERA_CFG, data_types=["normals"], width=256, height=256)
+        instance_segmentation64 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=64, height=64)
+        instance_segmentation128 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=128, height=128)
+        instance_segmentation256 = replace(BASE_CAMERA_CFG, data_types=["instance_segmentation"], width=256, height=256)
+        instance_id_segmentation_fast64 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=64, height=64
         )
-        instance_id_segmentation_fast256 = BASE_CAMERA_CFG.replace(
-            data_types=["instance_id_segmentation_fast"], width=256, height=256
+        instance_id_segmentation_fast128 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=128, height=128
         )
-        motion_vectors64 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=64, height=64)
-        motion_vectors128 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=128, height=128)
-        motion_vectors256 = BASE_CAMERA_CFG.replace(data_types=["motion_vectors"], width=256, height=256)
+        instance_id_segmentation_fast256 = replace(
+            BASE_CAMERA_CFG, data_types=["instance_id_segmentation_fast"], width=256, height=256
+        )
+        motion_vectors64 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=64, height=64)
+        motion_vectors128 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=128, height=128)
+        motion_vectors256 = replace(BASE_CAMERA_CFG, data_types=["motion_vectors"], width=256, height=256)
 
     @configclass
     class _LiftSingleCameraTestSceneCfg(SingleCameraSceneCfg):
@@ -1947,6 +1938,10 @@ def rendering_test_lift_kuka(
         env_cfg.events.joint_friction = None
         env_cfg.events.object_scale_mass = None
         env_cfg.events.finger_closing_speed = None
+        # No policy image term accepts motion vectors, but the camera must still be read every step.
+        env_cfg.observations.base_image.object_observation_b = ObservationTermCfg(
+            func=lambda env: env.scene.sensors["base_camera"].data.output["motion_vectors"].torch
+        )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, motion_data_type)
 
@@ -1974,7 +1969,7 @@ def rendering_test_lift_kuka(
         if motion_data_type == "motion_vectors":
             # Capture controlled joint motion instead of the first-step autoreset transient.
             env.reset(seed=42)
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
@@ -2046,10 +2041,11 @@ def rendering_test_kuka_visual_material_randomization(
         material_path = f"{{ENV_REGEX_NS}}/Robot/{material_name}"
         setattr(scene_cfg, material_name, VisualMaterialCfg(prim_path=material_path, spawn=sim_utils.PbrMdlCfg()))
         bindings[link_path] = f"./{material_name}"
-    robot_spawn = KUKA_ALLEGRO_CFG.spawn.replace(activate_contact_sensors=False, visual_material_bindings=bindings)
-    scene_cfg.robot = KUKA_ALLEGRO_CFG.replace(
+    robot_spawn = replace(KUKA_ALLEGRO_CFG.spawn, activate_contact_sensors=False, visual_material_bindings=bindings)
+    scene_cfg.robot = replace(
+        KUKA_ALLEGRO_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, robot_spawn.copy()], random_choice=False),
+        spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=[robot_spawn, clone(robot_spawn)], random_choice=False),
     )
 
     sim = None
@@ -2080,7 +2076,7 @@ def rendering_test_kuka_visual_material_randomization(
         assert set(scene.extras) == {"sky_light"}
         assert set(scene.sensors) == {"base_camera"}
         assert set(scene.visual_materials) == set(material_names)
-        assert len(scene.clone_plan.cfg_rows[id(scene_cfg.robot)]) == 2
+        assert len(scene_cfg.robot.spawn.spawn_paths) == 2
         for material_name in material_names:
             material_cfg = SceneEntityCfg(material_name)
             material_cfg.resolve(scene)
@@ -2122,11 +2118,15 @@ def rendering_test_kuka_visual_material_randomization(
 
 def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[str]) -> None:
     """Shrink the scene and force image-only observations for Franka golden AOV tests."""
-    from isaaclab.envs import mdp as env_mdp
     from isaaclab.managers import ObservationGroupCfg as ObsGroup
     from isaaclab.managers import ObservationTermCfg as ObsTerm
     from isaaclab.managers import SceneEntityCfg
     from isaaclab.utils import configclass
+    from isaaclab.utils.images import normalize_camera_image
+
+    def camera_observation(env, sensor_cfg: SceneEntityCfg, data_type: str):
+        images = env.scene.sensors[sensor_cfg.name].data.output[data_type].torch
+        return normalize_camera_image(images, data_type, output_channel_dim=1)
 
     @configclass
     class TestFrankaCameraObservationsCfg:
@@ -2135,8 +2135,8 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
         @configclass
         class PolicyCfg(ObsGroup):
             image = ObsTerm(
-                func=env_mdp.image,
-                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0], "permute": True},
+                func=camera_observation,
+                params={"sensor_cfg": SceneEntityCfg("base_camera"), "data_type": data_types[0]},
             )
 
             def __post_init__(self) -> None:
@@ -2225,9 +2225,6 @@ def rendering_test_franka_cloth(
         # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
-        # TODO: Remove the extra step when NVBug 6565960 is fixed.
-        if is_newton_ovrtx_motion:
-            env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output
@@ -2270,15 +2267,8 @@ def rendering_test_franka_soft(
     data_types: list[str],
     comparison_scores: list[dict],
 ) -> None:
-    if physics_backend == "physx" or renderer == "isaacsim_rtx_renderer":
-        pytest.skip("Random teardown hangs in the kit-based combinations (OMPE-101977).")
-
     if renderer == "ovrtx_renderer" and "instance_segmentation" in data_types:
         pytest.skip("instance_segmentation crashes with the OVRTX renderer on franka_soft (NVBUG#6463802).")
-
-    # Native hang: the per-file CI runner kills the suite after 1000s with no pytest outcome.
-    if physics_backend == "ovphysx" and renderer == "ovrtx_renderer" and "depth" in data_types:
-        pytest.skip("OVPhysX + OVRTX depth hangs intermittently on franka_soft kitless CI (NVBUG#6564917).")
 
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -2304,7 +2294,7 @@ def rendering_test_franka_soft(
         env = ManagerBasedRLEnv(env_cfg)
         env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
+        maybe_step_env_for_motion(env, _motion_data_type(data_types), action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2336,8 +2326,7 @@ def rendering_test_mpm_particles(
     """Golden-image AOV coverage for USD-stage MPM particle rendering.
 
     Covers the ``UsdGeom.Points`` clouds authored by
-    :func:`~isaaclab_newton.sim.spawners.mpm.visualization.create_mpm_particle_visualization`
-    and re-synced every frame by ``NewtonManager.sync_particles_to_usd``. The camera frames the
+    MPM spawners and updated by the shared Fabric resource through SDP. The camera frames the
     UR10 particle pile head-on so the particles, not the workcell, dominate the frame.
 
     MPM runs only on Newton's coupled MPM/MJWarp solver, so ``UR10ParticlePushEnvCfg`` pins

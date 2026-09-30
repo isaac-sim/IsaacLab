@@ -6,7 +6,6 @@
 """Integration tests for LEAPP export commands."""
 
 import importlib.util
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -20,10 +19,8 @@ _CHECKPOINT_SCRIPT = Path(__file__).with_name("leapp_initialized_checkpoints.py"
 _OUTPUT_TAIL_SIZE = 5000
 
 _PRETRAINED_TASKS = [
-    "Isaac-Ant",
     "Isaac-Cartpole",
     "IsaacContrib-Navigation-Flat-AnymalC",
-    "Isaac-Velocity-Flat-AnymalD",
     "Isaac-Velocity-Rough-AnymalD",
     "Isaac-Velocity-Rough-G1",
     "IsaacContrib-Velocity-Flat-Spot",
@@ -61,7 +58,6 @@ def _run_checked(command: list[str], timeout: int = 600) -> str:
             capture_output=True,
             text=True,
             timeout=timeout,
-            env={**os.environ, "PXR_WORK_THREAD_LIMIT": "1"},
         )
     except subprocess.TimeoutExpired as exc:
         stdout = exc.stdout.decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or "")
@@ -94,8 +90,6 @@ def _run_export(backend: str, task: str, checkpoint: str, tmp_path: Path, preset
             "--export_save_path",
             str(tmp_path / "export"),
             "--disable_graph_visualization",
-            "--limit_cpu_threads",
-            "1",
         ]
     )
     if preset:

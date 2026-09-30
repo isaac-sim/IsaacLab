@@ -23,7 +23,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors.frame_transformer.frame_transformer_cfg import FrameTransformerCfg, OffsetCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import GroundPlaneCfg, UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -62,7 +62,7 @@ def make_ee_frame_cfg(
     Returns:
         The configured :class:`FrameTransformerCfg`.
     """
-    marker_cfg = FRAME_MARKER_CFG.copy()
+    marker_cfg = clone(FRAME_MARKER_CFG)
     marker_cfg.markers["frame"].scale = marker_scale
     marker_cfg.prim_path = "/Visuals/FrameTransformer"
     return FrameTransformerCfg(

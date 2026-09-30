@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_newton.sim.schemas import MujocoRigidBodyCfg, NewtonArticulationCfg
 from isaaclab_newton.sim.spawners.materials import NewtonMaterialCfg
 from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxCollisionCfg, PhysxRigidBodyCfg
 
@@ -171,7 +171,7 @@ FRANKA_PANDA_NEWTON_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ASSET_DIR}/franka_mimic.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.MujocoRigidBodyPropertiesCfg(gravcomp=1.0),
+        rigid_props=MujocoRigidBodyCfg(gravcomp=1.0),
         articulation_props=[
             PhysxArticulationCfg(enabled_self_collisions=False),
             NewtonArticulationCfg(self_collision_enabled=False),

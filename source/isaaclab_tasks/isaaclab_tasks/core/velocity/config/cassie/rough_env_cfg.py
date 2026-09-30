@@ -7,7 +7,7 @@
 
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 
 from isaaclab_assets.robots.cassie import CASSIE_CFG
 
@@ -42,6 +42,15 @@ class CassieRewardsCfg(RewardsCfg):
         weight=-0.2,
         params={"asset_cfg": SceneEntityCfg("robot", joint_names=["toe_joint_.*"])},
     )
+    # fixes the tilted gait
+    air_time_variance = RewTerm(
+        func=mdp.feet_air_time_variance,
+        weight=-5.0,
+        params={
+            "sensor_cfg": SceneEntityCfg("contact_forces", body_names=".*toe"),
+            "command_name": "base_velocity",
+        },
+    )
     # penalize toe joint limits
     dof_pos_limits = RewTerm(
         func=mdp.joint_pos_limits,
@@ -60,7 +69,7 @@ class CassieRoughEnvCfg(LocomotionVelocityRoughEnvCfg):
         super().__post_init__()
 
         # scene
-        self.scene.robot = CASSIE_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(CASSIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.height_scanner.prim_path = "{ENV_REGEX_NS}/Robot/pelvis"
         # actions
         self.actions.joint_pos.scale = 0.5

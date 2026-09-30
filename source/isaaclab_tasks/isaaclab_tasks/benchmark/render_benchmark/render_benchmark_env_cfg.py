@@ -6,9 +6,11 @@
 from __future__ import annotations
 
 import os
+from typing import Literal, cast
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
 from isaaclab_newton.renderers import NewtonWarpRendererCfg
+from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_physx.physics import PhysxCfg
 from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
@@ -20,7 +22,7 @@ from isaaclab.physics import PhysxAutoCfg
 from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.sensors import CameraCfg
 from isaaclab.sim import SimulationCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.utils import PresetCfg
@@ -28,13 +30,45 @@ from isaaclab_tasks.utils.presets import MultiBackendRendererCfg
 
 from isaaclab_assets.robots.franka import FRANKA_PANDA_HIGH_PD_CFG
 
+BenchmarkMode = Literal["render", "physics_render"]
+"""Animation mode used by the render benchmark.
+
+``"render"`` writes analytic joint poses after physics and requires ``scene.lazy_sensor_update=True``.
+Isaac RTX direct posing also requires no Kit app-pumping visualizer (for example, ``--visualizer none``).
+``"physics_render"`` sends actuator targets before physics and renders the resulting state.
+Both modes still step physics; the renderer sweep reports physics and rendering timings separately.
+"""
+
+BENCHMARK_MODES: tuple[BenchmarkMode, ...] = ("render", "physics_render")
+"""Explicit animation modes; ``None`` disables benchmark animation and scope profiling."""
+
+
+def _read_benchmark_mode() -> BenchmarkMode | None:
+    """Read the default benchmark mode from ``BENCHMARK_MODE``, rejecting unknown values.
+
+    Returns:
+        The configured mode, or ``None`` when the variable is unset.
+
+    Raises:
+        ValueError: If ``BENCHMARK_MODE`` is set to a value outside :data:`BENCHMARK_MODES`.
+    """
+    mode = os.getenv("BENCHMARK_MODE")
+    if mode is not None and mode not in BENCHMARK_MODES:
+        raise ValueError(f"Unknown BENCHMARK_MODE '{mode}'. Expected one of {list(BENCHMARK_MODES)}.")
+    return cast(BenchmarkMode | None, mode)
+
+
+BENCHMARK_MODE: BenchmarkMode | None = _read_benchmark_mode()
+"""Default :attr:`RenderBenchmarkFrankaCabinetEnvCfg.benchmark_mode`, read once at import."""
+
 
 @configclass
 class RenderBenchmarkPhysicsCfg(PresetCfg):
     """Physics backend presets.
 
     Pick via ``presets=newton_mjwarp`` (default) or ``presets=physx``, which resolves to the
-    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX.
+    concrete PhysX backend at launch. Use ``presets=isaacsim_physx`` to pin Isaac Sim PhysX
+    or ``presets=ovphysx`` to pin OvPhysX.
     The BVH constructors are read from the environment so ``benchmark_renderer.py`` can sweep
     them without a separate preset per combination.
     """
@@ -48,7 +82,8 @@ class RenderBenchmarkPhysicsCfg(PresetCfg):
         use_cuda_graph=os.getenv("NEWTON_USE_CUDA_GRAPH", "0") == "1",
     )
     isaacsim_physx: PhysxCfg = PhysxCfg()
-    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx)
+    ovphysx: OvPhysxCfg = OvPhysxCfg()
+    physx: PhysxAutoCfg = PhysxAutoCfg(isaacsim_physx=isaacsim_physx, ovphysx=ovphysx)
     default = newton_mjwarp
 
 
@@ -108,12 +143,10 @@ class RenderBenchmarkSceneCfg(InteractiveSceneCfg):
         ),
         init_state=RigidObjectCfg.InitialStateCfg(pos=(0.0, 0.0, -0.05)),
     )
-    robot: ArticulationCfg = FRANKA_PANDA_HIGH_PD_CFG.replace(
+    robot: ArticulationCfg = replace(
+        FRANKA_PANDA_HIGH_PD_CFG,
         prim_path="{ENV_REGEX_NS}/Robot",
-        init_state=FRANKA_PANDA_HIGH_PD_CFG.init_state.replace(
-            pos=(1.0, 0.0, 0.0),
-            rot=(0.0, 0.0, 1.0, 0.0),
-        ),
+        init_state=replace(FRANKA_PANDA_HIGH_PD_CFG.init_state, pos=(1.0, 0.0, 0.0), rot=(0.0, 0.0, 1.0, 0.0)),
     )
     cabinet: ArticulationCfg = ArticulationCfg(
         prim_path="{ENV_REGEX_NS}/Cabinet",
@@ -168,9 +201,11 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     """Franka Panda and Sektion cabinet, animated for renderer benchmarking.
 
     The cabinet contributes four articulated joints (two drawers, two doors) on top of the
-    Franka's seven, and a sinusoidal animation drives all of them so every rendered frame has
-    moving articulated geometry rather than a static scene. There is no policy: actions are
+    Franka's seven. An explicit benchmark mode drives them with a sinusoidal animation so every
+    rendered frame has moving articulated geometry. There is no policy: actions are
     ignored, rewards are zero, and the episode only ends on time-out.
+
+    :attr:`benchmark_mode` selects direct posing or actuator tracking. See :data:`BenchmarkMode`.
     """
 
     decimation: int = 2
@@ -192,6 +227,15 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
 
     joint_animation_freq_hz: float = 0.35
     """Frequency of the joint animation [Hz]."""
+
+    benchmark_mode: BenchmarkMode | None = BENCHMARK_MODE
+    """Whether animation uses direct joint poses or actuator targets.
+
+    See :data:`BenchmarkMode`. Defaults to the ``BENCHMARK_MODE`` environment variable, or
+    ``None`` when it is unset. ``None`` leaves physics and camera rendering active without
+    benchmark animation or scope profiling. Render mode requires ``scene.lazy_sensor_update=True``.
+    With Isaac RTX, use ``--visualizer none`` or a visualizer that does not pump the Kit app loop.
+    """
 
     write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"
     """Whether to dump each rendered frame to a PNG, for eyeballing renderer output."""

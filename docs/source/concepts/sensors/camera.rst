@@ -268,7 +268,9 @@ background. Set a normalized RGB tuple to use a solid color for pixels that miss
 
 .. code-block:: python
 
-   mask_camera = front_camera.replace(background_color=(0.0, 0.0, 0.0))
+   from isaaclab.utils import replace
+
+   mask_camera = replace(front_camera, background_color=(0.0, 0.0, 0.0))
 
 The setting is per camera. Cameras with renderer-default and solid backgrounds can coexist in one
 scene.
@@ -291,17 +293,12 @@ The field accepts:
 .. code-block:: python
 
    from isaaclab.sensors.camera import CameraCfg, CameraISPMode
+   from isaaclab.utils import replace
    from isaaclab_ppisp import PpispCfg
 
-   explicit_isp = front_camera.replace(
-       data_types=["rgb"],
-       isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}),
-   )
+   explicit_isp = replace(front_camera, data_types=["rgb"], isp_cfg=PpispCfg(inputs={"exposureOffset": 1.5}))
 
-   discovered_isp = front_camera.replace(
-       data_types=["rgb"],
-       isp_cfg=CameraISPMode.AUTO_CAMERA,
-   )
+   discovered_isp = replace(front_camera, data_types=["rgb"], isp_cfg=CameraISPMode.AUTO_CAMERA)
 
 ``AUTO_CAMERA`` checks the first matched camera prim. ``AUTO_ANY`` falls back to the first PPISP
 camera anywhere on the stage. Discovery happens once during camera construction.
@@ -320,11 +317,11 @@ configuration and discovered USD attributes are fixed for the camera lifetime.
    separately authored RTX exposure or tonemapping settings. When ``isp_cfg`` is ``None``, the
    renderer leaves authored camera exposure unchanged.
 
-Run ``scripts/demos/sensors/ppisp_camera.py`` for a complete PPISP workflow:
+Run the ``ppisp-camera`` example for a complete PPISP workflow:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/ppisp_camera.py \
+   uv run --extra isaacsim isaaclab example ppisp-camera \
       --renderer newton_renderer --max_steps 60
 
 Performance and validation
@@ -340,11 +337,11 @@ cost of the de-tiled outputs or downstream vision models. The camera follows the
 ``update_period`` contract; choose a period that matches the observation cadence instead of rendering
 at every physics step by default.
 
-A runnable camera example is available in ``scripts/demos/sensors/cameras.py``:
+A runnable camera example is available as ``camera``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim python scripts/demos/sensors/cameras.py
+   uv run --extra isaacsim isaaclab example camera
 
 For saving output to disk, see :doc:`/source/how-to/save_camera_output`. For renderer selection
 and customization, see :doc:`/source/how-to/configure_rendering`.

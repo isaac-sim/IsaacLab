@@ -1,6 +1,27 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+2.0.11 (2026-09-28)
+~~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``--max_num_failures`` to the Mimic dataset generation script to bound unsuccessful generation attempts.
+* Added ``class_type`` to the environment configs that use a custom environment class, naming that class.
+
+
+2.0.10 (2026-09-27)
+~~~~~~~~~~~~~~~~~~~
+
+Fixed
+^^^^^
+
+* Fixed cuRobo collision obstacle poses for robots away from the world origin.
+
+
 2.0.9 (2026-09-20)
 ~~~~~~~~~~~~~~~~~~
 

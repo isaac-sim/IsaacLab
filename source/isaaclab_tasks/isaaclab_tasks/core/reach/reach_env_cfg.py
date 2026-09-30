@@ -81,7 +81,7 @@ class ReachSceneCfg(InteractiveSceneCfg):
         init_state=AssetBaseCfg.InitialStateCfg(pos=(0.5, 0.0, -0.5)),
         spawn=sim_utils.CuboidCfg(
             size=(0.9, 1.3, 1.0),
-            collision_props=sim_utils.CollisionBaseCfg(),
+            collision_props=sim_utils.UsdPhysicsCollisionCfg(),
         ),
     )
 

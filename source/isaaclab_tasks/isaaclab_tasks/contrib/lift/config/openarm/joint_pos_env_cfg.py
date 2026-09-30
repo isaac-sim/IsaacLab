@@ -12,7 +12,7 @@ from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformerCfg
 from isaaclab.sim.spawners.from_files.from_files_cfg import UsdFileCfg
-from isaaclab.utils import configclass
+from isaaclab.utils import clone, configclass, replace
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 
 from isaaclab_tasks.contrib.lift import mdp
@@ -37,7 +37,7 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         super().__post_init__()
 
         # Set OpenArm as robot
-        self.scene.robot = OPENARM_UNI_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.scene.robot = replace(OPENARM_UNI_CFG, prim_path="{ENV_REGEX_NS}/Robot")
 
         # Scope the joint-space terms to the OpenArm's own joints.
         self.observations.policy.joint_pos.params = {"asset_cfg": SceneEntityCfg("robot", joint_names=OPENARM_JOINTS)}
@@ -93,7 +93,7 @@ class OpenArmCubeLiftEnvCfg(LiftEnvCfg):
         )
 
         # Listens to the required transforms
-        marker_cfg = FRAME_MARKER_CFG.copy()
+        marker_cfg = clone(FRAME_MARKER_CFG)
         marker_cfg.markers["frame"].scale = (0.1, 0.1, 0.1)
         marker_cfg.prim_path = "/Visuals/FrameTransformer"
         self.scene.ee_frame = FrameTransformerCfg(

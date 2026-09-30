@@ -11,9 +11,9 @@ authoring path we override the scene's robot actuators with a single
 explicit ``DCMotorCfg`` group covering all joints.
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-simulation_app = AppLauncher(headless=True).app
+launch_test_simulation()
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg  # noqa: E402
 from isaaclab_newton.physics import NewtonManager as SimulationManager  # noqa: E402
