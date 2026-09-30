@@ -312,20 +312,32 @@ def test_render_product_omits_device_ids_when_no_device_is_given(camera_spec, re
     assert "deviceIds" not in render_product
 
 
-@pytest.mark.parametrize("data_types", [["rgb"], ["rgb", "rgb_hdr"], []])
-def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types):
-    """ISP receives one HDR source while the camera's requested outputs remain unchanged."""
+@pytest.mark.parametrize(
+    ("data_types", "use_isp"), [(["rgb"], True), (["rgb", "rgb_hdr"], False), ([], True), (["rgb"], False)]
+)
+def test_render_product_isp_requests_hdr_without_mutating_camera_outputs(camera_spec, render_data, data_types, use_isp):
+    """Route Gaussian HDR for explicit or ISP inputs without changing public outputs."""
     camera_spec.cfg.data_types = data_types.copy()
-    camera_spec.cfg.isp_cfg = object()
+    camera_spec.cfg.isp_cfg = object() if use_isp else None
     render_product = build_render_product_as_string(camera_spec, render_data)
     layer = Sdf.Layer.CreateAnonymous(".usda")
     assert layer.ImportFromString(render_product)
-    ordered_vars = layer.GetRelationshipAtPath("/RenderCamera_0/RenderProduct.orderedVars")
-    assert list(ordered_vars.targetPathList.explicitItems) == [
-        Sdf.Path("/RenderCamera_0/Vars/LdrColor"),
-        Sdf.Path("/RenderCamera_0/Vars/HdrColor"),
-    ]
+    product_path = "/RenderCamera_0/RenderProduct"
+    ordered_vars = layer.GetRelationshipAtPath(product_path + ".orderedVars")
+    expected_vars = [Sdf.Path("/RenderCamera_0/Vars/LdrColor")]
+    needs_hdr = use_isp or "rgb_hdr" in data_types
+    if needs_hdr:
+        expected_vars.append(Sdf.Path("/RenderCamera_0/Vars/HdrColor"))
+    assert list(ordered_vars.targetPathList.explicitItems) == expected_vars
     assert camera_spec.cfg.data_types == data_types
+    schemas = layer.GetPrimAtPath(product_path).GetInfo("apiSchemas").prependedItems
+    gaussian_setting = layer.GetAttributeAtPath(product_path + ".omni:rtx:rtpt:gaussian:skipTonemapping:enabled")
+    if needs_hdr:
+        assert "OmniRtxSettingsParticleFieldAPI_1" in schemas
+        assert gaussian_setting.default is False
+    else:
+        assert "OmniRtxSettingsParticleFieldAPI_1" not in schemas
+        assert gaussian_setting is None
 
 
 def test_ovrtx_rgb_and_rgb_hdr_author_both_render_vars(camera_spec, render_data):

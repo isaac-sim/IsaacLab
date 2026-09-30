@@ -241,6 +241,12 @@ def build_render_scope_usd(
             f"bool omni:rtx:minimal:castShadows = {'true' if enable_shadows else 'false'}",
         ]
 
+    api_schemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+    if "rgb_hdr" in data_types:
+        # OVRTX 0.5 reads this per product. Its default bypasses HdrColor for Gaussian pixels.
+        api_schemas.append("OmniRtxSettingsParticleFieldAPI_1")
+        render_mode_lines.append("bool omni:rtx:rtpt:gaussian:skipTonemapping:enabled = false")
+    api_schemas_block = ", ".join(f'"{schema}"' for schema in api_schemas)
     render_mode_block = "\n        ".join(render_mode_lines)
     ordered_vars = ", ".join(f"<{path}>" for path, _, _ in render_var_configs)
     render_var_defs = "\n".join(
@@ -255,7 +261,7 @@ def build_render_scope_usd(
 def Scope "{render_data.render_scope_name}"
 {{
     def RenderProduct "{render_data.render_product_name}" (
-        prepend apiSchemas = ["OmniRtxSettingsCommonAdvancedAPI_1"]
+        prepend apiSchemas = [{api_schemas_block}]
     ) {{
         rel camera = [<{camera_path}>]{device_ids_line}
         {bg_type_line}
