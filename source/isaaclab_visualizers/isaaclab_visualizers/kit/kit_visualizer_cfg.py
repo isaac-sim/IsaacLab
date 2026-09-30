@@ -7,8 +7,16 @@
 
 from __future__ import annotations
 
-from isaaclab.utils.configclass import configclass
+from typing import TYPE_CHECKING
+
+from isaaclab_physx.renderers import IsaacRtxRendererCfg
+
+from isaaclab.renderers import RendererCfg
+from isaaclab.utils import configclass
 from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+
+if TYPE_CHECKING:
+    from .kit_visualizer import KitVisualizer
 
 
 @configclass
@@ -22,8 +30,14 @@ class KitVisualizerCfg(VisualizerCfg):
         the panel appears side-by-side with the Viewport instead of as a hidden tab.
     """
 
+    class_type: type[KitVisualizer] | str = "{DIR}.kit_visualizer:KitVisualizer"
+    """Visualizer implementation class."""
+
     visualizer_type: str = "kit"
     """Type identifier for Kit visualizer."""
+
+    streaming_cam_renderer_cfg: RendererCfg = IsaacRtxRendererCfg()
+    """Renderer configuration for the auto-created streaming camera."""
 
     viewport_name: str | None = None
     """Name for a new viewport window when :attr:`create_viewport` is ``True``.

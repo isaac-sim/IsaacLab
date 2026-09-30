@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 import torch
 
+from ..array import index_fill_
 from .modifier_base import ModifierBase
 
 if TYPE_CHECKING:
@@ -162,11 +163,9 @@ class DigitalFilter(ModifierBase):
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
         """
-        if env_ids is None:
-            env_ids = slice(None)
         # reset history buffers
-        self.x_n[env_ids] = 0.0
-        self.y_n[env_ids] = 0.0
+        index_fill_(self.x_n, env_ids, 0.0)
+        index_fill_(self.y_n, env_ids, 0.0)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies digital filter modification with a rolling history window inputs and outputs.
@@ -237,11 +236,9 @@ class Integrator(ModifierBase):
             env_ids: The environment ids. Defaults to None, in which case
                 all environments are considered.
         """
-        if env_ids is None:
-            env_ids = slice(None)
         # reset history buffers
-        self.integral[env_ids] = 0.0
-        self.y_prev[env_ids] = 0.0
+        index_fill_(self.integral, env_ids, 0.0)
+        index_fill_(self.y_prev, env_ids, 0.0)
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
         """Applies integral modification to input data.

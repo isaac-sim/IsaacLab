@@ -14,13 +14,9 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :nosignatures:
 
    BaseVisualizer
-   Visualizer
    VisualizerCfg
 
 .. autoclass:: BaseVisualizer
-   :show-inheritance:
-
-.. autoclass:: Visualizer
    :show-inheritance:
 
 .. autoclass:: VisualizerCfg
