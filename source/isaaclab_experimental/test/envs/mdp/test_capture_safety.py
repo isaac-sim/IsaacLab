@@ -429,12 +429,28 @@ CAPTURE_UNAUDITED: dict[str, str] = {
         + _ids(f"{_TE}.velocity.mdp.terminations", "terrain_out_of_bounds"),
         _MIRROR,
     ),
+    # command terms are classes driven through compute() and reset(), which this harness does not model
+    **dict.fromkeys(
+        _ids(f"{_SH}.commands.pose_command", "UniformPoseCommand")
+        + _ids(f"{_SH}.commands.velocity_command", "UniformVelocityCommand"),
+        "covered by the capture-mutate-replay checks in test_commands_warp_parity.py",
+    ),
+    **dict.fromkeys(_ids(f"{_SH}.commands.null_command", "NullCommand"), "launches no kernels"),
 }
 
 
-# Every modality a manager can run. ``actions`` is included because ``ActionManager`` is
-# graph-captured like the rest, so an unsafe action term would otherwise bypass every check.
-_MDP_LEAF_MODULES = ("rewards", "terminations", "observations", "events", "actions.joint_actions")
+# Every modality a manager can run. ``actions`` and ``commands`` are included because their managers
+# are graph-captured like the rest, so an unsafe action or command term would otherwise bypass every check.
+_MDP_LEAF_MODULES = (
+    "rewards",
+    "terminations",
+    "observations",
+    "events",
+    "actions.joint_actions",
+    "commands.null_command",
+    "commands.pose_command",
+    "commands.velocity_command",
+)
 
 
 def _warp_mdp_modules() -> list:

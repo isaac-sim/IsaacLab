@@ -24,10 +24,10 @@ import warp as wp
 
 from isaaclab.envs.common import VecEnvStepReturn
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
-from isaaclab.managers import CommandManager, CurriculumManager
+from isaaclab.managers import CurriculumManager
 from isaaclab.utils.timer import Timer
 
-from isaaclab_experimental.managers import RewardManager, TerminationManager
+from isaaclab_experimental.managers import CommandManager, RewardManager, TerminationManager
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
 from isaaclab_experimental.utils.warp import zero_masked_int64
 
@@ -153,7 +153,7 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
     def load_managers(self):
         # note: this order is important since observation manager needs to know the command and action managers
         # and the reward manager needs to know the termination manager
-        # -- command manager (stable implementation)
+        # -- command manager
         self.command_manager = CommandManager(self.cfg.commands, self)
         print("[INFO] Command Manager: ", self.command_manager)
 
@@ -171,12 +171,8 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self.curriculum_manager = CurriculumManager(self.cfg.curriculum, self)
         print("[INFO] Curriculum Manager: ", self.curriculum_manager)
 
-        # stable command and curriculum managers reset by environment index
-        self._resets_by_index = (
-            self._resets_by_index
-            or bool(self.command_manager.active_terms)
-            or bool(self.curriculum_manager.active_terms)
-        )
+        # the stable curriculum manager resets by environment index
+        self._resets_by_index = self._resets_by_index or bool(self.curriculum_manager.active_terms)
 
         # setup the action and observation spaces for Gym
         self._configure_gym_env_spaces()
@@ -318,7 +314,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
         self._reset_terminated_envs()
 
         # -- update command
-        self.command_manager.compute(dt=float(self.step_dt))
+        self._warp_graph_cache.call_steps(
+            "CommandManager_compute",
+            self.command_manager.stage_steps("compute"),
+            dt=float(self.step_dt),
+            timer=DEBUG_TIMER_STEP,
+        )
 
         # -- step interval events
         if "interval" in self.event_manager.available_modes:
@@ -533,7 +534,12 @@ class ManagerBasedRLEnvWarp(ManagerBasedEnvWarp, gym.Env):
             curriculum_info = self.curriculum_manager.reset(env_ids=env_ids)
 
         # -- command + event + termination managers
-        command_info = self.command_manager.reset(env_ids=env_ids)
+        command_info = self._warp_graph_cache.call_steps(
+            "CommandManager_reset",
+            self.command_manager.stage_steps("reset"),
+            env_mask=env_mask,
+            timer=DEBUG_TIMER_RESET,
+        )
         event_info = self._warp_graph_cache.call_steps(
             "EventManager_reset", self.event_manager.stage_steps("reset"), env_mask=env_mask, timer=DEBUG_TIMER_RESET
         )

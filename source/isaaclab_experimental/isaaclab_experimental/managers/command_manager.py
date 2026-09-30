@@ -19,6 +19,7 @@ from prettytable import PrettyTable
 from isaaclab.managers.manager_term_cfg import CommandTermCfg
 from isaaclab.utils import instantiate
 
+from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -402,7 +403,11 @@ class CommandManager(ManagerBase):
         self._reset_extras: dict[str, torch.Tensor] = {}
         for term_name, term in self._terms.items():
             for metric_name, metric_value in term.reset_extras.items():
-                self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
+                # success rates share the unified ``Metrics/success_rate`` key across tasks, as in the stable terms
+                if metric_name == "success_rate":
+                    self._reset_extras["Metrics/success_rate"] = metric_value
+                else:
+                    self._reset_extras[f"Metrics/{term_name}/{metric_name}"] = metric_value
 
     def __str__(self) -> str:
         """Returns: A string representation for the command manager."""
@@ -546,6 +551,23 @@ class CommandManager(ManagerBase):
             return wp.to_torch(command)
         return command
 
+    def get_command_wp(self, name: str) -> wp.array:
+        """Returns the command for the specified command term as a Warp array.
+
+        Warp terms read the command through this accessor on every call rather than caching it, so a
+        recorded stage always refers to the buffers of the current environment.
+
+        Args:
+            name: The name of the command term.
+
+        Returns:
+            The command array of the specified command term. Shape is (num_envs, command_dim).
+        """
+        command = self._terms[name].command
+        if isinstance(command, torch.Tensor):
+            return wp.from_torch(command)
+        return command
+
     def get_term(self, name: str) -> CommandTerm:
         """Returns the command term with the specified name.
 
@@ -585,5 +607,8 @@ class CommandManager(ManagerBase):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")
             # pre-build reset extras once for capture-friendly reset logging
             term._prepare_reset_extras()
+            # a command term that is not capturable keeps the command stages eager
+            if not is_warp_capturable(term):
+                self._all_terms_capturable = False
             # add class to dict
             self._terms[term_name] = term
