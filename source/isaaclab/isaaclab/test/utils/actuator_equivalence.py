@@ -393,6 +393,39 @@ class ActuatorStateResetBase:
             env_mask[self.RESET_ENV] = True
             articulation.reset(env_mask=wp.from_torch(env_mask))
 
+    def _stateful_pairs(self, adapter) -> list:
+        """Return ``(actuator, state)`` pairs of the adapter's delayed actuators."""
+        return [
+            (act, st)
+            for act, st in zip(adapter.actuators, adapter._states_a)
+            if st is not None and getattr(st, "delay_state", None) is not None
+        ]
+
+    def _assert_delay_state_cleared_for_reset_env_only(self, adapter, stateful_pairs) -> None:
+        """Assert ``num_pushes`` is zero for :attr:`RESET_ENV`'s DOFs and positive for every other env's DOFs."""
+        # Map each entry of ``act.indices`` to its env via the adapter's
+        # per-env DOF count. On the Newton backend the adapter is model-wide
+        # (includes free-joint DOFs on floating-base articulations); on
+        # PhysX it is per-articulation — ``adapter.num_joints`` is the
+        # correct stride in both cases.
+        for act, state in stateful_pairs:
+            pushes_after = state.delay_state.num_pushes.numpy()
+            indices_np = act.indices.numpy()
+            for i, global_dof in enumerate(indices_np):
+                env = int(global_dof) // adapter.num_joints
+                if env == self.RESET_ENV:
+                    self.assertEqual(
+                        int(pushes_after[i]),
+                        0,
+                        f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
+                    )
+                else:
+                    self.assertGreater(
+                        int(pushes_after[i]),
+                        0,
+                        f"DOF {i} (env {env}) was NOT in the reset selection but num_pushes is 0",
+                    )
+
     def test_newton_state_reset_isolated_to_reset_env(self):
         """Newton: ``num_pushes`` zeroes for env 0's DOFs only after a partial reset of env 0."""
         ctx, sim, articulation = self._build_and_warm(use_newton_actuators=True)
@@ -403,11 +436,7 @@ class ActuatorStateResetBase:
                 with self.subTest(selector=selector):
                     self._warm(sim, articulation)
                     # Find a DelayedPD actuator (it's the only one with delay_state).
-                    stateful_pairs = [
-                        (act, st)
-                        for act, st in zip(adapter.actuators, adapter._states_a)
-                        if st is not None and getattr(st, "delay_state", None) is not None
-                    ]
+                    stateful_pairs = self._stateful_pairs(adapter)
                     self.assertGreater(
                         len(stateful_pairs), 0, "expected at least one DelayedPD actuator with delay_state"
                     )
@@ -420,29 +449,7 @@ class ActuatorStateResetBase:
                         )
 
                     self._reset_env(articulation, selector)
-
-                    # Map each entry of ``act.indices`` to its env via the adapter's
-                    # per-env DOF count. On the Newton backend the adapter is model-wide
-                    # (includes free-joint DOFs on floating-base articulations); on
-                    # PhysX it is per-articulation — ``adapter.num_joints`` is the
-                    # correct stride in both cases.
-                    for act, state in stateful_pairs:
-                        pushes_after = state.delay_state.num_pushes.numpy()
-                        indices_np = act.indices.numpy()
-                        for i, global_dof in enumerate(indices_np):
-                            env = int(global_dof) // adapter.num_joints
-                            if env == self.RESET_ENV:
-                                self.assertEqual(
-                                    int(pushes_after[i]),
-                                    0,
-                                    f"DOF {i} (env {env}) should be reset to 0, got {pushes_after[i]}",
-                                )
-                            else:
-                                self.assertGreater(
-                                    int(pushes_after[i]),
-                                    0,
-                                    f"DOF {i} (env {env}) was NOT in the reset selection but num_pushes is 0",
-                                )
+                    self._assert_delay_state_cleared_for_reset_env_only(adapter, stateful_pairs)
         finally:
             ctx.__exit__(None, None, None)
 

@@ -105,6 +105,8 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
+        # Per-DOF reset masks, rebuilt in full on every partial reset so masked resets do not allocate.
+        self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
 
         # Pre-clamp computed effort buffer. Each Newton actuator scatter-adds
         # its raw controller output to ``sim_control.joint_computed_f`` when
@@ -217,8 +219,7 @@ class NewtonActuatorAdapter:
                 )
                 wp.launch(set_mask_kernel, dim=num_envs, inputs=[env_mask, indices], device=self._device)
 
-        for act, sa, sb in zip(self.actuators, self._states_a, self._states_b):
-            per_dof_mask = wp.zeros(act.indices.shape[0], dtype=wp.bool, device=self._device)
+        for act, sa, sb, per_dof_mask in zip(self.actuators, self._states_a, self._states_b, self._reset_dof_masks):
             wp.launch(
                 build_per_dof_env_mask_kernel,
                 dim=act.indices.shape[0],

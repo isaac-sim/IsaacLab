@@ -116,27 +116,23 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled |= sample_drift or sample_ray_cast_drift
         if not self._drift_sampled:
             return
-        if sample_ray_cast_drift and ray_cast_range_list != self._ray_cast_drift_range_list:
-            # Upload the ranges to the device only when the configuration changes.
-            self._ray_cast_drift_range_list = ray_cast_range_list
-            self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
         if env_mask is not None:
-            # Resample every environment and keep the new values where the mask is set, so the
-            # masked reset needs no host synchronization.
-            mask = wp.to_torch(env_mask).view(-1, 1)
-            drift = self.drift.torch
-            new_drift = torch.zeros_like(drift)
-            if sample_drift:
-                new_drift.uniform_(*self.cfg.drift_range)
-            drift.copy_(torch.where(mask, new_drift, drift))
-            ray_cast_drift = self.ray_cast_drift.torch
-            new_ray_cast_drift = torch.zeros_like(ray_cast_drift)
-            if sample_ray_cast_drift:
-                ranges = self._ray_cast_drift_ranges
-                new_ray_cast_drift = math_utils.sample_uniform(
-                    ranges[:, 0], ranges[:, 1], tuple(ray_cast_drift.shape), device=self.device
-                )
-            ray_cast_drift.copy_(torch.where(mask, new_ray_cast_drift, ray_cast_drift))
+            # Resample in a kernel from per-environment random states with the ranges as launch
+            # arguments, so the masked reset neither synchronizes nor allocates and can be captured.
+            # A zero range draws zero, which clears drift that was sampled before it was disabled.
+            wp.launch(
+                ray_caster_kernels.resample_drift_masked_kernel,
+                dim=self._view_count,
+                inputs=[
+                    env_mask,
+                    wp.vec2f(*self.cfg.drift_range),
+                    wp.vec3f(*(low for low, _ in ray_cast_range_list)),
+                    wp.vec3f(*(high for _, high in ray_cast_range_list)),
+                    self._drift_rng_state,
+                ],
+                outputs=[self.drift.warp, self.ray_cast_drift.warp],
+                device=self._device,
+            )
             return
         # determine the selected batch size
         if env_ids is not None:
@@ -152,6 +148,10 @@ class BaseRayCaster(SensorBase):
             self.drift.torch[env_ids] = 0.0
         # resample the ray cast drift
         if sample_ray_cast_drift:
+            # Upload the ranges to the device only when the configuration changes.
+            if ray_cast_range_list != self._ray_cast_drift_range_list:
+                self._ray_cast_drift_range_list = ray_cast_range_list
+                self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
             ranges = self._ray_cast_drift_ranges
             self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
                 ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device
@@ -255,6 +255,15 @@ class BaseRayCaster(SensorBase):
         # Drift buffers are warp-first; reset uses explicit .torch views for sampling.
         self.drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
         self.ray_cast_drift = ProxyArray(wp.zeros(self._view_count, dtype=wp.vec3f, device=self._device))
+        # Per-environment random states for masked drift resampling, seeded from torch's global generator.
+        self._drift_rng_state = wp.empty(self._view_count, dtype=wp.uint32, device=self._device)
+        wp.launch(
+            ray_caster_kernels.init_rng_state_kernel,
+            dim=self._view_count,
+            inputs=[int(torch.randint(0, 2**31 - 1, (1,)))],
+            outputs=[self._drift_rng_state],
+            device=self._device,
+        )
 
         # World-frame ray buffers
         self._ray_starts_w = wp.empty((self._view_count, self.num_rays), dtype=wp.vec3f, device=self._device)
