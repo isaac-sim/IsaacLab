@@ -307,7 +307,6 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
         cfg=robot_cfg,
         data=SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces)),
         num_base_dofs=num_base_dofs,
-        is_fixed_base=fixed_base,
         set_joint_effort_target_index=Mock(),
     )
     action = SimpleNamespace(
