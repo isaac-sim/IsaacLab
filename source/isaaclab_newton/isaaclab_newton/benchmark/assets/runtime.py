@@ -83,11 +83,12 @@ def create_test_articulation(
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_check_shapes", not args.no_shape_checks)
+    object.__setattr__(articulation, "_sim_cfg", SimpleNamespace(use_newton_actuators=False))
 
     from isaaclab_newton.assets.articulation import articulation_data as data_module
 
-    # ArticulationData allocates buffers from the model dimensions at construction.
-    _configure_articulation_model(data_module.SimulationManager.get_model(), num_instances, num_bodies, num_joints)
+    mock_view.model = data_module.SimulationManager.get_model()
+    _configure_articulation_model(mock_view.model, num_instances, num_bodies, num_joints)
     data = data_module.ArticulationData(mock_view, device)
     object.__setattr__(articulation, "_data", data)
 
@@ -113,17 +114,13 @@ def create_test_articulation(
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_INDICES", wp.array([], dtype=wp.int32, device=device))
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.zeros((0,), dtype=wp.bool, device=device))
 
-    object.__setattr__(
-        articulation, "_joint_pos_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_vel_target_sim", wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
+    from isaaclab.actuators import ActuatorCollection
+
+    from isaaclab_newton.assets.articulation.actuator_control import NewtonActuatorControl
+
+    control = NewtonActuatorControl(articulation)
+    object.__setattr__(articulation, "actuators", ActuatorCollection({}, control))
+    data.bind_actuator_collection(articulation.actuators)
 
     return articulation, mock_view
 
@@ -253,7 +250,6 @@ def create_test_collection(
 
 def _refresh_articulation_data(data, _config) -> None:
     data._sim_timestamp += 1.0
-    data._fk_timestamp = data._sim_timestamp
 
 
 def _refresh_rigid_object_data(mock_view, data, config) -> None:
@@ -354,6 +350,7 @@ def _create_articulation_data_target(config):
     mock_view.set_random_mock_data()
     mock_view.eval_jacobian = lambda state, *, J, joint_S_s: None
     mock_view.eval_mass_matrix = lambda state, *, H, J, body_I_s, joint_S_s: None
+    mock_view.model = model
     data = data_type(mock_view, config.device)
     data._apply_ordering_maps_after_resolve()
     return data, lambda cfg, _mock_view=mock_view: _refresh_articulation_data(data, cfg)

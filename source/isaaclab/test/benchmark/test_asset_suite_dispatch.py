@@ -44,7 +44,8 @@ def test_provider_lookup_is_lazy_and_component_specific(monkeypatch) -> None:
 @pytest.mark.parametrize(
     ("physics", "component", "message"),
     (
-        ("unknown", "articulation", "Unsupported asset physics selector"),
+        # Unknown exact variants must fail rather than silently normalizing to a family.
+        ("newton_unknown", "articulation", "Unsupported asset physics selector"),
         ("physx", "unknown", "Unsupported asset component"),
     ),
 )
@@ -70,9 +71,3 @@ def test_exact_physics_variant_is_preserved_separately_from_family(variant, fami
 
     assert adapter.physics == family
     assert adapter.physics_variant == variant
-
-
-def test_unsupported_exact_physics_variant_is_explicit() -> None:
-    """Unknown exact variants should fail rather than silently normalizing to a family."""
-    with pytest.raises(ValueError, match="Unsupported asset physics selector"):
-        get_asset_benchmark_adapter("newton_unknown", "articulation")

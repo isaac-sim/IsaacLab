@@ -17,6 +17,7 @@ import warp as wp
 from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import CommandTermCfg
+from isaaclab.utils import instantiate
 
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
@@ -578,7 +579,7 @@ class CommandManager(ManagerBase):
                     f" Received: '{type(term_cfg)}'."
                 )
             # create the action term
-            term = term_cfg.class_type(term_cfg, self._env)
+            term = instantiate(term_cfg, self._env)
             # sanity check if term is valid type
             if not isinstance(term, CommandTerm):
                 raise TypeError(f"Returned object for the term '{term_name}' is not of type CommandType.")

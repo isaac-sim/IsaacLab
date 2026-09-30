@@ -12,7 +12,7 @@ This tutorial walks you through training an end-effector pose tracking (reach) r
 
 **Scope of This Tutorial:**
 
-This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 **Prerequisites:**
 
@@ -199,8 +199,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 1-2: Higher torque (123 Nm), lower speed
                 "shoulder": ImplicitActuatorCfg(
                     joint_names_expr=["joint[1-2]"],
-                    effort_limit_sim=123.0,
-                    velocity_limit_sim=2.094,  # 120 deg/s
+                    joint_effort_limit=123.0,
+                    joint_velocity_limit=2.094,  # 120 deg/s
                     stiffness=6000.0,
                     damping=108.5,
                     friction=0.0,
@@ -209,8 +209,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 3-4: Medium torque (64 Nm), medium speed
                 "elbow": ImplicitActuatorCfg(
                     joint_names_expr=["joint[3-4]"],
-                    effort_limit_sim=64.0,
-                    velocity_limit_sim=2.443,  # 140 deg/s
+                    joint_effort_limit=64.0,
+                    joint_velocity_limit=2.443,  # 140 deg/s
                     stiffness=4200.0,
                     damping=90.7,
                     friction=0.0,
@@ -219,8 +219,8 @@ Each robot has specific actuator configurations and workspace definitions.
                 # Joints 5-7: Lower torque (39 Nm), higher speed
                 "wrist": ImplicitActuatorCfg(
                     joint_names_expr=["joint[5-7]"],
-                    effort_limit_sim=39.0,
-                    velocity_limit_sim=4.887,  # 280 deg/s
+                    joint_effort_limit=39.0,
+                    joint_velocity_limit=4.887,  # 280 deg/s
                     stiffness=1500.0,
                     damping=54.2,
                     friction=0.0,
@@ -735,7 +735,7 @@ Once satisfied with the trained policy, deploy it on real hardware using the Isa
 
 No additional export step is required.
 
-For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 
 Troubleshooting
@@ -786,6 +786,6 @@ Further Resources
 
 - `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
-- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
+- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_
 - Gear Assembly Sim-to-Real Tutorial: :ref:`walkthrough_sim_to_real`
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`

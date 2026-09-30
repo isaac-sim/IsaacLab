@@ -110,3 +110,36 @@ def test_docker_without_results_dir_uses_rm_and_no_junit_copy(monkeypatch):
     assert "--name" not in docker_run_cmd
     assert all(not arg.startswith("--junitxml=") for arg in docker_run_cmd)
     assert docker_side_effects == []
+
+
+def test_docker_gpu_preflight_fails_before_test_container_starts(monkeypatch):
+    runner = _load_runner()
+    docker_runs = []
+    preflight_cmds = []
+
+    def fake_run_cmd(cmd, **_kwargs):
+        preflight_cmds.append(cmd)
+        return subprocess.CompletedProcess(cmd, 42, "", "")
+
+    monkeypatch.setattr(runner, "_build_image", lambda *_args, **_kwargs: 0)
+    monkeypatch.setattr(runner, "_find_repo_root", lambda: REPO_ROOT)
+    monkeypatch.setattr(runner, "run_cmd", fake_run_cmd)
+    monkeypatch.setattr(runner.subprocess, "call", lambda cmd, timeout: docker_runs.append((cmd, timeout)) or 0)
+
+    rc = runner._cmd_docker(_docker_args(gpu=True))
+
+    assert rc == 42
+    assert preflight_cmds == [
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--gpus",
+            "all",
+            "--entrypoint",
+            "nvidia-smi",
+            "isaaclab-installci:ubuntu-24.04",
+            "-L",
+        ]
+    ]
+    assert docker_runs == []

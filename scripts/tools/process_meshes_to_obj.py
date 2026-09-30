@@ -17,7 +17,6 @@ BLENDER_EXE_PATH = shutil.which("blender")
 
 def parse_cli_args():
     """Parse the input command line arguments."""
-    # add argparse arguments
     parser = argparse.ArgumentParser("Utility to convert all mesh files to `.obj` in given folders.")
     parser.add_argument("input_dir", type=str, help="The input directory from which to load meshes.")
     parser.add_argument(
@@ -84,7 +83,6 @@ def convert_meshes(source_folders: list[str], destination_folders: list[str]):
 
 
 if __name__ == "__main__":
-    # Parse command line arguments
     args = parse_cli_args()
     # Run conversion
     convert_meshes([args.input_dir], [args.output_dir])
