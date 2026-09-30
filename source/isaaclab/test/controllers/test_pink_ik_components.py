@@ -302,7 +302,7 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
     robot_cfg = clone(getattr(isaaclab_assets, robot_name))
     robot_cfg.spawn.rigid_props.disable_gravity = disable_gravity
     num_base_dofs = 0 if fixed_base else 6
-    forces = torch.arange(2 * (3 + num_base_dofs), dtype=torch.float32).reshape(2, -1)
+    forces = torch.arange(1, 2 * (3 + num_base_dofs) + 1, dtype=torch.float32).reshape(2, -1)
     asset = SimpleNamespace(
         cfg=robot_cfg,
         data=SimpleNamespace(gravity_compensation_forces=SimpleNamespace(torch=forces)),
@@ -321,5 +321,5 @@ def test_action_gravity_compensation_with_migrated_robot_configs(fixed_base, dis
         asset.set_joint_effort_target_index.assert_called_once()
         kwargs = asset.set_joint_effort_target_index.call_args.kwargs
         assert kwargs["joint_ids"] == [0, 2]
-        expected = torch.zeros(2, 2) if fixed_base else forces[:, [6, 8]]
+        expected = forces[:, [0, 2]] if fixed_base else forces[:, [6, 8]]
         torch.testing.assert_close(kwargs["target"], expected)
