@@ -15,6 +15,8 @@ class FrankaBinStackIKRelMimicEnvCfg(FrankaBinStackEnvCfg, MimicEnvCfg):
     Isaac Lab Mimic environment config class for Franka Cube Stack IK Rel env.
     """
 
+    class_type: type | str = "{DIR}.franka_stack_ik_rel_mimic_env:FrankaCubeStackIKRelMimicEnv"
+
     def __post_init__(self):
         # post init of parents
         super().__post_init__()
@@ -28,7 +30,6 @@ class FrankaBinStackIKRelMimicEnvCfg(FrankaBinStackEnvCfg, MimicEnvCfg):
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
         self.datagen_config.generation_relative = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.seed = 1
 
         # The following are the subtask configurations for the stack task.

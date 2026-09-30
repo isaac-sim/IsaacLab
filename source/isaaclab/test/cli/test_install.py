@@ -86,6 +86,49 @@ def test_run_python_command_uses_live_isaac_sim_with_active_python(tmp_path):
     assert run.call_args.kwargs["env"]["PYTHONEXE"] == active_python
 
 
+def test_run_python_command_accepts_virtual_environment_on_bundled_python(tmp_path):
+    """A virtual environment created on a downloaded package's Python runs that interpreter."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    bundled_python = local_sim / "kit" / "python" / "bin" / "python3"
+    bundled_python.parent.mkdir(parents=True)
+    bundled_python.touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python").symlink_to(bundled_python)
+    (venv / "pyvenv.cfg").write_text(f"home = {bundled_python.parent}\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command") as run,
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+    ):
+        run_python_command("script.py", [])
+
+    assert run.call_args is not None
+
+
+def test_run_python_command_rejects_virtual_environment_on_foreign_python(tmp_path):
+    """A virtual environment built on another interpreter stays rejected."""
+    local_sim = tmp_path / "_isaac_sim"
+    local_sim.mkdir()
+    (local_sim / "python.sh").touch()
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "pyvenv.cfg").write_text("home = /usr/bin\n")
+
+    with (
+        mock.patch("isaaclab.cli.utils.DEFAULT_ISAAC_SIM_PATH", local_sim),
+        mock.patch("isaaclab.cli.utils.extract_python_exe", return_value=str(venv / "bin" / "python")),
+        mock.patch("isaaclab.cli.utils.run_command"),
+        mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(venv)}, clear=True),
+        pytest.raises(SystemExit),
+    ):
+        run_python_command("script.py", [])
+
+
 def test_run_python_command_does_not_wrap_an_active_isaac_sim_environment(tmp_path):
     """The legacy wrapper path must not source the same Isaac Sim environment twice."""
     local_sim = tmp_path / "_isaac_sim"
@@ -129,21 +172,6 @@ def test_run_python_command_rejects_downloaded_isaac_sim_with_virtual_environmen
 class TestGetPipCommand:
     """Tests for :func:`get_pip_command`."""
 
-    def test_returns_uv_pip_in_venv_without_pip_module(self, tmp_path):
-        """When VIRTUAL_ENV is set, uv is on PATH, and pip module is missing, return uv pip."""
-        fake_python = str(tmp_path / "python")
-
-        with (
-            mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value="/usr/bin/uv"),
-            mock.patch(
-                "isaaclab.cli.utils.subprocess.run",
-                return_value=subprocess.CompletedProcess(args=[], returncode=1),
-            ),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == ["uv", "pip"]
-
     def test_returns_uv_pip_in_venv_with_uv(self, tmp_path):
         """When VIRTUAL_ENV is set and uv is on PATH, always return uv pip."""
         fake_python = str(tmp_path / "python")
@@ -161,20 +189,6 @@ class TestGetPipCommand:
 
         with (
             mock.patch.dict(os.environ, {"VIRTUAL_ENV": str(tmp_path)}),
-            mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
-        ):
-            result = get_pip_command(python_exe=fake_python)
-            assert result == [fake_python, "-m", "pip"]
-
-    def test_returns_python_pip_in_conda_without_uv(self, tmp_path):
-        """When in a conda env and uv is not available, return python -m pip."""
-        fake_python = str(tmp_path / "python")
-
-        env = os.environ.copy()
-        env.pop("VIRTUAL_ENV", None)
-        env["CONDA_PREFIX"] = str(tmp_path)
-        with (
-            mock.patch.dict(os.environ, env, clear=True),
             mock.patch("isaaclab.cli.utils.shutil.which", return_value=None),
         ):
             result = get_pip_command(python_exe=fake_python)
@@ -328,7 +342,7 @@ class TestEnsureNewton:
     def _completed(stdout: str = "", returncode: int = 0) -> subprocess.CompletedProcess:
         return subprocess.CompletedProcess(args=[], returncode=returncode, stdout=stdout, stderr="")
 
-    def test_installs_pinned_release_when_absent(self):
+    def test_installs_pinned_release_when_absent(self, source_checkout_root: Path):
         """When the pinned release is not installed, uninstall Newton then install it."""
         from isaaclab.cli.commands import install
 
@@ -433,11 +447,12 @@ class TestPinkIkStack:
     stack from there instead of mirroring the versions.
     """
 
-    def test_stack_derived_from_root_pyproject_pins(self):
+    def test_stack_derived_from_root_pyproject_pins(self, source_checkout_root: Path):
         """The derived stack covers every stack package, exactly pinned, markers stripped."""
         from isaaclab.cli.commands import install
 
-        stack = install._pink_ik_stack()
+        with mock.patch.object(install, "ISAACLAB_ROOT", source_checkout_root):
+            stack = install._pink_ik_stack()
         assert [install._requirement_name(r) for r in stack] == list(install._PINK_IK_PACKAGES)
         assert any(r.startswith("pin-pink==") for r in stack), "pin-pink must stay exactly pinned"
         assert any(r.startswith("daqp==") for r in stack), "daqp must stay exactly pinned"

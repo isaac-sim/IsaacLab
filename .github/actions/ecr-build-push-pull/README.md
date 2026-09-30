@@ -16,6 +16,19 @@ ECR is also used as the BuildKit layer cache.
     ecr-url: (optional, complete url for ECR storage)
 ```
 
+## Verifying a freshly built image
+
+Pass `verify-test-path` to assert against the image before it is published:
+
+```yaml
+    verify-test-path: docker/test/test_image_invariants.py
+```
+
+The tests run only on a full build, with `IMAGE_TAG` set, so the caller's job needs `uv`
+(`astral-sh/setup-uv`). A failure fails the action with nothing pushed, so the next run
+rebuilds rather than serving the bad image from the deps cache. Exact-tag and deps-cache hits skip
+them: that image passed when it was built.
+
 ## ECR URL resolution order
 
 1. `ecr-url` input

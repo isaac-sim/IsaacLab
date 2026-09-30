@@ -150,13 +150,14 @@ For example, for the configuration of the Cartpole camera environment:
 
 .. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_direct_camera_env_cfg.py
     :language: python
-    :start-at: class CartpoleTiledCameraCfg
+    :start-at: class CartpoleCameraEnvCfg(PresetCfg):
     :end-at: observation_space = [3, 96, 96]
 
 The configuration declares the single-frame channel count and a default spatial size.
 At environment initialization, ``CartpoleCameraEnv`` rebuilds ``observation_space`` from
 the resolved camera: the default ``frame_stack=2`` expands channels, and height/width are
-taken from ``tiled_camera``. So ``env.tiled_camera.width=128 env.tiled_camera.height=128``
+taken from ``scene.tiled_camera``. So
+``env.scene.tiled_camera.width=128 env.scene.tiled_camera.height=128``
 alone yields an effective stacked shape of ``[6,128,128]`` without also overriding
 ``env.observation_space``. The channel entry in ``observation_space`` must still match the
 camera data type (for example ``[1, ...]`` with ``presets=depth``); presets already set this.
@@ -312,10 +313,10 @@ Physics backend selection uses the same preset system. A task can define a
 
 The Cartpole task's definition is a maintained example:
 
-.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_manager_env_cfg.py
+.. literalinclude:: ../../../source/isaaclab_tasks/isaaclab_tasks/core/cartpole/cartpole_common.py
     :language: python
     :start-at: class CartpolePhysicsCfg(PresetCfg):
-    :end-before: ##
+    :end-before: @configclass
 
 The ``newton_mjwarp`` and ``newton_kamino`` entries both select the Newton physics backend because
 both entries are :class:`~isaaclab_newton.physics.NewtonCfg` objects. The difference
@@ -564,6 +565,10 @@ Using Presets
 
     uv run isaaclab train --rl_library rsl_rl \
         --task Isaac-Lift-KukaAllegro-Camera presets=duo_camera,rgb128
+
+The KukaAllegro ``-Camera`` tasks default to a single camera and the matching
+RSL-RL CNN actor. ``presets=duo_camera`` switches both the camera rig and actor
+inputs; the critic continues to use state observations.
 
 **Combined** -- typed selectors, a domain preset, and a scalar override:
 

@@ -83,54 +83,12 @@ class TestSecurityDependencies(unittest.TestCase):
                 self.assertNotIn("--with pytest", text)
                 self.assertIn('"${contract_env}/bin/python" -m pytest', text)
 
-    def test_curobo_verifies_bootstrap_before_removing_or_executing_pip(self):
+    def test_curobo_avoids_get_pip_bootstrap(self):
         text = (REPO_ROOT / "docker/Dockerfile.curobo").read_text(encoding="utf-8")
-        bootstrap = text.split("# HACK: Reinstall pip", 1)[1].split("\n\n", 1)[0]
-        self.assertIn("--proto '=https' --proto-redir '=https'", bootstrap)
-        self.assertIn(
-            "https://raw.githubusercontent.com/pypa/get-pip/f6f644156f23dfe9acc06e7b9ca75eee311f2e37/", bootstrap
-        )
-        self.assertIn("fb24e693bab954209a063d90953621412ccad4a500905a726286e038f508ddf6", bootstrap)
-        verified = bootstrap.index("sha256sum --check --strict -")
-        self.assertLess(verified, bootstrap.index("rm -rf ${ISAACSIM_ROOT_PATH}/kit/python"))
-        self.assertLess(verified, bootstrap.index('python3 "${bootstrap_dir}/get-pip.py"'))
-
-    def test_curobo_checksum_failure_preserves_pip_and_prevents_execution(self):
-        text = (REPO_ROOT / "docker/Dockerfile.curobo").read_text(encoding="utf-8")
-        bootstrap = text.split("# HACK: Reinstall pip", 1)[1].split("\n\n", 1)[0].split("\nRUN ", 1)[1]
-        for valid_checksum in (False, True):
-            with self.subTest(valid_checksum=valid_checksum), tempfile.TemporaryDirectory() as directory:
-                root = Path(directory)
-                bin_dir = root / "bin"
-                bin_dir.mkdir()
-                pip_dir = root / "kit/python/lib/python3.12/site-packages/pip"
-                pip_dir.mkdir(parents=True)
-                python_exe = root / "_isaac_sim/kit/python/bin/python3"
-                python_exe.parent.mkdir(parents=True)
-                commands = {
-                    bin_dir / "curl": 'while [ "$1" != --output ]; do shift; done\nprintf fixture > "$2"',
-                    bin_dir / "sha256sum": f"cat >/dev/null\nexit {0 if valid_checksum else 1}",
-                    python_exe: 'touch "$ISAACLAB_PATH/executed"',
-                }
-                for path, body in commands.items():
-                    path.write_text("#!/bin/sh\nset -eu\n" + body + "\n", encoding="utf-8")
-                    path.chmod(0o755)
-                result = subprocess.run(
-                    ["bash", "-c", bootstrap],
-                    env={
-                        **os.environ,
-                        "PATH": f"{bin_dir}:/usr/bin:/bin",
-                        "TMPDIR": directory,
-                        "ISAACSIM_ROOT_PATH": directory,
-                        "ISAACLAB_PATH": directory,
-                    },
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
-                self.assertEqual(result.returncode == 0, valid_checksum, result.stderr)
-                self.assertEqual((root / "executed").exists(), valid_checksum)
-                self.assertEqual(pip_dir.exists(), not valid_checksum)
+        self.assertNotIn("raw.githubusercontent.com/pypa/get-pip", text)
+        self.assertNotIn('python3 "${bootstrap_dir}/get-pip.py"', text)
+        self.assertNotIn("site-packages/pip*", text)
+        self.assertIn("uv sync --frozen --inexact", text)
 
 
 class TestGitLfsInstaller(unittest.TestCase):

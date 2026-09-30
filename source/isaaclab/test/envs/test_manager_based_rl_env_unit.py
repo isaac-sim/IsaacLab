@@ -241,7 +241,7 @@ def test_state_restoration_starts_replacement_episodes(env_ids):
     env._validate_reset_request = Mock()
     env.scene.reset_to = Mock()
     env.reset()
-    env.reset_to({}, env_ids=env_ids)
+    env.reset_to({}, env_ids=torch.tensor(env_ids))
     assert env.num_episodes_started == 5
     assert env.completed_episode_env_ids == env_ids
     assert env.active_episode_mask.tolist() == [True, True, True]

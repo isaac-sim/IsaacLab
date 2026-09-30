@@ -11,11 +11,8 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-import isaaclab.sim as sim_utils
-from isaaclab import cloner
-from isaaclab.assets import Articulation
 from isaaclab.envs import DirectRLEnv
-from isaaclab.sensors import ContactSensor, RayCaster
+from isaaclab.utils import index_fill_
 
 from .anymal_c_env_cfg import AnymalCFlatEnvCfg, AnymalCRoughEnvCfg
 from leapp import annotate  # isort: skip
@@ -26,6 +23,11 @@ class AnymalCEnv(DirectRLEnv):
 
     def __init__(self, cfg: AnymalCFlatEnvCfg | AnymalCRoughEnvCfg, render_mode: str | None = None, **kwargs):
         super().__init__(cfg, render_mode, **kwargs)
+        self._robot, self._contact_sensor, self._terrain = [
+            self.scene[name] for name in ("robot", "contact_sensor", "terrain")
+        ]
+        if isinstance(self.cfg, AnymalCRoughEnvCfg):
+            self._height_scanner = self.scene["height_scanner"]
 
         self._actions = torch.zeros(self.num_envs, gym.spaces.flatdim(self.single_action_space), device=self.device)
         self._previous_actions = torch.zeros(
@@ -52,28 +54,6 @@ class AnymalCEnv(DirectRLEnv):
         self._base_id, _ = self._contact_sensor.find_sensors("base")
         self._feet_ids, _ = self._contact_sensor.find_sensors(".*FOOT")
         self._undesired_contact_body_ids, _ = self._contact_sensor.find_sensors(".*THIGH")
-
-    def _setup_scene(self):
-        self._robot = Articulation(self.cfg.robot)
-        self.scene.articulations["robot"] = self._robot
-        self._contact_sensor = ContactSensor(self.cfg.contact_sensor)
-        self.scene.sensors["contact_sensor"] = self._contact_sensor
-        if isinstance(self.cfg, AnymalCRoughEnvCfg):
-            self._height_scanner = RayCaster(self.cfg.height_scanner)
-            self.scene.sensors["height_scanner"] = self._height_scanner
-        self.cfg.terrain.num_envs = self.scene.cfg.num_envs
-        self.cfg.terrain.env_spacing = self.scene.cfg.env_spacing
-        self._terrain = self.cfg.terrain.class_type(self.cfg.terrain)
-        src, dest = "/World/envs/env_0", "/World/envs/env_{}"
-        pos = cloner.grid_transforms(self.scene.num_envs, self.scene.cfg.env_spacing, device=self.device)[0]
-        global_paths = (self.cfg.terrain.prim_path,)
-        plan = cloner.clone_plan_from_env_0(src, dest, self.scene.num_envs, self.device, pos, global_paths=global_paths)
-        cloner.replicate(plan, stage=self.scene.stage)
-        # PhysX replication requires explicit collision filtering between environments.
-        if "physx" in self.scene.physics_backend:
-            self.scene.filter_collisions(global_prim_paths=[self.cfg.terrain.prim_path])
-        light_cfg = sim_utils.DomeLightCfg(intensity=2000.0, color=(0.75, 0.75, 0.75))
-        light_cfg.func("/World/Light", light_cfg)
 
     def _pre_physics_step(self, actions: torch.Tensor):
         self._actions = actions.clone()
@@ -190,8 +170,8 @@ class AnymalCEnv(DirectRLEnv):
         super()._reset_idx(env_ids)
         if len(env_ids) == self.num_envs:
             self.episode_length_buf[:] = torch.randint_like(self.episode_length_buf, high=int(self.max_episode_length))
-        self._actions[env_ids] = 0.0
-        self._previous_actions[env_ids] = 0.0
+        index_fill_(self._actions, env_ids, 0.0)
+        index_fill_(self._previous_actions, env_ids, 0.0)
         self._commands[env_ids] = torch.zeros_like(self._commands[env_ids]).uniform_(-1.0, 1.0)
         joint_pos = self._robot.data.default_joint_pos.torch[env_ids]
         joint_vel = self._robot.data.default_joint_vel.torch[env_ids]
@@ -206,7 +186,7 @@ class AnymalCEnv(DirectRLEnv):
         for key in self._episode_sums.keys():
             episodic_sum_avg = torch.mean(self._episode_sums[key][env_ids])
             extras["Episode_Reward/" + key] = episodic_sum_avg / self.max_episode_length_s
-            self._episode_sums[key][env_ids] = 0.0
+            index_fill_(self._episode_sums[key], env_ids, 0.0)
         self.extras["log"] = dict()
         self.extras["log"].update(extras)
         extras = dict()

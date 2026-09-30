@@ -127,7 +127,7 @@ schema. See the class reference and the `PhysX deformable schema`_ for the curre
   ``physx.DeformableBodyView``, and ``root_physx_view`` is deprecated in favor of ``root_view``.
 
 For runnable volume, surface, and USD-asset examples, see the
-:ref:`tutorial-interact-deformable-object` tutorial and ``scripts/demos/deformables.py``.
+:ref:`tutorial-interact-deformable-object` tutorial and ``examples/deformables.py``.
 
 
 .. _PhysX deformable schema: https://docs.omniverse.nvidia.com/kit/docs/omni_physics/110.0/dev_guide/deformables/physx_deformable_schema.html#physxbasedeformablebodyapi

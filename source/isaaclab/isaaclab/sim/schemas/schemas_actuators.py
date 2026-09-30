@@ -20,19 +20,23 @@ side effect of asset construction.
 
 from __future__ import annotations
 
+import json
 import re
+import tempfile
 from typing import Any
 
 from pxr import Sdf, Usd, UsdPhysics
 
-from isaaclab.actuators._compat import _resolve_limit_aliases
-from isaaclab.actuators.actuator_base_cfg import _is_implicit_actuator_cfg
-from isaaclab.utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable
+from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
+from ...actuators.actuator_compat import resolve_limit_aliases
+from ...utils import clone
+from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
+from .schemas import drive_instance_name
 
 
 def _resolve_actuator_class(class_type: type | str) -> type:
     """Resolve and validate an actuator class reference for authoring identity checks."""
-    from isaaclab.actuators import ActuatorBase  # noqa: PLC0415
+    from ...actuators import ActuatorBase  # noqa: PLC0415
 
     if isinstance(class_type, str):
         try:
@@ -46,16 +50,16 @@ def _resolve_actuator_class(class_type: type | str) -> type:
 
 def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     """Return whether an actuator config can be authored as a Newton actuator."""
-    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd import (  # noqa: PLC0415
+    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_net import ActuatorNetLSTM, ActuatorNetMLP  # noqa: PLC0415
+    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd import (  # noqa: PLC0415
         DCMotor,
         DelayedPDActuator,
         IdealPDActuator,
         RemotizedPDActuator,
     )
-    from isaaclab.actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd_cfg import IdealPDActuatorCfg, RemotizedPDActuatorCfg  # noqa: PLC0415
 
     supported_cfg_types = (
         (ActuatorNetMLPCfg, ActuatorNetMLP),
@@ -75,7 +79,7 @@ def _is_newton_native_actuator_cfg(cfg: Any) -> bool:
     return False
 
 
-def _validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
+def validate_newton_native_actuator_cfgs(actuator_cfgs: dict[str, Any]) -> None:
     """Reject explicit actuator configurations that Newton cannot author."""
     unsupported_groups = []
     for group_name, cfg in actuator_cfgs.items():
@@ -175,15 +179,15 @@ def define_actuator_properties(
     Raises:
         ValueError: If Newton-native execution is enabled and an explicit actuator config is unsupported.
     """
-    from isaaclab.sim import SimulationContext  # noqa: PLC0415
+    from .. import SimulationContext  # noqa: PLC0415
 
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
-    if sim_cfg is None or not getattr(sim_cfg, "use_newton_actuators", False):
+    if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return
 
-    from isaaclab.sim.utils.queries import find_first_matching_prim  # noqa: PLC0415
-    from isaaclab.sim.utils.stage import get_current_stage  # noqa: PLC0415
+    from ..utils.queries import find_first_matching_prim  # noqa: PLC0415
+    from ..utils.stage import get_current_stage  # noqa: PLC0415
 
     if stage is None:
         stage = get_current_stage()
@@ -193,10 +197,10 @@ def define_actuator_properties(
         return
     articulation_prim_path = str(first_prim.GetPath())
 
-    _author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
+    author_actuator_prims(stage, articulation_prim_path, actuator_cfgs)
 
 
-def _author_actuator_prims(
+def author_actuator_prims(
     stage: Any,
     articulation_prim_path: str,
     actuator_cfgs: dict[str, Any],
@@ -206,7 +210,7 @@ def _author_actuator_prims(
     if not art_prim.IsValid():
         raise ValueError(f"Articulation prim not found: {articulation_prim_path}")
 
-    _validate_newton_native_actuator_cfgs(actuator_cfgs)
+    validate_newton_native_actuator_cfgs(actuator_cfgs)
 
     joint_inventory = _collect_joint_prims(art_prim)
     all_joint_names = list(joint_inventory.keys())
@@ -222,30 +226,30 @@ def _author_actuator_prims(
         if not joint_names:
             continue
 
-        resolved_cfg = cfg.copy()
+        resolved_cfg = clone(cfg)
         # Collection construction emits the deprecation warning later in the
         # normal asset lifecycle. Authoring only needs the normalized value.
-        _resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
+        resolve_limit_aliases(group_name, resolved_cfg, joint_names, warn_deprecated=False)
         cfg_entries.append((group_name, resolved_cfg, joint_names))
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
 
     _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
-    from isaaclab.actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
-    from isaaclab.actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
+    from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
+    from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
 
     for group_name, cfg, joint_names in cfg_entries:
-        stiffness_map = resolve_per_dof(getattr(cfg, "stiffness", None), joint_names)
-        damping_map = resolve_per_dof(getattr(cfg, "damping", None), joint_names)
+        stiffness_map = resolve_per_dof(cfg.stiffness, joint_names)
+        damping_map = resolve_per_dof(cfg.damping, joint_names)
 
         is_neural = isinstance(cfg, (ActuatorNetMLPCfg, ActuatorNetLSTMCfg))
         is_remotized = isinstance(cfg, RemotizedPDActuatorCfg)
         is_dc_motor = isinstance(cfg, DCMotorCfg)
         is_delayed = isinstance(cfg, DelayedPDActuatorCfg)
 
-        configured_effort_limit = getattr(cfg, "actuator_effort_limit", None)
+        configured_effort_limit = cfg.actuator_effort_limit
         effort_map: dict[str, float] = {}
         if not is_remotized:
             if configured_effort_limit is None:
@@ -258,12 +262,10 @@ def _author_actuator_prims(
                     zip(joint_names, _resolve_matching_values_dense(configured_effort_limit, joint_names))
                 )
 
-        vel_limit_map = (
-            resolve_per_dof(getattr(cfg, "actuator_velocity_limit", None), joint_names) if is_dc_motor else {}
-        )
-        sat_effort_map = resolve_per_dof(getattr(cfg, "saturation_effort", None), joint_names) if is_dc_motor else {}
+        vel_limit_map = resolve_per_dof(cfg.actuator_velocity_limit, joint_names) if is_dc_motor else {}
+        sat_effort_map = resolve_per_dof(cfg.saturation_effort, joint_names) if is_dc_motor else {}
 
-        raw_delay = getattr(cfg, "max_delay", 0) if is_delayed else 0
+        raw_delay = cfg.max_delay if is_delayed else 0
         delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
 
         patched_model_path: str | None = None
@@ -278,7 +280,7 @@ def _author_actuator_prims(
                 meta["torque_scale"] = cfg.torque_scale
             else:
                 meta["model_type"] = "lstm"
-            patched_model_path = _resave_checkpoint_with_metadata(cfg.network_file, meta)
+            patched_model_path = resave_checkpoint_with_metadata(cfg.network_file, meta)
 
         for jname in joint_names:
             joint_prim_path = joint_inventory[jname]
@@ -305,7 +307,7 @@ def _author_actuator_prims(
                 schemas.append("NewtonMaxEffortClampingAPI")
                 attrs["max_effort"] = effort_map[jname]
 
-            if is_remotized and isinstance(cfg, RemotizedPDActuatorCfg):
+            if is_remotized:
                 lookup = cfg.joint_parameter_lookup
                 schemas.append("NewtonPositionBasedClampingAPI")
                 array_attrs["lookup_positions"] = [row[0] for row in lookup]
@@ -333,37 +335,29 @@ def _author_actuator_prims(
                 )
 
             for attr_name, attr_val in attrs.items():
-                usd_name = f"newton:{_snake_to_camel(attr_name)}"
+                usd_name = f"newton:{to_camel_case(attr_name)}"
                 if isinstance(attr_val, int):
                     act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Int).Set(attr_val)
                 else:
                     act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.Float).Set(float(attr_val))
 
             for attr_name, attr_val in array_attrs.items():
-                usd_name = f"newton:{_snake_to_camel(attr_name)}"
+                usd_name = f"newton:{to_camel_case(attr_name)}"
                 act_prim.CreateAttribute(usd_name, Sdf.ValueTypeNames.FloatArray).Set(attr_val)
 
 
-# ---------------------------------------------------------------------------
-# Private helpers
-# ---------------------------------------------------------------------------
+"""
+Private helpers.
+"""
 
-_SNAKE_TO_CAMEL_RE = re.compile(r"_([a-z])")
-
-
-def _snake_to_camel(name: str) -> str:
-    """Convert a snake_case name to camelCase."""
-    return _SNAKE_TO_CAMEL_RE.sub(lambda m: m.group(1).upper(), name)
+_JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 
 
 def _get_authored_joint_effort_limit(stage: Usd.Stage, joint_prim_path: str) -> float | None:
     """Read a revolute or prismatic joint's authored USD drive effort limit."""
     joint_prim = stage.GetPrimAtPath(joint_prim_path)
-    if joint_prim.IsA(UsdPhysics.RevoluteJoint):
-        drive_name = "angular"
-    elif joint_prim.IsA(UsdPhysics.PrismaticJoint):
-        drive_name = "linear"
-    else:
+    drive_name = drive_instance_name(joint_prim)
+    if drive_name is None:
         return None
     value = UsdPhysics.DriveAPI(joint_prim, drive_name).GetMaxForceAttr().Get()
     return None if value is None else float(value)
@@ -375,13 +369,9 @@ def _collect_joint_prims(art_prim: Any) -> dict[str, str]:
     Returns:
         Ordered mapping of joint name to full prim path.
     """
-    _JOINT_TYPES = {"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"}
-
-    joints: dict[str, str] = {}
-    for prim in Usd.PrimRange(art_prim):
-        if prim.GetTypeName() in _JOINT_TYPES:
-            joints[prim.GetName()] = str(prim.GetPath())
-    return joints
+    return {
+        prim.GetName(): str(prim.GetPath()) for prim in Usd.PrimRange(art_prim) if prim.GetTypeName() in _JOINT_TYPES
+    }
 
 
 def _remove_actuator_prims_for_joints(
@@ -397,22 +387,19 @@ def _remove_actuator_prims_for_joints(
 
     Only prims under the *art_prim* subtree are considered.
     """
-    to_deactivate: list = []
+    to_deactivate = []
     for prim in Usd.PrimRange(art_prim):
         if prim.GetTypeName() != "NewtonActuator":
             continue
         rel = prim.GetRelationship("newton:targets")
-        if rel and rel.IsValid():
-            for target in rel.GetTargets():
-                if str(target) in joint_paths:
-                    to_deactivate.append(prim)
-                    break
-
+        if rel and any(str(target) in joint_paths for target in rel.GetTargets()):
+            to_deactivate.append(prim)
+    # deactivate after the traversal so the prim range is not mutated while iterating
     for prim in to_deactivate:
         prim.SetActive(False)
 
 
-def _resave_checkpoint_with_metadata(
+def resave_checkpoint_with_metadata(
     original_path: str,
     metadata: dict[str, Any],
 ) -> str:
@@ -426,12 +413,9 @@ def _resave_checkpoint_with_metadata(
     Returns:
         Path to the temporary checkpoint file.
     """
-    import json  # noqa: PLC0415
-    import tempfile  # noqa: PLC0415
-
     import torch  # noqa: PLC0415
 
-    from isaaclab.utils.assets import retrieve_file_path  # noqa: PLC0415
+    from ...utils.assets import retrieve_file_path  # noqa: PLC0415
 
     local_path = retrieve_file_path(original_path)
 

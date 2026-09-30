@@ -5,6 +5,6 @@
 
 """Gamepad device for SE(2) and SE(3) control."""
 
-from isaaclab.utils.module import lazy_export
+from ...utils.module import lazy_export
 
 lazy_export()

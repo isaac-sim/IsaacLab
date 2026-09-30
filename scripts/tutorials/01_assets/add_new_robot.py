@@ -4,32 +4,35 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 import argparse
+from typing import TYPE_CHECKING
 
-from isaaclab.app import AppLauncher
+from isaaclab.app import add_launcher_args, launch_simulation
+from isaaclab.utils import instantiate, replace
 
 # add argparse arguments
 parser = argparse.ArgumentParser(
     description="This script demonstrates adding a custom robot to an Isaac Lab environment."
 )
 parser.add_argument("--num_envs", type=int, default=1, help="Number of environments to spawn.")
-# append AppLauncher cli args
-AppLauncher.add_app_launcher_args(parser)
+# append simulation launcher cli args
+add_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 
-# launch omniverse app
-app_launcher = AppLauncher(args_cli)
-simulation_app = app_launcher.app
-
 import numpy as np
 import torch
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets import AssetBaseCfg
 from isaaclab.assets.articulation import ArticulationCfg
-from isaaclab.scene import InteractiveScene, InteractiveSceneCfg
+from isaaclab.scene import InteractiveSceneCfg
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
+
+if TYPE_CHECKING:
+    from isaaclab.scene import InteractiveScene
 
 JETBOT_CONFIG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/NVIDIA/Jetbot/jetbot.usd"),
@@ -39,13 +42,16 @@ JETBOT_CONFIG = ArticulationCfg(
 DOFBOT_CONFIG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Yahboom/Dofbot/dofbot.usd",
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+        rigid_props=PhysxRigidBodyCfg(
             disable_gravity=False,
             max_depenetration_velocity=5.0,
         ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
-        ),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=True, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=True),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -94,11 +100,11 @@ class NewRobotsSceneCfg(InteractiveSceneCfg):
     )
 
     # robot
-    Jetbot = JETBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Jetbot")
-    Dofbot = DOFBOT_CONFIG.replace(prim_path="{ENV_REGEX_NS}/Dofbot")
+    Jetbot = replace(JETBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Jetbot")
+    Dofbot = replace(DOFBOT_CONFIG, prim_path="{ENV_REGEX_NS}/Dofbot")
 
 
-def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
+def run_simulator(sim: sim_utils.SimulationContext, scene: "InteractiveScene"):
     sim_dt = sim.get_physics_dt()
     sim_time = 0.0
     count = 0
@@ -108,7 +114,7 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
     straight_action = torch.tensor([[10.0, 10.0]], device=sim.device).repeat(scene.num_envs, 1)
     turn_action = torch.tensor([[5.0, -5.0]], device=sim.device).repeat(scene.num_envs, 1)
 
-    while simulation_app.is_running():
+    while sim.is_running():
         # reset
         if count % 500 == 0:
             # reset counters
@@ -168,21 +174,23 @@ def run_simulator(sim: sim_utils.SimulationContext, scene: InteractiveScene):
 
 def main():
     """Main function."""
-    # Initialize the simulation context
+    # Configure the simulation
     sim_cfg = sim_utils.SimulationCfg(device=args_cli.device)
-    sim = sim_utils.SimulationContext(sim_cfg)
-    sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
-    # Design scene
-    scene_cfg = NewRobotsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
-    scene = InteractiveScene(scene_cfg)
-    # Play the simulator
-    sim.reset()
-    # Now we are ready!
-    print("[INFO]: Setup complete...")
-    # Run the simulator
-    run_simulator(sim, scene)
+    # Launch the simulator runtime that the configuration needs
+    with launch_simulation(sim_cfg, args_cli):
+        # Initialize the simulation context
+        sim = sim_utils.SimulationContext(sim_cfg)
+        sim.set_camera_view([3.5, 0.0, 3.2], [0.0, 0.0, 0.5])
+        # Design scene
+        scene_cfg = NewRobotsSceneCfg(num_envs=args_cli.num_envs, env_spacing=2.0)
+        scene = instantiate(scene_cfg)
+        # Play the simulator
+        sim.reset()
+        # Now we are ready!
+        print("[INFO]: Setup complete...")
+        # Run the simulator
+        run_simulator(sim, scene)
 
 
 if __name__ == "__main__":
     main()
-    simulation_app.close()

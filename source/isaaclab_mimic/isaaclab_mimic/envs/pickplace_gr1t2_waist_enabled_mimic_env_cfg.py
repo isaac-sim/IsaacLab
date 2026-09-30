@@ -15,6 +15,8 @@ from isaaclab_tasks.contrib.pick_place.pickplace_gr1t2_waist_enabled_env_cfg imp
 class PickPlaceGR1T2WaistEnabledMimicEnvCfg(PickPlaceGR1T2WaistEnabledEnvCfg, MimicEnvCfg):
     """Configuration for GR1T2 Pick Place Waist Enabled Mimic environment."""
 
+    class_type: type | str = "{DIR}.pickplace_gr1t2_mimic_env:PickPlaceGR1T2MimicEnv"
+
     def __post_init__(self):
         # Calling post init of parents
         super().__post_init__()
@@ -30,7 +32,6 @@ class PickPlaceGR1T2WaistEnabledMimicEnvCfg(PickPlaceGR1T2WaistEnabledEnvCfg, Mi
         self.datagen_config.generation_joint_pos = False
         self.datagen_config.generation_transform_first_robot_pose = False
         self.datagen_config.generation_interpolate_from_last_target_pose = True
-        self.datagen_config.max_num_failures = 25
         self.datagen_config.num_demo_to_render = 10
         self.datagen_config.num_fail_demo_to_render = 25
         self.datagen_config.seed = 1
