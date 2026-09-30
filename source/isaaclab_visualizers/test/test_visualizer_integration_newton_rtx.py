@@ -31,7 +31,7 @@ pytestmark = [pytest.mark.arm_ci]
 
 
 def test_cartpole_env_newton_rtx_visualizer_motion_with_play_pause_newton(caplog: pytest.LogCaptureFixture) -> None:
-    """Newton RTX frames are non-flat and move while playing, then freeze while rendering is paused."""
+    """Newton RTX frames are non-flat, move while playing, freeze while paused, and draw a marker."""
     _viz_utils.run_cartpole_env_visualizers_motion_with_play_pause("newton", caplog, visualizer_kinds=("newton_rtx",))
 
 
