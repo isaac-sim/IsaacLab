@@ -6,3 +6,7 @@
 * Added :meth:`~isaaclab_experimental.utils.WarpGraphCache.call_steps` and
   :meth:`ManagerBase.stage_steps <isaaclab_experimental.managers.ManagerBase.stage_steps>`, which split a
   manager stage into per-term steps that are recorded into CUDA graphs or run eagerly.
+* Added parameter predicates to :class:`~isaaclab_experimental.utils.warp.WarpCapturable`:
+  ``@WarpCapturable(lambda params: ...)`` marks a term capturable only for the parameters the predicate
+  accepts. A class term can also set ``self._warp_capturable`` in ``__init__``. The Warp managers decide
+  capture for each configured term instance.

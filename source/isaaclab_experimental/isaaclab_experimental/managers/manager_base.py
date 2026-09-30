@@ -463,7 +463,7 @@ class ManagerBase(ABC):
                     f" and optional parameters: {args_with_defaults}, but received: {term_params}."
                 )
 
-        if not is_warp_capturable(term_cfg.func):
+        if not is_warp_capturable(term_cfg.func, term_cfg.params):
             self._all_terms_capturable = False
 
         # process attributes at runtime

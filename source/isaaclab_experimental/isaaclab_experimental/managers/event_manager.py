@@ -354,17 +354,17 @@ class EventManager(ManagerBase):
         # Terms draw from the environment's shared random state, so every stage keeps the configured order.
         if operation == "apply_interval":
             return [
-                (is_warp_capturable(term_cfg.func), partial(self._apply_interval_term, index))
+                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._apply_interval_term, index))
                 for index, term_cfg in enumerate(self._mode_term_cfgs.get("interval", []))
             ]
         if operation == "apply_reset":
             return [
-                (is_warp_capturable(term_cfg.func), partial(self._apply_reset_term, index))
+                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._apply_reset_term, index))
                 for index, term_cfg in enumerate(self._mode_term_cfgs.get("reset", []))
             ]
         if operation == "reset":
             steps = [
-                (is_warp_capturable(term_cfg.func), partial(self._reset_class_term, term_cfg))
+                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._reset_class_term, term_cfg))
                 for mode_cfgs in self._mode_class_term_cfgs.values()
                 for term_cfg in mode_cfgs
             ]

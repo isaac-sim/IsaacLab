@@ -133,7 +133,7 @@ def test_mask_first_code_has_no_unsanctioned_host_syncs():
     assert not stale, f"Stale sanctioned boundaries (function gone or no longer syncs): {sorted(stale)}"
 
 
-# ``@WarpCapturable(False)`` opt-outs, by (path suffix, name).
+# ``@WarpCapturable(False)`` and parameter-predicate opt-outs, by (path suffix, name).
 EXPECTED_NON_CAPTURABLE = {
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_com"),
     ("isaaclab_experimental/envs/mdp/events.py", "randomize_rigid_body_mass"),
@@ -147,7 +147,7 @@ NON_CAPTURABLE_SCAN_ROOTS = [
 
 
 def _non_capturable_targets(tree: ast.Module) -> list[str]:
-    """Names of functions and classes decorated with ``@WarpCapturable(False, ...)``."""
+    """Names of functions and classes decorated with ``@WarpCapturable(False)`` or a parameter predicate."""
     targets = []
     for node in ast.walk(tree):
         if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -158,15 +158,14 @@ def _non_capturable_targets(tree: ast.Module) -> list[str]:
                 and isinstance(decorator.func, ast.Name)
                 and decorator.func.id == "WarpCapturable"
                 and decorator.args
-                and isinstance(decorator.args[0], ast.Constant)
-                and decorator.args[0].value is False
+                and not (isinstance(decorator.args[0], ast.Constant) and decorator.args[0].value is True)
             ):
                 targets.append(node.name)
     return targets
 
 
 def test_non_capturable_terms_are_inventoried():
-    """Every ``@WarpCapturable(False)`` opt-out is listed here, and only these."""
+    """Every ``@WarpCapturable(False)`` or predicate opt-out is listed here, and only these."""
     found = set()
     for scan_root in NON_CAPTURABLE_SCAN_ROOTS:
         for path in sorted((_REPO_ROOT / scan_root).rglob("*.py")):

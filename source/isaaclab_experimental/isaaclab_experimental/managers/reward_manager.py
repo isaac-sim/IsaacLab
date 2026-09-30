@@ -276,7 +276,7 @@ class RewardManager(ManagerBase):
     def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
         if operation == "compute":
             term_steps = [
-                (is_warp_capturable(term_cfg.func), partial(self._compute_term, index))
+                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._compute_term, index))
                 for index, term_cfg in enumerate(self._term_cfgs)
             ]
             # Terms write their own output columns and the finalize step sums them in a fixed order, so
@@ -285,7 +285,7 @@ class RewardManager(ManagerBase):
             return [(True, self._reset_step_buffers), *term_steps, (True, self._finalize_step)]
         if operation == "reset":
             term_steps = [
-                (is_warp_capturable(term_cfg.func), partial(self._reset_term, term_cfg))
+                (is_warp_capturable(term_cfg.func, term_cfg.params), partial(self._reset_term, term_cfg))
                 for term_cfg in self._class_term_cfgs
             ]
             return [(True, self._reset_episode_sums), *term_steps]

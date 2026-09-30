@@ -572,7 +572,7 @@ class ObservationManager(ManagerBase):
             # Noise draws from the environment's shared random state, so terms keep their order.
             steps = [
                 (
-                    is_warp_capturable(term_cfg.func) and term_cfg.history_length == 0,
+                    is_warp_capturable(term_cfg.func, term_cfg.params) and term_cfg.history_length == 0,
                     partial(self._compute_term, group_name, index),
                 )
                 for group_name, term_cfgs in self._group_obs_term_cfgs.items()
@@ -582,7 +582,10 @@ class ObservationManager(ManagerBase):
         if operation == "reset":
             steps = []
             for group_name, term_cfgs in self._group_obs_class_term_cfgs.items():
-                steps += [(is_warp_capturable(cfg.func), partial(self._reset_class_term, cfg)) for cfg in term_cfgs]
+                steps += [
+                    (is_warp_capturable(cfg.func, cfg.params), partial(self._reset_class_term, cfg))
+                    for cfg in term_cfgs
+                ]
                 # history buffers are not capture-safe
                 steps += [
                     (False, partial(self._reset_history, group_name, term_name))
