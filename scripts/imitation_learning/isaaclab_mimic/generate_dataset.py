@@ -83,6 +83,8 @@ import torch
 
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_mimic.envs  # noqa: F401
 
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -232,7 +234,7 @@ def generate(env_name: str):
                 motion_planners.clear()
     finally:
         # Close env after async tasks are done so success_term is never called on a closed env
-        env.close()
+        close_env(env)
 
 
 if __name__ == "__main__":

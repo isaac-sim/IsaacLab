@@ -124,6 +124,8 @@ from isaaclab.devices.teleop_device_factory import create_teleop_device
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.lift import mdp
 from isaaclab_tasks.utils import resolve_task_config
@@ -314,6 +316,7 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
     try:
         # create environment
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        cleanup.callback(lambda: close_env(env))
         # check environment name (for reach , we don't allow the gripper)
         if "Reach" in args_cli.task:
             logger.warning(
@@ -420,7 +423,6 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
                         f" '{device_name}' entry under teleop_devices in the environment config."
                         " Built-in devices: keyboard, spacemouse, gamepad."
                     )
-                    env.close()
                     return
                 for key, callback in teleoperation_callbacks.items():
                     try:
@@ -440,12 +442,10 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
                     logger.warning(f"Failed to add callback for key {key}: {e}")
     except Exception as e:
         logger.error(f"Failed to create teleop device: {e}")
-        env.close()
         return
 
     if teleop_interface is None:
         logger.error("Failed to create teleop interface")
-        env.close()
         return
 
     print(f"Using teleop device: {teleop_interface}")
@@ -528,10 +528,6 @@ def run_teleoperation(env_cfg: ManagerBasedRLEnvCfg, use_isaac_teleop: bool, cle
     else:
         with camera_feed_session.bind(env):
             run_loop()
-
-    # close the simulator
-    env.close()
-    print("Environment closed")
 
 
 if __name__ == "__main__":

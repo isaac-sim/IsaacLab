@@ -22,6 +22,7 @@ It uses the `warp` library to run the state machine in parallel on the GPU.
 import argparse
 import sys
 from collections.abc import Sequence
+from contextlib import ExitStack
 
 import gymnasium as gym
 import torch
@@ -31,6 +32,8 @@ from isaaclab.app import add_launcher_args, launch_simulation
 from isaaclab.assets.deformable_object.deformable_object_data import DeformableObjectData
 from isaaclab.utils import index_fill_
 from isaaclab.visualizers import VisualizerCfg
+
+from isaaclab_rl.entrypoints.common import close_env
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config, setup_preset_cli
@@ -277,8 +280,9 @@ def main():
     env_cfg.viewer.lookat = (0.5, 0.0, 0.05)
     env_cfg.sim.default_visualizer_cfg = VisualizerCfg(eye=env_cfg.viewer.eye, lookat=env_cfg.viewer.lookat)
 
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
         env = gym.make(args_cli.task, cfg=env_cfg)
+        cleanup.callback(lambda: close_env(env))
         is_cable = "cable" in env.unwrapped.scene.keys()
 
         # reset environment at start
@@ -346,9 +350,6 @@ def main():
                     torch.cat([object_position, object_grasp_orientation], dim=-1),
                     torch.cat([desired_position, desired_orientation], dim=-1),
                 )
-
-        # close the environment
-        env.close()
 
 
 if __name__ == "__main__":

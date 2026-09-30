@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation, scan
 
@@ -147,6 +148,8 @@ from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
 from isaaclab.utils.seed import configure_seed
+
+from isaaclab_rl.entrypoints.common import close_env
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.data_classes import (
@@ -1007,7 +1010,7 @@ def replay(
 
 if __name__ == "__main__":
     # the task config module imports USD, so the Kit runtime is launched before the config is parsed
-    with torch.no_grad(), launch_simulation(None, args_cli):
+    with torch.no_grad(), launch_simulation(None, args_cli), ExitStack() as cleanup:
         # Create environment
         if args_cli.task is not None:
             env_name = args_cli.task.split(":")[-1]
@@ -1040,6 +1043,7 @@ if __name__ == "__main__":
         env_cfg.high_res_video = args_cli.high_res_video
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        cleanup.callback(lambda: close_env(env))
 
         # Load input data
         input_dataset_file_handler = HDF5DatasetFileHandler()
@@ -1095,4 +1099,3 @@ if __name__ == "__main__":
         env.recorder_manager.close()
         if getattr(env, "viewport_camera_controller", None) is not None:
             env.viewport_camera_controller.update_view_to_world()
-        env.close()

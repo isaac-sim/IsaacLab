@@ -66,6 +66,8 @@ from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_mimic.envs  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
@@ -218,11 +220,16 @@ def main():
     env_cfg.recorders.dataset_export_dir_path = output_dir
     env_cfg.recorders.dataset_filename = output_file_name
 
-    with launch_simulation(env_cfg, args_cli):
-        return annotate_dataset(env_cfg, dataset_file_handler, success_term)
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        return annotate_dataset(env_cfg, dataset_file_handler, success_term, cleanup)
 
 
-def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, success_term: TerminationTermCfg) -> int:
+def annotate_dataset(
+    env_cfg,
+    dataset_file_handler: HDF5DatasetFileHandler,
+    success_term: TerminationTermCfg,
+    cleanup: contextlib.ExitStack,
+) -> int:
     """Create the environment and annotate every episode of the loaded dataset.
 
     Returns:
@@ -234,6 +241,7 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
 
     # create environment from loaded config
     env: ManagerBasedRLMimicEnv = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    cleanup.callback(lambda: close_env(env))
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
@@ -334,9 +342,6 @@ def annotate_dataset(env_cfg, dataset_file_handler: HDF5DatasetFileHandler, succ
         f"Successful task completions: {successful_task_count}"
     )  # This line is used by the dataset generation test case to check if the expected number of demos were annotated
     print("Exiting the app.")
-
-    # Close environment after annotation is complete
-    env.close()
 
     return successful_task_count
 

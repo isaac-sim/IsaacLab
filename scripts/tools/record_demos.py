@@ -182,6 +182,8 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.managers import DatasetExportMode
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_mimic.envs  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
@@ -858,14 +860,13 @@ def record_demos(success_term: object | None, use_isaac_teleop: bool, cleanup: c
 
     # Create environment
     env = create_environment(env_cfg)
+    cleanup.callback(lambda: close_env(env))
 
     # Run simulation loop
     current_recorded_demo_count = run_simulation_loop(
         env, None, success_term, rate_limiter, camera_feed_session, use_isaac_teleop
     )
 
-    # Clean up
-    env.close()
     print(f"Recording session completed with {current_recorded_demo_count} successful demonstrations")
     print(f"Demonstrations saved to: {args_cli.dataset_file}")
 

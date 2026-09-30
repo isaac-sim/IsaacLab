@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import argparse
 import sys
+from contextlib import ExitStack
 from pathlib import Path
 
 import torch
+
+from isaaclab_rl.entrypoints.common import close_env
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import resolve_task_config
@@ -53,12 +56,13 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
         if args_cli.device is not None:
             env_cfg.sim.device = args_cli.device
 
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
             # Runtime environment classes load simulation modules and must only be
             # imported after the simulation runtime has started.
             from ...envs import LeappDeploymentEnv
 
             env = LeappDeploymentEnv(env_cfg, args_cli.pipeline)
+            cleanup.callback(lambda: close_env(env))
 
             if getattr(args_cli, "headless", False):
                 print(
@@ -72,14 +76,11 @@ def command_deploy_leapp(argv: list[str] | None = None) -> int:
             print(f"[INFO]: Num envs: {env.num_envs}, decimation: {env.cfg.decimation}, step_dt: {env.step_dt:.4f}s")
 
             env.reset()
-            try:
-                with torch.inference_mode():
-                    while env.sim.is_running():
-                        env.step()
-            finally:
-                env.close()
+            with torch.inference_mode():
+                while env.sim.is_running():
+                    env.step()
     except KeyboardInterrupt:
-        return 0
+        return 130
     finally:
         sys.argv = original_argv
 

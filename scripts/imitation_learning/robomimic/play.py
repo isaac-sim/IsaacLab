@@ -46,12 +46,15 @@ args_cli, hydra_overrides = parser.parse_known_args()
 
 import copy
 import random
+from contextlib import ExitStack
 
 import gymnasium as gym
 import numpy as np
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
+
+from isaaclab_rl.entrypoints.common import close_env
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -147,14 +150,15 @@ def main():
 
     # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
     # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.
-    with launch_simulation(env_cfg, args_cli):
-        run_policy(env_cfg, success_term)
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
+        run_policy(env_cfg, success_term, cleanup)
 
 
-def run_policy(env_cfg, success_term):
+def run_policy(env_cfg, success_term, cleanup: ExitStack):
     """Create the environment and evaluate the policy rollouts."""
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    cleanup.callback(lambda: close_env(env))
 
     # Set seed
     torch.manual_seed(args_cli.seed)
@@ -178,8 +182,6 @@ def run_policy(env_cfg, success_term):
     print(f"\nSuccessful trials: {results.count(True)}, out of {len(results)} trials")
     print(f"Success rate: {results.count(True) / len(results)}")
     print(f"Trial Results: {results}\n")
-
-    env.close()
 
 
 if __name__ == "__main__":

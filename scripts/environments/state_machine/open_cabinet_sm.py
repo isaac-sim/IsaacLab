@@ -29,6 +29,7 @@ add_launcher_args(parser)
 args_cli, hydra_overrides = parser.parse_known_args()
 
 from collections.abc import Sequence
+from contextlib import ExitStack
 
 import gymnasium as gym
 import torch
@@ -36,6 +37,8 @@ import warp as wp
 
 from isaaclab.sensors import FrameTransformer
 from isaaclab.utils import index_fill_
+
+from isaaclab_rl.entrypoints.common import close_env
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.core.cabinet.cabinet_env_cfg import CabinetEnvCfg
@@ -267,9 +270,10 @@ def main():
         use_fabric=not args_cli.disable_fabric,
         overrides=hydra_overrides,
     )
-    with launch_simulation(env_cfg, args_cli):
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
         # create environment
         env = gym.make("IsaacContrib-Open-Drawer-Franka-IK-Abs", cfg=env_cfg)
+        cleanup.callback(lambda: close_env(env))
         # reset environment at start
         env.reset()
 
@@ -311,9 +315,6 @@ def main():
                 # reset state machine
                 if dones.any():
                     open_sm.reset_idx(dones.nonzero(as_tuple=False).squeeze(-1))
-
-        # close the environment
-        env.close()
 
 
 if __name__ == "__main__":

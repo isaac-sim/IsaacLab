@@ -80,6 +80,8 @@ from isaaclab.managers import DatasetExportMode, RecorderTerm, RecorderTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import HDF5DatasetFileHandler
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_mimic.envs  # noqa: F401
 
 import isaaclab_tasks  # noqa: F401
@@ -339,7 +341,6 @@ def env_loop(env, env_action_queue, shared_datagen_info_pool, asyncio_event_loop
 
             if rate_limiter:
                 rate_limiter.sleep(env.unwrapped)
-    env.close()
 
 
 def main():
@@ -395,11 +396,11 @@ def main():
         env_cfg.recorders.dataset_filename = generated_output_file_name
         env_cfg.recorders.dataset_export_mode = DatasetExportMode.EXPORT_SUCCEEDED_ONLY
 
-    with launch_simulation(env_cfg, args_cli):
-        run_consolidated_demo(env_cfg, success_term)
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        run_consolidated_demo(env_cfg, success_term, cleanup)
 
 
-def run_consolidated_demo(env_cfg, success_term):
+def run_consolidated_demo(env_cfg, success_term, cleanup: contextlib.ExitStack):
     """Create the environment and run teleoperated recording alongside real-time mimic data generation."""
     # the environment and data generation classes load USD, so they are imported once the simulation is launched
     from isaaclab.envs import ManagerBasedRLMimicEnv
@@ -410,6 +411,7 @@ def run_consolidated_demo(env_cfg, success_term):
 
     # create environment
     env = gym.make(args_cli.task, cfg=env_cfg)
+    cleanup.callback(lambda: close_env(env))
 
     if not isinstance(env.unwrapped, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")

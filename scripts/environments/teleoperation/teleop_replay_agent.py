@@ -407,6 +407,8 @@ from isaaclab_teleop import IsaacTeleopDevice, create_isaac_teleop_device, poll_
 from isaaclab.devices.openxr import remove_camera_configs
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -1602,7 +1604,7 @@ def _run_replay_batch(env_cfg: ManagerBasedRLEnvCfg, success_term: object | None
                 break
     finally:
         if env is not None:
-            env.close()
+            close_env(env)
             print("Environment closed")
         if cloudxr_launcher is not None:
             try:

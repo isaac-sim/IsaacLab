@@ -66,11 +66,14 @@ import copy
 import os
 import pathlib
 import random
+from contextlib import ExitStack
 
 import gymnasium as gym
 import robomimic.utils.file_utils as FileUtils
 import robomimic.utils.torch_utils as TorchUtils
 import torch
+
+from isaaclab_rl.entrypoints.common import close_env
 
 from isaaclab_tasks.utils import parse_env_cfg
 
@@ -232,14 +235,15 @@ def main() -> None:
 
     # Launch the runtime the task needs. Camera rendering is only enabled for tasks that declare Kit
     # camera sensors, so policies trained on low-dimensional observations do not pay for the RTX renderer.
-    with launch_simulation(env_cfg, args_cli):
-        evaluate_models(env_cfg, success_term)
+    with launch_simulation(env_cfg, args_cli), ExitStack() as cleanup:
+        evaluate_models(env_cfg, success_term, cleanup)
 
 
-def evaluate_models(env_cfg, success_term) -> None:
+def evaluate_models(env_cfg, success_term, cleanup: ExitStack) -> None:
     """Create the environment and evaluate every checkpoint under each evaluation setting."""
     # Create environment
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    cleanup.callback(lambda: close_env(env))
 
     # Acquire device
     device = TorchUtils.get_torch_device(try_to_use_cuda=False)
@@ -324,8 +328,6 @@ def evaluate_models(env_cfg, success_term) -> None:
                     f"\nBest model for setting {setting} is {max_key} with success rate"
                     f" {results_summary[setting][max_key]}\n"
                 )
-
-        env.close()
 
 
 if __name__ == "__main__":

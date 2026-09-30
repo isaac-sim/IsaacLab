@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import os
+from contextlib import ExitStack
 
 from isaaclab.app import add_launcher_args, launch_simulation, scan
 
@@ -47,6 +48,8 @@ from policy import Policy
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab.utils.math import convert_quat
+
+from isaaclab_rl.entrypoints.common import close_env
 
 import isaaclab_mimic.locomanipulation_sdg.envs  # noqa: F401
 from isaaclab_mimic.locomanipulation_sdg.transform_utils import (
@@ -374,7 +377,7 @@ def eval_policy(
 
 
 if __name__ == "__main__":
-    with torch.no_grad(), launch_simulation(None, args_cli):
+    with torch.no_grad(), launch_simulation(None, args_cli), ExitStack() as cleanup:
         env_name = args_cli.task.split(":")[-1] if args_cli.task is not None else None
         if env_name is None:
             raise ValueError("Task/env name was not specified nor found in the dataset.")
@@ -392,6 +395,7 @@ if __name__ == "__main__":
         env_cfg.recorders.dataset_filename = os.path.basename(args_cli.output_file)
 
         env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+        cleanup.callback(lambda: close_env(env))
 
         input_dataset_file_handler = HDF5DatasetFileHandler()
         input_dataset_file_handler.open(args_cli.dataset)
@@ -406,4 +410,3 @@ if __name__ == "__main__":
         )
 
         env.reset()
-        env.close()

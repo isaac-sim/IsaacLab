@@ -78,6 +78,8 @@ import torch
 
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
+from isaaclab_rl.entrypoints.common import close_env
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import resolve_task_config
 
@@ -293,8 +295,8 @@ def main():
     env_cfg.recorders = {}
     env_cfg.terminations = {}
 
-    with launch_simulation(env_cfg, args_cli):
-        replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term)
+    with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+        replay_dataset(env_cfg, dataset_file_handler, episode_count, episode_indices_to_replay, success_term, cleanup)
 
 
 def replay_dataset(
@@ -303,6 +305,7 @@ def replay_dataset(
     episode_count: int,
     episode_indices_to_replay: list[int],
     success_term,
+    cleanup: contextlib.ExitStack,
 ):
     """Create the environment and replay the selected episodes of the dataset."""
     # the keyboard device needs the Kit runtime, which is running at this point
@@ -312,6 +315,7 @@ def replay_dataset(
 
     # create environment from loaded config
     env = gym.make(args_cli.task, cfg=env_cfg).unwrapped
+    cleanup.callback(lambda: close_env(env))
 
     teleop_interface = Se3Keyboard(Se3KeyboardCfg(pos_sensitivity=0.1, rot_sensitivity=0.1))
     teleop_interface.add_callback("N", play_cb)
@@ -361,8 +365,6 @@ def replay_dataset(
         if failed_demo_ids:
             print(f"\nFailed demo IDs ({len(failed_demo_ids)} total):")
             print(f"  {sorted(failed_demo_ids)}")
-
-    env.close()
 
 
 if __name__ == "__main__":
