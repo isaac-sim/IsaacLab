@@ -17,11 +17,11 @@ import pytest
 from isaaclab_physx.app.kit_launcher import KitLauncher, _sanitize_sys_argv_for_kit
 
 import isaaclab.app.sim_launcher as sim_launcher
-import isaaclab.utils as utils_module
 from isaaclab.app import SimulationLauncher, add_launcher_args
-from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _normalize_launcher_args
+from isaaclab.app.sim_launcher import Scan, _get_kit_runtime_sources, _resolve_launcher_args
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
 from isaaclab.visualizers import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 
 def _launcher_after_output_resolution(**state) -> KitLauncher:
@@ -291,7 +291,7 @@ def test_livestream_request_resolves_headless_livestream_launch(
     launcher = KitLauncher.__new__(KitLauncher)
     monkeypatch.setattr(launcher, "_resolve_experience_file", lambda _launcher_args: None)
 
-    _normalize_launcher_args(launcher_args)
+    _resolve_launcher_args(launcher_args)
     launcher._config_resolution(launcher_args)
 
     assert launcher._livestream == 1
@@ -384,7 +384,7 @@ def test_make_physics_cfg_builds_core_vbd():
 def test_livestream_injects_kit_visualizer_when_missing():
     args = argparse.Namespace(livestream=2, visualizer=None)
 
-    _normalize_launcher_args(vars(args))
+    _resolve_launcher_args(vars(args))
 
     assert args.visualizer == ["kit"]
 
@@ -393,14 +393,14 @@ def test_livestream_rejects_disabled_visualizers():
     args = argparse.Namespace(livestream=2, visualizer=[])
 
     with pytest.raises(ValueError, match="Livestreaming requires the Kit visualizer"):
-        _normalize_launcher_args(vars(args))
+        _resolve_launcher_args(vars(args))
 
 
 def test_livestream_rejects_invalid_environment_value(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setenv("LIVESTREAM", "3")
 
     with pytest.raises(ValueError, match="Invalid livestream mode: 3"):
-        _normalize_launcher_args({})
+        _resolve_launcher_args({})
 
 
 def test_explicit_experience_requires_isaac_sim_runtime():
@@ -408,6 +408,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
     scan = Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
@@ -416,7 +417,7 @@ def test_explicit_experience_requires_isaac_sim_runtime():
         needs_kit=False,
     )
     args = {"experience": "isaaclab.python.kit", "visualizer": None}
-    _normalize_launcher_args(args)
+    _resolve_launcher_args(args)
 
     assert _get_kit_runtime_sources(scan, args)
 
@@ -430,7 +431,7 @@ def _resolve_headless_for_case(
     # working on these features -- pin them so the parametrization is what decides.
     monkeypatch.delenv("XR", raising=False)
     monkeypatch.delenv("LIVESTREAM", raising=False)
-    _normalize_launcher_args(launcher_args)
+    _resolve_launcher_args(launcher_args)
     visualizer_cfgs = [VisualizerCfg(visualizer_type="kit")] if cfg_has_kit else []
     intent = sim_launcher._get_visualizer_intent(visualizer_cfgs, launcher_args)
     launcher_args["kit_visualizer"] = intent["has_kit_visualizer"]
@@ -448,10 +449,10 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
 @pytest.mark.parametrize(
     "launcher_args, headless_env, livestream, expected_headless",
     [
-        # XR with no CLI visualizer: headless even though the task config asks for a window.
-        ({"xr": True}, 0, 0, True),
-        # An explicit '--viz kit' is the only way to get a viewport alongside XR.
+        # XR keeps the window of the Kit visualizer the task config declares, as with '--viz kit'.
+        ({"xr": True}, 0, 0, False),
         (_XR_KIT, 0, 0, False),
+        # XR without a Kit visualizer auto-starts headless.
         ({"xr": True, "visualizer": ["none"]}, 0, 0, True),
         # ...but an explicit '--viz kit' cannot override HEADLESS=1.
         (_XR_KIT, 1, 0, True),
@@ -462,19 +463,18 @@ _XR_KIT = {"xr": True, "visualizer": ["kit"]}
         ({}, 0, 0, False),
     ],
 )
-def test_xr_without_explicit_windowed_visualizer_forces_headless(
+def test_xr_without_kit_visualizer_forces_headless(
     launcher_args: dict,
     headless_env: int,
     livestream: int,
     expected_headless: bool,
     monkeypatch: pytest.MonkeyPatch,
 ):
-    """Test that enabling XR runs headless unless a windowed visualizer is explicitly requested.
+    """Test that enabling XR runs headless unless the run has a Kit visualizer.
 
-    A task config declaring a windowed visualizer must not leave ``--xr`` opening a window nobody
-    asked for, and ``HEADLESS=1`` / livestreaming must keep forcing headless even when one was
-    explicitly requested. Resolution is exercised directly to avoid launching Isaac Sim; what the
-    resolved state then publishes is asserted by
+    A Kit visualizer declared by the task config keeps its window like ``--viz kit``, while
+    ``HEADLESS=1`` / livestreaming keep forcing headless even with one. Resolution is exercised
+    directly to avoid launching Isaac Sim; what the resolved state then publishes is asserted by
     :func:`test_load_extensions_publishes_has_gui_setting`.
     """
     args = {**launcher_args, "livestream": livestream}
@@ -494,6 +494,7 @@ def test_launch_simulation_preserves_failure_exit_code(monkeypatch: pytest.Monke
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=False,
@@ -522,6 +523,7 @@ def test_launch_simulation_auto_enables_kit_camera_without_launcher_args(monkeyp
     scan = sim_launcher.Scan(
         resolved_physics_cfg=None,
         effective_cfg=object(),
+        sim_cfg=None,
         visualizer_intent={"has_kit_visualizer": False},
         has_ovrtx=False,
         has_kit_camera=True,
@@ -709,40 +711,19 @@ def test_toolbar_is_untouched_when_headless_without_livestream(monkeypatch: pyte
     launcher._set_toolbar_button_visible("_stop_button", False)
 
 
-def test_sync_visualizer_settings_stores_values(monkeypatch: pytest.MonkeyPatch):
-    settings = _DummySettings()
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", lambda: settings)
-
-    sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser", "rerun"], "max_visible_envs": 0})
-
-    assert settings.values == {
-        "/isaaclab/visualizer/types": "viser rerun",
-        "/isaaclab/visualizer/explicit": True,
-        "/isaaclab/visualizer/disable_all": False,
-        "/isaaclab/visualizer/max_visible_envs": 0,
-    }
-
-
-def test_sync_visualizer_settings_rejects_negative_max_visible_envs(
-    monkeypatch: pytest.MonkeyPatch,
-):
-    def _unexpected_settings_manager():
-        raise AssertionError("settings manager should not be queried for invalid values")
-
-    monkeypatch.setattr(sim_launcher, "get_settings_manager", _unexpected_settings_manager)
-
+def test_resolve_launcher_args_rejects_negative_max_visible_envs():
     with pytest.raises(ValueError, match="Invalid value for --max_visible_envs: -5"):
-        sim_launcher._sync_visualizer_cli_settings({"visualizer": ["viser"], "max_visible_envs": -5})
+        _resolve_launcher_args({"visualizer": ["viser"], "max_visible_envs": -5})
 
 
 def test_parse_visualizer_csv_rejects_spaces_between_entries():
     with pytest.raises(argparse.ArgumentTypeError, match="spaces are not allowed"):
-        sim_launcher._parse_visualizer_csv("kit, newton_gl")
+        parse_visualizer_csv("kit, newton_gl")
 
 
 def test_normalize_visualizers_rejects_none_with_others():
     with pytest.raises(ValueError, match="'none' cannot be combined"):
-        _normalize_launcher_args({"visualizer": ["none", "kit"]})
+        _resolve_launcher_args({"visualizer": ["none", "kit"]})
 
 
 def test_visualizer_csv_does_not_swallow_hydra_overrides():
@@ -839,7 +820,7 @@ def test_allows_isaacsim_full_streaming_experience_when_livestream_disabled(tmp_
 def test_constructor_reports_missing_isaac_sim(monkeypatch: pytest.MonkeyPatch):
     monkeypatch.setattr(kit_launcher_module, "SimulationApp", None)
 
-    monkeypatch.setattr(utils_module, "has_kit", lambda: False)
+    monkeypatch.setattr(kit_launcher_module, "has_kit", lambda: False)
     with pytest.raises(SystemExit):
         KitLauncher()
 
