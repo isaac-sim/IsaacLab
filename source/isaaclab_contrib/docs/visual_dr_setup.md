@@ -8,9 +8,10 @@ the reference-frame video chains used in the offline experiments.
 
 ## Framework and checkpoint choices
 
-Install either the public NVIDIA `cosmos-framework` or the GitLab
-`mingxinz/guided_generation_distilled` branch. Framework and checkpoint are separate
-choices:
+Install either the public NVIDIA `cosmos-framework` or the
+[`dlmed/cosmos-framework` GitLab repository](https://gitlab-master.nvidia.com/dlmed/cosmos-framework)
+on the `mingxinz/guided_generation_distilled` branch. Framework and checkpoint are
+separate choices:
 
 | Framework | Public `nvidia/Cosmos3-Nano` | Custom four-step export | Mask guidance |
 |---|---|---|---|
@@ -31,10 +32,14 @@ bash scripts/visual_dr/install_cosmos.sh
 # Existing git checkout
 bash scripts/visual_dr/install_cosmos.sh /path/to/cosmos-framework
 
-# Or a Git source pinned to the branch (substitute your GitLab URL):
+# GitLab framework used in the experiments:
 bash scripts/visual_dr/install_cosmos.sh \
-  'ssh://<path>/cosmos-framework.git@<branch name>'
+  'ssh://git@gitlab-master.nvidia.com:12051/dlmed/cosmos-framework.git@mingxinz/guided_generation_distilled'
 ```
+
+The tested GitLab revision was `524728ae6b49082880a5f1dac41920f1e3dd297e`;
+replace the branch suffix with that commit to pin the framework. The GitLab
+repository requires NVIDIA internal access.
 
 The installer adds the `isaaclab_contrib[cosmos-runtime]` dependencies and installs
 Cosmos with `--no-deps` to retain Isaac Lab's torch version. Cosmos is an external
@@ -77,13 +82,22 @@ the original config and weight files are unchanged.
 ## Custom checkpoints
 
 Use `--checkpoint` to select a custom or distilled Cosmos export, with sampling
-and resolution settings appropriate for that checkpoint. For example, run a
-four-step transfer export at the camera resolution:
+and resolution settings appropriate for that checkpoint. Our experiments used
+`Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000` from
+[`nvidia/sim2real_rlinf_dev_pg` on Hugging Face](https://huggingface.co/nvidia/sim2real_rlinf_dev_pg/tree/dcd409660e717fab11968bf922f31a6d25b90651/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000).
+With access to that repository, download the tested revision and run the four-step
+transfer export at the camera resolution:
 
 ```bash
+hf download nvidia/sim2real_rlinf_dev_pg \
+  --revision dcd409660e717fab11968bf922f31a6d25b90651 \
+  --include 'Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000/**' \
+  --local-dir ./models
+
 uv run --inexact python scripts/visual_dr/run_rollout.py \
   --num_envs 1 --steps 100 --episode_length_s 30 --policy scripted \
-  --backend cosmos --checkpoint /path/to/four-step-transfer-checkpoint \
+  --backend cosmos \
+  --checkpoint ./models/Cosmos3-Nano-Transfer-DMD2-4Step-LoRA-256p480p-iter8000 \
   --num_steps 4 --guidance 1.0 --control_guidance 1.0 --resolution 480 \
   --native_resolution --mask_guidance --mask_strength 1.0 \
   --video_dir /tmp/cosmos_rollout
