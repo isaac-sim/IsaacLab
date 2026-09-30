@@ -94,7 +94,7 @@ Command Builder
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl"
                data-demo-description="Drag a cable handle to lift a load through a 4:1 pulley system.">
-         <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Newton RTX rendering of a block and tackle lifting a red load" loading="lazy">
+         <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Block and tackle pulleys and a red load" loading="lazy">
          <span>Newton Block and Tackle</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
