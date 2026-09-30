@@ -44,6 +44,9 @@ if TYPE_CHECKING:
 # import logger
 logger = logging.getLogger(__name__)
 
+_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD = 64
+_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD = 32
+
 
 class Articulation(BaseArticulation):
     """An articulation asset class.
@@ -3932,6 +3935,7 @@ class Articulation(BaseArticulation):
         )
         if self.root_view._backend is None:
             raise RuntimeError(f"Failed to create articulation at: {root_prim_path_expr}. Please check PhysX logs.")
+        self._maybe_warn_gpu_articulation_partition_aliasing()
 
         # container for data access
         joint_dof_signs = self._resolve_joint_dof_signs()
@@ -3954,6 +3958,39 @@ class Articulation(BaseArticulation):
         self._log_articulation_info()
         # Let the articulation data know that it is fully instantiated and ready to use.
         self.data.is_primed = True
+
+    def _maybe_warn_gpu_articulation_partition_aliasing(self) -> None:
+        """Warn about a known PhysX GPU articulation solver partition issue."""
+        physics_cfg = self._sim_cfg.physics if self._sim_cfg is not None else None
+        gpu_max_num_partitions = getattr(physics_cfg, "gpu_max_num_partitions", 1)
+        if "cuda" not in self.device or gpu_max_num_partitions <= 1:
+            return
+
+        total_articulation_count = 0
+        max_link_count = 0
+        for (manager, _), view in SimulationManager.views.items():
+            if manager is not SimulationManager or not hasattr(view, "shared_metatype"):
+                continue
+            shared_metatype = view.shared_metatype
+            if not hasattr(shared_metatype, "link_count"):
+                continue
+            total_articulation_count += int(view.count)
+            max_link_count = max(max_link_count, int(shared_metatype.link_count))
+
+        if (
+            total_articulation_count <= _GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD
+            or max_link_count <= _GPU_ARTICULATION_ALIASING_LINK_THRESHOLD
+        ):
+            return
+
+        logger.warning(
+            "PhysX GPU articulations may corrupt other articulations when the scene has more than "
+            f"{_GPU_ARTICULATION_ALIASING_INSTANCE_THRESHOLD} articulation instances, an articulation has more than "
+            f"{_GPU_ARTICULATION_ALIASING_LINK_THRESHOLD} links, and PhysxCfg.gpu_max_num_partitions > 1. "
+            f"The current scene has {total_articulation_count} articulation instance(s), a maximum link count of "
+            f"{max_link_count}, and gpu_max_num_partitions={gpu_max_num_partitions}. Work around this PhysX solver "
+            "issue by setting PhysxCfg(gpu_max_num_partitions=1). See isaac-sim/IsaacLab#8121 and NVBUG 6851505."
+        )
 
     def _resolve_joint_dof_signs(self) -> tuple[int, ...]:
         """Resolve joint directions once from the source USD."""
