@@ -99,7 +99,7 @@ from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
 ##
 # Pre-defined configs
 ##
-from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
+from isaaclab_assets import ANYMAL_C_CFG, CARTPOLE_CFG, FRANKA_PANDA_FLAT_CFG, SHADOW_HAND_PHYSX_CFG  # isort:skip
 
 wp.init()
 
@@ -438,7 +438,7 @@ def generate_articulation_cfg(
             actuators={"body": ImplicitActuatorCfg(joint_names_expr=[".*"], stiffness=stiffness, damping=damping)},
         )
     elif articulation_type == "panda":
-        articulation_cfg = FRANKA_PANDA_CFG
+        articulation_cfg = FRANKA_PANDA_FLAT_CFG
     elif articulation_type == "anymal":
         articulation_cfg = ANYMAL_C_CFG
     elif articulation_type == "shadow_hand":
@@ -527,6 +527,32 @@ def generate_articulation(
     articulation = Articulation(replace(articulation_cfg, prim_path="/World/Env_[^/]*/Robot"))
 
     return articulation, translations
+
+
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("gravity_enabled", [False])
+def test_franka_ovphysx_mimic_constraint_tracks_passive_finger(sim, device, gravity_enabled):
+    """Drive only the Franka leader finger and preserve mimic tracking in every clone."""
+    articulation, _ = generate_articulation(FRANKA_PANDA_FLAT_CFG, 2, device)
+    sim.reset()
+
+    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
+    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
+    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
+    leader_target = torch.full((articulation.num_instances, 1), 0.01, device=device)
+    articulation.actuators.target_command.set_position_index(value=leader_target, joint_ids=[leader_id])
+
+    for _ in range(120):
+        articulation.write_data_to_sim()
+        sim.step()
+        articulation.update(sim.cfg.dt)
+        assert torch.isfinite(articulation.data.joint_pos.torch).all()
+        assert torch.isfinite(articulation.data.joint_vel.torch).all()
+
+    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
+    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
+    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
+    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 
 
 @pytest.mark.parametrize("device", ["cuda:0"])
@@ -1746,7 +1772,7 @@ def test_out_of_range_default_joint_vel(sim, device):
     1. The articulation fails to initialize when joint velocities are out of range
     2. The error is properly handled
     """
-    articulation_cfg = replace(FRANKA_PANDA_CFG, prim_path="/World/Robot")
+    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, prim_path="/World/Robot")
     articulation_cfg.init_state.joint_vel = {
         "panda_joint1": 100.0,
         "panda_joint[2, 4]": -60.0,
@@ -2572,7 +2598,7 @@ def test_com_orientation_write_invalidates_static_inertia_cache_with_body_orderi
     below forbids cross-device staging, so this test is CPU-only.
     """
     sim._app_control_on_stop_handle = None
-    articulation_cfg = replace(FRANKA_PANDA_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
+    articulation_cfg = replace(FRANKA_PANDA_FLAT_CFG, body_ordering=PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES)
     articulation, _ = generate_articulation(articulation_cfg, 1, device=device)
 
     sim.reset()
