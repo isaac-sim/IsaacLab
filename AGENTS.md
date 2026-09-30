@@ -6,7 +6,7 @@ Read the relevant sections of [the contribution guide](docs/source/refs/contribu
 
 - [Coding Style](docs/source/refs/contributing.rst#coding-style) for implementation, refactoring, and review.
 - [Unit Testing](docs/source/refs/contributing.rst#unit-testing) for test changes and validation;
-  use the [test-audit skill](skills/developer/test-audit/SKILL.md) when adding, changing, reviewing, or pruning tests.
+  use the [test-audit skill](skills/_internal/test-audit/SKILL.md) when adding, changing, reviewing, or pruning tests.
 - [Contributing Documentation](docs/source/refs/contributing.rst#contributing-documentation) for documentation changes.
 - [Maintaining package changelogs and versions](docs/source/refs/contributing.rst#maintaining-package-changelogs-and-versions)
   for source package changes.

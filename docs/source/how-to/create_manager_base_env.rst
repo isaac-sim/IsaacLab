@@ -2,8 +2,8 @@
 
 .. seealso::
 
-   This tutorial is the source of truth for the ``isaaclab-randomizing-with-events`` agent skill
-   (:isaaclab-source:`skills/user/domain-randomization-events/ <skills/user/domain-randomization-events/SKILL.md>`).
+   This tutorial is the source of truth for the ``isaaclab-building-environments`` agent skill
+   (`skills/user/isaaclab-building-environments/ <../../../skills/user/isaaclab-building-environments/SKILL.md>`__).
    When you change this page, update the skill so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 

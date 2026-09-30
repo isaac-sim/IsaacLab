@@ -5,9 +5,9 @@ Contribution Guidelines
 
    This page is the source of truth for the ``isaaclab-following-coding-style``,
    ``isaaclab-preparing-pr-workflow``, and ``isaaclab-writing-changelog-fragments`` agent skills
-   (`skills/developer/coding-style/ <../../../skills/developer/coding-style/SKILL.md>`__,
-   `skills/developer/pr-workflow/ <../../../skills/developer/pr-workflow/SKILL.md>`__,
-   `skills/developer/changelog-fragments/ <../../../skills/developer/changelog-fragments/SKILL.md>`__).
+   (`skills/_internal/coding-style/ <../../../skills/_internal/coding-style/SKILL.md>`__,
+   `skills/_internal/pr-workflow/ <../../../skills/_internal/pr-workflow/SKILL.md>`__,
+   `skills/_internal/changelog-fragments/ <../../../skills/_internal/changelog-fragments/SKILL.md>`__).
    When shared guidance changes, update affected skill workflows and examples without copying the rules. See
    :doc:`/source/developer-tools/agent_skills`.
 
@@ -698,7 +698,7 @@ contract one primary test owner at the strongest observable boundary. Start with
 that boundary and extend it when it can clearly cover the changed behavior.
 
 Apply the authoring gate and retention criteria in the
-`test-audit skill <../../../skills/developer/test-audit/SKILL.md>`__ when adding, changing, reviewing,
+`test-audit skill <../../../skills/_internal/test-audit/SKILL.md>`__ when adding, changing, reviewing,
 or pruning tests. It maintains the detailed criteria for deciding whether a test earns its cost.
 
 * Add a test only for a distinct behavior, regression, boundary, or failure mode that existing coverage

@@ -1,0 +1,47 @@
+{
+  "skill_name": "isaaclab-building-environments",
+  "evals": [
+    {
+      "id": "isaaclab-building-environments-001",
+      "prompt": "I want to build a quadruped locomotion task with custom command sampling and custom rewards.",
+      "expected_output": "Recommends manager-based workflow, maps custom commands and rewards to manager terms, and defines a smoke-test plan.",
+      "assertions": [
+        "The agent identified isaaclab-building-environments as the primary skill without being told its name",
+        "Recommends manager-based workflow as the first choice",
+        "Maps custom commands and rewards to reusable manager term configs",
+        "Points to maintained locomotion examples under source/isaaclab_tasks/isaaclab_tasks/core/",
+        "Defines a smoke-test plan before training",
+        "Does not default to direct workflow just because the request mentions custom rewards",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-building-environments",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-building-environments-002",
+      "prompt": "I created a new environment config and need to train it with Gym registration.",
+      "expected_output": "Points to Gym registration and RL training tutorials, verifies reset and step before training.",
+      "assertions": [
+        "The agent identified isaaclab-building-environments as the primary skill without being told its name",
+        "Points to the Gym registration and RL training tutorials",
+        "Verifies the environment imports, resets, and steps before training",
+        "Does not start a large training run before checking reset and step behavior",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-building-environments",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-building-environments-neg-001",
+      "prompt": "Add foot contact observations and air-time rewards to my existing quadruped task.",
+      "expected_output": "Routes to isaaclab-using-sensors-actuators as a targeted change to an existing task.",
+      "assertions": [
+        "The agent did not use isaaclab-building-environments as the primary skill",
+        "If a primary skill is named, prefers isaaclab-using-sensors-actuators (or another accepted neighbor) over this skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}

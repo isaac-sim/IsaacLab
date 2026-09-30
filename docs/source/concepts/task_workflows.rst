@@ -10,8 +10,8 @@ Task Design Workflows
 
    This page is the source of truth for the ``isaaclab-building-environments`` and
    ``isaaclab-planning-manipulation-tasks`` agent skills
-   (`skills/user/create-environments/ <../../../skills/user/create-environments/SKILL.md>`__,
-   `skills/user/plan-manipulation-tasks/ <../../../skills/user/plan-manipulation-tasks/SKILL.md>`__).
+   (`skills/user/isaaclab-building-environments/ <../../../skills/user/isaaclab-building-environments/SKILL.md>`__,
+   `skills/user/isaaclab-planning-manipulation-tasks/ <../../../skills/user/isaaclab-planning-manipulation-tasks/SKILL.md>`__).
    When you change this page, update those skills so agent guidance stays in sync. See
    :doc:`/source/developer-tools/agent_skills`.
 

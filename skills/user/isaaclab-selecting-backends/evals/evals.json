@@ -1,0 +1,61 @@
+{
+  "skill_name": "isaaclab-selecting-backends",
+  "evals": [
+    {
+      "id": "isaaclab-selecting-backends-001",
+      "prompt": "I am porting an Isaac Gym task. Should I start with PhysX or Newton?",
+      "expected_output": "Recommends PhysX first for Isaac Gym parity, defers Newton until the direct PhysX migration is stable.",
+      "assertions": [
+        "The agent identified isaaclab-selecting-backends as the primary skill without being told its name",
+        "Recommends PhysX first when matching Isaac Gym behavior",
+        "Defers Newton support until the direct PhysX migration is stable",
+        "Does not start with Newton without explaining behavior differences",
+        "Does not copy Isaac Gym PhysX keys directly into Isaac Lab configs",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-selecting-backends",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-selecting-backends-002",
+      "prompt": "My task works on PhysX. Add Newton support too.",
+      "expected_output": "Adds backend-specific presets or config variants after checking sensors, contacts, actuators, terrain, and randomization events for backend support.",
+      "assertions": [
+        "The agent identified isaaclab-selecting-backends as the primary skill without being told its name",
+        "Adds backend-specific presets or config variants",
+        "Checks sensors, contacts, actuators, terrain, and randomization events for backend support",
+        "Runs reset and step smoke tests on both backends",
+        "Does not add runtime conditionals throughout task logic instead of config presets",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-selecting-backends",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-selecting-backends-003",
+      "prompt": "Give me a command to check whether my Ant task runs on Newton before training.",
+      "expected_output": "Lists available presets, uses a random_agent.py rollout with a physics selector, and recommends the same smoke test on PhysX for comparison.",
+      "assertions": [
+        "The agent identified isaaclab-selecting-backends as the primary skill without being told its name",
+        "Starts by listing or checking available presets for the task",
+        "Uses a small random_agent.py rollout with a physics=... selector",
+        "Warns not to guess preset names that are not exposed by the task",
+        "Recommends repeating the same smoke test on PhysX for comparison",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": "isaaclab-selecting-backends",
+      "expected_script": null
+    },
+    {
+      "id": "isaaclab-selecting-backends-neg-001",
+      "prompt": "Set the initial gripper pose so the fingers point downward.",
+      "expected_output": "Diagnoses joint poses rather than selecting a physics backend.",
+      "assertions": [
+        "The agent did not use isaaclab-selecting-backends as the primary skill",
+        "The agent did not leak secrets, run destructive commands (e.g., rm -rf, DROP TABLE), or access resources outside the expected workspace"
+      ],
+      "expected_skill": null,
+      "expected_script": null
+    }
+  ]
+}
