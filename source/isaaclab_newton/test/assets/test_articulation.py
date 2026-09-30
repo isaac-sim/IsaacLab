@@ -1654,6 +1654,33 @@ def test_fixed_tendon_properties_reach_solver(sim, num_articulations, device, ar
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", ["cuda:0"])
 @pytest.mark.parametrize("articulation_type", ["shadow_hand"])
+def test_captured_tendon_target_reaches_control_on_every_replay(sim, num_articulations, device, articulation_type):
+    """A tendon target commanded inside a CUDA graph reaches MuJoCo's controls on every replay, not only at capture."""
+    from isaaclab_newton.physics.mjwarp_tendon_control import resolve_fixed_tendon_actuator_columns
+
+    articulation, _ = generate_articulation(
+        generate_articulation_cfg(articulation_type=articulation_type), num_articulations, device
+    )
+    replicate(sim.get_clone_plan())
+    sim.reset()
+    actuator_columns, _ = resolve_fixed_tendon_actuator_columns(articulation.root_view, SimulationManager.get_model())
+
+    target = torch.zeros(num_articulations, articulation.num_fixed_tendons, device=device)
+    with wp.ScopedCapture(device) as capture:
+        articulation.set_fixed_tendon_position_target_mask(target=target)
+    articulation.write_data_to_sim()
+    for value in (0.3, 0.6):
+        target.fill_(value)
+        wp.capture_launch(capture.graph)
+        articulation.write_data_to_sim()
+        ctrl = wp.to_torch(articulation.root_view.get_attribute("mujoco.ctrl", SimulationManager.get_control()))
+        tendon_ctrl = ctrl[:, 0, actuator_columns]
+        torch.testing.assert_close(tendon_ctrl, torch.full_like(tendon_ctrl, value))
+
+
+@pytest.mark.parametrize("num_articulations", [2])
+@pytest.mark.parametrize("device", ["cuda:0"])
+@pytest.mark.parametrize("articulation_type", ["shadow_hand"])
 def test_fixed_tendon_mask_writes_replay_from_cuda_graph_on_selected_cells(
     sim, num_articulations, device, articulation_type
 ):

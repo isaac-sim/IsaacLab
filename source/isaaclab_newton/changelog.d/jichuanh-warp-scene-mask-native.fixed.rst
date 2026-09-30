@@ -9,3 +9,6 @@
 * Fixed the fixed-tendon ``set_*_mask`` methods and
   :meth:`~isaaclab_newton.assets.Articulation.write_fixed_tendon_properties_to_sim_mask` converting masks to indices
   on the host, which prevented capturing them in CUDA graphs. They now write through masked kernels.
+* Fixed fixed-tendon position targets commanded inside a captured CUDA graph reaching MuJoCo's controls only at
+  capture time. :meth:`~isaaclab_newton.assets.Articulation.write_data_to_sim` now writes the buffered targets on
+  every step when the articulation has tendon actuators, instead of behind a host-side flag.
