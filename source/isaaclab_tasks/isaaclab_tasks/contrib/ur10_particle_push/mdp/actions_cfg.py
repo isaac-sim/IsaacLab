@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.envs.mdp.actions import RelativeJointPositionActionCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .actions import ClampedRelativeJointPositionAction

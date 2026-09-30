@@ -16,13 +16,12 @@ import isaaclab.utils.string as string_utils
 from isaaclab.assets.articulation import Articulation
 from isaaclab.controllers.rmp_flow import RmpFlowController
 from isaaclab.managers.action_manager import ActionTerm
+from isaaclab.utils import index_fill_
 
 if TYPE_CHECKING:
-    from isaaclab.envs import ManagerBasedEnv
-
+    from ... import ManagerBasedEnv
     from . import rmpflow_actions_cfg
 
-# import logger
 logger = logging.getLogger(__name__)
 
 
@@ -184,7 +183,7 @@ class RMPFlowAction(ActionTerm):
         self._asset.set_joint_velocity_target_index(target=joint_vel_des, joint_ids=self._joint_ids)
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
-        self._raw_actions[env_ids] = 0.0
+        index_fill_(self._raw_actions, env_ids, 0.0)
         self._rmpflow_controller.initialize(self.num_envs, list(self._asset.joint_names))
 
     """

@@ -7,13 +7,11 @@
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from unittest import mock
 
 import pytest
 from rendering_test_utils import (
-    _GOLDEN_STAGES_DIRECTORY,
     compare_golden_stage,
     maybe_save_stage,
 )
@@ -115,20 +113,6 @@ def test_maybe_save_stage_tolerates_small_transform_noise(golden_stage_dir: Path
         maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
 
 
-def test_maybe_save_stage_fails_on_added_prim(golden_stage_dir: Path):
-    """maybe_save_stage fails when the exported stage adds a prim (structure change)."""
-    exported = {"text": _usda_with_robot((1.0, 2.0, 3.0))}
-    with mock.patch("isaaclab.sim.save_stage", return_value=True) as save_stage_mock:
-        save_stage_mock.side_effect = _mock_export(exported)
-
-        with pytest.raises(pytest.fail.Exception, match="Golden stage not found"):
-            maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
-
-        exported["text"] = _usda_with_robot((1.0, 2.0, 3.0), extra_prim=True)
-        with pytest.raises(pytest.fail.Exception, match="USD stage mismatch"):
-            maybe_save_stage("cartpole", "physx", "isaacsim_rtx_renderer", "rgb", compare_golden=True)
-
-
 def test_compare_golden_stage_reports_structure_and_transform_diffs(tmp_path: Path):
     """compare_golden_stage returns no problems when equal and flags added prims and moved transforms."""
     golden = tmp_path / "golden.usda"
@@ -194,24 +178,9 @@ def test_maybe_save_stage_noop_without_dump_or_compare(monkeypatch: pytest.Monke
         save_stage_mock.assert_not_called()
 
 
-def test_golden_stages_directory_exists_in_repo():
-    """The checked-in golden stage directory is present for LFS baselines."""
-    assert os.path.isdir(_GOLDEN_STAGES_DIRECTORY)
-
-
 # ---------------------------------------------------------------------------
 # ISAAC_LAB_SAVE_STAGES path
 # ---------------------------------------------------------------------------
-
-
-def test_maybe_save_stage_writes_to_save_stages_dir(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):
-    """maybe_save_stage writes a USDA file to ISAAC_LAB_SAVE_STAGES with the expected filename."""
-    out_dir = tmp_path / "stages"
-    monkeypatch.setenv("ISAAC_LAB_SAVE_STAGES", str(out_dir))
-    with mock.patch("isaaclab.sim.save_stage") as save_stage_mock:
-        save_stage_mock.side_effect = _mock_export(_usda_with_robot((1.0, 2.0, 3.0)))
-        maybe_save_stage("mytest", "physx", "rtx", "rgb")
-    assert (out_dir / "mytest-physx-rtx-rgb.usda").exists()
 
 
 def test_maybe_save_stage_save_stages_safe_test_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

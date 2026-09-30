@@ -5,16 +5,20 @@
 
 """Tests for the PhysX-side Newton actuator adapter."""
 
+from pathlib import Path
+
 import numpy as np
 import pytest
-from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, ControllerPD
+import torch
+from newton.actuators import ClampingDCMotor, ClampingMaxEffort, ClampingPositionBased, DrivePD
 
 from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import ActuatorBaseCfg, DCMotor, DCMotorCfg, DelayedPDActuatorCfg, RemotizedPDActuatorCfg
 from isaaclab.actuators.newton import NewtonActuatorAdapter
-from isaaclab.sim.schemas.schemas_actuators import _author_actuator_prims
-from isaaclab.utils.configclass import configclass
+from isaaclab.sim import SimulationCfg
+from isaaclab.sim.schemas.schemas_actuators import author_actuator_prims, resave_checkpoint_with_metadata
+from isaaclab.utils import configclass
 
 _JOINT_NAMES = ["pd_a", "pd_b", "dc_a", "dc_b", "remote_a", "remote_b"]
 
@@ -37,6 +41,19 @@ class MisleadingImplicitActuatorDCMotor(DCMotor):
     """Explicit actuator whose class name contains ``ImplicitActuator``."""
 
 
+def _write_pickle_marker(marker_path: str) -> str:
+    Path(marker_path).write_text("deserialized", encoding="utf-8")
+    return "deserialized"
+
+
+class _PickleMarker:
+    def __init__(self, marker_path: str):
+        self.marker_path = marker_path
+
+    def __reduce__(self):
+        return _write_pickle_marker, (self.marker_path,)
+
+
 def _make_actuator_stage() -> Usd.Stage:
     stage = Usd.Stage.CreateInMemory()
     UsdGeom.Xform.Define(stage, "/World/Robot")
@@ -49,7 +66,7 @@ def _make_actuator_stage() -> Usd.Stage:
     for joint, body in zip(joints, bodies, strict=True):
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
 
-    _author_actuator_prims(
+    author_actuator_prims(
         stage,
         "/World/Robot",
         {
@@ -96,6 +113,25 @@ def _make_actuator_stage() -> Usd.Stage:
     return stage
 
 
+def test_newton_actuator_path_is_enabled_by_default():
+    """Use the Newton actuator path unless the legacy path is explicitly requested."""
+    assert SimulationCfg().use_newton_actuators
+    assert not SimulationCfg(use_newton_actuators=False).use_newton_actuators
+
+
+def test_checkpoint_metadata_rejects_pickle_without_deserializing(monkeypatch, tmp_path):
+    """Reject legacy pickle checkpoints before their payload can execute."""
+    checkpoint_path = tmp_path / "actuator.pt"
+    marker_path = tmp_path / "pickle-executed"
+    torch.save({"model": _PickleMarker(str(marker_path))}, checkpoint_path)
+    monkeypatch.setattr("isaaclab.utils.assets.retrieve_file_path", lambda _: str(checkpoint_path))
+
+    with pytest.raises(ValueError, match="expected a TorchScript archive"):
+        resave_checkpoint_with_metadata(str(checkpoint_path), {})
+
+    assert not marker_path.exists()
+
+
 def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     """Aggregate scalar variants while keeping incompatible shared lookup tables separate."""
     actuators = NewtonActuatorAdapter.from_usd(
@@ -110,7 +146,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert len(actuators) == 4
 
     pd = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingMaxEffort])
-    assert type(pd.controller) is ControllerPD
+    assert type(pd.controller) is DrivePD
     np.testing.assert_array_equal(pd.indices.numpy(), [0, 1, 6, 7])
     np.testing.assert_allclose(pd.controller.kp.numpy(), [11.0, 22.0, 11.0, 22.0])
     np.testing.assert_allclose(pd.controller.kd.numpy(), [1.5, 2.5, 1.5, 2.5])
@@ -119,7 +155,7 @@ def test_from_usd_groups_by_structure_and_preserves_per_dof_values():
     assert pd.delay.buf_depth == 4
 
     dc = next(actuator for actuator in actuators if [type(c) for c in actuator.clamping] == [ClampingDCMotor])
-    assert type(dc.controller) is ControllerPD
+    assert type(dc.controller) is DrivePD
     assert dc.delay is None
     np.testing.assert_array_equal(dc.indices.numpy(), [2, 3, 8, 9])
     np.testing.assert_allclose(dc.controller.kp.numpy(), [33.0, 44.0, 33.0, 44.0])
@@ -160,7 +196,7 @@ def test_schema_authoring_matches_lab_effort_limit_resolution(configured_limit, 
         max_delay=0,
     )
 
-    _author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
+    author_actuator_prims(stage, "/World/Robot", {"fallback": cfg})
 
     for joint_name, expected_limit in zip(("pd_a", "pd_b"), expected_limits, strict=True):
         actuator_prim = stage.GetPrimAtPath(f"/World/Robot/fallback_{joint_name}_actuator")
@@ -185,7 +221,7 @@ def test_schema_authoring_rejects_invalid_effort_limit_patterns(configured_limit
     )
 
     with pytest.raises(ValueError):
-        _author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
+        author_actuator_prims(stage, "/World/Robot", {"invalid_limits": cfg})
 
 
 @pytest.mark.parametrize(
@@ -223,7 +259,7 @@ def test_schema_authoring_rejects_unsupported_explicit_cfg_before_removal(group_
     actuator_path = "/World/Robot/pd_a_pd_a_actuator"
 
     with pytest.raises(ValueError, match=rf"{group_name}.*{type(cfg).__name__}.*use_newton_actuators"):
-        _author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
+        author_actuator_prims(stage, "/World/Robot", {group_name: cfg})
 
     assert stage.GetPrimAtPath(actuator_path).IsValid()
 
@@ -241,6 +277,6 @@ def test_schema_authoring_accepts_supported_public_actuator_alias():
         saturation_effort=4.0,
     )
 
-    _author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
+    author_actuator_prims(stage, "/World/Robot", {"public_alias": cfg})
 
     assert stage.GetPrimAtPath("/World/Robot/public_alias_pd_a_actuator").IsValid()
