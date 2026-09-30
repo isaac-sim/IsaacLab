@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import logging
 import weakref
 from collections.abc import Sequence
 from typing import TYPE_CHECKING
@@ -28,8 +27,6 @@ from isaaclab_newton.physics import NewtonManager as SimulationManager
 
 if TYPE_CHECKING:
     from .articulation import Articulation
-
-logger = logging.getLogger(__name__)
 
 _BAM_ACTUATOR_SETTINGS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
 """BAM settings each Newton actuator was set up with, keyed by the actuator.
@@ -336,13 +333,10 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             return
         solver = SimulationManager._solver
         if not MjWarpActuatorBridge.is_available(solver):
-            # Other Newton solvers use the controller's torque-level friction approximation.
-            # Start-up randomization has already been applied and is unaffected.
-            logger.warning(
-                "BAM actuators run with in-controller stiction clipping: the active solver does not"
-                " expose the MuJoCo Warp model needed to publish a per-step joint friction budget."
+            raise ValueError(
+                "BAM actuators require the Newton MJWarp solver (MJWarpSolverCfg) with"
+                " use_newton_actuators=True; controller-side friction is not supported."
             )
-            return
         cfg = self._first_bam_cfg()
         num_newton_dofs = SimulationManager.backend.model.joint_dof_count
 
@@ -354,7 +348,6 @@ class NewtonActuatorControl(ArticulationActuatorControl):
             bridge = MjWarpActuatorBridge(solver, actuator.indices, num_newton_dofs, self.device)
             external_torque = wp.zeros(actuator.num_actuators, dtype=wp.float32, device=self.device)
             controller.external_torque = external_torque
-            controller.solver_applies_friction = True
             if cfg.stiff_frictionloss:
                 bridge.stiffen_friction_constraint()
 

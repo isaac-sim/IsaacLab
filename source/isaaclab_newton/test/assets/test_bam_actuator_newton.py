@@ -425,7 +425,6 @@ def test_native_pendulum_settles_inside_the_stiction_band(native_sim, device, pe
     robot = _build_native_pendulum(native_sim, pendulum_usd)
     load = _gravity_load(robot, native_sim)
     controller = _native_controller(robot)
-    assert controller.solver_applies_friction, "the MuJoCo solver must own the friction budget"
     # Authoring seeds a positive joint friction on the driven joints. MuJoCo only assembles a
     # friction-loss constraint row where the frictionloss is positive, and it sizes its
     # constraint budget from the model as spawned, so the row has to exist before the first
@@ -595,7 +594,6 @@ def test_two_articulations_with_matching_settings_bind_once(native_sim, device, 
     ]
     assert len(bam_actuators) == 1, "the identical robots must merge into one Newton actuator"
     controller = bam_actuators[0].controller
-    assert controller.solver_applies_friction
     assert controller.external_torque is not None
 
     # One binding, not one per articulation: a second registration would write the same budget
@@ -673,15 +671,9 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
         torch.testing.assert_close(friction_scale, torch.full_like(friction_scale, expected), atol=1e-6, rtol=0.0)
 
 
-@pytest.mark.parametrize("device", test_devices())
-def test_startup_ranges_are_sampled_without_a_mujoco_solver(device, pendulum_usd):
-    """Start-up randomization must not depend on which solver the scene runs.
-
-    The ranges feed the native controller's kernels. On a solver that cannot apply joint
-    dry friction the BAM controller falls
-    back to its own stiction clip -- but the randomization is unaffected, which is only true
-    because the sampling happens while the model is built, before any solver exists.
-    """
+def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
+    """Reject BAM during solver initialization instead of approximating solver friction."""
+    device = "cpu"
     sim_cfg = SimulationCfg(
         dt=DT,
         device=device,
@@ -704,17 +696,8 @@ def test_startup_ranges_are_sampled_without_a_mujoco_solver(device, pendulum_usd
         )
         clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
         replicate(sim_ctx.get_clone_plan())
-        sim_ctx.reset()
-        assert robot.is_initialized
-
-        controller = _native_controller(robot)
-        # No MuJoCo model, so the controller keeps the torque-level clip ...
-        assert not controller.solver_applies_friction
-        assert controller.external_torque is None
-        # ... and the start-up randomization happened anyway.
-        vin = read_group_parameter(robot.actuators, "servo", "controller", "vin")
-        assert bool(((vin >= 6.0) & (vin <= 8.0)).all())
-        assert len(torch.unique(vin)) > 1
+        with pytest.raises(ValueError, match="BAM actuators require.*MJWarp"):
+            sim_ctx.reset()
 
 
 @pytest.mark.parametrize("device", test_devices())

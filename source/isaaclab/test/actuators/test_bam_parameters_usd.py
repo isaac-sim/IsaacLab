@@ -39,7 +39,6 @@ def test_vendored_params_match_reference(goldens: dict[str, np.ndarray]) -> None
     for name in (
         "kt",
         "R",
-        "armature",
         "error_gain",
         "max_pwm",
         "max_current",
@@ -95,7 +94,7 @@ def test_json_import_bakes_coefficients_into_usd(tmp_path):
     assert not prim.HasAttribute("newton:paramsFile")
     resolved = ControllerBam.resolve_arguments(dict(parse_actuator_prim(prim).controller_kwargs))
     for name, value in values.items():
-        if name not in ("actuator", "model", "q_offset"):
+        if name not in ("actuator", "model", "q_offset", "armature"):
             assert resolved[{"R": "resistance", "kp": "kp_fw"}.get(name, name)] == pytest.approx(value)
     assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
 

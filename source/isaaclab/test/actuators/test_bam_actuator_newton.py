@@ -118,7 +118,6 @@ class _Harness:
         assert len(self.adapter.actuators) == 1, "the fixture's joints must merge into one actuator"
         self.actuator = self.adapter.actuators[0]
         self.controller: ControllerBam = self.actuator.controller
-        self.controller.solver_applies_friction = True
         self.controller.external_torque = wp.zeros(len(self.controller.motor_torque), dtype=wp.float32, device=device)
         self.num_envs = num_envs
         self.device = device
@@ -199,7 +198,6 @@ def test_authored_prim_resolves_to_the_bam_controller():
         assert resolved["vin"] == pytest.approx(VIN)
         assert resolved["vin_min"] == pytest.approx(6.0)
         assert resolved["kt"] == pytest.approx(params.kt)
-        assert resolved["armature"] == pytest.approx(params.armature)
         assert resolved["load_friction_external_quad"] == pytest.approx(params.load_friction_external_quad)
         assert (resolved["min_delay"], resolved["max_delay"]) == (1, 3)
         assert resolved["delay_hold_prob"] == pytest.approx(0.25)
@@ -313,6 +311,15 @@ def test_authoring_preserves_a_task_authored_joint_friction():
 """
 Kernel behaviour.
 """
+
+
+def test_controller_rejects_stepping_without_solver_load_binding():
+    """An unbound controller must fail before launching kernels with missing solver inputs."""
+    harness = _Harness(_make_cfg(), num_envs=1, device="cpu")
+    harness.controller.external_torque = None
+    zeros = np.zeros((1, len(JOINT_NAMES)), dtype=np.float32)
+    with pytest.raises(RuntimeError, match="MJWarp.*bound"):
+        harness.step(zeros, zeros, zeros)
 
 
 @pytest.mark.parametrize("device", test_devices())

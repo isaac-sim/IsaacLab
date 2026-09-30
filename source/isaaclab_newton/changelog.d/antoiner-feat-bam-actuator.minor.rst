@@ -7,7 +7,8 @@ Added
   ``dof_damping``, reads back the true external load on the driven DOFs
   (``-qfrc_bias + qfrc_constraint`` with the component's own friction rows removed), and can
   stiffen the friction constraint's solver reference. The Newton articulation binds it to every
-  :class:`~isaaclab.actuators.BamActuatorCfg` group on the Newton-native actuator path. Writes
+  :class:`~isaaclab.actuators.BamActuatorCfg` group on the Newton-native actuator path and rejected
+  other solvers before graph capture. Writes
   go straight into the MuJoCo Warp model and are therefore not visible through Isaac Lab's
   joint-friction property; the module documents the resulting ordering contract.
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback`, an

@@ -266,11 +266,11 @@ tuned. Use it when the actuator's own dynamics matter for transfer -- a servo th
 target under load, whose gearbox sticks, and whose supply voltage sags -- and a PD model with an
 effort limit would hide exactly the behavior you want to train against.
 
-The model requires Newton and
+The model requires Newton with ``MJWarpSolverCfg`` and
 :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` set to ``True``. Its controller,
 :class:`~isaaclab.actuators.newton.ControllerBam`, evaluates the voltage and friction equations
-as Warp kernels on every physics step. MuJoCo Warp applies the friction constraint in the solver;
-other native Newton solvers use the controller's torque-level friction fallback.
+as Warp kernels on every physics step. MuJoCo Warp applies the friction constraint in the solver.
+Other physics backends and Newton solvers raise an error; there is no controller-side friction fallback.
 
 One step of the model has six stages:
 
@@ -337,8 +337,6 @@ when set. Delay configuration and start-up randomization retain their documented
      - Meaning and units
    * - ``kt``, ``resistance``
      - Motor torque/back-EMF constant [N.m/A or V.s/rad] and winding resistance [Ohm]. Required.
-   * - ``armature``
-     - Reflected rotor inertia [kg.m^2] for the fallback load estimator. Required.
    * - ``error_gain``, ``max_pwm``
      - Position-error-to-duty-cycle factor [1/rad] and maximum duty-cycle magnitude [-]. Required.
    * - ``kp_fw``, ``vin``
@@ -359,9 +357,9 @@ when set. Delay configuration and start-up randomization retain their documented
    * - ``load_friction_motor_quad``, ``load_friction_external_quad``
      - Quadratic load-coupling coefficients [1/(N.m)]. Required with quadratic friction.
 
-The actuator's ``newton:armature`` coefficient does not configure the solver's rotor inertia.
-Author solver inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
-The two values serve different consumers and should reflect the same identified rotor inertia.
+Author rotor inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
+The BAM controller has no separate ``armature`` coefficient. The JSON importer ignores the fit's
+``armature`` field; it does not configure solver inertia.
 
 JSON import is an optional **asset authoring** step. The importer accepts the supported BAM
 ``m1``, ``m2``, ``m5`` and ``m6`` fits, extended with the firmware constants that upstream keeps
@@ -384,9 +382,9 @@ previously named by ``BamActuatorCfg.params_file`` into the asset, then remove t
 Newton execution
 ^^^^^^^^^^^^^^^^
 
-:class:`~isaaclab.actuators.BamActuatorCfg` requires Newton and
-``use_newton_actuators=True``. Other backends and the Isaac Lab actuator loop reject these
-configurations, including the PhysX and OVPhysX native actuator host adapters.
+:class:`~isaaclab.actuators.BamActuatorCfg` requires Newton with ``MJWarpSolverCfg`` and
+``use_newton_actuators=True``. PhysX, OVPhysX, the Isaac Lab actuator loop and other Newton
+solvers reject this configuration. The solver check runs before CUDA graph capture.
 
 With MJWarp, the controller publishes the velocity-independent friction budget into MuJoCo's
 ``dof_frictionloss`` and its viscous coefficient into ``dof_damping``. The solver resolves static
@@ -403,11 +401,9 @@ it excludes the friction the solver applies. ``data.joint_friction`` reports the
 not the live budget. Read the live budget with
 ``read_group_parameter(robot.actuators, "servos", "controller", "friction_budget")``.
 
-Other native Newton solvers, including Featherstone, use the same Warp controller with a
-torque-level friction clip and an external-load estimate from rotor momentum balance. Their
-``applied_effort`` includes the friction applied by the controller. This fallback preserves native
-Newton support, but its estimated load and friction treatment differ from the solver-hosted model.
-Use MJWarp for the solver-hosted friction behavior of the upstream GPU implementation.
+To migrate an earlier version of this draft, select ``MJWarpSolverCfg`` and remove any
+``armature`` entry from ``parameter_overrides`` or ``newton:armature`` from BAM actuator prims.
+Keep the joint's solver armature: only the controller's duplicate parameter was removed.
 
 The controller owns its command-delay buffer and draws a lag per driven joint. The initial lag
 is at least ``min_delay``, including when a hold or staggered update postpones the first draw. It honors

@@ -3,13 +3,15 @@ Added
 
 * Added :class:`~isaaclab.actuators.BamActuatorCfg` and
   :class:`~isaaclab.actuators.newton.ControllerBam`, a voltage-domain servo model implemented as
-  Newton Warp kernels. The controller required Newton with
+  Newton Warp kernels. The controller required Newton's MJWarp solver with
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` enabled. It modeled firmware control,
   current limiting, motor back-EMF, supply sag, stochastic command delay and load-dependent gearbox
   friction. On MJWarp it published dry-friction and viscous-damping values to the solver and read
-  external loads from the solver's generalized forces. Other native Newton solvers retained the
-  controller's torque-level friction clip and momentum-based load estimate. PhysX, OVPhysX and
-  the Isaac Lab actuator loop rejected this configuration.
+  external loads from the solver's generalized forces. Other Newton solvers, PhysX, OVPhysX and
+  the Isaac Lab actuator loop rejected this configuration. **Breaking for earlier draft users:**
+  select ``MJWarpSolverCfg`` instead of relying on the removed controller-side friction fallback.
+  Migration requires removing controller ``armature`` overrides and authoring rotor inertia on
+  the joint or through :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 * Stored BAM motor and friction coefficients directly in USD actuator prims, with explicit
   configuration overrides. Added an optional ``scripts/tools/import_bam_parameters.py`` utility
   to bake a JSON fit into an asset. Simulation did not require a parameter sidecar. Recorded
