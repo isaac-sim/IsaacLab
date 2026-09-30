@@ -3,323 +3,162 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Lifecycle tests for Newton surface velocity."""
+"""Native CPU contracts for the Newton conveyor adapter."""
 
-from __future__ import annotations
-
-from types import SimpleNamespace
-
-import isaaclab_newton.physics.surface_velocity as surface_module
 import numpy as np
 import pytest
 import warp as wp
+from isaaclab_newton.physics import MJWarpSolverCfg, NewtonBuilderCfg, NewtonCfg, NewtonManager, SurfaceVelocity
 
-from isaaclab.physics import PhysicsEvent, SurfaceVelocitySpec
-
-_BODY_PATTERN = r"(?:^|/)Cube_?[0-3](?:/|$)"
-
-
-def _surface_spec(name: str = "Belt") -> SurfaceVelocitySpec:
-    """Build one valid replicated test belt."""
-    return SurfaceVelocitySpec(prim_path=f"{{ENV_REGEX_NS}}/{name}", velocity=0.35, friction_coefficient=0.5)
+from isaaclab.physics import SurfaceVelocitySpec
+from isaaclab.sim import SimulationCfg, build_simulation_context
 
 
-class _FakeCallbackHandle:
-    def __init__(self) -> None:
-        self.deregister_count = 0
-
-    def deregister(self) -> None:
-        self.deregister_count += 1
-
-
-class _FakeBinding:
-    instances = []
-
-    def __init__(self, model, contacts, **kwargs) -> None:
-        self.model = model
-        self.contacts = contacts
-        self.kwargs = kwargs
-        self.closed = False
-        self._command_velocity_host = np.array([0.35, 0.35], dtype=np.float32)
-        self._enabled_host = np.ones(2, dtype=np.int32)
-        type(self).instances.append(self)
-
-    def set_velocities(self, values) -> None:
-        self._command_velocity_host = np.asarray(values, dtype=np.float32).copy()
-
-    def set_enabled(self, values) -> None:
-        self._enabled_host = np.asarray(values, dtype=np.int32).copy()
-
-    def close(self) -> None:
-        self.closed = True
-
-
-def test_driver_requests_force_and_rebinds_on_solver_reinitialization(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The driver binds pre-capture and replaces model-owned buffers after a hard reset."""
-    event_callbacks = []
-    solver_callbacks = []
-    unregistered_solver_callbacks = []
-    requested_attributes = []
-    callback_handle = _FakeCallbackHandle()
-    _FakeBinding.instances = []
-
-    def register_callback(cls, callback, event, order=0, name=None, wrap_weak_ref=True):
-        event_callbacks.append((callback, event, name))
-        return callback_handle
-
-    monkeypatch.setattr(surface_module.NewtonManager, "register_callback", classmethod(register_callback))
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_solver_init_callback",
-        classmethod(lambda cls, callback: solver_callbacks.append(callback)),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "unregister_solver_init_callback",
-        classmethod(lambda cls, callback: unregistered_solver_callbacks.append(callback)),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "request_extended_contact_attribute",
-        classmethod(lambda cls, attribute: requested_attributes.append(attribute)),
-    )
-    monkeypatch.setattr(surface_module, "_SurfaceVelocityBinding", _FakeBinding)
-
-    driver = surface_module.SurfaceVelocity(num_envs=2, surface_specs=(_surface_spec(),), body_pattern=_BODY_PATTERN)
-
-    assert driver.specs == (_surface_spec(),)
-    assert driver.surfaces_per_env == 1
-    assert driver.num_surfaces == 2
-    assert driver.count == 2
-    assert not driver.initialized
-    with pytest.raises(RuntimeError, match="not bound"):
-        driver.set_velocities(0.2)
-
-    assert [(event, name) for _, event, name in event_callbacks] == [
-        (PhysicsEvent.MODEL_INIT, "surface_velocity_contact_attribute")
-    ]
-    event_callbacks[0][0](None)
-    assert requested_attributes == ["force"]
-
-    first_model, first_contacts = object(), object()
-    solver_callbacks[0](first_model, first_contacts)
-    first_binding = _FakeBinding.instances[-1]
-    assert driver.initialized
-    first_binding.set_velocities([0.2, -0.1])
-    first_binding.set_enabled([1, 0])
-
-    second_model, second_contacts = object(), object()
-    solver_callbacks[0](second_model, second_contacts)
-    second_binding = _FakeBinding.instances[-1]
-
-    assert first_binding.closed
-    assert second_binding.model is second_model
-    assert second_binding.contacts is second_contacts
-    np.testing.assert_allclose(second_binding._command_velocity_host, [0.2, -0.1])
-    np.testing.assert_array_equal(second_binding._enabled_host, [1, 0])
-
-    driver.close()
-    driver.close()
-    assert second_binding.closed
-    assert unregistered_solver_callbacks == [solver_callbacks[0]]
-    assert callback_handle.deregister_count == 1
-
-
-def test_driver_rejects_invalid_specs_before_registering_callbacks(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Invalid descriptions cannot leave lifecycle callbacks behind."""
-    registered = []
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_callback",
-        classmethod(lambda cls, *args, **kwargs: registered.append(args)),
-    )
-
-    with pytest.raises(ValueError, match="At least one"):
-        surface_module.SurfaceVelocity(num_envs=1, surface_specs=(), body_pattern=_BODY_PATTERN)
-    with pytest.raises(TypeError, match="SurfaceVelocitySpec"):
-        surface_module.SurfaceVelocity(num_envs=1, surface_specs=(object(),), body_pattern=_BODY_PATTERN)
-    with pytest.raises(ValueError, match="unique"):
-        surface_module.SurfaceVelocity(
-            num_envs=1, surface_specs=(_surface_spec(), _surface_spec()), body_pattern=_BODY_PATTERN
-        )
-    with pytest.raises(ValueError, match="ancestors"):
-        surface_module.SurfaceVelocity(
-            num_envs=1,
-            surface_specs=(
-                SurfaceVelocitySpec(prim_path="{ENV_REGEX_NS}/Belt"),
-                SurfaceVelocitySpec(prim_path="{ENV_REGEX_NS}/Belt/Child"),
-            ),
-            body_pattern=_BODY_PATTERN,
-        )
-    with pytest.raises(ValueError, match="explicit positive radius"):
-        surface_module.SurfaceVelocity(
-            num_envs=1,
-            surface_specs=(SurfaceVelocitySpec(prim_path="{ENV_REGEX_NS}/Curve", curved=True),),
-            body_pattern=_BODY_PATTERN,
-        )
-    with pytest.raises(ValueError, match="Replicated conveyor environments"):
-        surface_module.SurfaceVelocity(
-            num_envs=2,
-            surface_specs=(SurfaceVelocitySpec(prim_path="/World/Shared/Belt"),),
-            body_pattern=_BODY_PATTERN,
-        )
-    with pytest.raises(ValueError, match="env_path_format"):
-        surface_module.SurfaceVelocity(
-            num_envs=1,
-            surface_specs=(_surface_spec(),),
-            body_pattern=_BODY_PATTERN,
-            env_path_format="/World/envs/env_.*",
-        )
-
-    assert registered == []
-
-
-def test_belt_paths_are_exact_and_environment_scoped() -> None:
-    """A descriptor cannot bind a same-named shape outside the replicated environment root."""
-    resolve = surface_module._resolve_belt_prim_path
-
-    assert resolve("{ENV_REGEX_NS}/Belt", "/World/envs/env_{}", 0) == "/World/envs/env_0/Belt"
-    assert resolve("{ENV_REGEX_NS}/Nested/Belt", "/World/envs/env_{}", 123) == ("/World/envs/env_123/Nested/Belt")
-    assert resolve("/World/Shared/Belt", "/World/envs/env_{}", 7) == "/World/Shared/Belt"
-    belongs = surface_module._shape_belongs_to_prim
-    assert belongs("/World/envs/env_0/Belt/geometry/mesh", "/World/envs/env_0/Belt")
-    assert not belongs("/World/props/Belt/geometry/mesh", "/World/envs/env_0/Belt")
-    assert not belongs("/World/envs/env_0/Nested/Belt", "/World/envs/env_0/Belt")
-
-
-def test_driver_cleans_up_model_callback_when_solver_registration_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A lifecycle registration failure cannot leave a partially active driver."""
-    callback_handle = _FakeCallbackHandle()
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_callback",
-        classmethod(lambda cls, *args, **kwargs: callback_handle),
-    )
-
-    def fail_registration(cls, callback):
-        raise RuntimeError("solver callback unavailable")
-
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_solver_init_callback",
-        classmethod(fail_registration),
-    )
-
-    with pytest.raises(RuntimeError, match="solver callback unavailable"):
-        surface_module.SurfaceVelocity(num_envs=1, surface_specs=(_surface_spec(),), body_pattern=_BODY_PATTERN)
-
-    assert callback_handle.deregister_count == 1
-
-
-def test_binding_uses_deterministic_environment_major_belt_indices(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Newton discovery order cannot reorder commands or encoder rows after a rebuild."""
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_state_force_callback",
-        classmethod(lambda cls, callback: None),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "register_post_solver_substep_callback",
-        classmethod(lambda cls, callback: None),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "unregister_state_force_callback",
-        classmethod(lambda cls, callback: None),
-    )
-    monkeypatch.setattr(
-        surface_module.NewtonManager,
-        "unregister_post_solver_substep_callback",
-        classmethod(lambda cls, callback: None),
-    )
-
-    shape_labels = (
-        "/World/envs/env_1/BeltB",
-        "/World/envs/env_0/BeltA",
-        "/World/envs/env_1/BeltA",
-        "/World/envs/env_0/BeltB",
-    )
-    shape_count = len(shape_labels)
-    identity = wp.transform(wp.vec3(), wp.quat_identity())
-    model = SimpleNamespace(
-        world_count=2,
+def test_native_conveyor_controls_rebind_and_reset_independently(monkeypatch):
+    """Real contacts, models and callbacks preserve commands and discard only selected-world traction."""
+    cfg = SimulationCfg(
         device="cpu",
-        shape_count=shape_count,
-        shape_label=shape_labels,
-        shape_body=wp.full(shape_count, -1, dtype=wp.int32, device="cpu"),
-        shape_world=wp.array([1, 0, 1, 0], dtype=wp.int32, device="cpu"),
-        shape_transform=wp.array([identity] * shape_count, dtype=wp.transform, device="cpu"),
-        body_count=2,
-        body_label=("/World/envs/env_0/Cube0", "/World/envs/env_1/Cube0"),
-        body_world=wp.array([0, 1], dtype=wp.int32, device="cpu"),
-        body_com=wp.zeros(2, dtype=wp.vec3, device="cpu"),
-        body_inv_mass=wp.ones(2, dtype=wp.float32, device="cpu"),
-        body_inv_inertia=wp.array([wp.mat33(1.0)] * 2, dtype=wp.mat33, device="cpu"),
+        dt=1 / 120,
+        physics=NewtonCfg(solver_cfg=MJWarpSolverCfg(use_mujoco_contacts=False), use_cuda_graph=False),
     )
-    contact_capacity = 4
-    contacts = SimpleNamespace(
-        rigid_contact_max=contact_capacity,
-        force=wp.zeros(contact_capacity, dtype=wp.spatial_vector, device="cpu"),
-        rigid_contact_shape0=wp.full(contact_capacity, -1, dtype=wp.int32, device="cpu"),
-        rigid_contact_shape1=wp.full(contact_capacity, -1, dtype=wp.int32, device="cpu"),
-        rigid_contact_normal=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
-        rigid_contact_point0=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
-        rigid_contact_point1=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
-        rigid_contact_offset0=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
-        rigid_contact_offset1=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
-        rigid_contact_count=wp.zeros(1, dtype=wp.int32, device="cpu"),
-    )
-    specs = (
-        SurfaceVelocitySpec(
-            prim_path="{ENV_REGEX_NS}/BeltA",
-            velocity=0.1,
-            friction_coefficient=0.4,
-            contact_threshold=0.98,
-        ),
-        SurfaceVelocitySpec(
-            prim_path="{ENV_REGEX_NS}/BeltB",
-            velocity=-0.2,
-            enabled=False,
-            friction_coefficient=0.6,
-            contact_threshold=0.99,
-        ),
-    )
+    with build_simulation_context(sim_cfg=cfg) as sim:
+        builder = sim.get_or_create_backend(NewtonBuilderCfg(physics_cfg=cfg.physics))
+        for world in range(2):
+            builder.begin_world()
+            root = f"/World/envs/env_{world}"
+            for name, y in (("B", 0.5), ("A", -0.5), ("Nested/BeltA", 2.0)):
+                label = f"{root}/{name}" if "/" in name else f"{root}/Belt{name}"
+                builder.add_shape_box(
+                    -1, xform=wp.transform((0, y, 0), wp.quat_identity()), hx=1, hy=0.2, hz=0.1, label=label
+                )
+            cube = builder.add_link(xform=wp.transform((0, -0.5, 0.21), wp.quat_identity()), label=f"{root}/Cube0")
+            builder.add_shape_box(cube, hx=0.1, hy=0.1, hz=0.1)
+            builder.add_articulation([builder.add_joint_free(cube)])
+            builder.end_world()
+        builder.add_shape_box(-1, hx=0.1, hy=0.1, hz=0.1, label="/World/props/BeltA")
+        callbacks_before = set(NewtonManager._callbacks)
+        specs = (
+            SurfaceVelocitySpec("{ENV_REGEX_NS}/BeltA", velocity=0.1),
+            SurfaceVelocitySpec("{ENV_REGEX_NS}/BeltB", velocity=-0.2, enabled=False),
+        )
+        calls, bindings = [], []
 
-    binding = surface_module._SurfaceVelocityBinding(
-        model=model,
-        contacts=contacts,
-        num_envs=2,
-        surface_specs=specs,
-        body_pattern=_BODY_PATTERN,
-        body_count_per_env=1,
-    )
-    try:
-        assert binding.surface_paths == (
-            "/World/envs/env_0/BeltA",
-            "/World/envs/env_0/BeltB",
-            "/World/envs/env_1/BeltA",
-            "/World/envs/env_1/BeltB",
+        def actuator():
+            calls.append("actuator")
+
+        def force(state):
+            calls.append("force")
+
+        def substep(solver, contacts, state, dt):
+            calls.append("substep")
+
+        def initialized(model, contacts):
+            bindings.append((model, contacts))
+
+        observers = (
+            (actuator, NewtonManager.register_post_actuator_callback, NewtonManager.unregister_post_actuator_callback),
+            (force, NewtonManager.register_state_force_callback, NewtonManager.unregister_state_force_callback),
+            (
+                substep,
+                NewtonManager.register_post_solver_substep_callback,
+                NewtonManager.unregister_post_solver_substep_callback,
+            ),
+            (initialized, NewtonManager.register_solver_init_callback, NewtonManager.unregister_solver_init_callback),
         )
-        np.testing.assert_array_equal(binding._conveyor.shape_conveyor.numpy(), [3, 0, 2, 1])
-        np.testing.assert_array_equal(binding._conveyor_world.numpy(), [0, 0, 1, 1])
-        np.testing.assert_allclose(binding._command_velocity_host, [0.1, -0.2, 0.1, -0.2])
-        np.testing.assert_array_equal(binding._enabled_host, [1, 0, 1, 0])
-        np.testing.assert_allclose(binding._conveyor.conv_friction.numpy(), [0.4, 0.6, 0.4, 0.6])
-        np.testing.assert_allclose(binding._conveyor.conv_threshold.numpy(), [0.98, 0.99, 0.98, 0.99])
-        np.testing.assert_array_equal(binding.get_enabled(indices=[3, 0]).numpy(), [0, 1])
-        binding.set_velocities([0.3, -0.4], indices=[0, 3])
-        binding.set_enabled(True, indices=[3])
-        np.testing.assert_allclose(binding.get_velocities().numpy(), [0.3, 0.0, 0.1, -0.4])
-        np.testing.assert_allclose(
-            binding._conveyor.conv_const_vel.numpy(),
-            [(0.3, 0.0, 0.0), (0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (-0.4, 0.0, 0.0)],
-        )
-        # A partial reset must discard one world's cached traction without clearing the other.
-        binding._conveyor.conveyor_body_f.assign(np.ones((2, 6), dtype=np.float32))
-        binding.reset(np.array([0]))
-        state = SimpleNamespace(body_f=wp.zeros(2, dtype=wp.spatial_vector, device="cpu"))
-        binding.apply(state)
-        np.testing.assert_array_equal(state.body_f.numpy(), [[0.0] * 6, [1.0] * 6])
-    finally:
-        binding.close()
+        for callback, register, _ in observers:
+            register(callback)
+        NewtonManager.register_solver_init_callback(initialized)
+        driver = SurfaceVelocity(2, specs, body_pattern="Cube0$", body_count_per_env=1)
+        try:
+            with pytest.raises(RuntimeError, match="not bound"):
+                driver.set_velocities(0.2)
+            sim.reset()
+            assert bindings == [(NewtonManager.get_model(), NewtonManager.get_contacts())]
+            first = driver._binding
+            assert NewtonManager.get_contacts().force is not None
+            assert driver.prim_paths == tuple(
+                f"/World/envs/env_{world}/Belt{name}" for world in range(2) for name in ("A", "B")
+            )
+            model = NewtonManager.get_model()
+            mapping = first._conveyor.shape_conveyor.numpy()
+            assert [
+                mapping[i] for i, label in enumerate(model.shape_label) if "Nested" in label or "/props/" in label
+            ] == [-1] * 3
+            driver.set_velocities([0.3, -0.25, -0.4], indices=[0, 1, 3])
+            driver.set_enabled([False, True], indices=[2, 3])
+            np.testing.assert_allclose(driver.get_velocities().numpy(), [0.3, 0, 0, -0.4])
+            sim.step(render=False)
+            assert calls == ["actuator"] + ["force", "substep"] * cfg.physics.num_substeps
+            np.testing.assert_allclose(driver.get_encoder_positions().numpy(), np.array([0.3, 0, 0, -0.4]) / 120)
+            first._conveyor.conveyor_body_f.assign(np.ones((2, 6), dtype=np.float32))
+            driver.reset([0])
+            state = model.state()
+            first.apply(state)
+            np.testing.assert_array_equal(state.body_f.numpy(), [[0] * 6, [1] * 6])
+            np.testing.assert_allclose(driver.get_encoder_positions().numpy(), [0, 0, 0, -0.4 / 120])
+            sim.reset()
+            assert first._closed and driver._binding is not first
+            assert driver._binding._model is NewtonManager.get_model()
+            assert driver._binding._contacts is NewtonManager.get_contacts()
+            np.testing.assert_allclose(driver.get_velocities().numpy(), [0.3, 0, 0, -0.4])
+            assert len(bindings) == 2 and bindings[1] == (NewtonManager.get_model(), NewtonManager.get_contacts())
+            assert bindings[0][0] is not bindings[1][0] and bindings[0][1] is not bindings[1][1]
+            for callback, _, unregister in observers:
+                unregister(callback)
+                unregister(callback)
+            previous_calls = list(calls)
+            sim.step(render=False)
+            sim.reset()
+            assert calls == previous_calls and len(bindings) == 2
+            np.testing.assert_array_equal(driver.get_enabled().numpy(), [1, 0, 0, 1])
+            np.testing.assert_allclose(driver.get_commanded_velocities().numpy(), [0.3, -0.25, 0.1, -0.4])
+            callbacks_live = set(NewtonManager._callbacks)
+            with monkeypatch.context() as patch:
+
+                def fail_registration(cls, callback):
+                    raise RuntimeError("solver callback unavailable")
+
+                patch.setattr(NewtonManager, "register_solver_init_callback", classmethod(fail_registration))
+                with pytest.raises(RuntimeError, match="solver callback unavailable"):
+                    SurfaceVelocity(2, specs, body_pattern="Cube0$")
+            assert set(NewtonManager._callbacks) == callbacks_live
+        finally:
+            driver.close()
+            driver.close()
+        assert set(NewtonManager._callbacks) == callbacks_before
+        assert not NewtonManager._solver_init_callbacks
+        assert not NewtonManager._state_force_callbacks
+        assert not NewtonManager._post_solver_substep_callbacks
+
+
+@pytest.mark.parametrize(
+    ("specs", "num_envs", "env_path", "error", "message"),
+    [
+        ((), 1, "/World/envs/env_{}", ValueError, "At least one"),
+        ((object(),), 1, "/World/envs/env_{}", TypeError, "SurfaceVelocitySpec"),
+        ((SurfaceVelocitySpec("/Belt"),) * 2, 1, "/World/envs/env_{}", ValueError, "unique"),
+        (
+            (SurfaceVelocitySpec("/Belt"), SurfaceVelocitySpec("/Belt/Child")),
+            1,
+            "/World/envs/env_{}",
+            ValueError,
+            "ancestors",
+        ),
+        ((SurfaceVelocitySpec("/Curve", curved=True),), 1, "/World/envs/env_{}", ValueError, "positive radius"),
+        ((SurfaceVelocitySpec("/Shared/Belt"),), 2, "/World/envs/env_{}", ValueError, "Replicated"),
+        ((SurfaceVelocitySpec("{ENV_REGEX_NS}/Belt"),), 1, "/World/envs/env_.*", ValueError, "env_path_format"),
+    ],
+)
+def test_invalid_conveyors_leave_no_callbacks(specs, num_envs, env_path, error, message):
+    """Rejected authoring must not leave a partially registered adapter."""
+    before = set(NewtonManager._callbacks)
+    with pytest.raises(error, match=message):
+        SurfaceVelocity(num_envs, specs, env_path_format=env_path, body_pattern="Cube0$")
+    assert set(NewtonManager._callbacks) == before
+
+
+def test_unreplicated_absolute_surface_path_is_preserved():
+    """A single-environment surface can target a global authored path."""
+    from isaaclab_newton.physics.surface_velocity import _resolve_belt_prim_path
+
+    assert _resolve_belt_prim_path("/World/Shared/Belt", "/World/envs/env_{}", 0) == "/World/Shared/Belt"

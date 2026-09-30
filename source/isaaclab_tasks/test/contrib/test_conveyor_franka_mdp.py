@@ -3,33 +3,28 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Unit tests for conveyor-transfer state, curriculum, and success geometry."""
+"""Conveyor policy and sorting contracts exercised through real CPU managers and assets."""
 
-from types import SimpleNamespace
+from contextlib import closing
 
+import gymnasium as gym
 import pytest
 import torch
 
-from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import (
-    ConveyorFrankaPPORunnerCfg,
-    ConveyorGaussianBernoulliDistribution,
-)
-from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_env_cfg import ConveyorFrankaEnvCfg
+import isaaclab_tasks  # noqa: F401
+from isaaclab_tasks.contrib.conveyor_franka import mdp
+from isaaclab_tasks.contrib.conveyor_franka.agents.rsl_rl_ppo_cfg import ConveyorGaussianBernoulliDistribution
 from isaaclab_tasks.contrib.conveyor_franka.conveyor_geometry import (
     BELT_CENTER_X,
     BELT_INNER_STRAIGHT_Y,
     BELT_OUTER_STRAIGHT_Y,
 )
-from isaaclab_tasks.contrib.conveyor_franka.mdp.actions import (
-    ConveyorRelativeJointPositionAction,
-    ResetBufferedGripperAction,
-)
-from isaaclab_tasks.contrib.conveyor_franka.mdp.commands import ConveyorTransferCommand, transfer_success_mask
+from isaaclab_tasks.contrib.conveyor_franka.mdp.commands import select_next_transfer_cube
 from isaaclab_tasks.contrib.conveyor_franka.mdp.curriculums import (
     deployment_probability_from_progress,
     reset_sampling_probabilities,
 )
-from isaaclab_tasks.contrib.conveyor_franka.mdp.observations import classify_cube_conveyors
+from isaaclab_tasks.contrib.conveyor_franka.mdp.kinematics import end_effector_pose
 from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     CUBE_COUNT,
     ConveyorResetRecipe,
@@ -38,342 +33,392 @@ from isaaclab_tasks.contrib.conveyor_franka.mdp.reset_events import (
     build_reset_rows,
     franka_tool_position,
     reset_variant_counts,
-    select_next_transfer_cube,
 )
-from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import finite_action_rate_l2, transfer_potential
-from isaaclab_tasks.contrib.conveyor_franka.mdp.terminations import (
-    invalid_action,
-    subgoal_time_out,
-    transfer_sequence_time_out,
-)
+from isaaclab_tasks.contrib.conveyor_franka.mdp.rewards import transfer_potential
+from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+
+_BASE = "IsaacContrib-Conveyor-Franka-Newton-v0"
+_SORTER = "IsaacContrib-Conveyor-Franka-Newton-Play-v0"
 
 
-def _make_arm_action_term() -> ConveyorRelativeJointPositionAction:
-    """Build the tensor-only portion of the arm action term without a simulator."""
-    workspace_lower = torch.tensor((-0.75, -0.45, -0.55, -2.75, -0.45, 1.85, -0.10))
-    workspace_upper = torch.tensor((0.85, 0.85, 0.35, -1.75, 0.45, 3.05, 1.65))
-    positions = ((workspace_lower + workspace_upper) * 0.5).repeat(2, 1)
-    limits = torch.tensor((-4.0, 4.0)).repeat(2, 7, 1)
-    action = object.__new__(ConveyorRelativeJointPositionAction)
-    action.cfg = SimpleNamespace(max_delta=0.12, joint_limit_margin=0.02, clip=None)
-    action._asset = SimpleNamespace(
-        data=SimpleNamespace(
-            joint_pos=SimpleNamespace(torch=positions),
-            soft_joint_pos_limits=SimpleNamespace(torch=limits),
+def _environment(task):
+    cfg = parse_env_cfg(task, device="cpu", num_envs=2)
+    cfg.sim.physics.use_cuda_graph = False
+    cfg.sim.visualizer_cfgs = []
+    cfg.sim.use_fabric = False
+    cfg.sim.save_logs_to_file = False
+    cfg.seed = 41
+    return gym.make(task, cfg=cfg).unwrapped
+
+
+def _parcels(env):
+    return tuple(env.scene[f"cube_{i}"] for i in range(env.cfg.conveyor_force.transported_body_count_per_env))
+
+
+def _waiting_positions(env):
+    positions = torch.tensor([[[2.5, 0.8, 0.5]] * len(_parcels(env))] * 2)
+    ids = torch.arange(positions.shape[1])
+    positions[:, :, 0] = 2.4 + 0.06 * (ids % 6)
+    positions[:, :, 1] += 0.06 * (ids // 6)
+    return positions
+
+
+def _place(env, positions):
+    for i, parcel in enumerate(_parcels(env)):
+        pose = parcel.data.default_root_pose.torch.clone()
+        pose[:, :3] = positions[:, i] + env.scene.env_origins
+        parcel.write_root_pose_to_sim_index(root_pose=pose, skip_forward=True)
+        parcel.write_root_velocity_to_sim_index(root_velocity=torch.zeros(2, 6), skip_forward=True)
+    env.sim.forward()
+    env.scene.update(env.step_dt)
+
+
+@pytest.mark.parametrize("task", [_BASE, _SORTER])
+def test_checkpoint_interface_and_invalid_action_recovery(task):
+    """Both real tasks preserve learned feature ordering, finite rewards and independent reset flags."""
+    with closing(_environment(task)) as env:
+        obs, _ = env.reset()
+        assert obs["policy"].shape == (2, 123)
+        assert env.action_manager.total_action_dim == 8
+        assert env.physics_dt == 1 / 120 and env.step_dt == 1 / 60
+        result = env.step(torch.zeros(2, 8))
+        assert torch.isfinite(result[0]["policy"]).all() and torch.isfinite(result[1]).all()
+        pool = getattr(env, "conveyor_cube_pool", None)
+        if pool is not None:
+            env.command_manager.get_term("transfer").has_target[:] = torch.tensor([False, True])
+            env.step(torch.full((2, 8), 0.5))
+            torch.testing.assert_close(env.action_manager.action[1], torch.full((8,), 0.5))
+            assert env.action_manager.action[0, :7].abs().max() <= 0.25
+            assert env.action_manager.action[0, 7] == 0
+        positions = _waiting_positions(env)
+        positions[:, :4] = torch.tensor([[0.4, 0.27, 0.06], [0.6, -0.27, 0.06], [0.8, 0, 0.2], [0.9, -0.27, 0.06]])
+        positions[1, 2] = torch.tensor([0.8, -0.27, 0.2])
+        if pool is not None:
+            pool.slot_ids[:] = torch.tensor([[4, 1, 2, 3], [0, 5, 2, 3]])
+            positions[0, 4] = torch.tensor([0.52, 0.27, 0.06])
+            positions[1, 5] = torch.tensor([0.72, -0.27, 0.06])
+        _place(env, positions)
+        if pool is not None:
+            env.sim.step(render=False)
+            model = env.sim.physics_manager.get_model()
+            contacts = env.sim.physics_manager.get_contacts()
+            count = int(contacts.rigid_contact_count.numpy()[0])
+            assert count > 0
+            bodies = model.shape_body.numpy()
+            first = bodies[contacts.rigid_contact_shape0.numpy()[:count]]
+            second = bodies[contacts.rigid_contact_shape1.numpy()[:count]]
+            assert ((first >= 0) | (second >= 0)).all()
+            _place(env, positions)
+        command = env.command_manager.get_term("transfer")
+        env.episode_length_buf[:] = torch.tensor([11, 19])
+        command.set_goal(2)
+        if pool is not None:
+            command.has_target.fill_(True)
+        if pool is not None:
+            pose = pool.assets[4].data.root_pose_w.torch.clone()
+            pose[0, 3:] = torch.tensor([2**-0.5, 0, 0, 2**-0.5])
+            velocity = torch.zeros(2, 6)
+            velocity[0] = torch.tensor([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+            pool.assets[4].write_root_pose_to_sim_index(root_pose=pose, skip_forward=True)
+            pool.assets[4].write_root_velocity_to_sim_index(root_velocity=velocity, skip_forward=True)
+            env.sim.forward()
+            env.scene.update(env.step_dt)
+        policy = env.observation_manager.compute()["policy"]
+        expected = positions[:, :4] if pool is None else positions[torch.arange(2)[:, None], pool.slot_ids]
+        torch.testing.assert_close(policy[:, 16:28], expected.flatten(1))
+        torch.testing.assert_close(policy[:, 76:79], positions[:, 2])
+        torch.testing.assert_close(policy[:, 85:89], torch.tensor([[0, 0, 1, 0]] * 2).float())
+        torch.testing.assert_close(policy[:, 101:103], torch.tensor([[0, 1], [1, 0]]).float())
+        torch.testing.assert_close(
+            policy[:, 89:101],
+            torch.tensor([[1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 1], [1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1]]).float(),
         )
-    )
-    action._joint_ids = slice(None)
-    action._scale = 0.12
-    action._offset = 0.0
-    action._workspace_lower = workspace_lower
-    action._workspace_upper = workspace_upper
-    action._raw_actions = torch.zeros((2, 7))
-    action._previous_actions = torch.zeros((2, 7))
-    action._processed_actions = torch.zeros((2, 7))
-    action._position_targets = positions.clone()
-    action._invalid_actions = torch.zeros(2, dtype=torch.bool)
-    return action
-
-
-def _make_gripper_action_term() -> ResetBufferedGripperAction:
-    """Build the tensor-only portion of the binary gripper action term."""
-    action = object.__new__(ResetBufferedGripperAction)
-    action.cfg = SimpleNamespace(clip=None, command_name="transfer", force_close_steps=2)
-    action._raw_actions = torch.zeros((2, 1))
-    action._previous_actions = torch.zeros((2, 1))
-    action._processed_actions = torch.zeros((2, 2))
-    action._open_command = torch.full((2,), 0.04)
-    action._close_command = torch.zeros(2)
-    action._invalid_actions = torch.zeros(2, dtype=torch.bool)
-    command = SimpleNamespace(held_cube_ids=torch.full((2,), -1, dtype=torch.long))
-    action._env = SimpleNamespace(
-        command_manager=SimpleNamespace(get_term=lambda _name: command),
-        episode_length_buf=torch.zeros(2, dtype=torch.long),
-    )
-    return action
-
-
-def test_invalid_actions_are_finite_bounded_and_reset_per_environment():
-    """Sanitized arm/gripper commands stay finite while rejected rows terminate independently."""
-    arm = _make_arm_action_term()
-    gripper = _make_gripper_action_term()
-    actions = {"arm_action": arm, "gripper_action": gripper}
-    env = SimpleNamespace(num_envs=2, action_manager=SimpleNamespace(get_term=actions.__getitem__))
-    previous = torch.tensor([[0.25] * 7 + [-1.0], [0.25] * 7 + [1.0]])
-    arm.process_actions(previous[:, :7])
-    gripper.process_actions(previous[:, 7:])
-    arm.process_actions(torch.tensor(((float("nan"), float("inf"), -float("inf"), 5.0, -5.0, 0.5, -0.5), (-2.0,) * 7)))
-    gripper.process_actions(torch.tensor(((float("nan"),), (float("inf"),))))
-
-    expected_arm = torch.tensor(((0.0, 1.0, -1.0, 1.0, -1.0, 0.5, -0.5), (-1.0,) * 7))
-    torch.testing.assert_close(arm.raw_actions, expected_arm)
-    assert arm.invalid_actions.tolist() == [True, False]
-    assert gripper.invalid_actions.tolist() == [True, True]
-    torch.testing.assert_close(arm.processed_actions, arm._asset.data.joint_pos.torch + expected_arm * 0.12)
-    torch.testing.assert_close(gripper.raw_actions, torch.tensor(((-1.0,), (1.0,))))
-    torch.testing.assert_close(gripper.processed_actions[0], gripper._close_command)
-    torch.testing.assert_close(gripper.processed_actions[1], gripper._open_command)
-    expected = torch.cat((expected_arm, torch.tensor([[-1.0], [1.0]])), dim=1)
-    torch.testing.assert_close(finite_action_rate_l2(env), torch.square(expected - previous).sum(dim=1))
-    assert torch.isfinite(finite_action_rate_l2(env)).all()
-    assert invalid_action(env).tolist() == [True, True]
-
-    gripper.process_actions(torch.tensor(((-1.0,), (float("inf"),))))
-    assert invalid_action(env).tolist() == [True, True]
-    arm.reset([0])
-    gripper.reset([0])
-    assert invalid_action(env).tolist() == [False, True]
-    gripper.reset([1])
-    assert invalid_action(env).tolist() == [False, False]
-
-
-def test_action_rate_matches_standard_l2_for_ordinary_policy_actions():
-    """Finite in-range policy commands retain the standard action-rate semantics."""
-    arm_action = _make_arm_action_term()
-    gripper_action = _make_gripper_action_term()
-    previous_arm = torch.tensor(((0.1,) * 7, (-0.2,) * 7))
-    current_arm = torch.tensor(((-0.3,) * 7, (0.4,) * 7))
-    previous_gripper = torch.tensor(((-1.0,), (1.0,)))
-    current_gripper = -previous_gripper
-    arm_action.process_actions(previous_arm)
-    gripper_action.process_actions(previous_gripper)
-    arm_action.process_actions(current_arm)
-    gripper_action.process_actions(current_gripper)
-    actions = {"arm_action": arm_action, "gripper_action": gripper_action}
-    env = SimpleNamespace(num_envs=2, action_manager=SimpleNamespace(get_term=actions.__getitem__))
-
-    reward = finite_action_rate_l2(env)
-
-    previous = torch.cat((previous_arm, previous_gripper), dim=1)
-    current = torch.cat((current_arm, current_gripper), dim=1)
-    torch.testing.assert_close(reward, torch.square(current - previous).sum(dim=1))
-
-
-def test_final_config_validation_catches_overridden_arm_contracts():
-    """Top-level validation runs after overrides and protects workspace-to-joint alignment."""
-    cfg = ConveyorFrankaEnvCfg()
-    cfg.validate()
-
-    cfg.actions.arm_action.preserve_order = False
-    with pytest.raises(ValueError, match="preserve"):
-        cfg.validate()
-
-
-def test_reset_rows_cover_every_cube_direction_and_phase_once():
-    """The reset bank is the complete command and physical-phase cross product."""
-    rows = build_reset_rows()
-
-    assert len(rows) == sum(reset_variant_counts()) * CUBE_COUNT * 2
-    keys = {(row.recipe, row.variant_id, row.target_cube_id, row.source_side_id) for row in rows}
-    assert len(keys) == len(rows)
-    assert all(
-        recipe in ConveyorResetRecipe and 0 <= variant < reset_variant_counts()[recipe]
-        for recipe, variant, _, _ in keys
-    )
-    assert {row.target_cube_id for row in rows} == set(range(CUBE_COUNT))
-    assert {row.source_side_id for row in rows} == {0, 1}
-    for row in rows:
-        expected_held = row.recipe in {
-            ConveyorResetRecipe.LIFT,
-            ConveyorResetRecipe.CARRY,
-            ConveyorResetRecipe.PLACE,
-        } or (
-            row.recipe == ConveyorResetRecipe.GRASP
-            and row.variant_id == reset_variant_counts()[int(ConveyorResetRecipe.GRASP)] - 1
+        if pool is not None:
+            torch.testing.assert_close(policy[0, 40:43], torch.tensor([0.0, -1.0, 0.0]), atol=1e-6, rtol=0)
+            torch.testing.assert_close(policy[0, 52:58], velocity[0])
+            remote = positions.clone()
+            remote[:, 2:4] = torch.tensor([[2.8, 0.1, 0.56], [1.2, -0.59, 0.16]])
+            _place(env, remote)
+            adapted = env.observation_manager.compute()["policy"][:, 16:28].reshape(2, 4, 3)
+            torch.testing.assert_close(adapted[:, 2:, 1:], torch.tensor([[[0.75, 0.06], [-0.75, 0.06]]] * 2))
+            physical = (
+                torch.stack([p.data.root_pos_w.torch for p in pool.assets], dim=1) - env.scene.env_origins[:, None]
+            )
+            torch.testing.assert_close(physical, remote)
+            _place(env, positions)
+        assert command.held_cube_ids.tolist() == [-1, -1]
+        assert command.subgoal_start_steps.tolist() == [11, 19]
+        if pool is None:
+            command.subgoal_start_steps[:] = env.episode_length_buf - torch.tensor([1199, 1200])
+            assert mdp.subgoal_time_out(env, timeout_s=20).tolist() == [False, True]
+            command.pending_success[1] = True
+            assert not mdp.subgoal_time_out(env, timeout_s=20).any()
+            command.transfer_counts[:] = torch.tensor([7, 8])
+            assert mdp.transfer_sequence_time_out(env, maximum_transfers=8).tolist() == [False, True]
+            command.pending_success.zero_()
+        arm = env.action_manager.get_term("arm_action")
+        gripper = env.action_manager.get_term("gripper_action")
+        previous = torch.tensor([[0.1] * 7 + [-1.0], [-0.2] * 7 + [1.0]])
+        current = torch.tensor([[-0.3] * 7 + [1.0], [0.4] * 7 + [-1.0]])
+        env.action_manager.process_action(previous)
+        env.action_manager.process_action(current)
+        torch.testing.assert_close(mdp.finite_action_rate_l2(env), (current - previous).square().sum(1))
+        bad = torch.tensor(
+            [[float("nan"), float("inf"), -float("inf"), 5, -5, 0.5, -0.5, float("nan")], [0.5] * 7 + [float("inf")]]
         )
-        assert row.held == expected_held
-
-    grasp_rows = [
-        row
-        for row in rows
-        if row.recipe == ConveyorResetRecipe.GRASP and row.target_cube_id == 0 and row.source_side_id == 0
-    ]
-    assert all(first.finger_position > second.finger_position for first, second in zip(grasp_rows, grasp_rows[1:]))
-    assert grasp_rows[-1].held
-
-
-def test_reset_arm_anchors_reach_expected_transfer_waypoints():
-    """IK anchors place the tool over source, transit, or destination waypoints."""
-    anchor_variants = {
-        ConveyorResetRecipe.GOAL: 0,
-        ConveyorResetRecipe.PLACE: 3,
-        ConveyorResetRecipe.CARRY: 2,
-        ConveyorResetRecipe.LIFT: 3,
-        ConveyorResetRecipe.GRASP: 0,
-        ConveyorResetRecipe.PREGRASP: 0,
-    }
-    rows = [
-        row
-        for row in build_reset_rows()
-        if row.target_cube_id == 0 and anchor_variants.get(row.recipe) == row.variant_id
-    ]
-    joints = torch.tensor([row.arm_positions for row in rows], dtype=torch.float64)
-    positions = franka_tool_position(joints)
-
-    for row, position in zip(rows, positions, strict=True):
-        source_y = 0.27 if row.source_side_id == 0 else -0.27
-        target_y = -source_y
-        if row.recipe == ConveyorResetRecipe.BELT:
-            continue
-        expected = {
-            ConveyorResetRecipe.PREGRASP: (0.52, source_y, 0.14),
-            ConveyorResetRecipe.GRASP: (0.52, source_y, 0.06),
-            ConveyorResetRecipe.LIFT: (0.52, source_y, 0.22),
-            ConveyorResetRecipe.CARRY: (0.52, 0.0, 0.25),
-            ConveyorResetRecipe.PLACE: (0.52, target_y, 0.105),
-            ConveyorResetRecipe.GOAL: (0.52, target_y, 0.14),
-        }[row.recipe]
-        torch.testing.assert_close(position, torch.tensor(expected, dtype=position.dtype), atol=3.0e-4, rtol=0.0)
+        robot = env.scene["robot"]
+        joint_ids, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
+        joints = robot.data.joint_pos.torch.clone()
+        # Interior joint positions make the learned 0.12-rad residual independently observable.
+        initial = torch.tensor([0.05, 0.2, -0.1, -2.25, 0, 2.45, 0.775]).repeat(2, 1)
+        joints[:, joint_ids] = initial
+        robot.write_joint_position_to_sim_index(position=joints)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        env.action_manager.process_action(bad)
+        torch.testing.assert_close(
+            arm.processed_actions, initial + torch.tensor([[0, 0.12, -0.12, 0.12, -0.12, 0.06, -0.06], [0.06] * 7])
+        )
+        torch.testing.assert_close(arm.raw_actions, torch.tensor([[0, 1, -1, 1, -1, 0.5, -0.5], [0.5] * 7]))
+        torch.testing.assert_close(gripper.raw_actions, torch.tensor([[-1.0], [1.0]]))
+        torch.testing.assert_close(gripper.processed_actions, torch.tensor([[0.0, 0.0], [0.04, 0.04]]))
+        assert torch.isfinite(arm.processed_actions).all() and torch.isfinite(gripper.processed_actions).all()
+        assert torch.isfinite(mdp.finite_action_rate_l2(env)).all()
+        # Isolate an arm-only failure from a gripper-only failure.
+        bad[0, 7] = -1
+        env.action_manager.process_action(bad)
+        assert mdp.invalid_action(env).tolist() == [True, True]
+        env.action_manager.reset(env_ids=[0])
+        assert mdp.invalid_action(env).tolist() == [False, True]
+        env.action_manager.reset()
+        assert not mdp.invalid_action(env).any()
+        if pool is not None:
+            command.has_target.zero_()
+        terminated = env.step(bad)
+        assert terminated[2].tolist() == [True, True]
+        assert torch.isfinite(terminated[0]["policy"]).all() and torch.isfinite(terminated[1]).all()
+        cfg = env.cfg.copy()
+        cfg.actions.arm_action.preserve_order = False
+        with pytest.raises(ValueError, match="preserve"):
+            cfg.validate()
 
 
-def test_cube_conveyor_state_has_stable_three_way_encoding():
-    """Cube side observations distinguish both belts from the transfer corridor."""
-    positions = torch.tensor([[[0.5, 0.27, 0.06], [0.5, 0.0, 0.20], [0.5, -0.27, 0.06]]])
+def test_sorter_dispatch_inventory_and_selected_resets():
+    """Actual parcels are shuffled, individually dispatched, pinned while grasped, and left sorted."""
+    from isaaclab_tasks.contrib.conveyor_franka.conveyor_warehouse_geometry import warehouse_parcel_positions
 
-    encoded = classify_cube_conveyors(positions)
-
-    torch.testing.assert_close(
-        encoded,
-        torch.tensor([[[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]]),
-    )
-
-
-def test_released_goal_state_succeeds_only_on_commanded_conveyor():
-    """The same physical cube placement is successful for exactly one direction."""
-    cube_positions = torch.tensor([[0.58, -0.27, 0.06], [0.58, -0.27, 0.06]])
-    cube_velocities = torch.zeros((2, 3))
-    tool_positions = torch.tensor([[0.58, -0.27, 0.14], [0.58, -0.27, 0.14]])
-    finger_positions = torch.full((2, 2), 0.04)
-    target_side_ids = torch.tensor([1, 0])
-
-    successful = transfer_success_mask(
-        cube_positions,
-        cube_velocities,
-        tool_positions,
-        finger_positions,
-        target_side_ids,
-    )
-
-    assert successful.tolist() == [True, False]
-
-
-def test_transfer_potential_increases_through_release():
-    """Dense shaping must not punish lowering and releasing at the destination."""
-    source_side = torch.zeros(5, dtype=torch.long)
-    cube_positions = torch.tensor(
-        [
-            [0.52, 0.27, 0.06],
-            [0.52, 0.27, 0.20],
-            [0.52, 0.00, 0.20],
-            [0.52, -0.27, 0.105],
-            [0.52, -0.27, 0.06],
+    with closing(_environment(_SORTER)) as env:
+        env.reset()
+        pool = env.conveyor_cube_pool
+        before_slots = pool.slot_ids[0].clone()
+        before_velocity = torch.stack([p.data.root_vel_w.torch.clone() for p in pool.assets], dim=1)
+        before = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+        repeated = None
+        for ids in (torch.tensor([1]), slice(1, 2)):
+            velocity = pool.assets[-1].data.root_vel_w.torch.clone()
+            velocity[1].fill_(0.2)
+            pool.assets[-1].write_root_velocity_to_sim_index(root_velocity=velocity)
+            torch.manual_seed(42)
+            env._reset_idx(ids)
+            assert not pool.assets[-1].data.root_vel_w.torch[1].any()
+            actual = torch.stack([p.data.root_pose_w.torch.clone() for p in pool.assets], dim=1)
+            torch.testing.assert_close(actual[0], before[0])
+            torch.testing.assert_close(pool.slot_ids[0], before_slots)
+            torch.testing.assert_close(pool.slot_ids[1], torch.arange(4))
+            torch.testing.assert_close(
+                torch.stack([p.data.root_vel_w.torch[0] for p in pool.assets]), before_velocity[0]
+            )
+            local = actual[1, :, :3] - env.scene.env_origins[1]
+            destinations = torch.tensor(warehouse_parcel_positions())
+            distance = torch.linalg.vector_norm(local[:, None] - destinations[None], dim=-1)
+            assert distance.min(1).values.max() < 1e-5
+            assert distance.argmin(1).unique().numel() == len(pool.assets)
+            assert not torch.allclose(local, destinations)
+            if repeated is not None:
+                torch.testing.assert_close(actual, repeated)
+            repeated = actual.clone()
+        positions = _waiting_positions(env)
+        positions[:, 0] = torch.tensor([0.7, 0.27, 0.06])  # Correct class, so leave it alone.
+        positions[0, 2:4] = torch.tensor([[0.6, 0.27, 0.06], [0.6, -0.27, 0.06]])
+        positions[0, 7] = torch.tensor([0.9, 0.27, 0.06])
+        pool.assignment_counts[0, 7] = 100  # A repeatedly assigned, nearer arrival must not starve a new one.
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])  # Arrival outside the initial four policy slots.
+        _place(env, positions)
+        command = env.command_manager.get_term("transfer")
+        command.has_target.zero_()
+        command._update_command()
+        assert command.has_target.tolist() == [True, False]
+        slot = int(command.target_cube_ids[0])
+        assert pool.slot_ids[0, slot] == 5
+        assert command.command[0, -2:].tolist() == [0, 1]
+        assert pool.slot_ids[0, 0] == 0
+        assert command.metrics["sorted_parcels"].tolist() == [3, 1]
+        torch.testing.assert_close(pool.assets[5].data.root_pos_w.torch[0] - env.scene.env_origins[0], positions[0, 5])
+        # Move the assigned parcel into a real closed-gripper grasp, even outside the pickup lane.
+        robot = env.scene["robot"]
+        fingers, _ = robot.find_joints("panda_finger_joint[1-2]", preserve_order=True)
+        joints = robot.data.joint_pos.torch.clone()
+        joints[:, fingers] = 0.019
+        robot.write_joint_position_to_sim_index(position=joints)
+        arms, _ = robot.find_joints("panda_joint[1-7]", preserve_order=True)
+        lift = next(
+            r
+            for r in build_reset_rows()
+            if r.recipe == ConveyorResetRecipe.LIFT
+            and r.variant_id == 3
+            and r.target_cube_id == 0
+            and r.source_side_id == 0
+        )
+        joints[:, arms] = torch.tensor(lift.arm_positions)
+        robot.write_joint_position_to_sim_index(position=joints)
+        env.sim.forward()
+        env.scene.update(env.step_dt)
+        tool, _ = end_effector_pose(env)
+        positions[0, 5] = tool[0] - env.scene.env_origins[0]
+        _place(env, positions)
+        assert mdp.physical_cube_acquisition_mask(env)[0]
+        command._update_command()
+        assert pool.slot_ids[0, slot] == 5 and command.has_target[0]
+        positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        command.evaluate()
+        assert not command.pending_success[0]
+        positions[0, 5] = torch.tensor([0.8, -0.27, 0.06])
+        joints[:, fingers] = 0.04
+        robot.write_joint_position_to_sim_index(position=joints)
+        _place(env, positions)
+        env.episode_length_buf += command.cfg.minimum_subgoal_steps
+        for _ in range(command.cfg.hold_steps):
+            env.episode_length_buf += 1
+            command.evaluate()
+        assert pool.transfer_counts[0, 5] == 1 and pool.transfer_counts[1].sum() == 0
+        # Completed classes stay circulating and cannot keep paying a previous success reward.
+        positions[:, :, 0] = 0.6
+        positions[:, :, 1] = torch.tensor([0.27, -0.27] * (len(pool.assets) // 2))
+        positions[:, :, 2] = 0.06
+        _place(env, positions)
+        command._update_command()
+        assert not command.has_target.any()
+        assert command.metrics["batch_complete"].tolist() == [1, 1]
+        command.new_success.fill_(True)
+        command.is_success.fill_(True)
+        command.evaluate()
+        assert not command.new_success.any() and not command.is_success.any()
+        assert not mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).any()
+        # Present every identity as a separate arrival and let the real dispatcher refill its slots.
+        for parcel_id in range(len(pool.assets)):
+            positions[0] = _waiting_positions(env)[0]
+            source_y = -0.27 if command.parcel_destinations[parcel_id] == 0 else 0.27
+            positions[0, parcel_id] = torch.tensor([0.8, source_y, 0.06])
+            _place(env, positions)
+            command.pending_success[0] = True
+            command._update_command()
+            assert pool.slot_ids[0, command.target_cube_ids[0]] == parcel_id
+        assert (pool.assignment_counts[0] > 0).all()
+        unassigned = next(i for i in range(len(pool.assets)) if i not in pool.slot_ids[0])
+        positions[0, unassigned, 2] = -1
+        _place(env, positions)
+        assert mdp.cube_out_of_workspace(env, **env.cfg.terminations.cube_out_of_workspace.params).tolist() == [
+            True,
+            False,
         ]
-    )
-    tool_positions = cube_positions.clone()
-    tool_positions[-1, 2] += 0.10
-    finger_positions = torch.full((5, 2), 0.019)
-    finger_positions[-1] = 0.04
-
-    potentials = transfer_potential(cube_positions, tool_positions, finger_positions, source_side)
-
-    assert torch.all(potentials[1:] > potentials[:-1])
-
-    cube_positions = torch.tensor([[0.52, 0.27, 0.06], [0.52, 0.27, 0.06]])
-    tool_positions = torch.tensor([[0.52, 0.27, 0.07], [0.52, 0.27, 0.20]])
-    source_side = torch.zeros(2, dtype=torch.long)
-    open_fingers = torch.full((2, 2), 0.04)
-    closed_fingers = torch.full((2, 2), 0.019)
-
-    open_potential = transfer_potential(cube_positions, tool_positions, open_fingers, source_side)
-    closed_potential = transfer_potential(cube_positions, tool_positions, closed_fingers, source_side)
-
-    assert closed_potential[0] - open_potential[0] > 0.5
-    assert closed_potential[1] - open_potential[1] < 0.03
 
 
-def test_policy_distribution_samples_exact_binary_gripper_and_finite_kl():
-    """PPO likelihoods match the gripper command that reaches physics."""
-    distribution = ConveyorGaussianBernoulliDistribution(output_dim=8)
-    distribution.update(torch.zeros((4096, 8)))
-
-    samples = distribution.sample()
-    old_params = tuple(parameter.clone() for parameter in distribution.params)
-    distribution.update(torch.full((4096, 8), 0.2))
-    divergence = distribution.kl_divergence(old_params, distribution.params)
-
-    assert set(torch.unique(samples[:, -1]).tolist()) == {-1.0, 1.0}
-    assert torch.isfinite(distribution.log_prob(samples)).all()
-    assert torch.isfinite(divergence).all()
-    assert torch.all(divergence >= 0.0)
-
-
-def test_reset_sampling_guarantees_deployment_mass_and_tracks_frontier():
-    """Sampling reserves deployment starts and favors intermediate frontier rows."""
+def test_reset_bank_is_complete_and_physically_calibrated():
+    """Every command/phase is represented once; tool anchors and held metadata agree with physical poses."""
     rows = build_reset_rows()
-    recipe_ids = torch.tensor([row.recipe for row in rows], dtype=torch.long)
-    variant_ids = torch.tensor([row.variant_id for row in rows], dtype=torch.long)
-    target_cube_ids = torch.tensor([row.target_cube_id for row in rows], dtype=torch.long)
-    source_side_ids = torch.tensor([row.source_side_id for row in rows], dtype=torch.long)
-    place_stratum = (recipe_ids == int(ConveyorResetRecipe.PLACE)) & (target_cube_ids == 0) & (source_side_ids == 0)
-    place_ids = torch.nonzero(place_stratum, as_tuple=False).flatten()
-    monitor_cfg = ConveyorFrankaEnvCfg().curriculum.reset_sampling.params["success_monitor"]
-    monitor = monitor_cfg.class_type(monitor_cfg, num_partitions=1, partition_size=len(rows), device="cpu")
-    monitor.success_update(
-        torch.cat((place_ids[0].repeat(50), place_ids[1].repeat(50))),
-        torch.cat((torch.ones(50, dtype=torch.bool), torch.arange(50) % 2 == 0)),
+    counts = reset_variant_counts()
+    keys = {(r.recipe, r.variant_id, r.target_cube_id, r.source_side_id) for r in rows}
+    assert len(keys) == len(rows) == sum(counts) * 8
+    assert all(
+        recipe in ConveyorResetRecipe and 0 <= variant < counts[recipe] and 0 <= cube < 4 and side in (0, 1)
+        for recipe, variant, cube, side in keys
     )
-
-    deployment_rows = (recipe_ids == int(ConveyorResetRecipe.BELT)) & (
-        variant_ids == reset_variant_counts()[int(ConveyorResetRecipe.BELT)] - 1
-    )
-    probabilities = reset_sampling_probabilities(
-        recipe_ids,
-        variant_ids,
-        target_cube_ids,
-        source_side_ids,
-        monitor.target_weights(),
-        deployment_probability=0.35,
-    )
-
-    torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
-    torch.testing.assert_close(probabilities[deployment_rows].sum(), torch.tensor(0.35))
-    torch.testing.assert_close(probabilities[~deployment_rows].sum(), torch.tensor(0.65))
-    assert probabilities[place_ids[0]] < probabilities[place_ids[1]]
-    for recipe in ConveyorResetRecipe:
-        for cube_id in range(CUBE_COUNT):
-            for side_id in range(2):
-                stratum_rows = (recipe_ids == int(recipe)) & (target_cube_ids == cube_id) & (source_side_ids == side_id)
-                torch.testing.assert_close(
-                    probabilities[stratum_rows & ~deployment_rows].sum(),
-                    torch.tensor(0.65 / (len(ConveyorResetRecipe) * CUBE_COUNT * 2)),
-                )
-    torch.testing.assert_close(
-        probabilities[deployment_rows & (source_side_ids == 0)].sum(),
-        torch.tensor(0.35 / 2),
-    )
-    torch.testing.assert_close(
-        probabilities[deployment_rows & (source_side_ids == 1)].sum(),
-        torch.tensor(0.35 / 2),
-    )
-
-
-def test_deployment_probability_increases_with_rolling_readiness():
-    """Mastered, well-covered reset rows shift sampling toward deployment starts."""
-    kwargs = {
-        "initial_probability": 0.35,
-        "final_probability": 0.90,
-        "progress_start": 0.45,
-        "progress_end": 0.80,
-        "coverage_target": 0.50,
+    for row in rows:
+        held = row.recipe in (ConveyorResetRecipe.LIFT, ConveyorResetRecipe.CARRY, ConveyorResetRecipe.PLACE)
+        held |= row.recipe == ConveyorResetRecipe.GRASP and row.variant_id == counts[ConveyorResetRecipe.GRASP] - 1
+        assert row.held == held
+    closure = [
+        r.finger_position
+        for r in rows
+        if r.recipe == ConveyorResetRecipe.GRASP and r.target_cube_id == 0 and r.source_side_id == 0
+    ]
+    assert all(a > b for a, b in zip(closure, closure[1:]))
+    # Independently calibrated approach, lift, transit and release tool positions.
+    anchors = {
+        ConveyorResetRecipe.GOAL: (0, 0.14),
+        ConveyorResetRecipe.PLACE: (3, 0.105),
+        ConveyorResetRecipe.CARRY: (2, 0.25),
+        ConveyorResetRecipe.LIFT: (3, 0.22),
+        ConveyorResetRecipe.GRASP: (0, 0.06),
+        ConveyorResetRecipe.PREGRASP: (0, 0.14),
     }
+    for row in rows:
+        if row.target_cube_id or row.recipe not in anchors or row.variant_id != anchors[row.recipe][0]:
+            continue
+        y = 0.27 * (1 - 2 * row.source_side_id)
+        if row.recipe in (ConveyorResetRecipe.GOAL, ConveyorResetRecipe.PLACE):
+            y = -y
+        elif row.recipe == ConveyorResetRecipe.CARRY:
+            y = 0
+        actual = franka_tool_position(torch.tensor([row.arm_positions], dtype=torch.float64))[0]
+        torch.testing.assert_close(
+            actual, torch.tensor([0.52, y, anchors[row.recipe][1]], dtype=actual.dtype), atol=3e-4, rtol=0
+        )
 
-    initial = deployment_probability_from_progress(torch.tensor(0.30), torch.tensor(1.0), **kwargs)
-    middle = deployment_probability_from_progress(torch.tensor(0.625), torch.tensor(0.50), **kwargs)
-    final = deployment_probability_from_progress(torch.tensor(0.90), torch.tensor(1.0), **kwargs)
 
-    torch.testing.assert_close(initial, torch.tensor(0.35))
-    torch.testing.assert_close(middle, torch.tensor(0.625))
-    torch.testing.assert_close(final, torch.tensor(0.90))
+def test_transfer_shaping_and_binary_policy_likelihoods():
+    """Release improves progress; remote closing earns no grasp credit; sampled gripper likelihoods remain finite."""
+    cubes = torch.tensor(
+        [[0.52, 0.27, 0.06], [0.52, 0.27, 0.20], [0.52, 0, 0.20], [0.52, -0.27, 0.105], [0.52, -0.27, 0.06]]
+    )
+    tool = cubes.clone()
+    tool[-1, 2] += 0.1
+    fingers = torch.full((5, 2), 0.019)
+    fingers[-1] = 0.04
+    potential = transfer_potential(cubes, tool, fingers, torch.zeros(5, dtype=torch.long))
+    assert (potential[1:] > potential[:-1]).all()
+    cubes = torch.tensor([[0.52, 0.27, 0.06]] * 2)
+    tool = torch.tensor([[0.52, 0.27, 0.07], [0.52, 0.27, 0.20]])
+    credit = transfer_potential(cubes, tool, torch.full((2, 2), 0.019), torch.zeros(2, dtype=torch.long))
+    credit -= transfer_potential(cubes, tool, torch.full((2, 2), 0.04), torch.zeros(2, dtype=torch.long))
+    assert credit[0] > 0.5 and credit[1] < 0.03
+    distribution = ConveyorGaussianBernoulliDistribution(output_dim=8)
+    distribution.update(torch.zeros(4096, 8))
+    samples, previous = distribution.sample(), tuple(p.clone() for p in distribution.params)
+    distribution.update(torch.full((4096, 8), 0.2))
+    divergence = distribution.kl_divergence(previous, distribution.params)
+    assert set(samples[:, -1].unique().tolist()) == {-1, 1}
+    assert torch.isfinite(distribution.log_prob(samples)).all()
+    assert torch.isfinite(divergence).all() and (divergence >= 0).all()
+
+
+def test_curriculum_reserves_deployment_mass_and_balances_commands():
+    """Adaptive weights cannot starve any recipe/cube/direction, or the moving-belt deployment starts."""
+    rows = build_reset_rows()
+    recipe, variant, cube, side = torch.tensor(
+        [[r.recipe, r.variant_id, r.target_cube_id, r.source_side_id] for r in rows]
+    ).T
+    deployment = (recipe == ConveyorResetRecipe.BELT) & (
+        variant == reset_variant_counts()[ConveyorResetRecipe.BELT] - 1
+    )
+    place = torch.where((recipe == ConveyorResetRecipe.PLACE) & (cube == 0) & (side == 0))[0]
+    weights = torch.ones(len(rows))
+    weights[place[:2]] = torch.tensor([0.2, 0.8])
+    probabilities = reset_sampling_probabilities(recipe, variant, cube, side, weights, deployment_probability=0.35)
+    torch.testing.assert_close(probabilities.sum(), torch.tensor(1.0))
+    assert probabilities[place[0]] < probabilities[place[1]]
+    for r, c, s in {(r.recipe, r.target_cube_id, r.source_side_id) for r in rows}:
+        mask = (recipe == r) & (cube == c) & (side == s) & ~deployment
+        torch.testing.assert_close(probabilities[mask].sum(), torch.tensor(0.65 / (len(ConveyorResetRecipe) * 8)))
+    for s in (0, 1):
+        torch.testing.assert_close(probabilities[deployment & (side == s)].sum(), torch.tensor(0.35 / 2))
+    for progress, coverage, expected in ((0.30, 1.0, 0.35), (0.625, 0.50, 0.625), (0.90, 1.0, 0.90)):
+        actual = deployment_probability_from_progress(torch.tensor(progress), torch.tensor(coverage))
+        torch.testing.assert_close(actual, torch.tensor(expected))
 
 
 def test_next_transfer_cube_is_random_among_eligible_alternatives():
@@ -390,85 +435,6 @@ def test_next_transfer_cube_is_random_among_eligible_alternatives():
     assert set(selected.tolist()) == {1, 2}
     frequencies = torch.bincount(selected, minlength=CUBE_COUNT).float() / count
     assert torch.all(torch.abs(frequencies[1:3] - 0.5) < 0.05)
-
-
-@pytest.mark.parametrize("use_pool", [False, True])
-def test_manual_transfer_goal_uses_selected_cube_current_side(use_pool):
-    """Viewer goal changes preserve cube identity and infer the opposite destination."""
-
-    class _Scene(dict):
-        pass
-
-    origins = torch.tensor(((0.0, 1.0, 0.0), (0.0, -2.0, 0.0)))
-    selected_cube_positions = torch.tensor(((0.2, 1.3, 0.06), (0.7, -2.3, 0.06)))
-    cubes = tuple(
-        SimpleNamespace(
-            data=SimpleNamespace(
-                root_pos_w=SimpleNamespace(
-                    torch=selected_cube_positions if cube_id == 2 else torch.zeros_like(selected_cube_positions)
-                )
-            )
-        )
-        for cube_id in range(CUBE_COUNT)
-    )
-    scene = _Scene()
-    scene.env_origins = origins
-    command = object.__new__(ConveyorTransferCommand)
-    command._env = SimpleNamespace(
-        num_envs=2,
-        device="cpu",
-        scene=scene,
-        episode_length_buf=torch.tensor((11, 19)),
-    )
-    for cube_id, cube in enumerate(cubes):
-        scene[f"cube_{cube_id}"] = cube
-    if use_pool:
-        from isaaclab_tasks.contrib.conveyor_franka.conveyor_cube_pool import ConveyorCubePool
-
-        extra_cube = SimpleNamespace(data=SimpleNamespace(root_pos_w=SimpleNamespace(torch=selected_cube_positions)))
-        cubes[2].data.root_pos_w.torch = 2 * origins - selected_cube_positions
-        pool = ConveyorCubePool((*cubes, extra_cube), 2, "cpu")
-        pool.slot_ids[:, 2] = 4
-        command._env.conveyor_cube_pool = pool
-    command.target_cube_ids = torch.tensor((0, 1))
-    command.source_side_ids = torch.tensor((1, 0))
-    command.held_cube_ids = torch.tensor((0, 1))
-    command.subgoal_start_steps = torch.tensor((2, 3))
-    command._stable_steps = torch.ones(2, dtype=torch.long)
-    command.is_success = torch.ones(2, dtype=torch.bool)
-    command.new_success = torch.ones(2, dtype=torch.bool)
-    command.pending_success = torch.ones(2, dtype=torch.bool)
-    command._last_evaluation_steps = torch.tensor((11, 19))
-
-    command.set_goal(2)
-
-    assert command.target_cube_ids.tolist() == [2, 2]
-    assert command.source_side_ids.tolist() == [0, 1]
-    assert command.held_cube_ids.tolist() == [-1, -1]
-    assert command.subgoal_start_steps.tolist() == [11, 19]
-    torch.testing.assert_close(
-        command.command,
-        torch.tensor(((0, 0, 1, 0, 0, 1), (0, 0, 1, 0, 1, 0)), dtype=torch.float32),
-    )
-
-
-def test_continuing_training_truncates_only_stalled_or_long_sequences():
-    """Subgoal and sequence limits bound training without ending successful transfers."""
-    assert not ConveyorFrankaPPORunnerCfg().init_at_random_ep_len
-    command = SimpleNamespace(
-        evaluate=lambda: None,
-        subgoal_start_steps=torch.tensor((0, 0, 300)),
-        pending_success=torch.zeros(3, dtype=torch.bool),
-        transfer_counts=torch.tensor((0, 7, 8)),
-    )
-    env = SimpleNamespace(
-        step_dt=0.1,
-        episode_length_buf=torch.tensor((199, 200, 450)),
-        command_manager=SimpleNamespace(get_term=lambda _name: command),
-    )
-
-    assert subgoal_time_out(env, timeout_s=20.0).tolist() == [False, True, False]
-    assert transfer_sequence_time_out(env, maximum_transfers=8).tolist() == [False, False, True]
 
 
 def test_active_cube_sampling_avoids_inactive_source_lane_cubes():
@@ -517,77 +483,3 @@ def test_deployment_layout_uses_each_racetrack_straight_run_once():
         side_x = torch.where(cube_sides == side_id, cube_x, torch.nan)
         expected_sum = torch.full((source_side_ids.numel(),), 2 * BELT_CENTER_X, dtype=cube_x.dtype)
         torch.testing.assert_close(torch.nansum(side_x, dim=1), expected_sum)
-
-
-def test_sort_dispatch_preserves_grasp_and_never_reverses_a_sorted_parcel(monkeypatch):
-    """Dispatch changes logical slots, never physical state, and leaves completed batches circulating."""
-    from isaaclab_tasks.contrib.conveyor_franka.conveyor_cube_pool import ConveyorCubePool
-    from isaaclab_tasks.contrib.conveyor_franka.conveyor_franka_warehouse_env import ConveyorFrankaWarehouseEnv
-    from isaaclab_tasks.contrib.conveyor_franka.mdp import sorting
-
-    count = 6
-    positions = torch.tensor([[[2.0, 0.8, 0.46]] * count] * 2)
-    # The wrong-class arrival is outside the initial four slots; the nearby natural carton is already sorted.
-    positions[0, 0] = torch.tensor([0.7, 0.27, 0.06])
-    positions[0, 5] = torch.tensor([0.8, 0.27, 0.06])
-    positions[1, 1] = torch.tensor([0.5, -0.1, 0.25])  # Active grasp crossing between loops.
-    assets = tuple(
-        SimpleNamespace(
-            data=SimpleNamespace(
-                root_pos_w=SimpleNamespace(torch=positions[:, i]),
-                root_lin_vel_w=SimpleNamespace(torch=torch.zeros(2, 3)),
-            )
-        )
-        for i in range(count)
-    )
-    pool = ConveyorCubePool(assets, 2, "cpu")
-    env = SimpleNamespace(
-        num_envs=2,
-        device="cpu",
-        scene=SimpleNamespace(env_origins=torch.zeros(2, 3)),
-        conveyor_cube_pool=pool,
-        _in_workcell=ConveyorFrankaWarehouseEnv._in_workcell,
-        episode_length_buf=torch.tensor([20, 20]),
-    )
-    command = object.__new__(sorting.ConveyorSortCommand)
-    command._env = env
-    command.cfg = sorting.ConveyorSortCommandCfg(parcel_destinations=(0, 1) * 3)
-    command.parcel_destinations = torch.tensor(command.cfg.parcel_destinations)
-    command.has_target = torch.tensor([False, True])
-    command.target_cube_ids = torch.tensor([0, 1])
-    command.source_side_ids = torch.tensor([0, 0])
-    command.held_cube_ids = torch.full((2,), -1)
-    command.subgoal_start_steps = torch.zeros(2, dtype=torch.long)
-    command.command_counter = torch.ones(2, dtype=torch.long)
-    command._stable_steps = torch.zeros(2, dtype=torch.long)
-    command._last_evaluation_steps = torch.full((2,), -1)
-    command.is_success = torch.zeros(2, dtype=torch.bool)
-    command.new_success = torch.zeros(2, dtype=torch.bool)
-    command.pending_success = torch.zeros(2, dtype=torch.bool)
-    command.metrics = {name: torch.zeros(2) for name in ("sorted_parcels", "batch_complete")}
-    monkeypatch.setattr(sorting, "physical_cube_acquisition_mask", lambda *args, **kwargs: torch.tensor([False, True]))
-    before = positions.clone()
-    command._update_command()
-    assert command.has_target.tolist() == [True, True]
-    assert pool.slot_ids[0, command.target_cube_ids[0]] == 5
-    assert pool.slot_ids[1, command.target_cube_ids[1]] == 1
-    assert command.command[0, -2:].tolist() == [0.0, 1.0]
-    assert command.metrics["sorted_parcels"].tolist() == [1.0, 0.0]
-    torch.testing.assert_close(positions, before)
-    # Every parcel is now on its class's loop. Stable completion must end dispatch, not reverse direction.
-    positions[0, :, 0] = 0.6
-    positions[0, :, 1] = torch.tensor([0.27, -0.27] * 3)
-    positions[0, :, 2] = 0.06
-    command.pending_success[0] = True
-    command._update_command()
-    assert command.has_target.tolist() == [False, True]
-    assert command.metrics["batch_complete"].tolist() == [1.0, 0.0]
-    command._update_command()
-    assert not command.has_target[0]
-    # An idle command must not keep paying the preceding placement reward.
-    command.has_target.zero_()
-    command.new_success.fill_(True)
-    command.is_success.fill_(True)
-    command.evaluate()
-    assert not command.new_success.any()
-    assert not command.is_success.any()
