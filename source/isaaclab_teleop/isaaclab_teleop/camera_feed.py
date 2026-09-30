@@ -167,6 +167,7 @@ class XrCameraFeedSession:
         self._manager = None
         self._bound = False
         self._partition_renderers = []
+        self._partition_prepared = False
         self._partition_active = False
 
     @classmethod
@@ -179,7 +180,7 @@ class XrCameraFeedSession:
     ) -> XrCameraFeedSession:
         """Prepare task-configured camera feeds before constructing the environment.
 
-        Isolated feeds acquire temporary renderer settings. The caller must
+        Isolated feeds acquire temporary camera configuration overrides. The caller must
         arrange :meth:`close` on every exit, including failures before :meth:`bind`.
 
         Args:
@@ -219,7 +220,7 @@ class XrCameraFeedSession:
         )
         if teleop_cfg.xr_camera_feed_layout.use_scene_partition:
             session._partition_renderers = _validate_scene_partition_configs(env_cfg, cfgs)
-            session._enable_scene_partition()
+            session._prepare_scene_partition()
         return session
 
     @property
@@ -235,6 +236,9 @@ class XrCameraFeedSession:
     def bind(self, env: Any) -> XrCameraFeedSession:
         """Bind the prepared feeds to a constructed environment.
 
+        Acquire the global isolation setting after renderer initialization and
+        before creating panels, preserving its current value for cleanup.
+
         Args:
             env: Constructed environment containing the selected scene cameras.
 
@@ -247,6 +251,7 @@ class XrCameraFeedSession:
         try:
             if self.enabled:
                 if self._layout_cfg.use_scene_partition:
+                    self._prepare_scene_partition()
                     self._enable_scene_partition()
                 self._manager = _XrCameraFeedManager(env, self._cfgs, self._layout_cfg, self._presenter)
         except Exception:
@@ -266,7 +271,9 @@ class XrCameraFeedSession:
 
         Render-product policy authored while binding persists for the selected
         camera render product's lifetime.
-        Shared partition overrides are restored after the final isolated session.
+        Camera configuration is restored after the last prepared session closes;
+        the global setting's bind-time value is restored after the last bound
+        session closes, unless changed externally.
         """
         try:
             if self._manager is not None:
@@ -274,9 +281,9 @@ class XrCameraFeedSession:
         finally:
             self._manager = None
             self._bound = False
-            if self._partition_active:
-                self._partition_active = False
-                cls = XrCameraFeedSession
+            cls = XrCameraFeedSession
+            if self._partition_prepared:
+                self._partition_prepared = False
                 for cfg in self._partition_renderers:
                     _, previous, count = cls._partition_renderer_state[id(cfg)]
                     if count > 1:
@@ -285,6 +292,8 @@ class XrCameraFeedSession:
                         if cfg.enable_scene_partitioning is False:
                             cfg.enable_scene_partitioning = previous
                         del cls._partition_renderer_state[id(cfg)]
+            if self._partition_active:
+                self._partition_active = False
                 cls._partition_users -= 1
                 if not cls._partition_users:
                     try:
@@ -295,30 +304,39 @@ class XrCameraFeedSession:
                     finally:
                         cls._partition_settings = cls._partition_previous = None
 
+    def _prepare_scene_partition(self) -> None:
+        # Camera construction authors environment partitions, so configure it early.
+        if self._partition_prepared:
+            return
+        cls = XrCameraFeedSession
+        for cfg in self._partition_renderers:
+            _, previous, count = cls._partition_renderer_state.get(id(cfg), (cfg, cfg.enable_scene_partitioning, 0))
+            cls._partition_renderer_state[id(cfg)] = (cfg, previous, count + 1)
+            cfg.enable_scene_partitioning = False
+        self._partition_prepared = True
+
     def _enable_scene_partition(self) -> None:
         from isaaclab.app.settings_manager import get_settings_manager
 
+        if self._partition_active:
+            return
         cls = XrCameraFeedSession
         if (
             cls._partition_users
             and cls._partition_settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING) is not False
         ):
             raise RuntimeError(
-                "showAllPartitionsByDefault was overridden after PiP preparation; isolated XR PiP requires False."
+                "showAllPartitionsByDefault was overridden while isolated XR PiP was active; isolation requires False."
             )
-        if self._partition_active:
-            return
         if not cls._partition_users:
             settings = get_settings_manager()
             previous = settings.get(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING)
             if type(previous) is not bool:
                 raise RuntimeError("Isolated XR PiP requires the Kit showAllPartitionsByDefault setting.")
+            # Kit can reset startup settings during the first simulation reset.
+            # Acquire isolation only at bind, after initialization and before creating panels.
             settings.set(ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING, False)
             cls._partition_settings, cls._partition_previous = settings, previous
-        for cfg in self._partition_renderers:
-            _, previous, count = cls._partition_renderer_state.get(id(cfg), (cfg, cfg.enable_scene_partitioning, 0))
-            cls._partition_renderer_state[id(cfg)] = (cfg, previous, count + 1)
-            cfg.enable_scene_partitioning = False
         cls._partition_users += 1
         self._partition_active = True
 

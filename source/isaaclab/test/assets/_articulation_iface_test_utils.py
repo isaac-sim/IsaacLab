@@ -115,6 +115,7 @@ def create_physx_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
 
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
@@ -392,6 +393,7 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
     object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
+    articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
     # the solver builds this adapter; the shell has no model, so it stays absent
     object.__setattr__(articulation, "_fixed_tendon_control", None)
 

@@ -224,6 +224,41 @@ can grow independently while retaining matching:
     )
 
 
+Rigid--MPM Comparison Recordings
+--------------------------------
+
+For proxy coupling, ``mass_scale`` changes a source body's effective mass and
+inertia in the destination view; it does not change the authored rigid-body
+mass. Start at ``1`` and increase it only when the rigid solver strongly
+constrains the body during MPM contact. Check both supported and freely moving
+cases, since a large scale can suppress legitimate motion.
+
+The G1 recordings show one policy walking across sand, snow, and clay. The
+one-way recording uses lower-leg proxies, while the two-way recording uses
+full-body proxies. They are presentation examples, **not** a controlled
+single-variable comparison; keep the policy, seed, commands, and proxy geometry
+identical when measuring a coupling effect.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+
+   .. grid-item-card:: One-way, lower-leg proxies
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_g1_one_way.mp4" type="video/mp4">
+         </video>
+
+   .. grid-item-card:: Two-way, full-body proxies
+
+      .. raw:: html
+
+         <video autoplay loop muted playsinline controls preload="metadata" style="width:100%;">
+           <source src="https://download.isaacsim.omniverse.nvidia.com/isaaclab/videos/mpm_g1_two_way.mp4" type="video/mp4">
+         </video>
+
+
 Start from a maintained task
 ----------------------------
 
