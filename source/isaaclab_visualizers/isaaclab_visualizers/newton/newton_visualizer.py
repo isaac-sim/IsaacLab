@@ -736,9 +736,11 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
             prim.CreateAttribute(name, value_type).Set(value)
 
+    _ovrtx_render_products: dict | None = None
+
     @property
     def _render_products(self):
-        return getattr(self, "_ovrtx_render_products", None)
+        return self._ovrtx_render_products
 
     @_render_products.setter
     def _render_products(self, products) -> None:
