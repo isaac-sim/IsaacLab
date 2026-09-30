@@ -164,10 +164,10 @@ def create_prim(
         )
         return prim
 
-    position = to_tuple(position) if position is not None else None
-    translation = to_tuple(translation) if translation is not None else None
-    orientation = to_tuple(orientation) if orientation is not None else None
-    scale = to_tuple(scale) if scale is not None else None
+    position = _to_tuple(position) if position is not None else None
+    translation = _to_tuple(translation) if translation is not None else None
+    orientation = _to_tuple(orientation) if orientation is not None else None
+    scale = _to_tuple(scale) if scale is not None else None
     # a world-frame pose is expressed relative to the parent before authoring
     if position is not None:
         translation, orientation = convert_world_pose_to_local(position, orientation, ref_prim=prim.GetParent())
@@ -782,12 +782,12 @@ def bind_visual_material(
         raise ValueError(f"Visual material '{material_path}' does not exist.")
 
     binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    return binding_api.Bind(
-        UsdShade.Material(material_prim),
-        bindingStrength=UsdShade.Tokens.strongerThanDescendants
-        if stronger_than_descendants
-        else UsdShade.Tokens.weakerThanDescendants,
-    )
+    material = UsdShade.Material(material_prim)
+    if stronger_than_descendants:
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
+    else:
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    return binding_api.Bind(material, bindingStrength=binding_strength)
 
 
 @apply_nested
@@ -852,13 +852,12 @@ def bind_physics_material(
         material_binding_api = UsdShade.MaterialBindingAPI(prim)
     else:
         material_binding_api = UsdShade.MaterialBindingAPI.Apply(prim)
-    material_binding_api.Bind(
-        UsdShade.Material(stage.GetPrimAtPath(material_path)),
-        bindingStrength=UsdShade.Tokens.strongerThanDescendants
-        if stronger_than_descendants
-        else UsdShade.Tokens.weakerThanDescendants,
-        materialPurpose="physics",
-    )  # type: ignore
+    material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+    if stronger_than_descendants:
+        binding_strength = UsdShade.Tokens.strongerThanDescendants
+    else:
+        binding_strength = UsdShade.Tokens.weakerThanDescendants
+    material_binding_api.Bind(material, bindingStrength=binding_strength, materialPurpose="physics")  # type: ignore
     return True
 
 
@@ -1022,7 +1021,7 @@ Internal Helpers.
 """
 
 
-def to_tuple(value: Any) -> tuple[float, ...]:
+def _to_tuple(value: Any) -> tuple[float, ...]:
     """Convert various sequence types to a Python tuple of floats.
 
     This function provides robust conversion from different array-like types (list, tuple, numpy array,
@@ -1046,13 +1045,13 @@ def to_tuple(value: Any) -> tuple[float, ...]:
         >>> import torch
         >>> import numpy as np
         >>>
-        >>> to_tuple([1.0, 2.0, 3.0])
+        >>> _to_tuple([1.0, 2.0, 3.0])
         (1.0, 2.0, 3.0)
-        >>> to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
+        >>> _to_tuple(torch.tensor([[1.0, 2.0]]))  # Squeezes first dimension
         (1.0, 2.0)
-        >>> to_tuple(np.array([1.0, 2.0, 3.0]))
+        >>> _to_tuple(np.array([1.0, 2.0, 3.0]))
         (1.0, 2.0, 3.0)
-        >>> to_tuple((1.0, 2.0, 3.0))
+        >>> _to_tuple((1.0, 2.0, 3.0))
         (1.0, 2.0, 3.0)
 
     """

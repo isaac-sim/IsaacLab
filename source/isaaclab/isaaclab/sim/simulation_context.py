@@ -51,7 +51,7 @@ _VISUALIZER_TYPES = ("newton_gl", "newton_rtx", "rerun", "viser", "kit")
 _VISUALIZER_ALIASES = {"newton": "newton_gl"}
 
 
-def resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
+def _resolve_physics_cfg(physics_cfg: PhysicsCfg | None, use_isaac_sim: bool) -> PhysicsCfg:
     """Resolve a simulation physics config to a concrete backend."""
     if physics_cfg is None:
         from isaaclab_physx.physics import PhysxCfg
@@ -158,7 +158,7 @@ class SimulationContext:
         """Clone-context instances registered by type before plan dispatch; not native resource owners."""
 
         use_isaac_sim = has_kit()
-        self._physics = resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
+        self._physics = _resolve_physics_cfg(self.cfg.physics, use_isaac_sim=use_isaac_sim)
         self.cfg.physics = self._physics
         self._physics.class_type._prepare_stage_creation()
 

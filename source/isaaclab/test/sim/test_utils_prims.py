@@ -17,7 +17,7 @@ import torch
 from pxr import Gf, Sdf, Usd, UsdGeom
 
 import isaaclab.sim as sim_utils
-from isaaclab.sim.utils.prims import to_tuple
+from isaaclab.sim.utils.prims import _to_tuple  # type: ignore[reportPrivateUsage]
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR, unmirror_file_path
 
 pytestmark = [pytest.mark.integration, pytest.mark.isaacsim_ci]
@@ -512,27 +512,27 @@ Internal Helpers.
 
 
 def test_to_tuple_edge_cases():
-    """Test to_tuple() squeezes a batch of one, converts mixed scalar items, and rejects N-D input.
+    """Test _to_tuple() squeezes a batch of one, converts mixed scalar items, and rejects N-D input.
 
     Plain list/tuple/numpy/torch inputs are covered through ``create_prim`` in
     ``test_create_prim_with_different_input_types``.
     """
     # squeezing first dimension (batch size 1)
-    assert to_tuple(torch.tensor([[1.0, 2.0]])) == (1.0, 2.0)
-    assert to_tuple(np.array([[1.0, 2.0, 3.0]])) == (1.0, 2.0, 3.0)
+    assert _to_tuple(torch.tensor([[1.0, 2.0]])) == (1.0, 2.0)
+    assert _to_tuple(np.array([[1.0, 2.0, 3.0]])) == (1.0, 2.0, 3.0)
 
     # mixed sequences of numpy/torch scalar items and floats
-    result = to_tuple([np.float32(1.0), 2.0, 3.0])
+    result = _to_tuple([np.float32(1.0), 2.0, 3.0])
     assert len(result) == 3
     assert all(isinstance(x, float) for x in result)
-    assert to_tuple([torch.tensor(1.0), 2.0, 3.0]) == (1.0, 2.0, 3.0)
-    assert to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0))) == (1.0, 2.0, 3.0)
+    assert _to_tuple([torch.tensor(1.0), 2.0, 3.0]) == (1.0, 2.0, 3.0)
+    assert _to_tuple((np.float32(1.0), 2.0, torch.tensor(3.0))) == (1.0, 2.0, 3.0)
 
     with pytest.raises(ValueError, match="not one dimensional"):
-        to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
+        _to_tuple(np.array([[1.0, 2.0], [3.0, 4.0]]))
 
     with pytest.raises(ValueError, match="not one dimensional"):
-        to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
+        _to_tuple(torch.tensor([[[1.0, 2.0]], [[3.0, 4.0]]]))
 
     with pytest.raises(ValueError, match="only one element tensors can be converted"):
-        to_tuple((torch.tensor([1.0, 2.0]), 3.0))
+        _to_tuple((torch.tensor([1.0, 2.0]), 3.0))

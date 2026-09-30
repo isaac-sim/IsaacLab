@@ -100,7 +100,9 @@ def _get_input_value(shader: UsdShade.Shader, name: str) -> tuple[float, float, 
     if inp is not None:
         attrs = UsdShade.Utils.GetValueProducingAttributes(inp)
         if attrs:
-            return _coerce_color(attrs[0].Get())
+            value = attrs[0].Get()
+            if value is not None:
+                return _coerce_color(value)
     return None
 
 
