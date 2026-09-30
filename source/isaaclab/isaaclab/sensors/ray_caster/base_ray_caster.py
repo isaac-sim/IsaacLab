@@ -116,12 +116,31 @@ class BaseRayCaster(SensorBase):
         self._drift_sampled |= sample_drift or sample_ray_cast_drift
         if not self._drift_sampled:
             return
+        if sample_ray_cast_drift and ray_cast_range_list != self._ray_cast_drift_range_list:
+            # Upload the ranges to the device only when the configuration changes.
+            self._ray_cast_drift_range_list = ray_cast_range_list
+            self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
+        if env_mask is not None:
+            # Resample every environment and keep the new values where the mask is set, so the
+            # masked reset needs no host synchronization.
+            mask = wp.to_torch(env_mask).view(-1, 1)
+            drift = self.drift.torch
+            new_drift = torch.zeros_like(drift)
+            if sample_drift:
+                new_drift.uniform_(*self.cfg.drift_range)
+            drift.copy_(torch.where(mask, new_drift, drift))
+            ray_cast_drift = self.ray_cast_drift.torch
+            new_ray_cast_drift = torch.zeros_like(ray_cast_drift)
+            if sample_ray_cast_drift:
+                ranges = self._ray_cast_drift_ranges
+                new_ray_cast_drift = math_utils.sample_uniform(
+                    ranges[:, 0], ranges[:, 1], tuple(ray_cast_drift.shape), device=self.device
+                )
+            ray_cast_drift.copy_(torch.where(mask, new_ray_cast_drift, ray_cast_drift))
+            return
         # determine the selected batch size
         if env_ids is not None:
             num_envs_ids = len(range(self._view_count)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
-        elif env_mask is not None:
-            env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-            num_envs_ids = len(env_ids)
         else:
             env_ids = slice(None)
             num_envs_ids = self._view_count
@@ -133,10 +152,6 @@ class BaseRayCaster(SensorBase):
             self.drift.torch[env_ids] = 0.0
         # resample the ray cast drift
         if sample_ray_cast_drift:
-            # Upload the ranges to the device only when the configuration changes.
-            if ray_cast_range_list != self._ray_cast_drift_range_list:
-                self._ray_cast_drift_range_list = ray_cast_range_list
-                self._ray_cast_drift_ranges = torch.tensor(ray_cast_range_list, device=self.device)
             ranges = self._ray_cast_drift_ranges
             self.ray_cast_drift.torch[env_ids] = math_utils.sample_uniform(
                 ranges[:, 0], ranges[:, 1], (num_envs_ids, 3), device=self.device

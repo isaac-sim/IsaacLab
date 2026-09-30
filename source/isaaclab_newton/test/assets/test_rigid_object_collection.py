@@ -708,3 +708,46 @@ def test_body_pose_write_marks_fk_reset_mask(device):
                 f"body_link_pose_w still aliases the pre-write pose after {writer}; the buffer was not written"
             )
             torch.testing.assert_close(body_link[..., :3], target_pose[..., :3], rtol=1e-4, atol=1e-4)
+
+
+@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
+def test_mask_writes_replay_from_cuda_graph_on_selected_cells(device):
+    """Mask writers record into a CUDA graph and, on replay, write only the selected environment-body cells.
+
+    The mask variants are the documented graph-capturable write path. The replay reads the input buffer's
+    contents at launch time, so the input is filled only after capture.
+    """
+    num_envs, num_cubes = 3, 2
+    with _newton_sim_context(device, gravity_enabled=False, auto_add_lighting=True) as sim:
+        sim._app_control_on_stop_handle = None
+        cube_object, _ = generate_cubes_scene(num_envs=num_envs, num_cubes=num_cubes, height=0.5, device=device)
+        replicate(sim.get_clone_plan())
+        sim.reset()
+        sim.step()
+        cube_object.update(sim.cfg.dt)
+
+        env_mask = wp.array([False, True, False], dtype=wp.bool, device=device)
+        body_mask = wp.array([True, False], dtype=wp.bool, device=device)
+        selected = torch.zeros(num_envs, num_cubes, 1, dtype=torch.bool, device=device)
+        selected[1, 0] = True
+        identity_pose = torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0], device=device)
+        writers = (
+            ("write_body_link_pose_to_sim_mask", "body_poses", "body_link_pose_w"),
+            ("write_body_com_pose_to_sim_mask", "body_poses", "body_com_pose_w"),
+            ("write_body_com_velocity_to_sim_mask", "body_velocities", "body_com_vel_w"),
+            ("write_body_link_velocity_to_sim_mask", "body_velocities", "body_link_vel_w"),
+        )
+        for writer, data_arg, buffer_name in writers:
+            before = getattr(cube_object.data, buffer_name).torch.clone()
+            target = torch.zeros_like(before)
+            with wp.ScopedCapture(device) as capture:
+                getattr(cube_object, writer)(**{data_arg: target}, env_mask=env_mask, body_mask=body_mask)
+            if data_arg == "body_poses":
+                target.copy_(identity_pose.expand_as(target))
+                target[..., :3] = torch.rand(num_envs, num_cubes, 3, device=device) + 2.0
+            else:
+                target.copy_(torch.rand_like(target) + 1.0)
+            wp.capture_launch(capture.graph)
+
+            written = getattr(cube_object.data, buffer_name).torch
+            torch.testing.assert_close(written, torch.where(selected, target, before), msg=writer)
