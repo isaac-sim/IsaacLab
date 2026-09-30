@@ -22,10 +22,9 @@ class BamActuatorCfg(ActuatorBaseCfg):
         position loop runs in the firmware domain, parameterized by :attr:`kp_fw`, and its
         damping is the physical back-EMF of the motor.
 
-    This model requires ``use_newton_actuators=True`` with the Newton backend. On MuJoCo Warp,
-    the controller publishes its friction budget and viscous damping into the solver and reads
-    the external load from its generalized forces. Other Newton solvers use the controller's
-    torque-level friction approximation.
+    This model requires ``use_newton_actuators=True`` with Newton's MJWarp solver.
+    The controller publishes its friction budget and viscous damping into the solver and reads
+    the external load from its generalized forces. Other backends and solvers raise an error.
     """
 
     class_type: type | None = None
@@ -54,8 +53,8 @@ class BamActuatorCfg(ActuatorBaseCfg):
     Unknown names and missing required coefficients raise an error at authoring time.
     Prefer :attr:`kp_fw` and :attr:`vin` for deployment settings; these take precedence
     over entries in this mapping. Solver inertia remains owned by the joint USD or
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`; ``armature`` here only controls
-    the controller's fallback load estimator.
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`. The controller has no separate
+    rotor-inertia parameter.
     """
 
     kp_fw: float | None = None
