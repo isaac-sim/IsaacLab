@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
@@ -14,6 +15,7 @@ import numpy as np
 import pytest
 import torch
 import warp as wp
+from isaaclab_visualizers.kit import KitVisualizerCfg
 from isaaclab_visualizers.newton import (
     NewtonGLVisualizer,
     NewtonGLVisualizerCfg,
@@ -33,10 +35,13 @@ from isaaclab_visualizers.newton_adapter import (
 from isaaclab_visualizers.rerun import RerunVisualizerCfg
 from isaaclab_visualizers.viser import ViserVisualizerCfg
 
-from isaaclab.envs.utils import camera_view
-from isaaclab.renderers import RendererCfg
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdLux
+
+from isaaclab.assets import AssetBaseCfg
+from isaaclab.cloner import ClonePlan, PrototypeWorldTopology, make_clone_plan
 from isaaclab.sim import SimulationContext
 from isaaclab.utils import instantiate
+from isaaclab.visualizers import PerspectiveCameraCfg, SceneCameraCfg
 
 
 @pytest.mark.parametrize(
@@ -218,61 +223,55 @@ def test_newton_visualizer_set_camera_view_updates_active_viewer():
 
 
 @pytest.mark.parametrize(
-    "cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg]
+    "cfg_type",
+    [KitVisualizerCfg, NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg],
 )
-def test_visualizer_uses_declared_streaming_renderer(monkeypatch, cfg_type):
-    """Auto-create mode should not silently replace its configured view with a scene camera."""
+def test_visualizers_borrow_scene_camera_outputs(monkeypatch, cfg_type):
+    """Viewers share one declared camera, select tiles, and never construct or drive a sensor."""
     sim = Mock()
+    sim.get_clone_plan.return_value = SimpleNamespace(env_template="/Scenes/world_{}")
     monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
-    existing_camera = SimpleNamespace(
-        _view=SimpleNamespace(count=4),
-        cfg=SimpleNamespace(
-            prim_path="/World/envs/env_[^/]+/Camera",
-            renderer_cfg=SimpleNamespace(renderer_type="newton_warp"),
-        ),
+    pixels = torch.arange(4, dtype=torch.uint8).reshape(4, 1, 1, 1).expand(4, 2, 3, 3).clone()
+    camera = SimpleNamespace(
+        cfg=SimpleNamespace(prim_path="/Scenes/world_[^/]+/Camera", data_types=["rgb"]),
+        data=SimpleNamespace(output={"rgb": pixels}),
+        close=Mock(),
+        update=Mock(),
     )
-    generated_camera = object()
-    create_calls = []
+    provider = SimpleNamespace(get_camera_sensors=lambda: {"camera": camera})
+    viewers = []
+    for ids in ([0, 2], [1, 3]):
+        cfg = cfg_type(streaming_view=True, streaming_envs=ids, streaming_sensor_prim_path="{ENV_REGEX_NS}/Camera")
+        visualizer = instantiate(cfg)
+        visualizer._scene_data_provider = provider
+        if isinstance(cfg, KitVisualizerCfg):
+            visualizer._runtime_headless = True
+        visualizer._setup_streaming_view(4)
+        assert visualizer._camera_sensor is camera
+        image = visualizer.render_tiled_rgb_array()
+        np.testing.assert_array_equal(np.unique(image), ids)
+        assert visualizer.render_tiled_rgb_array() is image
+        viewers.append(visualizer)
 
-    def _create_visualizer_camera(**kwargs):
-        create_calls.append(kwargs)
-        return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
+    # A new step or reset refreshes the composite, not the sensor's lifetime.
+    pixels.add_(10)
+    viewers[0]._sim_time += 0.1
+    np.testing.assert_array_equal(np.unique(viewers[0].render_tiled_rgb_array()), [10, 12])
+    viewers[1].reset(soft=True)
+    np.testing.assert_array_equal(np.unique(viewers[1].render_tiled_rgb_array()), [11, 13])
+    camera.update.assert_not_called()
+    camera.close.assert_not_called()
+    sim.get_or_create_backend.assert_not_called()
 
-    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
-    monkeypatch.setattr(camera_view, "create_visualizer_camera", _create_visualizer_camera)
-    cfg = cfg_type(
-        streaming_view=True,
-        streaming_envs=4,
-        streaming_cam_eye=(2.25, 0.0, 1.25),
-        streaming_cam_target_prim_path="/World/envs/*/Robot",
-        streaming_cam_renderer_cfg=RendererCfg(class_type="my_renderers:CustomRenderer", renderer_type="custom"),
-    )
-    visualizer = instantiate(cfg)
-    sim.get_or_create_backend.assert_called_once_with(cfg.streaming_cam_renderer_cfg)
-    visualizer._viewer = SimpleNamespace()
-    visualizer._scene_data_provider = SimpleNamespace(
-        get_camera_sensors=lambda: {"task_camera": existing_camera},
-    )
-    visualizer._update_owned_camera_poses = lambda: None
-    visualizer._apply_streaming_camera_pose = lambda env_ids: None
-
-    visualizer._setup_streaming_view(num_envs=4)
-
-    assert visualizer._camera_sensor is generated_camera
-    assert len(create_calls) == 1
-    assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot"
-    assert create_calls[0]["eye"] == (2.25, 0.0, 1.25)
-    assert create_calls[0]["renderer_cfg"] is visualizer.cfg.streaming_cam_renderer_cfg
-
-    unavailable = Mock(side_effect=ModuleNotFoundError("custom_renderer"))
-    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", unavailable)
-    monkeypatch.setattr(camera_view, "create_visualizer_camera", unavailable)
-    with pytest.raises(ModuleNotFoundError, match="custom_renderer"):
-        visualizer._setup_streaming_view(num_envs=4)
-    cfg.streaming_cam_target_prim_path = None
-    visualizer._setup_streaming_view(num_envs=4)
-    assert visualizer._camera_sensor is existing_camera
-    assert unavailable.call_count == 1
+    viewers[0].cfg.streaming_sensor_prim_path = "/Missing/Camera"
+    with pytest.raises(ValueError, match="No scene Camera matches"):
+        viewers[0]._setup_streaming_view(4)
+    viewers[0].cfg.streaming_sensor_prim_path = None
+    viewers[0]._setup_streaming_view(4)
+    assert viewers[0]._camera_sensor is camera
+    viewers[0].cfg.streaming_gt_types = ("depth",)
+    with pytest.raises(KeyError, match="No sensor output"):
+        viewers[0]._setup_streaming_view(4)
 
 
 def test_newton_visualizer_render_rgb_array_returns_viewer_frame():
@@ -538,6 +537,7 @@ class _Viewer:
         self.logged_mesh = None
         self.events = []
         self.closed = False
+        self.camera = SimpleNamespace(get_view_matrix=lambda: np.eye(4, dtype=np.float32).ravel())
 
     def is_paused(self):
         return self.paused
@@ -551,6 +551,10 @@ class _Viewer:
     def log_state(self, state):
         self.events.append("log_state")
         self.logged_state = state
+
+    def log_image(self, name, image, *, fullscreen=False):
+        self.events.append("log_image")
+        self.logged_image = (name, image, fullscreen)
 
     def log_mesh(self, name, points, indices, **kwargs):
         self.events.append("log_mesh")
@@ -627,7 +631,6 @@ def _make_newton_visualizer(viewer, scene_data_provider=None, state=None, *, cfg
     visualizer._live_plot_sources = []
     if viewer is not None:
         visualizer._viewer_picking_binding.bind(viewer)
-    visualizer._log_camera_sensor_image = lambda: None
     return visualizer
 
 
@@ -783,6 +786,94 @@ def test_newton_gl_visualizer_logs_staged_mesh_while_paused(monkeypatch):
 
     assert viewer.events == ["begin_frame", "log_mesh", "end_frame"]
     assert viewer.logged_state is None
+
+
+def test_newton_scene_camera_replaces_perspective_rendering(monkeypatch):
+    """Image mode bypasses scene uploads, preserves pause, and can return to perspective."""
+    viewer = _Viewer()
+    cameras = [SceneCameraCfg(prim_path="/Camera"), PerspectiveCameraCfg()]
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=cameras, enable_markers=False))
+    image = np.full((4, 6, 3), 127, dtype=np.uint8)
+    visualizer._streaming_frame.data = image
+    visualizer.render_tiled_rgb_array = Mock(return_value=image)
+    provider = visualizer._scene_data_provider
+    provider.get_transforms = Mock(wraps=provider.get_transforms)
+    contacts, markers = Mock(return_value=None), Mock()
+    monkeypatch.setattr(newton_visualizer_module.NewtonManager, "get_contacts", contacts)
+    monkeypatch.setattr(newton_visualizer_module, "render_newton_visualization_markers", markers)
+
+    visualizer.step(0.1)
+    viewer.paused = True
+    visualizer.step(0.1)
+    assert viewer.events == ["begin_frame", "log_image", "end_frame"] * 2
+    name, displayed, fullscreen = viewer.logged_image
+    assert name == "Streaming View" and displayed is image and fullscreen
+    visualizer.render_tiled_rgb_array.assert_called_once()
+    provider.get_transforms.assert_not_called()
+    contacts.assert_not_called()
+    markers.assert_not_called()
+
+    viewer.paused = False
+    visualizer._camera_index = 1
+    visualizer.step(0.1)
+    assert viewer.events[-3:] == ["begin_frame", "log_state", "end_frame"]
+    provider.get_transforms.assert_called_once()
+    contacts.assert_called_once()
+
+
+def test_newton_scene_camera_controls_apply_uniformly_to_active_copies(monkeypatch):
+    """Selecting cameras is lazy; one local motion moves every copy, never an inactive sensor."""
+    sim = SimpleNamespace(get_clone_plan=lambda: SimpleNamespace(env_template="/World/env_{}"))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    positions = torch.tensor([[0.0, 0.0, 0.0], [10.0, 20.0, 0.0]])
+    orientations = torch.tensor([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 2**-0.5, 2**-0.5]])
+
+    class Camera:
+        def __init__(self, path):
+            self.cfg = SimpleNamespace(prim_path=path, data_types=["rgb"])
+            self.reads = 0
+            self.set_world_poses = Mock()
+
+        @property
+        def data(self):
+            self.reads += 1
+            return SimpleNamespace(
+                pos_w=_Proxy(positions),
+                quat_w_opengl=_Proxy(orientations),
+                output={"rgb": torch.zeros((2, 4, 6, 3), dtype=torch.uint8)},
+            )
+
+    sensors = {name: Camera(f"/World/env_[^/]+/{name}") for name in ("Front", "Back")}
+    choices = [SceneCameraCfg(prim_path=c.cfg.prim_path) for c in sensors.values()]
+    viewer = _Viewer()
+    visualizer = _make_newton_visualizer(viewer, cfg=NewtonGLVisualizerCfg(camera=choices, streaming_envs=[0, 1]))
+    visualizer._scene_data_provider.get_camera_sensors = lambda: sensors
+    visualizer._setup_streaming_view(2)
+    visualizer._select_camera(0)
+    assert all(camera.reads == 0 for camera in sensors.values())
+
+    # Native controls translate along camera +X and rotate 90 degrees about camera +Z.
+    delta = np.asarray([[0, -1, 0, 0.25], [1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float32)
+    before, after = np.eye(4, dtype=np.float32).ravel(), np.linalg.inv(delta).T.ravel()
+    viewer.camera.get_view_matrix = Mock(side_effect=[before, after])
+    visualizer.step(0.0)
+    pos, quat = sensors["Front"].set_world_poses.call_args.args
+    torch.testing.assert_close(pos, torch.tensor([[0.25, 0.0, 0.0], [10.0, 20.25, 0.0]]))
+    expected_quat = torch.tensor([[0.0, 0.0, 2**-0.5, 2**-0.5], [0.0, 0.0, 1.0, 0.0]])
+    torch.testing.assert_close(quat, expected_quat)
+    assert sensors["Front"].set_world_poses.call_args.kwargs == {"convention": "opengl"}
+    assert visualizer._streaming_frame.timestamp == -1.0
+    assert sensors["Back"].reads == 0
+    sensors["Back"].set_world_poses.assert_not_called()
+
+    # Switching only binds; reading the selected view then captures that sensor alone.
+    reads = sensors["Front"].reads
+    visualizer._select_camera(1)
+    assert sensors["Back"].reads == 0
+    viewer.camera.get_view_matrix = Mock(side_effect=[before, before])
+    visualizer.step(0.0)
+    assert sensors["Back"].reads == 1 and sensors["Front"].reads == reads
+    sensors["Back"].set_world_poses.assert_not_called()
 
 
 @pytest.mark.parametrize("cfg_type", [NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg])
@@ -976,20 +1067,98 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_newton_rtx_receives_background_color(
-    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
-) -> None:
-    kwargs = {}
-    monkeypatch.setattr(
-        newton_visualizer_module,
-        "NewtonViewerRTX",
-        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
+def test_newton_rtx_uses_authored_lighting(tmp_path: Path) -> None:
+    """Shared HDR and prototype lights retain authored values, placement, and world selection."""
+    (tmp_path / "sky.hdr").write_bytes(b"")
+    stage = Usd.Stage.CreateNew(str(tmp_path / "scene.usda"))
+    UsdGeom.Xform.Define(stage, "/Lighting").AddRotateZOp().Set(35.0)
+    dome = UsdLux.DomeLight.Define(stage, "/Lighting/Sky")
+    dome.GetTextureFileAttr().Set(Sdf.AssetPath("./sky.hdr"))
+    dome.GetIntensityAttr().Set(750.0)
+    dome.GetExposureAttr().Set(1.5)
+    UsdGeom.Xform.Define(stage, "/Scenes/world_0").AddTranslateOp().Set((10.0, 0.0, 0.0))
+    key = UsdLux.SphereLight.Define(stage, "/Scenes/world_0/Rig/Key")
+    UsdGeom.Xformable(key).AddTranslateOp().Set((1.0, 2.0, 3.0))
+    key.GetIntensityAttr().Set(125.0)
+    UsdLux.DistantLight.Define(stage, "/Unused/Light")
+    cfgs = tuple(AssetBaseCfg(prim_path=path) for path in ("/Lighting", "/Scenes/world_[^/]+/Rig", "/Unused"))
+    topology = PrototypeWorldTopology(
+        3, np.array([0, 1, 1, 2], dtype=np.int32), np.array([0, 1, 3, 4]), np.array([0, 0, 0], dtype=np.int32)
     )
+    plan = ClonePlan(topology, cfgs, "/Scenes/world_{}", positions=np.array([(10.0, 0, 0), (20.0, 0, 0), (30.0, 0, 0)]))
+    viewer = object.__new__(NewtonViewerRTX)
+    viewer._scene_stage, viewer._clone_plan = stage, plan
+    viewer.stage = Usd.Stage.CreateInMemory()
+    viewer._visible_worlds = {0, 2}
+    viewer.world_offsets = wp.array([(0.0, 0, 0), (0.0, 0, 0), (0.0, 5.0, 0)], dtype=wp.vec3, device="cpu")
 
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
+    viewer._add_default_lights()
 
-    assert kwargs["background_color"] == color
+    lights = [prim for prim in viewer.stage.Traverse() if prim.HasAPI(UsdLux.LightAPI)]
+    assert len(lights) == 5  # One shared dome; two repeated asset instances in each visible world.
+    imported = UsdLux.DomeLight(viewer.stage.GetPrimAtPath("/root/scene_lights/Lighting/Sky"))
+    assert imported.GetTextureFileAttr().Get().path == str(tmp_path / "sky.hdr")
+    assert imported.GetIntensityAttr().Get() == 750.0
+    assert imported.GetExposureAttr().Get() == 1.5
+    np.testing.assert_allclose(
+        UsdGeom.XformCache().GetLocalToWorldTransform(imported.GetPrim()),
+        Gf.Matrix4d().SetRotate(Gf.Rotation((0, 0, 1), 35)),
+    )
+    for world, position in ((0, (11.0, 2.0, 3.0)), (2, (31.0, 7.0, 3.0))):
+        for name in ("Rig", "Rig_1"):
+            light = viewer.stage.GetPrimAtPath(f"/root/scene_lights/Scenes/world_{world}/{name}/Key")
+            assert light.GetAttribute("inputs:intensity").Get() == 125.0
+            assert UsdGeom.XformCache().GetLocalToWorldTransform(light).ExtractTranslation() == Gf.Vec3d(*position)
+
+
+@pytest.mark.rendering
+@pytest.mark.kitless
+def test_newton_rtx_scene_sky_and_background_override(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Scene-only HDR lights the cube; a solid override changes the background, not illumination."""
+    import newton
+    from pyglet.math import Vec3
+
+    import isaaclab.sim as sim_utils
+
+    texture = tmp_path / "red.hdr"
+    # A 4x2 Radiance image uses raw RGBE pixels; (128, 0, 0, 129) encodes linear RGB (1, 0, 0).
+    texture.write_bytes(b"#?RADIANCE\nFORMAT=32-bit_rle_rgbe\n\n-Y 2 +X 4\n" + bytes((128, 0, 0, 129)) * 8)
+    stage = Usd.Stage.CreateInMemory()
+    UsdGeom.SetStageUpAxis(stage, "Z")
+    UsdGeom.SetStageMetersPerUnit(stage, 1.0)
+    with sim_utils.use_stage(stage):
+        sim_utils.spawn_light("/World/Sky", sim_utils.DomeLightCfg(texture_file=str(texture), intensity=750.0))
+    UsdGeom.Cube.Define(stage, "/World/Cube").GetSizeAttr().Set(1.0)
+    plan = make_clone_plan((AssetBaseCfg(prim_path="/World"),), ((),), 0, shared_assets=(0,))
+    sim = SimpleNamespace(
+        stage=stage, get_clone_plan=lambda: plan, physics_manager=newton_visualizer_module.NewtonManager
+    )
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim)
+    builder = newton.ModelBuilder()
+    builder.add_usd(stage)
+    model = builder.finalize("cuda:0")
+    state = model.state()
+    object_colors = []
+    for override, channel in ((None, 0), ((0.0, 0.0, 1.0), 2)):
+        cfg = NewtonRTXVisualizerCfg(background_color=override, window_width=128, window_height=128)
+        visualizer = NewtonRTXVisualizer(cfg)
+        viewer = visualizer._create_viewer(True, {})
+        try:
+            viewer.set_model(model)
+            viewer.set_camera(Vec3(0.0, -4.0, 0.0), 0.0, 90.0)
+            for frame in range(8):
+                viewer.begin_frame(frame / 60)
+                viewer.log_state(state)
+                viewer.end_frame()
+            pixels = viewer.get_frame()
+            background = pixels[8:24, 8:24].mean(axis=(0, 1))
+            color = pixels[56:72, 56:72].mean(axis=(0, 1))
+            assert background[channel] > 180 and np.delete(background, channel).max() < 10, background
+            assert color[0] > 80 and color[1:].max() < 10, color
+            object_colors.append(color)
+        finally:
+            viewer.close()
+    np.testing.assert_allclose(*object_colors, atol=12, rtol=0)
 
 
 def test_eye_lookat_to_pitch_yaw_looking_up():
@@ -1126,49 +1295,3 @@ def test_newton_rtx_visualizer_allows_ovphysx_backend(monkeypatch):
     # SimulationContext and fails differently -- proving the guard did not fire for ovphysx.
     with pytest.raises(AttributeError):
         visualizer.initialize(Mock())
-
-
-def test_newton_rtx_visualizer_setup_streaming_view_creates_owned_camera(monkeypatch):
-    """_setup_streaming_view must create the owned camera sensor on RTX, not return early."""
-    monkeypatch.setattr(SimulationContext, "instance", Mock())
-    generated_camera = object()
-    create_calls = []
-
-    def _create_visualizer_camera(**kwargs):
-        create_calls.append(kwargs)
-        return generated_camera, ["/World/envs/env_0/VisualizerCamera"], True, ("camera-key",)
-
-    monkeypatch.setattr(newton_visualizer_module, "create_visualizer_camera", _create_visualizer_camera)
-
-    visualizer = NewtonRTXVisualizer(
-        NewtonRTXVisualizerCfg(
-            streaming_view=True,
-            streaming_envs=1,
-            streaming_cam_eye=(3.0, 3.0, 3.0),
-            streaming_cam_target_prim_path="/World/envs/*/Robot/base",
-            window_width=960,
-            window_height=600,
-        )
-    )
-    visualizer._scene_data_provider = SimpleNamespace(get_camera_sensors=lambda: {})
-    visualizer._update_owned_camera_poses = lambda: None
-
-    visualizer._setup_streaming_view(num_envs=1)
-
-    assert visualizer._camera_sensor is generated_camera
-    assert len(create_calls) == 1
-    assert create_calls[0]["target_prim_path"] == "/World/envs/*/Robot/base"
-    assert create_calls[0]["eye"] == (3.0, 3.0, 3.0)
-
-    # _log_streaming_image stays a no-op (no on-screen preview sink), but render_tiled_rgb_array
-    # still builds the composite from the owned camera sensor for headless capture. VideoRecorder
-    # gates streaming-view capture on hasattr(viz, "render_tiled_rgb_array"), so this attribute
-    # must be present on RTX (it lives on the shared NewtonVisualizer base, not NewtonGLVisualizer).
-    visualizer._log_streaming_image()
-    assert hasattr(visualizer, "render_tiled_rgb_array")
-
-    # With the streaming view disabled, no owned camera is created.
-    visualizer_off = NewtonRTXVisualizer(NewtonRTXVisualizerCfg(streaming_view=False))
-    visualizer_off._setup_streaming_view(num_envs=1)
-    assert len(create_calls) == 1
-    assert visualizer_off._camera_sensor is None

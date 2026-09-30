@@ -10,11 +10,8 @@ from __future__ import annotations
 import warnings
 from typing import TYPE_CHECKING, Any
 
-from isaaclab_newton.renderers import NewtonWarpRendererCfg
-
-from isaaclab.renderers import RendererCfg
 from isaaclab.utils import configclass
-from isaaclab.visualizers.visualizer_cfg import VisualizerCfg
+from isaaclab.visualizers.visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
 
 if TYPE_CHECKING:
     from .newton_visualizer import NewtonGLVisualizer, NewtonRTXVisualizer
@@ -36,9 +33,6 @@ class NewtonVisualizerCfg(VisualizerCfg):
     visualizer_type: str = "newton_gl"
 
     cloning_contexts: tuple[type | str, ...] = ("isaaclab_newton.cloner:NewtonReplicateContext",)
-
-    streaming_cam_renderer_cfg: RendererCfg = NewtonWarpRendererCfg()
-    """Renderer configuration for the auto-created streaming camera."""
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -124,11 +118,10 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     """Configuration for the Newton OpenGL rasterizer visualizer.
 
     Selects Newton's OpenGL backend — fast local window with the full Isaac Lab
-    feature set: streaming camera panel, particle color override, and live scalar/array plots.
+    feature set: scene-camera display, particle color override, and live scalar/array plots.
 
-    The streaming camera panel is enabled by default (``streaming_view=True``) but starts
-    hidden — no camera rendering work is performed until the user opens the panel via the
-    sidebar combo, keeping per-step overhead zero when the panel is closed.
+    A scene-camera view replaces perspective rendering. With no explicit camera selection,
+    the viewer starts in perspective mode and the sidebar can switch to a scene camera.
     """
 
     class_type: type[NewtonGLVisualizer] | str = "{DIR}.newton_visualizer:NewtonGLVisualizer"
@@ -137,13 +130,35 @@ class NewtonGLVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_gl"
     """Visualizer selector identifier. Do not change."""
 
-    streaming_view: bool = True
-    """Enable the tiled streaming camera panel.
+    camera: PerspectiveCameraCfg | SceneCameraCfg | list[PerspectiveCameraCfg | SceneCameraCfg] | None = None
+    """Display source, or selectable sources with the first initially active.
 
-    Overrides the base-class default of ``False``.  The panel starts **hidden** so there
-    is no per-step camera rendering cost; the user can open it at any time via the
-    *Streaming View* combo in the Newton sidebar.
+    SceneCameraCfg opens the tiled sensor output directly, without a perspective render behind it.
+    PerspectiveCameraCfg supplies an interactive pose and optics. Only the selected source is displayed.
+    Navigation moves every copy of the selected scene camera by the same camera-local motion.
+    These sensor pose changes are also visible to policies and other viewers using that camera.
+    None preserves the eye/lookat/focal_length settings and lists scene cameras when streaming_view is enabled.
     """
+
+    streaming_view: bool = True
+    """Make scene cameras available in the view selector.
+
+    A SceneCameraCfg selection enables this automatically. Otherwise the viewer starts in perspective.
+    """
+
+    def __post_init__(self) -> None:
+        super().__post_init__()
+        if self.camera is None:
+            return
+        cameras = self.camera if isinstance(self.camera, list) else [self.camera]
+        if not cameras:
+            raise ValueError("camera must contain at least one display source.")
+        scene_camera = next((camera for camera in cameras if isinstance(camera, SceneCameraCfg)), None)
+        self.streaming_view = scene_camera is not None
+        if scene_camera is not None:
+            self.streaming_sensor_prim_path = scene_camera.prim_path
+        if isinstance(camera := cameras[0], PerspectiveCameraCfg):
+            self.eye, self.lookat, self.focal_length = camera.eye, camera.lookat, camera.focal_length
 
 
 @configclass
@@ -153,8 +168,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    .. note::
-        Lighting environment and denoiser settings use ``ViewerRTX`` defaults.
+    Lighting comes from the scene's authored USD lights by default, including HDR dome textures.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
     :attr:`window_width` by :attr:`window_height`. The tiled camera panel remains
@@ -168,8 +182,12 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Visualizer selector identifier. Do not change."""
 
     rtx_environment: str = "default"
-    """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
-    ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
+    """Lighting selection: ``"default"`` uses scene lights, ``"studio"`` uses Newton's three-point rig,
+    and ``"none"`` disables lighting. Without authored lights, ``"default"`` uses Newton's default rig.
+
+    Scene lights retain their authored initial transforms and visibility. Later source-USD edits
+    and body-attached light motion are not synchronized by the native RTX viewer.
+    """
 
     render_settings: dict[str, Any] = dict()
     """RTX attributes to author on the OVRTX render product, as ``{name: (usd_type_name, value)}``.

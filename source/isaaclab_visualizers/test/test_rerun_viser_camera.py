@@ -18,11 +18,11 @@ def test_rerun_visualizer_set_camera_view():
     visualizer = RerunVisualizer(RerunVisualizerCfg())
     visualizer.set_camera_view((1.0, 1.0, 1.0), (0.0, 0.0, 0.0))
 
-    # _streaming_view_active=True short-circuits _apply_camera_pose before it calls into the
+    # A selected scene camera short-circuits _apply_camera_pose before it calls into the
     # real rerun SDK (rr.send_blueprint), letting this test exercise the pose-conversion and
     # viewer-attribute-assignment logic without a live rerun session.
     visualizer._viewer = SimpleNamespace(_camera_pose=None)
-    visualizer._streaming_view_active = True
+    visualizer._camera_sensor = object()
     visualizer.set_camera_view([1, 2, 3], [4, 5, 6])
 
     assert visualizer._viewer._camera_pose == ((1.0, 2.0, 3.0), (4.0, 5.0, 6.0))

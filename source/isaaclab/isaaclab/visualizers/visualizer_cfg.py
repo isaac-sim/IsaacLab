@@ -7,12 +7,12 @@
 
 from __future__ import annotations
 
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 from ..utils import configclass
 
 if TYPE_CHECKING:
-    from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
 
@@ -35,6 +35,31 @@ def _get_visualizer_install_hint(visualizer_type: str) -> str:
     if extra is None:
         return "Run your command with: uv run <command>."
     return f"Run your command with: uv run --extra {extra} <command>."
+
+
+@configclass
+class PerspectiveCameraCfg:
+    """Initial pose and optics for a visualizer-owned interactive perspective camera."""
+
+    eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
+    """Eye position in world coordinates [m]."""
+
+    lookat: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    """Look-at target in world coordinates [m]."""
+
+    focal_length: float = 12.0
+    """Perspective camera focal length [mm]."""
+
+
+@configclass
+class SceneCameraCfg:
+    """Select an existing scene camera's output as the visualizer's main view.
+
+    This does not create a sensor. Declare its pose, optics, and renderer in the scene's CameraCfg.
+    """
+
+    prim_path: str = MISSING
+    """Scene camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable."""
 
 
 @configclass
@@ -64,50 +89,27 @@ class VisualizerCfg:
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
 
-    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    background_color: tuple[float, float, float] | None = None
     """Solid background color as normalized RGB values in ``[0, 1]``.
 
-    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
-    backend's native background. Scene lighting remains independent of the visible background.
+    None preserves the scene HDR background in Kit and Newton RTX, or Newton GL's procedural sky.
+    An explicit color changes only the visible background, not scene lighting or reflections.
     """
 
     # ── Streaming view ────────────────────────────────────────────────────────
-    # Captures pixels from a camera sensor (existing or auto-created), tiles them
+    # Reads pixels from a scene-declared camera sensor, tiles them
     # across envs and GT types, and shows the result as an image panel in interactive
     # visualizers (Newton GL, Kit) or pushes it per-step to sink-based ones (Rerun, Viser).
 
     streaming_view: bool = False
     """Enable the streaming camera image view (opt-in, disabled by default)."""
 
-    # Source — existing sensor (takes priority when set)
     streaming_sensor_prim_path: str | None = None
-    """Prim path of an existing TiledCamera sensor to stream from.
+    """Prim path of a scene-declared :class:`~isaaclab.sensors.Camera` to display.
 
-    When set, all ``streaming_cam_*`` fields are ignored.  Should point to an
-    existing camera sensor, e.g. ``"/World/envs/*/Camera"``.
-    """
-
-    # Source — auto-created camera (used when streaming_sensor_prim_path is None)
-    streaming_cam_target_prim_path: str | None = None
-    """Target prim for the auto-created streaming camera (ignored when
-    :attr:`streaming_sensor_prim_path` is set).
-
-    When ``None`` (the default), the visualizer adopts the first scene camera
-    sensor it discovers dynamically at initialization time.  If no scene camera
-    exists the streaming panel remains empty.  Set this explicitly (e.g.
-    ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
-    and no suitable scene camera is present.
-    """
-
-    streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
-    """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
-
-    streaming_cam_renderer_cfg: RendererCfg | None = None
-    """Renderer for the auto-created streaming camera.
-
-    Concrete visualizer configs declare their default renderer configuration.
-    Its ``class_type`` selects the implementation, including custom renderers.
-    Ignored when :attr:`streaming_sensor_prim_path` is set.
+    Use the camera's configured prim path, including ``{ENV_REGEX_NS}`` when applicable.
+    None selects the first camera in the scene. Without a scene camera the panel stays empty.
+    The scene owns camera construction, updates, and lifetime; visualizers only read its output.
     """
 
     # Shared settings
@@ -184,12 +186,6 @@ class VisualizerCfg:
     tiled_cam_prim_path: str | None = None
     """Deprecated. Use :attr:`streaming_sensor_prim_path` instead."""
 
-    tiled_cam_eye: tuple[float, float, float] | None = None
-    """Deprecated. Use :attr:`streaming_cam_eye` instead."""
-
-    tiled_cam_target_prim_path: str | None = None
-    """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
-
     def __post_init__(self) -> None:
         import warnings
 
@@ -201,8 +197,6 @@ class VisualizerCfg:
         _simple = [
             ("tiled_cam_view", "streaming_view"),
             ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
-            ("tiled_cam_eye", "streaming_cam_eye"),
-            ("tiled_cam_target_prim_path", "streaming_cam_target_prim_path"),
         ]
         for old, new in _simple:
             val = getattr(self, old)

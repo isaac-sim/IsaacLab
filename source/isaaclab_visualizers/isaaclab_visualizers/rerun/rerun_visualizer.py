@@ -17,7 +17,6 @@ from typing import TYPE_CHECKING
 from urllib.parse import quote
 
 import newton
-import numpy as np
 import rerun as rr
 import rerun.blueprint as rrb
 from isaaclab_newton.physics import NewtonBackendCfg
@@ -115,11 +114,11 @@ class NewtonViewerRerun(ViewerRerun):
     #: default single view.
     _live_plot_manager_names: list[str]
 
-    def __init__(self, *args, open_browser: bool = False, **kwargs):
+    def __init__(self, *args, open_browser: bool = False, streaming_view: bool = False, **kwargs):
         """Initialize viewer wrapper and Isaac Lab pause state."""
         self._live_plot_manager_names = []
         self._camera_pose: tuple | None = None
-        self._streaming_view_active: bool = False
+        self._streaming_view_active = streaming_view
         if open_browser:
             super().__init__(*args, **kwargs)
         else:
@@ -275,19 +274,10 @@ class RerunVisualizer(BaseVisualizer):
         self.cfg: RerunVisualizerCfg = cfg
         self._viewer: NewtonViewerRerun | None = None
         self._backend_display: str | None = None
-        self._sim_time = 0.0
         self._step_counter = 0
         self.backend = None
         self._last_camera_pose: tuple[tuple[float, float, float], tuple[float, float, float]] | None = None
         self._resolved_visible_env_ids: list[int] | None = None
-        self._camera_sensor = None
-        self._camera_sensor_indices: list[int] = []
-        self._camera_env_indices: list[int] = []
-        self._camera_is_owned = False
-        self._generated_camera_prim_paths: list[str] = []
-        self._streaming_view_active: bool = False
-        self._streaming_camera_key: tuple | None = None
-        self._last_streaming_composite: np.ndarray | None = None
 
     def initialize(self, scene_data_provider: SceneDataProvider) -> None:
         """Initialize rerun viewer and bind scene data provider.
@@ -306,6 +296,8 @@ class RerunVisualizer(BaseVisualizer):
         self.backend = sim.get_or_create_backend(self.newton_cfg)
         self._transform_mapping = scene_data_provider.create_mapping(list(self.backend.model.body_label))
 
+        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
+        self._setup_streaming_view(num_envs, visible_env_ids=self._resolved_visible_env_ids)
         grpc_port = int(self.cfg.grpc_port)
         web_port = int(self.cfg.web_port)
         bind_address = self.cfg.bind_address or "0.0.0.0"
@@ -329,6 +321,7 @@ class RerunVisualizer(BaseVisualizer):
             keep_scalar_history=self.cfg.keep_scalar_history or self.cfg.enable_live_plots,
             record_to_rrd=self.cfg.record_to_rrd,
             open_browser=self.cfg.open_browser,
+            streaming_view=self._camera_sensor is not None,
         )
         if start_server_in_viewer:
             rerun_address = getattr(self._viewer, "_grpc_server_uri", rerun_address)
@@ -356,7 +349,6 @@ class RerunVisualizer(BaseVisualizer):
         self._viewer.scaling = 1.0
         self._viewer._paused = False
 
-        self._resolved_visible_env_ids = resolve_visible_env_indices(self._env_ids, self.cfg.max_visible_envs, num_envs)
         num_visualized_envs = (
             len(self._resolved_visible_env_ids) if self._resolved_visible_env_ids is not None else num_envs
         )
@@ -380,7 +372,6 @@ class RerunVisualizer(BaseVisualizer):
 
         rr.log("info/physics_backend", rr.TextDocument(""), static=True)
 
-        self._setup_streaming_view(num_envs)
         self._is_initialized = True
         atexit.register(self.close)
 
@@ -422,16 +413,17 @@ class RerunVisualizer(BaseVisualizer):
         # Push streaming outside the pause-gate so it updates even when the
         # Newton viewer is paused, and outside begin/end_frame so the rr.log
         # call is not constrained to the viewer's internal time context.
-        # When paused, only compose (update _last_streaming_composite for any
+        # When paused, only compose (update _streaming_frame for any
         # render_tiled_rgb_array() consumer) without re-logging to Rerun —
         # the viewer already holds the last frame.
         if self._viewer.is_paused():
-            self._compose_streaming_frame()
+            self.render_tiled_rgb_array()
         else:
             self._push_streaming_frame()
 
     def reset(self, soft: bool = False) -> None:
         """Rebind the viewer when a hard reset replaces the shared native model."""
+        super().reset(soft)
         if soft or not self._is_initialized or self._is_closed:
             return
         sim = SimulationContext.instance()
@@ -457,11 +449,6 @@ class RerunVisualizer(BaseVisualizer):
             finally:
                 self._viewer = None
 
-        if self._camera_sensor is not None and self._camera_is_owned:
-            from isaaclab.envs.utils.camera_view import evict_visualizer_camera, remove_generated_prims
-
-            evict_visualizer_camera(self._streaming_camera_key)
-            remove_generated_prims(self._generated_camera_prim_paths)
         self._camera_sensor = None
 
         try:
@@ -487,141 +474,11 @@ class RerunVisualizer(BaseVisualizer):
     # Streaming view
     # ------------------------------------------------------------------
 
-    def _setup_streaming_view(self, num_envs: int) -> None:
-        """Resolve or create the streaming camera sensor."""
-        from isaaclab.envs.utils.camera_colorizer import SUPPORTED_GT_TYPES, sensor_keys_for_gt_types
-        from isaaclab.envs.utils.camera_view import (
-            VISUALIZER_TILED_CAMERA_MAX_TILES,
-            create_visualizer_camera,
-            find_camera_by_prim_path,
-            resolve_streaming_envs,
-        )
-
-        if not self.cfg.streaming_view:
-            return
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        for gt in gt_types:
-            if gt not in SUPPORTED_GT_TYPES:
-                raise ValueError(
-                    f"[RerunVisualizer] streaming_gt_types contains unsupported type {gt!r}. "
-                    f"Valid types: {sorted(SUPPORTED_GT_TYPES)}"
-                )
-
-        env_ids = resolve_streaming_envs(
-            num_envs,
-            self.cfg.streaming_envs,
-            max_tiles=VISUALIZER_TILED_CAMERA_MAX_TILES,
-            sample_from=self._resolved_visible_env_ids,
-        )
-        self._camera_env_indices = env_ids
-
-        if self.cfg.streaming_sensor_prim_path is not None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            self._camera_sensor = find_camera_by_prim_path(cameras, self.cfg.streaming_sensor_prim_path, env_ids)
-            self._camera_sensor_indices = env_ids
-            self._streaming_view_active = True
-            self._viewer._streaming_view_active = True
-            return
-
-        if self.cfg.streaming_cam_target_prim_path is None:
-            cameras = self._scene_data_provider.get_camera_sensors()
-            if cameras:
-                self._camera_sensor = next(iter(cameras.values()))
-                self._camera_sensor_indices = env_ids
-                self._streaming_view_active = self._viewer._streaming_view_active = True
-            return
-
-        result = create_visualizer_camera(
-            num_envs=num_envs,
-            width=320,
-            height=240,
-            renderer_cfg=self.cfg.streaming_cam_renderer_cfg,
-            data_types=sensor_keys_for_gt_types(gt_types),
-            target_prim_path=self.cfg.streaming_cam_target_prim_path,
-            eye=self.cfg.streaming_cam_eye,
-            streaming_envs=tuple(int(i) for i in env_ids),
-        )
-        self._camera_sensor, self._generated_camera_prim_paths, self._camera_is_owned, self._streaming_camera_key = (
-            result
-        )
-        self._camera_sensor_indices = env_ids
-        self._streaming_view_active = True
-        self._viewer._streaming_view_active = True
-        self._apply_streaming_camera_pose(env_ids)
-
-    def _apply_streaming_camera_pose(self, env_ids: list[int]) -> None:
-        """Position the auto-created streaming camera using the cfg target prim and eye offset."""
-        if not self._camera_is_owned or self._camera_sensor is None:
-            return
-        from isaaclab.envs.utils.camera_view import apply_camera_target_positions, prim_world_positions
-        from isaaclab.sim import get_current_stage
-
-        try:
-            stage = get_current_stage()
-            scene = self._scene_data_provider.get_interactive_scene() if self._scene_data_provider else None
-            target_positions = prim_world_positions(
-                stage, self.cfg.streaming_cam_target_prim_path, env_ids, scene=scene
-            )
-            apply_camera_target_positions(self._camera_sensor, target_positions, self.cfg.streaming_cam_eye, env_ids)
-        except Exception as exc:
-            logger.debug("[RerunVisualizer] streaming camera pose: %s", exc)
-
-    def _compose_streaming_frame(self) -> None:
-        """Colorize camera tiles and store the result in ``_last_streaming_composite``.
-
-        This is the compute-only half of streaming frame production.  It updates
-        ``_last_streaming_composite`` but does **not** log the image to Rerun.
-        Call :meth:`_push_streaming_frame` to compose *and* log in a single pass.
-        """
-        from isaaclab.envs.utils.camera_colorizer import CameraFrameColorizer, sensor_key_for_gt_type
-        from isaaclab.envs.utils.camera_view import camera_gt_batch, compose_streaming_grid
-
-        if self._camera_sensor is None:
-            return
-        if self._camera_is_owned:
-            self._apply_streaming_camera_pose(self._camera_sensor_indices)
-            self._camera_sensor.update(dt=0.0, force_recompute=True)
-
-        gt_types = list(self.cfg.streaming_gt_types)
-        available = frozenset(self._camera_sensor.data.output.keys())
-        frames = []
-        for env_idx in self._camera_sensor_indices:
-            for gt in gt_types:
-                key = sensor_key_for_gt_type(gt, available)
-                raw = camera_gt_batch(self._camera_sensor, [env_idx], key)[0]
-                frames.append(
-                    CameraFrameColorizer.colorize(
-                        raw,
-                        gt,
-                        depth_min=self.cfg.streaming_depth_min,
-                        depth_max=self.cfg.streaming_depth_max,
-                    )
-                )
-
-        n_envs = len(self._camera_sensor_indices)
-        self._last_streaming_composite = compose_streaming_grid(frames, n_envs, len(gt_types))
-
     def _push_streaming_frame(self) -> None:
         """Compose the streaming frame and log it to Rerun."""
-        self._compose_streaming_frame()
-        if self._last_streaming_composite is not None:
-            rr.log("streaming/view", rr.Image(self._last_streaming_composite))
-
-    def render_tiled_rgb_array(self) -> np.ndarray | None:
-        """Return the last composited streaming frame (all GT types side-by-side).
-
-        If no frame has been composited yet (e.g. the viewer is paused and no
-        push has occurred), compositing is triggered on demand so that a
-        :class:`VideoRecorder` can capture headless frames.
-
-        Returns:
-            ``uint8 (H, W, 3)`` composite array, or ``None`` if streaming view
-            is not active or camera data is unavailable.
-        """
-        if self._last_streaming_composite is None:
-            self._compose_streaming_frame()
-        return self._last_streaming_composite
+        composite = self.render_tiled_rgb_array()
+        if composite is not None:
+            rr.log("streaming/view", rr.Image(composite))
 
     def _resolve_initial_camera_pose(self) -> tuple[tuple[float, float, float], tuple[float, float, float]]:
         """Resolve initial camera pose from config."""
@@ -640,7 +497,7 @@ class RerunVisualizer(BaseVisualizer):
         # Do not send a Spatial3DView blueprint when the streaming composite is active:
         # the streaming blueprint (Spatial2DView) from _get_blueprint() would be replaced
         # by a 3D view, hiding the streaming composite panel entirely.
-        if self._streaming_view_active:
+        if self._camera_sensor is not None:
             return
         panel_states = [rrb.TimePanel(state="hidden")]
         rr.send_blueprint(
