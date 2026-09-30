@@ -18,7 +18,9 @@ from isaaclab.test.utils import launch_test_simulation
 launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCfg())))
 
 import isaaclab_tasks_experimental  # noqa: F401
+import pytest
 import torch
+from isaaclab_experimental.envs import ManagerBasedEnvWarp
 from isaaclab_experimental.envs.frontend import WarpFrontend
 
 import isaaclab.sim as sim_utils
@@ -58,6 +60,28 @@ def test_reset_logs_keep_their_values():
     for log, values in logged:
         for key, value in values.items():
             assert torch.equal(log[key], value), key
+
+
+def test_base_env_reset_logs_keep_their_values(monkeypatch: pytest.MonkeyPatch):
+    env_cfg, _ = resolve_task_config("Isaac-Cartpole", "", overrides=("physics=newton_mjwarp",))
+    env_cfg.seed = 7
+    env_cfg.scene.num_envs = _NUM_ENVS
+    WarpFrontend.adapt_cfg(env_cfg)
+    sim_utils.create_new_stage()
+    env = ManagerBasedEnvWarp(cfg=env_cfg)
+    logged = []
+    try:
+        # a manager logs a persistent buffer that it refreshes on every reset
+        metric = torch.zeros((), device=env.device)
+        monkeypatch.setattr(env.recorder_manager, "reset", lambda env_ids=None: {"Metrics/value": metric})
+        for value in range(3):
+            metric.fill_(value)
+            _, extras = env.reset()
+            logged.append(extras["log"])
+    finally:
+        env.close()
+
+    assert [log["Metrics/value"].item() for log in logged] == [0.0, 1.0, 2.0]
 
 
 def test_direct_logs_keep_their_values():

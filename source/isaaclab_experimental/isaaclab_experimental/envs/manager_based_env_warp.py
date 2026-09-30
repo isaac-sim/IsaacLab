@@ -714,3 +714,8 @@ class ManagerBasedEnvWarp:
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
         self.extras["log"].update(info)
+        # the managers log persistent buffers that the next reset overwrites, and RL libraries keep the log of
+        # every step until they average it, so hand out copies like the stable managers' fresh tensors
+        self.extras["log"] = {
+            key: value.clone() if torch.is_tensor(value) else value for key, value in self.extras["log"].items()
+        }
