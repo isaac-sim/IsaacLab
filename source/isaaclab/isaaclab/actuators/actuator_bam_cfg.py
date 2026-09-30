@@ -6,17 +6,15 @@
 from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
-from .bam_model import BAM_XL330_M6_PARAMS_FILE
 
 
 @configclass
 class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
-    The identified motor and friction parameters come from the file named by
-    :attr:`params_file`; everything configured here is either a deployment setting that the
-    identification does not capture (the firmware gain and the supply voltage of the robot
-    the model is used on) or a domain-randomization range.
+    Identified motor and friction coefficients are read from the asset's
+    ``NewtonBamControlAPI`` actuator prims. Configuration values explicitly override
+    the USD values; no parameter file is loaded during simulation.
 
     Note:
         :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
@@ -47,21 +45,26 @@ class BamActuatorCfg(ActuatorBaseCfg):
     See :attr:`stiffness`.
     """
 
-    params_file: str = BAM_XL330_M6_PARAMS_FILE
-    """Path of the BAM parameter file to load. Defaults to the vendored Dynamixel XL330 ``m6`` fit."""
+    parameter_overrides: dict[str, float | int] | None = None
+    """Explicit overrides of USD BAM coefficients, keyed by snake-case parameter name.
 
-    kp_fw: float | None = 200.0
-    """Firmware proportional gain [-].
-
-    This is a servo setting rather than an identified constant, so it is configured
-    per deployment. If None, the value identified in :attr:`params_file` is used.
+    Unspecified values are retained per joint from the asset. For example,
+    ``{"friction_base": 0.005}`` overrides Coulomb friction [N.m] for this group.
+    See the BAM parameter table in the actuator guide for supported names and units.
+    Unknown names and missing required coefficients raise an error at authoring time.
+    Prefer :attr:`kp_fw` and :attr:`vin` for deployment settings; these take precedence
+    over entries in this mapping. Solver inertia remains owned by the joint USD or
+    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`; ``armature`` here only controls
+    the controller's fallback load estimator.
     """
 
-    vin: float | None = None
-    """Nominal supply voltage [V].
+    kp_fw: float | None = None
+    """Firmware proportional gain [-]. None preserves the USD value."""
 
-    If None, the value identified in :attr:`params_file` is used. Overridden by
-    :attr:`vin_range` when that is set.
+    vin: float | None = None
+    """Nominal supply voltage [V]. None preserves the USD value.
+
+    Overridden by :attr:`vin_range` when that is set.
     """
 
     vin_range: tuple[float, float] | None = None

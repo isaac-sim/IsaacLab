@@ -301,9 +301,8 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                         " 'vin_drop_gain_range', 'friction_scale_range' and 'stiff_frictionloss'"
                         " are not part of Newton's actuator-grouping key, so structurally"
                         " identical robots are merged into one actuator and cannot carry"
-                        " per-articulation values. Make them agree, or give the robots"
-                        " configurations that differ in a grouping-key field (for example a"
-                        " different 'params_file')."
+                        " per-articulation values. Use matching start-up ranges and stiff_frictionloss"
+                        " for articulations with the same shared controller settings."
                     )
                 continue
             _BAM_ACTUATOR_SETTINGS[actuator] = settings

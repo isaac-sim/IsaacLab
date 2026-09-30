@@ -307,12 +307,16 @@ def author_actuator_prims(
         for jname in joint_names:
             covered_joint_paths.add(joint_inventory[jname])
 
-    _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
-
     from ...actuators import DCMotorCfg, DelayedPDActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
     from ...actuators.actuator_net_cfg import ActuatorNetLSTMCfg, ActuatorNetMLPCfg  # noqa: PLC0415
     from ...actuators.actuator_pd_cfg import RemotizedPDActuatorCfg  # noqa: PLC0415
+
+    # Capture coefficients before replacing referenced actuator prims. Resolve every BAM
+    # group first so a missing coefficient does not partially deactivate the asset.
+    bam_control_api, bam_values = _resolve_bam_groups(art_prim, cfg_entries, joint_inventory)
+
+    _remove_actuator_prims_for_joints(art_prim, covered_joint_paths)
 
     for group_name, cfg, joint_names in cfg_entries:
         stiffness_map = resolve_per_dof(cfg.stiffness, joint_names)
@@ -343,22 +347,6 @@ def author_actuator_prims(
         raw_delay = cfg.max_delay if is_delayed else 0
         delay_map = resolve_per_dof(raw_delay, joint_names, cast=int) if raw_delay else {}
 
-        bam_attrs: dict[str, float | int] = {}
-        bam_seed_friction: float | None = None
-        bam_control_api = ""
-        if is_bam:
-            # Both construction paths resolve the schema token through Newton's component
-            # registry, and authoring always precedes parsing, so this is the earliest point
-            # at which the BAM controller is guaranteed to be registered.
-            from ...actuators.newton.bam_component import (  # noqa: PLC0415
-                BAM_CONTROL_API,
-                register_bam_actuator_component,
-            )
-
-            register_bam_actuator_component()
-            bam_control_api = BAM_CONTROL_API
-            bam_attrs, bam_seed_friction = _resolve_bam_attributes(cfg)
-
         patched_model_path: str | None = None
         if is_neural:
             meta: dict[str, Any] = {}
@@ -384,12 +372,12 @@ def author_actuator_prims(
                 schemas.append("NewtonNeuralControlAPI")
             elif is_bam:
                 schemas.append(bam_control_api)
-                attrs.update(bam_attrs)
+                attrs.update(bam_values[group_name, jname])
                 # MuJoCo only assembles a DOF-friction constraint row for joints whose
                 # frictionloss is positive, and the initial constraint budget (``njmax``) is
                 # sized from the model as spawned. Seeding a positive friction keeps the row
                 # present from the very first solve; the per-step budget overwrites it.
-                _seed_joint_friction(stage, joint_inventory[jname], bam_seed_friction)
+                _seed_joint_friction(stage, joint_inventory[jname], attrs["friction_base"])
             else:
                 schemas.append("NewtonPDControlAPI")
                 attrs["kp"] = stiffness_map.get(jname, 0.0)
@@ -427,9 +415,17 @@ def author_actuator_prims(
             act_prim_path = f"{articulation_prim_path}/{group_name}_{jname}_actuator"
             act_prim = stage.DefinePrim(act_prim_path, "NewtonActuator")
 
-            existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
-            existing.prependedItems = list(schemas)
-            act_prim.SetMetadata("apiSchemas", existing)
+            if is_bam:
+                _prepare_bam_prim(act_prim, attrs)
+
+            if is_bam:
+                # A weaker PD/clamping schema can hide the unregistered BAM token from
+                # Newton's discovery. Replace the composed list, not just its prepends.
+                act_prim.SetMetadata("apiSchemas", Sdf.TokenListOp.CreateExplicit(schemas))
+            else:
+                existing = act_prim.GetMetadata("apiSchemas") or Sdf.TokenListOp()
+                existing.prependedItems = list(schemas)
+                act_prim.SetMetadata("apiSchemas", existing)
 
             rel = act_prim.CreateRelationship("newton:targets")
             rel.SetTargets([Sdf.Path(joint_prim_path)])
@@ -437,11 +433,6 @@ def author_actuator_prims(
             if patched_model_path is not None:
                 act_prim.CreateAttribute("newton:modelPath", Sdf.ValueTypeNames.Asset).Set(
                     Sdf.AssetPath(patched_model_path)
-                )
-
-            if is_bam:
-                act_prim.CreateAttribute("newton:paramsFile", Sdf.ValueTypeNames.Asset).Set(
-                    Sdf.AssetPath(str(cfg.params_file))
                 )
 
             for attr_name, attr_val in attrs.items():
@@ -463,40 +454,72 @@ Private helpers.
 _JOINT_TYPES = frozenset({"PhysicsRevoluteJoint", "PhysicsPrismaticJoint"})
 
 
-def _resolve_bam_attributes(cfg: Any) -> tuple[dict[str, float | int], float]:
-    """Return the ``newton:`` attribute values and the seed friction of a BAM actuator group.
+def _resolve_bam_groups(
+    art_prim: Usd.Prim, cfg_entries: list[tuple[str, Any, list[str]]], joint_inventory: dict[str, str]
+) -> tuple[str, dict[tuple[str, str], dict[str, float | int]]]:
+    """Resolve all BAM groups without modifying the stage or loading Newton for other models."""
+    from ...actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
 
-    The identified motor constants are *not* authored: the Newton controller reads them from
-    the parameter file this config names. Only the deployment settings and the per-environment knobs are
-    written, and the latter carry the config's nominal value -- a USD prim is shared by every
-    clone, so start-up range sampling has to be applied afterwards through
-    :func:`~isaaclab.actuators.newton.write_group_parameter`.
+    groups = [(name, cfg, joints) for name, cfg, joints in cfg_entries if isinstance(cfg, BamActuatorCfg)]
+    if not groups:
+        return "", {}
+    from ...actuators.newton.bam_component import BAM_CONTROL_API, register_bam_actuator_component  # noqa: PLC0415
 
-    Args:
-        cfg: The :class:`~isaaclab.actuators.BamActuatorCfg` being authored.
-
-    Returns:
-        The attribute mapping to author on the actuator prim, and the joint friction [N.m] to
-        seed the driven joints with.
-    """
-    from ...actuators.bam_model import BamMotorParams  # noqa: PLC0415
-
-    params = BamMotorParams.from_json(cfg.params_file)
-    attrs: dict[str, float | int] = {
-        "kp_fw": float(cfg.kp_fw) if cfg.kp_fw is not None else params.kp,
-        "vin": float(cfg.vin) if cfg.vin is not None else params.vin,
-        "sag_gain": 0.0,
-        "friction_scale": 1.0,
-        "kp_scale": 1.0,
-        "kd_scale": 1.0,
-        "min_delay": int(cfg.min_delay),
-        "max_delay": int(cfg.max_delay),
-        "delay_hold_prob": float(cfg.delay_hold_prob),
-        "delay_update_period": int(cfg.delay_update_period),
+    register_bam_actuator_component()
+    joint_paths = {joint_inventory[jname] for _, _, joints in groups for jname in joints}
+    authored = _read_bam_attributes(art_prim, joint_paths)
+    return BAM_CONTROL_API, {
+        (name, jname): _resolve_bam_attributes(cfg, authored.get(joint_inventory[jname], {}))
+        for name, cfg, joints in groups
+        for jname in joints
     }
-    if cfg.vin_min is not None:
-        attrs["vin_min"] = float(cfg.vin_min)
-    return attrs, params.friction_base
+
+
+def _prepare_bam_prim(prim: Usd.Prim, values: dict[str, float | int]) -> None:
+    """Reactivate the replacement and suppress stale coefficients from weaker layers."""
+    prim.SetActive(True)
+    names = {f"newton:{to_camel_case(name)}" for name in values}
+    for attr in prim.GetAttributes():
+        if attr.GetName().startswith("newton:") and attr.GetName() not in names:
+            attr.Block()
+
+
+def _read_bam_attributes(art_prim: Usd.Prim, joint_paths: set[str]) -> dict[str, dict[str, float | int]]:
+    """Snapshot authored BAM coefficients by target joint before replacing actuator prims."""
+    from ...actuators.newton.bam_component import BAM_CONTROL_API, ControllerBam  # noqa: PLC0415
+
+    authored = {}
+    for prim in Usd.PrimRange(art_prim):
+        schemas = prim.GetMetadata("apiSchemas")
+        if prim.GetTypeName() != "NewtonActuator" or not schemas or BAM_CONTROL_API not in schemas.GetAppliedItems():
+            continue
+        values = {}
+        for name in ControllerBam.SHARED_PARAMS | set(ControllerBam._PER_DOF_PARAMS):
+            attr = prim.GetAttribute(f"newton:{to_camel_case(name)}")
+            if attr and attr.HasAuthoredValue():
+                values[name] = attr.Get()
+        for target in prim.GetRelationship("newton:targets").GetTargets():
+            path = str(target)
+            if path in joint_paths:
+                if path in authored:
+                    raise ValueError(f"Multiple BAM actuator prims target joint '{path}'")
+                authored[path] = values
+    return authored
+
+
+def _resolve_bam_attributes(cfg: Any, authored: dict[str, float | int]) -> dict[str, float | int]:
+    """Preserve asset coefficients and apply explicit configuration overrides."""
+    from ...actuators.newton.bam_component import ControllerBam  # noqa: PLC0415
+
+    attrs = dict(authored)
+    attrs.update(cfg.parameter_overrides or {})
+    for name in ("kp_fw", "vin", "vin_min"):
+        value = getattr(cfg, name)
+        if value is not None:
+            attrs[name] = value
+    for name in ("min_delay", "max_delay", "delay_hold_prob", "delay_update_period"):
+        attrs[name] = getattr(cfg, name)
+    return ControllerBam.resolve_arguments(attrs)
 
 
 def _seed_joint_friction(stage: Usd.Stage, joint_prim_path: str, friction: float | None) -> None:

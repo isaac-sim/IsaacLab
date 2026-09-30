@@ -16,6 +16,7 @@ supplies the solver's external load and reads the motor torque and published fri
 """
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -26,7 +27,6 @@ from newton.actuators import parse_actuator_prim
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import BamActuatorCfg, IdealPDActuatorCfg
-from isaaclab.actuators.bam_model import BAM_XL330_M6_PARAMS_FILE, BamMotorParams
 from isaaclab.actuators.newton import (
     BAM_CONTROL_API,
     ControllerBam,
@@ -56,6 +56,13 @@ KP_FW = 200.0
 """Firmware proportional gain the fixture is configured with [-]."""
 
 
+def _reference_params():
+    with np.load(Path(__file__).parent / "data" / "bam_xl330_m6_goldens.npz") as data:
+        return SimpleNamespace(
+            **{key.removeprefix("attr_"): data[key].item() for key in data.files if key.startswith("attr_")}
+        )
+
+
 def _make_cfg(**overrides) -> BamActuatorCfg:
     """Build the BAM config the fixture articulation is authored from."""
     kwargs = {"joint_names_expr": [".*"], "vin": VIN, "kp_fw": KP_FW}
@@ -77,6 +84,9 @@ def _make_stage(cfg: BamActuatorCfg | dict[str, BamActuatorCfg], joint_names: li
         UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
         joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
+        prim = stage.DefinePrim(f"/World/Robot/asset_{name}_actuator", "NewtonActuator")
+        prim.GetReferences().AddReference(str(Path(__file__).parent / "data" / "bam_xl330_m6.usda"), "/BamActuator")
+        prim.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
     author_actuator_prims(stage, "/World/Robot", cfg if isinstance(cfg, dict) else {"servo": cfg})
     return stage
 
@@ -183,8 +193,8 @@ def test_authored_prim_resolves_to_the_bam_controller():
         assert entry.controller_class is ControllerBam
         assert entry.component_specs == [], "the BAM delay is controller-internal, not a Delay component"
         resolved = ControllerBam.resolve_arguments(dict(entry.controller_kwargs))
-        params = BamMotorParams.from_json(BAM_XL330_M6_PARAMS_FILE)
-        # Deployment settings come from the config, identified constants from the fit file.
+        params = _reference_params()
+        # Deployment settings come from the config, identified constants from the USD.
         assert resolved["kp_fw"] == pytest.approx(KP_FW)
         assert resolved["vin"] == pytest.approx(VIN)
         assert resolved["vin_min"] == pytest.approx(6.0)
@@ -200,7 +210,49 @@ def test_authored_prim_resolves_to_the_bam_controller():
     # ``NewtonBamControlAPI`` has no registered USD schema definition, so the composed
     # ``GetAppliedSchemas`` filters it out; read the authored opinion instead.
     spec = stage.GetRootLayer().GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator")
-    assert BAM_CONTROL_API in spec.GetInfo("apiSchemas").prependedItems
+    assert BAM_CONTROL_API in spec.GetInfo("apiSchemas").GetAppliedItems()
+
+
+@pytest.mark.parametrize("reauthor", [False, True])
+def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
+    """USD coefficients survive serialization and config authoring without a JSON sidecar."""
+    stage = _make_stage(_make_cfg(kp_fw=None, vin=None))
+    for index, name in enumerate(JOINT_NAMES):
+        prim = stage.GetPrimAtPath(f"/World/Robot/servo_{name}_actuator")
+        assert not prim.HasAttribute("newton:paramsFile")
+        prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
+    path = tmp_path / "robot.usda"
+    stage.Export(str(path))
+    stage = Usd.Stage.Open(str(path))
+    if reauthor:
+        # A previous draft's JSON pointer and another controller's attributes must not
+        # survive replacement, including opinions from a referenced layer.
+        layer_path = tmp_path / "legacy.usda"
+        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").CreateAttribute(
+            "newton:paramsFile", Sdf.ValueTypeNames.Asset
+        ).Set(Sdf.AssetPath("missing.json"))
+        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").CreateAttribute(
+            "newton:kp", Sdf.ValueTypeNames.Float
+        ).Set(10.0)
+        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").SetMetadata(
+            "apiSchemas", Sdf.TokenListOp.CreateExplicit([BAM_CONTROL_API, "NewtonPDControlAPI"])
+        )
+        stage.Export(str(layer_path))
+        stage = Usd.Stage.CreateInMemory()
+        stage.GetRootLayer().subLayerPaths.append(str(layer_path))
+        author_actuator_prims(
+            stage, "/World/Robot", {"servo": _make_cfg(kp_fw=123.0, parameter_overrides={"friction_base": 0.012})}
+        )
+    parsed = [
+        entry for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (entry := parse_actuator_prim(prim))
+    ]
+    assert len(parsed) == 2
+    for index, entry in enumerate(parsed):
+        assert entry.controller_class is ControllerBam
+        resolved = ControllerBam.resolve_arguments(dict(entry.controller_kwargs))
+        assert resolved["kt"] == pytest.approx(0.3 + index * 0.1)
+        assert resolved["kp_fw"] == pytest.approx(123.0 if reauthor else 400.0)
+        assert resolved["friction_base"] == pytest.approx(0.012 if reauthor else _reference_params().friction_base)
 
 
 def test_effort_limit_is_authored_on_the_controller_not_as_a_clamping_component():
@@ -223,7 +275,7 @@ def test_effort_limit_is_authored_on_the_controller_not_as_a_clamping_component(
     assert ControllerBam.resolve_arguments(dict(parsed.controller_kwargs))["max_effort"] == pytest.approx(0.05)
 
     spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
-    assert list(spec.GetInfo("apiSchemas").prependedItems) == [BAM_CONTROL_API]
+    assert list(spec.GetInfo("apiSchemas").GetAppliedItems()) == [BAM_CONTROL_API]
 
 
 def test_driven_joints_are_seeded_with_a_positive_friction():
@@ -233,7 +285,7 @@ def test_driven_joints_are_seeded_with_a_positive_friction():
     as spawned -- so authoring seeds the driven joints with the budget's own floor.
     """
     stage = _make_stage(_make_cfg())
-    floor = BamMotorParams.from_json(BAM_XL330_M6_PARAMS_FILE).friction_base
+    floor = _reference_params().friction_base
     for name in JOINT_NAMES:
         friction = stage.GetPrimAtPath(f"/World/Robot/{name}").GetAttribute("newton:friction")
         assert friction.IsValid() and friction.Get() == pytest.approx(floor)
@@ -249,6 +301,9 @@ def test_authoring_preserves_a_task_authored_joint_friction():
         UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
         joint = UsdPhysics.RevoluteJoint.Define(stage, f"/World/Robot/{name}")
         joint.CreateBody1Rel().SetTargets([body.GetPath()])
+        prim = stage.DefinePrim(f"/World/Robot/asset_{name}_actuator", "NewtonActuator")
+        prim.GetReferences().AddReference(str(Path(__file__).parent / "data" / "bam_xl330_m6.usda"), "/BamActuator")
+        prim.CreateRelationship("newton:targets").SetTargets([joint.GetPath()])
         joint.GetPrim().CreateAttribute("newton:friction", Sdf.ValueTypeNames.Float).Set(0.5)
     author_actuator_prims(stage, "/World/Robot", {"servo": cfg})
     for name in JOINT_NAMES:
@@ -287,7 +342,7 @@ def test_controller_matches_upstream_motor_and_friction_goldens(device):
 def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
     """With the solver owning the friction, BAM applies the motor torque and exports the budget."""
     harness = _Harness(_make_cfg(actuator_effort_limit=0.05), num_envs=1, device=device)
-    params = BamMotorParams.from_json(BAM_XL330_M6_PARAMS_FILE)
+    params = _reference_params()
 
     effort = harness.step(np.array([[0.3, -0.1]]), np.array([[0.5, -0.4]]), np.zeros((1, 2)))
 
@@ -420,7 +475,7 @@ def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, p
         num_envs=16,
         device="cpu",
     )
-    params = BamMotorParams.from_json(BAM_XL330_M6_PARAMS_FILE)
+    params = _reference_params()
     # Small position commands remain in the linear firmware regime at rest, so motor
     # torque identifies the delayed command without reading the private delay ring.
     command_step = 0.001
