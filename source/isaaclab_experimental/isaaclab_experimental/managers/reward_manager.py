@@ -11,7 +11,7 @@ This file is a copy of `isaaclab.managers.reward_manager` placed under
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -179,6 +179,13 @@ class RewardManager(ManagerBase):
         self._term_weights_wp = wp.array(
             [float(term_cfg.weight) for term_cfg in self._term_cfgs], dtype=wp.float32, device=self.device
         )
+        # per-term flags whether the weight is nonzero, read by the conditional nodes of recorded graphs
+        self._term_active_wp = wp.array(
+            [int(term_cfg.weight != 0.0) for term_cfg in self._term_cfgs], dtype=wp.int32, device=self.device
+        )
+        self._term_active_views_wp = [self._term_active_wp[index : index + 1] for index in range(num_terms)]
+        # without conditional nodes, a recorded graph keeps or skips a term by its weight at record time
+        self._conditional_graphs = wp.get_device(self.device).is_cuda and wp.is_conditional_graph_supported()
 
         # persistent reset-time logging buffers (warp buffers)
         self._episode_sum_avg_wp = wp.zeros((num_terms,), dtype=wp.float32, device=self.device)
@@ -189,6 +196,7 @@ class RewardManager(ManagerBase):
         self._reward_tensor_view = wp.to_torch(self._reward_wp)
         self._step_reward_tensor_view = wp.to_torch(self._step_reward_wp)
         self._term_weights_tensor_view = wp.to_torch(self._term_weights_wp)
+        self._term_active_tensor_view = wp.to_torch(self._term_active_wp)
         self._episode_sum_avg_tensor_view = wp.to_torch(self._episode_sum_avg_wp)
         self._reset_extras = {
             "Episode_Reward/" + term_name: self._episode_sum_avg_tensor_view[term_idx]
@@ -338,8 +346,14 @@ class RewardManager(ManagerBase):
     def _compute_term(self, index: int, dt: float) -> None:
         """Compute one term into its pre-zeroed output column (raw, unweighted)."""
         term_cfg = self._term_cfgs[index]
+        if self._conditional_graphs and wp.get_device(self.device).is_capturing:
+            # the graph checks the weight on every launch, so a weight set later needs no new recording
+            wp.capture_if(
+                self._term_active_views_wp[index],
+                on_true=partial(term_cfg.func, self._env, term_cfg.out, **term_cfg.params),
+            )
         # skip if weight is zero (kind of a micro-optimization)
-        if term_cfg.weight != 0.0:
+        elif term_cfg.weight != 0.0:
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
     def _finalize_step(self, dt: float) -> torch.Tensor:
@@ -367,6 +381,9 @@ class RewardManager(ManagerBase):
     def set_term_cfg(self, term_name: str, cfg: RewardTermCfg):
         """Sets the configuration of the specified term into the manager.
 
+        Recorded reward stages read the weight on every call. They record again on their next call only
+        when the term's function, parameters or capturability change.
+
         Args:
             term_name: The name of the reward term.
             cfg: The configuration for the reward term.
@@ -381,11 +398,14 @@ class RewardManager(ManagerBase):
         # set the configuration (preserve the pre-allocated output view)
         term_idx = self._term_names.index(term_name)
         cfg.out = self._term_out_views_wp[term_idx]
+        changed = self._term_cfg_changed(term_name, cfg)
         self._term_cfgs[term_idx] = cfg
+        self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
         # keep on-device weights in sync (call this to update weights used in compute)
         self._term_weights_tensor_view[term_idx] = float(cfg.weight)
-        # the replaced term may differ in capturability
-        self._clear_stage_steps()
+        self._term_active_tensor_view[term_idx] = int(cfg.weight != 0.0)
+        if changed:
+            self._clear_stage_steps()
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.
@@ -424,6 +444,15 @@ class RewardManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, RewardTermCfg]]:
+        return zip(self._term_names, self._term_cfgs)
+
+    def _term_signature(self, term_cfg: RewardTermCfg) -> Any:
+        signature = super()._term_signature(term_cfg)
+        if self._conditional_graphs:
+            return signature
+        return signature, term_cfg.weight == 0.0
 
     def _prepare_terms(self):
         # check if config is dict already

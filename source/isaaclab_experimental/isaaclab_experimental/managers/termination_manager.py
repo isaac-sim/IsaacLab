@@ -15,7 +15,7 @@ CUDA-graph-friendly implementation:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
@@ -360,8 +360,8 @@ class TerminationManager(ManagerBase):
     def set_term_cfg(self, term_name: str, cfg: TerminationTermCfg):
         """Sets the configuration of the specified term into the manager.
 
-        Recorded termination stages read the term's configuration when they record, so they record again on their
-        next call.
+        Recorded termination stages read whether the term is a time-out on every call. They record again on their
+        next call only when the term's function, parameters or capturability change.
 
         Args:
             term_name: The name of the termination term.
@@ -375,10 +375,12 @@ class TerminationManager(ManagerBase):
         term_idx = self._term_name_to_term_idx[term_name]
         # the term keeps writing into its column of the done buffer
         cfg.out = self._term_out_views_wp[term_idx]
+        changed = self._term_cfg_changed(term_name, cfg)
         self._term_cfgs[term_idx] = cfg
         self._class_term_cfgs = [term_cfg for term_cfg in self._term_cfgs if isinstance(term_cfg.func, ManagerTermBase)]
         wp.to_torch(self._term_is_time_out_wp)[term_idx] = bool(cfg.time_out)
-        self._clear_stage_steps()
+        if changed:
+            self._clear_stage_steps()
 
     def get_term_cfg(self, term_name: str) -> TerminationTermCfg:
         """Gets the configuration for the specified term.
@@ -414,6 +416,9 @@ class TerminationManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, TerminationTermCfg]]:
+        return zip(self._term_names, self._term_cfgs)
 
     def _prepare_terms(self):
         # check if config is dict already

@@ -44,6 +44,17 @@ class ConstantReward(ManagerTermBase):
         out.fill_(value)
 
 
+def _env(graph_cache: WarpGraphCache) -> SimpleNamespace:
+    """The environment surface the reward manager reads."""
+    return SimpleNamespace(
+        num_envs=NUM_ENVS,
+        device=DEVICE,
+        sim=SimpleNamespace(is_playing=lambda: True),
+        max_episode_length_s=1.0,
+        _warp_graph_cache=graph_cache,
+    )
+
+
 def test_capturability_is_decided_per_term_instance():
     """The same term is recorded for one parameter set and runs eagerly for another.
 
@@ -51,13 +62,6 @@ def test_capturability_is_decided_per_term_instance():
     The guard of the predicate term raises if the instance with a sensor is ever recorded.
     """
     graph_cache = WarpGraphCache(DEVICE)
-    env = SimpleNamespace(
-        num_envs=NUM_ENVS,
-        device=DEVICE,
-        sim=SimpleNamespace(is_playing=lambda: True),
-        max_episode_length_s=1.0,
-        _warp_graph_cache=graph_cache,
-    )
     cfg = {
         "function_recorded": RewardTermCfg(func=constant_reward, weight=1.0, params={"value": 1.0}),
         "function_eager": RewardTermCfg(
@@ -66,7 +70,7 @@ def test_capturability_is_decided_per_term_instance():
         "class_recorded": RewardTermCfg(func=ConstantReward, weight=1.0, params={"value": 4.0, "capturable": True}),
         "class_eager": RewardTermCfg(func=ConstantReward, weight=1.0, params={"value": 8.0, "capturable": False}),
     }
-    manager = RewardManager(cfg, env)
+    manager = RewardManager(cfg, _env(graph_cache))
     graph_cache.arm()
     CALLS.clear()
 
@@ -79,28 +83,55 @@ def test_capturability_is_decided_per_term_instance():
     graph_cache.close()
 
 
-def test_set_term_cfg_applies_to_the_recorded_reward_stage():
-    """Raising a weight from zero after the stage recorded adds the term, as ``modify_reward_weight`` expects.
+@pytest.mark.parametrize(
+    "conditional_graphs, expected_recordings",
+    [(True, [1, 1, 1, 1, 2, 2]), (False, [1, 2, 2, 2, 3, 4])],
+    ids=["conditional_nodes", "no_conditional_nodes"],
+)
+def test_set_term_cfg_records_the_reward_stage_again_only_when_its_graph_changes(
+    monkeypatch, conditional_graphs, expected_recordings
+):
+    """``modify_reward_weight`` sets its term on every reset past its threshold, changing the weight in place.
 
-    A zero-weight term is skipped while the stage records, so a replay without recording again never runs it.
+    The replayed reward matches the eager reward after every setting. Weight changes, including to and from zero,
+    need no new recording when the graph checks the weight on the device; without conditional graph nodes a zero
+    crossing records again. A parameter change records again once. Every recording runs the always-on term's
+    Python once, so its call count is the number of recordings.
     """
+    if conditional_graphs and not wp.is_conditional_graph_supported():
+        pytest.skip("Conditional graph nodes require CUDA 12.4+.")
+    if not conditional_graphs:
+        monkeypatch.setattr(wp, "is_conditional_graph_supported", lambda: False)
     graph_cache = WarpGraphCache(DEVICE)
-    env = SimpleNamespace(
-        num_envs=NUM_ENVS,
-        device=DEVICE,
-        sim=SimpleNamespace(is_playing=lambda: True),
-        max_episode_length_s=1.0,
-        _warp_graph_cache=graph_cache,
+    manager = RewardManager(
+        {
+            "always": RewardTermCfg(func=constant_reward, weight=1.0, params={"value": 1.0}),
+            "late": RewardTermCfg(func=constant_reward, weight=0.0, params={"value": 3.0}),
+        },
+        _env(graph_cache),
     )
-    manager = RewardManager({"late": RewardTermCfg(func=constant_reward, weight=0.0, params={"value": 3.0})}, env)
+    settings = [(0.0, 3.0), (2.0, 3.0), (2.0, 3.0), (4.0, 3.0), (4.0, 5.0), (0.0, 5.0)]
+    late = manager.get_term_cfg("late")
+
+    def run(compute) -> tuple[list[torch.Tensor], list[int]]:
+        rewards, calls = [], []
+        for weight, value in settings:
+            late.weight = weight
+            late.params["value"] = value
+            manager.set_term_cfg("late", late)
+            rewards.append(compute().clone())
+            calls.append(CALLS[1.0])
+        return rewards, calls
+
     graph_cache.arm()
-    graph_cache.call_steps("RewardManager_compute", manager.stage_steps("compute"), dt=0.5)
+    CALLS.clear()
+    replayed, recordings = run(
+        lambda: graph_cache.call_steps("RewardManager_compute", manager.stage_steps("compute"), dt=0.5)
+    )
+    eager, _ = run(lambda: manager.compute(dt=0.5))
 
-    term_cfg = manager.get_term_cfg("late")
-    term_cfg.weight = 2.0
-    manager.set_term_cfg("late", term_cfg)
-    reward = graph_cache.call_steps("RewardManager_compute", manager.stage_steps("compute"), dt=0.5)
-    wp.synchronize()
-
-    assert torch.equal(reward, torch.full((NUM_ENVS,), 3.0 * 2.0 * 0.5, device=DEVICE))
+    assert recordings == expected_recordings
+    for (weight, value), replayed_reward, eager_reward in zip(settings, replayed, eager):
+        assert torch.equal(replayed_reward, eager_reward)
+        assert torch.equal(replayed_reward, torch.full((NUM_ENVS,), (1.0 + weight * value) * 0.5, device=DEVICE))
     graph_cache.close()

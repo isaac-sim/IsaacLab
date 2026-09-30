@@ -9,8 +9,8 @@ from __future__ import annotations
 
 import inspect
 from abc import abstractmethod
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Iterable, Sequence
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -22,7 +22,7 @@ from isaaclab.utils import instantiate
 from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
-from .manager_base import ManagerBase, ManagerTermBase
+from .manager_base import ManagerBase, ManagerTermBase, _config_key
 
 # import omni.kit.app
 
@@ -572,7 +572,7 @@ class CommandManager(ManagerBase):
         """Sets the configuration of the specified command term.
 
         A command term reads its configuration, such as its sampling ranges, when a recorded command stage records,
-        so the command stages record again on their next call.
+        so the command stages record again on their next call when the configuration changes.
 
         Args:
             name: The name of the command term.
@@ -583,12 +583,14 @@ class CommandManager(ManagerBase):
         """
         if name not in self._terms:
             raise ValueError(f"Command term '{name}' not found.")
+        changed = self._term_cfg_changed(name, cfg)
         self._terms[name].cfg = cfg
         if isinstance(self.cfg, dict):
             self.cfg[name] = cfg
         else:
             setattr(self.cfg, name, cfg)
-        self._clear_stage_steps()
+        if changed:
+            self._clear_stage_steps()
 
     def get_term_cfg(self, name: str) -> CommandTermCfg:
         """Gets the configuration of the specified command term.
@@ -620,6 +622,12 @@ class CommandManager(ManagerBase):
     """
     Helper functions.
     """
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, CommandTermCfg]]:
+        return ((name, term.cfg) for name, term in self._terms.items())
+
+    def _term_signature(self, term_cfg: CommandTermCfg) -> Any:
+        return _config_key(term_cfg)
 
     def _prepare_terms(self):
         # check if config is dict already

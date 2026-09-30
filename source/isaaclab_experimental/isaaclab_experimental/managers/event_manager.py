@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import inspect
 import logging
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from functools import partial
 from typing import Any
 
@@ -229,7 +229,8 @@ class EventManager(ManagerBase):
     def set_term_cfg(self, term_name: str, cfg: EventTermCfg):
         """Set the configuration of an existing event term.
 
-        Recorded event stages read the replaced configuration, so they are recorded again on their next call.
+        Recorded event stages record again on their next call when the replacement changes the term's function,
+        parameters, capturability or trigger settings.
 
         Args:
             term_name: Name of the event term.
@@ -249,7 +250,10 @@ class EventManager(ManagerBase):
                     raise ValueError(f"Event term '{term_name}' has mode 'interval' but 'interval_range_s' is not set.")
                 if cfg.is_global_time != self._mode_term_cfgs[mode][term_index].is_global_time:
                     raise ValueError(f"Event term '{term_name}' cannot change 'is_global_time' at runtime.")
-            self._resolve_common_term_cfg(term_name, cfg, min_argc=2)
+            # an unchanged configuration was resolved already; resolving it again reallocates its Warp selections
+            changed = self._term_cfg_changed(term_name, cfg)
+            if changed:
+                self._resolve_common_term_cfg(term_name, cfg, min_argc=2)
             self._mode_term_cfgs[mode][term_index] = cfg
             if mode == "interval":
                 lower, upper = cfg.interval_range_s
@@ -259,7 +263,8 @@ class EventManager(ManagerBase):
                 for term_cfg in self._mode_term_cfgs[mode]
                 if inspect.isclass(term_cfg.func) or isinstance(term_cfg.func, ManagerTermBase)
             ]
-            self._clear_stage_steps()
+            if changed:
+                self._clear_stage_steps()
             return
         raise ValueError(f"Event term '{term_name}' not found.")
 
@@ -457,6 +462,19 @@ class EventManager(ManagerBase):
     @staticmethod
     def _reset_output(env_mask: wp.array) -> dict[str, float]:
         return {}
+
+    def _named_term_cfgs(self) -> Iterable[tuple[str, EventTermCfg]]:
+        for mode, names in self._mode_term_names.items():
+            yield from zip(names, self._mode_term_cfgs[mode])
+
+    def _term_signature(self, term_cfg: EventTermCfg) -> Any:
+        # trigger settings are kernel arguments and decide which reset steps exist
+        trigger = (
+            term_cfg.interval_range_s,
+            term_cfg.min_step_count_between_reset,
+            term_cfg.resample_interval_on_reset,
+        )
+        return super()._term_signature(term_cfg), trigger
 
     def _prepare_terms(self):
         # check if config is dict already

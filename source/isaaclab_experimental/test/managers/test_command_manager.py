@@ -28,10 +28,18 @@ NUM_ENVS = 4
 DT = 0.02
 
 
+class CountingVelocityCommand(UniformVelocityCommand):
+    """Velocity command counting the runs of its Python; a recorded stage runs it once per recording."""
+
+    def compute(self, dt: float):
+        self._env.recordings += 1
+        super().compute(dt)
+
+
 @configclass
 class CommandsCfg:
     base_velocity = mdp.UniformVelocityCommandCfg(
-        class_type=UniformVelocityCommand,
+        class_type=CountingVelocityCommand,
         asset_name="robot",
         # shorter than a step, so every step resamples
         resampling_time_range=(DT / 2, DT / 2),
@@ -60,6 +68,7 @@ def _env(graph_cache: WarpGraphCache) -> SimpleNamespace:
     return SimpleNamespace(
         num_envs=NUM_ENVS,
         device=DEVICE,
+        recordings=0,
         scene={"robot": robot},
         rng_state_wp=wp.array(np.arange(NUM_ENVS, dtype=np.uint32), device=DEVICE),
         resolve_env_mask=lambda env_ids=None, env_mask=None: resolve_1d_mask(
@@ -77,7 +86,8 @@ def test_modify_term_cfg_applies_to_the_recorded_command_stage():
     """A curriculum that changes a command range after the command stage recorded changes the next commands.
 
     The range is a kernel argument read while the stage records, so a replay without recording again keeps
-    sampling from the old range.
+    sampling from the old range. Writing the same range again, as a curriculum does on every reset past its
+    threshold, records nothing new.
     """
     graph_cache = WarpGraphCache(DEVICE)
     env = _env(graph_cache)
@@ -91,10 +101,12 @@ def test_modify_term_cfg_applies_to_the_recorded_command_stage():
     graph_cache.arm()
     graph_cache.call_steps("CommandManager_compute", env.command_manager.stage_steps("compute"), dt=DT)
 
-    curriculum(env, None, **params)
-    graph_cache.call_steps("CommandManager_compute", env.command_manager.stage_steps("compute"), dt=DT)
+    for _ in range(3):
+        curriculum(env, None, **params)
+        graph_cache.call_steps("CommandManager_compute", env.command_manager.stage_steps("compute"), dt=DT)
     wp.synchronize()
 
     command = env.command_manager.get_command("base_velocity")
     assert torch.equal(command[:, 0], torch.full((NUM_ENVS,), 1.5, device=DEVICE))
+    assert env.recordings == 2
     graph_cache.close()

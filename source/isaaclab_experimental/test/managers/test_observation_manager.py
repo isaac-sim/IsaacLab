@@ -42,11 +42,17 @@ def test_group_settings_are_not_parsed_as_terms():
     assert manager.group_obs_dim["policy"] == (5,)
 
 
+def counted_constant_obs(env, out: wp.array, out_dim: int):
+    """``constant_obs`` counting the runs of its Python; a recorded stage runs it once per recording."""
+    env.recordings += 1
+    out.fill_(1.0)
+
+
 @configclass
 class NoisyPolicyCfg(ObservationGroupCfg):
     """Group with one term corrupted by a constant bias."""
 
-    value = ObservationTermCfg(func=constant_obs, params={"out_dim": 2}, noise=ConstantNoiseCfg(bias=0.0))
+    value = ObservationTermCfg(func=counted_constant_obs, params={"out_dim": 2}, noise=ConstantNoiseCfg(bias=0.0))
 
     def __post_init__(self):
         self.enable_corruption = True
@@ -66,7 +72,8 @@ def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage():
     """An observation noise curriculum changes the observations of a recorded stage, as noise ADR expects.
 
     The noise parameters are kernel arguments read while the stage records, so a replay without recording again
-    keeps applying the old noise.
+    keeps applying the old noise. Writing the same bias again, as a curriculum does on every reset past its
+    threshold, records nothing new.
     """
     graph_cache = WarpGraphCache("cuda:0")
     env = SimpleNamespace(
@@ -74,6 +81,7 @@ def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage():
         device="cuda:0",
         sim=SimpleNamespace(is_playing=lambda: True),
         rng_state_wp=wp.zeros(4, dtype=wp.uint32, device="cuda:0"),
+        recordings=0,
         _warp_graph_cache=graph_cache,
     )
     env.observation_manager = ObservationManager(ObservationsCfg(), env)
@@ -89,11 +97,13 @@ def test_modify_term_cfg_applies_noise_to_the_recorded_observation_stage():
     )
     assert graph_cache.captured_stages == ("ObservationManager_compute",)
 
-    curriculum(env, None, **params)
-    obs = graph_cache.call_steps(
-        "ObservationManager_compute", env.observation_manager.stage_steps("compute"), return_cloned_output=False
-    )
+    for _ in range(3):
+        curriculum(env, None, **params)
+        obs = graph_cache.call_steps(
+            "ObservationManager_compute", env.observation_manager.stage_steps("compute"), return_cloned_output=False
+        )
     wp.synchronize()
 
     assert torch.equal(obs["policy"], torch.full((4, 2), 1.5, device="cuda:0"))
+    assert env.recordings == 2
     graph_cache.close()
