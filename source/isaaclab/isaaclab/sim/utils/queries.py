@@ -404,7 +404,7 @@ def resolve_matching_prims_from_source(
         raise_if_no_matches: Whether to raise if no prim matches ``path_expr``. Defaults to True.
         traverse_instance_prims: Whether to traverse instance prims when applying ``predicate``.
         prefer_direct_matches: Prefer matching prims named by ``path_expr`` over their matching descendants.
-            Descendants remain a fallback when no direct prim satisfies ``predicate``.
+            For each matched prim, descendants remain a fallback if that prim does not satisfy ``predicate``.
 
     Returns:
         A list of ``(source_prim, destination_expr)`` pairs. Empty only when
@@ -471,24 +471,21 @@ def resolve_matching_prims_from_source(
                 path = prim.GetPath().pathString
                 if path == instance_root or path.startswith(instance_root + "/"):
                     results.append((prim, instance_expr + path[len(instance_root) :]))
-    direct_source_paths = {source.GetPath().pathString for source, _ in results} if prefer_direct_matches else set()
     if predicate is not None:
         # Whole-path regexes can select both a prim and its ancestors; their descendant sets overlap.
         unique_matches = {}
         for source, dest in results:
             source_path = source.GetPath().pathString
-            children = get_all_matching_child_prims(
-                source_path, predicate, traverse_instance_prims=traverse_instance_prims
-            )
+            if prefer_direct_matches and predicate(source):
+                children = [source]
+            else:
+                children = get_all_matching_child_prims(
+                    source_path, predicate, traverse_instance_prims=traverse_instance_prims
+                )
             for child in children:
                 child_path = child.GetPath().pathString
                 unique_matches.setdefault(child_path, (child, dest + child_path[len(source_path) :]))
         results = list(unique_matches.values())
-
-    if prefer_direct_matches:
-        direct_matches = [pair for pair in results if pair[0].GetPath().pathString in direct_source_paths]
-        if direct_matches:
-            results = direct_matches
 
     if expected_num_matches is not None and len(results) != expected_num_matches:
         raise RuntimeError(f"Expected {expected_num_matches} prims at '{path_expr}', found {len(results)}.")

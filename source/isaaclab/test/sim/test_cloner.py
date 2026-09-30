@@ -294,6 +294,18 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
     )
     assert [prim.GetPath().pathString for prim, _ in matches] == ["/World/envs/env_0/Robot/foo"]
 
+    # A direct match must not hide another matched root's predicate-matching descendants.
+    matches = queries.resolve_matching_prims_from_source(
+        r"/World/envs/env_[^/]+/Robot/(foo|other)",
+        predicate=lambda prim: prim.GetName() in {"foo", "bar"},
+        expected_num_matches=2,
+        prefer_direct_matches=True,
+    )
+    assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
+        ("/World/envs/env_0/Robot/foo", "/World/envs/env_[^/]+/Robot/foo"),
+        ("/World/envs/env_0/Robot/other/bar", "/World/envs/env_[^/]+/Robot/other/bar"),
+    ]
+
 
 def test_resolve_direct_match_from_external_prototype(sim):
     """Prefer the requested body even when its prototype is outside the destination namespace."""

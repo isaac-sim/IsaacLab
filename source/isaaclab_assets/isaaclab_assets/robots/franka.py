@@ -101,7 +101,7 @@ next(
 FRANKA_PANDA_FLAT_CFG.actuators = {
     "panda_arm": ImplicitActuatorCfg(
         joint_names_expr=["panda_joint[1-7]"],
-        joint_effort_limit={"panda_joint[1-4]": 100.0, "panda_joint[5-7]": 12.0},
+        joint_effort_limit={"panda_joint[1-4]": 87.0, "panda_joint[5-7]": 12.0},
         joint_velocity_limit={"panda_joint[1-4]": 20.0, "panda_joint[5-7]": 25.0},
         stiffness=None,
         damping=None,
@@ -245,7 +245,7 @@ def __getattr__(name: str) -> ArticulationCfg:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
     cfg, replacement = _DEPRECATED_FRANKA_CFGS[name]
     message = f"{name} is deprecated and will be removed in Isaac Lab 4.0. Use {replacement}."
-    warnings.warn(message, DeprecationWarning, stacklevel=2)
+    warnings.warn(message, FutureWarning, stacklevel=2)
     return cfg
 
 
