@@ -19,11 +19,27 @@ The following classes are part of the public :mod:`isaaclab_newton.envs.mdp` API
 .. autosummary::
    :nosignatures:
 
+   NewtonDifferentialInverseKinematicsAction
+   NewtonDifferentialInverseKinematicsActionCfg
    NewtonInverseKinematicsAction
    NewtonInverseKinematicsActionCfg
+   NewtonOperationalSpaceControllerAction
+   NewtonOperationalSpaceControllerActionCfg
+
+.. autoclass:: NewtonDifferentialInverseKinematicsAction
+   :show-inheritance:
+
+.. autoclass:: NewtonDifferentialInverseKinematicsActionCfg
+   :show-inheritance:
 
 .. autoclass:: NewtonInverseKinematicsAction
    :show-inheritance:
 
 .. autoclass:: NewtonInverseKinematicsActionCfg
+   :show-inheritance:
+
+.. autoclass:: NewtonOperationalSpaceControllerAction
+   :show-inheritance:
+
+.. autoclass:: NewtonOperationalSpaceControllerActionCfg
    :show-inheritance:

@@ -12,7 +12,7 @@ This tutorial walks you through training an end-effector pose tracking (reach) r
 
 **Scope of This Tutorial:**
 
-This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+This tutorial focuses on the **training** portion of the sim-to-real workflow. For deployment on real hardware, including robot interface setup and ROS inference node configuration, refer to the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 **Prerequisites:**
 
@@ -735,7 +735,7 @@ Once satisfied with the trained policy, deploy it on real hardware using the Isa
 
 No additional export step is required.
 
-For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_.
+For detailed deployment instructions, see the `Isaac ROS Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_.
 
 
 Troubleshooting
@@ -786,6 +786,6 @@ Further Resources
 
 - `IndustReal: Transferring Contact-Rich Assembly Tasks from Simulation to Reality <https://arxiv.org/abs/2305.17110>`_
 - `FORGE: Force-Guided Exploration for Robust Contact-Rich Manipulation under Uncertainty <https://arxiv.org/abs/2408.04587>`_
-- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/reference_workflows/isaac_for_manipulation/index.html>`_
+- `Isaac ROS Manipulation Documentation <https://nvidia-isaac-ros.github.io/v/release-4.6/reference_workflows/isaac_for_manipulation/index.html>`_
 - Gear Assembly Sim-to-Real Tutorial: :ref:`walkthrough_sim_to_real`
 - RL Training Tutorial: :ref:`tutorial-run-rl-training`

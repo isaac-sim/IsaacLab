@@ -9,13 +9,9 @@ This temporary relocation handoff intentionally remains in the core test tree un
 Franka task and Gym-wrapper scenario can move to the task package.
 """
 
-from isaaclab.app import AppLauncher
+from isaaclab.test.utils import launch_test_simulation
 
-# launch the simulator
-simulation_app = AppLauncher(headless=True).app
-
-
-"""Rest everything follows."""
+launch_test_simulation()
 
 import shutil
 import tempfile
@@ -28,6 +24,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.app.settings_manager import get_settings_manager
 from isaaclab.envs.mdp.recorders.recorders_cfg import ActionStateRecorderManagerCfg
+from isaaclab.test.utils import DeviceScope, test_devices
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -38,7 +35,7 @@ pytestmark = pytest.mark.integration
 @pytest.fixture(scope="session", autouse=True)
 def setup_carb_settings():
     """Set up settings to prevent simulation getting stuck."""
-    get_settings_manager().set_bool("/physics/cooking/ujitsoCollisionCooking", False)
+    get_settings_manager().set("/physics/cooking/ujitsoCollisionCooking", False)
 
 
 @pytest.fixture
@@ -91,10 +88,11 @@ def check_initial_state_recorder_term(env):
 
 
 @pytest.mark.parametrize("task_name", ["IsaacContrib-Lift-Cube-Franka"])
-@pytest.mark.parametrize("device", ["cuda:0", "cpu"])
-@pytest.mark.parametrize("num_envs", [1, 2])
-def test_action_state_recorder_terms(task_name, device, num_envs, temp_dir):
+# Two environments, so that resetting the last one is a partial reset; recorder bookkeeping is device independent.
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
+def test_action_state_recorder_terms(task_name, device, temp_dir):
     """Check action state recorder terms through a registered task and Gym wrapper."""
+    num_envs = 2
     sim_utils.create_new_stage()
 
     dummy_dataset_filename = f"{uuid.uuid4()}.hdf5"

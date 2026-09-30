@@ -11,8 +11,7 @@ from typing import TYPE_CHECKING
 
 import warp as wp
 
-import isaaclab.utils.string as string_utils
-
+from ...utils import string as string_utils
 from ..sensor_base import SensorBase
 from .base_frame_transformer_data import BaseFrameTransformerData
 
@@ -48,15 +47,6 @@ class BaseFrameTransformer(SensorBase):
 
     __backend_name__: str = "base"
     """The name of the backend for the frame transformer sensor."""
-
-    def __init__(self, cfg: FrameTransformerCfg):
-        """Initializes the frame transformer object.
-
-        Args:
-            cfg: The configuration parameters.
-        """
-        # initialize base class
-        super().__init__(cfg)
 
     """
     Properties
@@ -119,7 +109,3 @@ class BaseFrameTransformer(SensorBase):
     @abstractmethod
     def _update_buffers_impl(self, env_mask: wp.array):
         raise NotImplementedError
-
-    def _invalidate_initialize_callback(self, event):
-        """Invalidates the scene elements."""
-        super()._invalidate_initialize_callback(event)

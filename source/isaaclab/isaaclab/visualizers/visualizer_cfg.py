@@ -7,13 +7,30 @@
 
 from __future__ import annotations
 
+import argparse
+import warnings
 from typing import TYPE_CHECKING
 
-from isaaclab.utils.configclass import configclass
+from ..utils import configclass
+from ..utils.string import string_to_callable
 
 if TYPE_CHECKING:
+    from ..renderers import RendererCfg
     from .base_visualizer import BaseVisualizer
 
+
+VISUALIZER_TYPES = {
+    "kit": "kit:KitVisualizerCfg",
+    "newton_gl": "newton:NewtonGLVisualizerCfg",
+    "newton_rtx": "newton:NewtonRTXVisualizerCfg",
+    "rerun": "rerun:RerunVisualizerCfg",
+    "viser": "viser:ViserVisualizerCfg",
+}
+"""Canonical visualizer type names, for ``--visualizer`` and :attr:`VisualizerCfg.visualizer_type`, mapped to
+the ``<isaaclab_visualizers subpackage>:<class>`` of their default config, imported only when needed."""
+
+VISUALIZER_ALIASES = {"newton": "newton_gl"}
+"""Deprecated ``--visualizer`` names and their replacements."""
 
 _VISUALIZER_EXTRAS = {
     "kit": "isaacsim",
@@ -22,7 +39,7 @@ _VISUALIZER_EXTRAS = {
 }
 
 
-def _get_visualizer_install_hint(visualizer_type: str) -> str:
+def get_visualizer_install_hint(visualizer_type: str) -> str:
     """Return the uv command needed to run a visualizer backend."""
     extra = _VISUALIZER_EXTRAS.get(visualizer_type)
     if extra is None:
@@ -30,15 +47,106 @@ def _get_visualizer_install_hint(visualizer_type: str) -> str:
     return f"Run your command with: uv run --extra {extra} <command>."
 
 
+def parse_visualizer_csv(value: str | list[str]) -> list[str]:
+    """Parse a ``--visualizer`` comma-separated list, or a list of names, into canonical names.
+
+    ``none`` yields an empty list. Parsing canonical names again returns them unchanged.
+    """
+    if isinstance(value, str):
+        token = value.strip()
+        if not token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: empty string. Use a comma-separated list, e.g. --viz kit,newton_gl."
+            )
+        if " " in token:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: spaces are not allowed. "
+                "Use a comma-separated list without spaces, e.g. --viz kit,newton_gl,rerun,viser."
+            )
+        value = token.split(",")
+    names = [str(item).strip().lower() for item in value]
+    if any(not name for name in names):
+        raise argparse.ArgumentTypeError(
+            "Invalid --visualizer value: empty visualizer entry detected. "
+            "Use a comma-separated list without empty items."
+        )
+    invalid = [name for name in names if name not in (*VISUALIZER_TYPES, *VISUALIZER_ALIASES, "none")]
+    if invalid:
+        raise argparse.ArgumentTypeError(
+            f"Invalid --visualizer value(s): {', '.join(invalid)}. "
+            f"Valid options: {', '.join(sorted((*VISUALIZER_TYPES, 'none')))}."
+        )
+    for name in names:
+        if name in VISUALIZER_ALIASES:
+            warnings.warn(
+                f"--viz '{name}' is deprecated. Use '--viz {VISUALIZER_ALIASES[name]}' instead.",
+                DeprecationWarning,
+                stacklevel=3,
+            )
+    names = [VISUALIZER_ALIASES.get(name, name) for name in names]
+    if "none" in names:
+        if len(names) > 1:
+            raise argparse.ArgumentTypeError(
+                "Invalid --visualizer value: 'none' cannot be combined with other visualizer types."
+            )
+        return []
+    return list(dict.fromkeys(names))
+
+
+def _make_visualizer_cfg(visualizer_type: str) -> VisualizerCfg:
+    """Construct the default config of a visualizer type, importing only its backend package."""
+    try:
+        cfg_class = string_to_callable(f"isaaclab_visualizers.{VISUALIZER_TYPES[visualizer_type]}")
+    except (ImportError, ValueError) as exc:  # string_to_callable reports a missing module as ValueError
+        raise RuntimeError(
+            f"Explicitly requested visualizer(s) {[visualizer_type]} could not be configured: {exc}. "
+            f"{get_visualizer_install_hint(visualizer_type)}"
+        ) from exc
+    return cfg_class()
+
+
+def resolve_visualizer_cfgs(
+    visualizer_cfgs: list[VisualizerCfg] | VisualizerCfg | None, visualizers: list[str] | None, max_visible_envs=None
+) -> list[VisualizerCfg]:
+    """Return the visualizers a run uses: the configured ones, narrowed by a ``--visualizer`` selection.
+
+    Args:
+        visualizer_cfgs: Configured visualizers, e.g. :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
+        visualizers: Selection in canonical names (see :func:`parse_visualizer_csv`): None keeps the configured
+            visualizers, an empty list (``--viz none``) disables all, and names keep exactly those types, reusing
+            a configured visualizer of each type (with its settings) or else its default config.
+        max_visible_envs: ``--max_visible_envs`` applied to every resulting visualizer, or None.
+    """
+    if visualizer_cfgs is None:
+        visualizer_cfgs = []
+    elif not isinstance(visualizer_cfgs, list):
+        visualizer_cfgs = [visualizer_cfgs]
+    if visualizers is not None:
+        visualizer_cfgs = [cfg for cfg in visualizer_cfgs if cfg.visualizer_type in visualizers]
+        configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
+        visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
+    if max_visible_envs is not None:
+        for cfg in visualizer_cfgs:
+            cfg.max_visible_envs = int(max_visible_envs)
+    return visualizer_cfgs
+
+
 @configclass
 class VisualizerCfg:
     """Base configuration for all visualizer backends.
 
     Note:
-        This is an abstract base class and should not be instantiated directly.
-        Use specific configs from isaaclab_visualizers: KitVisualizerCfg, NewtonGLVisualizerCfg,
-        RerunVisualizerCfg, or ViserVisualizerCfg (from isaaclab_visualizers.kit/.newton/.rerun/.viser).
+        This configuration can be used directly as
+        :attr:`~isaaclab.sim.SimulationCfg.default_visualizer_cfg` to provide shared defaults.
+        To create a visualizer, use a concrete config from ``isaaclab_visualizers``, such as
+        ``KitVisualizerCfg`` or ``NewtonGLVisualizerCfg``.
     """
+
+    class_type: type[BaseVisualizer] | str | None = None
+    """Visualizer implementation class. Concrete configs must set this field."""
+
+    cloning_contexts: tuple[type | str, ...] = ()
+    """Clone contexts that build this visualizer's scene representation from the asset plan."""
 
     # Primary interactive camera settings
     eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
@@ -49,6 +157,13 @@ class VisualizerCfg:
 
     focal_length: float = 12.0
     """Camera focal length in millimeters for visualizer camera views."""
+
+    background_color: tuple[float, float, float] | None = (0.30, 0.55, 0.82)
+    """Solid background color as normalized RGB values in ``[0, 1]``.
+
+    Kit, Newton GL, and Newton RTX honor this field. Set it to ``None`` to preserve the
+    backend's native background. Scene lighting remains independent of the visible background.
+    """
 
     # ── Streaming view ────────────────────────────────────────────────────────
     # Captures pixels from a camera sensor (existing or auto-created), tiles them
@@ -72,7 +187,7 @@ class VisualizerCfg:
     :attr:`streaming_sensor_prim_path` is set).
 
     When ``None`` (the default), the visualizer adopts the first scene camera
-    sensor it discovers dynamically at initialisation time.  If no scene camera
+    sensor it discovers dynamically at initialization time.  If no scene camera
     exists the streaming panel remains empty.  Set this explicitly (e.g.
     ``"/World/envs/*/Robot"``) only when you need an auto-created follow-camera
     and no suitable scene camera is present.
@@ -81,13 +196,12 @@ class VisualizerCfg:
     streaming_cam_eye: tuple[float, float, float] = (4.0, -4.0, 3.0)
     """Eye offset [m] for the auto-created streaming camera relative to the target prim."""
 
-    streaming_cam_renderer: str | None = None
+    streaming_cam_renderer_cfg: RendererCfg | None = None
     """Renderer for the auto-created streaming camera.
 
-    One of ``"newton_warp"``, ``"ovrtx"``, or ``None`` (let each backend
-    choose its own default).  Defaults to ``None`` so each backend selects
-    an appropriate renderer automatically.  Ignored when
-    :attr:`streaming_sensor_prim_path` is set.
+    Concrete visualizer configs declare their default renderer configuration.
+    Its ``class_type`` selects the implementation, including custom renderers.
+    Ignored when :attr:`streaming_sensor_prim_path` is set.
     """
 
     # Shared settings
@@ -101,9 +215,9 @@ class VisualizerCfg:
     streaming_gt_types: tuple[str, ...] = ("rgb",)
     """GT data types displayed left-to-right per environment row.
 
-    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``.
+    Valid values: ``"rgb"``, ``"depth"``, ``"segmentation"``, ``"normals"``.
     Validated against :data:`~isaaclab.envs.utils.camera_colorizer.SUPPORTED_GT_TYPES`
-    at initialisation time (only when :attr:`streaming_view` is ``True``).
+    at initialization time (only when :attr:`streaming_view` is ``True``).
     """
 
     streaming_depth_min: float = 0.1
@@ -170,18 +284,19 @@ class VisualizerCfg:
     tiled_cam_target_prim_path: str | None = None
     """Deprecated. Use :attr:`streaming_cam_target_prim_path` instead."""
 
-    tiled_cam_renderer: str | None = None
-    """Deprecated. Use :attr:`streaming_cam_renderer` instead."""
-
     def __post_init__(self) -> None:
         import warnings
+
+        if self.background_color is not None:
+            if len(self.background_color) != 3 or any(not 0.0 <= value <= 1.0 for value in self.background_color):
+                raise ValueError("background_color must contain three normalized RGB values in [0, 1].")
+            self.background_color = tuple(float(value) for value in self.background_color)
 
         _simple = [
             ("tiled_cam_view", "streaming_view"),
             ("tiled_cam_prim_path", "streaming_sensor_prim_path"),
             ("tiled_cam_eye", "streaming_cam_eye"),
             ("tiled_cam_target_prim_path", "streaming_cam_target_prim_path"),
-            ("tiled_cam_renderer", "streaming_cam_renderer"),
         ]
         for old, new in _simple:
             val = getattr(self, old)
@@ -210,39 +325,3 @@ class VisualizerCfg:
                 )
                 self.streaming_envs = num
                 self.tiled_cam_num = None
-
-    def get_visualizer_type(self) -> str | None:
-        """Get the visualizer type identifier.
-
-        Returns:
-            The visualizer type string, or None if not set (base class).
-        """
-        return self.visualizer_type
-
-    def create_visualizer(self) -> BaseVisualizer:
-        """Create visualizer instance from this config using factory pattern.
-
-        Loads the matching backend from isaaclab_visualizers (e.g. isaaclab_visualizers.rerun).
-
-        Raises:
-            ValueError: If visualizer_type is None (base class used directly) or not registered.
-            ImportError: If isaaclab_visualizers or the requested backend extra is not installed.
-        """
-        from .visualizer import Visualizer
-
-        if self.visualizer_type is None:
-            raise ValueError(
-                "Cannot create visualizer from base VisualizerCfg class. "
-                "Use a specific config from isaaclab_visualizers "
-                "(e.g. KitVisualizerCfg, NewtonGLVisualizerCfg, RerunVisualizerCfg, ViserVisualizerCfg)."
-            )
-
-        try:
-            return Visualizer(self)
-        except (ValueError, ImportError, ModuleNotFoundError) as exc:
-            if self.visualizer_type in ("newton_gl", "newton_rtx", "rerun", "viser", "kit"):
-                raise ImportError(
-                    f"Could not import visualizer '{self.visualizer_type}' from isaaclab_visualizers. "
-                    f"{_get_visualizer_install_hint(self.visualizer_type)}\nOriginal error: {exc}"
-                ) from exc
-            raise
