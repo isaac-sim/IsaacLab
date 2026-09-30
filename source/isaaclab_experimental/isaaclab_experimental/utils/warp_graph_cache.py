@@ -26,6 +26,9 @@ SYNC_DEBUG_ENV_VAR = "ISAACLAB_SYNC_DEBUG"
 """Set ``ISAACLAB_SYNC_DEBUG=1`` to run eager stage calls under ``torch.cuda.set_sync_debug_mode("error")``,
 so a hidden GPU-to-host synchronization inside a stage raises instead of stalling silently."""
 
+StageStep = tuple[bool, Callable[..., Any]]
+"""One step of a stage: whether its work may be recorded into a CUDA graph, and the callable that runs it."""
+
 
 class WarpGraphCache:
     """Run Warp frontend stages eagerly or through cached CUDA graphs.
@@ -41,6 +44,8 @@ class WarpGraphCache:
       reallocated array, or a different scalar, records the stage again.
     * :meth:`invalidate` drops every graph and holds recording until the next :meth:`arm`.
       :meth:`invalidate_on` does so whenever the physics backend rebinds its buffers or stops.
+    * A stage made of steps (:meth:`call_steps`) records each run of consecutive capturable steps
+      as its own graph and runs the other steps eagerly in between, keeping the step order.
 
     A stage group is the stage name up to its first underscore. A group registered as not
     capturable, a CPU device, or ``ISAACLAB_WARP_CAPTURE=0`` runs its stages eagerly.
@@ -57,6 +62,9 @@ class WarpGraphCache:
         self._sync_debug = os.environ.get(SYNC_DEBUG_ENV_VAR, "0") == "1"
         self._armed = False
         self._graphs: dict[str, tuple[tuple, wp.Graph, Any]] = {}
+        self._runs: dict[
+            int, tuple[tuple[StageStep, ...], tuple[tuple[bool, tuple[Callable[..., Any], ...]], ...]]
+        ] = {}
         self._capturable: dict[str, bool] = {}
         self._callback_handles = []
 
@@ -75,7 +83,7 @@ class WarpGraphCache:
         timer: bool = False,
         **kwargs: Any,
     ) -> Any:
-        """Run a stage eagerly or through its recorded graph.
+        """Run a single-step stage eagerly or through its recorded graph.
 
         Args:
             stage: Stage identifier in the form ``"GroupName_function_name"``.
@@ -89,21 +97,65 @@ class WarpGraphCache:
             The stage result, optionally transformed by :paramref:`output`. A replayed stage returns
             the result of the call that recorded it.
         """
+        return self._run(stage, ((True, (fn,)),), args, kwargs, output, timer)
+
+    def call_steps(
+        self,
+        stage: str,
+        steps: tuple[StageStep, ...],
+        /,
+        *args: Any,
+        output: Callable[[Any], Any] | None = None,
+        timer: bool = False,
+        **kwargs: Any,
+    ) -> Any:
+        """Run the steps of a stage in order, recording each run of consecutive capturable steps.
+
+        Every step receives the stage arguments. A run of consecutive capturable steps is recorded into
+        one graph, named ``"<stage>[<run index>]"`` when the stage has more than one run. Steps that are
+        not capturable run eagerly at their place in the order.
+
+        Args:
+            stage: Stage identifier in the form ``"GroupName_function_name"``.
+            steps: Ordered steps of the stage. Pass the same tuple on every call.
+            *args: Positional arguments forwarded to every step.
+            output: Transform applied to the stage result on every call, outside the graphs.
+            timer: Whether to time the stage.
+            **kwargs: Keyword arguments forwarded to every step.
+
+        Returns:
+            The result of the last step, optionally transformed by :paramref:`output`. A replayed run
+            returns the result of the call that recorded it.
+        """
+        return self._run(stage, self._split_runs(steps), args, kwargs, output, timer)
+
+    def _run(
+        self,
+        stage: str,
+        runs: tuple[tuple[bool, tuple[Callable[..., Any], ...]], ...],
+        args: tuple,
+        kwargs: dict[str, Any],
+        output: Callable[[Any], Any] | None,
+        timer: bool,
+    ) -> Any:
+        """Replay, record, or eagerly run each run of a stage in order."""
         with Timer(name=stage, msg=f"{stage} took:", enable=timer, time_unit="us"):
-            if not self._enabled or not self.is_capturable(stage.partition("_")[0]):
-                result = self._run_eager(fn, args, kwargs)
-            else:
-                key = _argument_key(args, kwargs)
-                recorded = self._graphs.get(stage)
+            capture = self._enabled and self.is_capturable(stage.partition("_")[0])
+            key = _argument_key(args, kwargs) if capture else None
+            result = None
+            for index, (capturable, fns) in enumerate(runs):
+                name = stage if len(runs) == 1 else f"{stage}[{index}]"
+                recorded = self._graphs.get(name) if capture and capturable else None
                 if recorded is not None and recorded[0] == key:
                     wp.capture_launch(recorded[1])
                     result = recorded[2]
-                elif self._armed:
-                    graph, result = self._record(fn, args, kwargs)
-                    self._graphs[stage] = (key, graph, result)
+                elif capture and capturable and self._armed:
+                    graph, result = self._record(fns, args, kwargs)
+                    self._graphs[name] = (key, graph, result)
                     wp.capture_launch(graph)
                 else:
-                    result = self._run_eager(fn, args, kwargs)
+                    for fn in fns:
+                        result = self._run_eager(fn, args, kwargs)
         return output(result) if output is not None else result
 
     def arm(self) -> None:
@@ -118,15 +170,13 @@ class WarpGraphCache:
                 Defaults to None, which drops every graph and holds recording until the next :meth:`arm`.
         """
         stages = [stage for stage in self._graphs if group is None or stage.partition("_")[0] == group]
-        if not stages:
-            if group is None:
-                self._armed = False
-            return
-        # Graphs may still be executing; drain the device before releasing them.
-        wp.synchronize_device(self._device)
-        for stage in stages:
-            del self._graphs[stage]
+        if stages:
+            # Graphs may still be executing; drain the device before releasing them.
+            wp.synchronize_device(self._device)
+            for stage in stages:
+                del self._graphs[stage]
         if group is None:
+            self._runs.clear()
             self._armed = False
 
     def invalidate_on(self, physics_manager: type[PhysicsManager]) -> None:
@@ -163,13 +213,28 @@ class WarpGraphCache:
     def _on_physics_event(self, payload: Any) -> None:
         self.invalidate()
 
-    def _record(self, fn: Callable[..., Any], args: tuple, kwargs: dict[str, Any]) -> tuple[wp.Graph, Any]:
-        """Record one stage call without executing it."""
+    def _split_runs(self, steps: tuple[StageStep, ...]) -> tuple[tuple[bool, tuple[Callable[..., Any], ...]], ...]:
+        """Group consecutive steps with the same capturability, memoized per steps tuple."""
+        memo = self._runs.get(id(steps))
+        if memo is None or memo[0] is not steps:
+            runs: list[tuple[bool, list[Callable[..., Any]]]] = []
+            for capturable, fn in steps:
+                if runs and runs[-1][0] == capturable:
+                    runs[-1][1].append(fn)
+                else:
+                    runs.append((capturable, [fn]))
+            memo = (steps, tuple((capturable, tuple(fns)) for capturable, fns in runs))
+            self._runs[id(steps)] = memo
+        return memo[1]
+
+    def _record(self, fns: tuple[Callable[..., Any], ...], args: tuple, kwargs: dict[str, Any]) -> tuple[wp.Graph, Any]:
+        """Record one run of steps without executing it."""
         result = None
 
         def capture_target() -> None:
             nonlocal result
-            result = fn(*args, **kwargs)
+            for fn in fns:
+                result = fn(*args, **kwargs)
 
         graph = NewtonQueries.capture_graph(str(self._device), capture_target, relaxed=has_kit())
         return graph, result

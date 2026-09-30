@@ -11,8 +11,9 @@ This file is a copy of `isaaclab.managers.reward_manager` placed under
 
 from __future__ import annotations
 
-from collections.abc import Sequence
-from typing import TYPE_CHECKING
+from collections.abc import Callable, Sequence
+from functools import partial
+from typing import TYPE_CHECKING, Any
 
 import torch
 import warp as wp
@@ -20,6 +21,7 @@ from prettytable import PrettyTable
 
 from isaaclab.managers.manager_term_cfg import RewardTermCfg
 
+from isaaclab_experimental.utils.warp import is_warp_capturable
 from isaaclab_experimental.utils.warp.kernels import compute_reset_scale, count_masked
 
 from .manager_base import ManagerBase, ManagerTermBase
@@ -251,7 +253,46 @@ class RewardManager(ManagerBase):
                     "Do not pass env_ids on captured paths."
                 )
             env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
+        return self._run_steps("reset", env_mask=env_mask)
 
+    def compute(self, dt: float) -> torch.Tensor:
+        """Computes the reward signal as a weighted sum of individual terms.
+
+        This function calls each reward term managed by the class and adds them to compute the net
+        reward signal. It also updates the episodic sums corresponding to individual reward terms.
+
+        Args:
+            dt: The time-step interval of the environment.
+
+        Returns:
+            The net reward signal of shape (num_envs,).
+        """
+        return self._run_steps("compute", dt=dt)
+
+    """
+    Operations - Stage steps.
+    """
+
+    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
+        if operation == "compute":
+            term_steps = [
+                (is_warp_capturable(term_cfg.func), partial(self._compute_term, index))
+                for index, term_cfg in enumerate(self._term_cfgs)
+            ]
+            # Terms write their own output columns and the finalize step sums them in a fixed order, so
+            # running the capturable terms first leaves the reward unchanged bitwise.
+            term_steps.sort(key=lambda step: not step[0])
+            return [(True, self._reset_step_buffers), *term_steps, (True, self._finalize_step)]
+        if operation == "reset":
+            term_steps = [
+                (is_warp_capturable(term_cfg.func), partial(self._reset_term, term_cfg))
+                for term_cfg in self._class_term_cfgs
+            ]
+            return [(True, self._reset_episode_sums), *term_steps]
+        return super()._build_stage_steps(operation)
+
+    def _reset_episode_sums(self, env_mask: wp.array) -> dict[str, torch.Tensor]:
+        """Average the episodic sums of the selected environments and zero them."""
         self._episode_sum_avg_wp.zero_()
         self._reset_count_wp.zero_()
         self._reset_scale_wp.zero_()
@@ -271,48 +312,38 @@ class RewardManager(ManagerBase):
                 inputs=[env_mask, self._reset_scale_wp, self._episode_sums_wp, self._episode_sum_avg_wp],
                 device=self.device,
             )
-
-        # reset all the reward terms; class terms may expose logging values as
-        # persistent tensor views (see :meth:`ManagerTermBase.reset`), which are
-        # merged into the manager's reset extras. Merging the same views again on
-        # subsequent resets is a no-op, so this stays capture-safe.
-        for term_cfg in self._class_term_cfgs:
-            term_extras = term_cfg.func.reset(env_mask=env_mask)
-            if term_extras:
-                self._reset_extras.update(term_extras)
-
         return self._reset_extras
 
-    def compute(self, dt: float) -> torch.Tensor:
-        """Computes the reward signal as a weighted sum of individual terms.
+    def _reset_term(self, term_cfg: RewardTermCfg, env_mask: wp.array) -> dict[str, torch.Tensor]:
+        """Reset a class term and merge its logging values into the reset extras.
 
-        This function calls each reward term managed by the class and adds them to compute the net
-        reward signal. It also updates the episodic sums corresponding to individual reward terms.
-
-        Args:
-            dt: The time-step interval of the environment.
-
-        Returns:
-            The net reward signal of shape (num_envs,).
+        Class terms may expose logging values as persistent tensor views (see :meth:`ManagerTermBase.reset`).
+        Merging the same views again on later resets is a no-op, so this stays capture-safe.
         """
+        term_extras = term_cfg.func.reset(env_mask=env_mask)
+        if term_extras:
+            self._reset_extras.update(term_extras)
+        return self._reset_extras
+
+    def _reset_step_buffers(self, dt: float) -> None:
+        """Zero the reward, step reward and term output buffers in a single kernel launch."""
         # TODO: Investigate performance diff between two .fill_ and kernel launch
-        # reset computation (Warp buffers) in a single kernel launch
         wp.launch(
             kernel=_reward_pre_compute_reset,
             dim=self.num_envs,
             inputs=[self._reward_wp, self._step_reward_wp, self._term_outs_wp],
             device=self.device,
         )
-        # iterate over all the reward terms (Python loop; per-term math is warp)
-        for term_cfg in self._term_cfgs:
-            # skip if weight is zero (kind of a micro-optimization)
-            if term_cfg.weight == 0.0:
-                continue
-            # compute term into the persistent warp buffer (raw, unweighted)
-            # NOTE: `out` is pre-zeroed every step by `_reward_pre_compute_reset`.
+
+    def _compute_term(self, index: int, dt: float) -> None:
+        """Compute one term into its pre-zeroed output column (raw, unweighted)."""
+        term_cfg = self._term_cfgs[index]
+        # skip if weight is zero (kind of a micro-optimization)
+        if term_cfg.weight != 0.0:
             term_cfg.func(self._env, term_cfg.out, **term_cfg.params)
 
-        # update total reward, episodic sums and step rewards in a single kernel launch
+    def _finalize_step(self, dt: float) -> torch.Tensor:
+        """Update the total reward, episodic sums and step rewards in a single kernel launch."""
         wp.launch(
             kernel=_reward_finalize,
             dim=self.num_envs,
@@ -353,6 +384,8 @@ class RewardManager(ManagerBase):
         self._term_cfgs[term_idx] = cfg
         # keep on-device weights in sync (call this to update weights used in compute)
         self._term_weights_tensor_view[term_idx] = float(cfg.weight)
+        # the replaced term may differ in capturability
+        self._clear_stage_steps()
 
     def get_term_cfg(self, term_name: str) -> RewardTermCfg:
         """Gets the configuration for the specified term.

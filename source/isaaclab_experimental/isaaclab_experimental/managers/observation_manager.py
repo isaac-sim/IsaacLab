@@ -47,7 +47,8 @@ Experimental (Warp-first) note:
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 import numpy as np
@@ -62,6 +63,7 @@ from isaaclab.utils import instantiate, to_dict
 from isaaclab_experimental.utils import modifiers, noise
 from isaaclab_experimental.utils.buffers import CircularBuffer
 from isaaclab_experimental.utils.torch_utils import clone_obs_buffer
+from isaaclab_experimental.utils.warp import is_warp_capturable
 
 from .manager_base import ManagerBase, ManagerTermBase
 
@@ -400,21 +402,7 @@ class ObservationManager(ManagerBase):
                     "Do not pass env_ids on captured paths."
                 )
             env_mask = self._env.resolve_env_mask(env_ids=env_ids, env_mask=env_mask)
-
-        # call all terms that are classes
-        for group_name, group_cfg in self._group_obs_class_term_cfgs.items():
-            for term_cfg in group_cfg:
-                term_cfg.func.reset(env_mask=env_mask)
-            # reset terms with history
-            for term_name in self._group_obs_term_names[group_name]:
-                if term_name in self._group_obs_term_history_buffer[group_name]:
-                    self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
-        # call all modifiers/noise models that are classes
-        for mod in self._group_obs_class_instances:
-            mod.reset(env_mask=env_mask)
-
-        # nothing to log here
-        return {}
+        return self._run_steps("reset", env_mask=env_mask)
 
     def compute(
         self, update_history: bool = False, return_cloned_output: bool = True
@@ -436,9 +424,12 @@ class ObservationManager(ManagerBase):
             The observations are either concatenated into a single tensor or returned as a dictionary
             with keys corresponding to the term's name.
         """
-        # Launch kernels for every group (writes into persistent buffers in-place).
-        for group_name in self._group_obs_term_names:
-            self.compute_group(group_name, update_history=update_history)
+        return self._run_steps("compute", update_history=update_history, return_cloned_output=return_cloned_output)
+
+    def _compute_output(
+        self, update_history: bool = False, return_cloned_output: bool = True
+    ) -> dict[str, torch.Tensor | dict[str, torch.Tensor]]:
+        """Return the persistent observation buffer, or a clone of it."""
         # Build the obs buffer once (persistent refs to in-place-updated tensors/dicts).
         if self._obs_buffer is None:
             self._obs_buffer = {
@@ -497,74 +488,122 @@ class ObservationManager(ManagerBase):
         # iterate over all the terms in each group
         group_term_names = self._group_obs_term_names[group_name]
 
-        # Persistent per-term obs dict (pre-allocated in _prepare_terms).
-        group_obs = self._group_obs_dict[group_name]
-
         # evaluate terms: compute, add noise, clip, scale, custom modifiers
-        for term_name, term_cfg in zip(group_term_names, self._group_obs_term_cfgs[group_name]):
-            # compute term's value into pre-allocated Warp output
-            term_cfg.func(self._env, term_cfg.out_wp, **term_cfg.params)
-
-            # apply custom modifiers (in-place on out_wp)
-            if term_cfg.modifiers is not None:
-                for modifier in term_cfg.modifiers:
-                    modifier.func(term_cfg.out_wp, **modifier.params)
-
-            # apply noise (Warp in-place on out_wp)
-            if isinstance(term_cfg.noise, noise.NoiseCfg):
-                term_cfg.noise.func(term_cfg.out_wp, term_cfg.noise)
-            elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
-                term_cfg.noise.func(term_cfg.out_wp)
-
-            # clip then scale (stable semantics); implementation may use Warp kernels
-            if term_cfg.clip is not None:
-                wp.launch(
-                    kernel=_apply_clip,
-                    dim=self.num_envs,
-                    inputs=[term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])],
-                    device=self.device,
-                )
-            if term_cfg.scale is not None:
-                wp.launch(
-                    kernel=_apply_scale,
-                    dim=self.num_envs,
-                    inputs=[term_cfg.out_wp, term_cfg.scale_wp],
-                    device=self.device,
-                )
-
-            # TODO(jichuanh): This is not migrated yet. Need revisit.
-            # Update the history buffer if observation term has history enabled
-            if term_cfg.history_length > 0:
-                # circular buffer is not capture safe
-                if wp.get_device().is_capturing:
-                    raise RuntimeError(
-                        "Observation terms with history (circular buffer) are not CUDA-graph-capture-safe yet. "
-                        "Disable history for observation terms used inside a captured graph, or restructure "
-                        "the graph to exclude history-buffered terms."
-                    )
-                circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
-                if update_history:
-                    circular_buffer.append(wp.to_torch(term_cfg.out_wp))
-                elif circular_buffer._buffer is None:
-                    # because circular buffer only exits after the simulation steps,
-                    # this guards history buffer from corruption by external calls before simulation start
-                    circular_buffer = CircularBuffer(
-                        max_len=circular_buffer.max_length,
-                        batch_size=circular_buffer.batch_size,
-                        device=circular_buffer.device,
-                    )
-                    self._group_obs_term_history_buffer[group_name][term_name] = circular_buffer
-                    circular_buffer.append(wp.to_torch(term_cfg.out_wp))
-
-                if term_cfg.flatten_history_dim:
-                    group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
-                else:
-                    group_obs[term_name] = circular_buffer.buffer
+        for index in range(len(group_term_names)):
+            self._compute_term(group_name, index, update_history=update_history)
 
         # return persistent output (updated in-place by kernels above)
         if self._group_use_warp_concat[group_name]:
             return self._group_out_torch[group_name]
-        return group_obs
+        return self._group_obs_dict[group_name]
+
+    def _compute_term(
+        self, group_name: str, index: int, update_history: bool = False, return_cloned_output: bool = True
+    ) -> None:
+        """Compute one observation term into its slice of the group buffer."""
+        term_name = self._group_obs_term_names[group_name][index]
+        term_cfg = self._group_obs_term_cfgs[group_name][index]
+        group_obs = self._group_obs_dict[group_name]
+        # compute term's value into pre-allocated Warp output
+        term_cfg.func(self._env, term_cfg.out_wp, **term_cfg.params)
+
+        # apply custom modifiers (in-place on out_wp)
+        if term_cfg.modifiers is not None:
+            for modifier in term_cfg.modifiers:
+                modifier.func(term_cfg.out_wp, **modifier.params)
+
+        # apply noise (Warp in-place on out_wp)
+        if isinstance(term_cfg.noise, noise.NoiseCfg):
+            term_cfg.noise.func(term_cfg.out_wp, term_cfg.noise)
+        elif isinstance(term_cfg.noise, noise.NoiseModelCfg) and term_cfg.noise.func is not None:
+            term_cfg.noise.func(term_cfg.out_wp)
+
+        # clip then scale (stable semantics); implementation may use Warp kernels
+        if term_cfg.clip is not None:
+            wp.launch(
+                kernel=_apply_clip,
+                dim=self.num_envs,
+                inputs=[term_cfg.out_wp, float(term_cfg.clip[0]), float(term_cfg.clip[1])],
+                device=self.device,
+            )
+        if term_cfg.scale is not None:
+            wp.launch(
+                kernel=_apply_scale,
+                dim=self.num_envs,
+                inputs=[term_cfg.out_wp, term_cfg.scale_wp],
+                device=self.device,
+            )
+
+        # TODO(jichuanh): This is not migrated yet. Need revisit.
+        # Update the history buffer if observation term has history enabled
+        if term_cfg.history_length > 0:
+            # circular buffer is not capture safe
+            if wp.get_device().is_capturing:
+                raise RuntimeError(
+                    "Observation terms with history (circular buffer) are not CUDA-graph-capture-safe yet. "
+                    "Disable history for observation terms used inside a captured graph, or restructure "
+                    "the graph to exclude history-buffered terms."
+                )
+            circular_buffer = self._group_obs_term_history_buffer[group_name][term_name]
+            if update_history:
+                circular_buffer.append(wp.to_torch(term_cfg.out_wp))
+            elif circular_buffer._buffer is None:
+                # because circular buffer only exits after the simulation steps,
+                # this guards history buffer from corruption by external calls before simulation start
+                circular_buffer = CircularBuffer(
+                    max_len=circular_buffer.max_length,
+                    batch_size=circular_buffer.batch_size,
+                    device=circular_buffer.device,
+                )
+                self._group_obs_term_history_buffer[group_name][term_name] = circular_buffer
+                circular_buffer.append(wp.to_torch(term_cfg.out_wp))
+
+            if term_cfg.flatten_history_dim:
+                group_obs[term_name] = circular_buffer.buffer.reshape(self._env.num_envs, -1)
+            else:
+                group_obs[term_name] = circular_buffer.buffer
+
+    """
+    Operations - Stage steps.
+    """
+
+    def _build_stage_steps(self, operation: str) -> list[tuple[bool, Callable[..., Any]]]:
+        if operation == "compute":
+            # Noise draws from the environment's shared random state, so terms keep their order.
+            steps = [
+                (
+                    is_warp_capturable(term_cfg.func) and term_cfg.history_length == 0,
+                    partial(self._compute_term, group_name, index),
+                )
+                for group_name, term_cfgs in self._group_obs_term_cfgs.items()
+                for index, term_cfg in enumerate(term_cfgs)
+            ]
+            return [*steps, (True, self._compute_output)]
+        if operation == "reset":
+            steps = []
+            for group_name, term_cfgs in self._group_obs_class_term_cfgs.items():
+                steps += [(is_warp_capturable(cfg.func), partial(self._reset_class_term, cfg)) for cfg in term_cfgs]
+                # history buffers are not capture-safe
+                steps += [
+                    (False, partial(self._reset_history, group_name, term_name))
+                    for term_name in self._group_obs_term_history_buffer[group_name]
+                ]
+            steps += [(True, instance.reset) for instance in self._group_obs_class_instances]
+            return [*steps, (True, self._reset_output)]
+        return super()._build_stage_steps(operation)
+
+    @staticmethod
+    def _reset_class_term(term_cfg: ObservationTermCfg, env_mask: wp.array) -> None:
+        term_cfg.func.reset(env_mask=env_mask)
+
+    def _reset_history(self, group_name: str, term_name: str, env_mask: wp.array) -> None:
+        # computing a term before the first step may replace its buffer, so look it up on every call
+        self._group_obs_term_history_buffer[group_name][term_name].reset(env_mask=env_mask)
+
+    @staticmethod
+    def _reset_output(env_mask: wp.array) -> dict:
+        # nothing to log here
+        return {}
 
     def serialize(self) -> dict:
         """Serialize the observation term configurations for all active groups.

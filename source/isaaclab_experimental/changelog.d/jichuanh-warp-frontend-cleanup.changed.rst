@@ -1,6 +1,11 @@
 * **Breaking:** Removed ``ManagerCallSwitch``, ``ManagerCallMode`` and the ``MANAGER_CALL_CONFIG``
-  environment variable. Warp environments construct their Warp managers directly and keep a manager's
-  stages eager when one of its terms is not capturable.
+  environment variable. Warp environments construct their Warp managers directly.
+* Changed the Warp environments to decide CUDA graph capture per term: a stage records its capturable
+  terms and runs each term decorated with ``@WarpCapturable(False)`` eagerly, instead of running the whole
+  stage eagerly. Reward and termination stages evaluate their capturable terms first; observation, action
+  and event stages keep the configured term order.
+* **Breaking:** Removed ``ManagerBasedRLEnvWarp.step_warp_termination_compute``. The termination stage runs
+  :meth:`TerminationManager.compute <isaaclab_experimental.managers.TerminationManager.compute>` directly.
 * **Breaking:** Replaced ``WarpGraphCache.capture_or_replay`` with
   :meth:`~isaaclab_experimental.utils.WarpGraphCache.call`. Stages are recorded from the first environment
   step without an eager warm-up, so a stage runs exactly once per call.
@@ -11,7 +16,5 @@
 * Changed the Warp ``push_by_setting_velocity``, ``apply_external_force_torque``, ``reset_root_state_uniform``
   and ``randomize_rigid_body_com`` event terms to classes that allocate their buffers when the term is
   created. They read their ranges on every call, so a changed range applies to the next event.
-* Changed the Warp event manager to record its reset and interval stages when a non-capturable term runs
-  only at startup, such as ``randomize_rigid_body_com`` in the velocity tasks.
 * Changed the Warp ``randomize_rigid_body_material`` and ``randomize_rigid_body_mass`` adapters to reject
   event modes other than ``startup``.

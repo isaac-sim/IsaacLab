@@ -9,7 +9,8 @@ Each task runs the same seeded action sequence twice, once with ``ISAACLAB_WARP_
 once with stage capture on. For manager-based tasks, a hard :meth:`SimulationContext.reset` halfway
 through rebuilds the Newton model and reallocates every simulation buffer; recorded graphs still
 point at the freed buffers, so the captured rollout only stays equal when the environment records
-its stages again.
+its stages again. A variant marks one term of every manager as not capturable: its stage must record
+the other terms and run that term eagerly in its place.
 """
 
 from isaaclab_newton.physics import MJWarpSolverCfg, NewtonCfg
@@ -23,6 +24,7 @@ import isaaclab_tasks_experimental  # noqa: F401
 import pytest
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
+from isaaclab_experimental.utils.warp import WarpCapturable
 from isaaclab_experimental.utils.warp_graph_cache import CAPTURE_ENV_VAR
 
 import isaaclab.sim as sim_utils
@@ -34,8 +36,18 @@ _NUM_ENVS = 32
 _STEPS = 80
 _REBIND_STEP = 40
 
+# One function term per staged manager of the manager-based Cartpole.
+_CARTPOLE_EAGER_TERMS = (
+    "observations.policy.joint_pos_rel",
+    "rewards.pole_pos",
+    "terminations.cart_out_of_bounds",
+    "events.reset_cart_position",
+)
 
-def _rollout(task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.MonkeyPatch) -> dict:
+
+def _rollout(
+    task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.MonkeyPatch, eager_terms: tuple[str, ...] = ()
+) -> dict:
     """Run the seeded action sequence and return the rollout with the recorded stages."""
     monkeypatch.setenv(CAPTURE_ENV_VAR, "1" if capture else "0")
     env_cfg, _ = resolve_task_config(task_id, "", overrides=("physics=newton_mjwarp",))
@@ -44,6 +56,13 @@ def _rollout(task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.Monk
     # contacts are only reproducible between runs with deterministic contact ordering
     env_cfg.sim.physics.deterministic_mode = "run_to_run"
     env_cfg.sim.physics.solver_cfg.disable_sensors = True
+    WarpFrontend.adapt_cfg(env_cfg)
+    for path in eager_terms:
+        term_cfg = env_cfg
+        for name in path.split("."):
+            term_cfg = getattr(term_cfg, name)
+        # the guard raises if the term is ever recorded into a graph
+        term_cfg.func = WarpCapturable(False, reason="marked eager by the test")(term_cfg.func)
     sim_utils.create_new_stage()
     env = WarpFrontend.build_env(env_cfg, task_id).unwrapped
     rollout = {"obs": [], "reward": [], "terminated": [], "truncated": []}
@@ -74,16 +93,26 @@ def _rollout(task_id: str, capture: bool, rebind: bool, monkeypatch: pytest.Monk
 
 # Direct tasks keep the simulation arrays they bind in ``__init__``, so they do not survive a rebind.
 @pytest.mark.parametrize(
-    ("task_id", "rebind"),
-    [("Isaac-Cartpole", True), ("Isaac-Cartpole-Direct", False)],
-    ids=["manager-cartpole", "direct-cartpole"],
+    ("task_id", "rebind", "eager_terms"),
+    [
+        ("Isaac-Cartpole", True, ()),
+        ("Isaac-Cartpole", False, _CARTPOLE_EAGER_TERMS),
+        ("Isaac-Cartpole-Direct", False, ()),
+    ],
+    ids=["manager-cartpole", "manager-cartpole-eager-terms", "direct-cartpole"],
 )
-def test_captured_rollout_matches_eager(task_id: str, rebind: bool, monkeypatch: pytest.MonkeyPatch):
-    eager = _rollout(task_id, capture=False, rebind=rebind, monkeypatch=monkeypatch)
-    captured = _rollout(task_id, capture=True, rebind=rebind, monkeypatch=monkeypatch)
+def test_captured_rollout_matches_eager(
+    task_id: str, rebind: bool, eager_terms: tuple[str, ...], monkeypatch: pytest.MonkeyPatch
+):
+    eager = _rollout(task_id, capture=False, rebind=rebind, monkeypatch=monkeypatch, eager_terms=eager_terms)
+    captured = _rollout(task_id, capture=True, rebind=rebind, monkeypatch=monkeypatch, eager_terms=eager_terms)
 
     assert eager["stages_at_end"] == ()
     assert captured["stages_at_end"], "no stage was recorded; the comparison proves nothing"
+    if eager_terms:
+        # every stage holding an eager term still records the terms around it
+        recorded_groups = {stage.partition("_")[0] for stage in captured["stages_at_end"]}
+        assert {"ObservationManager", "RewardManager", "TerminationManager", "EventManager"} <= recorded_groups
     if rebind:
         assert captured["stages_at_rebind"] == (), "the rebind must drop graphs that read freed buffers"
         assert captured["stages_at_end"] == captured["stages_before_rebind"]

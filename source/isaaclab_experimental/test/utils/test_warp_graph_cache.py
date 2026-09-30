@@ -177,3 +177,36 @@ def test_sync_debug_trap_raises_on_a_hidden_host_sync(monkeypatch):
     with pytest.raises(RuntimeError, match="synchroniz"):
         cache.call("Group_stage", lambda: flags.any().item())
     assert torch.cuda.get_sync_debug_mode() == 0, "the trap must be released after the stage"
+
+
+@wp.kernel
+def _affine(values: wp.array(dtype=wp.int32), scale: wp.int32, shift: wp.int32):
+    values[wp.tid()] = values[wp.tid()] * scale + shift
+
+
+class _AffineStep:
+    """Stage step that applies ``x * scale + shift`` on the device and counts its Python invocations."""
+
+    def __init__(self, scale: int, shift: int):
+        self.scale, self.shift, self.calls = scale, shift, 0
+
+    def __call__(self, values: wp.array) -> wp.array:
+        self.calls += 1
+        wp.launch(_affine, dim=values.shape[0], inputs=[values, self.scale, self.shift], device=DEVICE)
+        return values
+
+
+def test_steps_record_capturable_runs_and_run_the_rest_eagerly_in_order(cache):
+    """Each run of capturable steps becomes one graph; an eager step runs between them on every call."""
+    double, increment, triple = _AffineStep(2, 0), _AffineStep(1, 1), _AffineStep(3, 0)
+    steps = ((True, double), (False, increment), (True, triple))
+    values = wp.ones(1, dtype=wp.int32, device=DEVICE)
+    cache.arm()
+
+    cache.call_steps("Group_stage", steps, values)
+    cache.call_steps("Group_stage", steps, values)
+
+    # the non-commuting steps only give 57 in order: ((1 * 2 + 1) * 3 = 9) -> ((9 * 2 + 1) * 3 = 57)
+    assert _read(values) == [57]
+    assert (double.calls, increment.calls, triple.calls) == (1, 2, 1)
+    assert cache.captured_stages == ("Group_stage[0]", "Group_stage[2]")

@@ -5,5 +5,6 @@
   center of mass the term finds on its first call, like the stable term.
 * Fixed the Warp ``apply_external_force_torque`` event clearing the permanent wrenches of reset environments
   when its force and torque ranges are zero.
-* Fixed :meth:`EventManager.set_term_cfg <isaaclab_experimental.managers.EventManager.set_term_cfg>`
-  replaying recorded event stages with the replaced configuration.
+* Fixed :meth:`EventManager.set_term_cfg <isaaclab_experimental.managers.EventManager.set_term_cfg>` and
+  :meth:`RewardManager.set_term_cfg <isaaclab_experimental.managers.RewardManager.set_term_cfg>` replaying
+  recorded stages with the replaced term.

@@ -561,8 +561,8 @@ class ManagerBasedEnvWarp:
         # process actions
         action_device = action.to(device=self.device, dtype=torch.float32).contiguous()
         wp.copy(self._action_in_wp, wp.from_torch(action_device, dtype=wp.float32))
-        self._warp_graph_cache.call(
-            "ActionManager_process_action", self.action_manager.process_action, action=self._action_in_wp
+        self._warp_graph_cache.call_steps(
+            "ActionManager_process_action", self.action_manager.stage_steps("process_action"), action=self._action_in_wp
         )
 
         self.recorder_manager.record_pre_step()
@@ -575,7 +575,9 @@ class ManagerBasedEnvWarp:
         for _ in range(self.cfg.decimation):
             self._sim_step_counter += 1
             # set actions into buffers
-            self._warp_graph_cache.call("ActionManager_apply_action", self.action_manager.apply_action)
+            self._warp_graph_cache.call_steps(
+                "ActionManager_apply_action", self.action_manager.stage_steps("apply_action")
+            )
             # set actions into simulator
             self.scene.write_data_to_sim()
             # simulate
@@ -590,14 +592,14 @@ class ManagerBasedEnvWarp:
 
         # post-step: step interval event
         if "interval" in self.event_manager.available_modes:
-            self._warp_graph_cache.call(
-                "EventManager_apply_interval", self.event_manager.apply, mode="interval", dt=self.step_dt
+            self._warp_graph_cache.call_steps(
+                "EventManager_apply_interval", self.event_manager.stage_steps("apply_interval"), dt=self.step_dt
             )
 
         # -- compute observations
-        self.obs_buf = self._warp_graph_cache.call(
+        self.obs_buf = self._warp_graph_cache.call_steps(
             "ObservationManager_compute_update_history",
-            self.observation_manager.compute,
+            self.observation_manager.stage_steps("compute"),
             update_history=True,
             return_cloned_output=False,
             output=clone_obs_buffer,
@@ -678,10 +680,9 @@ class ManagerBasedEnvWarp:
         if "reset" in self.event_manager.available_modes:
             env_step_count = self._sim_step_counter // self.cfg.decimation
             self._global_env_step_count_wp.fill_(env_step_count)
-            self._warp_graph_cache.call(
+            self._warp_graph_cache.call_steps(
                 "EventManager_apply_reset",
-                self.event_manager.apply,
-                mode="reset",
+                self.event_manager.stage_steps("apply_reset"),
                 env_mask_wp=env_mask,
                 global_env_step_count=self._global_env_step_count_wp,
             )
@@ -691,15 +692,19 @@ class ManagerBasedEnvWarp:
         # note: This is order-sensitive! Certain things need be reset before others.
         self.extras["log"] = dict()
         # -- observation manager
-        info = self._warp_graph_cache.call(
-            "ObservationManager_reset", self.observation_manager.reset, env_mask=env_mask
+        info = self._warp_graph_cache.call_steps(
+            "ObservationManager_reset", self.observation_manager.stage_steps("reset"), env_mask=env_mask
         )
         self.extras["log"].update(info)
         # -- action manager
-        info = self._warp_graph_cache.call("ActionManager_reset", self.action_manager.reset, env_mask=env_mask)
+        info = self._warp_graph_cache.call_steps(
+            "ActionManager_reset", self.action_manager.stage_steps("reset"), env_mask=env_mask
+        )
         self.extras["log"].update(info)
         # -- event manager
-        info = self._warp_graph_cache.call("EventManager_reset", self.event_manager.reset, env_mask=env_mask)
+        info = self._warp_graph_cache.call_steps(
+            "EventManager_reset", self.event_manager.stage_steps("reset"), env_mask=env_mask
+        )
         self.extras["log"].update(info)
         # -- recorder manager
         info = self.recorder_manager.reset(env_ids)
