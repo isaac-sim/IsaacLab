@@ -58,11 +58,6 @@ one set of environment files, and one image name:
      - ``Dockerfile.base``
      - ``.env.base``
      - the Isaac Sim image
-   * - ``ros2``
-     - ``isaac-lab-ros2``
-     - ``Dockerfile.ros2``
-     - ``.env.base`` + ``.env.ros2``
-     - the ``base`` image, built first
    * - ``kitless``
      - ``isaac-lab-kitless``
      - ``Dockerfile.kitless``
@@ -161,7 +156,7 @@ Every command accepts the following arguments:
    * - Argument
      - Description
    * - ``profile``
-     - Optional profile name; defaults to ``base``. Other profiles are ``ros2`` and ``kitless``.
+     - Optional profile name; defaults to ``base``. The other profile is ``kitless``.
    * - ``--files [FILE ...]``
      - Merge additional Compose YAML files after ``docker-compose.yaml``, in the supplied order.
    * - ``--env-files [FILE ...]``
