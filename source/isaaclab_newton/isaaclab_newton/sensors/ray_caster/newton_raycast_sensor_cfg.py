@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from isaaclab.sensors.ray_caster.ray_caster_cfg import RayCasterCfg
-from isaaclab.utils.configclass import configclass
+from isaaclab.utils import configclass
 
 if TYPE_CHECKING:
     from .newton_raycast_sensor import NewtonRaycastSensor
