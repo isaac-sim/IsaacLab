@@ -28,6 +28,7 @@ launch_test_simulation(SimulationCfg(physics=NewtonCfg(solver_cfg=MJWarpSolverCf
 import os
 import tempfile
 
+import numpy as np
 import torch
 from isaaclab_experimental.envs.frontend import WarpFrontend
 from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
@@ -41,6 +42,7 @@ from isaaclab_tasks.core.cartpole.cartpole_manager_env_cfg import CartpoleEnvCfg
 
 _CLIP = 20  # frames per clip
 _STEPS = _CLIP // 2  # shorter than one clip, so only close() can write it
+_MIN_SPATIAL_STD = 5.0  # per-channel pixel std; a flat frame is ~0, the rendered scene is ~40
 
 
 @pytest.mark.parametrize(
@@ -49,7 +51,7 @@ _STEPS = _CLIP // 2  # shorter than one clip, so only close() can write it
     ids=["direct", "manager"],
 )
 def test_warp_env_records_and_flushes_clip(cfg_class: type, task_id: str):
-    """A Warp env records one frame per step and flushes the partial clip on close."""
+    """A Warp env records the moving scene once per step and flushes the partial clip on close."""
     env_cfg = cfg_class()
     env_cfg.seed = 42
     env_cfg.scene.num_envs = 1
@@ -65,7 +67,8 @@ def test_warp_env_records_and_flushes_clip(cfg_class: type, task_id: str):
         env = WarpFrontend.build_env(env_cfg, task_id)
         try:
             env.reset()
-            actions = torch.zeros(env.num_envs, *env.action_space.shape[1:], device=env.device)
+            # push the cart so the clip shows motion
+            actions = torch.ones(env.num_envs, *env.action_space.shape[1:], device=env.device)
             for _ in range(_STEPS):
                 env.step(actions)
         finally:
@@ -74,8 +77,12 @@ def test_warp_env_records_and_flushes_clip(cfg_class: type, task_id: str):
         clip_path = os.path.join(output_dir, "clip_0000.mp4")
         assert os.path.isfile(clip_path), "close() did not flush the partial clip"
         clip = VideoFileClip(clip_path)
-        frames = list(clip.iter_frames())
+        frames = np.stack(list(clip.iter_frames())).astype(np.float32)
         clip.close()
 
     # decoded frame counts round by one against the clip duration; a missing or doubled tick lands outside
     assert _STEPS <= len(frames) <= _STEPS + 1, f"expected one frame per env step, got {len(frames)}"
+    # a viewer that draws no geometry yields a single flat background colour
+    spatial_std = frames.reshape(len(frames), -1, 3).std(axis=1).max(axis=1)
+    assert spatial_std.min() > _MIN_SPATIAL_STD, f"a frame shows no scene (spatial std {spatial_std.min():.2f})"
+    assert not np.array_equal(frames[0], frames[-1]), "the clip does not change over time"
