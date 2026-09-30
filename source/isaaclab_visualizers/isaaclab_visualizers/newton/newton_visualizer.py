@@ -736,6 +736,21 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
                 raise ValueError(f"Render setting {name!r} names unknown USD type {type_name!r}.")
             prim.CreateAttribute(name, value_type).Set(value)
 
+    @property
+    def _render_products(self):
+        return getattr(self, "_ovrtx_render_products", None)
+
+    @_render_products.setter
+    def _render_products(self, products) -> None:
+        # TODO: Workaround until Newton's ViewerRTX accepts both keys. ovrtx keys render vars by
+        # prim path ("/Render/Vars/LdrColor"), but ViewerRTX looks up "LdrColor" and silently skips
+        # the blit and capture otherwise, leaving the window black.
+        for _, product in (products or {}).items():
+            for frame in product.frames:
+                for path in list(frame.render_vars):
+                    frame.render_vars.setdefault(path.rsplit("/", 1)[-1], frame.render_vars[path])
+        self._ovrtx_render_products = products
+
     def get_frame(self) -> np.ndarray:
         """Return the latest OVRTX LDR framebuffer as contiguous RGB pixels."""
         # TODO: Use Newton's public RGB capture API when one becomes available.

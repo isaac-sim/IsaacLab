@@ -180,6 +180,20 @@ def test_newton_marker_registry_lifecycle(monkeypatch: pytest.MonkeyPatch):
     assert registry.groups == {}
 
 
+def test_newton_rtx_viewer_aliases_render_var_paths_to_short_names():
+    """ovrtx keys render vars by prim path, but Newton's ViewerRTX looks up the short name."""
+    by_path = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "ldr"})
+    by_both = SimpleNamespace(render_vars={"LdrColor": "short", "/Other/LdrColor": "other"})
+    viewer = NewtonViewerRTX.__new__(NewtonViewerRTX)
+
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[by_path, by_both])}
+
+    assert by_path.render_vars["LdrColor"] == "ldr"
+    assert by_both.render_vars["LdrColor"] == "short"  # an existing short name is never overwritten
+    viewer._render_products = None
+    assert viewer._render_products is None
+
+
 def test_sanitize_newton_marker_group_id_rewrites_invalid_chars_into_usd_path():
     """The registry ``prim_path::id`` key is rewritten into a USD-safe prim path."""
     # The ``::`` the registry key carries is what the RTX USD stage rejects.
