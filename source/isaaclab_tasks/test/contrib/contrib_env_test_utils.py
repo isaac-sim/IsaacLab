@@ -36,9 +36,6 @@ _SKIPPED_TASKS = {
     "IsaacContrib-AutoMate-Disassembly-Direct": "Requires CUDA support outside the standard environment test runner.",
 }
 _SKIPPED_TASK_SUBSTRINGS = {
-    # The DR Legs solver intermittently produces NaN robot state under random actions.
-    # Re-enable the family once the tracked solver instability is resolved.
-    "DrLegs": "Kamino solver intermittently produces NaN robot state under random actions.",
     "RmpFlow": "Uses SingleArticulation, which requires an update.",
     "Skillgen": "Requires cuRobo-specific coverage.",
     "Suction": "Requires CPU simulation.",
