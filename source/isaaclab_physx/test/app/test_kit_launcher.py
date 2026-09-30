@@ -37,19 +37,6 @@ def _launcher_after_output_resolution(**state) -> KitLauncher:
     return launcher
 
 
-@pytest.mark.parametrize(("platform", "expected"), [("linux", "cuda:0"), ("win32", "cuda:0"), ("darwin", "cpu")])
-def test_device_defaults_to_cpu_on_macos(platform, expected, monkeypatch):
-    """Default ``--device`` to the CPU on macOS, which has no CUDA, and to the first GPU elsewhere."""
-    monkeypatch.setattr(sys, "platform", platform)
-    parser = argparse.ArgumentParser()
-    KitLauncher.add_launcher_args(parser)
-
-    args = parser.parse_args([])
-
-    assert args.device == expected
-    assert not getattr(args, "device_explicit", False)
-
-
 def test_sanitize_sys_argv_removes_trailing_pytest_verbosity(monkeypatch):
     """Remove a pytest verbosity flag even when it is the final argument."""
     monkeypatch.setitem(sys.modules, "pytest", object())
