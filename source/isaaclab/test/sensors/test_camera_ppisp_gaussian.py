@@ -3,15 +3,15 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Validate the camera PPISP wrapper applied to a 3D Gaussian (NuRec /
+"""Validate the PPISP observation processor applied to a 3D Gaussian (NuRec /
 ParticleField) scene through the ``isaac_rtx`` renderer.
 
 The scene is synthesised at test time by :mod:`generate_synthetic_gaussian_asset` — a few
 large fully-opaque Gaussians of known colors arranged in front of the camera,
 bound to ``ParticleFieldEmissive.mdl`` with ``apply_inverse_tonemap=0`` and
-``apply_srgb_linear=0`` so the wrapper PPISP is the only ISP authority.
+``apply_srgb_linear=0`` so the PPISP observation processor is the only ISP authority.
 
-The wrapper PPISP cfg
+The PPISP observation processor cfg
 (:func:`generate_synthetic_gaussian_asset.make_aggressive_ppisp_cfg`) engages every PPISP
 feature past its subtle-correction defaults so the integration test can check
 *semantic invariants* of the PPISP pipeline (the renderer produces HDR, PPISP
@@ -169,12 +169,8 @@ def test_camera_ppisp_controller_matches_static_attrs_on_synthetic_gaussians(ren
 @pytest.mark.parametrize("renderer_cfg_cls", _RENDERER_CFG_PARAMS)
 @pytest.mark.isaacsim_ci
 def test_camera_ppisp_wrapper_signatures_on_synthetic_gaussians_multitile(renderer_cfg_cls, device):
-    """Multi-tile wrapper PPISP via ``isaac_rtx`` must show every PPISP-feature signature on every tile.
-
-    Renders a synthetic RGBW gaussian grid through ``isaac_rtx`` + the aggressive
-    wrapper PPISP cfg and asserts per tile: a non-degenerate frame, a bright
-    enough ``rgb_hdr`` source, a useful non-saturated PPISP LDR mapping,
-    vignetting, and output bounded to [0, 255].
+    """Multi-tile PPISP observation processor via ``isaac_rtx`` must hold the same invariants
+    independently for every tile.
 
     Builds an :class:`InteractiveScene` with :data:`MULTI_TILE_COUNT` envs so
     the camera regex resolves to one camera per env. Both ``rgb`` and

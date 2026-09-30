@@ -12,6 +12,7 @@ https://arxiv.org/abs/2601.18336.
 from __future__ import annotations
 
 from dataclasses import field
+from enum import StrEnum
 from typing import Any
 
 from isaaclab.utils import configclass
@@ -72,6 +73,21 @@ PPISP_DEFAULT_INPUTS: dict[str, float | tuple[float, float]] = {
     "crfGammaB": 0.378165,
     "crfCenterB": 0.0,
 }
+
+
+class PpispDiscoveryMode(StrEnum):
+    """Discover PPISP camera attributes for :class:`~isaaclab_ppisp.PpispProcessorCfg`.
+
+    The processor uses the first matched source camera as the lookup target and
+    applies the discovered configuration to the whole image batch. Without a
+    source camera path, both modes search the stage. No match disables the processor.
+    """
+
+    AUTO_CAMERA = "auto_camera"
+    """Read ``ppisp:*`` attributes from the source camera."""
+
+    AUTO_ANY = "auto_any"
+    """Read the source camera first, then the first camera with ``ppisp:*`` attributes on the stage."""
 
 
 def default_ppisp_inputs() -> dict[str, float | tuple[float, float]]:
@@ -321,13 +337,15 @@ def has_ppisp_camera_attrs(camera_prim: Any | None) -> bool:
     return _has_ppisp_camera_attrs(camera_prim)
 
 
-def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None = None) -> PpispCfg | None:
-    """Resolve a Camera sensor batch's ``isp_cfg`` to a normalised cfg or ``None``.
+def resolve_and_normalize(
+    isp_cfg: PpispCfg | PpispDiscoveryMode | None, stage: Any, camera_prim_path: str | None = None
+) -> PpispCfg | None:
+    """Resolve a PPISP processor's configuration to a normalised cfg or ``None``.
 
-    Handles all three legal forms of :attr:`~isaaclab.sensors.camera.CameraCfg.isp_cfg`:
+    Handles all three forms of :attr:`~isaaclab_ppisp.PpispProcessorCfg.isp_cfg`:
 
     * ``None`` → returns ``None``.
-    * :class:`~isaaclab.sensors.camera.CameraISPMode` sentinel — checks the
+    * :class:`PpispDiscoveryMode` sentinel — checks the
       target camera via :func:`auto_camera_ppisp_cfg` (and uses
       :func:`auto_any_ppisp_cfg` for ``AUTO_ANY`` or when no camera path is
       supplied) to discover a PPISP camera. Returns the parsed + normalised
@@ -336,14 +354,13 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
       fills defaults, and merges camera-authored USD values when
       ``camera_prim_path`` is set).
 
-    This is the single entry point renderer backends call inside their
-    ``prepare_cameras`` hook so :mod:`isaaclab.sensors.camera` does not need
-    to know about PPISP types at all. The returned cfg applies to the whole
+    The PPISP processor calls this before the renderer prepares
+    its cameras. The returned cfg applies to the whole
     Camera sensor batch; callers pass the first matched camera prim path for
     the camera-local discovery phase.
 
     Args:
-        isp_cfg: The Camera sensor's :attr:`isp_cfg` value (``None``, ``CameraISPMode``, or :class:`PpispCfg`).
+        isp_cfg: Explicit PPISP configuration, discovery mode, or ``None`` to disable processing.
         stage: USD stage used for sentinel discovery and camera-path resolution.
         camera_prim_path: Optional absolute path of the first matched camera
             prim in the Camera sensor batch. When omitted, discovery uses the
@@ -352,14 +369,11 @@ def resolve_and_normalize(isp_cfg: Any, stage: Any, camera_prim_path: str | None
     Returns:
         A fully-normalised :class:`PpispCfg`, or ``None`` if the batch has no ISP.
     """
-    # Local import avoids a top-of-module dep on isaaclab.sensors.
-    from isaaclab.sensors.camera.camera_isp import CameraISPMode
-
     if isp_cfg is None:
         return None
-    if isinstance(isp_cfg, CameraISPMode):
+    if isinstance(isp_cfg, PpispDiscoveryMode):
         resolved = auto_camera_ppisp_cfg(stage, camera_prim_path) if camera_prim_path else None
-        if resolved is None and (isp_cfg == CameraISPMode.AUTO_ANY or not camera_prim_path):
+        if resolved is None and (isp_cfg == PpispDiscoveryMode.AUTO_ANY or not camera_prim_path):
             resolved = auto_any_ppisp_cfg(stage)
         if resolved is None:
             return None

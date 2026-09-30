@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Any, NoReturn
+from typing import TYPE_CHECKING, Any
 
 import newton
 import warp as wp
@@ -26,8 +26,6 @@ from .newton_warp_renderer_cfg import NewtonWarpRendererCfg
 from .segmentation import NewtonSegmentationMapper, NewtonSegmentationMapping
 
 if TYPE_CHECKING:
-    from isaaclab_ppisp import PpispPipeline
-
     from isaaclab.sensors.camera.camera_data import CameraData
     from isaaclab.utils.warp import ProxyArray
 
@@ -56,21 +54,6 @@ def _update_camera_rays(intrinsics: wp.array(dtype=wp.mat33f), rays: wp.array4d(
     rays[0, y, x, 1] = wp.normalize(direction)
 
 
-_PPISP_IMPORT_ERROR_MESSAGE = (
-    "isaaclab_ppisp is required when CameraCfg.isp_cfg is set. "
-    "It ships with the Isaac Lab wheel (`pip install isaaclab`); otherwise install the "
-    "isaaclab-ppisp extension from the Isaac Lab source checkout."
-)
-
-
-def _raise_missing_ppisp_error(exc: ModuleNotFoundError) -> NoReturn:
-    # Only translate missing isaaclab_ppisp imports into the optional-dependency hint;
-    # unrelated missing modules should surface unchanged for easier debugging.
-    if exc.name != "isaaclab_ppisp" and not (exc.name and exc.name.startswith("isaaclab_ppisp.")):
-        raise exc
-    raise ModuleNotFoundError(_PPISP_IMPORT_ERROR_MESSAGE, name="isaaclab_ppisp") from exc
-
-
 class RenderData:
     # Back-compat alias for callers of ``RenderData.OutputNames``.
     OutputNames = RenderBufferKind
@@ -89,6 +72,7 @@ class RenderData:
     _OUTPUT_MAP: dict[str, tuple[str, type]] = {
         str(RenderBufferKind.RGBA): ("color_image", wp.uint32),
         str(RenderBufferKind.RGB_HDR): ("hdr_color_image", wp.vec3f),
+        str(RenderBufferKind.RGB_RADIANCE): ("hdr_color_image", wp.vec3f),
         str(RenderBufferKind.ALBEDO): ("albedo_image", wp.uint32),
         str(RenderBufferKind.NORMALS): ("normals_image", wp.vec3f),
     }
@@ -166,27 +150,6 @@ class RenderData:
         # OpenCV lens-distortion model (``spawn.distortion``), consumed by :meth:`_build_distortion_rays`
         # to trace distorted per-pixel rays instead of the centered, square-pixel pinhole field.
         self._distortion = spawn.distortion if spawn is not None else None
-        # Post-render PPISP pipeline composed when ``spec.cfg.isp_cfg`` is set.
-        # ``isp_cfg`` is already fully normalized by ``prepare_cameras`` by the time it reaches here.
-        self.ppisp_pipeline: PpispPipeline | None = None
-        if spec.cfg.isp_cfg is not None:
-            try:
-                from isaaclab_ppisp import PpispPipeline
-            except ModuleNotFoundError as exc:
-                _raise_missing_ppisp_error(exc)
-
-            self.ppisp_pipeline = PpispPipeline(spec.cfg.isp_cfg)
-        self._hdr_scratch_wp: wp.array | None = None
-        """Internal HDR scratch buffer allocated when PPISP is composed but the
-        user did not request ``"rgb_hdr"`` in ``data_types``. Also exposed to
-        the Newton sensor through :attr:`CameraOutputs.hdr_color_image` as a
-        vec3f reinterpretation of this same backing storage."""
-        self._ppisp_hdr_source: wp.array | None = None
-        """PPISP HDR source bound once in :meth:`set_outputs` from the caller's
-        ``rgb_hdr`` output or :attr:`_hdr_scratch_wp`."""
-        self._ppisp_rgba_dest: wp.array | None = None
-        """PPISP LDR destination bound once in :meth:`set_outputs` from the
-        caller's ``rgba`` output."""
 
     def _view(self, proxy: ProxyArray, dtype: type, shape: tuple[int, ...]) -> wp.array:
         """Alias the caller's output buffer as a ``(world_count, 1, H, W)`` warp array of ``dtype``.
@@ -245,35 +208,6 @@ class RenderData:
         # requested segmentation outputs are remapped from this single buffer in :meth:`_convert_segmentation`.
         if self._seg_dests:
             self.outputs.shape_index_image = wp.zeros(shape, dtype=wp.uint32, device=self.newton_sensor.model.device)
-        # When PPISP is composed but the user did not request the raw HDR AOV,
-        # allocate an internal HDR scratch buffer and route a vec3f-shaped view
-        # of it as the Newton sensor's ``hdr_color_image`` so the renderer
-        # fills it directly.
-        if self.ppisp_pipeline is not None and self.outputs.hdr_color_image is None:
-            ref_proxy = next(iter(output_data.values()))
-            self._hdr_scratch_wp = wp.zeros(
-                (self.newton_sensor.model.world_count, self.height, self.width, 3),
-                dtype=wp.float32,
-                device=ref_proxy.device,
-            )
-            self.outputs.hdr_color_image = wp.array(
-                ptr=self._hdr_scratch_wp.ptr,
-                dtype=wp.vec3f,
-                shape=shape,
-                device=self._hdr_scratch_wp.device,
-                copy=False,
-            )
-        # Bind the two warp arrays the per-frame PPISP dispatch needs.
-        if self.ppisp_pipeline is not None:
-            if str(RenderBufferKind.RGBA) not in output_data:
-                raise ValueError(
-                    "Newton renderer ISP requires 'rgba' (or 'rgb', which aliases into rgba) as the"
-                    " LDR output destination, but neither was provided. Add 'rgb' or 'rgba' to"
-                    " Camera.cfg.data_types when isp_cfg is set."
-                )
-            hdr_proxy = output_data.get(str(RenderBufferKind.RGB_HDR))
-            self._ppisp_hdr_source = hdr_proxy.warp if hdr_proxy is not None else self._hdr_scratch_wp
-            self._ppisp_rgba_dest = output_data[str(RenderBufferKind.RGBA)].warp
 
     def get_output(self, output_name: str) -> wp.array:
         if output_name in self._depth_dests:
@@ -282,7 +216,7 @@ class RenderData:
             return self._seg_dests[output_name][0]
         elif output_name == RenderBufferKind.RGBA:
             return self.outputs.color_image
-        elif output_name == RenderBufferKind.RGB_HDR:
+        elif output_name in (RenderBufferKind.RGB_HDR, RenderBufferKind.RGB_RADIANCE):
             return self.outputs.hdr_color_image
         elif output_name == RenderBufferKind.ALBEDO:
             return self.outputs.albedo_image
@@ -488,26 +422,8 @@ class NewtonWarpRenderer(BaseRenderer):
         return self.cfg.supported_output_types()
 
     def prepare_cameras(self, stage: Any, spec: CameraRenderSpec) -> None:
-        """Resolve the camera's PPISP cfg before rendering.
-
-        :mod:`isaaclab.sensors.camera` does not depend on PPISP; the renderer
-        owns the sentinel-resolution + cfg-normalization step. Newton has no
-        USD-side overrides to author beyond this.
-
-        Also captures the USD ``stage`` so the segmentation mapper can read the scene's
-        :class:`UsdSemantics.LabelsAPI` labels when a segmentation output is requested.
-
-        """
+        """Capture the USD stage so the segmentation mapper can read authored labels."""
         self._stage = stage
-        if spec.cfg.isp_cfg is None:
-            return
-        try:
-            from isaaclab_ppisp import resolve_and_normalize
-        except ModuleNotFoundError as exc:
-            _raise_missing_ppisp_error(exc)
-
-        camera_prim_path = spec.camera_prim_paths[0] if spec.camera_prim_paths else None
-        spec.cfg.isp_cfg = resolve_and_normalize(spec.cfg.isp_cfg, stage, camera_prim_path)
 
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """No-op for Newton Warp - uses Newton scene directly without stage export.
@@ -520,8 +436,8 @@ class NewtonWarpRenderer(BaseRenderer):
 
         # Build the shared segmentation mapper and its per-kind lookup tables up-front for all
         # requested segmentation outputs.
-        has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.cfg.data_types
-        has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.cfg.data_types
+        has_semantic = RenderBufferKind.SEMANTIC_SEGMENTATION in spec.data_types
+        has_instance = RenderBufferKind.INSTANCE_SEGMENTATION in spec.data_types
         if (has_semantic or has_instance) and self._seg_mapper is None:
             plan = SimulationContext.instance().get_clone_plan()
             self._seg_mapper = NewtonSegmentationMapper(self.newton_sensor.model, self._stage, self.cfg, plan)
@@ -601,14 +517,6 @@ class NewtonWarpRenderer(BaseRenderer):
             # Native triangle-mesh updates read back indices and may allocate after pointer swaps.
             use_cuda_graph=self.cfg.use_cuda_graph and backend.model.tri_count == 0,
         )
-
-        # Post-render PPISP: HDR scene-linear → LDR RGBA. Source/destination
-        # tensors were bound once in ``set_outputs``.
-        if render_data.ppisp_pipeline is not None:
-            render_data.ppisp_pipeline.apply(
-                render_data._ppisp_hdr_source,
-                render_data._ppisp_rgba_dest,
-            )
 
     def _launch_render(self, render_data: RenderData) -> None:
         """Launch the tiled-camera render kernels for sensor graph capture."""

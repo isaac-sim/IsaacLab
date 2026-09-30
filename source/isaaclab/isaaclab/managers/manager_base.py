@@ -88,6 +88,28 @@ class ManagerTermBase(ABC):
     Operations.
     """
 
+    @classmethod
+    def prepare_scene(cls, cfg: ManagerTermBaseCfg, env: ManagerBasedEnv) -> ManagerTermBase | None:
+        """Optionally prepare observation inputs before simulation startup.
+
+        The scene has been authored and prestartup events have run, but physics
+        and sensor buffers are not initialized. Return an instance to retain
+        preparation state for the observation manager, or ``None`` to use the
+        usual construction after startup. The default performs no preparation.
+
+        Args:
+            cfg: Observation term configuration.
+            env: Environment containing the authored scene.
+
+        Returns:
+            Prepared term instance, or ``None``.
+        """
+        return None
+
+    def close(self) -> None:
+        """Release resources owned by the term. The default has no resources."""
+        pass
+
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         """Resets the manager term.
 

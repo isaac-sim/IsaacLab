@@ -25,6 +25,7 @@
       timer
       types
       version
+      visual_processing
       warp
 
    .. Rubric:: Functions
@@ -206,6 +207,12 @@ Version operations
 .. automodule:: isaaclab.utils.version
    :members:
    :show-inheritance:
+
+Visual processing
+~~~~~~~~~~~~~~~~~
+
+.. automodule:: isaaclab.utils.visual_processing
+   :members:
 
 Warp operations
 ~~~~~~~~~~~~~~~

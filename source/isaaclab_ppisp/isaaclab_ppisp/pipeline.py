@@ -3,14 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Post-render PPISP pipeline composed into renderer backends.
-
-:class:`PpispPipeline` runs *after* a renderer fills its HDR scene-linear AOV,
-converting HDR → LDR via a single Warp kernel. Renderer backends instantiate
-this class when their cfg/spec carries a :class:`PpispCfg` and dispatch
-:meth:`apply` once per render tick. The HDR scratch buffer is owned by the
-renderer backend, not by this class.
-"""
+"""PPISP kernel execution and cached controller buffers for visual processors."""
 
 from __future__ import annotations
 
@@ -29,9 +22,9 @@ from .kernels import (
 class PpispPipeline:
     """Post-render PPISP kernel applier.
 
-    Constructed by renderer backends when ``spec.cfg.isp_cfg`` is set. Owns the
-    normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel once per
-    render tick via :meth:`apply`.
+    Owns the normalised :class:`PpispCfg` and dispatches the PPISP Warp kernel
+    via :meth:`apply`. The sensor's PPISP processor binds its input and output
+    buffers and owns this pipeline independently of the renderer.
 
     One pipeline instance applies to the whole Camera sensor batch. The PPISP
     Warp kernel takes scalar coefficients, so every cloned view in a tiled
@@ -39,9 +32,8 @@ class PpispPipeline:
     Per-view support would require packing the cfg into GPU arrays and indexing
     by ``camera_id`` inside the kernel.
 
-    Today only :class:`PpispCfg` is accepted; future ISP implementations can
-    either subclass or be selected by cfg type without changes to the backend
-    renderers.
+    Direct kernel users can continue calling :meth:`apply` without explicitly
+    initializing controller buffers.
     """
 
     def __init__(self, cfg: PpispCfg):
@@ -49,9 +41,8 @@ class PpispPipeline:
 
         Normalises ``cfg`` on construction (validates input keys, fills
         defaults).
-        :class:`~isaaclab.sensors.camera.Camera` already normalises ``isp_cfg``
-        before passing the :class:`~isaaclab.renderers.CameraRenderSpec` to
-        the backend, so renderer backends pass a concrete, resolved config here.
+        Camera-bound USD configuration is resolved by the PPISP processor
+        before constructing this pipeline.
 
         Args:
             cfg: The PPISP configuration.
@@ -62,6 +53,28 @@ class PpispPipeline:
         self.cfg = normalized_cfg
         self._controller_weights_by_device: dict[str, wp.array] = {}
         self._controller_buffers_by_shape: dict[tuple[str, int, int, int], tuple[wp.array, ...]] = {}
+
+    def initialize(self, hdr: wp.array) -> None:
+        """Allocate controller buffers before processing frames.
+
+        Args:
+            hdr: Scene-linear RGB input, shape ``(N, H, W, 3)``.
+        """
+        if self.cfg.controller_weights is None:
+            return
+        if not hdr.device.is_cuda:
+            raise ValueError("Camera PPISP controller requires a CUDA device.")
+        device = str(hdr.device)
+        if device not in self._controller_weights_by_device:
+            self._controller_weights_by_device[device] = wp.array(
+                self.cfg.controller_weights, dtype=wp.float32, device=device
+            )
+        self._controller_buffers(hdr)
+
+    def close(self) -> None:
+        """Release the cached controller buffers."""
+        self._controller_weights_by_device.clear()
+        self._controller_buffers_by_shape.clear()
 
     def apply(self, hdr: wp.array, rgba: wp.array) -> None:
         """Run the PPISP kernel: HDR scene-linear → LDR RGBA, in place on ``rgba``."""
@@ -77,10 +90,8 @@ class PpispPipeline:
         assert controller_weights is not None
 
         device = str(hdr.device)
-        weights = self._controller_weights_by_device.get(device)
-        if weights is None:
-            weights = wp.array(controller_weights, dtype=wp.float32, device=device)
-            self._controller_weights_by_device[device] = weights
+        self.initialize(hdr)
+        weights = self._controller_weights_by_device[device]
 
         features, controller_params = self._controller_buffers(hdr)
         compute_ppisp_controller_params(

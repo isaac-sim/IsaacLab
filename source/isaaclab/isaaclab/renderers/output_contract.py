@@ -26,6 +26,9 @@ class RenderBufferKind(StrEnum):
     RGB = "rgb"
     RGBA = "rgba"
     RGB_HDR = "rgb_hdr"
+    """HDR RGB using the camera's active rendering settings."""
+    RGB_RADIANCE = "rgb_radiance"
+    """Scene-linear RGB before camera exposure and response, in renderer-relative intensity units."""
     ALBEDO = "albedo"
     DEPTH = "depth"
     DISTANCE_TO_IMAGE_PLANE = "distance_to_image_plane"
@@ -49,3 +52,12 @@ class RenderBufferSpec:
 
     dtype: type
     """Warp scalar dtype for the buffer (e.g. ``wp.float32``, ``wp.uint8``)."""
+
+    layout: str = "NHWC"
+    """Axis order. Camera processing currently supports batch, height, width, channels."""
+
+    device: str | None = None
+    """Required device, or ``None`` for the camera's device. No implicit transfers are performed."""
+
+    color_space: str | None = None
+    """Color encoding, such as ``"scene_linear"`` or ``"srgb"``; ``None`` imposes no requirement."""
