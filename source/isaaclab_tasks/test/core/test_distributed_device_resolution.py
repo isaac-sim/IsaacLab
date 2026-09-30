@@ -291,7 +291,11 @@ class TestLaunchSimulationDevicePropagation:
         monkeypatch.setitem(
             sys.modules,
             "isaaclab.utils.assets",
-            types.SimpleNamespace(configure_storage_profile=lambda: None),
+            types.SimpleNamespace(
+                configure_storage_profile=lambda: None,
+                _prewarm_asset_server=lambda: None,
+                _cancel_asset_server_prewarm=lambda: None,
+            ),
         )
 
         monkeypatch.setitem(sys.modules, "isaaclab_physx.app", types.SimpleNamespace(KitLauncher=_FakeKitLauncher))
