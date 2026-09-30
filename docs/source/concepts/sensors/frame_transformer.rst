@@ -70,4 +70,4 @@ A complete runnable example is available as ``frame-transformer``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab example frame-transformer
+   uv run --extra isaacsim isaaclab example frame-transformer --viz kit

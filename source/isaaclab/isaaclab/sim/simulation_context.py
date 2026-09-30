@@ -159,13 +159,14 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Normalize the visualizers to a list, applying the selection a launch without a SimulationCfg
-        # left for the config built afterwards.
+        # Normalize the visualizers to a list, applying the selection a launch without a SimulationCfg left for
+        # the config built afterwards: a comma-separated string, "" when it selected none. The setting is absent
+        # when no such launch happened, and the configured visualizers are then used as given.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
             self.cfg.visualizer_cfgs,
-            parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
+            None if pending_visualizers is None else parse_visualizer_csv(pending_visualizers or []),
             None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
         )
 
@@ -342,8 +343,10 @@ class SimulationContext:
         return self._visual_shapes_required
 
     def can_render_rgb_array(self) -> bool:
-        """Return whether rgb-array rendering is currently available."""
-        return self.has_gui or self.has_offscreen_render or self.has_active_visualizers()
+        """Return whether rgb-array rendering is currently available, including from a headless visualizer."""
+        return (
+            self.has_gui or self.has_offscreen_render or self.has_active_visualizers() or bool(self.cfg.visualizer_cfgs)
+        )
 
     @property
     def is_rendering(self) -> bool:

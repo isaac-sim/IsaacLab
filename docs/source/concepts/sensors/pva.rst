@@ -76,4 +76,4 @@ A complete runnable example is available as ``pva``:
 
 .. code-block:: bash
 
-   uv run --extra isaacsim isaaclab example pva
+   uv run --extra isaacsim isaaclab example pva --viz kit

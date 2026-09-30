@@ -174,8 +174,8 @@ uv run python scripts/tools/record_demos.py --task IsaacContrib-PickPlace-Locoma
 
 In the Isaac Sim UI, set the AR panel to **System OpenXR Runtime** and click **Start XR**. For the full flow and options, see the [CloudXR teleoperation how-to](https://isaac-sim.github.io/IsaacLab/main/source/how-to/cloudxr_teleoperation.html) and [Isaac Teleop Quick Start](https://nvidia.github.io/IsaacCapture/main/getting_started/quick_start.html).
 
-For a fully headless experience, replace `--visualizer kit` with `--visualizer none` or
-`--viz none` when running Docker, and the XR teleop session will run automatically.
+For a fully headless experience, omit `--visualizer kit` when running Docker, and the XR teleop session will
+run automatically.
 
 ## Dependencies
 

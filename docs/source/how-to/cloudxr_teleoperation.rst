@@ -348,8 +348,7 @@ Isaac Lab is now ready to receive connections from a CloudXR client.
 
    **Running headless (no local UI).** The commands above use ``--visualizer kit`` to open the
    local Kit viewport, where you click **Start XR**. On a server or cloud instance without a
-   display, run headless instead: omit ``--visualizer`` (headless is the default) or pass
-   ``--visualizer none`` / ``--viz none``. In headless XR the AR session starts automatically --
+   display, run headless instead: omit ``--visualizer`` (headless is the default). In headless XR the AR session starts automatically --
    there is no viewport to click **Start XR** -- so Isaac Lab begins streaming as soon as a
    CloudXR client connects. The ``--headless`` flag was removed in Isaac Lab 3.0; ``HEADLESS=1``
    in the environment also forces headless.
@@ -975,8 +974,7 @@ Run the teleop script (e.g. ``record_demos.py`` to record demonstrations):
 
 Then in the Isaac Sim UI, set the XR panel to **System OpenXR Runtime** and click **Start XR**.
 
-For a fully headless experience, replace ``--visualizer kit`` with ``--visualizer none`` or
-``--viz none`` and the XR teleop session will run automatically.
+For a fully headless experience, omit ``--visualizer kit`` and the XR teleop session will run automatically.
 
 .. admonition:: Next Steps
 

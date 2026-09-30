@@ -148,4 +148,4 @@ A complete runnable example is available as ``contact-sensor``:
 
 .. code-block:: bash
 
-   uv run isaaclab example contact-sensor
+   uv run isaaclab example contact-sensor --viz newton_gl

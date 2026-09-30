@@ -212,7 +212,7 @@ A complete demonstration of multirotor simulation is available:
 
 ```bash
 # Run the multirotor example
-uv run --extra isaacsim isaaclab example arl-robot-1
+uv run --extra isaacsim isaaclab example arl-robot-1 --viz kit
 ```
 
 ## TacSL Tactile Sensor (Detailed)
