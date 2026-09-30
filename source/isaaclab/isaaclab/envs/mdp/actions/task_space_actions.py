@@ -216,11 +216,9 @@ class DifferentialInverseKinematicsAction(ActionTerm):
             self._ik_controller.set_joint_pos_limits(limits[:, 0].clone(), limits[:, 1].clone())
             self._limits_injected = True
         # compute the delta in joint-space
-        if ee_quat_curr.norm() != 0:
-            jacobian = self._compute_frame_jacobian()
-            joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
-        else:
-            joint_pos_des = joint_pos.clone()
+        jacobian = self._compute_frame_jacobian()
+        joint_pos_des = self._ik_controller.compute(ee_pos_curr, ee_quat_curr, jacobian, joint_pos)
+        joint_pos_des = torch.where(ee_quat_curr.norm() != 0, joint_pos_des, joint_pos)
         # set the joint position command
         self._asset.set_joint_position_target_index(target=joint_pos_des, joint_ids=self._joint_ids)
 
