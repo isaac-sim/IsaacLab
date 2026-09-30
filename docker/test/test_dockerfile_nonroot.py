@@ -155,9 +155,6 @@ def test_kitless_dockerfile_installs_newton_rl_ov_and_visualizers_without_isaac_
     with (REPO_ROOT / "pyproject.toml").open("rb") as file:
         extras = tomllib.load(file)["project"]["optional-dependencies"]
 
-    # Installed from the lock rather than through uv sync: only the lock applies
-    # ``[tool.uv] override-dependencies``, the table that holds ``packaging`` above ovphysx's
-    # ``<24`` pin. ``all`` carries rl/visualizer/ov, ``importers`` the standalone wheels.
     assert "uv sync --frozen --inexact --extra all --extra importers" in dockerfile_text
     assert "importers" in extras
     # ``all`` must not drag in the Isaac Sim runtime, or the kit-less image means nothing.

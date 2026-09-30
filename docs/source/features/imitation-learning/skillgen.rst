@@ -77,7 +77,7 @@ overload while preserving its vector overloads, matching the cuRobo Docker image
 
       .. code:: bash
 
-         uv sync && \
+         uv sync --extra isaacsim --extra mimic && \
          uv pip install setuptools wheel && \
          export CUDA_HOME=/usr/local/cuda-13.0 && \
          export PATH="$CUDA_HOME/bin:$PATH" && \

@@ -25,15 +25,6 @@ def _cp(returncode: int = 0, stdout: str = "") -> mock.MagicMock:
     return r
 
 
-def _make_prebundle(base: Path, packages: list[str]) -> Path:
-    """Create a fake pip_prebundle directory populated with the given package dirs."""
-    prebundle = base / "pip_prebundle"
-    prebundle.mkdir(parents=True)
-    for pkg in packages:
-        (prebundle / pkg).mkdir()
-    return prebundle
-
-
 def _make_site_packages(
     base: Path,
     packages: list[str],
@@ -56,15 +47,7 @@ def _make_site_packages(
 
 
 class TestRePointPrebundlePackages:
-    """Tests for :func:`repoint_prebundle_packages`.
-
-    Covers all combinations of:
-    - Isaac Sim installation method: local _isaac_sim symlink, pip-installed isaacsim, none
-    - Python environment / site-packages source: uv venv, pip venv, conda, kit Python
-    - nvidia namespace package special handling: cudnn present vs absent
-    """
-
-    # ---- shared fixtures / helpers ------------------------------------------
+    """Prebundle replacement, namespace preservation, and filesystem failure behavior."""
 
     @pytest.fixture(autouse=True)
     def _isolate_home(self, tmp_path, monkeypatch):
@@ -102,8 +85,6 @@ class TestRePointPrebundlePackages:
         ):
             yield
 
-    # ---- no Isaac Sim --------------------------------------------------------
-
     def test_no_op_when_isaac_sim_absent(self, tmp_path):
         """When Isaac Sim is not found, repoint_prebundle_packages returns immediately without touching anything."""
         with (
@@ -112,8 +93,6 @@ class TestRePointPrebundlePackages:
         ):
             repoint_prebundle_packages()
         mock_run.assert_not_called()
-
-    # ---- no pip_prebundle directories ----------------------------------------
 
     def test_no_op_when_no_pip_prebundle_dirs(self, tmp_path):
         """When Isaac Sim has no pip_prebundle directories, nothing is repointed."""
@@ -127,8 +106,6 @@ class TestRePointPrebundlePackages:
 
         assert list(isaacsim_path.rglob("*")) == []
         assert (site_pkgs / "torch").is_dir() and not (site_pkgs / "torch").is_symlink()
-
-    # ---- local _isaac_sim symlink (local build) ------------------------------
 
     def test_local_build_symlinks_torch_to_venv_site_packages(self, tmp_path):
         """Local _isaac_sim symlink + uv/pip venv: prebundle torch → venv site-packages/torch."""
@@ -145,15 +122,8 @@ class TestRePointPrebundlePackages:
         assert not (prebundle / "torch.bak").exists(), "repoint replaces in place — no .bak (env copy is the target)"
 
     def test_local_build_skips_nvidia_when_cudnn_absent_kit_python(self, tmp_path):
-        """Local build + kit Python: site-packages/nvidia has only 'srl' (no cudnn) → nvidia NOT repointed.
-
-        This is the real-world failure mode that caused the libcudnn.so.9 import error:
-        kit Python's site-packages/nvidia has only the 'srl' namespace sub-package, so
-        replacing the prebundle's nvidia/ (which contains the CUDA shared libraries) with
-        a symlink to that stripped-down directory would make libcudnn.so.9 unreachable.
-        """
+        """Preserve CUDA libraries when the target namespace contains only nvidia.srl."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
-        # Simulate kit Python's site-packages: nvidia/ exists but contains only 'srl'
         site_pkgs = _make_site_packages(tmp_path / "kit" / "python" / "site-packages", ["nvidia"])
         (site_pkgs / "nvidia" / "srl").mkdir()
         py = str(tmp_path / "isaac_sim" / "python.sh")
@@ -165,13 +135,8 @@ class TestRePointPrebundlePackages:
         assert (prebundle / "nvidia").is_dir(), "Original nvidia directory must be preserved"
 
     def test_local_build_repoints_nvidia_when_cudnn_present_venv(self, tmp_path):
-        """Local build + CUDA-capable venv: site-packages/nvidia has cudnn → nvidia IS repointed.
-
-        This covers the conda or pip venv case where the user installed torch+cu126/cu130
-        with its nvidia-cudnn-cu12 dependency, giving site-packages/nvidia/cudnn/.
-        """
+        """Repoint the nvidia namespace when the environment provides CUDA libraries."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["nvidia"])
-        # Full CUDA venv: nvidia/ has cudnn and cublas
         site_pkgs = _make_site_packages(
             tmp_path / "env",
             ["nvidia"],
@@ -192,7 +157,6 @@ class TestRePointPrebundlePackages:
         site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
         py = str(tmp_path / "env" / "bin" / "python")
 
-        # Pre-create the correct symlink (as if a previous install already ran).
         (prebundle / "torch").symlink_to(site_pkgs / "torch")
         original_target = (prebundle / "torch").resolve()
 
@@ -208,7 +172,6 @@ class TestRePointPrebundlePackages:
         old_env = _make_site_packages(tmp_path / "env_old", ["torch"])
         py = str(tmp_path / "env_new" / "bin" / "python")
 
-        # Pre-create a stale symlink pointing at the old env.
         (prebundle / "torch").symlink_to(old_env / "torch")
 
         with self._patch(isaacsim_path, site_pkgs, py):
@@ -217,9 +180,7 @@ class TestRePointPrebundlePackages:
         assert (prebundle / "torch").resolve() == (site_pkgs / "torch").resolve(), "Stale symlink must be updated"
 
     def test_raises_when_prebundled_torch_not_neutralized(self, tmp_path):
-        """Fail loud: a real prebundled torch surviving repoint would shadow the pip torch
-        on launch paths that do not import isaaclab (nvbugs 6343978), so repoint raises
-        instead of silently leaving the broken state in place."""
+        """Reject a surviving prebundled torch that would shadow the environment on Kit launches."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
         site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
         py = str(tmp_path / "env" / "bin" / "python")
@@ -231,14 +192,11 @@ class TestRePointPrebundlePackages:
                 with pytest.raises(RuntimeError, match="neutralize"):
                     repoint_prebundle_packages()
 
-    # ---- multiple prebundle directories -------------------------------------
-
     def test_repoints_across_multiple_prebundle_dirs(self, tmp_path):
         """When Isaac Sim has multiple pip_prebundle directories, each is processed."""
         isaacsim_path = tmp_path / "isaac_sim"
         isaacsim_path.mkdir()
 
-        # Two separate extension pip_prebundle dirs, each with torch.
         pb1 = isaacsim_path / "exts" / "ext_a" / "pip_prebundle"
         pb2 = isaacsim_path / "exts" / "ext_b" / "pip_prebundle"
         for pb in (pb1, pb2):
@@ -273,10 +231,8 @@ class TestRePointPrebundlePackages:
         assert bundled_newton.is_symlink()
         assert bundled_newton.resolve() == (site_pkgs / "newton").resolve()
 
-    # ---- Windows: copy instead of symlink -----------------------------------
-
     def test_copies_package_on_windows_instead_of_symlinking(self, tmp_path):
-        """On Windows, packages are copied rather than symlinked (Windows doesn't support posix symlinks)."""
+        """Copy packages on Windows without requiring symlink privileges."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch"])
         site_pkgs = _make_site_packages(tmp_path / "env", ["torch"])
         (site_pkgs / "torch" / "version.py").write_text("__version__ = '2.10.0'")
@@ -295,8 +251,6 @@ class TestRePointPrebundlePackages:
         assert not torch_in_prebundle.is_symlink(), "torch must not be a symlink on Windows"
         assert (torch_in_prebundle / "version.py").exists(), "Copied file should be present"
 
-    # ---- error handling -----------------------------------------------------
-
     def test_oserror_on_one_package_does_not_abort_others(self, tmp_path):
         """An OSError while repointing one package is logged and processing continues for others."""
         isaacsim_path, prebundle = self._sim_with_prebundle(tmp_path / "sim", ["torch", "torchvision"])
@@ -308,7 +262,6 @@ class TestRePointPrebundlePackages:
 
         def _selective_symlink(self_path: Path, target: Path, **kwargs) -> None:
             call_count[0] += 1
-            # Fail on the first symlink_to call (torch) but succeed for others.
             if call_count[0] == 1:
                 raise OSError("Permission denied")
             return original_symlink_to(self_path, target, **kwargs)
@@ -320,9 +273,8 @@ class TestRePointPrebundlePackages:
             mock.patch("isaaclab.cli.prebundles.run_command", return_value=_cp(0, str(site_pkgs))),
             mock.patch.object(Path, "symlink_to", _selective_symlink),
         ):
-            repoint_prebundle_packages()  # must not raise
+            repoint_prebundle_packages()
 
-        # torchvision (second package) must still be repointed despite torch failure.
         assert (prebundle / "torchvision").is_symlink(), "torchvision must succeed after torch OSError"
 
     def test_skips_gracefully_when_site_packages_probe_fails(self, tmp_path):
@@ -334,7 +286,6 @@ class TestRePointPrebundlePackages:
             mock.patch("isaaclab.cli.prebundles.extract_isaacsim_path", return_value=isaacsim_path),
             mock.patch("isaaclab.cli.prebundles.extract_python_exe", return_value=py),
             mock.patch("isaaclab.cli.prebundles.is_windows", return_value=False),
-            # Probe subprocess exits non-zero
             mock.patch("isaaclab.cli.prebundles.run_command", return_value=_cp(returncode=1, stdout="")),
         ):
             repoint_prebundle_packages()

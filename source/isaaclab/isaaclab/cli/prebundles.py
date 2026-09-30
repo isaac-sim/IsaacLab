@@ -34,29 +34,11 @@ _PREBUNDLE_REPOINT_PACKAGES: list[str] = [
     "attr",
     "attrs",
 ]
-"""Package directory names in Isaac Sim prebundle directories to repoint.
-
-When a local ``_isaac_sim`` symlink exists, its ``setup_python_env.sh`` injects
-``pip_prebundle`` paths into ``PYTHONPATH``.  These prebundled copies can shadow
-the versions installed in the active uv environment (e.g. ``torch+cu128``
-overriding the ``torch+cu130`` the user installed).
-
-After installation we replace each prebundled copy with a symlink that points
-back to the environment's ``site-packages``, so the *same* version is loaded
-regardless of import path order.
-"""
+"""Packages whose prebundled copies can shadow the uv environment on Kit's PYTHONPATH."""
 
 
 def _force_remove(path: Path) -> None:
-    """Recursively remove a file, directory, or symlink. A missing path is a no-op.
-
-    Uses absolute-path :func:`os.unlink` / :func:`os.rmdir` rather than the
-    ``dir_fd``-relative operations :func:`shutil.rmtree` performs internally. On
-    an overlayfs *lower* layer (e.g. inside a Docker image build) the ``dir_fd``
-    variant raises ``EINVAL``, whereas the plain ``unlink(2)`` / ``rmdir(2)``
-    syscalls create the proper whiteout. This makes prebundle neutralization
-    behave identically on a normal filesystem and on an overlayfs lower layer.
-    """
+    """Remove a path using absolute syscalls; dir_fd-based rmtree fails on overlayfs lower layers."""
     if path.is_symlink() or path.is_file():
         os.unlink(path)
     elif path.is_dir():
@@ -98,13 +80,7 @@ def _discover_prebundle_dirs() -> set[Path]:
 def repoint_prebundle_packages() -> None:
     """Replace prebundled packages in Isaac Sim with symlinks to the active environment.
 
-    Scans every ``pip_prebundle`` directory under the Isaac Sim installation
-    for package directories listed in :data:`_PREBUNDLE_REPOINT_PACKAGES`.
-    When the same package exists in the active environment's ``site-packages``,
-    the prebundled copy is moved to ``<name>.bak`` and replaced with a symlink.
-
-    This is idempotent — existing symlinks that already point to the correct
-    target are left untouched.
+    Existing links to the correct target are preserved. Windows copies the packages instead.
     """
     use_symlinks = not is_windows()
 
@@ -148,26 +124,15 @@ def repoint_prebundle_packages() -> None:
             if not prebundled.exists() and not prebundled.is_symlink():
                 continue
 
-            # The 'nvidia' directory is a Python namespace package shared across many
-            # distributions (nvidia-cudnn-cu12, nvidia-cublas-cu12, nvidia-srl, …).
-            # When using Isaac Sim's built-in Python, site-packages/nvidia only contains
-            # 'srl'; replacing the whole prebundle nvidia/ with that symlink strips away
-            # the CUDA shared libraries (libcudnn.so.9, etc.) that torch needs.
-            # Only repoint the nvidia namespace when the target actually provides the
-            # CUDA subpackages (cudnn is the minimal required indicator).
+            # A namespace containing only nvidia.srl must not replace Kit's CUDA libraries.
             if pkg_name == "nvidia" and not (venv_pkg / "cudnn").exists():
                 print_debug(f"Skipping repoint of {prebundled}: {venv_pkg} lacks CUDA subpackages (cudnn missing).")
                 continue
 
             try:
-                # Already repointed to the right place — nothing to do.
                 if prebundled.is_symlink() and prebundled.resolve() == venv_pkg.resolve():
                     continue
-                # Replace the prebundled copy (a stale symlink or a real directory)
-                # with a symlink to the active environment. We remove rather than
-                # rename-to-``.bak``: the env copy is the symlink target, so the
-                # prebundle content is redundant, and renaming a directory on an
-                # overlayfs lower layer (Docker image build) fails with ``EXDEV``.
+                # Renaming a lower-layer directory on overlayfs fails with EXDEV.
                 _force_remove(prebundled)
                 if use_symlinks:
                     prebundled.symlink_to(venv_pkg)
@@ -184,12 +149,8 @@ def repoint_prebundle_packages() -> None:
     else:
         print_debug("All prebundled packages already up-to-date — nothing to repoint.")
 
-    # Fail loud: a real (non-symlink) prebundled ``torch`` left behind shadows the
-    # pip-installed torch on launch paths that do not import ``isaaclab`` (e.g.
-    # ``isaac-sim.streaming.sh``), pulling a mismatched NCCL and crashing with
-    # ``undefined symbol: ncclDevCommCreate``. Never let that state ship silently.
-    # Only relevant when symlinking (Linux); the Windows branch deliberately copies the
-    # env package into the prebundle, which is a real directory by design.
+    # Non-isaaclab launchers also need the environment's torch to avoid mismatched NCCL.
+    # Windows copies packages, so a real directory is expected there.
     if use_symlinks and (site_packages / "torch").exists():
         shadowing = [
             package_root / "torch"

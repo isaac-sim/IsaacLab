@@ -40,15 +40,13 @@ install time. Most packages cannot be deselected at all.
        ``isaaclab_ov``, ``isaaclab_newton``, ``isaaclab_rl``, ``isaaclab_visualizers``,
        ``isaaclab_contrib``, ``isaaclab_experimental``, ``isaaclab_ppisp``,
        ``isaaclab_tasks_experimental``
-     - Core packages. Every ``isaaclab install`` run installs them as editable packages and
-       there is no way to opt out, so the error points at the environment rather than at the
-       install command.
+     - Core packages installed by ``uv sync``. Check that your command uses the
+       checkout's uv environment.
    * - ``isaaclab_mimic``, ``isaaclab_teleop``
-     - Optional packages. ``isaaclab install`` (equivalently ``isaaclab install all``)
-       includes them; ``isaaclab install core`` does not.
+     - Optional integrations. Select the ``mimic`` or ``teleop`` extra for your workflow.
    * - ``rsl_rl``, ``rl_games``, ``skrl``, ``stable_baselines3``
-     - Reinforcement learning frameworks, installed by the ``rl`` feature. They are part of
-       the default install; ``isaaclab install 'rl[rsl-rl]'`` installs a single framework.
+     - ``rsl_rl`` is installed by default. Select ``rl-games``, ``skrl``, or ``sb3``
+       for the other frameworks, for example ``uv run --extra skrl isaaclab train ...``.
    * - ``isaacsim``
      - Isaac Sim itself, which is never installed implicitly. See
        :ref:`troubleshooting-isaacsim-missing`.
@@ -72,9 +70,8 @@ environment for your workflow.
 
 .. note::
 
-   The ``ov``, ``contrib`` and ``tetrahedralization`` features are deliberately excluded
-   from the default install and must be requested explicitly, for example
-   ``isaaclab install 'ov[ovrtx]'``.
+   Optional dependencies such as ``ovrtx``, ``rlinf``, and ``tetrahedralization`` require
+   an explicit extra, for example ``uv run --extra ovrtx isaaclab train ...``.
 
 .. _troubleshooting-isaacsim-missing:
 

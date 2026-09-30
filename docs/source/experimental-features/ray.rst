@@ -254,7 +254,7 @@ any cloud provider should work if one configures the following.
 
 - An container registry (NGC, GCS artifact registry, AWS ECR, etc) with
   an Isaac Lab image configured to support Ray. See ``cluster_configs/Dockerfile`` to see how to modify the ``isaac-lab-base``
-  container for Ray compatibility. Ray should use the isaac sim python shebang, and ``nvidia-smi``
+  container for Ray compatibility. Ray uses the image's uv environment, and ``nvidia-smi``
   should work within the container. Be careful with the setup here as
   paths need to be configured correctly for everything to work. It's likely that
   the example dockerfile will work out of the box and can be pushed to the registry, as
@@ -274,7 +274,7 @@ any cloud provider should work if one configures the following.
 Ray Clusters (Without Kubernetes) Setup
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 .. attention::
-  Modify the Ray command to use Isaac Python like in KubeRay clusters, and follow the same
+  Use Ray from the image's uv environment as in KubeRay clusters, and follow the same
   steps for creating an image/cluster permissions.
 
 See the `Ray Clusters Overview <https://docs.ray.io/en/latest/cluster/getting-started.html>`_ or

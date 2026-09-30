@@ -2,8 +2,9 @@ Removed
 ^^^^^^^
 
 * **Breaking:** Removed the shell and batch launchers, the install CLI, and environment-creation
-  commands. Use ``uv sync`` to install a checkout, ``uv run --extra <name> isaaclab ...`` to
-  select integrations, and ``uv pip install`` for released wheels. uv now owns Python and
+  commands and their unused retry support. Use ``uv sync`` to install a checkout,
+  ``uv run --extra <name> isaaclab ...`` to select integrations, and ``uv pip install``
+  for released wheels. uv now owns Python and
   dependency selection; conda and downloaded Isaac Sim installation guides are removed.
 
 Changed

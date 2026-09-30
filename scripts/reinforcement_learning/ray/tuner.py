@@ -65,7 +65,7 @@ Usage:
 
 DOCKER_PREFIX = "/workspace/isaaclab/"
 BASE_DIR = os.path.expanduser("~")
-PYTHON_EXEC = "uv run python"
+PYTHON_EXEC = "uv run --no-sync isaaclab -p"
 WORKFLOW = "scripts/reinforcement_learning/train.py"
 NUM_WORKERS_PER_NODE = 1  # needed for local parallelism
 PROCESS_RESPONSE_TIMEOUT = 200.0  # seconds to wait before killing the process when it stops responding
@@ -506,7 +506,7 @@ if __name__ == "__main__":
         else:
             raise ValueError("Please provide a result MLFLow URI server.")
     else:  # local
-        PYTHON_EXEC = f"uv run --project {shlex.quote(os.getcwd())} python"
+        PYTHON_EXEC = f"uv run --project {shlex.quote(os.getcwd())} --no-sync isaaclab -p"
         if args.workflow is None:
             WORKFLOW = os.getcwd() + "/" + WORKFLOW
         else:
