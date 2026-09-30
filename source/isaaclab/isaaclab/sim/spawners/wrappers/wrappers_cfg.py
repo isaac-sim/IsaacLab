@@ -33,9 +33,6 @@ class MultiAssetSpawnerCfg(RigidObjectSpawnerCfg, DeformableObjectSpawnerCfg):
     assets_cfg: list[SpawnerCfg] = MISSING
     """List of asset configurations to spawn."""
 
-    activate_contact_sensors: bool | None = None
-    """Override contact reporting for all rigid assets. Defaults to None, which preserves each asset's setting."""
-
     spawn_paths: list[str | None] | None = None
     """Optional concrete spawn paths, one per asset configuration.
 

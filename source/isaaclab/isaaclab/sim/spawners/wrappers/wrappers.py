@@ -152,6 +152,8 @@ def spawn_multi_usd_file(
     multi_asset_cfg = MultiAssetSpawnerCfg(
         assets_cfg=[replace(usd_template_cfg, usd_path=usd_path) for usd_path in usd_paths],
         spawn_paths=cfg.spawn_paths,
+        # the wrapper's default (False) would otherwise override the per-file setting in spawn_multi_asset
+        activate_contact_sensors=cfg.activate_contact_sensors,
     )
 
     # call the original function
