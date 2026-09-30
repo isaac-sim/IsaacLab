@@ -159,14 +159,14 @@ class SimulationContext:
 
         # Acquire settings interface (SettingsManager: standalone dict or Omniverse when available)
         self.settings = get_settings_manager()
-        # Normalize the visualizers to a list, applying the selection a launch without a SimulationCfg left for
-        # the config built afterwards: a comma-separated string, "" when it selected none. The setting is absent
-        # when no such launch happened, and the configured visualizers are then used as given.
+        # Normalize the visualizers to a list, applying the --visualizer selection a launch recorded for the
+        # config built afterwards. Without a selection (the setting absent or empty), a config built by the caller
+        # keeps the visualizers it lists.
         pending_visualizers = self.get_setting("/isaaclab/visualizer/types")
         max_visible_envs = self.get_setting("/isaaclab/visualizer/max_visible_envs")
         self.cfg.visualizer_cfgs = resolve_visualizer_cfgs(
             self.cfg.visualizer_cfgs,
-            None if pending_visualizers is None else parse_visualizer_csv(pending_visualizers or []),
+            parse_visualizer_csv(pending_visualizers) if pending_visualizers else None,
             None if max_visible_envs is None or max_visible_envs < 0 else max_visible_envs,
         )
 

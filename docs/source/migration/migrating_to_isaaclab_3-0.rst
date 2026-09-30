@@ -2584,7 +2584,7 @@ if it lists one:
 
    uv run isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --video viz:kit
 
-See :ref:`record_video_cli` for the ``--video`` sources.
+See :ref:`the --video sources <record_video_cli>`.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)
