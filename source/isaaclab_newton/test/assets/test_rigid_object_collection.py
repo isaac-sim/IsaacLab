@@ -380,6 +380,14 @@ def test_external_force_on_single_body(num_envs, num_cubes, device):
             # Second object should have fallen, so it's Z height should be less than initial height of 1.0
             assert torch.all(object_collection.data.body_link_pos_w.torch[:, 1::2, 2] < 1.0)
 
+        # A masked reset clears the wrenches of the selected environment only.
+        env_mask = torch.zeros(num_envs, dtype=torch.bool, device=sim.device)
+        env_mask[0] = True
+        object_collection.reset(env_mask=wp.from_torch(env_mask))
+        permanent_force_b = object_collection.permanent_wrench_composer.out_force_b.torch
+        assert torch.count_nonzero(permanent_force_b[0]) == 0
+        assert torch.count_nonzero(permanent_force_b[1, 0::2]) > 0
+
 
 @pytest.mark.isaacsim_ci
 @pytest.mark.parametrize("num_envs", [3])

@@ -677,6 +677,8 @@ class TestActuatorStateReset(ActuatorStateResetBase, unittest.TestCase):
     this subclass provides the Newton sim config and the model-wide adapter.
     """
 
+    RESET_SELECTORS = ("env_ids", "env_mask")
+
     def _make_sim_cfg(self, use_newton_actuators: bool) -> SimulationCfg:
         return SimulationCfg(dt=DT, physics=NEWTON_CFG, use_newton_actuators=use_newton_actuators)
 

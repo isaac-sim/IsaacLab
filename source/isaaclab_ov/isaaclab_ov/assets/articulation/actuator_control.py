@@ -102,6 +102,10 @@ class OvPhysxActuatorControl(ArticulationActuatorControl):
         if self._native_actuator_path_active and self._actuator_runtime is not None:
             self._actuator_runtime.reset(env_ids)
 
+    def reset_native_actuators_mask(self, env_mask: wp.array) -> None:
+        if self._native_actuator_path_active and self._actuator_runtime is not None:
+            self._actuator_runtime.reset(env_mask=env_mask)
+
     def stage_user_command(
         self,
         command_name: str,
