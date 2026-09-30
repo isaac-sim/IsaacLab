@@ -162,9 +162,6 @@ _FLAKY_MARK = pytest.mark.flaky(max_runs=3, min_passes=1)
 _NEWTON_MOTION_VECTORS_SKIP_MARK = pytest.mark.skip(
     reason="Motion-vector golden-image comparison is unreliable with Newton physics (NVBUG#6267975)."
 )
-_OVSTAGE_DEFORMABLE_MOTION_VECTORS_XFAIL_MARK = pytest.mark.xfail(
-    reason="OVStage misses deformable motion vectors on the first update after initialization.", strict=False
-)
 
 # Camera sensor data types grouped by what capturing them requires. Data types in the same group
 # are rendered together from one environment (see :func:`group_rendering_params`); data types in
@@ -463,12 +460,7 @@ def make_kitless_rendering_params_franka() -> list[pytest.param]:
             pytest.param(
                 *param.values,
                 id=param.id,
-                # The retry mark would rerun the expected failure, so the xfail replaces it.
-                marks=(
-                    [_OVSTAGE_DEFORMABLE_MOTION_VECTORS_XFAIL_MARK]
-                    if param.values[0] == "ovstage"
-                    else [mark for mark in param.marks if mark.name != "skip"]
-                ),
+                marks=[mark for mark in param.marks if mark.name != "skip"],
             )
             if tuple(param.values[1:]) == ("newton", "ovrtx_renderer", "motion_vectors")
             else param
