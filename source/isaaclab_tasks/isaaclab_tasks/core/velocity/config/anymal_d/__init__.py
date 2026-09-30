@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+"""ANYmal-D velocity-tracking locomotion environments."""
+
 import gymnasium as gym
 
 from . import agents

@@ -54,11 +54,11 @@ class gear_shaft_pos_w(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject = env.scene[self.asset_cfg.name]
 
         # Pre-cache gear offset tensors (required parameter)
-        if "gear_offsets" not in cfg.params:
+        if cfg.params["gear_offsets"] is None:
             raise ValueError(
                 "'gear_offsets' parameter is required in gear_shaft_pos_w configuration. "
                 "It should be a dict with keys 'gear_small', 'gear_medium', 'gear_large' mapping to [x, y, z] offsets."
@@ -150,7 +150,7 @@ class gear_shaft_quat_w(ManagerTermBase):
         asset_cfg: The asset configuration for the gear base. Defaults to SceneEntityCfg("factory_gear_base").
 
     Returns:
-        Gear shaft orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
+        Gear shaft orientation tensor as a quaternion (x, y, z, w) with shape (num_envs, 4).
     """
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
@@ -163,7 +163,7 @@ class gear_shaft_quat_w(ManagerTermBase):
         super().__init__(cfg, env)
 
         # Cache asset
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("factory_gear_base"))
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self.asset: RigidObject = env.scene[self.asset_cfg.name]
 
     def __call__(
@@ -270,7 +270,7 @@ class gear_quat_w(ManagerTermBase):
     the w component is positive, reducing observation variation for the policy.
 
     Returns:
-        Gear orientation tensor as a quaternion (w, x, y, z) with shape (num_envs, 4).
+        Gear orientation tensor as a quaternion (x, y, z, w) with shape (num_envs, 4).
 
     Raises:
         RuntimeError: If the gear type manager is not initialized in the environment.
