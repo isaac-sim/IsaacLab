@@ -20,10 +20,9 @@ def difficulty_interpolate_float(
     _data: float,
     initial_value: float,
     final_value: float,
-    difficulty_term_str: str,
 ) -> float:
     """Interpolate a scalar continuously with an ADR term's success-driven difficulty."""
-    difficulty_term = getattr(env.curriculum_manager.cfg, difficulty_term_str).func
+    difficulty_term = env.curriculum_manager.cfg.adr.func
     fraction = min(max(difficulty_term.difficulty_frac, 0.0), 1.0)
     return initial_value + fraction * (final_value - initial_value)
 

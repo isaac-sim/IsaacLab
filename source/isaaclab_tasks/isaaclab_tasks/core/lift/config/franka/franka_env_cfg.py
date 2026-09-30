@@ -85,6 +85,18 @@ THUMB_SENSOR = "panda_leftfinger_object_s"
 FINGER_SENSORS = [f"{name}_object_s" for name in FINGERTIP_LIST if name != "panda_leftfinger"]
 """Contact sensors of the remaining fingers."""
 
+GRASPABLE_OBJECT_PREGRASPS = [
+    (MeshCuboidCfg(size=(0.05, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.025, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.025, 0.025, 0.05), **lift.OBJECT_PHYSICS), 0.0135, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCuboidCfg(size=(0.01, 0.05, 0.05), **lift.OBJECT_PHYSICS), 0.026, (0.0, 0.0, 0.0, 1.0)),
+    (MeshSphereCfg(radius=0.02, **lift.OBJECT_PHYSICS), 0.021, (0.0, 0.0, 0.0, 1.0)),
+    (MeshCapsuleCfg(radius=0.025, height=0.1, **lift.OBJECT_PHYSICS), 0.026, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+    (MeshCapsuleCfg(radius=0.025, height=0.2, **lift.OBJECT_PHYSICS), 0.026, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+    (MeshCapsuleCfg(radius=0.01, height=0.2, **lift.OBJECT_PHYSICS), 0.011, (0.0, 2.0**-0.5, 0.0, 2.0**-0.5)),
+]
+"""Object shapes, finger openings [m], and object orientations in the hand frame [xyzw]."""
+
 
 ##
 # Scene definition
@@ -119,16 +131,7 @@ class FrankaSceneCfg(lift.SceneCfg):
                     filter_prim_paths_expr=["{ENV_REGEX_NS}/Object"],
                 ),
             )
-        graspable_shape_assets_cfg = [
-            MeshCuboidCfg(size=(0.05, 0.05, 0.05), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.025, 0.05, 0.05), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.025, 0.025, 0.05), **lift.OBJECT_PHYSICS),
-            MeshCuboidCfg(size=(0.01, 0.05, 0.05), **lift.OBJECT_PHYSICS),
-            MeshSphereCfg(radius=0.02, **lift.OBJECT_PHYSICS),
-            MeshCapsuleCfg(radius=0.025, height=0.1, **lift.OBJECT_PHYSICS),
-            MeshCapsuleCfg(radius=0.025, height=0.2, **lift.OBJECT_PHYSICS),
-            MeshCapsuleCfg(radius=0.01, height=0.2, **lift.OBJECT_PHYSICS),
-        ]
+        graspable_shape_assets_cfg = [clone(shape) for shape, _, _ in GRASPABLE_OBJECT_PREGRASPS]
         self.object.spawn.shapes.assets_cfg = graspable_shape_assets_cfg
         self.object.spawn.default.assets_cfg = graspable_shape_assets_cfg
 
@@ -201,7 +204,7 @@ class FrankaLiftCurriculumCfg(lift.CurriculumCfg):
         params={
             "address": "rewards.action_rate.weight",
             "modify_fn": mdp.difficulty_interpolate_float,
-            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1},
         },
     )
     joint_vel = CurrTerm(
@@ -209,7 +212,7 @@ class FrankaLiftCurriculumCfg(lift.CurriculumCfg):
         params={
             "address": "rewards.joint_vel.weight",
             "modify_fn": mdp.difficulty_interpolate_float,
-            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"},
+            "modify_params": {"initial_value": -1e-4, "final_value": -1e-1},
         },
     )
 
@@ -253,8 +256,13 @@ class FrankaEventCfg(lift.EventCfg):
         to_target = reset_terms["reset_object_to_target"].params
         to_target["target_cfg"] = SceneEntityCfg("robot", body_names="panda_hand")
         to_target["pose_range"] = {"x": [-0.02, 0.02], "y": [-0.02, 0.02], "z": [0.08, 0.12]}
-        # every link but the ground-mounted base (a base-link ground check is unsatisfiable)
-        criteria["robot_table_clearance"].body_names = ["panda_link[1-7]", "panda_hand", ".*finger"]
+        # Clearance checks follow the enabled contact scope; the ground-mounted base is excluded.
+        criteria["robot_table_clearance"].body_names = preset(
+            default=["panda_hand", ".*finger"],
+            arm_collisions=["panda_link[1-7]", "panda_hand", ".*finger"],
+        )
+        # Even one environment per shape can harvest the 1024-state bank at a 10% acceptance rate.
+        self.conditional_reset.params["max_prefill_iters"] = 20_000
         # spread the reset bank over the grasp geometry, same bodies as fingers_to_object
         diversity_feature = self.conditional_reset.params.get("diversity_feature")
         if diversity_feature is not None:
@@ -292,7 +300,13 @@ class FrankaMixinCfg:
 
 @configclass
 class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
-    """Franka object lifting environment."""
+    """Franka object lifting with a mixed aligned-grasp and table reset bank.
+
+    Training and play mode propose aligned pre-grasps with probability 0.75 before clearance
+    rejection and bank sampling. Success is measured on this mixture, rather than table-only picks.
+    Set ``events.conditional_reset.params.terms.reset_object_to_target.params.probability=0``
+    before initialization to build a table-only evaluation bank.
+    """
 
     curriculum: FrankaLiftCurriculumCfg | None = FrankaLiftCurriculumCfg()
 
@@ -308,8 +322,9 @@ class FrankaLiftEnvCfg(FrankaMixinCfg, lift.LiftEnvCfg):
             probability=0.75,
             gripper_cfg=SceneEntityCfg("robot", joint_names="panda_finger_joint.*"),
             pose_range={"x": (-0.002, 0.002), "y": (-0.002, 0.002), "z": (0.1, 0.1)},
-            gripper_joint_positions=[0.026, 0.026, 0.0135, 0.026, 0.021, 0.026, 0.026, 0.011],
-            asset_orientations=[(0.0, 0.0, 0.0, 1.0)] * 5 + [(0.0, 2.0**-0.5, 0.0, 2.0**-0.5)] * 3,
+            grasp_configs=[
+                (clone(shape), opening, orientation) for shape, opening, orientation in GRASPABLE_OBJECT_PREGRASPS
+            ],
         )
         pregrasp.params.pop("velocity_range")
         # Farthest-point thinning discards valid near-grasp starts.

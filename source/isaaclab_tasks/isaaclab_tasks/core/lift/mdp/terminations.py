@@ -60,6 +60,7 @@ class out_of_bound(ManagerTermBase):
         pos_w = self._object.data.root_pos_w.torch
         quat_w = self._object.data.root_quat_w.torch
         vel_w = self._object.data.root_vel_w.torch
+        # NaNs compare false against both bounds; unstable object states must still terminate.
         invalid = (
             ~torch.isfinite(pos_w).all(dim=1) | ~torch.isfinite(quat_w).all(dim=1) | ~torch.isfinite(vel_w).all(dim=1)
         )

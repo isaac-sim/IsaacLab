@@ -288,7 +288,9 @@ def farthest_point_sampling(
 
 
 def collect_collision_meshes(root_prim, owner_frame_fn: Callable) -> dict[int, trimesh.Trimesh]:
-    """Collect collision meshes under ``root_prim``, grouped in caller-selected frames.
+    """Collect enabled collision meshes under ``root_prim``, grouped in caller-selected frames.
+
+    Disabled colliders and visual-only geometry are excluded from reset clearance checks.
 
     Args:
         root_prim: Prim whose subtree is searched for collision meshes.

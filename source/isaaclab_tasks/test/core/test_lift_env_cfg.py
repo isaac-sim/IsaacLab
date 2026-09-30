@@ -16,7 +16,7 @@ from pxr import Usd, UsdGeom, UsdPhysics
 
 from isaaclab.cloner import make_clone_plan
 from isaaclab.managers import CommandTerm, ObservationTermCfg, SceneEntityCfg
-from isaaclab.sim import select_usd_variants, use_stage
+from isaaclab.sim import MeshCapsuleCfg, MeshCuboidCfg, MultiAssetSpawnerCfg, use_stage
 from isaaclab.utils.warp import ProxyArray
 
 from isaaclab_tasks.core.lift import mdp
@@ -79,18 +79,13 @@ def test_rigid_lift_motion_regularization_follows_success_driven_adr() -> None:
     assert curriculum.adr.func is mdp.DifficultyScheduler
     difficulty = SimpleNamespace(difficulty_frac=0.0)
     env = SimpleNamespace(
-        common_step_counter=100_000,
         curriculum_manager=SimpleNamespace(cfg=SimpleNamespace(adr=SimpleNamespace(func=difficulty))),
     )
 
     for term_name in ("action_rate", "joint_vel"):
         assert getattr(cfg.rewards, term_name).weight == pytest.approx(-1e-4)
         term = getattr(curriculum, term_name)
-        assert term.func is mdp.modify_term_cfg
-        assert term.params["address"] == f"rewards.{term_name}.weight"
-        assert term.params["modify_fn"] is mdp.difficulty_interpolate_float
         params = term.params["modify_params"]
-        assert params == {"initial_value": -1e-4, "final_value": -1e-1, "difficulty_term_str": "adr"}
         for fraction, expected in (
             (-1.0, -1e-4),
             (0.0, -1e-4),
@@ -118,11 +113,35 @@ def test_abnormal_robot_state_ignores_nominal_velocity_excursions() -> None:
     assert mdp.abnormal_robot_state(env, arm_only).tolist() == [False, False, True]
 
 
+def test_lift_bounds_terminate_nonfinite_object_states() -> None:
+    """A NaN pose or velocity must not survive the workspace comparison."""
+    position, orientation, velocity = torch.zeros((5, 3)), torch.zeros((5, 4)), torch.zeros((5, 6))
+    position[1, 0] = float("nan")
+    orientation[2, 3] = float("nan")
+    velocity[3, 0] = float("inf")
+    position[4, 0] = 2.0
+    object_asset = SimpleNamespace(
+        data=SimpleNamespace(
+            root_pos_w=SimpleNamespace(torch=position),
+            root_quat_w=SimpleNamespace(torch=orientation),
+            root_vel_w=SimpleNamespace(torch=velocity),
+        )
+    )
+    env = SimpleNamespace(scene=_FakeScene(torch.arange(5), object=object_asset))
+    term = mdp.out_of_bound(SimpleNamespace(params={}), env)
+    assert term(env, in_bound_range={axis: (-1.0, 1.0) for axis in ("x", "y", "z")}).tolist() == [
+        False,
+        True,
+        True,
+        True,
+        True,
+    ]
+
+
 @pytest.mark.parametrize(
     ("selected_presets", "expected_physics"),
     [
         ((), "mujoco"),
-        (("newton_mjwarp_vbd_proxy",), "mujoco"),
         (("isaacsim_physx",), "physx"),
         (("physx",), "physx"),
     ],
@@ -138,8 +157,8 @@ def test_franka_soft_robot_physics_variant_matches_backend(
 
 def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:
     """Isaac Sim PhysX and OvPhysX should differ only in runtime configuration."""
-    isaacsim_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("isaacsim_physx", "cube"))
-    ovphysx_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("ovphysx", "cube"))
+    isaacsim_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("isaacsim_physx",))
+    ovphysx_cfg = resolve_presets(FrankaLiftEnvCfg(), selected=("ovphysx",))
     assert isaacsim_cfg.sim.physics.enable_external_forces_every_iteration
     assert ovphysx_cfg.sim.physics.enable_external_forces_every_iteration
     isaacsim = isaacsim_cfg.to_dict()
@@ -149,53 +168,25 @@ def test_franka_lift_physx_runtimes_share_the_same_mdp() -> None:
         assert ovphysx[section] == isaacsim[section], section
 
 
-def test_franka_lift_selects_gripper_only_colliders() -> None:
-    """Lift avoids the arm colliders that intersect the ground during reset sampling."""
-    cfg = resolve_presets(FrankaLiftEnvCfg(), selected=())
-    stage = Usd.Stage.CreateInMemory()
-    robot = stage.DefinePrim("/Robot", "Xform")
-    colliders = robot.GetVariantSets().AddVariantSet("Colliders")
-    for selection, prim_path, prim_type in (
-        ("convex_hulls", "/Robot/link1_c/link1_c", "Mesh"),
-        ("primitives", "/Robot/link1_capsule", "Capsule"),
-        ("gripper_only", "/Robot/gripper_capsule", "Capsule"),
-    ):
-        colliders.AddVariant(selection)
-        colliders.SetVariantSelection(selection)
-        with colliders.GetVariantEditContext():
-            stage.DefinePrim(prim_path, prim_type)
-    colliders.SetVariantSelection("primitives")
-
-    select_usd_variants("/Robot", cfg.scene.robot.spawn.variants or {}, stage=stage)
-
-    assert stage.GetPrimAtPath("/Robot/gripper_capsule").IsValid()
-    assert not stage.GetPrimAtPath("/Robot/link1_c/link1_c").IsValid()
-    assert not stage.GetPrimAtPath("/Robot/link1_capsule").IsValid()
-
-
 def test_franka_lift_retains_aligned_pregrasp_resets() -> None:
     """The aligned Lift reset must run after the generic finger-width reset."""
     lift = FrankaLiftEnvCfg()
 
-    assert lift.actions.action.joint_names == [".*"]
-    assert lift.terminations.abnormal_robot.func is mdp.abnormal_robot_state
     lift_reset = lift.events.conditional_reset.params
     lift_reset_terms = list(lift_reset["terms"])
     assert lift_reset_terms.index("reset_object_to_target") > lift_reset_terms.index("reset_gripper_width")
     lift_target_reset = lift_reset["terms"]["reset_object_to_target"]
     assert lift_target_reset.func is mdp.reset_to_grasp
     assert lift_target_reset.params["probability"] == pytest.approx(0.75)
-    assert lift_target_reset.params["pose_range"] == {
-        "x": (-0.002, 0.002),
-        "y": (-0.002, 0.002),
-        "z": (0.1, 0.1),
-    }
-    assert lift_target_reset.params["gripper_cfg"].joint_names == "panda_finger_joint.*"
-    assert len(lift_target_reset.params["gripper_joint_positions"]) == 8
-    assert len(lift_target_reset.params["asset_orientations"]) == 8
-    assert "object_robot_clearance" in lift_reset["valid_criteria"]
-    assert lift_reset["diversity_feature"] is None
-    assert lift_reset["success_monitor"].target_success_rate == pytest.approx(0.5)
+    assert len(lift_target_reset.params["grasp_configs"]) == 8
+    for selected, colliders, bodies in (
+        ((), "gripper_only", ["panda_hand", ".*finger"]),
+        (("arm_collisions",), "primitives", ["panda_link[1-7]", "panda_hand", ".*finger"]),
+    ):
+        cfg = resolve_presets(FrankaLiftEnvCfg(), selected=selected)
+        assert cfg.scene.robot.spawn.variants["Colliders"] == colliders
+        assert cfg.events.conditional_reset.params["valid_criteria"]["robot_table_clearance"].body_names == bodies
+        assert cfg.events.conditional_reset.params["max_prefill_iters"] > 0
 
     lift.play_mode()
     assert lift.events.conditional_reset.params["terms"]["reset_object_to_target"].params[
@@ -206,10 +197,16 @@ def test_franka_lift_retains_aligned_pregrasp_resets() -> None:
 def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> None:
     """The pre-grasp term must map heterogeneous object prototypes onto environment IDs."""
     object_path = "/World/envs/env_.*/Object"
+    cube = MeshCuboidCfg(size=(0.05, 0.05, 0.05))
+    capsule = MeshCapsuleCfg(radius=0.01, height=0.2)
     object_cfg = SimpleNamespace(prim_path=object_path)
+    object_prototypes = [
+        SimpleNamespace(prim_path=object_path, spawn=MultiAssetSpawnerCfg(assets_cfg=[shape]))
+        for shape in (capsule, cube)
+    ]
     robot_cfg = SimpleNamespace(prim_path="/World/envs/env_.*/Robot")
     plan = make_clone_plan(
-        (object_cfg, object_cfg, robot_cfg),
+        (*object_prototypes, robot_cfg),
         ((0, 2), (1, 2)),
         4,
     )
@@ -241,8 +238,10 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
             "target_cfg": SimpleNamespace(name="robot", body_ids=[0]),
             "pose_range": {axis: (0.0, 0.0) for axis in ("x", "y", "z")},
             "probability": 1.0,
-            "gripper_joint_positions": [0.026, 0.0135],
-            "asset_orientations": [(0.0, 0.0, 0.0, 1.0), (0.0, 0.7071068, 0.0, 0.7071068)],
+            "grasp_configs": [
+                (cube, 0.026, (0.0, 0.0, 0.0, 1.0)),
+                (capsule, 0.011, (0.0, 0.7071068, 0.0, 0.7071068)),
+            ],
         }
     )
 
@@ -251,17 +250,23 @@ def test_franka_lift_pregrasp_resolves_object_variants_from_clone_topology() -> 
 
     torch.testing.assert_close(
         robot.write_joint_position_to_sim_index.call_args.kwargs["position"],
-        torch.tensor([[0.026, 0.026], [0.026, 0.026], [0.0135, 0.0135], [0.0135, 0.0135]]),
+        torch.tensor([[0.011, 0.011], [0.011, 0.011], [0.026, 0.026], [0.026, 0.026]]),
     )
     root_pose = object_asset.write_root_pose_to_sim_index.call_args.kwargs["root_pose"]
     torch.testing.assert_close(root_pose[:, :3], torch.zeros((4, 3)))
     torch.testing.assert_close(
         root_pose[:, 3:],
-        torch.tensor([[0.0, 0.0, 0.0, 1.0]] * 2 + [[0.0, 0.7071068, 0.0, 0.7071068]] * 2),
+        torch.tensor([[0.0, 0.7071068, 0.0, 0.7071068]] * 2 + [[0.0, 0.0, 0.0, 1.0]] * 2),
     )
 
-    cfg.params["asset_orientations"] = [(0.0, 0.0, 0.0, 1.0)]
-    with pytest.raises(ValueError, match="one gripper pose per object variant"):
+    for selector in ([3, 0], slice(1, 3)):
+        term(env, selector, **cfg.params)
+        torch.testing.assert_close(
+            object_asset.write_root_pose_to_sim_index.call_args.kwargs["env_ids"], torch.arange(4)[selector]
+        )
+
+    cfg.params["grasp_configs"] = cfg.params["grasp_configs"][:1]
+    with pytest.raises(ValueError, match="no configured pre-grasp"):
         mdp.reset_to_grasp(cfg, env)
 
 

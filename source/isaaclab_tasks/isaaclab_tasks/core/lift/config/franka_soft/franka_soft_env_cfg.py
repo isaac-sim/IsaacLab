@@ -239,6 +239,7 @@ class FrankaSoftBaseSceneCfg(InteractiveSceneCfg):
     )
 
     def __post_init__(self):
+        # Task gains are checkpoint dynamics; zero viscous friction overrides authored USD damping.
         self.robot.actuators = {
             # inspired by libfranka's joint_impedance_control.cpp
             "panda_arm": ImplicitActuatorCfg(

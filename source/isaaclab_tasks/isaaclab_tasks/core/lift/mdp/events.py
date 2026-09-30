@@ -154,28 +154,43 @@ class reset_to_grasp(ManagerTermBase):
         super().__init__(cfg, env)
         asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         gripper_cfg: SceneEntityCfg = cfg.params["gripper_cfg"]
+        target_cfg: SceneEntityCfg = cfg.params["target_cfg"]
+        self._asset = env.scene[asset_cfg.name]
+        self._gripper = env.scene[gripper_cfg.name]
+        self._target = env.scene[target_cfg.name]
+        self._target_body_ids = target_cfg.body_ids
         object_cfg = getattr(env.cfg.scene, asset_cfg.name)
         plan = env.scene.clone_plan
         object_prototypes = cloner.path.get_asset_prototypes(plan, object_cfg.prim_path)
         if not len(object_prototypes):
             raise ValueError(f"Could not find clone-plan prototypes for asset '{asset_cfg.name}'.")
+        grasp_configs = cfg.params["grasp_configs"]
+        grasp_by_geometry = {_grasp_geometry(shape): index for index, (shape, _, _) in enumerate(grasp_configs)}
+        if len(grasp_by_geometry) != len(grasp_configs):
+            raise ValueError("reset_to_grasp requires one unambiguous pre-grasp per object geometry.")
         variant_ids = np.full(env.num_envs, -1, dtype=np.int64)
-        for variant_id, prototype_id in enumerate(object_prototypes):
+        for prototype_id in object_prototypes:
+            spawn = plan.asset_cfgs[prototype_id].spawn
+            shape = spawn.assets_cfg[0] if isinstance(spawn, sim_utils.MultiAssetSpawnerCfg) else spawn
+            geometry = _grasp_geometry(shape)
+            if geometry not in grasp_by_geometry:
+                raise ValueError(f"reset_to_grasp has no configured pre-grasp for object geometry {geometry}.")
             world_ids, _ = cloner.query.get_asset_prototype_unique_world_index(plan.topology, int(prototype_id))
             world_ids = world_ids[world_ids >= 0]
             if (variant_ids[world_ids] >= 0).any():
                 raise ValueError(f"Multiple object variants are assigned to asset '{asset_cfg.name}' in one world.")
-            variant_ids[world_ids] = variant_id
+            variant_ids[world_ids] = grasp_by_geometry[geometry]
         if (variant_ids < 0).any():
             raise ValueError(f"No object variant is assigned to asset '{asset_cfg.name}' in some worlds.")
         self._variant_ids = torch.as_tensor(variant_ids, device=env.device)
-        self._gripper_joint_ids = env.scene[gripper_cfg.name].find_joints(gripper_cfg.joint_names)[0]
-        gripper_joint_positions = cfg.params["gripper_joint_positions"]
-        asset_orientations = cfg.params["asset_orientations"]
-        if len(gripper_joint_positions) < len(object_prototypes) or len(asset_orientations) < len(object_prototypes):
-            raise ValueError(f"reset_to_grasp requires one gripper pose per object variant ({len(object_prototypes)}).")
-        self._gripper_joint_positions = torch.as_tensor(gripper_joint_positions, device=env.device)
-        self._asset_orientations = torch.as_tensor(asset_orientations, device=env.device)
+        self._gripper_joint_ids = self._gripper.find_joints(gripper_cfg.joint_names)[0]
+        self._gripper_joint_positions = torch.tensor([opening for _, opening, _ in grasp_configs], device=env.device)
+        self._asset_orientations = torch.tensor([orientation for _, _, orientation in grasp_configs], device=env.device)
+        self._offset_ranges = torch.tensor(
+            [cfg.params["pose_range"].get(axis, (0.0, 0.0)) for axis in ("x", "y", "z")], device=env.device
+        )
+        self._zero_joint_velocities = torch.zeros((env.num_envs, len(self._gripper_joint_ids)), device=env.device)
+        self._zero_root_velocities = torch.zeros((env.num_envs, 6), device=env.device)
 
     def __call__(
         self,
@@ -185,8 +200,7 @@ class reset_to_grasp(ManagerTermBase):
         probability: float,
         target_cfg: SceneEntityCfg,
         gripper_cfg: SceneEntityCfg,
-        gripper_joint_positions: list[float],
-        asset_orientations: list[tuple[float, float, float, float]],
+        grasp_configs: list[tuple[sim_utils.SpawnerCfg, float, tuple[float, float, float, float]]],
         asset_cfg: SceneEntityCfg = SceneEntityCfg("object"),
     ) -> None:
         """Reset a fraction of environments to configured pre-grasps.
@@ -198,43 +212,54 @@ class reset_to_grasp(ManagerTermBase):
             probability: Per-environment probability of applying the pre-grasp.
             target_cfg: Body defining the pre-grasp frame.
             gripper_cfg: Parallel gripper joints to pose.
-            gripper_joint_positions: Joint position for each object variant [m or rad, depending on joint type].
-            asset_orientations: Object orientation in the target frame for each variant, in ``(x, y, z, w)`` order.
+            grasp_configs: Shape configs paired with a finger opening [m or rad, depending on joint type]
+                and object orientation in the target frame in ``(x, y, z, w)`` order. Geometry, not list order,
+                associates each pre-grasp with its cloned object. Static values are cached at initialization.
             asset_cfg: Object asset to reset.
         """
+        env_ids = env.scene._ALL_INDICES[env_ids]
         picked = env_ids[torch.rand(len(env_ids), device=env.device) < probability]
         if len(picked) == 0:
             return
 
-        asset = env.scene[asset_cfg.name]
-        target = env.scene[target_cfg.name]
-        gripper = env.scene[gripper_cfg.name]
         variant_ids = self._variant_ids[picked]
 
-        target_pos = target.data.body_pos_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :3]
-        target_quat = target.data.body_quat_w.torch[picked][:, target_cfg.body_ids, :].reshape(len(picked), -1)[:, :4]
-        offset_ranges = torch.tensor(
-            [tuple(pose_range.get(axis, (0.0, 0.0))) for axis in ("x", "y", "z")], device=asset.device
+        target_pos = self._target.data.body_pos_w.torch[picked][:, self._target_body_ids, :].reshape(len(picked), -1)[
+            :, :3
+        ]
+        target_quat = self._target.data.body_quat_w.torch[picked][:, self._target_body_ids, :].reshape(len(picked), -1)[
+            :, :4
+        ]
+        local_offsets = sample_uniform(
+            self._offset_ranges[:, 0], self._offset_ranges[:, 1], (len(picked), 3), device=env.device
         )
-        local_offsets = sample_uniform(offset_ranges[:, 0], offset_ranges[:, 1], (len(picked), 3), device=asset.device)
         positions = target_pos + quat_apply(target_quat, local_offsets)
         local_orientations = self._asset_orientations[variant_ids]
         orientations = quat_mul(target_quat, local_orientations)
 
         joint_positions = self._gripper_joint_positions[variant_ids, None].expand(-1, len(self._gripper_joint_ids))
-        gripper.write_joint_position_to_sim_index(
+        self._gripper.write_joint_position_to_sim_index(
             position=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
         )
-        gripper.write_joint_velocity_to_sim_index(
-            velocity=torch.zeros_like(joint_positions), joint_ids=self._gripper_joint_ids, env_ids=picked
+        self._gripper.write_joint_velocity_to_sim_index(
+            velocity=self._zero_joint_velocities[picked], joint_ids=self._gripper_joint_ids, env_ids=picked
         )
-        gripper.set_joint_position_target_index(
+        self._gripper.set_joint_position_target_index(
             target=joint_positions, joint_ids=self._gripper_joint_ids, env_ids=picked
         )
-        asset.write_root_pose_to_sim_index(root_pose=torch.cat((positions, orientations), dim=-1), env_ids=picked)
-        asset.write_root_velocity_to_sim_index(
-            root_velocity=torch.zeros((len(picked), 6), device=asset.device), env_ids=picked
-        )
+        self._asset.write_root_pose_to_sim_index(root_pose=torch.cat((positions, orientations), dim=-1), env_ids=picked)
+        self._asset.write_root_velocity_to_sim_index(root_velocity=self._zero_root_velocities[picked], env_ids=picked)
+
+
+def _grasp_geometry(shape: sim_utils.SpawnerCfg) -> tuple:
+    """Identify parallel-gripper geometry independently of mesh authoring and prototype order."""
+    if isinstance(shape, (sim_utils.CuboidCfg, sim_utils.MeshCuboidCfg)):
+        return ("cuboid", *shape.size)
+    if isinstance(shape, (sim_utils.SphereCfg, sim_utils.MeshSphereCfg)):
+        return ("sphere", shape.radius)
+    if isinstance(shape, (sim_utils.CapsuleCfg, sim_utils.MeshCapsuleCfg)):
+        return ("capsule", shape.radius, shape.height, shape.axis)
+    raise ValueError(f"reset_to_grasp does not support shape {type(shape).__name__}.")
 
 
 class conditional_reset(ManagerTermBase):
