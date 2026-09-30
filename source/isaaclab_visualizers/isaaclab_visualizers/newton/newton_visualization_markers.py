@@ -70,6 +70,8 @@ def render_newton_visualization_markers(
         if not sanitize_group_ids:
             marker.render(viewer, visible_env_ids=visible_env_ids, num_envs=num_envs)
             continue
+        # TODO: Workaround for the experimental Newton RTX viewer; replace with a native
+        # RTX marker path instead of renaming groups at render time.
         # The registry is keyed on the original group id and remove_group() removes
         # it by that key, so render under a sanitized id and restore the original.
         original_group_id = marker.group_id
