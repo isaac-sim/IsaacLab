@@ -166,34 +166,18 @@ def physx_belt_section_specs(
 
 
 @sim_utils.clone
-def _spawn_physx_conveyor_mesh(
+def _spawn_physx_conveyor(
     prim_path: str,
-    cfg: sim_utils.MeshCustomCfg,
+    cfg: sim_utils.MeshCustomCfg | sim_utils.CuboidCfg,
     translation: tuple[float, float, float] | None = None,
     orientation: tuple[float, float, float, float] | None = None,
     *,
     belt_spec: SurfaceVelocitySpec,
     **kwargs,
 ):
-    """Spawn one hidden SDF turn and author native surface velocity before PhysX parsing."""
-    prim = sim_utils.spawn_mesh_custom(prim_path, cfg, translation, orientation, **kwargs)
-    sim_utils.set_prim_visibility(prim, False)
-    apply_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
-    return prim
-
-
-@sim_utils.clone
-def _spawn_physx_conveyor_cuboid(
-    prim_path: str,
-    cfg: sim_utils.CuboidCfg,
-    translation: tuple[float, float, float] | None = None,
-    orientation: tuple[float, float, float, float] | None = None,
-    *,
-    belt_spec: SurfaceVelocitySpec,
-    **kwargs,
-):
-    """Spawn one hidden analytic straight and author native surface velocity before PhysX parsing."""
-    prim = sim_utils.spawn_cuboid(prim_path, cfg, translation, orientation, **kwargs)
+    """Spawn a hidden belt section and author native surface velocity before PhysX parsing."""
+    spawn = sim_utils.spawn_mesh_custom if isinstance(cfg, sim_utils.MeshCustomCfg) else sim_utils.spawn_cuboid
+    prim = spawn(prim_path, cfg, translation, orientation, **kwargs)
     sim_utils.set_prim_visibility(prim, False)
     apply_surface_velocity_api(prim, belt_spec, velocity_scale=0.0)
     return prim
@@ -215,7 +199,6 @@ def _physx_conveyor_collision(
             collision_props=_physx_collision_properties(contact_offset=_CONTACT_GAP),
             physics_material=_physx_material(friction),
         )
-        spawn.func = functools.partial(_spawn_physx_conveyor_cuboid, belt_spec=section.belt)
     else:
         spawn = sim_utils.MeshCustomCfg(
             vertices=geometry.vertices,
@@ -229,7 +212,7 @@ def _physx_conveyor_collision(
             collision_approximation="sdf",
             physics_material=_physx_material(friction),
         )
-        spawn.func = functools.partial(_spawn_physx_conveyor_mesh, belt_spec=section.belt)
+    spawn.func = functools.partial(_spawn_physx_conveyor, belt_spec=section.belt)
     return AssetBaseCfg(
         prim_path=prim_path,
         init_state=AssetBaseCfg.InitialStateCfg(pos=root_position),

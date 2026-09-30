@@ -3,11 +3,10 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Batched contact-force surface velocities for Newton physics.
+"""Batched surface controls and lifecycle integration for Newton's conveyor force model.
 
-The driver reads solver-reported normal contact forces, computes a Coulomb-limited force that
-drives each transported body's contact points toward their conveyor velocity fields, and applies
-the resulting body wrenches on the following physics solve.
+Newton owns contact classification and traction computation. This adapter resolves replicated
+USD surfaces, selects transported bodies, and preserves controls across solver rebuilds.
 """
 
 from __future__ import annotations
@@ -18,368 +17,46 @@ from typing import Any
 
 import numpy as np
 import warp as wp
+from newton.examples.basic.example_basic_conveyor_forces import ConveyorForceModel
+from newton.examples.basic.example_basic_conveyor_forces import (
+    Vec3Pair as Vec3Pair,
+)
+from newton.examples.basic.example_basic_conveyor_forces import (
+    compute_basis_vectors as compute_basis_vectors,
+)
+from newton.examples.basic.example_basic_conveyor_forces import (
+    compute_point_force as compute_point_force,
+)
+from newton.examples.basic.example_basic_conveyor_forces import (
+    compute_point_impulse as compute_point_impulse,
+)
 
 from isaaclab.physics import PhysicsEvent, SurfaceVelocitySpec
 
 from .newton_manager import NewtonManager
 
-_VELOCITY_FIELD_TYPE_CONSTANT = 0
-_VELOCITY_FIELD_TYPE_PIVOT = 1
-_SAME_NORMAL_THRESHOLD = 0.999
 
-
-@wp.struct
-class Vec3Pair:
-    """Two orthonormal vectors spanning a contact tangent plane."""
-
-    v0: wp.vec3
-    v1: wp.vec3
-
-
-@wp.func
-def compute_basis_vectors(direction: wp.vec3) -> Vec3Pair:
-    """Return the reference conveyor's tangent basis for a unit direction."""
-    basis = Vec3Pair()
-    if wp.abs(direction[1]) <= 0.9999:
-        basis.v0 = wp.normalize(wp.vec3(direction[2], 0.0, -direction[0]))
-        basis.v1 = wp.vec3(
-            direction[1] * basis.v0[2],
-            (direction[2] * basis.v0[0]) - (direction[0] * basis.v0[2]),
-            -direction[1] * basis.v0[0],
-        )
-    else:
-        basis.v0 = wp.vec3(1.0, 0.0, 0.0)
-        basis.v1 = wp.normalize(wp.vec3(0.0, direction[2], -direction[1]))
-    return basis
-
-
-@wp.func
-def compute_point_impulse(
-    normal: wp.vec3,
-    normal_impulse: wp.float32,
-    current_vel: wp.vec3,
-    target_vel: wp.vec3,
-    response_linear: wp.float32,
-    inv_inertia_world: wp.mat33,
-    center_of_mass_to_point: wp.vec3,
-    friction_coefficient: wp.float32,
-    mass_splitting_scale: wp.float32,
-) -> wp.vec3:
-    """Compute a Coulomb-clamped tangential impulse using point effective mass."""
-    rel_vel = target_vel - current_vel
-    basis = compute_basis_vectors(normal)
-
-    r_cross_t0 = wp.cross(center_of_mass_to_point, basis.v0)
-    r_cross_t1 = wp.cross(center_of_mass_to_point, basis.v1)
-    k00 = response_linear + wp.dot(r_cross_t0, wp.mul(inv_inertia_world, r_cross_t0))
-    k11 = response_linear + wp.dot(r_cross_t1, wp.mul(inv_inertia_world, r_cross_t1))
-    k01 = wp.dot(r_cross_t0, wp.mul(inv_inertia_world, r_cross_t1))
-    det = (k00 * k11) - (k01 * k01)
-
-    i0 = wp.float32(0.0)
-    i1 = wp.float32(0.0)
-    if det > 0.0:
-        v0 = wp.dot(basis.v0, rel_vel)
-        v1 = wp.dot(basis.v1, rel_vel)
-        i0 = ((k11 * v0) - (k01 * v1)) * mass_splitting_scale / det
-        i1 = ((k00 * v1) - (k01 * v0)) * mass_splitting_scale / det
-
-    friction_impulse_max = normal_impulse * friction_coefficient
-    zero_err_magn = wp.sqrt((i0 * i0) + (i1 * i1))
-    impulse_magn = wp.min(friction_impulse_max, zero_err_magn)
-    if zero_err_magn > 0.0:
-        ratio = impulse_magn / zero_err_magn
-    else:
-        ratio = 0.0
-    return (basis.v0 * (i0 * ratio)) + (basis.v1 * (i1 * ratio))
-
-
-@wp.func
-def compute_point_force(
-    dt: wp.float32,
-    inverse_dt: wp.float32,
-    com_world: wp.vec3,
-    body_inverse_mass: wp.float32,
-    body_inverse_inertia_world: wp.mat33,
-    body_linear_velocity: wp.vec3,
-    body_angular_velocity: wp.vec3,
-    contact_position: wp.vec3,
-    contact_normal: wp.vec3,
-    contact_force: wp.float32,
-    mass_splitting_scale: wp.float32,
-    target_vel: wp.vec3,
-    friction_coefficient: wp.float32,
-) -> wp.spatial_vector:
-    """Compute force and torque at one conveyor contact."""
-    contact_impulse = contact_force * dt
-    center_of_mass_to_point = contact_position - com_world
-    current_point_vel = body_linear_velocity + wp.cross(body_angular_velocity, center_of_mass_to_point)
-
-    tangential_impulse = compute_point_impulse(
-        contact_normal,
-        contact_impulse,
-        current_point_vel,
-        target_vel,
-        body_inverse_mass,
-        body_inverse_inertia_world,
-        center_of_mass_to_point,
-        friction_coefficient,
-        mass_splitting_scale,
-    )
-
-    force = tangential_impulse * inverse_dt
-    torque = wp.cross(center_of_mass_to_point, force)
-    return wp.spatial_vector(force, torque)
-
-
-@wp.struct
-class BeltContact:
-    """Reduced contact data consumed by the conveyor force kernels."""
-
-    valid: wp.int32
-    body: wp.int32
-    conveyor: wp.int32
-    point: wp.vec3
-    normal: wp.vec3
-    normal_force: wp.float32
-    next_body_contact: wp.int32
+@wp.kernel
+def _update_belt_velocities(
+    direction: wp.array[wp.vec3],
+    radius: wp.array[wp.float32],
+    effective_velocity: wp.array[wp.float32],
+    linear_velocity: wp.array[wp.vec3],
+    angular_velocity: wp.array[wp.vec3],
+):
+    conveyor_id = wp.tid()
+    linear_velocity[conveyor_id] = direction[conveyor_id] * effective_velocity[conveyor_id]
+    angular_velocity[conveyor_id] = direction[conveyor_id] * (effective_velocity[conveyor_id] / radius[conveyor_id])
 
 
 @wp.kernel
-def _extract_linear_force(spatial_force: wp.array[wp.spatial_vector], force: wp.array[wp.vec3]):
-    contact_id = wp.tid()
-    force[contact_id] = wp.spatial_top(spatial_force[contact_id])
-
-
-@wp.kernel
-def _classify_contacts(
-    contact_count: wp.array[wp.int32],
-    shape0: wp.array[wp.int32],
-    shape1: wp.array[wp.int32],
-    normal: wp.array[wp.vec3],
-    point0: wp.array[wp.vec3],
-    point1: wp.array[wp.vec3],
-    contact_force: wp.array[wp.vec3],
-    shape_body: wp.array[wp.int32],
-    shape_conveyor: wp.array[wp.int32],
+def _filter_body_forces(
     body_is_tracked: wp.array[wp.int32],
-    body_q: wp.array[wp.transform],
-    conveyor_surface_normal: wp.array[wp.vec3],
-    conveyor_threshold: wp.array[wp.float32],
-    contacts_out: wp.array[BeltContact],
-    body_contact_head: wp.array[wp.int32],
-):
-    contact_id = wp.tid()
-    result = BeltContact()
-    result.valid = 0
-    result.next_body_contact = -1
-
-    if contact_id < contact_count[0]:
-        contact_shape0 = shape0[contact_id]
-        contact_shape1 = shape1[contact_id]
-        if contact_shape0 >= 0 and contact_shape1 >= 0:
-            conveyor0 = shape_conveyor[contact_shape0]
-            conveyor1 = shape_conveyor[contact_shape1]
-            contact_normal = normal[contact_id]
-
-            body = wp.int32(-1)
-            conveyor = wp.int32(-1)
-            local_point = wp.vec3()
-            normal_toward_body = wp.vec3()
-            if conveyor0 >= 0 and conveyor1 < 0:
-                conveyor = conveyor0
-                body = shape_body[contact_shape1]
-                local_point = point1[contact_id]
-                normal_toward_body = contact_normal
-            elif conveyor1 >= 0 and conveyor0 < 0:
-                conveyor = conveyor1
-                body = shape_body[contact_shape0]
-                local_point = point0[contact_id]
-                normal_toward_body = -contact_normal
-
-            if body >= 0 and conveyor >= 0 and body_is_tracked[body] != 0:
-                alignment = wp.dot(normal_toward_body, conveyor_surface_normal[conveyor])
-                normal_force = wp.abs(wp.dot(contact_force[contact_id], contact_normal))
-                if alignment >= conveyor_threshold[conveyor] and normal_force > 0.0:
-                    result.valid = 1
-                    result.body = body
-                    result.conveyor = conveyor
-                    result.point = wp.transform_point(body_q[body], local_point)
-                    result.normal = normal_toward_body
-                    result.normal_force = normal_force
-                    result.next_body_contact = wp.atomic_exch(body_contact_head, body, contact_id)
-
-    contacts_out[contact_id] = result
-
-
-@wp.kernel
-def _prepare_contact_patches(
-    contacts: wp.array[BeltContact],
-    body_contact_head: wp.array[wp.int32],
-    body_q: wp.array[wp.transform],
-    body_com: wp.array[wp.vec3],
-    contact_patch_head: wp.array[wp.int32],
-    adjusted_normal_force: wp.array[wp.float32],
-    mass_splitting_scale: wp.array[wp.float32],
-):
-    """Correlate contacts by normal and normalize loads across overlapping sections."""
-    body_id = wp.tid()
-    reference_point = wp.transform_point(body_q[body_id], body_com[body_id])
-    patch_contact_id = body_contact_head[body_id]
-
-    while patch_contact_id >= 0:
-        if contact_patch_head[patch_contact_id] < 0:
-            patch_contact = contacts[patch_contact_id]
-            basis = compute_basis_vectors(patch_contact.normal)
-            point_count = wp.int32(0)
-            first_conveyor = patch_contact.conveyor
-            spans_multiple_conveyors = wp.int32(0)
-            patch_force_sum = wp.float32(0.0)
-            min0 = wp.float32(1.0e30)
-            max0 = wp.float32(-1.0e30)
-            min1 = wp.float32(1.0e30)
-            max1 = wp.float32(-1.0e30)
-
-            contact_id = body_contact_head[body_id]
-            while contact_id >= 0:
-                contact = contacts[contact_id]
-                if (
-                    contact_patch_head[contact_id] < 0
-                    and wp.dot(patch_contact.normal, contact.normal) > _SAME_NORMAL_THRESHOLD
-                ):
-                    contact_patch_head[contact_id] = patch_contact_id
-                    point_count += 1
-                    if contact.conveyor != first_conveyor:
-                        spans_multiple_conveyors = 1
-                    patch_force_sum += contact.normal_force
-
-                    delta = contact.point - reference_point
-                    projection0 = wp.dot(basis.v0, delta)
-                    projection1 = wp.dot(basis.v1, delta)
-                    min0 = wp.min(min0, projection0)
-                    max0 = wp.max(max0, projection0)
-                    min1 = wp.min(min1, projection1)
-                    max1 = wp.max(max1, projection1)
-                contact_id = contact.next_body_contact
-
-            splitting_scale = 1.0 / wp.float32(point_count)
-            if point_count == 1 or spans_multiple_conveyors == 0:
-                contact_id = body_contact_head[body_id]
-                while contact_id >= 0:
-                    contact = contacts[contact_id]
-                    if contact_patch_head[contact_id] == patch_contact_id:
-                        adjusted_normal_force[contact_id] = contact.normal_force
-                        mass_splitting_scale[contact_id] = splitting_scale
-                    contact_id = contact.next_body_contact
-            else:
-                kernel_radius = 0.25 * ((max0 - min0) + (max1 - min1))
-                kernel_radius_sqr = kernel_radius * kernel_radius
-                if kernel_radius > 0.0:
-                    point_force_weight_sum = wp.float32(0.0)
-                    contact_id = body_contact_head[body_id]
-                    while contact_id >= 0:
-                        contact = contacts[contact_id]
-                        if contact_patch_head[contact_id] == patch_contact_id:
-                            density = wp.float32(1.0)
-                            other_contact_id = body_contact_head[body_id]
-                            while other_contact_id >= 0:
-                                other_contact = contacts[other_contact_id]
-                                if (
-                                    other_contact_id != contact_id
-                                    and contact_patch_head[other_contact_id] == patch_contact_id
-                                ):
-                                    delta = contact.point - other_contact.point
-                                    projected_delta = delta - (
-                                        wp.dot(delta, patch_contact.normal) * patch_contact.normal
-                                    )
-                                    density += wp.exp(-0.5 * wp.length_sq(projected_delta) / kernel_radius_sqr)
-                                other_contact_id = other_contact.next_body_contact
-
-                            weight = 1.0 / density
-                            adjusted_normal_force[contact_id] = weight
-                            mass_splitting_scale[contact_id] = splitting_scale
-                            point_force_weight_sum += weight
-                        contact_id = contact.next_body_contact
-
-                    force_per_weight = patch_force_sum / point_force_weight_sum
-                    contact_id = body_contact_head[body_id]
-                    while contact_id >= 0:
-                        contact = contacts[contact_id]
-                        if contact_patch_head[contact_id] == patch_contact_id:
-                            adjusted_normal_force[contact_id] *= force_per_weight
-                        contact_id = contact.next_body_contact
-                else:
-                    adjusted_force = patch_force_sum / wp.float32(point_count)
-                    contact_id = body_contact_head[body_id]
-                    while contact_id >= 0:
-                        contact = contacts[contact_id]
-                        if contact_patch_head[contact_id] == patch_contact_id:
-                            adjusted_normal_force[contact_id] = adjusted_force
-                            mass_splitting_scale[contact_id] = splitting_scale
-                        contact_id = contact.next_body_contact
-
-        patch_contact_id = contacts[patch_contact_id].next_body_contact
-
-
-@wp.kernel
-def _accumulate_forces(
-    dt: wp.float32,
-    contacts: wp.array[BeltContact],
-    body_q: wp.array[wp.transform],
-    body_qd: wp.array[wp.spatial_vector],
-    body_com: wp.array[wp.vec3],
-    body_inv_mass: wp.array[wp.float32],
-    body_inv_inertia: wp.array[wp.mat33],
-    adjusted_normal_force: wp.array[wp.float32],
-    mass_splitting_scale: wp.array[wp.float32],
-    conveyor_field_type: wp.array[wp.int32],
-    conveyor_direction: wp.array[wp.vec3],
-    conveyor_pivot_point: wp.array[wp.vec3],
-    conveyor_radius: wp.array[wp.float32],
-    conveyor_effective_velocity: wp.array[wp.float32],
-    conveyor_friction: wp.array[wp.float32],
-    velocity_scale: wp.array[wp.float32],
     body_force: wp.array[wp.spatial_vector],
 ):
-    contact_id = wp.tid()
-    contact = contacts[contact_id]
-    if contact.valid == 0:
-        return
-
-    splitting_scale = mass_splitting_scale[contact_id]
-    if splitting_scale <= 0.0:
-        return
-
-    conveyor = contact.conveyor
-    effective_velocity = conveyor_effective_velocity[conveyor] * velocity_scale[0]
-    if conveyor_field_type[conveyor] == _VELOCITY_FIELD_TYPE_CONSTANT:
-        target_velocity = conveyor_direction[conveyor] * effective_velocity
-    else:
-        angular_velocity = conveyor_direction[conveyor] * (effective_velocity / conveyor_radius[conveyor])
-        target_velocity = wp.cross(angular_velocity, contact.point - conveyor_pivot_point[conveyor])
-
-    pose = body_q[contact.body]
-    center_of_mass = wp.transform_point(pose, body_com[contact.body])
-    rotation = wp.quat_to_matrix(wp.transform_get_rotation(pose))
-    inverse_inertia_world = rotation * body_inv_inertia[contact.body] * wp.transpose(rotation)
-    velocity = body_qd[contact.body]
-
-    force = compute_point_force(
-        dt,
-        1.0 / dt,
-        center_of_mass,
-        body_inv_mass[contact.body],
-        inverse_inertia_world,
-        wp.spatial_top(velocity),
-        wp.spatial_bottom(velocity),
-        contact.point,
-        contact.normal,
-        adjusted_normal_force[contact_id],
-        splitting_scale,
-        target_velocity,
-        conveyor_friction[conveyor],
-    )
-    wp.atomic_add(body_force, contact.body, force)
+    body_id = wp.tid()
+    if body_is_tracked[body_id] == 0:
+        body_force[body_id] = wp.spatial_vector()
 
 
 @wp.kernel
@@ -428,12 +105,6 @@ def _gather_int_values(
 ):
     output_id = wp.tid()
     values[output_id] = source[indices[output_id]]
-
-
-@wp.kernel
-def _add_body_force(dst: wp.array[wp.spatial_vector], src: wp.array[wp.spatial_vector]):
-    body_id = wp.tid()
-    dst[body_id] = dst[body_id] + src[body_id]
 
 
 @wp.kernel
@@ -538,7 +209,7 @@ def _validate_newton_surface_specs(surface_specs: Sequence[SurfaceVelocitySpec])
 
 
 class SurfaceVelocity:
-    """Own a contact-force surface-velocity pipeline across the Newton lifecycle.
+    """Adapt Newton's MuJoCo conveyor force model to the Isaac Lab lifecycle.
 
     The driver is created after the simulation context but before its first
     reset. It requests solved contact forces before model finalization, then
@@ -720,7 +391,7 @@ class SurfaceVelocity:
 
 
 class _SurfaceVelocityBinding:
-    """Run one batched moving-surface force pipeline for one Newton model."""
+    """Bind replicated surfaces and controls to Newton's conveyor force model."""
 
     def __init__(
         self,
@@ -779,8 +450,7 @@ class _SurfaceVelocityBinding:
 
         surfaces_per_env = len(self._surface_specs)
         conveyor_count = num_envs * surfaces_per_env
-        shape_conveyor = [-1] * model.shape_count
-        field_type = [0] * conveyor_count
+        conveyor_shapes = [-1] * conveyor_count
         direction = [wp.vec3() for _ in range(conveyor_count)]
         pivot_point = [wp.vec3() for _ in range(conveyor_count)]
         radius = [1.0] * conveyor_count
@@ -819,8 +489,7 @@ class _SurfaceVelocityBinding:
 
             spec = self._surface_specs[spec_id]
             conveyor_id = world_id * surfaces_per_env + spec_id
-            shape_conveyor[shape_id] = conveyor_id
-            field_type[conveyor_id] = _VELOCITY_FIELD_TYPE_PIVOT if spec.curved else _VELOCITY_FIELD_TYPE_CONSTANT
+            conveyor_shapes[conveyor_id] = shape_id
             direction[conveyor_id] = _world_vector(shape_transform[shape_id], spec.direction)
             pivot_point[conveyor_id] = _world_point(shape_transform[shape_id], spec.pivot_point)
             radius[conveyor_id] = 1.0 if spec.radius is None else spec.radius
@@ -860,39 +529,37 @@ class _SurfaceVelocityBinding:
         if not np.any(body_is_tracked):
             raise RuntimeError(f"Body pattern {body_pattern!r} matched no Newton bodies.")
 
+        self._conveyor = ConveyorForceModel(model, solver_type="mujoco")
+        for conveyor_id, shape_id in enumerate(conveyor_shapes):
+            spec = self._surface_specs[conveyor_id % surfaces_per_env]
+            parameters = {
+                "surface_normal": surface_normal[conveyor_id],
+                "friction": spec.friction_coefficient,
+                "threshold": spec.contact_threshold,
+            }
+            if spec.curved:
+                self._conveyor.add_pivot_belt(shape_id, pivot_point[conveyor_id], wp.vec3(), **parameters)
+            else:
+                self._conveyor.add_constant_belt(shape_id, wp.vec3(), **parameters)
+        self._conveyor.finalize(contacts)
+
         self._surface_paths = tuple(surface_paths)
-        self._shape_conveyor = wp.array(shape_conveyor, dtype=wp.int32, device=self._device)
         self._body_is_tracked = wp.array(body_is_tracked, dtype=wp.int32, device=self._device)
-        self._field_type = wp.array(field_type, dtype=wp.int32, device=self._device)
         self._direction = wp.array(direction, dtype=wp.vec3, device=self._device)
-        self._pivot_point = wp.array(pivot_point, dtype=wp.vec3, device=self._device)
         self._radius = wp.array(radius, dtype=wp.float32, device=self._device)
-        self._surface_normal = wp.array(surface_normal, dtype=wp.vec3, device=self._device)
         self._conveyor_world = wp.array(conveyor_world, dtype=wp.int32, device=self._device)
 
         authored_velocity = np.asarray([spec.velocity for spec in self._surface_specs], dtype=np.float32)
         authored_enabled = np.asarray([spec.enabled for spec in self._surface_specs], dtype=np.int32)
-        authored_friction = np.asarray([spec.friction_coefficient for spec in self._surface_specs], dtype=np.float32)
-        authored_threshold = np.asarray([spec.contact_threshold for spec in self._surface_specs], dtype=np.float32)
         self._command_velocity_host = np.tile(authored_velocity, num_envs)
         self._enabled_host = np.tile(authored_enabled, num_envs)
         self._command_velocity = wp.array(self._command_velocity_host, dtype=wp.float32, device=self._device)
         self._enabled = wp.array(self._enabled_host, dtype=wp.int32, device=self._device)
         self._effective_velocity = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
-        self._friction = wp.array(np.tile(authored_friction, num_envs), dtype=wp.float32, device=self._device)
-        self._threshold = wp.array(np.tile(authored_threshold, num_envs), dtype=wp.float32, device=self._device)
         self._encoder_position = wp.zeros(conveyor_count, dtype=wp.float32, device=self._device)
         self._elapsed_time = wp.zeros(1, dtype=wp.float32, device=self._device)
-        self._velocity_scale = wp.zeros(1, dtype=wp.float32, device=self._device)
+        self._conveyor.set_speed_scale(0.0)
 
-        contact_capacity = contacts.rigid_contact_max
-        self._contact_force = wp.zeros(contact_capacity, dtype=wp.vec3, device=self._device)
-        self._belt_contacts = wp.empty(contact_capacity, dtype=BeltContact, device=self._device)
-        self._body_contact_head = wp.full(model.body_count, -1, dtype=wp.int32, device=self._device)
-        self._contact_patch_head = wp.full(contact_capacity, -1, dtype=wp.int32, device=self._device)
-        self._adjusted_normal_force = wp.zeros(contact_capacity, dtype=wp.float32, device=self._device)
-        self._mass_splitting_scale = wp.zeros(contact_capacity, dtype=wp.float32, device=self._device)
-        self._body_force = wp.zeros(model.body_count, dtype=wp.spatial_vector, device=self._device)
         self._world_mask_host = np.zeros(num_envs, dtype=np.bool_)
         self._world_mask = wp.zeros(num_envs, dtype=wp.bool, device=self._device)
         self._refresh_effective_velocities()
@@ -948,10 +615,10 @@ class _SurfaceVelocityBinding:
             env_ids: Environment indices to reset, or ``None`` for every environment.
         """
         if env_ids is None:
-            self._body_force.zero_()
+            self._conveyor.conveyor_body_f.zero_()
             self._encoder_position.zero_()
             self._elapsed_time.zero_()
-            self._velocity_scale.zero_()
+            self._conveyor.global_velocity_scale.zero_()
             return
 
         ids = _as_numpy(env_ids)
@@ -970,7 +637,7 @@ class _SurfaceVelocityBinding:
             _clear_selected_body_forces,
             dim=self._model.body_count,
             inputs=[self._model.body_world, self._world_mask],
-            outputs=[self._body_force],
+            outputs=[self._conveyor.conveyor_body_f],
             device=self._device,
         )
         wp.launch(
@@ -991,25 +658,15 @@ class _SurfaceVelocityBinding:
 
     def apply(self, state) -> None:
         """Apply the wrench computed from the preceding physics solve."""
-        wp.launch(
-            _add_body_force,
-            dim=self._model.body_count,
-            inputs=[state.body_f, self._body_force],
-            device=self._device,
-        )
+        self._conveyor.apply(state)
 
     def update(self, solver, contacts, state, dt: float) -> None:
-        """Read solved contacts and compute the next per-solve conveyor wrench."""
-        solver.update_contacts(contacts)
-        self._body_force.zero_()
-        self._body_contact_head.fill_(-1)
-        self._contact_patch_head.fill_(-1)
-        self._mass_splitting_scale.zero_()
+        """Update surface travel and let Newton compute the next conveyor wrench."""
         wp.launch(
             _advance_startup_scale,
             dim=1,
             inputs=[dt, self._startup_duration_s],
-            outputs=[self._elapsed_time, self._velocity_scale],
+            outputs=[self._elapsed_time, self._conveyor.global_velocity_scale],
             device=self._device,
         )
         wp.launch(
@@ -1019,62 +676,13 @@ class _SurfaceVelocityBinding:
             outputs=[self._encoder_position],
             device=self._device,
         )
+        self._conveyor.update(solver, contacts, state, dt)
+        # Exclude robot links and other bodies outside the transported-body selection.
         wp.launch(
-            _extract_linear_force,
-            dim=self._contacts.rigid_contact_max,
-            inputs=[contacts.force, self._contact_force],
-            device=self._device,
-        )
-        wp.launch(
-            _classify_contacts,
-            dim=self._contacts.rigid_contact_max,
-            inputs=[
-                contacts.rigid_contact_count,
-                contacts.rigid_contact_shape0,
-                contacts.rigid_contact_shape1,
-                contacts.rigid_contact_normal,
-                contacts.rigid_contact_point0,
-                contacts.rigid_contact_point1,
-                self._contact_force,
-                self._model.shape_body,
-                self._shape_conveyor,
-                self._body_is_tracked,
-                state.body_q,
-                self._surface_normal,
-                self._threshold,
-            ],
-            outputs=[self._belt_contacts, self._body_contact_head],
-            device=self._device,
-        )
-        wp.launch(
-            _prepare_contact_patches,
+            _filter_body_forces,
             dim=self._model.body_count,
-            inputs=[self._belt_contacts, self._body_contact_head, state.body_q, self._model.body_com],
-            outputs=[self._contact_patch_head, self._adjusted_normal_force, self._mass_splitting_scale],
-            device=self._device,
-        )
-        wp.launch(
-            _accumulate_forces,
-            dim=self._contacts.rigid_contact_max,
-            inputs=[
-                dt,
-                self._belt_contacts,
-                state.body_q,
-                state.body_qd,
-                self._model.body_com,
-                self._model.body_inv_mass,
-                self._model.body_inv_inertia,
-                self._adjusted_normal_force,
-                self._mass_splitting_scale,
-                self._field_type,
-                self._direction,
-                self._pivot_point,
-                self._radius,
-                self._effective_velocity,
-                self._friction,
-                self._velocity_scale,
-            ],
-            outputs=[self._body_force],
+            inputs=[self._body_is_tracked],
+            outputs=[self._conveyor.conveyor_body_f],
             device=self._device,
         )
 
@@ -1105,6 +713,12 @@ class _SurfaceVelocityBinding:
         _require_buffer_length(
             "contacts.rigid_contact_point1", contacts.rigid_contact_point1, contacts.rigid_contact_max
         )
+        _require_buffer_length(
+            "contacts.rigid_contact_offset0", contacts.rigid_contact_offset0, contacts.rigid_contact_max
+        )
+        _require_buffer_length(
+            "contacts.rigid_contact_offset1", contacts.rigid_contact_offset1, contacts.rigid_contact_max
+        )
         _require_buffer_length("contacts.rigid_contact_count", contacts.rigid_contact_count, 1)
 
     def _resolve_indices(self, indices: Any) -> np.ndarray:
@@ -1132,6 +746,13 @@ class _SurfaceVelocityBinding:
             dim=len(self._surface_paths),
             inputs=[self._command_velocity, self._enabled],
             outputs=[self._effective_velocity],
+            device=self._device,
+        )
+        wp.launch(
+            _update_belt_velocities,
+            dim=len(self._surface_paths),
+            inputs=[self._direction, self._radius, self._effective_velocity],
+            outputs=[self._conveyor.conv_const_vel, self._conveyor.conv_pivot_angvel],
             device=self._device,
         )
 

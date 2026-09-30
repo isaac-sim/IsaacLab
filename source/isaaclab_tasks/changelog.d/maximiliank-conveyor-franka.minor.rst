@@ -15,6 +15,7 @@ Added
 Changed
 ^^^^^^^
 
+* Shared native PhysX conveyor section spawning between straight and curved geometry.
 * Positioned the warehouse sortation lettering on its sign face.
 * Preserved conveyor reset behavior with slice-based environment selections.
 * Excluded contacts between stationary warehouse conveyor sections to preserve parcel support after asset replication.

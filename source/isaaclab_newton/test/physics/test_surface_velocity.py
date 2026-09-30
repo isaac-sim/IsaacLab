@@ -327,6 +327,8 @@ def test_binding_uses_deterministic_environment_major_belt_indices(monkeypatch: 
         rigid_contact_normal=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
         rigid_contact_point0=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
         rigid_contact_point1=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
+        rigid_contact_offset0=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
+        rigid_contact_offset1=wp.zeros(contact_capacity, dtype=wp.vec3, device="cpu"),
         rigid_contact_count=wp.zeros(1, dtype=wp.int32, device="cpu"),
     )
     specs = (
@@ -360,12 +362,25 @@ def test_binding_uses_deterministic_environment_major_belt_indices(monkeypatch: 
             "/World/envs/env_1/BeltA",
             "/World/envs/env_1/BeltB",
         )
-        np.testing.assert_array_equal(binding._shape_conveyor.numpy(), [3, 0, 2, 1])
+        np.testing.assert_array_equal(binding._conveyor.shape_conveyor.numpy(), [3, 0, 2, 1])
         np.testing.assert_array_equal(binding._conveyor_world.numpy(), [0, 0, 1, 1])
         np.testing.assert_allclose(binding._command_velocity_host, [0.1, -0.2, 0.1, -0.2])
         np.testing.assert_array_equal(binding._enabled_host, [1, 0, 1, 0])
-        np.testing.assert_allclose(binding._friction.numpy(), [0.4, 0.6, 0.4, 0.6])
-        np.testing.assert_allclose(binding._threshold.numpy(), [0.98, 0.99, 0.98, 0.99])
+        np.testing.assert_allclose(binding._conveyor.conv_friction.numpy(), [0.4, 0.6, 0.4, 0.6])
+        np.testing.assert_allclose(binding._conveyor.conv_threshold.numpy(), [0.98, 0.99, 0.98, 0.99])
         np.testing.assert_array_equal(binding.get_enabled(indices=[3, 0]).numpy(), [0, 1])
+        binding.set_velocities([0.3, -0.4], indices=[0, 3])
+        binding.set_enabled(True, indices=[3])
+        np.testing.assert_allclose(binding.get_velocities().numpy(), [0.3, 0.0, 0.1, -0.4])
+        np.testing.assert_allclose(
+            binding._conveyor.conv_const_vel.numpy(),
+            [(0.3, 0.0, 0.0), (0.0, 0.0, 0.0), (0.1, 0.0, 0.0), (-0.4, 0.0, 0.0)],
+        )
+        # A partial reset must discard one world's cached traction without clearing the other.
+        binding._conveyor.conveyor_body_f.assign(np.ones((2, 6), dtype=np.float32))
+        binding.reset(np.array([0]))
+        state = SimpleNamespace(body_f=wp.zeros(2, dtype=wp.spatial_vector, device="cpu"))
+        binding.apply(state)
+        np.testing.assert_array_equal(state.body_f.numpy(), [[0.0] * 6, [1.0] * 6])
     finally:
         binding.close()

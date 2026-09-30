@@ -35,10 +35,12 @@ loaded by either task without reshaping or reordering tensors. Their contact and
 are not numerically identical; validate task behavior when transferring a policy between them.
 
 Surface-velocity intent and the tensorized control contract live in
-`isaaclab.physics.surface_velocity`. Backend mechanics are separate: Newton's solved-contact force
-pipeline lives in `isaaclab_newton.physics.surface_velocity`, while PhysX schema authoring and live
-attribute control live in `isaaclab_physx.physics.surface_velocity`. The task package owns only the
-racetrack geometry, backend lifecycle selection, and task-level commands.
+`isaaclab.physics.surface_velocity`. Newton traction uses the complete upstream
+`ConveyorForceModel` from the pinned Newton release, including its MuJoCo contact reporting.
+`isaaclab_newton.physics.surface_velocity` adapts replicated surfaces, parcel selection, controls, and
+reset lifecycle; it contains no separate traction solver.
+PhysX schema authoring and live attribute control live in `isaaclab_physx.physics.surface_velocity`.
+The task package owns only the racetrack geometry, backend lifecycle selection, and task-level commands.
 
 ## Original racetrack task
 
