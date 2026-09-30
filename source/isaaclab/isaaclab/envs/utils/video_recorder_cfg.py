@@ -23,21 +23,15 @@ def parse_video_source(source: str) -> tuple[str, str, str]:
     """Split a :attr:`VideoRecorderCfg.source` into ``(kind, name, sub)``.
 
     ``kind`` is ``"viz"`` or ``"sensor"``; ``name`` is the canonical visualizer type (``""`` for a bare
-    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The deprecated
-    ``visualizer`` prefix and ``newton`` type are mapped to ``viz`` and ``newton_gl`` with a
-    :class:`DeprecationWarning`.
+    ``"viz"``) or the sensor name; ``sub`` is ``"streaming_view"``, a sensor channel, or ``""``. The prefix
+    ``visualizer`` is the long form of ``viz``, as ``--visualizer`` is of ``--viz``; the deprecated ``newton``
+    type is mapped to ``newton_gl`` with a :class:`DeprecationWarning`.
 
     Raises:
         ValueError: If *source* does not follow the source grammar of :class:`VideoRecorderCfg`.
     """
     kind, *parts = source.split(":")
-    if kind == "visualizer":
-        warnings.warn(
-            f"Video source {source!r} is deprecated. Use the 'viz' prefix instead of 'visualizer'.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        kind = "viz"
+    kind = "viz" if kind == "visualizer" else kind
     name, sub = (*parts, "", "")[:2]
     if kind == "viz" and not parts:
         return kind, "", ""
@@ -86,9 +80,10 @@ class VideoRecorderCfg:
     :func:`~isaaclab.app.launch_simulation` resolves ``"viz"`` and ``"viz:<type>"`` to the visualizer the
     recording uses. The camera position and resolution are configured on the visualizer cfg, not here.
 
+    ``visualizer`` is the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``).
+
     .. deprecated::
-        The ``visualizer`` prefix (e.g. ``"visualizer:kit"``) and the ``newton`` type; use ``viz`` and
-        ``newton_gl``.
+        The ``newton`` type; use ``newton_gl``.
     """
 
     source: str = "viz"

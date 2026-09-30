@@ -91,17 +91,21 @@ def test_parse_video_source(source, expected):
     assert parse_video_source(source) == expected
 
 
+@pytest.mark.parametrize("source", ["visualizer", "visualizer:kit", "visualizer:newton_gl:streaming_view"])
+def test_parse_video_source_accepts_the_long_prefix(source, recwarn):
+    """``visualizer`` is the long form of ``viz``: same result, no warning."""
+    assert parse_video_source(source) == parse_video_source(source.replace("visualizer", "viz", 1))
+    assert not recwarn.list
+
+
 @pytest.mark.parametrize(
     "source,expected",
     [
-        ("visualizer", ("viz", "", "")),
-        ("visualizer:kit", ("viz", "kit", "")),
-        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
         ("viz:newton", ("viz", "newton_gl", "")),
+        ("visualizer:newton:streaming_view", ("viz", "newton_gl", "streaming_view")),
     ],
 )
-def test_parse_video_source_maps_deprecated_names(source, expected):
-    """The ``visualizer`` prefix and the ``newton`` type still work, with a deprecation warning."""
+def test_parse_video_source_maps_the_deprecated_newton_type(source, expected):
     with pytest.warns(DeprecationWarning, match="deprecated"):
         assert parse_video_source(source) == expected
 

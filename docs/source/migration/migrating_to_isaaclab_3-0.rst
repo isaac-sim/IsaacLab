@@ -2735,9 +2735,9 @@ Similarly, when importing the config class directly:
    from isaaclab_visualizers.newton import NewtonGLVisualizerCfg  # or NewtonRTXVisualizerCfg
    cfg = NewtonGLVisualizerCfg()
 
-The ``source="visualizer:newton"`` string in :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg`
-continues to work as a deprecated alias for ``"viz:newton_gl"``; ``"viz:newton_gl"`` and
-``"viz:newton_rtx"`` are the canonical source strings.
+The ``newton`` type in a :class:`~isaaclab.envs.utils.video_recorder_cfg.VideoRecorderCfg` source (e.g.
+``source="visualizer:newton"``) continues to work as a deprecated alias for ``newton_gl``; use
+``"viz:newton_gl"`` or ``"viz:newton_rtx"``.
 
 
 .. rubric:: Video Recording (``gym.wrappers.RecordVideo`` replaced)
@@ -2760,8 +2760,8 @@ environment config, sourcing frames from the active visualizer or a scene sensor
    env = gym.make(task, cfg=env_cfg)
 
 Available sources: ``"viz"`` (auto-pick), ``"viz:kit"``, ``"viz:newton_gl"``, ``"viz:newton_rtx"``,
-``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. The ``visualizer`` prefix and the
-``newton`` type remain as deprecated aliases of ``viz`` and ``newton_gl``.
+``"viz:<type>:streaming_view"``, ``"sensor:<name>[:<channel>]"``. ``visualizer`` is accepted as the long
+form of ``viz``; the ``newton`` type remains a deprecated alias of ``newton_gl``.
 The ``eye`` and ``lookat`` fields have been removed from ``VideoRecorderCfg``; position the
 camera via ``sim.default_visualizer_cfg`` instead.
 

@@ -11,8 +11,7 @@
 
   A Hydra override is never taken as the source: ``--video presets=newton_mjwarp`` records from ``viz`` and
   applies the preset. ``--video`` without ``--visualizer`` now records from a headless ``newton_gl`` instead of a
-  headless Kit; pass ``--video viz:kit`` for the previous behavior. Replace ``visualizer:<type>`` sources with
-  ``viz:<type>``.
+  headless Kit; pass ``--video viz:kit`` for the previous behavior.
 * **Breaking:** :func:`~isaaclab_rl.entrypoints.common.pre_launch_video_config`, called before
   :func:`~isaaclab.app.launch_simulation`, adds a recorder for the ``--video`` source unless the environment config
   declares recorders, and no longer selects ``--visualizer kit`` or sets ``headless``; the launch resolves the

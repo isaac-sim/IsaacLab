@@ -255,10 +255,11 @@ The camera angle, resolution, and other visualizer settings are configured on th
 visualizer config, not on the recorder. A ``viz:<type>`` visualizer that ``--viz`` does not select runs
 headless, only for the recording, with the settings of its config in ``sim.visualizer_cfgs``.
 
+``visualizer`` is accepted as the long form of the ``viz`` prefix (``"visualizer:kit"`` is ``"viz:kit"``).
+
 .. deprecated::
 
-   The ``visualizer`` prefix (``"visualizer:kit"``) and the ``newton`` type (``"viz:newton"``) still
-   work with a deprecation warning. Use ``viz`` and ``newton_gl``.
+   The ``newton`` type (``"viz:newton"``) still works with a deprecation warning. Use ``newton_gl``.
 
 .. note::
 

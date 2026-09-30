@@ -18,8 +18,8 @@
   ``--visualizer`` does not select is added to :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs` headless,
   from the configured visualizer of that type or its default config, only for the recording. The source is
   rewritten to the concrete ``viz:<type>``. Recording from ``viz:rerun`` or ``viz:viser`` raises a
-  :class:`ValueError`, as streaming visualizers have no frame capture. The ``visualizer`` prefix and the
-  ``newton`` type are deprecated aliases of ``viz`` and ``newton_gl``.
+  :class:`ValueError`, as streaming visualizers have no frame capture. ``visualizer`` is accepted as the
+  long form of the ``viz`` prefix; the ``newton`` type is a deprecated alias of ``newton_gl``.
 * The benchmark play entry points take ``--video [SOURCE]`` and ``--video_interval`` like the training entry
   points.
 * :meth:`~isaaclab.sim.SimulationContext.can_render_rgb_array` counts headless visualizers, so a Newton model
