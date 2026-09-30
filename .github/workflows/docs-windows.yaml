@@ -14,9 +14,17 @@ on:
       - 'uv.lock'
       - 'source/isaaclab/isaaclab/cli/**'
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
 jobs:
   build-docs:
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v6
       - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
@@ -24,7 +32,7 @@ jobs:
           python-version: '3.12'
           enable-cache: true
       - name: Build current documentation
-        run: uv run isaaclab --docs
+        run: uv run --extra dev isaaclab --docs
       - name: Verify output
         shell: pwsh
         run: |

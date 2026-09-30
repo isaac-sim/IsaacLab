@@ -4,15 +4,15 @@ We use [Sphinx](https://www.sphinx-doc.org/en/master/) with the [Book Theme](htt
 
 Install [uv](https://docs.astral.sh/uv/getting-started/installation/) before continuing.
 Run the build commands below from the repository root. The Isaac Lab CLI runs
-Sphinx in an isolated uv environment with the `dev` extra. The project selects
-Python 3.12.
+Sphinx in the repository's `.venv` with the `dev` extra, syncing documentation
+dependencies into that environment. The project selects Python 3.12.
 
 ## Current-Version Documentation
 
 This section describes how to build the documentation for the current version of the project.
 
 ```bash
-uv run isaaclab --docs
+uv run --extra dev isaaclab --docs
 ```
 
 Open `docs/_build/current/index.html` in a browser after the build completes.
@@ -22,7 +22,7 @@ Open `docs/_build/current/index.html` in a browser after the build completes.
 This section describes how to build the multi-version documentation, which includes previous tags and the main branch.
 
 ```bash
-uv run isaaclab --docs-multi
+uv run --extra dev isaaclab --docs_multi
 ```
 
 This build requires the Git tags for the versions to include. It checks for

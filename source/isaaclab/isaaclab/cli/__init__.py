@@ -320,7 +320,7 @@ def cli() -> None:
         help="Build the documentation from source using sphinx.",
     )
     parser.add_argument(
-        "--docs-multi",
+        "--docs_multi",
         action="store_true",
         help="Build the multi-version documentation from source using sphinx-multiversion.",
     )
