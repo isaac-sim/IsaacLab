@@ -1,8 +1,9 @@
 # Performance smoke comparisons
 
 The **Performance smoke** section of a GitHub Actions run Summary contains the PR's
-base-versus-tested-revision comparison. Open the PR's `performance-smoke` check,
-then the run Summary to see the rendered result:
+base-versus-tested-revision comparison. From the PR, open **Checks**, select
+**Performance smoke comparison**, then click **Open rendered Performance smoke
+Summary**. This takes you to the comparison for that exact run and attempt:
 
 **🟢 Improved · 🔴 Regressed · ⚪ Not comparable**
 
@@ -10,6 +11,10 @@ The main table shows status, workload, baseline FPS, PR FPS and percentage chang
 FPS is the median of the recorded samples; positive change means higher FPS.
 These labels describe observed differences, not statistical significance. Exact
 zero changes are shown as unchanged.
+
+The comparison report check is informational. The separate `performance-smoke`
+job check continues to report the existing rolling-history gate; its status and
+exit behavior are unchanged.
 
 ## What runs
 
