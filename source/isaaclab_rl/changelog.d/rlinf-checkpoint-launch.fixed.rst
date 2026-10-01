@@ -1,6 +1,3 @@
-Fixed
-^^^^^
-
 * Fixed RLinf playback ignoring ``--checkpoint`` and training resume selecting a directory below
   ``global_step_<N>``. Checkpoint files, directories containing one ``full_weights.pt``, and the existing
   ``latest``/``best`` selectors remained supported.
