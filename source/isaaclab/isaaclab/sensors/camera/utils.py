@@ -220,7 +220,7 @@ def create_pointcloud_from_rgbd(
         depth = torch.from_numpy(depth).to(device=device)
     # retrieve XYZ pointcloud
     points_xyz = create_pointcloud_from_depth(intrinsic_matrix, depth, True, position, orientation, device=device)
-    color_device = points_xyz.device
+    device = points_xyz.device
 
     # get image height and width
     im_height, im_width = depth.shape[:2]
@@ -230,19 +230,19 @@ def create_pointcloud_from_rgbd(
     if rgb is not None:
         if isinstance(rgb, (np.ndarray, torch.Tensor, wp.array)):
             # copy numpy array to preserve
-            rgb = convert_to_torch(rgb, device=color_device, dtype=torch.float32)
+            rgb = convert_to_torch(rgb, device=device, dtype=torch.float32)
             rgb = rgb[:, :, :3]
             # convert the matrix to (W, H, 3) from (H, W, 3) since depth processing
             # is done in the order (u, v) where u: (0, W-1) and v: (0 - H-1)
             points_rgb = rgb.permute(1, 0, 2).reshape(-1, 3)
         elif isinstance(rgb, (tuple, list)):
             # same color for all points without materializing one Python tuple per point
-            points_rgb = torch.tensor(rgb, device=color_device, dtype=torch.uint8).expand(num_points, -1)
+            points_rgb = torch.tensor(rgb, device=device, dtype=torch.uint8).expand(num_points, -1)
         else:
             # default color is black
-            points_rgb = torch.zeros((num_points, 3), device=color_device, dtype=torch.uint8)
+            points_rgb = torch.zeros((num_points, 3), device=device, dtype=torch.uint8)
     else:
-        points_rgb = torch.zeros((num_points, 3), device=color_device, dtype=torch.uint8)
+        points_rgb = torch.zeros((num_points, 3), device=device, dtype=torch.uint8)
     # normalize color values
     if normalize_rgb:
         points_rgb = points_rgb.float() / 255
