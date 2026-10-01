@@ -23,6 +23,9 @@ Added
   motor and friction samples checked drive behavior without an upstream BAM installation.
   Component tests loaded a standalone, authored two-servo USD fixture; configuration authoring
   remained covered by dedicated tests.
+  Reference recordings also covered stateful supply sag from BAM ``62bd8ce`` and mjlab 1.3.0
+  command-buffer output for 3--6-step delays, including a partial reset. Delay tests replayed
+  recorded lag draws independently of Warp's RNG.
 * Added per-environment start-up sampling for supply voltage, supply sag and friction scale.
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and

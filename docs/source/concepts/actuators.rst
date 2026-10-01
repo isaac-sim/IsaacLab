@@ -470,15 +470,19 @@ Recorded reference fixtures
 Two recorded fixtures cover different contracts:
 
 * ``source/isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz`` contains motor and friction
-  samples from the pinned upstream BAM package. ``scripts/tools/generate_bam_goldens.py``
-  regenerates these samples.
+  samples and stateful supply-sag outputs from upstream BAM ``62bd8ce``. It also records mjlab 1.3.0
+  ``DelayBuffer`` outputs with lags of 3--6 steps through warm-up, ring wrap, and a partial reset.
+  Delay tests replay the recorded lag draws because Torch and Warp use different RNGs; they compare
+  motor output against upstream BAM driven by mjlab's delayed targets. RNG reproducibility and
+  per-environment sharing have separate coverage. ``scripts/tools/generate_bam_goldens.py``
+  regenerates these recordings and embeds version and source-hash provenance.
 * ``source/isaaclab_newton/test/assets/data/bam_pendulum_trajectory.npz`` records a deterministic
   Newton / MJWarp pendulum rollout from the native controller before the cleanup. Its provenance
   identifies the source commit and dependency versions. This fixture checks that cleanup preserves
   the recorded Newton behavior; it does not establish agreement with an upstream trajectory.
 
 Routine regression tests read these fixtures without importing upstream BAM or evaluating a
-second implementation of the servo equations. The upstream package is needed only when regenerating
+second implementation of the servo equations. Upstream BAM and mjlab are needed only when regenerating
 the upstream sample fixture. The solver's friction constraint and the CPU reference's torque-level
 friction clip can differ near rest; matching identified parameters does not imply identical trajectories.
 
