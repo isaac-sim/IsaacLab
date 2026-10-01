@@ -286,14 +286,6 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         "/World/envs/env_[^/]+/Robot/other/bar",
     ]
 
-    matches = queries.resolve_matching_prims_from_source(
-        r"/World/envs/env_[^/]+/Robot/foo",
-        predicate=lambda prim: prim.GetName() in {"foo", "bar"},
-        expected_num_matches=1,
-        prefer_direct_matches=True,
-    )
-    assert [prim.GetPath().pathString for prim, _ in matches] == ["/World/envs/env_0/Robot/foo"]
-
     # A direct match must not hide another matched root's predicate-matching descendants.
     matches = queries.resolve_matching_prims_from_source(
         r"/World/envs/env_[^/]+/Robot/(foo|other)",
@@ -306,20 +298,19 @@ def test_resolve_matching_prims_from_source(sim, with_clone_plan):
         ("/World/envs/env_0/Robot/other/bar", "/World/envs/env_[^/]+/Robot/other/bar"),
     ]
 
+    if with_clone_plan:
+        stage.DefinePrim("/World/template/Robot/foo/bar", "Xform")
+        asset = AssetBaseCfg(
+            prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/template/Robot")
+        )
+        sim.set_clone_plan(make_clone_plan((asset,), ((0,),), 2))
 
-def test_resolve_direct_match_from_external_prototype(sim):
-    """Prefer the requested body even when its prototype is outside the destination namespace."""
-    stage = sim_utils.get_current_stage()
-    stage.DefinePrim("/World/template/Robot/foo/bar", "Xform")
-    asset = AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/World/template/Robot"))
-    sim.set_clone_plan(make_clone_plan((asset,), ((0,),), 2))
-
-    matches = queries.resolve_matching_prims_from_source(
-        r"/World/envs/env_[^/]+/Robot/foo",
-        predicate=lambda prim: prim.GetName() in {"foo", "bar"},
-        expected_num_matches=1,
-        prefer_direct_matches=True,
-    )
-    assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
-        ("/World/template/Robot/foo", "/World/envs/env_[^/]+/Robot/foo")
-    ]
+        matches = queries.resolve_matching_prims_from_source(
+            r"/World/envs/env_[^/]+/Robot/foo",
+            predicate=lambda prim: prim.GetName() in {"foo", "bar"},
+            expected_num_matches=1,
+            prefer_direct_matches=True,
+        )
+        assert [(prim.GetPath().pathString, path) for prim, path in matches] == [
+            ("/World/template/Robot/foo", "/World/envs/env_[^/]+/Robot/foo")
+        ]

@@ -47,6 +47,7 @@ from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sensors import BaseFrameTransformer, FrameTransformerCfg, OffsetCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.terrains import TerrainImporterCfg  # noqa: E402
+from isaaclab.test.utils import DeviceScope, test_devices  # noqa: E402
 from isaaclab.utils import configclass, replace  # noqa: E402
 
 from isaaclab_assets.robots.anymal import ANYMAL_C_CFG  # noqa: E402
@@ -671,7 +672,7 @@ def test_frame_transformer_duplicate_body_names(device, source_robot, path_prefi
                 )
 
 
-@pytest.mark.parametrize("device", ["cpu", "cuda:0"])
+@pytest.mark.parametrize("device", test_devices(DeviceScope.DEFAULT_CUDA))
 def test_frame_transformer_nested_rigid_bodies(device):
     """Test that a matched rigid body does not include nested rigid-body descendants."""
     with _ovphysx_sim_context(device=device) as sim:
