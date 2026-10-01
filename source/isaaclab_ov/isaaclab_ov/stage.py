@@ -3,20 +3,29 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for creating ovstage stages and describing their attribute columns.
+"""Simulation-owned OVStage resources and shared attribute-column helpers.
 
 ``ovstage`` is a hard dependency of ``isaaclab_ov``, so it is imported unconditionally here.
 """
 
 from __future__ import annotations
 
+import contextlib
 import logging
+from dataclasses import MISSING
+from typing import TYPE_CHECKING
 
 import numpy as np
 import ovstage
 import warp as wp
 
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
+
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
+
+if TYPE_CHECKING:
+    from isaaclab.visualizers import VisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -114,3 +123,50 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
         A :class:`ovstage.DLTensor` with shape ``[N]`` and ``lanes=3``.
     """
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
+
+
+@configclass
+class OvstageBackendCfg(BackendCfg):
+    """Configuration of a simulation-owned rendering stage."""
+
+    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
+    consumer_cfg: BackendCfg | VisualizerCfg = MISSING
+    """Consumer settings; independent render products and write ordinals require separate stages."""
+
+
+class OvstageBackend:
+    """Own a detached stage and its paths until the simulation has closed its consumers."""
+
+    def __init__(self, cfg: OvstageBackendCfg):
+        """Create the rendering stage identified by the consumer configuration."""
+        self.clone_copies: list[tuple[str, list[str]]] = []
+        self.clone_env_paths: list[str] = []
+        self.clone_positions: np.ndarray | None = None
+        with contextlib.ExitStack() as resources:
+            self.stage = resources.enter_context(create_ovstage("isaaclab.render"))
+            self.paths = resources.enter_context(ovstage.PathDictionary(self.stage))
+            self._resources = resources.pop_all()
+
+    def populate(self, usda: str) -> None:
+        """Import the exported prototypes and apply the clone context's prepared operations.
+
+        Population commits ordinal 1. Consumers may then author render products and poses
+        starting at ordinal 2, after every cloned camera path exists.
+
+        Args:
+            usda: USD scene containing the routed prototypes and their materials.
+        """
+        from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
+
+        # Ordinal 0 is the empty state; population and cloning form the first committed write.
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
+        ovstage.population.apply_usd_changes(self.stage, ordinal=1)
+        ovstage_replicate(
+            self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
+        )
+        self.stage.advance_write_floor(ordinal=1).wait()
+
+    def close(self) -> None:
+        """Release the path dictionary and stage after their borrowers have closed."""
+        self._resources.close()
+        self.stage = self.paths = None
