@@ -153,7 +153,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     Selects Newton's OVRTX backend — photorealistic rendering using the same
     ``begin_frame / log_state / end_frame`` step interface as the GL backend.
 
-    The shared OV clone context prepares the simulation-owned stage that ``ViewerRTX`` renders,
+    The OVStage clone context prepares the simulation-owned stage that ``ViewerRTX`` renders,
     preserving authored materials and lighting while Newton drives the body poses.
 
     ``render_rgb_array()`` captures the path-traced LDR framebuffer at
@@ -169,7 +169,7 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
 
     cloning_contexts: tuple[type | str, ...] = (
         "isaaclab_newton.cloner:NewtonReplicateContext",
-        "isaaclab_ov.cloner:OvRenderReplicateContext",
+        "isaaclab_ov.cloner:OvstageReplicateContext",
     )
     """Prepare the Newton model and the simulation-owned stage for RTX rendering."""
 
