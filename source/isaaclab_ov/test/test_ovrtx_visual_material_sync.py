@@ -207,7 +207,10 @@ def test_ovstage_compiles_queries_and_publishes_selected_channel_zero_copy():
 )
 def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovstage, expected_events):
     renderer, events = _renderer(use_ovstage=use_ovstage)
-    renderer._render_product_paths = ["/Render/Product0", "/Render/Product1"]
+    renderer._camera_render_data = [
+        SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
+        for path in ("/Render/Product0", "/Render/Product1")
+    ]
     renderer._process_render_frame = lambda *args: None
 
     class Writer:
@@ -219,12 +222,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 
     writer = Writer()
     renderer._visual_material_writer_ref = lambda: writer
-    renderer.render_batch(
-        [
-            SimpleNamespace(render_product_path=path, ppisp_pipeline=None, warp_buffers={})
-            for path in renderer._render_product_paths
-        ]
-    )
+    renderer.render_batch(renderer._camera_render_data)
 
     assert events == expected_events
 
@@ -235,7 +233,7 @@ def test_render_publishes_and_drains_material_writes_at_backend_boundary(use_ovs
 )
 def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_events):
     renderer, events = _renderer(use_ovstage=True)
-    renderer._render_product_paths = ["/RenderCamera_0/Product"]
+    renderer._camera_render_data = [SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None)]
 
     class Writer:
         def publish(self):
@@ -256,7 +254,7 @@ def test_ovstage_drain_does_not_mask_publish_or_floor_failure(failure, expected_
 
     renderer.scene.stage.advance_write_floor = advance_write_floor
     with pytest.raises(ValueError, match=failure):
-        renderer.render(SimpleNamespace(render_product_path="/RenderCamera_0/Product", ppisp_pipeline=None))
+        renderer.render(renderer._camera_render_data[0])
 
     assert events == expected_events
 

@@ -163,7 +163,6 @@ class OvstageBackend:
 
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
         ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
-        ovstage.population.apply_usd_changes(self.stage, ordinal=1)
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )

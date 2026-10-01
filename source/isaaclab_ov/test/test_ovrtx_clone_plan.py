@@ -91,7 +91,6 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer._device = "cuda:0"  # __init__'s default, replaced by create_render_data(spec)
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
-    renderer._render_product_paths = []
     renderer._camera_render_data = []
     renderer._next_camera_id = 0
     renderer._exported_usd_string = None
@@ -226,13 +225,17 @@ def test_capture_object_scales_populates_source_and_destination_scale_array(env_
 
     _prepare_clones(renderer, plan)
     renderer._capture_object_scales(stage)
-    scales = renderer._create_object_scale_array(
+    renderer._sdp.backend.transform_paths = (
         [f"{env_template.format(index)}/Object" for index in range(3)]
         + [f"{env_template.format(index)}/Object_1" for index in (0, 2)]
         + ["/World/Shared"]
     )
+    renderer.backend.renderer.bind_attribute = Mock()
+    renderer._setup_xform_bindings()
 
-    np.testing.assert_allclose(scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [1, 1, 8], [1, 1, 8], [2, 3, 4]])
+    np.testing.assert_allclose(
+        renderer._object_scales.numpy(), [[1, 1, 8], [1, 1, 4], [1, 1, 8], [1, 1, 8], [1, 1, 8], [2, 3, 4]]
+    )
     assert "/World/envs/Unplanned" not in renderer._object_scales_by_path
 
 
@@ -354,7 +357,6 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
-        monkeypatch.setattr(ovstage.population, "apply_usd_changes", Mock())
         cfg = OvstageBackendCfg(consumer_cfg=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
         backend = OvstageBackend(cfg)
         OvstageReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
@@ -388,8 +390,19 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
     assert not hasattr(OVRTXRenderer, "_clone_sources")
     for name in ("_initialize_camera_render_data_from_spec", "_init_fields_legacy", "_init_fields_ovstage"):
         assert not hasattr(OVRTXRenderer, name)
+    for name in (
+        "_create_object_scale_array",
+        "_update_camera_legacy",
+        "_update_camera_ovstage",
+        "_render_legacy",
+        "_render_ovstage",
+    ):
+        assert not hasattr(OVRTXRenderer, name)
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
     assert not any(isinstance(node, ast.Name) and node.id == "ClonePlan" for node in ast.walk(renderer_tree))
+    assert not any(
+        isinstance(node, ast.Attribute) and node.attr == "_render_product_paths" for node in ast.walk(renderer_tree)
+    )
     tree = ast.parse(Path(replication.__file__).read_text())
     for function in tree.body:
         if isinstance(function, ast.FunctionDef) and function.name in {"ovrtx_replicate", "ovstage_replicate"}:

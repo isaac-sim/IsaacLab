@@ -204,7 +204,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
         camera.warp_buffers = {str(RenderBufferKind.RGB_HDR): object(), str(RenderBufferKind.RGBA): object()}
         camera.ppisp_pipeline = types.SimpleNamespace(apply=lambda *buffers: postprocessed.append(buffers))
         products[camera.render_product_path] = types.SimpleNamespace(frames=[object()])
-    renderer._render_product_paths = [*products, "/Render/UnrequestedCamera"]
+    renderer._camera_render_data = [*cameras, types.SimpleNamespace(render_product_path="/Render/UnrequestedCamera")]
     if missing_output == "product":
         del products[cameras[-1].render_product_path]
     elif missing_output == "frame":
@@ -241,7 +241,10 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
 
     assert len(submissions) == 1
     # Unrequested products are submitted too, and only the requested cameras are read back.
-    assert submissions[0]["render_products"] == set(renderer._render_product_paths)
+    assert submissions[0]["render_products"] == {
+        *[f"/Render/Camera{i}" for i in range(len(cameras))],
+        "/Render/UnrequestedCamera",
+    }
     if use_ovstage:
         assert submissions[0]["ordinal"] == 7
         assert published_ordinals == [7]
@@ -400,7 +403,9 @@ def test_ovrtx_multiple_cameras_render_independent_views(monkeypatch, use_ovstag
             torch.tensor([[0.0, 0, 0, 1.0]] * 2, device="cuda:0"), origin="opengl", target="world"
         )
         orientations = ProxyArray(wp.from_torch(quats, dtype=wp.quatf))
-        renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
+        with monkeypatch.context() as patches:
+            patches.setattr(wp, "empty", MagicMock(side_effect=AssertionError("Camera updates must reuse GPU buffers")))
+            renderer.update_camera(cameras[1][0], positions, orientations, cameras[1][1].intrinsic_matrices)
         renderer.render_batch([rd for rd, _ in cameras])
         for rd, data in cameras:
             renderer.read_output(rd, data)
@@ -477,7 +482,6 @@ def test_async_cameras_publish_independently_with_capture_metadata_and_reset(mon
         data.create_buffers(2, "cpu")
         renderer.set_outputs(camera, data.output)
         camera_data.append(data)
-    renderer._render_product_paths = [camera.render_product_path for camera in cameras]
     frame = ProxyArray(wp.zeros(2, dtype=wp.int64, device="cpu"))
     operations = []
     ordinal = 0
@@ -636,7 +640,6 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     renderer._device = "cpu"
     renderer._exported_usd_string = None
     renderer._next_camera_id = 0
-    renderer._render_product_paths = []
     renderer._use_ovstage = use_ovstage
     renderer._current_ordinal = 1
     renderer.backend.renderer = MagicMock()
@@ -883,7 +886,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     other_camera = renderer._camera_render_data[0]
     render_data = _make_ovrtx_camera_render_data()
     render_data.render_product_path = "/RenderCamera_0/RenderProduct_to_remove"
-    renderer._render_product_paths.append(render_data.render_product_path)
     renderer._camera_render_data.append(render_data)
     render_data.warp_buffers = {"rgba": wp.zeros((8, 16, 4), dtype=wp.uint8, device="cpu")}
     render_data.renderer_info = {"semantic_segmentation": {"idToLabels": {}}}
@@ -936,7 +938,6 @@ def test_ovrtx_cleanup_releases_only_the_given_render_data(monkeypatch, cleanup_
     assert render_data.renderer_info == {}
     assert render_data.ppisp_pipeline is None
     assert render_data.pending is render_data.ready is None
-    assert renderer._render_product_paths == ["/RenderCamera_0/RenderProduct_camera"]
     assert renderer._initialized_scene is True
 
 
@@ -977,7 +978,6 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     renderer._initialized_scene = True
     renderer._device = "cpu"
     renderer._next_camera_id = 0
-    renderer._render_product_paths = []
     renderer._use_ovstage = use_ovstage
     renderer._current_ordinal = 1
     renderer.backend.renderer = MagicMock()
@@ -1050,7 +1050,6 @@ def _make_legacy_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._object_xform_binding = _RecordingBinding(events, "object")
     renderer._geometry_points_binding = _RecordingBinding(events, "geometry")
     renderer.backend.renderer = Backend()
-    renderer._render_product_paths = ["/RenderCamera_0/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
     return renderer
@@ -1104,7 +1103,6 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer._geometry_paths_list = "geometry"
     renderer.backend.renderer = Backend()
     renderer.scene._resources = ExitStack()
-    renderer._render_product_paths = ["/RenderCamera_0/RenderProduct_camera"]
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
     renderer._current_ordinal = 7
