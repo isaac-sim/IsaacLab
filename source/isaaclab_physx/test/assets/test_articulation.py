@@ -22,6 +22,7 @@ HEADLESS = True
 
 launch_test_simulation()
 
+import logging
 import sys
 from pathlib import Path
 
@@ -911,7 +912,7 @@ def test_out_of_range_default_joint_vel(sim, device):
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
-def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
+def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, caplog):
     """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
 
     This test verifies that:
@@ -981,6 +982,22 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
         default_joint_pos_torch[env_ids][:, joint_ids] <= limits[..., 1]
     )
     assert torch.all(within_bounds)
+
+    # Logging level changes must not change clamping or reuse an old violation count.
+    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+    limits[..., 1] = 0.5
+    articulation_logger = type(articulation).__module__
+    for level in (logging.WARNING, logging.INFO):
+        articulation.data.default_joint_pos.torch.fill_(1.0)
+        caplog.clear()
+        with caplog.at_level(level, logger=articulation_logger):
+            articulation.write_joint_position_limit_to_sim_index(limits=limits, warn_limit_violation=False)
+        assert bool(caplog.records) == (level == logging.INFO)
+        torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(limits[..., 1], 0.5))
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=articulation_logger):
+        articulation.write_joint_position_limit_to_sim_mask(limits=limits, warn_limit_violation=False)
+    assert not caplog.records
 
 
 @pytest.mark.parametrize("num_articulations", [2])

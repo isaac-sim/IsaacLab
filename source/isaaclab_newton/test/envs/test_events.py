@@ -56,10 +56,17 @@ def event_env(
     body_names = ["base", "left_upper", "left_tip", "right_upper", "right_tip"]
     for body_index, name in enumerate(body_names):
         for shape_index in range(body_index + 1):
-            cube = UsdGeom.Cube.Define(stage, f"/Robot/{name}/Collider_{shape_index}")
-            cube.CreateSizeAttr(0.05)
-            UsdGeom.Xformable(cube).AddTranslateOp().Set((0.0, shape_index * 0.1, 0.0))
-            UsdPhysics.CollisionAPI.Apply(cube.GetPrim())
+            # Mixed collider types: Newton imports colliders grouped by type, so a body's shapes are not
+            # contiguous in the model's shape order.
+            collider_path = f"/Robot/{name}/Collider_{shape_index}"
+            if shape_index % 2:
+                collider = UsdGeom.Sphere.Define(stage, collider_path)
+                collider.CreateRadiusAttr(0.025)
+            else:
+                collider = UsdGeom.Cube.Define(stage, collider_path)
+                collider.CreateSizeAttr(0.05)
+            UsdGeom.Xformable(collider).AddTranslateOp().Set((0.0, shape_index * 0.1, 0.0))
+            UsdPhysics.CollisionAPI.Apply(collider.GetPrim())
     path = tmp_path_factory.mktemp("newton_events") / "robot.usda"
     stage.Export(str(path))
     scene_cfg = InteractiveSceneCfg(num_envs=4, env_spacing=5.0)

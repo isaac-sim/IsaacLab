@@ -120,7 +120,9 @@ class NoiseModel:
         pass
 
     def __call__(self, data: torch.Tensor) -> torch.Tensor:
-        """Apply the noise to the data.
+        """Apply the noise without modifying the input data.
+
+        Implementations must use out-of-place operations or clone the input before modifying it.
 
         Args:
             data: The data to apply the noise to. Shape is (num_envs, ...).

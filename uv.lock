@@ -19,13 +19,14 @@ prerelease-mode = "allow"
 overrides = [
     { name = "mujoco", specifier = "~=3.12.0" },
     { name = "mujoco-warp", specifier = "~=3.12.0" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0" },
+    { name = "newton", extras = ["sim"], git = "https://github.com/newton-physics/newton.git?rev=release-1.6" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numpy", specifier = ">=2" },
     { name = "packaging", specifier = ">=20,<27" },
     { name = "torch", specifier = "==2.12.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "torchvision", specifier = "==0.27.0", index = "https://download.pytorch.org/whl/cu130" },
     { name = "usd-exchange", specifier = "==3.0.0" },
+    { name = "usd-optimize", specifier = "~=1.3.0" },
 ]
 
 [[package]]
@@ -1699,7 +1700,7 @@ wheels = [
 
 [[package]]
 name = "isaaclab"
-version = "31.0.0"
+version = "33.0.0"
 source = { editable = "source/isaaclab" }
 
 [[package]]
@@ -1723,7 +1724,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-contrib"
-version = "3.0.0"
+version = "3.1.1"
 source = { editable = "source/isaaclab_contrib" }
 dependencies = [
     { name = "isaaclab" },
@@ -1989,7 +1990,7 @@ requires-dist = [
     { name = "meshio", specifier = ">=5.3.5" },
     { name = "moviepy", marker = "extra == 'video'", specifier = ">=1.0.3,<2.0.0.dev0" },
     { name = "myst-parser", marker = "extra == 'dev'" },
-    { name = "newton", extras = ["sim"], specifier = "==1.6.0" },
+    { name = "newton", extras = ["sim"], specifier = ">=1.2.0" },
     { name = "newton-usd-schemas", specifier = ">=0.5.0" },
     { name = "numba", specifier = ">=0.63.1" },
     { name = "numpy", specifier = ">=2" },
@@ -2067,7 +2068,7 @@ provides-extras = ["tetrahedralization", "video", "importers", "test", "dev", "s
 
 [[package]]
 name = "isaaclab-experimental"
-version = "0.2.3"
+version = "0.2.5"
 source = { editable = "source/isaaclab_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2078,7 +2079,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-mimic"
-version = "2.0.11"
+version = "2.1.0"
 source = { editable = "source/isaaclab_mimic" }
 dependencies = [
     { name = "isaaclab" },
@@ -2095,7 +2096,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-newton"
-version = "9.0.0"
+version = "9.1.2"
 source = { editable = "source/isaaclab_newton" }
 dependencies = [
     { name = "isaaclab" },
@@ -2106,7 +2107,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-ov"
-version = "3.5.0"
+version = "4.1.1"
 source = { editable = "source/isaaclab_ov" }
 dependencies = [
     { name = "isaaclab" },
@@ -2121,7 +2122,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-physx"
-version = "7.3.0"
+version = "7.4.1"
 source = { editable = "source/isaaclab_physx" }
 dependencies = [
     { name = "isaaclab" },
@@ -2143,7 +2144,7 @@ requires-dist = [{ name = "isaaclab", editable = "source/isaaclab" }]
 
 [[package]]
 name = "isaaclab-rl"
-version = "1.3.0"
+version = "2.0.0"
 source = { editable = "source/isaaclab_rl" }
 dependencies = [
     { name = "isaaclab" },
@@ -2160,7 +2161,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks"
-version = "21.3.0"
+version = "23.1.0"
 source = { editable = "source/isaaclab_tasks" }
 dependencies = [
     { name = "isaaclab" },
@@ -2175,7 +2176,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-tasks-experimental"
-version = "0.0.1"
+version = "1.0.0"
 source = { editable = "source/isaaclab_tasks_experimental" }
 dependencies = [
     { name = "isaaclab" },
@@ -2190,7 +2191,7 @@ requires-dist = [
 
 [[package]]
 name = "isaaclab-teleop"
-version = "0.9.0"
+version = "0.10.1"
 source = { editable = "source/isaaclab_teleop" }
 dependencies = [
     { name = "isaaclab" },
@@ -3291,13 +3292,10 @@ wheels = [
 
 [[package]]
 name = "newton"
-version = "1.6.0"
-source = { registry = "https://pypi.org/simple" }
+version = "1.6.1rc1"
+source = { git = "https://github.com/newton-physics/newton.git?rev=release-1.6#dff296359317779bd08e3ba4bc23bc5d4e20bbcd" }
 dependencies = [
     { name = "warp-lang" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/7b/d0/1955c2623762fd1d9f3bc0bb9866b6c0669e1e277202bdc16772520d7da1/newton-1.6.0-py3-none-any.whl", hash = "sha256:5eedebe17d7261ca39e8f97c2f2f20e22e7264d0aed01782f3cb1dd60180b872", size = 6159741, upload-time = "2026-09-10T13:50:10.666Z" },
 ]
 
 [package.optional-dependencies]
@@ -5700,24 +5698,24 @@ wheels = [
 
 [[package]]
 name = "usd-optimize"
-version = "1.2.1"
+version = "1.3.0"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "usd-exchange" },
     { name = "usd-validation-nvidia" },
 ]
 wheels = [
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:6a351bcee83dd38ab6365a83fcfb6c4ead0965b2a8ffd9733d80f16991c97374" },
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:a3fb65529bccf59d4043e22d9f918ef99ef0c98000479d6abeedb2368d3279d6" },
-    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.2.1-cp312-cp312-win_amd64.whl", hash = "sha256:77635aaef35e03d5858b006bb1ff19bbb13bbc7050102bca0e9a873cb44f6377" },
+    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.3.0-cp312-cp312-manylinux_2_35_aarch64.whl", hash = "sha256:f241e7f6e4d60640ade815c77b749c2e207f27042dcdf2284919bc0020dac86b" },
+    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.3.0-cp312-cp312-manylinux_2_35_x86_64.whl", hash = "sha256:211316cd5a919ccf62c4e5d03dcdf3b3b7be21f26850afa003094b064b3fd7a0" },
+    { url = "https://pypi.nvidia.com/usd-optimize/usd_optimize-1.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:524620758309e558e551c245b2ded3631af159673a05585cd7b758826f63334f" },
 ]
 
 [[package]]
 name = "usd-validation-nvidia"
-version = "1.21.0"
+version = "1.22.0"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/usd-validation-nvidia/usd_validation_nvidia-1.21.0-py3-none-any.whl", hash = "sha256:dcd2871e75f2629670351046917dd8fa2e0e210cbb4f88b33f3624ced931393e" },
+    { url = "https://pypi.nvidia.com/usd-validation-nvidia/usd_validation_nvidia-1.22.0-py3-none-any.whl", hash = "sha256:5bf8756a1642c627561859f46ba04b898f79ff0b09a494aa468d027821a2b5c4" },
 ]
 
 [[package]]

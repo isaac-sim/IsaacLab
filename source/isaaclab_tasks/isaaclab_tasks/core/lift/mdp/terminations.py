@@ -31,7 +31,7 @@ class out_of_bound(ManagerTermBase):
     def __init__(self, cfg: TerminationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("object"))
+        asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
         self._object: RigidObject = env.scene[asset_cfg.name]
 
         # Pre-apply env_origins so we can compare directly against world-space positions.
@@ -153,7 +153,7 @@ def joint_vel_out_of_sim_limit(
 ) -> torch.Tensor:
     """Terminate when joint velocities exceed solver limits [m/s or rad/s, depending on joint type]."""
     asset: Articulation = env.scene[asset_cfg.name]
-    joint_ids = asset_cfg.joint_ids if asset_cfg.joint_ids is not None else slice(None)
+    joint_ids = asset_cfg.joint_ids
     return torch.any(
         torch.abs(asset.data.joint_vel.torch[:, joint_ids]) > asset.data.joint_vel_limits.torch[:, joint_ids], dim=1
     )

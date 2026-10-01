@@ -53,16 +53,7 @@ class body_state_b(ManagerTermBase):
 
     The state for each body is stacked horizontally as
     ``[position(3), quaternion(4)(xyzw), linvel(3), angvel(3)]`` and then concatenated over bodies.
-
-    The body indices are baked to a device tensor at construction.
     """
-
-    def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
-        super().__init__(cfg, env)
-        body_ids = cfg.params["body_asset_cfg"].body_ids
-        if isinstance(body_ids, list):
-            body_ids = torch.tensor(body_ids, dtype=torch.long, device=env.device)
-        self._body_ids = body_ids
 
     def __call__(
         self,
@@ -86,10 +77,10 @@ class body_state_b(ManagerTermBase):
         body_asset: Articulation = env.scene[body_asset_cfg.name]
         base_asset: Articulation = env.scene[base_asset_cfg.name]
         # world pose of the bodies, flattened over environments
-        body_pos_w = body_asset.data.body_pos_w.torch[:, self._body_ids]
+        body_pos_w = body_asset.data.body_pos_w.torch[:, body_asset_cfg.body_ids]
         num_bodies = body_pos_w.shape[1]
         body_pos_w = body_pos_w.reshape(-1, 3)
-        body_quat_w = body_asset.data.body_quat_w.torch[:, self._body_ids].reshape(-1, 4)
+        body_quat_w = body_asset.data.body_quat_w.torch[:, body_asset_cfg.body_ids].reshape(-1, 4)
         # world pose of the base frame, broadcast over the bodies
         root_pos_w = base_asset.data.root_link_pos_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 3)
         root_quat_w = base_asset.data.root_link_quat_w.torch.unsqueeze(1).expand(-1, num_bodies, -1).reshape(-1, 4)
@@ -99,8 +90,8 @@ class body_state_b(ManagerTermBase):
         # and contact-response differences); pose-only states with observation history transfer across
         # physics backends, velocity states do not
         if include_vel:
-            body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, self._body_ids].view(-1, 3)
-            body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, self._body_ids].view(-1, 3)
+            body_lin_vel_w = body_asset.data.body_lin_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
+            body_ang_vel_w = body_asset.data.body_ang_vel_w.torch[:, body_asset_cfg.body_ids].view(-1, 3)
             body_lin_vel_b = quat_apply_inverse(root_quat_w, body_lin_vel_w)
             body_ang_vel_b = quat_apply_inverse(root_quat_w, body_ang_vel_w)
             out = torch.cat((body_pos_b, body_quat_b, body_lin_vel_b, body_ang_vel_b), dim=1)
@@ -119,14 +110,14 @@ class object_point_cloud_b(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        object_cfg: SceneEntityCfg = cfg.params.get("object_cfg", SceneEntityCfg("object"))
-        ref_asset_cfg: SceneEntityCfg = cfg.params.get("ref_asset_cfg", SceneEntityCfg("robot"))
-        num_points: int = cfg.params.get("num_points", 10)
+        object_cfg: SceneEntityCfg = cfg.params["object_cfg"]
+        ref_asset_cfg: SceneEntityCfg = cfg.params["ref_asset_cfg"]
+        num_points: int = cfg.params["num_points"]
         self.object: RigidObject = env.scene[object_cfg.name]
         self.ref_asset: Articulation = env.scene[ref_asset_cfg.name]
         self.points_local = sample_object_point_cloud(env.num_envs, num_points, self.object.cfg.prim_path, env.device)
         self.points_w = torch.zeros_like(self.points_local)
-        if cfg.params.get("visualize", True):
+        if cfg.params["visualize"]:
             marker_cfg = replace(RAY_CASTER_MARKER_CFG, prim_path="/Visuals/ObservationPointCloud")
             marker_cfg.markers["hit"].radius = 0.0025
             self.visualizer = VisualizationMarkers(marker_cfg)
@@ -207,7 +198,7 @@ class vision_camera(ManagerTermBase):
 
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
-        sensor_cfg: SceneEntityCfg = cfg.params.get("sensor_cfg", SceneEntityCfg("tiled_camera"))
+        sensor_cfg: SceneEntityCfg = cfg.params["sensor_cfg"]
         self.sensor: Camera = env.scene.sensors[sensor_cfg.name]
         self.sensor_type = self.sensor.cfg.data_types[0]
         if is_depth_like(self.sensor_type):
@@ -258,9 +249,9 @@ class DeformableSampledPointsInRobotRootFrame(ManagerTermBase):
     def __init__(self, cfg: ObservationTermCfg, env: ManagerBasedRLEnv):
         super().__init__(cfg, env)
 
-        self.asset_cfg: SceneEntityCfg = cfg.params.get("asset_cfg", SceneEntityCfg("deformable"))
-        self.robot_cfg: SceneEntityCfg = cfg.params.get("robot_cfg", SceneEntityCfg("robot"))
-        self.num_points: int = cfg.params.get("num_points", 20)
+        self.asset_cfg: SceneEntityCfg = cfg.params["asset_cfg"]
+        self.robot_cfg: SceneEntityCfg = cfg.params["robot_cfg"]
+        self.num_points: int = cfg.params["num_points"]
 
         asset: DeformableObject = env.scene[self.asset_cfg.name]
         self.num_nodes = asset.data.nodal_pos_w.shape[1]
