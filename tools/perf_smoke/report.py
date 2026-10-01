@@ -12,7 +12,9 @@ same data.
 
 from __future__ import annotations
 
+import html
 import json
+import re
 from pathlib import Path
 
 from .compare import ERROR, FAIL, PASS, SKIP, WARN, Report
@@ -120,3 +122,115 @@ def write_json(report: Report, path: Path) -> None:
     """Write the machine-readable comparison to ``path``. The Markdown form goes to stdout."""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.as_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _build_text(value: object) -> str:
+    """Keep artifact-provided labels inside their Markdown table cell or paragraph."""
+    result = html.escape(str(value)).replace("\n", " ").replace("\r", " ")
+    for character, entity in (("|", "&#124;"), ("`", "&#96;"), ("[", "&#91;"), ("]", "&#93;")):
+        result = result.replace(character, entity)
+    return result
+
+
+def _build_identity(label: str, identity: dict | None) -> str:
+    if not identity:
+        return f"**{label}:** unavailable."
+    commit = _build_text(str(identity.get("source_commit", "unknown"))[:12])
+    run = _build_text(identity.get("run_id", "unknown"))
+    attempt = _build_text(identity.get("run_attempt", "unknown"))
+    # Reconstruct links even for unavailable identities recovered from an earlier report.
+    repository = identity.get("repository", "")
+    origin = f"https://github.com/{repository}" if re.fullmatch(r"[\w.-]+/[\w.-]+", repository) else None
+    source = commit
+    if origin and re.fullmatch(r"[0-9a-fA-F]{40}", str(identity.get("source_commit", ""))):
+        source = f"[{commit}]({origin}/commit/{identity['source_commit']})"
+    execution = f"run {run}, attempt {attempt}"
+    run_url = None
+    if origin and all(str(identity.get(field, "")).isdigit() for field in ("run_id", "run_attempt")):
+        run_url = f"{origin}/actions/runs/{identity['run_id']}"
+        execution = f"[{execution}]({run_url}/attempts/{identity['run_attempt']})"
+    evidence = ""
+    if run_url and str(identity.get("artifact_id", "")).isdigit():
+        evidence = f" · [source results]({run_url}/artifacts/{identity['artifact_id']})"
+    note = ""
+    if identity.get("source_provenance") == "github_run_metadata":
+        note = " · source SHA recovered from GitHub; tested checkout not independently recorded"
+    return f"**{label}:** {source} · {execution}{evidence}{note}."
+
+
+def render_build_comparison(report: dict) -> str:
+    """Render exact-build FPS observations within the existing Performance smoke summary."""
+    selection = report.get("selection", {})
+    identities = {side: report.get(side) for side in ("baseline", "candidate")}
+    unavailable_side = selection.get("unavailable_side")
+    if unavailable_side in identities and not identities[unavailable_side]:
+        identities[unavailable_side] = selection.get("unavailable_evidence")
+    a_label = "A — historical baseline" + (" (evidence unavailable)" if unavailable_side == "baseline" else "")
+    b_label = "B — current benchmark" + (" (evidence unavailable)" if unavailable_side == "candidate" else "")
+    lines = [
+        "### Automatic build comparison",
+        "",
+        _build_identity(a_label, identities["baseline"]),
+        "",
+        _build_identity(b_label, identities["candidate"]),
+        "",
+        "**Baseline selection:** " + _build_text(selection.get("reason", "Selection information is unavailable.")),
+        "",
+    ]
+    if selection.get("reference_branch"):
+        anchor = _build_text(str(selection.get("reference_commit") or "unknown")[:12])
+        lines += [f"Reference: {_build_text(selection['reference_branch'])} at `{anchor}`.", ""]
+    visited = selection.get("visited_commits", [])
+    if report.get("baseline") and len(visited) > 1:
+        lines += [f"The selected reference is {len(visited) - 1} first-parent commit(s) older than the anchor.", ""]
+    candidate = report.get("candidate") or {}
+    if candidate.get("run_attempt") and report.get("report_attempt") != candidate["run_attempt"]:
+        lines += [
+            f"Measurements: attempt {_build_text(candidate['run_attempt'])}; "
+            f"report: attempt {_build_text(report.get('report_attempt'))}.",
+            "",
+        ]
+    if selection.get("reason_code"):
+        lines += ["**Comparison unavailable:** " + _build_text(selection["reason_code"]) + ".", ""]
+    rows = report.get("rows", [])
+    if rows:
+        lines += [
+            "| Workload | A FPS | B FPS | Δ FPS (B − A) | Δ % | Samples A / B | Result |",
+            "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+        ]
+    for row in rows:
+        counts = []
+        for side in ("baseline", "candidate"):
+            item = row[side]
+            expected = item.get("expected_count")
+            counts.append(f"{item['count']}/{expected if expected is not None else '?'}")
+        details = [row["status"], *row.get("reasons", []), *row.get("notes", [])]
+        for difference in row.get("protocol_differences", []) + row.get("context_differences", []):
+            details.append(
+                f"{difference['field']}: "
+                f"{json.dumps(difference['baseline'], sort_keys=True)} → "
+                f"{json.dumps(difference['candidate'], sort_keys=True)}"
+            )
+        delta = row.get("absolute_change")
+        absolute = "—" if delta is None else f"{delta:+.6g}"
+        lines.append(
+            f"| {_build_text(row['label'])} | {_num(row['baseline']['median'])} | "
+            f"{_num(row['candidate']['median'])} | {absolute} | {_pct(row.get('change_pct'))} | "
+            f"{' / '.join(counts)} | {'<br>'.join(_build_text(item) for item in details)} |"
+        )
+    if not rows:
+        lines.append("No readable workload rows are available for this comparison.")
+    lines += [
+        "",
+        "FPS values are medians of the available samples. Positive Δ means higher observed FPS; "
+        "negative Δ means lower observed FPS. Sample counts are valid/expected for A and B.",
+        "",
+        "The existing rolling-history CI gate above is unchanged. "
+        "These exact-build deltas do not determine its verdict.",
+        "",
+    ]
+    for note in dict.fromkeys(report.get("notes", [])):
+        lines.append("- " + _build_text(note))
+    for issue in selection.get("issues", []):
+        lines.append("- Selection note: " + _build_text(json.dumps(issue, sort_keys=True)))
+    return "\n".join(lines) + "\n"

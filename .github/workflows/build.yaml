@@ -1271,6 +1271,9 @@ jobs:
   performance-smoke-summary:
     name: performance-smoke
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     needs: [performance-smoke]
     if: always() && needs.performance-smoke.result != 'skipped'
     steps:
@@ -1291,6 +1294,42 @@ jobs:
         uv run --no-project python -m tools.perf_smoke.cli aggregate \
           --comparison_dir comparisons \
           | tee -a "$GITHUB_STEP_SUMMARY"
+
+    - name: Compare the current benchmark with its historical build
+      if: always()
+      continue-on-error: true
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+      run: uv run --no-project python -m tools.perf_smoke.build_compare --output_dir build-comparison
+
+    - name: Upload the automatic build comparison
+      id: build_comparison_artifact
+      if: always()
+      continue-on-error: true
+      uses: actions/upload-artifact@v7
+      with:
+        name: performance-build-comparison-${{ github.run_id }}-${{ github.run_attempt }}
+        path: build-comparison/
+        if-no-files-found: warn
+
+    - name: Show the automatic build comparison
+      if: always()
+      continue-on-error: true
+      env:
+        COMPARISON_ARTIFACT_URL: ${{ steps.build_comparison_artifact.outputs.artifact-url }}
+      run: |
+        if [ -f build-comparison/build-comparison.md ]; then
+          cat build-comparison/build-comparison.md >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo '### Automatic build comparison' >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Comparison unavailable: report generation did not complete. See the comparison step above.' >> "$GITHUB_STEP_SUMMARY"
+        fi
+        if [ -n "$COMPARISON_ARTIFACT_URL" ]; then
+          printf '\n[Download comparison report and provenance](%s)\n' "$COMPARISON_ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
+        else
+          printf '\nThe comparison artifact was not uploaded; source-result links remain in the summary.\n' >> "$GITHUB_STEP_SUMMARY"
+        fi
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and
