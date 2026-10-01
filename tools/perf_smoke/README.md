@@ -16,6 +16,11 @@ The comparison report check is informational. The separate `performance-smoke`
 job check continues to report the existing rolling-history gate; its status and
 exit behavior are unchanged.
 
+GitHub can group the informational comparison under another workflow, such as
+**Pull Request Labeler**; expand that group to find the check. The native
+`performance-smoke` job also includes an **Open rendered Performance smoke Summary**
+annotation with the exact Summary URL. GitHub controls check-suite grouping.
+
 ## What runs
 
 The existing label trigger starts the initial PR run. Subsequent pushes trigger
