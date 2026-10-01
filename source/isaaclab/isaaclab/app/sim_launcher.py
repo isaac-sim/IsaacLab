@@ -22,7 +22,6 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
-import torch
 from isaaclab_newton.physics import NewtonCfg, VBDSolverCfg
 from isaaclab_ov.physics import OvPhysxCfg
 from isaaclab_ov.renderers import OVRTXRendererCfg
@@ -488,6 +487,9 @@ def _resolve_distributed_device(args: dict) -> None:
     """
     if not args.get("distributed", False):
         return
+
+    # torch loads NumPy/OpenBLAS, whose at-fork handlers can crash Kit's platform-info fork during startup
+    import torch  # noqa: PLC0415
 
     local_rank = int(os.getenv("LOCAL_RANK", "0")) + int(os.getenv("JAX_LOCAL_RANK", "0"))
     num_visible_gpus = torch.cuda.device_count()
