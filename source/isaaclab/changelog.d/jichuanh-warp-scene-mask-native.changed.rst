@@ -10,3 +10,7 @@
 * Changed :class:`~isaaclab.actuators.DelayedPDActuator` to raise :class:`ValueError` at construction unless
   ``0 <= min_delay <= max_delay``, instead of at a reset, because masked resets apply the sampled delays without
   checking them on the host.
+* Changed the ``limit`` annotation of
+  :meth:`~isaaclab.assets.BaseArticulation.set_fixed_tendon_position_limit_index` and
+  :meth:`~isaaclab.assets.BaseArticulation.set_fixed_tendon_position_limit_mask` to exclude ``float``, matching the
+  backends, which raise :class:`ValueError` for a float because it cannot hold both bounds.

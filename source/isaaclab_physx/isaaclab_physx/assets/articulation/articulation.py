@@ -3018,7 +3018,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_index(
         self,
         *,
-        limit: float | torch.Tensor | wp.array,
+        limit: torch.Tensor | wp.array,
         fixed_tendon_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         env_ids: Sequence[int] | torch.Tensor | wp.array | None = None,
         full_data: bool = False,
@@ -3062,7 +3062,7 @@ class Articulation(BaseArticulation):
     def set_fixed_tendon_position_limit_mask(
         self,
         *,
-        limit: float | torch.Tensor | wp.array,
+        limit: torch.Tensor | wp.array,
         fixed_tendon_mask: wp.array | None = None,
         env_mask: wp.array | None = None,
     ) -> None:
