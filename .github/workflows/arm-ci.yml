@@ -175,31 +175,27 @@ jobs:
       uses: ./.github/actions/resolve-ov-pins
       id: ov_pins
 
+    # Same action and settings as x86's rendering-correctness-kitless (legacy) job,
+    # with the image built above instead of an ECR pull. Pushes to protected
+    # branches publish the arm64 Warp and OVRTX caches that pull requests restore,
+    # the role x86's cache-warm jobs play.
     - name: Run arm_ci marker tests
-      uses: ./.github/actions/run-tests
+      uses: ./.github/actions/run-package-tests
       with:
-        test-path: tools
-        result-file: arm-ci-report.xml
-        container-name: isaac-lab-arm-ci-${{ github.run_id }}-${{ github.run_attempt }}
+        image-source: local
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
-        extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
+        isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
+        isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
+        ci-marker: arm_ci
         # ovstage rendering cases are post-merge only on x86 as well.
-        test-k-expr: not ovphysx and not ovstage
-        ci-marker: arm_ci
-        volume-mount-source: ${{ github.workspace }}
-
-    - name: Run arm_ci OVPhysX marker tests
-      uses: ./.github/actions/run-tests
-      with:
-        test-path: tools
-        result-file: arm-ci-ovphysx-report.xml
-        container-name: isaac-lab-arm-ci-ovphysx-${{ github.run_id }}-${{ github.run_attempt }}
-        image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        test-k-expr: not ovstage
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovrtx }} ${{ steps.ov_pins.outputs.ovphysx }}"
-        test-k-expr: ovphysx and not ovstage
-        ci-marker: arm_ci
-        volume-mount-source: ${{ github.workspace }}
-
+        warp-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
+        ovrtx-shader-cache: ${{ github.event_name == 'push' && 'save' || 'restore' }}
+        ovrtx-shader-cache-trees: kitless
+        result-file: arm-ci-report.xml
+        container-name: isaac-lab-arm-ci
+        omni-github-test-type: arm-ci
 
     - name: Run shared Cartpole smoke
       uses: ./.github/actions/run-tests

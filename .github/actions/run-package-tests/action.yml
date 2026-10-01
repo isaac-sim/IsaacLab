@@ -5,7 +5,8 @@
 
 name: 'Run Package Tests'
 description: >
-  Pulls the Docker image from ECR, runs pytest inside the container, uploads
+  Pulls the Docker image from ECR (or uses one already built on the runner),
+  runs pytest inside the container, uploads
   results as an artifact, and fails fork PRs on test failures.
   NOTE: The calling job must check out the code before using this action.
 
@@ -26,6 +27,17 @@ inputs:
   cache-tag:
     description: 'ECR cache tag'
     default: 'cache-base'
+    required: false
+  image-source:
+    description: >-
+      Where the test image comes from. 'ecr' pulls it from ECR, building and pushing it on
+      a miss. 'local' uses an image the calling job already built on this runner, for
+      runners ECR does not serve, such as the arm64 DGX Spark pool.
+    default: 'ecr'
+    required: false
+  ci-marker:
+    description: 'Optional pytest -m marker expression applied to every test file (e.g. arm_ci)'
+    default: ''
     required: false
   filter-pattern:
     description: >-
@@ -111,14 +123,15 @@ inputs:
       newest compatible snapshot and never writes; every test job uses this, so
       a pull request can never publish kernels built from unmerged code. 'save'
       restores the same way and writes the result back as a new snapshot, making
-      post-merge a cumulative writeback; only warm-warp-cache uses it.
+      post-merge a cumulative writeback; only warm-warp-cache and ARM CI's
+      post-merge run use it.
     default: ''
     required: false
   ovrtx-shader-cache:
     description: >-
       OVRTX shader cache mode. Empty disables the cache. 'restore' reads the
       newest compatible snapshot and never writes. 'save' restores and writes
-      back a new snapshot; only warm-ovrtx-cache uses it.
+      back a new snapshot; only warm-ovrtx-cache and ARM CI's post-merge run use it.
     default: ''
     required: false
   ovrtx-shader-cache-trees:
@@ -184,12 +197,24 @@ runs:
           "pre-test-cleanup" \
           "true"
 
+    - name: Check image source
+      shell: bash
+      env:
+        IMAGE_SOURCE: ${{ inputs.image-source }}
+      run: |
+        case "$IMAGE_SOURCE" in
+          ecr|local) ;;
+          *) echo "::error::image-source must be 'ecr' or 'local', got '$IMAGE_SOURCE'"; exit 1 ;;
+        esac
+
     - name: Record pull start time
+      if: inputs.image-source == 'ecr'
       id: pull-start
       shell: bash
       run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
 
     - name: Pull image from ECR
+      if: inputs.image-source == 'ecr'
       uses: ./.github/actions/ecr-build-push-pull
       with:
         image-tag: ${{ inputs.image-tag }}
@@ -199,7 +224,7 @@ runs:
         cache-tag: ${{ inputs.cache-tag }}
 
     - name: Report pull duration
-      if: always()
+      if: always() && inputs.image-source == 'ecr'
       shell: bash
       run: |
         start_time="${{ steps.pull-start.outputs.time }}"
@@ -348,6 +373,7 @@ runs:
         include-files: ${{ inputs.include-files }}
         test-node-ids-file: ${{ inputs.test-node-ids-file }}
         test-node-ids-key: ${{ inputs.test-node-ids-key }}
+        ci-marker: ${{ inputs.ci-marker }}
         volume-mount-source: ${{ github.workspace }}
         extra-pip-packages: ${{ inputs.extra-pip-packages }}
         extra-uv-packages: ${{ inputs.extra-uv-packages }}
