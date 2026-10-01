@@ -26,6 +26,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any
 
+_REQUEST_TIMEOUT_SECONDS = 60
+
 
 class EvidenceError(ValueError):
     """An explicit evidence failure, with a safe machine-readable reason."""
@@ -59,7 +61,7 @@ class GitHubClient:
         request = urllib.request.Request(url, headers=headers)
         try:
             try:
-                response = self._opener.open(request)
+                response = self._opener.open(request, timeout=_REQUEST_TIMEOUT_SECONDS)
             except urllib.error.HTTPError as exc:
                 if not download or exc.code not in (301, 302, 303, 307, 308):
                     raise
@@ -67,7 +69,7 @@ class GitHubClient:
                 if urllib.parse.urlsplit(destination).scheme != "https":
                     raise EvidenceError("download_redirect", "GitHub artifact redirect is not HTTPS") from None
                 # A fresh request/opener carries no GitHub authorization to the signed URL.
-                response = urllib.request.urlopen(urllib.request.Request(destination))
+                response = urllib.request.urlopen(urllib.request.Request(destination), timeout=_REQUEST_TIMEOUT_SECONDS)
             with response:
                 return response.read(), response.headers
         except EvidenceError:
@@ -77,6 +79,10 @@ class GitHubClient:
             raise EvidenceError(code, f"GitHub evidence request failed (HTTP {exc.code})") from None
         except (urllib.error.URLError, OSError) as exc:
             # Exception text can include credential-bearing signed URLs.
+            if isinstance(exc, TimeoutError) or (
+                isinstance(exc, urllib.error.URLError) and isinstance(exc.reason, TimeoutError)
+            ):
+                raise EvidenceError("timeout", "GitHub evidence request timed out") from None
             raise EvidenceError("inaccessible", f"GitHub evidence request failed ({type(exc).__name__})") from None
 
     def get(self, path: str) -> dict:

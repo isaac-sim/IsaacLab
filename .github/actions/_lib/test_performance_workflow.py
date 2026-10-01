@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Exercise workflow activation and cancellation without starting GPU jobs."""
+"""Exercise workflow activation, source mounts, and cancellation without starting GPU jobs."""
 
 import json
 import os
@@ -15,6 +15,7 @@ import textwrap
 from contextlib import suppress
 from pathlib import Path
 
+import pytest
 import yaml
 
 _WORKFLOW = Path(__file__).resolve().parents[2] / "workflows/build.yaml"
@@ -95,7 +96,8 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     )
     step_script = tmp_path / "workflow-step.sh"
     step_script.write_text(command, encoding="utf-8")
-    scripts = tmp_path / "tools/perf_smoke"
+    controller = tmp_path / "controller"
+    scripts = controller / "tools/perf_smoke"
     scripts.mkdir(parents=True)
     for name in ("run_benchmarks.sh", "source_revision.py"):
         (scripts / name).write_bytes((_WORKFLOW.parents[2] / "tools/perf_smoke" / name).read_bytes())
@@ -113,7 +115,7 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
     (output / "source-manifest.json").write_text(
         json.dumps(runpy.run_path(str(scripts / "source_revision.py"))["prepare_manifest"](tmp_path)), encoding="utf-8"
     )
-    (tmp_path / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
+    (controller / "benchmark-legs.tsv").write_text("fixture|Fixture-Task|1|600|\n", encoding="utf-8")
     executables = tmp_path / "bin"
     executables.mkdir()
     docker = executables / "docker"
@@ -132,7 +134,7 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             if sys.argv[1] == "run" and "--name" in sys.argv:
                 name = sys.argv[sys.argv.index("--name") + 1]
                 marker.write_text(name, encoding="utf-8")
-                print(json.dumps({"pid": os.getpid()}), flush=True)
+                print(json.dumps({"pid": os.getpid(), "argv": sys.argv[1:]}), flush=True)
                 while marker.exists():
                     time.sleep(0.01)
             elif sys.argv[1] == "rm" and marker.exists():
@@ -151,10 +153,18 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
         **os.environ,
         "PATH": f"{executables}{os.pathsep}{os.environ['PATH']}",
         "GITHUB_WORKSPACE": str(tmp_path),
+        "PERF_CONTROLLER": str(controller),
+        "PERF_MEASUREMENT_ROOT": str(controller / "measurement"),
         "GITHUB_RUN_ID": "123",
         "GITHUB_RUN_ATTEMPT": "2",
         "CI_IMAGE_TAG": "fixture-image",
     }
+    expected_mounts = {
+        f"{tmp_path}/{path}:/workspace/isaaclab/{path}:{mode}"
+        for path, mode in (("source", "rw"), ("scripts", "ro"), ("apps", "ro"))
+    }
+    for path in ("source/isaaclab/isaaclab/benchmark", "source/isaaclab/isaaclab/utils/timer.py"):
+        expected_mounts.add(f"{controller}/measurement/{path}:/workspace/isaaclab/{path}:ro")
     for stop_signal in (signal.SIGINT, signal.SIGTERM):
         process = subprocess.Popen(
             ["bash", "--noprofile", "--norc", "-e", "-o", "pipefail", str(step_script)],
@@ -168,6 +178,12 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
         try:
             started = next((json.loads(line) for line in process.stdout if line.startswith("{")), None)
             assert started is not None, (stop_signal.name, process.stderr.read())
+            docker_args = started["argv"][: started["argv"].index(environment["CI_IMAGE_TAG"])]
+            mounts = {docker_args[index + 1] for index, arg in enumerate(docker_args) if arg == "-v"}
+            assert expected_mounts <= mounts, (
+                f"Missing or incorrect Docker source mounts: {sorted(expected_mounts - mounts)};"
+                f" observed: {sorted(mounts)}"
+            )
             process.send_signal(stop_signal)
             # GitHub escalates cancellation after 7.5 s + 2.5 s, then kills the process tree.
             stdout, stderr = process.communicate(timeout=10)
@@ -183,3 +199,8 @@ def test_benchmark_cancellation(tmp_path: Path) -> None:
             with suppress(ProcessLookupError):
                 os.killpg(process.pid, signal.SIGKILL)
             process.communicate()
+
+
+def test_registry_credentials(tmp_path: Path, subtests: pytest.Subtests) -> None:
+    registry = runpy.run_path(str(Path(__file__).with_name("test_registry_credential_fallback.py")))
+    registry["check_registry"](tmp_path / "registry", subtests)

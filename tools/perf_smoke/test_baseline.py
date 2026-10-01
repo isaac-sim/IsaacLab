@@ -606,6 +606,48 @@ class TestGitHubTransport(unittest.TestCase):
         self.assertIsNone(opened.call_args.args[0].get_header("Authorization"))
         self.assertEqual(client._opener.open.call_args.args[0].get_header("Authorization"), "Bearer memory-only")
 
+    def test_api_and_signed_download_read_timeouts_are_bounded_and_reported_safely(self):
+        for download in (False, True):
+            with self.subTest(download=download):
+                client = baseline.GitHubClient(REPO, token="memory-only")
+                client._opener = Mock()
+                response = io.BytesIO(b"unfinished response")
+                response.headers = {}
+                client._opener.open.return_value = response
+                if download:
+                    client._opener.open.side_effect = urllib.error.HTTPError(
+                        "https://api.github.com/artifact",
+                        302,
+                        "redirect",
+                        {"Location": "https://storage.example.invalid/artifact?sig=secret"},
+                        None,
+                    )
+                with (
+                    patch("urllib.request.urlopen", return_value=response) as opened,
+                    patch.object(response, "read", side_effect=TimeoutError("read stalled: ?sig=secret")),
+                    self.assertRaises(baseline.EvidenceError) as raised,
+                ):
+                    if download:
+                        client.download({"id": 7})
+                    else:
+                        client.run_attempt(10, 1)
+                self.assertEqual(raised.exception.code, "timeout")
+                self.assertNotIn("secret", str(raised.exception))
+                self.assertTrue(response.closed)
+                self.assertEqual(client._opener.open.call_args.kwargs["timeout"], 60)
+                if download:
+                    self.assertEqual(opened.call_args.kwargs["timeout"], 60)
+                    self.assertIsNone(opened.call_args.args[0].get_header("Authorization"))
+
+    def test_wrapped_connection_timeout_uses_the_same_safe_failure(self):
+        client = baseline.GitHubClient(REPO)
+        client._opener = Mock()
+        client._opener.open.side_effect = urllib.error.URLError(TimeoutError("connect stalled: ?sig=secret"))
+        with self.assertRaises(baseline.EvidenceError) as raised:
+            client.run_attempt(10, 1)
+        self.assertEqual(raised.exception.code, "timeout")
+        self.assertNotIn("secret", str(raised.exception))
+
     def test_signed_url_not_in_error_message(self):
         client = baseline.GitHubClient(REPO)
         client._opener = Mock()

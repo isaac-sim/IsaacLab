@@ -14,6 +14,7 @@ import json
 import os
 import socket
 import subprocess
+import tempfile
 import zipfile
 from contextlib import suppress
 from datetime import datetime, timezone
@@ -26,7 +27,14 @@ from .source_revision import RUNTIME_MODULE, prepare_manifest
 
 def _write(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent, delete=False) as output:
+        temporary = Path(output.name)
+        try:
+            output.write(json.dumps(value, indent=2, sort_keys=True) + "\n")
+            output.close()
+            temporary.replace(path)
+        finally:
+            temporary.unlink(missing_ok=True)
 
 
 def _files(data: bytes) -> dict[str, bytes]:
@@ -190,6 +198,8 @@ def restore_baseline(
         "reason": "No reusable verified baseline exists for this PR and base commit; measure it before the PR.",
         "issues": [],
     }
+    # A terminated lookup leaves a valid request for fresh measurements, never an old reuse decision.
+    _write(selection_path, selection)
     prefix = f"performance-pr-baseline-{pr_number}-{base_commit}-"
     try:
         current_run = client.run_attempt(run_id, run_attempt)
@@ -245,13 +255,28 @@ def restore_baseline(
                     PurePosixPath(path).is_absolute() or ".." in PurePosixPath(path).parts for path in restored_files
                 ):
                     raise store.EvidenceError("corrupt", "Baseline artifact contains an invalid path.")
-                for path, data in restored_files.items():
-                    destination = output_dir.joinpath(*PurePosixPath(path).parts)
-                    destination.parent.mkdir(parents=True, exist_ok=True)
-                    destination.write_bytes(data)
+                output_dir.parent.mkdir(parents=True, exist_ok=True)
+                with tempfile.TemporaryDirectory(prefix="baseline-restore-", dir=output_dir.parent) as directory:
+                    staged = Path(directory) / "results"
+                    staged.mkdir()
+                    for path, data in restored_files.items():
+                        destination = staged.joinpath(*PurePosixPath(path).parts)
+                        destination.parent.mkdir(parents=True, exist_ok=True)
+                        destination.write_bytes(data)
+                    # Publish only a complete restore; never mix its samples into an existing directory.
+                    if output_dir.exists():
+                        output_dir.replace(Path(directory) / "previous")
+                    staged.replace(output_dir)
                 selection.update(
                     baseline_reused=True,
                     baseline_origin=evidence.identity,
+                    baseline_metric_definition={
+                        "artifact_id": evidence.identity["artifact_id"],
+                        "sha256": evidence.identity["sha256"],
+                        "source_commit": base_commit,
+                        "definition": metric_definition(checkout_root),
+                        "provenance": "verified_baseline_checkout",
+                    },
                     reason="Reused the verified baseline measurement for this PR's unchanged base commit.",
                 )
                 break
@@ -322,11 +347,19 @@ def bind_baseline(
     output_dir: Path,
     repository: str,
     baseline_issue: str = "",
+    *,
+    reuse_confirmed: bool | None = None,
 ) -> None:
     """Pin the uploaded baseline before the current PR is measured."""
     selection = json.loads(selection_path.read_text())
     if selection.get("reference_commit") != _resolved_base():
         raise ValueError("Baseline selection does not match the tested PR merge's resolved first parent.")
+    if artifact_id or reuse_confirmed is False:
+        # The workflow may measure fresh A if restore ended before publishing
+        # its reuse output. A failed fresh upload must not resurrect the old pin.
+        selection["baseline_reused"] = False
+        selection["baseline_origin"] = None
+        selection.pop("baseline_metric_definition", None)
     if not selection["baseline_reused"]:
         if artifact_id:
             selection["baseline_origin"] = {
@@ -341,6 +374,8 @@ def bind_baseline(
                 "run_attempt": int(os.environ["GITHUB_RUN_ATTEMPT"]),
                 "source_commit": selection["reference_commit"],
             }
+            # Binding runs after base archival and before current capture/measurement.
+            selection["baseline_finished_before"] = datetime.now(timezone.utc).isoformat()
             selection["reason"] = baseline_issue or (
                 "Measured the PR's exact base commit before its tested revision on the same runner."
             )
@@ -386,6 +421,18 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
         for field in ("artifact_id", "run_id", "run_attempt", "source_commit", "sha256"):
             if field in origin and origin[field] != baseline.identity[field]:
                 raise store.EvidenceError("identity_mismatch", "Pinned baseline identity or bytes changed.")
+        derived = selection.get("baseline_metric_definition")
+        if derived is not None and (
+            not isinstance(derived, dict)
+            or derived.get("provenance") != "verified_baseline_checkout"
+            or not isinstance(derived.get("definition"), dict)
+            or any(
+                derived.get(field) != baseline.identity[field] for field in ("artifact_id", "sha256", "source_commit")
+            )
+        ):
+            raise store.EvidenceError(
+                "identity_mismatch", "Derived FPS identity does not identify this baseline artifact."
+            )
         if not selection.get("baseline_reused"):
             left, right = baseline.context["execution"], candidate.context["execution"]
             for field in ("run_id", "run_attempt", "job", "runner_name", "hostname"):
@@ -393,10 +440,22 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
                     raise store.EvidenceError(
                         "runner_mismatch", "Fresh base and PR were not measured on the same runner."
                     )
+            bound = selection.get("baseline_finished_before")
+            completed = store._time(bound if bound is not None else baseline.measurement_end)
+            started = store._time(candidate.measurement_start)
+            captured = store._time(left.get("measurement_not_before"))
+            sample_ends = [
+                end
+                for samples in baseline.samples.values()
+                for sample in samples
+                if (end := store._time(sample["bundle"]["run"].get("end_time_utc"))) is not None
+            ]
             if (
-                not baseline.measurement_end
-                or not candidate.measurement_start
-                or (store._time(baseline.measurement_end) > store._time(candidate.measurement_start))
+                not completed
+                or not started
+                or completed > started
+                or (captured is not None and captured > completed)
+                or any(end > completed for end in sample_ends)
             ):
                 raise store.EvidenceError(
                     "measurement_order", "Fresh baseline did not finish before the PR measurement."
@@ -466,7 +525,14 @@ def _execute(args: argparse.Namespace, event: dict) -> None:
             if not args.baseline_issue:
                 args.baseline_issue = "Baseline selection metadata was not produced; baseline FPS is unavailable."
         bind_baseline(
-            args.selection, args.artifact_id, args.output_dir, os.environ["GITHUB_REPOSITORY"], args.baseline_issue
+            args.selection,
+            args.artifact_id,
+            args.output_dir,
+            os.environ["GITHUB_REPOSITORY"],
+            args.baseline_issue,
+            reuse_confirmed=(os.environ["PERF_BASELINE_REUSED"] == "true")
+            if "PERF_BASELINE_REUSED" in os.environ
+            else None,
         )
 
 
