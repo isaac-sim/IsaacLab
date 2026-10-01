@@ -229,6 +229,7 @@ Guidelines for modifications:
 * Yuguo Shan
 * Yujian Zhang
 * Yun Liu
+* Yusuf Guenena
 * YuTeh Shen
 * Zehao Wang
 * Zeng Qingcheng

@@ -280,11 +280,7 @@ def test_simple_shading_configures_its_render_product(
     # The shading level must not leak into process-wide state, where the last camera would win.
     global_setting_calls = [
         setting_call
-        for setting_call in (
-            *settings.set_int.call_args_list,
-            *settings.set.call_args_list,
-            *settings.set_bool.call_args_list,
-        )
+        for setting_call in settings.set.call_args_list
         if setting_call.args
         and setting_call.args[0] in ("/rtx/minimal/mode", "/rtx/rendermode", "/rtx/sdg/force/disableColorRender")
     ]
@@ -338,7 +334,7 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
 
     color_render_calls = [
         setting_call
-        for setting_call in settings.set_bool.call_args_list
+        for setting_call in settings.set.call_args_list
         if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
     ]
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
@@ -488,6 +484,46 @@ def test_render_treats_empty_annotator_frame_as_not_ready(monkeypatch, data_type
     update.assert_called_once_with()
     output_buffer.zero_.assert_called_once_with()
     launch.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("data_type", "num_channels"),
+    [("normals", 3), ("motion_vectors", 2)],
+)
+def test_render_keeps_leading_channels_of_padded_annotator_tiles(monkeypatch, data_type, num_channels):
+    """Four-channel annotator tiles are split per camera, keeping only the output's leading channels."""
+    _install_omni_stubs(monkeypatch)
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    # Four 2x3 cameras tiled on a 2x2 grid; every source value is distinct.
+    view_count, height, width = 4, 2, 3
+    tiled = np.arange(2 * height * 2 * width * 4, dtype=np.float32).reshape(2 * height, 2 * width, 4)
+    annotator = MagicMock()
+    annotator.get_data.return_value = tiled
+    output_buffer = wp.zeros((view_count, height, width, num_channels), dtype=wp.float32, device="cpu")
+    render_data = SimpleNamespace(
+        annotators={data_type: annotator},
+        output_data={data_type: SimpleNamespace(warp=output_buffer)},
+        spec=SimpleNamespace(view_count=view_count, device="cpu", cfg=SimpleNamespace(width=width, height=height)),
+        renderer_info={},
+        ppisp_pipeline=None,
+        _hdr_scratch_wp=None,
+    )
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg()
+
+    with patch.object(rtx_renderer, "ensure_isaac_rtx_render_update"):
+        renderer.render(render_data)
+
+    expected = np.stack(
+        [
+            tiled[row * height : (row + 1) * height, col * width : (col + 1) * width, :num_channels]
+            for row in range(2)
+            for col in range(2)
+        ]
+    )
+    np.testing.assert_array_equal(output_buffer.numpy(), expected)
 
 
 @pytest.mark.parametrize(

@@ -9,6 +9,9 @@ import torch
 
 from ..array import index_fill_
 
+# Frame size up to which one staged shift is faster than K - 1 slot copies (measured crossover is ~4 MiB).
+_STAGED_SHIFT_MAX_FRAME_BYTES = 2 * 1024 * 1024
+
 
 class CircularBuffer:
     """Circular buffer for storing a history of batched tensor data.
@@ -173,15 +176,14 @@ class CircularBuffer:
         if self._buffer is None:
             self._allocate_buffer(data)
 
-        # Shift slots so the newest write lands at the last K slot. Iterating front-to-back
-        # keeps adjacent-slot copies non-overlapping. Cheap at the typical frame-stack K=2-4.
-        if self._stack_dim_internal is None:
-            for i in range(self._max_len_int - 1):
-                self._buffer[i].copy_(self._buffer[i + 1])
-            self._buffer[-1] = data
+        # Drop the oldest slot and write the newest at the last K slot.
+        k_pos = 0 if self._stack_dim_internal is None else self._stack_dim_internal
+        k = self._max_len_int
+        if k > 2 and data.numel() * data.element_size() <= _STAGED_SHIFT_MAX_FRAME_BYTES:
+            # small frames are launch bound: stage the overlapping shift in two kernels regardless of K
+            self._buffer.copy_(torch.cat((self._buffer.narrow(k_pos, 1, k - 1), data.unsqueeze(k_pos)), dim=k_pos))
         else:
-            k_pos = self._stack_dim_internal
-            k = self._max_len_int
+            # large frames are bandwidth bound: front-to-back slot copies move the least data
             for i in range(k - 1):
                 self._buffer.narrow(k_pos, i, 1).copy_(self._buffer.narrow(k_pos, i + 1, 1))
             self._buffer.narrow(k_pos, k - 1, 1).copy_(data.unsqueeze(k_pos))

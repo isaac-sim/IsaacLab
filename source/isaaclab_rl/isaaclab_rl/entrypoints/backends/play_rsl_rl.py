@@ -33,6 +33,7 @@ from ..common import (
     add_common_play_args,
     apply_env_overrides,
     apply_video_recording,
+    close_env,
     create_isaaclab_env,
     enable_cameras_for_video,
     normalize_task_name,
@@ -105,9 +106,9 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
         screen.stage("Launching simulation")
-        with launch_simulation(env_cfg, args_cli):
+        with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="rsl_rl", action="play")
             agent_cfg = cli_args.update_rsl_rl_cfg(agent_cfg, args_cli)
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
             apply_env_overrides(args_cli, env_cfg)
@@ -130,6 +131,7 @@ def run(argv: list[str]) -> None:
                 args_cli,
                 convert_marl_to_single_agent=isinstance(env_cfg, DirectMARLEnvCfg),
             )
+            cleanup.callback(lambda: close_env(env))
 
             screen.stage("Loading policy")
             env = RslRlVecEnvWrapper(env, clip_actions=agent_cfg.clip_actions)
@@ -155,4 +157,3 @@ def run(argv: list[str]) -> None:
 
             screen.close()
             run_playback(step, dt=env.unwrapped.step_dt, args_cli=args_cli, env_cfg=env_cfg)
-            env.close()

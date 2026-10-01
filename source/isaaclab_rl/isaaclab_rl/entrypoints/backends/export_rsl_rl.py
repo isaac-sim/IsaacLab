@@ -144,8 +144,6 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here
     env_cfg.seed = agent_cfg.seed
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
     print(f"[INFO] Loading checkpoint search path from directory: {log_root_path}")

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import importlib
+import signal
 import subprocess
 import sys
 import types
@@ -30,6 +31,7 @@ from isaaclab_rl.entrypoints.simple_agents import create_zero_action_policy
     [
         ("import isaaclab_rl", ["isaaclab_rl.entrypoints", "torch"]),
         ("import isaaclab_rl.entrypoints.backends", ["torch"]),
+        ("import isaaclab_rl.entrypoints.common", ["isaaclab.envs.direct_marl_env", "moviepy"]),
         # the LEAPP runtime must only load once the simulation has launched
         ("import isaaclab_rl.entrypoints.backends.export_rsl_rl", ["leapp", "isaaclab.utils.leapp"]),
         ("import isaaclab_rl.rl_games", ["isaaclab_rl.rl_games.rl_games", "rl_games", "torch"]),
@@ -237,22 +239,13 @@ def test_simple_agents_parse_device_and_default_to_newton_visualizer(monkeypatch
     assert args.device == "cuda:1"
 
 
-@pytest.mark.parametrize(
-    ("cli_device", "expected_device", "policy"),
-    [
-        # a task-required device is not replaced with the CLI default
-        (None, "cpu", "zero"),
-        # an explicit CLI device overrides the task default
-        ("cuda:1", "cuda:1", "random"),
-    ],
-)
-def test_simple_agents_resolve_simulation_device(
+@pytest.mark.parametrize(("cli_device", "policy"), [(None, "zero"), ("cuda:1", "random")])
+def test_simple_agents_leave_the_device_to_the_launch(
     cli_device: str | None,
-    expected_device: str,
     policy: simple_agents.PolicyName,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """Checkpoint-free agents keep the task device unless the CLI selects one."""
+    """Checkpoint-free agents pass the CLI device, or None to keep the task's, to the launch that resolves it."""
 
     class _ExpectedStop(Exception):
         pass
@@ -272,8 +265,8 @@ def test_simple_agents_resolve_simulation_device(
     )
 
     def launch_simulation(cfg, launcher_args):
-        assert cfg.sim.device == expected_device
-        assert launcher_args.device == expected_device
+        assert cfg.sim.device == "cpu"
+        assert launcher_args.device == cli_device
         raise _ExpectedStop
 
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
@@ -307,10 +300,17 @@ def test_zero_agent_rejects_invalid_config_before_launch(monkeypatch: pytest.Mon
         simple_agents.run([], policy="zero")
 
 
-def test_random_agent_closes_environment_after_keyboard_interrupt(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """Ctrl+C must stop a checkpoint-free agent cleanly and close its environment."""
+@pytest.mark.parametrize("interrupted_operation", ["reset", "step"])
+def test_random_agent_closes_environment_after_keyboard_interrupt(monkeypatch, interrupted_operation) -> None:
+    """An interrupt during setup or playback closes the env despite further Ctrl+C presses."""
+    closed = []
+    previous_handler = signal.getsignal(signal.SIGINT)
+
+    def close():
+        signal.raise_signal(signal.SIGINT)
+        signal.raise_signal(signal.SIGINT)
+        closed.append(True)
+
     cfg = SimpleNamespace(
         scene=SimpleNamespace(num_envs=1),
         sim=SimpleNamespace(device="cpu", use_fabric=True),
@@ -323,37 +323,38 @@ def test_random_agent_closes_environment_after_keyboard_interrupt(
             sim=SimpleNamespace(is_running=lambda: True),
             device="cpu",
         ),
-        reset=lambda: None,
-        step=mock.Mock(side_effect=KeyboardInterrupt),
-        close=mock.Mock(),
+        reset=mock.Mock(),
+        step=mock.Mock(),
+        close=close,
     )
-    args = SimpleNamespace(max_steps=None, task="Example", device=None)
+    getattr(env, interrupted_operation).side_effect = KeyboardInterrupt
+    args = SimpleNamespace(max_steps=None, task="Example", device=None, num_envs=None)
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
     monkeypatch.setattr(simple_agents, "resolve_task_config", lambda task, agent: (cfg, None))
     monkeypatch.setattr(simple_agents, "launch_simulation", lambda cfg, launcher_args: contextlib.nullcontext())
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    simple_agents.run([], policy="random")
+    with pytest.raises(KeyboardInterrupt):
+        simple_agents.run([], policy="random")
 
-    env.close.assert_called_once_with()
-    assert "Random agent stopped." in capsys.readouterr().out
+    assert closed == [True]
+    assert signal.getsignal(signal.SIGINT) is previous_handler
 
 
 @pytest.mark.parametrize(
     ("video_length", "max_steps", "expected_steps"),
-    [(None, None, 55), (None, 40, 40), (0, None, None)],
-    ids=["last_recorder_clip", "max_steps_caps_clip", "invalid_length_fails_before_launch"],
+    [(None, None, 55), (None, 40, 40)],
+    ids=["last_recorder_clip", "max_steps_caps_clip"],
 )
 def test_simple_agent_video_step_budget(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
     video_length: int | None,
     max_steps: int | None,
-    expected_steps: int | None,
+    expected_steps: int,
 ) -> None:
-    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``;
-    an invalid ``--video_length`` fails config validation before the simulation launches."""
+    """``--video`` steps until the last recorder's first clip ends (25 + 30), capped by ``--max_steps``."""
     from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 
     recorders = [
@@ -378,7 +379,13 @@ def test_simple_agent_video_step_budget(
         close=mock.Mock(),
     )
     args = SimpleNamespace(
-        max_steps=max_steps, task="Example", device=None, video=True, video_length=video_length, video_interval=None
+        max_steps=max_steps,
+        task="Example",
+        device=None,
+        num_envs=None,
+        video=True,
+        video_length=video_length,
+        video_interval=None,
     )
     launched = mock.Mock(return_value=contextlib.nullcontext())
     monkeypatch.setattr(simple_agents, "_parse_args", lambda argv, policy: args)
@@ -387,13 +394,8 @@ def test_simple_agent_video_step_budget(
     monkeypatch.setattr(simple_agents.gym, "make", lambda task, cfg: env)
     monkeypatch.setattr(simple_agents, "create_random_action_policy", lambda environment: lambda: None)
 
-    if expected_steps is None:
-        with pytest.raises(SystemExit, match=f"video_length={video_length}"):
-            simple_agents.run([], policy="random")
-        launched.assert_not_called()
-    else:
-        simple_agents.run([], policy="random")
-        assert env.step.call_count == expected_steps
+    simple_agents.run([], policy="random")
+    assert env.step.call_count == expected_steps
 
 
 def test_simple_agent_request_forwards_video(monkeypatch) -> None:

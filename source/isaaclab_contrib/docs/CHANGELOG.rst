@@ -1,6 +1,30 @@
 Changelog
 ---------
 
+.. towncrier release notes start
+
+3.1.1 (2026-10-01)
+~~~~~~~~~~~~~~~~~~
+
+Changed
+^^^^^^^
+
+* Changed visuo-tactile sensor debug visualization to refresh outdated sensor buffers before drawing.
+
+
+3.1.0 (2026-09-29)
+~~~~~~~~~~~~~~~~~~
+
+Added
+^^^^^
+
+* Added ``CouplerAdmmCfg.contact_max_triangle_pairs`` and
+  ``contact_reduction_hashtable_size_factor`` to configure the internal ADMM collision
+  buffers independently of the outer Newton collision pipeline, preserving Newton's
+  defaults. Validation rejected triangle-pair capacities at or above ``2**20`` with
+  ``"latest"`` or ``"sticky"`` matching and explicit overrides unsupported by Newton.
+
+
 3.0.0 (2026-09-28)
 ~~~~~~~~~~~~~~~~~~
 

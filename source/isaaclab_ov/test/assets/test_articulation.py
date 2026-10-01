@@ -51,6 +51,7 @@ device state, this is the supported pattern.
 from __future__ import annotations
 
 import importlib
+import logging
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -60,7 +61,7 @@ import pytest
 import torch
 import warp as wp
 
-from pxr import Gf, Usd, UsdGeom, UsdPhysics
+from pxr import Gf, Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.test.utils import test_devices
 from isaaclab.test.utils.articulation_ordering import (
@@ -89,6 +90,8 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
+from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
+from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
 from isaaclab.utils.warp.launch_cache import _WarpLaunchCache  # noqa: E402
@@ -296,6 +299,102 @@ def _ovphysx_sim_context(device: str, **kwargs):
         use_newton_actuators=use_newton_actuators,
     )
     return build_simulation_context(device=device, sim_cfg=sim_cfg, **kwargs)
+
+
+@pytest.mark.parametrize("device", test_devices())
+@pytest.mark.parametrize(
+    "variant", ["geometry", "joint_type", "d6_rotation", "d6_translation", "disabled_joint", "fixed_tendon"]
+)
+def test_heterogeneous_articulation_clone_indexed_state(device, variant, tmp_path):
+    """Compatible variants preserve indexed state; incompatible action/tendon layouts are rejected."""
+    variants = []
+    for shape in (UsdGeom.Cube, UsdGeom.Sphere):
+        stage = Usd.Stage.CreateInMemory()
+        robot = UsdGeom.Xform.Define(stage, "/Robot").GetPrim()
+        stage.SetDefaultPrim(robot)
+        UsdPhysics.ArticulationRootAPI.Apply(robot)
+        for name in ("Base", "Tip"):
+            body = UsdGeom.Xform.Define(stage, f"/Robot/{name}")
+            body.AddTranslateOp().Set((0.0, 0.0, 0.4 if name == "Tip" else 0.0))
+            UsdPhysics.RigidBodyAPI.Apply(body.GetPrim())
+            UsdPhysics.MassAPI.Apply(body.GetPrim()).CreateMassAttr(1.0)
+            geometry = shape.Define(stage, f"/Robot/{name}/Geometry")
+            geometry.AddScaleOp().Set((0.1, 0.1, 0.1))
+            UsdPhysics.CollisionAPI.Apply(geometry.GetPrim())
+        fixed = UsdPhysics.FixedJoint.Define(stage, "/Robot/Fixed")
+        fixed.CreateBody1Rel().SetTargets(["/Robot/Base"])
+        joint_schema = UsdPhysics.RevoluteJoint
+        if variant.startswith("d6_"):
+            joint_schema = UsdPhysics.Joint
+        elif variant == "joint_type" and shape is UsdGeom.Sphere:
+            joint_schema = UsdPhysics.PrismaticJoint
+        joint = joint_schema.Define(stage, "/Robot/Joint")
+        joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+        joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
+        joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+        if variant == "disabled_joint":
+            joint = UsdPhysics.Joint.Define(stage, "/Robot/Disabled")
+            joint.CreateBody0Rel().SetTargets(["/Robot/Base"])
+            joint.CreateBody1Rel().SetTargets(["/Robot/Tip"])
+            joint.CreateLocalPos0Attr((0.0, 0.0, 0.4))
+            joint.CreateJointEnabledAttr(False)
+        if variant.startswith("d6_") or variant == "disabled_joint":
+            free_axis = "rotY" if variant != "d6_translation" and shape is UsdGeom.Sphere else "rotX"
+            for axis in ("transX", "transY", "transZ", "rotX", "rotY", "rotZ"):
+                if axis == free_axis or (axis == "transX" and variant == "d6_translation" and shape is UsdGeom.Sphere):
+                    continue
+                limit = UsdPhysics.LimitAPI.Apply(joint.GetPrim(), axis)
+                limit.CreateLowAttr(1.0)
+                limit.CreateHighAttr(-1.0)
+        elif variant == "fixed_tendon" and shape is UsdGeom.Sphere:
+            prim = joint.GetPrim()
+            prim.AddAppliedSchema("PhysxTendonAxisRootAPI:tendon")
+            prim.CreateAttribute("physxTendon:tendon:stiffness", Sdf.ValueTypeNames.Float).Set(123.0)
+            prim.CreateAttribute("physxTendon:tendon:gearing", Sdf.ValueTypeNames.FloatArray).Set([1.0])
+        path = str(tmp_path / f"{shape.__name__}.usda")
+        stage.Export(path)
+        variants.append(sim_utils.UsdFileCfg(usd_path=path))
+
+    with _ovphysx_sim_context(device=device, gravity_enabled=False) as sim:
+        cfg = InteractiveSceneCfg(num_envs=6, env_spacing=2.0)
+        cfg.robot = ArticulationCfg(
+            prim_path="{ENV_REGEX_NS}/Robot",
+            spawn=sim_utils.MultiAssetSpawnerCfg(assets_cfg=variants),
+            actuators={"joint": ImplicitActuatorCfg(joint_names_expr=["Joint.*"], stiffness=0.0, damping=0.0)},
+        )
+        if variant in ("d6_rotation", "fixed_tendon"):
+            with pytest.raises(ValueError, match="incompatible.*(rotation axes|tendon)"):
+                InteractiveScene(cfg)
+            return
+        scene = InteractiveScene(cfg)
+        if variant == "joint_type":
+            with pytest.raises(RuntimeError, match="heterogeneous or empty view"):
+                sim.reset()
+            return
+        sim.reset()
+        robot = scene["robot"]
+        assert robot.num_joints == 1
+        assert robot.num_bodies == 2
+        assert robot.root_view.prim_paths == [f"/World/envs/env_{i}/Robot" for i in range(scene.num_envs)]
+        torch.testing.assert_close(robot.data.root_pos_w.torch, scene.env_origins)
+        selected = torch.tensor([5, 3], device=device)
+        positions = torch.tensor([[0.25], [-0.4]], device=device)
+        robot.write_joint_state_to_sim(positions, torch.zeros_like(positions), env_ids=selected)
+        sim.step()
+        scene.update(sim.get_physics_dt())
+        expected = torch.zeros((scene.num_envs, 1), device=device)
+        expected[selected] = positions
+        torch.testing.assert_close(robot.data.joint_pos.torch, expected, atol=1e-4, rtol=0.0)
+        for env_id in range(scene.num_envs):
+            binding = sim.physics_manager.get_physx_instance().create_tensor_binding(
+                pattern=f"/World/envs/env_{env_id}/Robot", tensor_type=TT.DOF_POSITION
+            )
+            try:
+                actual = torch.empty(binding.shape, device=device)
+                binding.read(actual)
+                torch.testing.assert_close(actual, expected[env_id : env_id + 1], atol=1e-4, rtol=0.0)
+            finally:
+                binding.destroy()
 
 
 def generate_articulation_cfg(
@@ -566,7 +665,7 @@ def test_ovphysx_effort_binding_excludes_implicit_pd(device, use_newton_actuator
 def test_newton_native_actuator_reset_and_gain_event_are_environment_selective(device):
     """Reset and randomize only the selected OVPhysX native-controller environment."""
     from isaaclab.envs.mdp.events import randomize_actuator_gains  # noqa: PLC0415
-    from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: PLC0415
+    from isaaclab.managers import EventTermCfg  # noqa: PLC0415
 
     class Env:
         def __init__(self, asset):
@@ -1665,7 +1764,7 @@ def test_out_of_range_default_joint_vel(sim, device):
 @pytest.mark.parametrize("num_articulations", [2])
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
-def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
+def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane, caplog):
     """Test write_joint_limits_to_sim API and when default pos falls outside of the new limits.
 
     This test verifies that:
@@ -1735,6 +1834,22 @@ def test_joint_pos_limits(sim, num_articulations, device, add_ground_plane):
         default_joint_pos_torch[env_ids][:, joint_ids] <= limits[..., 1]
     )
     assert torch.all(within_bounds)
+
+    # Logging level changes must not change clamping or reuse an old violation count.
+    limits = torch.zeros(num_articulations, articulation.num_joints, 2, device=device)
+    limits[..., 1] = 0.5
+    articulation_logger = type(articulation).__module__
+    for level in (logging.WARNING, logging.INFO):
+        articulation.data.default_joint_pos.torch.fill_(1.0)
+        caplog.clear()
+        with caplog.at_level(level, logger=articulation_logger):
+            articulation.write_joint_position_limit_to_sim_index(limits=limits, warn_limit_violation=False)
+        assert bool(caplog.records) == (level == logging.INFO)
+        torch.testing.assert_close(articulation.data.default_joint_pos.torch, torch.full_like(limits[..., 1], 0.5))
+    caplog.clear()
+    with caplog.at_level(logging.INFO, logger=articulation_logger):
+        articulation.write_joint_position_limit_to_sim_mask(limits=limits, warn_limit_violation=False)
+    assert not caplog.records
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -2205,7 +2320,7 @@ def test_reset(sim, num_articulations, device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
-    """Test applying of joint position target functions correctly for a robotic arm."""
+    """Arm targets track commands while the passive finger follows the driven finger."""
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2223,6 +2338,10 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # reset dof state
     joint_pos = articulation.data.default_joint_pos.torch.clone()
     joint_pos[:, 3] = 0.0
+    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
+    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
+    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
+    joint_pos[:, [leader_id, follower_id]] = 0.01
 
     # apply action to the articulation
     articulation.set_joint_position_target_index(target=joint_pos)
@@ -2238,6 +2357,11 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # gravity with these gains, so they are not checked. Without the target write, the drives pull
     # every joint toward zero instead (the wrist ends near 0.3 rad instead of 3.0 rad).
     torch.testing.assert_close(articulation.data.joint_pos.torch[:, 3:], joint_pos[:, 3:], atol=0.1, rtol=0.0)
+
+    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
+    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
+    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
+    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 
 
 @pytest.mark.parametrize("num_articulations", [2])
@@ -2844,13 +2968,14 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
         "dynamic_friction_range": dynamic_range,
         "restitution_range": restitution_range,
         "num_buckets": 16,
+        "asset_cfg": SceneEntityCfg("robot"),
     }
-    asset_cfg = SimpleNamespace(name="robot", body_ids=slice(None))
     env = SimpleNamespace(scene={"robot": articulation}, sim=sim)
-    randomize = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
+    cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
+    randomize = randomize_rigid_body_material(cfg, env)
 
     # Randomize only the last environment; the others keep their materials.
-    randomize(env, torch.tensor([num_articulations - 1], device=device), *params.values(), asset_cfg)
+    randomize(env, torch.tensor([num_articulations - 1], device=device), **cfg.params)
     sim.step()
     articulation.update(sim.cfg.dt)
 

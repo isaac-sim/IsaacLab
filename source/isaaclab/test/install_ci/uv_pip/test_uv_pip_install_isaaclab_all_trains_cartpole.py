@@ -51,12 +51,22 @@ class Test_Uv_Pip_Install_Isaaclab_All_Trains_Cartpole(UV_Mixin):
             self.create_uv_env(isaaclab_root)
 
             result = self.run_in_uv_env(
-                ["uv", "--no-config", "pip", "install", f"{wheel}[all]"], cwd=isaaclab_root, timeout=1800
+                [
+                    "uv",
+                    "--no-config",
+                    "pip",
+                    "install",
+                    f"{wheel}[all]",
+                    "--overrides",
+                    str(isaaclab_root / "source/isaaclab/test/install_ci/uv_pip/uv-overrides.txt"),
+                ],
+                cwd=isaaclab_root,
+                timeout=1800,
             )
             assert result.returncode == 0, f"uv pip install {wheel}[all] failed:\n{result.stdout}\n{result.stderr}"
 
             result = self.run_in_uv_env(
-                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.0'"],
+                ["python", "-c", "import importlib.metadata as m; assert m.version('newton') == '1.6.1rc1'"],
                 cwd=isaaclab_root,
             )
             assert result.returncode == 0, (

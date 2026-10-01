@@ -45,6 +45,11 @@ class ManagerTermBaseCfg:
     params: dict[str, Any | SceneEntityCfg] = {}
     """The parameters to be passed to the function as keyword arguments. Defaults to an empty dict.
 
+    During preparation, omitted keyword parameters are filled from the callable's signature.
+    Mutable defaults are copied per term before scene entities are resolved. Explicit values,
+    including None, take precedence. Class terms can read these defaults after calling
+    :meth:`ManagerTermBase.__init__`.
+
     .. note::
         If the value is a :class:`SceneEntityCfg` object, the manager will query the scene entity
         from the :class:`InteractiveScene` and process the entity's joints and bodies as specified

@@ -185,8 +185,6 @@ def export_sb3_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict
 
     env_cfg.scene.num_envs = 1
     env_cfg.seed = agent_cfg["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
     log_dir = os.path.dirname(checkpoint_path)
     env_cfg.log_dir = log_dir
 
