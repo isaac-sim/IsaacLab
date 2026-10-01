@@ -477,7 +477,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        body_mask = self._resolve_body_selection_mask(body_ids, body_mask)
+        body_mask = self._resolve_body_mask(body_ids, body_mask)
         self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
         if isinstance(body_poses, torch.Tensor):
             body_poses = wp.from_torch(body_poses, dtype=wp.transformf)
@@ -595,7 +595,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        body_mask = self._resolve_body_selection_mask(body_ids, body_mask)
+        body_mask = self._resolve_body_mask(body_ids, body_mask)
         self.assert_shape_and_dtype(body_poses, (self.num_instances, self.num_bodies), wp.transformf, "body_poses")
         # Write to consolidated buffers (updates both com_pose_w and link_pose_w)
         wp.launch(
@@ -721,7 +721,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        body_mask = self._resolve_body_selection_mask(body_ids, body_mask)
+        body_mask = self._resolve_body_mask(body_ids, body_mask)
         self.assert_shape_and_dtype(
             body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
         )
@@ -850,7 +850,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
         """
         if env_mask is None:
             env_mask = self._ALL_ENV_MASK
-        body_mask = self._resolve_body_selection_mask(body_ids, body_mask)
+        body_mask = self._resolve_body_mask(body_ids, body_mask)
         self.assert_shape_and_dtype(
             body_velocities, (self.num_instances, self.num_bodies), wp.spatial_vectorf, "body_velocities"
         )
@@ -1350,7 +1350,7 @@ class RigidObjectCollection(BaseRigidObjectCollection):
             )
         return body_ids
 
-    def _resolve_body_selection_mask(
+    def _resolve_body_mask(
         self,
         body_ids: Sequence[int] | torch.Tensor | wp.array | slice | None,
         body_mask: wp.array | None,
