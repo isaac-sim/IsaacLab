@@ -384,8 +384,7 @@ class OVRTXRenderer(BaseRenderer):
         self.backend: OVRTXBackend | None = None
         """Native engine borrowed from the simulation registry after clone preparation."""
         self._object_xform_binding = self._geometry_points_binding = None
-        self._object_xform_query = self._object_paths_list = None
-        self._geometry_points_query = self._geometry_paths_list = None
+        self._bindings = contextlib.ExitStack()
 
     def visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
         """Create the detached-scene material writer after scene population."""
@@ -478,16 +477,16 @@ class OVRTXRenderer(BaseRenderer):
             return
         reset_xforms = np.ones(len(object_paths), dtype=np.bool_)
         if self._use_ovstage:
-            self._object_paths_list = self.scene.paths.create_path_list_from_strings(object_paths)
-            self._object_xform_query = self.scene.stage.query_from_path_list(self._object_paths_list)
+            paths = self.scene.paths.create_path_list_from_strings(object_paths)
+            self._bindings.callback(self.scene.paths.destroy_path_list, paths)
+            self._object_xform_binding = self._bindings.enter_context(self.scene.stage.query_from_path_list(paths))
             self.scene.stage.write_attribute(
-                self._object_xform_query,
+                self._object_xform_binding,
                 "omni:resetXformStack",
                 ordinal=self.scene.ordinal,
                 tensors=reset_xforms,
                 is_array=False,
             ).wait()
-            binding = self._object_xform_query
         else:
             self._object_xform_binding = self.backend.renderer.bind_attribute(
                 prim_paths=object_paths,
@@ -495,12 +494,12 @@ class OVRTXRenderer(BaseRenderer):
                 semantic=Semantic.XFORM_MAT4x4,
                 prim_mode=PrimMode.EXISTING_ONLY,
             )
+            if self._object_xform_binding is None:
+                raise RuntimeError("Failed to create OVRTX object bindings")
+            self._bindings.callback(self._object_xform_binding.unbind)
             self.backend.renderer.write_attribute(
                 prim_paths=object_paths, attribute_name="omni:resetXformStack", tensor=reset_xforms
             )
-            binding = self._object_xform_binding
-        if binding is None:
-            raise RuntimeError("Failed to create OVRTX object bindings")
         scales = [self._object_scales_by_path.get(path, (1.0, 1.0, 1.0)) for path in object_paths]
         self._object_scales = wp.array(scales, dtype=wp.vec3f, device=self._device)
 
@@ -514,19 +513,18 @@ class OVRTXRenderer(BaseRenderer):
         reset_xforms = np.ones(prim_count, dtype=np.bool_)
         identity_xforms = np.tile(np.eye(4, dtype=np.float64), (prim_count, 1, 1))
         if self._use_ovstage:
-            self._geometry_paths_list = self.scene.paths.create_path_list_from_strings(self._geometry_paths)
-            self._geometry_points_query = self.scene.stage.query_from_path_list(self._geometry_paths_list)
-            if self._geometry_points_query is None:
-                raise RuntimeError("Failed to create OVRTX geometry point bindings")
+            paths = self.scene.paths.create_path_list_from_strings(self._geometry_paths)
+            self._bindings.callback(self.scene.paths.destroy_path_list, paths)
+            self._geometry_points_binding = self._bindings.enter_context(self.scene.stage.query_from_path_list(paths))
             self.scene.stage.write_attribute(
-                self._geometry_points_query,
+                self._geometry_points_binding,
                 "omni:resetXformStack",
                 ordinal=self.scene.ordinal,
                 tensors=reset_xforms,
                 is_array=False,
             ).wait()
             self.scene.stage.write_attribute(
-                self._geometry_points_query,
+                self._geometry_points_binding,
                 "omni:xform",
                 ordinal=self.scene.ordinal,
                 tensors=xform_tensor_from_numpy(identity_xforms),
@@ -565,6 +563,7 @@ class OVRTXRenderer(BaseRenderer):
             )
             if self._geometry_points_binding is None:
                 raise RuntimeError("Failed to create OVRTX geometry point bindings")
+            self._bindings.callback(self._geometry_points_binding.unbind)
 
     def create_render_data(self, spec: CameraRenderSpec) -> OVRTXCameraRenderData:
         """Create OVRTX-specific RenderData with GPU buffers.
@@ -1049,23 +1048,6 @@ class OVRTXRenderer(BaseRenderer):
 
         self._launch_extract_all_tiles(render_data, tiled_data, output_buffer)
 
-    def _prepare_ppisp_hdr_source(
-        self, render_data: OVRTXCameraRenderData, tiled_data: wp.array, output_buffers: dict
-    ) -> wp.array:
-        """Return the PPISP HdrColor source on the output buffer device."""
-        if render_data.ppisp_pipeline is None:
-            return tiled_data
-
-        output_device = str(output_buffers[str(RenderBufferKind.RGB_HDR)].device)
-        if str(tiled_data.device) == output_device:
-            return tiled_data
-
-        # The render product pins ``deviceIds`` to this renderer's CUDA device, so the mapping
-        # normally lands on the output device already. This stays as a fallback for the case OVRTX
-        # reports as "deviceIds ... not in the active device set" and falls back to automatic
-        # assignment.
-        return wp.clone(tiled_data, device=output_device)
-
     def _process_render_frame(self, render_data: OVRTXCameraRenderData, frame, output_buffers: dict) -> None:
         """Extract RGB, depth, albedo, and semantic from a single render frame into output_buffers."""
         # Reset per-output metadata so it is a snapshot of this frame only. Unlike pixel AOVs (always
@@ -1114,7 +1096,10 @@ class OVRTXRenderer(BaseRenderer):
         hdr_color = frame.render_vars.get(render_data.render_var_keys[_HDR_COLOR_VAR])
         if hdr_color is not None and "rgb_hdr" in output_buffers:
             with self._map_render_var_to_dlpack(hdr_color) as tiled_hdr_data:
-                tiled_hdr_data = self._prepare_ppisp_hdr_source(render_data, tiled_hdr_data, output_buffers)
+                # OVRTX can fall back from deviceIds to automatic assignment; PPISP needs the output device.
+                output_device = str(output_buffers["rgb_hdr"].device)
+                if render_data.ppisp_pipeline is not None and str(tiled_hdr_data.device) != output_device:
+                    tiled_hdr_data = wp.clone(tiled_hdr_data, device=output_device)
                 if tiled_hdr_data.dtype not in (wp.float16, wp.float32):
                     raise TypeError(f"Unsupported OVRTX HdrColor dtype: {tiled_hdr_data.dtype}.")
                 self._launch_extract_all_tiles(render_data, tiled_hdr_data, output_buffers["rgb_hdr"])
@@ -1205,7 +1190,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_transforms(self) -> None:
         """Write changed SDP transforms to OVRTX."""
-        binding = self._object_xform_query if self._use_ovstage else self._object_xform_binding
+        binding = self._object_xform_binding
         if binding is None:
             return
         timestamp = self._sdp.backend.transforms_timestamp
@@ -1237,7 +1222,7 @@ class OVRTXRenderer(BaseRenderer):
 
     def update_geometries(self) -> None:
         """Write changed SDP geometry to OVRTX."""
-        binding = self._geometry_points_query if self._use_ovstage else self._geometry_points_binding
+        binding = self._geometry_points_binding
         if binding is None:
             return
         stream = self._warp_device.stream
@@ -1420,12 +1405,19 @@ class OVRTXRenderer(BaseRenderer):
         """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
         try:
             with contextlib.ExitStack() as resources:
-                resources.callback(self._close_ovstage if self._use_ovstage else self._close_legacy)
                 for render_data in tuple(self._camera_render_data):
                     resources.callback(self.cleanup, render_data)
                 resources.callback(self._transform_writes.close)
                 resources.callback(self._geometry_writes.close)
         finally:
+            try:
+                self._bindings.close()
+            except Exception as exc:
+                if "destroyed" not in str(exc).lower():
+                    logger.warning("Error releasing OVRTX bindings: %s", exc)
+            self._object_xform_binding = self._geometry_points_binding = None
+            self._object_scales = None
+            self._object_scales_by_path.clear()
             self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
             self._geometry_offsets.clear()
             self._geometry_paths = []
@@ -1434,57 +1426,6 @@ class OVRTXRenderer(BaseRenderer):
             self._output_id_color_buffers.clear()
             self._initialized_scene = False
             self._visual_material_writer_ref = None
-
-    def _close_legacy(self) -> None:
-        """Release the renderer's tensor bindings. See :meth:`close`."""
-
-        # Unbind before tearing down renderer
-        def _safe_unbind(binding, name: str) -> None:
-            if binding is None:
-                return
-            try:
-                binding.unbind()
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error unbinding %s: %s", name, e)
-
-        _safe_unbind(self._object_xform_binding, "object transforms")
-        self._object_xform_binding = None
-        _safe_unbind(self._geometry_points_binding, "geometry points")
-        self._geometry_points_binding = None
-
-    def _close_ovstage(self) -> None:
-        """Release the renderer's stage queries and path lists. See :meth:`close`."""
-
-        def _safe_release_query(query, name: str) -> None:
-            if query is None or self.scene.stage is None:
-                return
-            try:
-                self.scene.stage.release_query(query).wait()
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error releasing %s query: %s", name, e)
-
-        def _safe_destroy_path_list(path_list, name: str) -> None:
-            if path_list is None or self.scene.paths is None:
-                return
-            try:
-                self.scene.paths.destroy_path_list(path_list)
-            except Exception as e:
-                if "destroyed" not in str(e).lower():
-                    logger.warning("Error destroying %s path list: %s", name, e)
-
-        _safe_release_query(self._object_xform_query, "object transforms")
-        self._object_xform_query = None
-        _safe_destroy_path_list(self._object_paths_list, "object paths")
-        self._object_paths_list = None
-        _safe_release_query(self._geometry_points_query, "geometry points")
-        self._geometry_points_query = None
-        _safe_destroy_path_list(self._geometry_paths_list, "geometry paths")
-        self._geometry_paths_list = None
-
-        self._object_scales = None
-        self._object_scales_by_path = {}
 
 
 class _AsyncWriteBuffers:

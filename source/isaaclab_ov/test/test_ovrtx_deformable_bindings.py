@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import importlib.util
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -16,6 +17,7 @@ import pytest
 import warp as wp
 
 from isaaclab.scene_data import SceneDataFormat, SceneDataProvider
+from isaaclab.sim import SimulationContext
 
 _REQUIRED_MODULES = ("isaaclab_ov", "ovrtx", "pxr")
 _MISSING_MODULES = [module for module in _REQUIRED_MODULES if importlib.util.find_spec(module) is None]
@@ -24,24 +26,20 @@ pytestmark = pytest.mark.skipif(bool(_MISSING_MODULES), reason=f"requires option
 if not _MISSING_MODULES:
     import isaaclab_ov.renderers.ovrtx_renderer as ovrtx_renderer_module
     from isaaclab_ov.renderers import OVRTXRendererCfg
-    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer, _AsyncWriteBuffers
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer
     from ovrtx import DataAccess
 
 
+@pytest.fixture(autouse=True)
+def _simulation(monkeypatch):
+    monkeypatch.setattr(SimulationContext, "_instance", SimpleNamespace(get_scene_data_provider=lambda: None))
+
+
 def _make_renderer_without_backend() -> tuple[OVRTXRenderer, MagicMock]:
-    renderer = OVRTXRenderer.__new__(OVRTXRenderer)
-    renderer.cfg = OVRTXRendererCfg()
+    renderer = OVRTXRenderer(OVRTXRendererCfg())
     renderer.backend = SimpleNamespace(renderer=MagicMock())
     renderer.scene = renderer.backend
     renderer._device = "cpu"
-    renderer._geometry_paths = []
-    renderer._geometry_timestamp = -1
-    renderer._geometry_offsets = {}
-    renderer._geometry_writes = _AsyncWriteBuffers()
-    renderer._transforms_timestamp = -1
-    renderer._use_ovstage = False
-    renderer._object_xform_binding = renderer._geometry_points_binding = None
-    renderer._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
     renderer._warp_device = SimpleNamespace(ordinal=0, stream=SimpleNamespace(cuda_stream=99))
     return renderer, renderer.backend.renderer
 
@@ -84,11 +82,12 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     publication.get_geometry_batches = read_points
     renderer._sdp = SceneDataProvider(publication)
     if use_ovstage:
-        renderer._object_xform_query = renderer._geometry_points_query = None
         renderer.scene.ordinal = 7
-        renderer.scene.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
+        renderer.scene.paths = SimpleNamespace(
+            create_path_list_from_strings=lambda paths: paths, destroy_path_list=lambda paths: None
+        )
         renderer.scene.stage = MagicMock()
-        renderer.scene.stage.query_from_path_list.side_effect = lambda paths: paths
+        renderer.scene.stage.query_from_path_list.side_effect = contextlib.nullcontext
         publication.points = {}
         renderer._setup_geometry_bindings()
         renderer.update_geometries()
@@ -96,7 +95,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
         publication.points = points
         renderer._sdp = SceneDataProvider(publication)
         renderer._setup_geometry_bindings()
-        assert renderer._geometry_points_query == list(points)
+        assert renderer._geometry_points_binding == list(points)
         write = renderer.scene.stage.write_attribute
         assert [call.args[1] for call in write.call_args_list] == ["omni:resetXformStack", "omni:xform"]
         np.testing.assert_array_equal(write.call_args_list[0].kwargs["tensors"], np.ones(len(points), dtype=np.bool_))
@@ -190,16 +189,18 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     writes = []
 
     if use_ovstage:
-        renderer.scene.paths = SimpleNamespace(create_path_list_from_strings=lambda actual: actual)
+        renderer.scene.paths = SimpleNamespace(
+            create_path_list_from_strings=lambda paths: paths, destroy_path_list=lambda paths: None
+        )
         renderer.scene.stage = SimpleNamespace(
-            query_from_path_list=lambda actual: actual,
+            query_from_path_list=contextlib.nullcontext,
             write_attribute=lambda query, attribute, **kwargs: (
                 writes.append((query, attribute, kwargs)) or SimpleNamespace(wait=lambda: None)
             ),
         )
         monkeypatch.setattr(ovrtx_renderer_module, "xform_tensor_from_warp", lambda matrices: matrices)
         renderer._setup_xform_bindings()
-        assert renderer._object_xform_query == paths
+        assert renderer._object_xform_binding == paths
         writes.clear()
     else:
         renderer._setup_xform_bindings()
