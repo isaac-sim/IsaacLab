@@ -68,25 +68,25 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
 
 class ReportRenderingTests(unittest.TestCase):
     def test_observed_direction_is_explicit_without_a_gate_verdict(self):
-        for fps, expected in ((110, "Higher observed FPS"), (90, "Lower observed FPS"), (100, "No observed change")):
+        for fps, expected in ((110, "↑ Higher FPS"), (90, "↓ Lower FPS"), (100, "Unchanged")):
             with self.subTest(fps=fps):
                 report = compare_evidence(evidence(), evidence({"leg": [bundle(fps)] * 3}))
                 snapshot = copy.deepcopy(report)
                 markdown = render_build_comparison(report)
                 self.assertIn(expected, markdown)
-                self.assertIn("Baseline A FPS | Current B FPS", markdown)
+                self.assertIn("Baseline FPS | Current FPS | Change % | Result", markdown)
                 self.assertNotIn("PASS", markdown)
                 self.assertNotIn("FAIL", markdown)
                 self.assertEqual(report, snapshot)
 
     def test_missing_partial_and_incompatible_reasons_remain_visible(self):
         for a, b, expected, reason in (
-            (None, evidence(), "Not compared: missing data", "Baseline:"),
-            (evidence(), evidence({"leg": [bundle(100)]}), "Not compared: partial data", "Candidate:"),
+            (None, evidence(), "No baseline samples", "Baseline:"),
+            (evidence(), evidence({"leg": [bundle(100)]}), "Current results incomplete", "Candidate:"),
             (
                 evidence(),
                 evidence(formula="different"),
-                "Not compared: incompatible measurements",
+                "Cannot compare: measurement setup differs",
                 "FPS formula identities differ.",
             ),
         ):
@@ -95,6 +95,54 @@ class ReportRenderingTests(unittest.TestCase):
                 self.assertIn(expected, markdown)
                 self.assertIn(reason, markdown)
                 self.assertIn("**Comparison details:**", markdown)
+
+    def test_headline_counts_every_workload_without_reclassifying_rounded_or_missing_deltas(self):
+        a = evidence({name: [bundle(100, name)] * 3 for name in ("Higher", "Lower", "Same", "Tiny")})
+        b = evidence(
+            {
+                name: [bundle(fps, name)] * 3
+                for name, fps in (("Higher", 120), ("Lower", 80), ("Same", 100), ("Tiny", 100.0001), ("New", 130))
+            }
+        )
+        report = compare_evidence(a, b)
+        before = copy.deepcopy(report)
+        primary, diagnostics = render_build_comparison(report).split("<details>", 1)
+        self.assertIn("**2 higher FPS · 1 lower FPS · 1 unchanged · 1 cannot compare**", primary)
+        rows = [line for line in primary.splitlines() if line.startswith("|")]
+        self.assertEqual(len(rows), 7)  # Header, separator and all five workloads.
+        self.assertTrue(all(len(line.split("|")) == 7 for line in rows))
+        self.assertIn("No baseline samples", primary)
+        self.assertNotIn("sample_paths", primary)
+        self.assertNotIn("source.image_digest", primary)
+        self.assertIn("Samples A / B", diagnostics)
+        self.assertIn("Workload identities", diagnostics)
+        self.assertEqual(report, before)
+
+    def test_zero_baseline_and_no_rows_are_not_misreported(self):
+        report = compare_evidence(evidence({"leg": [bundle(0)] * 3}), evidence({"leg": [bundle(10)] * 3}))
+        primary = render_build_comparison(report).split("<details>", 1)[0]
+        self.assertIn("1 higher FPS · 0 lower FPS · 0 cannot compare", primary)
+        self.assertIn("N/A (baseline is zero)", primary)
+        empty = render_build_comparison({"rows": [], "selection": {"reason": "Current result artifact is missing."}})
+        self.assertIn("Cannot compare: no workload results available", empty)
+        self.assertIn("Current result artifact is missing", empty.split("<details>", 1)[0])
+        self.assertNotIn("0 cannot compare", empty)
+
+    def test_selection_reason_is_visible_when_no_baseline_was_found_without_an_error_code(self):
+        report = compare_evidence(None, evidence())
+        report["selection"] = {"reason": "No earlier measured ancestor was found."}
+        primary = render_build_comparison(report).split("<details>", 1)[0]
+        self.assertIn("No earlier measured ancestor was found", primary)
+        self.assertIn("No baseline samples", primary)
+        self.assertIn("| leg | — | 100 | — |", primary)
+
+    def test_configuration_labels_fall_back_when_the_same_name_covers_different_workloads(self):
+        report = compare_evidence(evidence({"leg": [bundle(100, "Before")] * 3}), evidence())
+        primary = render_build_comparison(report).split("<details>", 1)[0]
+        self.assertIn("Before · newton_mjwarp", primary)
+        self.assertIn("Task · newton_mjwarp", primary)
+        self.assertIn("No baseline samples", primary)
+        self.assertIn("No current samples", primary)
 
     def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
         a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})

@@ -93,6 +93,13 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
     lines = [
         f"### Rolling-history CI gate: {_icon(worst)}",
         "",
+    ]
+    for message in dict.fromkeys(report.message for _, report in reports if report.message):
+        lines += [_build_text(message), ""]
+    lines += [
+        "<details>",
+        "<summary>Rolling-history gate details</summary>",
+        "",
         "| Combination | Total FPS | Baseline | FPS regression % | Startup [s] | GPU mem [GB] | RSS [GB] | Verdict |",
         "| --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
     ]
@@ -125,6 +132,8 @@ def render_aggregate(reports: list[tuple[str, Report]]) -> str:
         f"{len(reports)} combination(s) reported. A 🚫 ERROR row is a fault in the gate, not a performance "
         "result, and never blocks a pull request. A combination whose benchmark crashed shows both an ERROR "
         "row here and a failed job.",
+        "",
+        "</details>",
     ]
     return "\n".join(lines) + "\n"
 
@@ -173,18 +182,45 @@ def _build_result(row: dict) -> str:
     if row["status"] == "compared":
         delta = row.get("absolute_change")
         if delta is None:
-            return "Observed change unavailable"
+            return "Cannot compare: change unavailable"
         if delta > 0:
-            return "Higher observed FPS"
+            return "↑ Higher FPS"
         if delta < 0:
-            return "Lower observed FPS"
-        return "No observed change"
+            return "↓ Lower FPS"
+        return "Unchanged"
+    if row["status"] in ("missing", "partial"):
+        affected = [
+            label
+            for side, label in (("baseline", "Baseline"), ("candidate", "Current"))
+            if row[side]["status"] == row["status"]
+        ]
+        subject = " and ".join(affected) or "Benchmark"
+        if row["status"] == "missing":
+            return f"No {subject.lower()} samples"
+        return subject + " results incomplete"
     return {
-        "missing": "Not compared: missing data",
-        "partial": "Not compared: partial data",
-        "unknown": "Not compared: comparability unknown",
-        "incompatible": "Not compared: incompatible measurements",
-    }.get(row["status"], f"Not compared: {row['status']}")
+        "unknown": "Cannot compare: measurement details unknown",
+        "incompatible": "Cannot compare: measurement setup differs",
+    }.get(row["status"], f"Cannot compare: {row['status']}")
+
+
+def _build_fps(value: float | None) -> str:
+    """Make FPS readable at a glance while keeping small nonzero values visible."""
+    if value is None:
+        return "—"
+    if 0 < abs(value) < 0.01:
+        return f"{value:.6g}"
+    return f"{value:,.2f}".rstrip("0").rstrip(".")
+
+
+def _build_labels(rows: list[dict]) -> list[str]:
+    """Use unambiguous CI configuration names, retaining full identities below."""
+    labels = []
+    for row in rows:
+        legs = row.get("legs", {})
+        names = set(legs.get("baseline", [])) | set(legs.get("candidate", []))
+        labels.append(next(iter(names)) if len(names) == 1 else row["label"])
+    return [label if labels.count(label) == 1 else row["label"] for label, row in zip(labels, rows)]
 
 
 def render_build_comparison(report: dict) -> str:
@@ -196,8 +232,57 @@ def render_build_comparison(report: dict) -> str:
         identities[unavailable_side] = selection.get("unavailable_evidence")
     a_label = "A — historical baseline" + (" (evidence unavailable)" if unavailable_side == "baseline" else "")
     b_label = "B — current benchmark" + (" (evidence unavailable)" if unavailable_side == "candidate" else "")
+    rows = report.get("rows", [])
+    labels = _build_labels(rows)
+    higher = lower = unchanged = cannot_compare = 0
+    for row in rows:
+        delta = row.get("absolute_change")
+        if row["status"] != "compared" or delta is None:
+            cannot_compare += 1
+        elif delta > 0:
+            higher += 1
+        elif delta < 0:
+            lower += 1
+        else:
+            unchanged += 1
+    counts = [f"{higher} higher FPS", f"{lower} lower FPS"]
+    if unchanged:
+        counts.append(f"{unchanged} unchanged")
+    counts.append(f"{cannot_compare} cannot compare")
     lines = [
         "### Automatic build comparison",
+        "",
+        "**" + (" · ".join(counts) if rows else "Cannot compare: no workload results available") + "**",
+        "",
+    ]
+    if selection.get("reason_code") or not report.get("baseline") or not rows:
+        missing_reason = (
+            "No baseline results were available." if rows else "No readable workload results were recorded."
+        )
+        lines += [
+            "Comparison unavailable: " + _build_text(selection.get("reason", missing_reason)),
+            "",
+        ]
+    if rows:
+        lines += [
+            "| Workload | Baseline FPS | Current FPS | Change % | Result |",
+            "| --- | ---: | ---: | ---: | --- |",
+        ]
+    for label, row in zip(labels, rows):
+        percent = _pct(row["change_pct"]) if row.get("change_pct") is not None else "—"
+        if row["status"] == "compared" and row.get("change_pct") is None and row["baseline"]["median"] == 0:
+            percent = "N/A (baseline is zero)"
+        lines.append(
+            f"| {_build_text(label)} | {_build_fps(row['baseline']['median'])} | "
+            f"{_build_fps(row['candidate']['median'])} | {percent} | {_build_text(_build_result(row))} |"
+        )
+    lines += [
+        "",
+        "FPS is the median of recorded samples. Positive change means higher FPS. "
+        "These observations do not change the rolling-history CI gate below.",
+        "",
+        "<details>",
+        "<summary>Builds and source results</summary>",
         "",
         _build_identity(a_label, identities["baseline"]),
         "",
@@ -221,14 +306,25 @@ def render_build_comparison(report: dict) -> str:
         ]
     if selection.get("reason_code"):
         lines += ["**Comparison unavailable:** " + _build_text(selection["reason_code"]) + ".", ""]
-    rows = report.get("rows", [])
+    for issue in selection.get("issues", []):
+        lines.append("- Selection note: " + _build_text(json.dumps(issue, sort_keys=True)))
+    lines += [
+        "",
+        "</details>",
+        "",
+        "<details>",
+        "<summary>Samples, environment and diagnostic details</summary>",
+        "",
+    ]
     if rows:
         lines += [
-            "| Workload | Baseline A FPS | Current B FPS | Δ FPS (B − A) | Δ % | Samples A / B | Result |",
-            "| --- | ---: | ---: | ---: | ---: | --- | --- |",
+            "Sample counts are valid/expected for baseline A and current B.",
+            "",
+            "| Workload | Samples A / B | Δ FPS (B − A) |",
+            "| --- | --- | ---: |",
         ]
     detail_workloads: dict[str, list[str]] = {}
-    for row in rows:
+    for label, row in zip(labels, rows):
         counts = []
         for side in ("baseline", "candidate"):
             item = row[side]
@@ -242,31 +338,20 @@ def render_build_comparison(report: dict) -> str:
                 f"{json.dumps(difference['candidate'], sort_keys=True)}"
             )
         for detail in dict.fromkeys(details):
-            detail_workloads.setdefault(detail, []).append(row["label"])
+            detail_workloads.setdefault(detail, []).append(label)
         delta = row.get("absolute_change")
         absolute = "—" if delta is None else f"{delta:+.6g}"
-        lines.append(
-            f"| {_build_text(row['label'])} | {_num(row['baseline']['median'])} | "
-            f"{_num(row['candidate']['median'])} | {absolute} | {_pct(row.get('change_pct'))} | "
-            f"{' / '.join(counts)} | {_build_text(_build_result(row))} |"
-        )
-    if not rows:
-        lines.append("No readable workload rows are available for this comparison.")
+        lines.append(f"| {_build_text(label)} | {' / '.join(counts)} | {absolute} |")
+    if rows:
+        lines += ["", "**Workload identities:**", ""]
+        lines.extend(f"- **{_build_text(label)}:** {_build_text(row['label'])}" for label, row in zip(labels, rows))
     if detail_workloads:
         lines += ["", "**Comparison details:**", ""]
         for detail, labels in detail_workloads.items():
             applies_to = "All workloads" if len(labels) == len(rows) and len(rows) > 1 else "; ".join(labels)
             lines.append(f"- **{_build_text(applies_to)}:** {_build_text(detail)}")
-    lines += [
-        "",
-        "FPS values are medians of the available samples. Positive Δ means higher observed FPS; "
-        "negative Δ means lower observed FPS. Sample counts are valid/expected for A and B.",
-        "",
-        "The rolling-history CI gate below is unchanged. These exact-build deltas do not determine its verdict.",
-        "",
-    ]
+    lines.append("")
     for note in dict.fromkeys(report.get("notes", [])):
         lines.append("- " + _build_text(note))
-    for issue in selection.get("issues", []):
-        lines.append("- Selection note: " + _build_text(json.dumps(issue, sort_keys=True)))
+    lines += ["", "</details>", ""]
     return "\n".join(lines) + "\n"
