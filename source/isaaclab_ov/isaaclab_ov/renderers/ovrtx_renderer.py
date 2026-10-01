@@ -79,7 +79,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.cloner import ovstage_replicate
+from isaaclab_ov.cloner import ovrtx_replicate, ovstage_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -99,9 +99,7 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     create_scene_partition_attributes,
-    env_root_transforms,
     export_stage_to_string,
-    iter_clone_copies,
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
@@ -296,6 +294,10 @@ class OVRTXBackend:
         redirect_shader_cache(native_cfg)
         self.stage = None
         self.paths = None
+        # Prepared by clone dispatch, consumed after camera overrides are authored on the USD stage.
+        self.clone_copies: list[tuple[str, list[str]]] = []
+        self.clone_env_paths: list[str] = []
+        self.clone_positions: np.ndarray | None = None
         with contextlib.ExitStack() as resources:
             if cfg.use_ovstage:
                 self.stage = resources.enter_context(create_ovstage("isaaclab.ovrtx"))
@@ -495,11 +497,11 @@ class OVRTXRenderer(BaseRenderer):
 
         # OVRTX cannot clone onto existing prims. Keep environment roots unless explicitly cloned;
         # asset-level clones need their parents' authored environment transforms.
-        sources = tuple(
-            source for source in cloner_path.get_asset_prototype_paths(self._clone_plan) if source is not None
+        sources = tuple(source for source, _ in self.backend.clone_copies)
+        env_paths = set(self.backend.clone_env_paths)
+        keep_env_roots = not self._use_ovstage and all(
+            env_paths.isdisjoint(targets) for _, targets in self.backend.clone_copies
         )
-        templates, _ = cloner_path.get_world_prototype_asset_templates(self._clone_plan)
-        keep_env_roots = not self._use_ovstage and self._clone_plan.env_template not in templates
         self._exported_usd_string = export_stage_to_string(
             stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
         )
@@ -606,7 +608,12 @@ class OVRTXRenderer(BaseRenderer):
 
         camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], num_envs)
         if num_envs > 1:
-            self._clone_sources()
+            ovrtx_replicate(
+                self.backend.renderer,
+                self.backend.clone_copies,
+                self.backend.clone_env_paths,
+                self.backend.clone_positions,
+            )
             self._update_scene_partitions_after_clone(camera_paths)
         # References drop external camera targets; restore them after all cameras have been cloned.
         self.backend.renderer.write_array_attribute(
@@ -637,32 +644,6 @@ class OVRTXRenderer(BaseRenderer):
 
         self._setup_xform_bindings_legacy()
         self._setup_geometry_bindings_legacy()
-
-    def _clone_sources(self):
-        """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
-        plan = self._clone_plan
-        logger.info("Cloning sources in OVRTX...")
-
-        if self._use_ovstage:
-            num_cloned_sources = ovstage_replicate(self.backend.stage, self.backend.paths, plan, self._current_ordinal)
-            logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-            return
-
-        num_cloned_sources = 0
-        for source, target_paths in iter_clone_copies(plan):
-            logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-            self.backend.renderer.clone_usd(source, target_paths)
-            num_cloned_sources += 1
-
-        logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-        env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
-        self.backend.renderer.write_attribute(
-            env_paths,
-            "omni:xform",
-            env_root_transforms(plan),
-            semantic=Semantic.XFORM_MAT4x4,
-            prim_mode=PrimMode.MUST_EXIST,
-        )
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:
         """Assign environment partitions to cloned roots and the declared camera batch."""
@@ -1710,7 +1691,14 @@ class OVRTXRenderer(BaseRenderer):
 
         camera_paths = _get_cloned_camera_paths(spec.camera_prim_paths[0], num_envs)
         if num_envs > 1:
-            self._clone_sources()
+            ovstage_replicate(
+                self.backend.stage,
+                self.backend.paths,
+                self.backend.clone_copies,
+                self.backend.clone_env_paths,
+                self.backend.clone_positions,
+                ordinal=self._current_ordinal,
+            )
             self._update_scene_partitions_after_clone(camera_paths)
 
         self._initialized_scene = True

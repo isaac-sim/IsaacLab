@@ -3,12 +3,11 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""OvPhysX clone-context dispatch from the active clone plan."""
+"""OV clone-context dispatch and native replication operations."""
 
 from __future__ import annotations
 
-import logging
-from collections.abc import Collection, Iterable, Sequence
+from collections.abc import Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -20,9 +19,8 @@ from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
 
-logger = logging.getLogger(__name__)
-
 if TYPE_CHECKING:
+    import ovrtx
     import ovstage
 
     from isaaclab.cloner import ClonePlan
@@ -160,51 +158,129 @@ class OvPhysxReplicateContext:
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
+class OvrtxReplicateContext:
+    """Compile routed assets into native copies for OVRTX renderers and borrowed stages."""
+
+    replicate_priority = 100
+
+    def __init__(self, sim_context: SimulationContext):
+        self._sim = sim_context
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Prepare native operations before camera initialization imports the scene.
+
+        Like OVPhysX recipes, these copies belong to the backend. Renderers must not
+        interpret topology or retain asset-id routing to reconstruct them later.
+        """
+        from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg  # noqa: PLC0415
+        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
+
+        if not any(isinstance(cfg, (OVRTXBackendCfg, OvstageBackendCfg)) for cfg, _ in self._sim._backend_registry):
+            return
+        sources = cloner.path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        assets = plan.topology.world_prototypes
+        copies = {}
+        for group in np.flatnonzero(np.diff(world_starts)):
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
+            destinations = [templates[index] for index in members]
+            for index, parent in zip(members, cloner.path.get_parent_indices(destinations), strict=True):
+                source, template = sources[assets[index]], templates[index]
+                if parent != -1:
+                    ancestor = members[parent]
+                    suffix = cloner.path.relative_to(template, templates[ancestor])
+                    if source == sources[assets[ancestor]] + suffix:
+                        continue
+                copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+        # Native clones cannot overwrite existing prims. Keep self-only sources for export,
+        # but omit self-copies and children already carried by the same parent copy.
+        native_copies = [
+            (source, [target for target in copies[source, template] if target != source])
+            for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
+        ]
+        env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+        for cfg, backend in self._sim._backend_registry:
+            if isinstance(cfg, OVRTXBackendCfg):
+                backend.clone_copies = native_copies
+                backend.clone_env_paths = env_paths
+                backend.clone_positions = plan.positions
+            elif isinstance(cfg, OvstageBackendCfg):
+                backend.populate(self._sim.stage, native_copies, env_paths, plan.positions)
+
+
+def ovrtx_replicate(
+    renderer: ovrtx.Renderer,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+) -> None:
+    """Apply prepared subtree copies and environment placement to a native OVRTX scene.
+
+    Args:
+        renderer: Native renderer holding the source prims.
+        copies: Source paths paired with destination paths, ordered with parents before children.
+            Sources with no destinations are retained prototypes; self-copies must be excluded.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+    """
+    from ovrtx import PrimMode, Semantic  # noqa: PLC0415
+
+    for source, targets in copies:
+        if targets:
+            renderer.clone_usd(source, targets)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        renderer.write_attribute(
+            env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
+        )
+
+
 def ovstage_replicate(
     stage: ovstage.Stage,
     paths: ovstage.PathDictionary,
-    plan: ClonePlan,
+    copies: Sequence[tuple[str, Sequence[str]]],
+    env_paths: Sequence[str],
+    positions: np.ndarray | None = None,
+    *,
     ordinal: int,
-    asset_prototype_ids: Collection[int] | None = None,
-) -> int:
-    """Clone every planned prototype onto its environments in an OVStage stage, then place the environment roots.
-
-    Cloning recreates the environment roots, so their poses are written after the copies.
+) -> None:
+    """Apply the same prepared copies and placement to an OVStage scene.
 
     Args:
-        stage: The ovstage stage holding the exported prototypes.
+        stage: Native stage holding the source prims.
         paths: Path dictionary of ``stage``.
-        plan: The scene's completed clone plan.
-        ordinal: Write ordinal for the clones and the environment-root write.
-        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
-
-    Returns:
-        The number of prototype copies made.
+        copies: Source paths paired with destination paths, with the same contract as :func:`ovrtx_replicate`.
+        env_paths: Environment-root paths in placement order.
+        positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+        ordinal: Write ordinal for the clones and environment placement.
     """
     import ovstage  # noqa: PLC0415
 
-    from isaaclab_ov.renderers.ovrtx_usd import env_root_transforms, iter_clone_copies  # noqa: PLC0415
     from isaaclab_ov.stage import xform_tensor_from_numpy  # noqa: PLC0415
 
-    num_copies = 0
-    for source, target_paths in iter_clone_copies(plan, asset_prototype_ids):
-        logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-        stage.clone(source, target_paths, ordinal=ordinal)
-        num_copies += 1
-
-    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
-    path_list = paths.create_path_list_from_strings(env_paths)
-    with stage.query_from_path_list(path_list) as query:
-        stage.write_attribute(
-            query,
-            "omni:xform",
-            ordinal=ordinal,
-            tensors=xform_tensor_from_numpy(env_root_transforms(plan)),
-            is_array=False,
-            semantic=ovstage.AttributeSemantic.MATRIX,
-        ).wait()
-    paths.destroy_path_list(path_list)
-    return num_copies
+    for source, targets in copies:
+        if targets:
+            stage.clone(source, targets, ordinal=ordinal)
+    if positions is not None and env_paths:
+        xforms = np.tile(np.eye(4, dtype=np.float64), (len(env_paths), 1, 1))
+        xforms[:, 3, :3] = positions
+        path_list = paths.create_path_list_from_strings(env_paths)
+        try:
+            with stage.query_from_path_list(path_list) as query:
+                stage.write_attribute(
+                    query,
+                    "omni:xform",
+                    ordinal=ordinal,
+                    tensors=xform_tensor_from_numpy(xforms),
+                    is_array=False,
+                    semantic=ovstage.AttributeSemantic.MATRIX,
+                ).wait()
+        finally:
+            paths.destroy_path_list(path_list)
 
 
 def ovphysx_replicate(

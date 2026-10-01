@@ -387,8 +387,9 @@ Visualizer Overview
          By default Newton rebuilds the scene from its own model, which drops visual properties it
          cannot represent, such as MDL materials like glass. Set ``render_usd_stage=True`` on
          :class:`~isaaclab_visualizers.newton.NewtonRTXVisualizerCfg` when constructing it to draw the
-         simulation's USD stage as authored instead; it builds that stage from the clone plan. It needs a Newton release whose ``ViewerRTX`` accepts ``ovstage=``,
-         OVRTX 0.5, and OVStage 0.2 or newer. Runtime visual-material randomization writes to the
+         simulation's USD stage as authored. The shared OV clone context populates a simulation-owned
+         stage, which the viewer borrows until it closes. This needs a Newton release whose ``ViewerRTX``
+         accepts ``ovstage=``, OVRTX 0.5, and OVStage 0.2 or newer. Runtime visual-material randomization writes to the
          Newton model, so it does not reach the drawn stage yet.
 
    .. tab-item:: Rerun

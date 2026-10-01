@@ -3,7 +3,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared helpers for creating ovstage stages and describing their attribute columns.
+"""Simulation-owned OVStage resources and shared attribute-column helpers.
 
 ``ovstage`` is a hard dependency of ``isaaclab_ov``, so it is imported unconditionally here.
 """
@@ -11,18 +11,23 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Sequence
+from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import numpy as np
 import ovstage
 import warp as wp
 
+from isaaclab.sim import BackendCfg
+from isaaclab.utils import configclass
+
 from isaaclab_ov.ovstage_compat import HIERARCHY_COMPUTATION_MODEL
 
 if TYPE_CHECKING:
     from pxr import Usd
 
-    from isaaclab.cloner import ClonePlan
+    from isaaclab.visualizers import VisualizerCfg
 
 logger = logging.getLogger(__name__)
 
@@ -122,47 +127,58 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
-def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
-    """Build a populated ovstage of the scene for a consumer that draws it, such as Newton's ``ViewerRTX``.
+@configclass
+class OvstageBackendCfg(BackendCfg):
+    """Configuration of a simulation-owned stage borrowed by a visualizer."""
 
-    The USD stage is trimmed to the clone plan's prototypes, exported into a new ovstage stage, and
-    cloned onto every environment, so each environment keeps its own authored prims and visual
-    materials. The caller owns the returned stage.
+    class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
+    visualizer_cfg: VisualizerCfg = MISSING
+    """Consumer settings; different viewer cameras and render products need separate stages."""
 
-    Args:
-        stage: The live USD stage the clone plan was published for.
-        plan: The scene's completed clone plan.
 
-    Returns:
-        The populated stage, with all writes committed.
+class OvstageBackend:
+    """Own a detached rendering stage until the simulation has closed its consumers."""
 
-    Raises:
-        RuntimeError: If the installed OVStage does not compute the prim hierarchy on the device, which a
-            stage borrowed by ``ViewerRTX`` requires.
-    """
-    if HIERARCHY_COMPUTATION_MODEL != "GPU_INCREMENTAL":
-        raise RuntimeError(
-            "Rendering the simulation's USD stage needs OVStage 0.2 or newer, which computes the prim hierarchy"
-            " on the device."
-        )
+    def __init__(self, cfg: OvstageBackendCfg):
+        """Create the native stage with the device hierarchy required by borrowed-stage rendering.
 
-    from isaaclab.cloner import path as cloner_path  # noqa: PLC0415
+        Args:
+            cfg: Consumer configuration identifying this resource.
 
-    from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
-    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string  # noqa: PLC0415
+        Raises:
+            RuntimeError: If the installed OVStage does not support the device hierarchy.
+        """
+        if HIERARCHY_COMPUTATION_MODEL != "GPU_INCREMENTAL":
+            raise RuntimeError("Rendering a borrowed stage needs OVStage 0.2 or newer for its device hierarchy.")
+        self.stage = create_ovstage("isaaclab.render")
 
-    num_envs = len(plan.topology.world_prototype_layout)
-    sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
-    usda = export_stage_to_string(stage, num_envs, source_paths=sources, keep_env_roots=False)
+    def populate(
+        self,
+        stage: Usd.Stage,
+        copies: Sequence[tuple[str, Sequence[str]]],
+        env_paths: Sequence[str],
+        positions: np.ndarray | None,
+    ) -> None:
+        """Import routed prototypes and execute the clone context's prepared native operations.
 
-    render_stage = create_ovstage("isaaclab.render")
-    # Ordinal 0 is the empty state in ovstage; the first write must use >= 1.
-    ordinal = 1
-    ovstage.population.open_usd_from_string(
-        render_stage, usda, ordinal=ordinal, domains=ovstage.PopulationDomain.RENDERING
-    )
-    ovstage.population.apply_usd_changes(render_stage, ordinal=ordinal)
-    with ovstage.PathDictionary(render_stage) as paths:
-        ovstage_replicate(render_stage, paths, plan, ordinal)
-    render_stage.advance_write_floor(ordinal=ordinal).wait()
-    return render_stage
+        Args:
+            stage: Live USD stage containing the prototypes and their materials.
+            copies: Source and destination paths with the contract of :func:`isaaclab_ov.cloner.ovstage_replicate`.
+            env_paths: Environment-root paths in placement order.
+            positions: Optional environment positions [m], shape ``[len(env_paths), 3]``.
+        """
+        from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
+        from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string  # noqa: PLC0415
+
+        sources = tuple(source for source, _ in copies)
+        usda = export_stage_to_string(stage, len(env_paths), source_paths=sources, keep_env_roots=False)
+        # Ordinal 0 is the empty state; population and cloning form the first committed write.
+        ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=ovstage.PopulationDomain.RENDERING)
+        ovstage.population.apply_usd_changes(self.stage, ordinal=1)
+        with ovstage.PathDictionary(self.stage) as paths:
+            ovstage_replicate(self.stage, paths, copies, env_paths, positions, ordinal=1)
+        self.stage.advance_write_floor(ordinal=1).wait()
+
+    def close(self) -> None:
+        """Release the native stage after its borrowers have closed."""
+        self.stage.destroy()

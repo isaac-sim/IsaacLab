@@ -167,6 +167,12 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     visualizer_type: str = "newton_rtx"
     """Visualizer selector identifier. Do not change."""
 
+    cloning_contexts: tuple[type | str, ...] = (
+        "isaaclab_newton.cloner:NewtonReplicateContext",
+        "isaaclab_ov.cloner:OvrtxReplicateContext",
+    )
+    """Prepare the Newton model and any simulation-owned stage requested for RTX rendering."""
+
     rtx_environment: str = "default"
     """OVRTX lighting environment.  One of ``"default"`` (dome + distant light),
     ``"studio"`` (three-point rig for cleaner highlights), or ``"none"``."""
@@ -183,6 +189,6 @@ class NewtonRTXVisualizerCfg(NewtonVisualizerCfg):
     """Draw the simulation's own USD stage instead of a scene rebuilt from the Newton model.
 
     Newton's USD import drops visual properties it cannot represent, such as MDL materials, so the
-    rebuilt scene loses them. With this enabled, Isaac Lab clones the scene from its clone plan into an OVStage
-    stage, and ``ViewerRTX`` renders that stage as authored while Newton only drives the body poses. It needs a
+    rebuilt scene loses them. With this enabled, the OV clone context populates a simulation-owned OVStage,
+    and ``ViewerRTX`` borrows that stage while Newton drives the body poses. It needs a
     Newton release whose ``ViewerRTX`` accepts ``ovstage=``, and OVRTX 0.5 with OVStage 0.2 or newer."""

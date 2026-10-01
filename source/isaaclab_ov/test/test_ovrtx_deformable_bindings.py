@@ -51,7 +51,8 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     renderer, native = _make_renderer_without_backend()
     renderer.cfg.async_rendering = mode == "async"
     use_ovstage = mode == "ovstage"
-    assert not renderer.cfg.cloning_contexts
+    # Geometry reaches OVRTX through SDP, so no Newton clone context may be declared for it.
+    assert all(str(context).startswith("isaaclab_ov.cloner:") for context in renderer.cfg.cloning_contexts)
     renderer._use_ovstage = use_ovstage
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=42))
     points = {

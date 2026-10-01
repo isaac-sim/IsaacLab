@@ -976,59 +976,44 @@ def test_newton_gl_background_color(color: tuple[float, float, float] | None) ->
     assert visualizer._viewer.renderer.sky_lower == expected_lower
 
 
-@pytest.mark.parametrize("color", [(0.1, 0.2, 0.3), None])
-def test_newton_rtx_receives_background_color(
-    monkeypatch: pytest.MonkeyPatch, color: tuple[float, float, float] | None
+@pytest.mark.parametrize(
+    "color, render_usd_stage, accepts_ovstage",
+    [((0.1, 0.2, 0.3), False, False), (None, True, True), (None, True, False)],
+    ids=["model-stage", "borrowed-stage", "unsupported-viewer"],
+)
+def test_newton_rtx_receives_background_color_and_prepared_stage(
+    monkeypatch: pytest.MonkeyPatch, color, render_usd_stage, accepts_ovstage
 ) -> None:
-    kwargs = {}
-    monkeypatch.setattr(
-        newton_visualizer_module,
-        "NewtonViewerRTX",
-        lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object(),
-    )
-
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(background_color=color))._create_viewer(False, {})
-
-    assert kwargs["background_color"] == color
-
-
-def _patch_rtx_viewer(monkeypatch: pytest.MonkeyPatch, *, accepts_ovstage: bool) -> dict:
-    """Replace the RTX viewer classes with fakes and return the keyword arguments the wrapper receives."""
     kwargs = {}
     monkeypatch.setattr(
         newton_visualizer_module, "NewtonViewerRTX", lambda **viewer_kwargs: kwargs.update(viewer_kwargs) or object()
     )
     base_init = (lambda self, *, ovstage=None: None) if accepts_ovstage else (lambda self: None)
     monkeypatch.setattr(newton_visualizer_module, "ViewerRTX", type("FakeViewerRTX", (), {"__init__": base_init}))
-    return kwargs
-
-
-def test_newton_rtx_borrows_the_usd_stage_only_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
-    pytest.importorskip("isaaclab_ov.stage")
-    kwargs = _patch_rtx_viewer(monkeypatch, accepts_ovstage=True)
-    stage, plan = object(), object()
+    backend = SimpleNamespace(stage=object())
+    register = Mock(return_value=backend)
     monkeypatch.setattr(
-        newton_visualizer_module.SimulationContext,
-        "instance",
-        staticmethod(lambda: SimpleNamespace(stage=stage, get_clone_plan=lambda: plan)),
+        SimulationContext, "instance", staticmethod(lambda: SimpleNamespace(get_or_create_backend=register))
     )
-    built = []
-    monkeypatch.setattr("isaaclab_ov.stage.create_render_ovstage", lambda *args: built.append(args) or "render-stage")
+    cfg = NewtonRTXVisualizerCfg(background_color=color, render_usd_stage=render_usd_stage)
+    if render_usd_stage and not accepts_ovstage:
+        with pytest.raises(RuntimeError, match="ovstage="):
+            NewtonRTXVisualizer(cfg)
+        register.assert_not_called()
+        return
+    if render_usd_stage:
+        pytest.importorskip("isaaclab_ov.stage")
+    NewtonRTXVisualizer(cfg)._create_viewer(True, {})
+    assert kwargs["background_color"] == color
+    if render_usd_stage:
+        from isaaclab_ov.stage import OvstageBackendCfg
 
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg())._create_viewer(False, {})
-    assert "ovstage" not in kwargs
-    assert not built
-
-    NewtonRTXVisualizer(NewtonRTXVisualizerCfg(render_usd_stage=True))._create_viewer(False, {})
-    assert kwargs["ovstage"] == "render-stage"
-    assert built == [(stage, plan)]
-
-
-def test_newton_rtx_usd_stage_requires_a_viewer_that_accepts_ovstage(monkeypatch: pytest.MonkeyPatch) -> None:
-    _patch_rtx_viewer(monkeypatch, accepts_ovstage=False)
-
-    with pytest.raises(RuntimeError, match="ovstage="):
-        NewtonRTXVisualizer(NewtonRTXVisualizerCfg(render_usd_stage=True))._create_viewer(False, {})
+        register.assert_called_once_with(OvstageBackendCfg(visualizer_cfg=cfg))
+        assert "isaaclab_ov.cloner:OvrtxReplicateContext" in cfg.cloning_contexts
+        assert kwargs["ovstage"] is backend.stage
+    else:
+        register.assert_not_called()
+        assert "ovstage" not in kwargs
 
 
 def test_eye_lookat_to_pitch_yaw_looking_up():

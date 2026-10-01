@@ -1354,8 +1354,6 @@ class NewtonVisualizer(BaseVisualizer):
                 viewer.close()
         finally:
             self._viewer = None
-            # The viewer borrows this stage, so it is released only after the viewer has closed.
-            self._render_stage = None
 
     def close(self) -> None:
         """Release viewer resources."""
@@ -2369,20 +2367,20 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         # OVRTX loads lazily on first begin_frame(); disable permanently on first failure
         # so a missing/broken OVRTX install doesn't spam the log every step.
         self._disable_viewer_on_step_exception = True
-        self._render_stage = None
-
-    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
-        viewer_kwargs = {}
-        if self.cfg.render_usd_stage:
+        self._render_backend = None
+        if cfg.render_usd_stage:
             if "ovstage" not in inspect.signature(ViewerRTX.__init__).parameters:
                 raise RuntimeError(
                     "NewtonRTXVisualizerCfg.render_usd_stage needs a Newton release whose ViewerRTX accepts ovstage=."
                 )
-            from isaaclab_ov.stage import create_render_ovstage
+            from isaaclab_ov.stage import OvstageBackendCfg
 
-            sim = SimulationContext.instance()
-            self._render_stage = create_render_ovstage(sim.stage, sim.get_clone_plan())
-            viewer_kwargs["ovstage"] = self._render_stage
+            self._render_backend = SimulationContext.instance().get_or_create_backend(
+                OvstageBackendCfg(visualizer_cfg=cfg)
+            )
+
+    def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
+        viewer_kwargs = {} if self._render_backend is None else {"ovstage": self._render_backend.stage}
         if not runtime_headless:
             # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
             write_desktop_entry(

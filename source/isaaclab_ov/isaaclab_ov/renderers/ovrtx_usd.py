@@ -9,18 +9,13 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Collection, Iterator, Mapping
+from collections.abc import Mapping
 from types import MappingProxyType
 from typing import TYPE_CHECKING
 
-import numpy as np
-
 from pxr import Sdf, Usd, UsdGeom
 
-from isaaclab.cloner import path as cloner_path
-
 if TYPE_CHECKING:
-    from isaaclab.cloner import ClonePlan
     from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXCameraRenderData
@@ -398,63 +393,6 @@ def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[
             prim_paths.append(child_path)
 
     return prim_paths
-
-
-def iter_clone_copies(
-    plan: ClonePlan, asset_prototype_ids: Collection[int] | None = None
-) -> Iterator[tuple[str, list[str]]]:
-    """Yield each ``(source, target paths)`` copy the clone plan needs, parents before their descendants.
-
-    Copies already covered by an identical copy of an ancestor are omitted, and so are copies onto the
-    source itself.
-
-    Args:
-        plan: The scene's completed clone plan.
-        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
-
-    Yields:
-        The prototype prim path and the destination paths it is copied to.
-    """
-    sources = cloner_path.get_asset_prototype_paths(plan)
-    templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
-        plan, include_world_indices=True
-    )
-    assets = plan.topology.world_prototypes
-    # Group copies by source/template, omitting descendants already covered by an identical parent copy.
-    copies = {}
-    for group in np.flatnonzero(np.diff(world_starts)):
-        start, end = starts[group : group + 2]
-        targets = world_ids[world_starts[group] : world_starts[group + 1]]
-        members = [
-            index for index in range(start, end) if asset_prototype_ids is None or assets[index] in asset_prototype_ids
-        ]
-        for index, parent in zip(members, cloner_path.get_parent_indices([templates[i] for i in members]), strict=True):
-            source, template = sources[assets[index]], templates[index]
-            if parent != -1:
-                ancestor = members[parent]
-                suffix = cloner_path.relative_to(template, templates[ancestor])
-                if source == sources[assets[ancestor]] + suffix:
-                    continue
-            copies.setdefault((source, template), []).append(targets)
-    for source, destination in sorted(copies, key=lambda copy: copy[1].count("/")):
-        worlds = np.concatenate(copies[source, destination])
-        target_paths = [target for target in map(destination.format, worlds) if target != source]
-        if target_paths:
-            yield source, target_paths
-
-
-def env_root_transforms(plan: ClonePlan) -> np.ndarray:
-    """Return the environment-root world transforms authored by the clone plan.
-
-    Args:
-        plan: The scene's completed clone plan.
-
-    Returns:
-        Row-major ``(num_envs, 4, 4)`` float64 matrices carrying each environment's position.
-    """
-    xforms = np.tile(np.eye(4, dtype=np.float64), (len(plan.topology.world_prototype_layout), 1, 1))
-    xforms[:, 3, :3] = plan.positions
-    return xforms
 
 
 def export_stage_to_string(
