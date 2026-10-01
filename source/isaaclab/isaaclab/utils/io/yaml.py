@@ -43,7 +43,7 @@ def dump_yaml(filename: str, data: dict | object, sort_keys: bool = False):
         sort_keys: Whether to sort the keys in the output file. Defaults to False.
     """
     # check ending
-    if not filename.endswith("yaml"):
+    if not filename.lower().endswith((".yaml", ".yml")):
         filename += ".yaml"
     # create directory
     directory = os.path.dirname(filename)

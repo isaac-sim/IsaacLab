@@ -2320,7 +2320,7 @@ def test_reset(sim, num_articulations, device):
 @pytest.mark.parametrize("device", test_devices())
 @pytest.mark.parametrize("add_ground_plane", [True])
 def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
-    """Test applying of joint position target functions correctly for a robotic arm."""
+    """Arm targets track commands while the passive finger follows the driven finger."""
     articulation_cfg = generate_articulation_cfg(articulation_type="panda")
     articulation, _ = generate_articulation(
         articulation_cfg=articulation_cfg, num_articulations=num_articulations, device=device
@@ -2338,6 +2338,10 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # reset dof state
     joint_pos = articulation.data.default_joint_pos.torch.clone()
     joint_pos[:, 3] = 0.0
+    leader_id = articulation.find_joints("panda_finger_joint1")[0][0]
+    follower_id = articulation.find_joints("panda_finger_joint2")[0][0]
+    initial_leader_pos = articulation.data.joint_pos.torch[:, leader_id].clone()
+    joint_pos[:, [leader_id, follower_id]] = 0.01
 
     # apply action to the articulation
     articulation.set_joint_position_target_index(target=joint_pos)
@@ -2353,6 +2357,11 @@ def test_apply_joint_command(sim, num_articulations, device, add_ground_plane):
     # gravity with these gains, so they are not checked. Without the target write, the drives pull
     # every joint toward zero instead (the wrist ends near 0.3 rad instead of 3.0 rad).
     torch.testing.assert_close(articulation.data.joint_pos.torch[:, 3:], joint_pos[:, 3:], atol=0.1, rtol=0.0)
+
+    leader_pos = articulation.data.joint_pos.torch[:, leader_id]
+    follower_pos = articulation.data.joint_pos.torch[:, follower_id]
+    assert torch.all(torch.abs(leader_pos - initial_leader_pos) > 0.005)
+    torch.testing.assert_close(follower_pos, leader_pos, rtol=0.0, atol=5.0e-4)
 
 
 @pytest.mark.parametrize("num_articulations", [2])
