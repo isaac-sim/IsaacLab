@@ -27,7 +27,9 @@ def test_spawn_preview_surface_without_kit(monkeypatch):
 
     shader = UsdShade.Shader(prim)
     material = UsdShade.Material(stage.GetPrimAtPath("/Looks/PreviewSurface"))
+    assert prim.GetPrimTypeInfo().GetTypeName() == "Shader"
     assert shader.GetIdAttr().Get() == "UsdPreviewSurface"
+    assert shader.GetInput("diffuseColor").Get() == cfg.diffuse_color
     assert shader.GetInput("diffuseColor").GetTypeName() == Sdf.ValueTypeNames.Color3f
     assert shader.GetInput("emissiveColor").GetTypeName() == Sdf.ValueTypeNames.Color3f
     assert shader.GetInput("roughness").GetTypeName() == Sdf.ValueTypeNames.Float

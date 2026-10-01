@@ -6,191 +6,140 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from typing import TYPE_CHECKING
 
-import torch
+import numpy as np
 
-from pxr import Gf, Sdf, Usd, UsdGeom, Vt
+from .clone_plan import path as cloner_path
+from .fabric_notices import disabled_fabric_change_notifies
 
-from ._fabric_notices import disabled_fabric_change_notifies
-from .path import split
+if TYPE_CHECKING:
+    from pxr import Usd
 
-
-def _select_env_ids(env_ids: torch.Tensor, mask: torch.Tensor | None, row: int) -> torch.Tensor:
-    """Return the environment ids selected by a replication row."""
-    if mask is None:
-        return env_ids
-    row_mask = mask if mask.dim() == 1 else mask[row]
-    if row_mask.dtype != torch.bool:
-        row_mask = row_mask.to(dtype=torch.bool)
-    return env_ids[row_mask]
-
-
-class UsdReplicateContext:
-    """Queue and apply USD replication work for one stage."""
-
-    replicate_priority = 100
-
-    def __init__(self, stage: Usd.Stage):
-        """Initialize the context.
-
-        Args:
-            stage: USD stage to author replicated prim specs into.
-        """
-        self.stage = stage
-        self._queue: list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]] = []
-
-    def queue(
-        self,
-        source: str,
-        destination: str,
-        env_ids: torch.Tensor,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue one USD source row for replication.
-
-        Args:
-            source: Source prim path.
-            destination: Destination path template with ``"{}"`` for env id.
-            env_ids: Environment ids selected for this source row.
-            positions: Optional per-environment world positions [m]. Authored only for
-                instance-root destination templates (for example, ``.../env_{}``).
-            quaternions: Optional per-environment orientations in xyzw order. Authored only
-                for instance-root destination templates (for example, ``.../env_{}``).
-        """
-        self._queue.append((source, destination, env_ids, positions, quaternions))
-
-    def queue_mapping(
-        self,
-        sources: Sequence[str],
-        destinations: Sequence[str],
-        env_ids: torch.Tensor,
-        mask: torch.Tensor | None = None,
-        *,
-        positions: torch.Tensor | None = None,
-        quaternions: torch.Tensor | None = None,
-    ) -> None:
-        """Queue replication rows from the current flat clone mapping.
-
-        Args:
-            sources: Source prim paths.
-            destinations: Destination path templates with ``"{}"`` for env id.
-            env_ids: Environment indices.
-            mask: Optional per-source or shared mask.
-            positions: Optional per-environment world positions [m]. Authored only for
-                instance-root destination templates (for example, ``.../env_{}``).
-            quaternions: Optional per-environment orientations in xyzw order. Authored only
-                for instance-root destination templates (for example, ``.../env_{}``).
-        """
-        for i, source in enumerate(sources):
-            self.queue(
-                source,
-                destinations[i],
-                _select_env_ids(env_ids, mask, i),
-                positions=positions,
-                quaternions=quaternions,
-            )
-
-    def replicate(self) -> None:
-        """Apply all queued USD copy specs in parent-before-child order."""
-        if not self._queue:
-            return
-
-        # Suspend Fabric's per-Sdf.CopySpec notice listener for the duration of the copy work;
-        # no-op outside a live Kit application.
-        with disabled_fabric_change_notifies(self.stage):
-            self._apply_queue()
-
-    def _apply_queue(self) -> None:
-        """Author the queued copy specs into the stage's root layer."""
-        rl = self.stage.GetRootLayer()
-
-        def dp_depth(template: str) -> int:
-            """Return destination prim path depth for stable parent-first replication."""
-            dp = template.format(0)
-            return Sdf.Path(dp).pathElementCount
-
-        depth_to_items: dict[int, list[tuple[str, str, torch.Tensor, torch.Tensor | None, torch.Tensor | None]]] = {}
-        for item in self._queue:
-            depth_to_items.setdefault(dp_depth(item[1]), []).append(item)
-
-        for depth in sorted(depth_to_items.keys()):
-            with Sdf.ChangeBlock():
-                for src, tmpl, target_envs, positions, quaternions in depth_to_items[depth]:
-                    _, clone_suffix = split(tmpl)
-                    is_instance_root = clone_suffix == ""
-
-                    for wid in target_envs.tolist():
-                        wid = int(wid)
-                        dp = tmpl.format(wid)
-                        Sdf.CreatePrimInLayer(rl, dp)
-                        # ``CreatePrimInLayer`` authors missing intermediate ancestors (e.g. the
-                        # ``Groceries`` scope in ``env_{}/Groceries/Object``) as ``over`` specs. A
-                        # ``def`` copied below an ``over`` ancestor never composes as defined, so
-                        # Hydra skips it and its references stay unexpanded. Promote such ancestors
-                        # to ``def``; for ancestors already defined elsewhere this is a no-op.
-                        ancestor = Sdf.Path(dp).GetParentPath()
-                        while ancestor != Sdf.Path.absoluteRootPath:
-                            ancestor_spec = rl.GetPrimAtPath(ancestor)
-                            if ancestor_spec is None or ancestor_spec.specifier != Sdf.SpecifierOver:
-                                break
-                            ancestor_spec.specifier = Sdf.SpecifierDef
-                            ancestor = ancestor.GetParentPath()
-                        if src != dp:
-                            Sdf.CopySpec(rl, Sdf.Path(src), rl, Sdf.Path(dp))
-
-                        # Author positions/quaternions for instance roots only.
-                        if is_instance_root and (positions is not None or quaternions is not None):
-                            ps = rl.GetPrimAtPath(dp)
-                            op_names = []
-                            if positions is not None:
-                                p = positions[wid]
-                                t_attr = ps.GetAttributeAtPath(dp + ".xformOp:translate")
-                                if t_attr is None:
-                                    t_attr = Sdf.AttributeSpec(ps, "xformOp:translate", Sdf.ValueTypeNames.Double3)
-                                t_attr.default = Gf.Vec3d(float(p[0]), float(p[1]), float(p[2]))
-                                op_names.append("xformOp:translate")
-                            if quaternions is not None:
-                                q = quaternions[wid]
-                                o_attr = ps.GetAttributeAtPath(dp + ".xformOp:orient")
-                                if o_attr is None:
-                                    o_attr = Sdf.AttributeSpec(ps, "xformOp:orient", Sdf.ValueTypeNames.Quatd)
-                                o_attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(float(q[0]), float(q[1]), float(q[2])))
-                                op_names.append("xformOp:orient")
-                            if op_names:
-                                op_order = ps.GetAttributeAtPath(dp + ".xformOpOrder") or Sdf.AttributeSpec(
-                                    ps, UsdGeom.Tokens.xformOpOrder, Sdf.ValueTypeNames.TokenArray
-                                )
-                                op_order.default = Vt.TokenArray(op_names)
+    from ..sim import SimulationContext
+    from .clone_plan import ClonePlan
 
 
 def usd_replicate(
     stage: Usd.Stage,
     sources: Sequence[str],
     destinations: Sequence[str],
-    env_ids: torch.Tensor,
-    mask: torch.Tensor | None = None,
-    positions: torch.Tensor | None = None,
-    quaternions: torch.Tensor | None = None,
+    env_ids: np.ndarray,
+    mask: np.ndarray | None = None,
+    positions: np.ndarray | None = None,
+    quaternions: np.ndarray | None = None,
 ) -> None:
-    """Replicate USD prims to per-environment destinations.
-
-    Copies each source prim spec to destination templates for selected environments
-    (``mask``). Optionally authors translate/orient from position/quaternion buffers.
-    Replication runs in path-depth order (parents before children) for robust composition.
+    """Replicate USD prims from a raw source-to-environment mapping.
 
     Args:
         stage: USD stage.
         sources: Source prim paths.
-        destinations: Destination formattable templates with ``"{}"`` for env index.
-        env_ids: Environment indices.
+        destinations: Destination templates containing ``"{}"`` for the environment id.
+        env_ids: Environment identifiers.
         mask: Optional per-source or shared mask. ``None`` selects all.
-        positions: Optional positions [m], shape ``[E, 3]``. Authored as ``xformOp:translate`` only
-            for env-instance root destinations (``.../env_{}``).
-        quaternions: Optional orientations in xyzw order, shape ``[E, 4]``. Authored as
-            ``xformOp:orient`` only for env-instance root destinations (``.../env_{}``).
+        positions: Optional positions [m], shape ``[num_envs, 3]``. Authored only
+            for environment-root destinations (``.../env_{}``).
+        quaternions: Optional xyzw orientations, shape ``[num_envs, 4]``. Authored only
+            for environment-root destinations.
     """
-    ctx = UsdReplicateContext(stage)
-    ctx.queue_mapping(sources, destinations, env_ids, mask, positions=positions, quaternions=quaternions)
-    ctx.replicate()
+    # pxr must bind to Kit's USD runtime when Kit is active.
+    from pxr import Gf, Sdf, UsdGeom, Vt  # noqa: PLC0415
+
+    layer = stage.GetRootLayer()
+    # Parents must be copied before independently declared descendants.
+    with disabled_fabric_change_notifies(stage), Sdf.ChangeBlock():
+        for source_index in sorted(range(len(sources)), key=lambda index: destinations[index].count("/")):
+            source, template = sources[source_index], destinations[source_index]
+            if mask is None:
+                columns = range(len(env_ids))
+            else:
+                columns = np.flatnonzero(mask if mask.ndim == 1 else mask[source_index])
+            is_env_root = template.rstrip("/").endswith("{}")
+            for column in columns:
+                destination = template.format(int(env_ids[column]))
+                Sdf.CreatePrimInLayer(layer, destination)
+                # CopySpec beneath an "over" ancestor does not compose as defined.
+                ancestor = Sdf.Path(destination).GetParentPath()
+                while ancestor != Sdf.Path.absoluteRootPath:
+                    spec = layer.GetPrimAtPath(ancestor)
+                    if spec is None or spec.specifier != Sdf.SpecifierOver:
+                        break
+                    spec.specifier = Sdf.SpecifierDef
+                    ancestor = ancestor.GetParentPath()
+                if source != destination:
+                    Sdf.CopySpec(layer, Sdf.Path(source), layer, Sdf.Path(destination))
+
+                if not is_env_root or (positions is None and quaternions is None):
+                    continue
+                spec = layer.GetPrimAtPath(destination)
+                op_names = []
+                if positions is not None:
+                    name = "xformOp:translate"
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Double3)
+                    attr.default = Gf.Vec3d(*map(float, positions[column]))
+                    op_names.append(name)
+                if quaternions is not None:
+                    name, q = "xformOp:orient", quaternions[column]
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Quatd)
+                    attr.default = Gf.Quatd(float(q[3]), Gf.Vec3d(*map(float, q[:3])))
+                    op_names.append(name)
+                name = UsdGeom.Tokens.xformOpOrder
+                op_order = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.TokenArray)
+                op_order.default = Vt.TokenArray(op_names)
+
+
+class UsdReplicateContext:
+    """Apply routed clone-plan sources to one USD stage."""
+
+    # USD destinations must exist before native physics contexts consume them.
+    replicate_priority = -100
+
+    def __init__(self, sim: SimulationContext):
+        self.stage = sim.stage
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Replicate this context's declared sources with the same low-level USD operation."""
+        from pxr import Gf, Sdf, Vt  # noqa: PLC0415
+
+        sources = cloner_path.get_asset_prototype_paths(plan)
+        templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+            plan, include_world_indices=True
+        )
+        assets = plan.topology.world_prototypes
+        # Group copies by source/template, omitting descendants already covered by an identical parent copy.
+        copies = {}
+        for group in np.flatnonzero(np.diff(world_starts)):
+            start, end = starts[group : group + 2]
+            targets = world_ids[world_starts[group] : world_starts[group + 1]]
+            members = [index for index in range(start, end) if assets[index] in asset_prototype_ids]
+            destinations = [templates[index] for index in members]
+            for index, parent in zip(members, cloner_path.get_parent_indices(destinations), strict=True):
+                source, template = sources[assets[index]], templates[index]
+                if parent != -1:
+                    ancestor = members[parent]
+                    suffix = cloner_path.relative_to(template, templates[ancestor])
+                    if source == sources[assets[ancestor]] + suffix:
+                        continue
+                copies.setdefault((source, template), []).append(targets)
+        env_ids = range(len(plan.topology.world_prototype_layout))
+        with disabled_fabric_change_notifies(self.stage), Sdf.ChangeBlock():
+            for source, template in sorted(copies, key=lambda copy: copy[1].count("/")):
+                usd_replicate(self.stage, (source,), (template,), np.concatenate(copies[source, template]))
+            if plan.positions is not None:
+                # Environment frames come from the plan, not copies of an undeclared USD subtree.
+                layer = self.stage.GetRootLayer()
+                for env_id, position in zip(env_ids, plan.positions, strict=True):
+                    path = plan.env_template.format(env_id)
+                    spec = Sdf.CreatePrimInLayer(layer, path)
+                    spec.specifier = Sdf.SpecifierDef
+                    if not spec.typeName:
+                        spec.typeName = "Xform"
+                    name = "xformOp:translate"
+                    attr = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.Double3)
+                    attr.default = Gf.Vec3d(*map(float, position))
+                    name = "xformOpOrder"
+                    order = spec.attributes.get(name) or Sdf.AttributeSpec(spec, name, Sdf.ValueTypeNames.TokenArray)
+                    ops = list(order.default or ())
+                    if attr.name not in ops:
+                        ops.insert(ops.index("!resetXformStack!") + 1 if "!resetXformStack!" in ops else 0, attr.name)
+                    order.default = Vt.TokenArray(ops)

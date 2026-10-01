@@ -31,6 +31,7 @@ import torch
 from tqdm import tqdm
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
+from isaaclab.utils import instantiate
 
 from isaaclab_tasks.contrib.nist.utils import reset_state
 from isaaclab_tasks.contrib.nist.utils.grid_downsample import extract_features, grid_bucket_downsample
@@ -63,11 +64,11 @@ class reset_accumulator(ManagerTermBase):
         self.reset_assets = sorted((set(env.scene._articulations) | set(env.scene._rigid_objects)) & set(reset_assets))
         state_dim = reset_state.get_reset_state(env, torch.tensor([0], device=env.device), self.reset_assets).shape[-1]
         self._state_target_size = int(cfg.params["state_table_size"])
-        self._state_fps_features = cfg.params.get("state_table_fps_features")
-        self._state_tag_names_bind: str | None = cfg.params.get("state_tag_names_bind")
-        self._tag_indices_bind: str | None = cfg.params.get("state_tag_indices_bind")
+        self._state_fps_features = cfg.params["state_table_fps_features"]
+        self._state_tag_names_bind: str | None = cfg.params["state_tag_names_bind"]
+        self._tag_indices_bind: str | None = cfg.params["state_tag_indices_bind"]
 
-        oversample_capacity = int(self._state_target_size * float(cfg.params.get("state_table_oversample_ratio", 1.0)))
+        oversample_capacity = int(self._state_target_size * float(cfg.params["state_table_oversample_ratio"]))
         self.sampled_slots = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.precollecting_phase = True
         self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
@@ -176,19 +177,22 @@ class reset_accumulator(ManagerTermBase):
             # one partition: the bank draws across every slot, and the samplers below do the
             # drawing themselves. ``success_rate`` is updated in place, so aliasing it here keeps
             # the strategies' ``success_rates`` binding live.
-            self.success_monitor = monitor_cfg.class_type(monitor_cfg, 1, n_slots, env.device)
+            self.success_monitor = instantiate(monitor_cfg, 1, n_slots, env.device)
             self.monitor_success_rate = self.success_monitor.success_rate
 
+        num_envs = len(range(env.num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         progress = env.termination_manager.get_term_cfg("progress_context").func
         monitor_ids = env_ids
-        if env_ids.numel() > 0 and monitor_exclude_terms:
+        if num_envs > 0 and monitor_exclude_terms:
             exclude_mask = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
             for term_name in monitor_exclude_terms:
                 if term_name in env.termination_manager._term_names:
                     term_idx = env.termination_manager._term_name_to_term_idx[term_name]
                     exclude_mask |= env.termination_manager._last_episode_dones[:, term_idx]
-            monitor_ids = env_ids[~exclude_mask[env_ids]]
-        if monitor_ids.numel() > 0:
+            monitor_ids = env.scene._ALL_INDICES[env_ids]
+            monitor_ids = monitor_ids[~exclude_mask[monitor_ids]]
+        num_monitored = num_envs if isinstance(monitor_ids, slice) else len(monitor_ids)
+        if num_monitored > 0:
             self.success_monitor.success_update(self.sampled_slots[monitor_ids], progress.is_success[monitor_ids])
 
         log: dict[str, float] = {}
@@ -203,11 +207,11 @@ class reset_accumulator(ManagerTermBase):
                     mask = tags == i
                     log[f"Metrics/MonitorSuccessRate/{name}"] = monitor_rates[mask].mean().item() if mask.any() else 0.0
 
-        if env_ids.numel() > 0:
+        if num_envs > 0:
             if self._sampler is None:
-                self._sampler = self._sampling_cfg.class_type(self._sampling_cfg, self.monitor_success_rate)
+                self._sampler = instantiate(self._sampling_cfg, self.monitor_success_rate)
 
-            probs, slot_idx = self._sampler.probabilities_and_sample(len(env_ids))
+            probs, slot_idx = self._sampler.probabilities_and_sample(num_envs)
             self.sampled_slots[env_ids] = slot_idx
             reset_state.set_reset_state(env, self.state_data[slot_idx], env_ids, self.reset_assets, is_relative=True)
             if report and self.state_tag_names:
@@ -253,18 +257,18 @@ class TermChoice(ManagerTermBase):
         # Need a monitor when the sampler has any non-uniform strategy, or when the user
         # explicitly requested reporting. Decided from the strategy configs because the monitor
         # owns the rate tensor the sampler binds, so it has to exist first.
-        needs_rates = cfg.params.get("report", False) or any(
+        needs_rates = cfg.params["report"] or any(
             "Uniform" not in str(strategy.class_type) for strategy in self._sampling_cfg.strategies
         )
         if needs_rates:
             monitor_cfg: SuccessMonitorCfg = cfg.params["success_monitor_cfg"]
-            self.success_monitor = monitor_cfg.class_type(monitor_cfg, 1, self.num_partitions, env.device)
+            self.success_monitor = instantiate(monitor_cfg, 1, self.num_partitions, env.device)
             self.term_success_rate = self.success_monitor.success_rate
         else:
             self.success_monitor = None
             self.term_success_rate = torch.zeros(self.num_partitions, device=env.device)
 
-        self._sampler = self._sampling_cfg.class_type(self._sampling_cfg, self.term_success_rate)
+        self._sampler = instantiate(self._sampling_cfg, self.term_success_rate)
 
     def __call__(
         self,
@@ -287,6 +291,7 @@ class TermChoice(ManagerTermBase):
             success = env.termination_manager.get_term_cfg("progress_context").func.is_success
             self.success_monitor.success_update(self.term_samples[env_ids], success[env_ids])
 
+        env_ids = env.scene._ALL_INDICES[env_ids]
         probs, choices = self._sampler.probabilities_and_sample(len(env_ids))
         self.term_samples[env_ids] = choices
         if report:
@@ -315,9 +320,10 @@ class ChainedResetTerms(ManagerTermBase):
         terms: dict[str, callable],
         probability: float = 1.0,
     ) -> None:
-        keep = torch.rand(env_ids.size(0), device=env_ids.device) < probability
-        if not keep.any():
-            return
-        env_ids_to_reset = env_ids[keep]
+        if probability < 1.0:
+            env_ids = env.scene._ALL_INDICES[env_ids]
+            env_ids = env_ids[torch.rand(env_ids.shape[0], device=env.device) < probability]
+            if env_ids.shape[0] == 0:
+                return
         for _, term in terms.items():
-            term.func(env, env_ids_to_reset, **term.params)  # type: ignore
+            term.func(env, env_ids, **term.params)  # type: ignore

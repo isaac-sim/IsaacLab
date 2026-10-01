@@ -36,7 +36,7 @@ def parse_cli_args() -> argparse.Namespace:
         "profile",
         nargs="?",
         default="base",
-        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
+        help="Optional container profile specification. Examples: 'base' or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",
@@ -116,7 +116,7 @@ def main(args: argparse.Namespace):
     if not shutil.which("docker"):
         raise RuntimeError(
             "Docker is not installed! Please check the 'Docker Guide' for instruction: "
-            "https://isaac-sim.github.io/IsaacLab/source/deployment/docker.html"
+            "https://isaac-sim.github.io/IsaacLab/source/workflows/docker/index.html"
         )
 
     # creating container interface
