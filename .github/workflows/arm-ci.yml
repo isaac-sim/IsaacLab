@@ -14,8 +14,8 @@
 # it could be retried. As its own workflow, arm-ci no longer gates the main
 # workflow's lifecycle, and it can be re-run independently.
 #
-# arm-ci is currently informational (continue-on-error), but it is wired to be
-# promotable to a REQUIRED status check: it triggers on every PR and gates the
+# arm-ci is not a required check, so a failure reports red without blocking the
+# merge. It is wired to be promotable to one: it triggers on every PR and gates the
 # expensive arm64 build behind the shared `changes` detector + `if:`. An
 # irrelevant PR SKIPS the job (which branch protection reads as green) instead
 # of never creating the check — a workflow-level `paths:` filter is deliberately
@@ -153,7 +153,6 @@ jobs:
     needs: [changes, config]
     if: needs.changes.outputs.should_run == 'true'
     timeout-minutes: 60
-    continue-on-error: true
     steps:
     - uses: actions/checkout@v6
       with:
