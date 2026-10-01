@@ -9,6 +9,7 @@ Recorded pendulum trajectories cover motor response, settling and live friction 
 No Isaac Sim runtime or downloaded asset is needed.
 """
 
+from dataclasses import fields
 from pathlib import Path
 
 import numpy as np
@@ -21,10 +22,8 @@ from isaaclab_newton.physics import (
     NewtonManager,
 )
 
-from pxr import Usd
-
 import isaaclab.sim as sim_utils
-from isaaclab.actuators import BamActuatorCfg
+from isaaclab.actuators import BamActuatorCfg, BamMotorCfg
 from isaaclab.actuators.newton import DriveBam, read_group_parameter, write_group_parameter
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
@@ -137,12 +136,6 @@ def pendulum_usd(tmp_path_factory) -> str:
     """Write :data:`PENDULUM_USDA` to a temporary file and return its path."""
     path = tmp_path_factory.mktemp("bam_pendulum") / "single_joint_pendulum.usda"
     path.write_text(PENDULUM_USDA)
-    stage = Usd.Stage.Open(str(path))
-    prim = stage.DefinePrim("/Robot/asset_actuator", "NewtonActuator")
-    fixture = Path(__file__).resolve().parents[3] / "isaaclab/test/actuators/data/bam_xl330_m6.usda"
-    prim.GetReferences().AddReference(str(fixture), "/BamActuator")
-    prim.CreateRelationship("newton:targets").SetTargets(["/Robot/joint"])
-    stage.GetRootLayer().Save()
     return str(path)
 
 
@@ -179,6 +172,18 @@ def _release(robot: Articulation) -> None:
     robot.actuators.reset()
 
 
+def _make_cfg(**overrides) -> BamActuatorCfg:
+    """Use the identified fit recorded alongside the upstream reference outputs."""
+    path = Path(__file__).resolve().parents[3] / "isaaclab/test/actuators/data/bam_xl330_m6_goldens.npz"
+    with np.load(path) as data:
+        params = {key.removeprefix("attr_"): data[key].item() for key in data.files if key.startswith("attr_")}
+    params["resistance"] = params.pop("R")
+    motor = BamMotorCfg(model="m6", **{f.name: params[f.name] for f in fields(BamMotorCfg) if f.name in params})
+    kwargs = {"joint_names_expr": [".*"], "motor": motor, "vin": VIN, "kp_fw": KP_FW}
+    kwargs.update(overrides)
+    return BamActuatorCfg(**kwargs)
+
+
 def _build_native_pendulum(sim, pendulum_usd: str, actuator_cfg: BamActuatorCfg | None = None) -> Articulation:
     """Spawn :data:`NUM_ENVS` BAM-driven pendulums on the Newton-native actuator path.
 
@@ -194,7 +199,7 @@ def _build_native_pendulum(sim, pendulum_usd: str, actuator_cfg: BamActuatorCfg 
             prim_path="/World/Env_[^/]*/Robot",
             spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
             init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-            actuators={"servo": actuator_cfg or BamActuatorCfg(joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW)},
+            actuators={"servo": actuator_cfg or _make_cfg()},
         )
     )
     clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
@@ -273,7 +278,7 @@ def _build_two_native_pendulums(sim, pendulum_usd: str, second_cfg: BamActuatorC
         sim_utils.create_prim(f"/World/Env_{index}", "Xform", translation=(index * 1.0, 0.0, 1.0))
     robots = []
     for name, cfg in (
-        ("RobotA", BamActuatorCfg(joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW)),
+        ("RobotA", _make_cfg()),
         ("RobotB", second_cfg),
     ):
         robots.append(
@@ -302,7 +307,7 @@ def test_two_articulations_sharing_one_actuator_must_agree(native_sim, device, p
     silently discard the first's randomization, and skipping them would silently ignore the
     second's configuration, so the conflict has to be refused.
     """
-    conflicting = BamActuatorCfg(joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW, friction_scale_range=(0.5, 2.0))
+    conflicting = _make_cfg(friction_scale_range=(0.5, 2.0))
     with pytest.raises(ValueError, match="share one Newton actuator"):
         _build_two_native_pendulums(native_sim, pendulum_usd, conflicting)
 
@@ -310,7 +315,7 @@ def test_two_articulations_sharing_one_actuator_must_agree(native_sim, device, p
 @pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
 def test_two_articulations_with_matching_settings_bind_once(native_sim, device, pendulum_usd):
     """Agreeing robots share the actuator, and neither is left unbound or bound twice."""
-    matching = BamActuatorCfg(joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW)
+    matching = _make_cfg()
     robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, matching)
 
     bam_actuators = [actuator for actuator in NewtonManager._adapter.actuators if isinstance(actuator.drive, DriveBam)]
@@ -339,7 +344,7 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
             spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
             init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
             actuators={
-                "servo": BamActuatorCfg(
+                "servo": _make_cfg(
                     joint_names_expr=[".*"],
                     kp_fw=KP_FW,
                     vin_range=(6.0, 8.0),
@@ -373,9 +378,7 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
     with whichever articulation initialized first winning. Differing ``max_delay`` puts the two
     robots in different Newton actuators; only the scoping decides which one each configures.
     """
-    delayed = BamActuatorCfg(
-        joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW, max_delay=2, friction_scale_range=(3.0, 3.0)
-    )
+    delayed = _make_cfg(max_delay=2, friction_scale_range=(3.0, 3.0))
     robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, delayed)
     assert len({id(actuator) for actuator in NewtonManager._adapter.actuators}) == 2, (
         "the two robots must not merge, or the test cannot tell the configurations apart"
@@ -407,7 +410,7 @@ def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
                 prim_path="/World/Env_[^/]*/Robot",
                 spawn=sim_utils.UsdFileCfg(usd_path=pendulum_usd),
                 init_state=ArticulationCfg.InitialStateCfg(joint_pos={"joint": INITIAL_ANGLE}),
-                actuators={"servo": BamActuatorCfg(joint_names_expr=[".*"], kp_fw=KP_FW, vin_range=(6.0, 8.0))},
+                actuators={"servo": _make_cfg(vin_range=(6.0, 8.0))},
             )
         )
         clone_plan_from_env_0(CloneCfg(clone_template="/World/Env_{}"), [robot.cfg], NUM_ENVS, 1.0)
@@ -420,4 +423,4 @@ def test_bam_rejects_a_non_mjwarp_solver(pendulum_usd):
 def test_bam_cfg_is_refused_on_the_isaac_lab_executed_path(sim, device, pendulum_usd):
     """BAM requires the native actuator loop."""
     with pytest.raises(ValueError, match="use_newton_actuators"):
-        _build_native_pendulum(sim, pendulum_usd, BamActuatorCfg(joint_names_expr=[".*"], kp_fw=KP_FW))
+        _build_native_pendulum(sim, pendulum_usd, _make_cfg())

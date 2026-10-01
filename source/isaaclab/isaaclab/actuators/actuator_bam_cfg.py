@@ -3,18 +3,116 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
+import json
+from dataclasses import MISSING
+from pathlib import Path
+from typing import Literal
+
 from isaaclab.utils.configclass import configclass
 
 from .actuator_base_cfg import ActuatorBaseCfg
 
 
 @configclass
+class BamMotorCfg:
+    """Identified BAM motor and gearbox fit for one servo model.
+
+    The fit is shared by all joints in an actuator group. Use separate groups for different
+    fits. Firmware gain and supply voltage are deployment settings on :class:`BamActuatorCfg`.
+    """
+
+    model: Literal["m1", "m2", "m5", "m6"] = MISSING
+    """Friction variant: Coulomb, Stribeck, directional load-dependent, or quadratic."""
+
+    kt: float = MISSING
+    """Motor torque/back-EMF constant [N.m/A or V.s/rad]."""
+
+    resistance: float = MISSING
+    """Winding resistance [Ohm]."""
+
+    error_gain: float = MISSING
+    """Position-error-to-duty-cycle factor per unit of firmware gain [1/rad]."""
+
+    max_pwm: float = 1.0
+    """Maximum duty-cycle magnitude [-]."""
+
+    max_current: float = 0.0
+    """Firmware current limit [A]. Zero disables current limiting."""
+
+    friction_base: float = MISSING
+    """Coulomb friction [N.m]."""
+
+    friction_viscous: float = MISSING
+    """Viscous friction coefficient [N.m.s/rad]."""
+
+    friction_stribeck: float = 0.0
+    """Additional near-rest friction [N.m]."""
+
+    dtheta_stribeck: float = 1.0
+    """Stribeck decay velocity [rad/s]."""
+
+    alpha: float = 1.0
+    """Stribeck decay exponent [-]."""
+
+    load_friction_motor: float = 0.0
+    """Motor-side load-dependent friction coefficient [-]."""
+
+    load_friction_external: float = 0.0
+    """External-side load-dependent friction coefficient [-]."""
+
+    load_friction_motor_stribeck: float = 0.0
+    """Motor-side near-rest load-dependent friction coefficient [-]."""
+
+    load_friction_external_stribeck: float = 0.0
+    """External-side near-rest load-dependent friction coefficient [-]."""
+
+    load_friction_motor_quad: float = 0.0
+    """Motor-side quadratic load-coupling coefficient [1/(N.m)]."""
+
+    load_friction_external_quad: float = 0.0
+    """External-side quadratic load-coupling coefficient [1/(N.m)]."""
+
+    def validate_config(self) -> None:
+        """Reject friction variants not implemented by the BAM drive.
+
+        Raises:
+            ValueError: If the model is not m1, m2, m5, or m6.
+        """
+        if self.model not in ("m1", "m2", "m5", "m6"):
+            raise ValueError(f"Unsupported BAM model {self.model!r}; expected m1, m2, m5, or m6.")
+
+    @classmethod
+    def from_json(cls, path: str | Path) -> "BamMotorCfg":
+        """Load a Rhoban BAM fit without importing the upstream BAM package.
+
+        Renames ``R`` to ``resistance`` and drops ``actuator``, ``kp``, ``vin``, ``armature``,
+        and ``q_offset``. Upstream fits may omit firmware constants: set ``error_gain`` and
+        any non-default PWM/current limits on the returned config before using it.
+
+        Args:
+            path: Local path to a Rhoban BAM fit JSON file.
+
+        Returns:
+            Motor config, with unspecified fields left at their declared defaults.
+
+        Raises:
+            TypeError: If the fit contains unrecognized fields.
+        """
+        with Path(path).open() as stream:
+            values = json.load(stream)
+        values["resistance"] = values.pop("R")
+        for name in ("actuator", "kp", "vin", "armature", "q_offset"):
+            values.pop(name, None)
+        return cls(**values)
+
+
+@configclass
 class BamActuatorCfg(ActuatorBaseCfg):
     """Configuration for the BAM voltage-domain servo actuator.
 
-    Identified motor and friction coefficients are read from the asset's
-    ``NewtonBamDriveAPI`` actuator prims. Configuration values explicitly override
-    the USD values; no parameter file is loaded during simulation.
+    Motor and friction coefficients come from :attr:`motor`. Like other explicit actuators,
+    this configuration replaces existing USD actuators on the selected joints. Newton reads
+    the resulting ``NewtonBamDriveAPI`` prims without loading parameter files.
 
     Note:
         :attr:`~isaaclab.actuators.ActuatorBaseCfg.stiffness` and
@@ -44,27 +142,14 @@ class BamActuatorCfg(ActuatorBaseCfg):
     See :attr:`stiffness`.
     """
 
-    parameter_overrides: dict[str, float | int] | None = None
-    """Explicit overrides of USD BAM coefficients, keyed by snake-case parameter name.
+    motor: BamMotorCfg = MISSING
+    """Identified motor and gearbox fit shared by the joints in this group."""
 
-    Unspecified values are retained per joint from the asset. For example,
-    ``{"friction_base": 0.005}`` overrides Coulomb friction [N.m] for this group.
-    See the BAM parameter table in the actuator guide for supported names and units.
-    Unknown names and missing required coefficients raise an error at authoring time.
-    Prefer :attr:`kp_fw` and :attr:`vin` for deployment settings; these take precedence
-    over entries in this mapping. Solver inertia remains owned by the joint USD or
-    :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`. The drive has no separate
-    rotor-inertia parameter.
-    """
+    kp_fw: float = MISSING
+    """Firmware proportional gain [-]."""
 
-    kp_fw: float | None = None
-    """Firmware proportional gain [-]. None preserves the USD value."""
-
-    vin: float | None = None
-    """Nominal supply voltage [V]. None preserves the USD value.
-
-    Overridden by :attr:`vin_range` when that is set.
-    """
+    vin: float = MISSING
+    """Nominal supply voltage [V]. Overridden by :attr:`vin_range` when set."""
 
     vin_range: tuple[float, float] | None = None
     """Range to sample the per-environment supply voltage from [V].
