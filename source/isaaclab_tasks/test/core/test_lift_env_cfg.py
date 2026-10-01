@@ -69,7 +69,7 @@ def test_franka_soft_robot_physics_variant_matches_backend(
 
 def test_franka_rigid_task_selects_collision_meshes_for_reset_clearance() -> None:
     """Rigid Lift inherits the canonical asset's full primitive colliders."""
-    cfg = FrankaLiftEnvCfg()
+    cfg = resolve_presets(FrankaLiftEnvCfg())
     stage = Usd.Stage.CreateInMemory()
     robot = stage.DefinePrim("/Robot", "Xform")
     colliders = robot.GetVariantSets().AddVariantSet("Colliders")

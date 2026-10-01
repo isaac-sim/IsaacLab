@@ -23,7 +23,6 @@ from isaaclab_tasks.utils.preset_target import PresetTarget
 from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
-_MINIMAL_TASK = "Isaac-Reach-Franka-Minimal"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
 _RIGID_FRANKA_TASKS = (
@@ -74,17 +73,27 @@ def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physi
         }
 
 
-@pytest.mark.parametrize("physics", ("newton_mjwarp", "isaacsim_physx", "ovphysx"))
-def test_minimal_reach_changes_only_collision_scope(physics):
-    full = to_dict(_load_reach_env_cfg(_TASK, physics))
-    minimal = to_dict(_load_reach_env_cfg(_MINIMAL_TASK, physics))
+@pytest.mark.parametrize(
+    ("task", "presets"),
+    [
+        (_TASK, ("newton_mjwarp",)),
+        (_TASK, ("isaacsim_physx", "diffik")),
+        (_TASK, ("ovphysx", "diffik_abs")),
+        (_OSC_TASK, ("newton_mjwarp",)),
+        ("Isaac-Lift-Franka", ("isaacsim_physx",)),
+    ],
+)
+def test_minimal_preset_changes_only_collision_scope(task, presets):
+    full = to_dict(_load_reach_env_cfg(task, *presets))
+    minimal = to_dict(_load_reach_env_cfg(task, *presets, "minimal"))
 
     assert FRANKA_MINIMAL_CFG.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
     assert full["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "primitives"
     assert minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "gripper_only"
     minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] = "primitives"
     assert minimal == full
-    assert "arm_collisions" not in enumerate_task_presets(_TASK)[PresetTarget.DOMAIN]
+    assert "minimal" in enumerate_task_presets(task)[PresetTarget.DOMAIN]
+    assert "Isaac-Reach-Franka-Minimal" not in registry
 
 
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
@@ -254,7 +263,7 @@ def test_reach_osc_resolves_controller_preset_values_to_defaults():
     assert physx_props.disable_gravity is True
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.teleop_devices.devices == {}
-    assert domain_presets == {"diffik_abs"}
+    assert domain_presets == {"diffik_abs", "minimal"}
 
 
 def test_reach_osc_diffik_abs_is_a_deprecated_no_op_alias():
