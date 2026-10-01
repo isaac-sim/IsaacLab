@@ -12,6 +12,7 @@ Motor and friction outputs are checked against upstream BAM golden data. The har
 supplies the solver's external load and reads the motor torque and published friction budget.
 """
 
+import sys
 from dataclasses import MISSING, fields
 from pathlib import Path
 from types import SimpleNamespace
@@ -162,7 +163,12 @@ def test_bam_cfg_is_rejected_on_a_host_adapter_backend(monkeypatch, backend):
 
     physics_cfg = PhysxCfg() if backend == "physx" else OvPhysxCfg()
     sim_cfg = SimulationCfg(physics=physics_cfg, use_newton_actuators=True)
-    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(cfg=sim_cfg))
+    manager_name = physics_cfg.class_type.rsplit(":", 1)[-1]
+    sim_ctx = SimpleNamespace(cfg=sim_cfg, physics_manager=SimpleNamespace(__name__=manager_name))
+    monkeypatch.setattr(SimulationContext, "instance", lambda: sim_ctx)
+    # Reject the configuration even when the optional Newton backend is not installed.
+    monkeypatch.setitem(sys.modules, "isaaclab_newton", None)
+    monkeypatch.setitem(sys.modules, "isaaclab_newton.physics", None)
     with pytest.raises(ValueError, match="BAM requires.*Newton backend"):
         define_actuator_properties("/Robot", {"servo": _make_cfg()})
 
