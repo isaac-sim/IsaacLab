@@ -45,6 +45,8 @@ class DeformableStageEntry:
     """Parent-frame world position [m]."""
     init_rot: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
     """Parent-frame world orientation as an xyzw quaternion."""
+    source_env_origin: tuple[float, float, float] | None = None
+    """Authored source environment origin [m]. None assumes the source was placed by the clone plan."""
 
 
 def deformable_geometry_batches(
@@ -122,11 +124,12 @@ def _select_visual_mesh(vis_candidates: list, sim_mesh_prim, sim_vertex_count: i
     return max(vis_candidates, key=_score)
 
 
-def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
+def deformable_entry(root_prim: Usd.Prim, *, env_template: str | None = None) -> DeformableStageEntry | None:
     """Read simulation and visual geometry from one declared deformable prototype.
 
     Args:
         root_prim: Prim that carries a deformable-body API schema.
+        env_template: Clone-plan environment template used to capture the authored source origin.
 
     Returns:
         Geometry with vertices [m] baked into the parent frame and its world pose [m, xyzw],
@@ -192,6 +195,12 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
         vis_indices = np.asarray(UsdGeom.Mesh(vis_mesh_prim).GetFaceVertexIndicesAttr().Get() or [], dtype=np.int32)
 
     rotation = parent_transform.ExtractRotationQuat()
+    source_env_origin = None
+    if env_template is not None:
+        source_env_origin = (0.0, 0.0, 0.0)
+        if (match := cloner_path.match(str(root_path), env_template)) is not None:
+            anchor = stage.GetPrimAtPath(env_template.format(match.instance))
+            source_env_origin = tuple(xform_cache.GetLocalToWorldTransform(anchor).ExtractTranslation())
     return DeformableStageEntry(
         root_path=str(root_path),
         sim_mesh_path=str(sim_mesh_prim.GetPath()),
@@ -205,6 +214,7 @@ def deformable_entry(root_prim: Usd.Prim) -> DeformableStageEntry | None:
         vis_indices=vis_indices,
         init_pos=tuple(parent_transform.ExtractTranslation()),
         init_rot=(*rotation.GetImaginary(), rotation.GetReal()),
+        source_env_origin=source_env_origin,
     )
 
 
@@ -247,7 +257,7 @@ def deformable_prototypes(
                     continue
             if prim.IsA(UsdGeom.Points) or prim.IsA(UsdGeom.BasisCurves) or not has_deformable_body_api(prim):
                 continue
-            if (entry := deformable_entry(prim)) is not None:
+            if (entry := deformable_entry(prim, env_template=plan.env_template)) is not None:
                 entries.append(entry)
     return entries
 
@@ -288,11 +298,13 @@ def expand_deformable_entries(
         if owner not in source_instances:
             entries[entry.root_path] = (entry.root_path, entry)
             continue
-        source_column = source_instances[owner][0][2][0]
+        origin = entry.source_env_origin
+        if positions is not None and origin is None:
+            origin = positions[source_instances[owner][0][2][0]]
         for source, template, columns in source_instances[owner]:
             for column in columns:
                 target = template.format(int(env_ids[column]))
-                offset = 0 if positions is None else positions[column] - positions[source_column]
+                offset = 0 if positions is None else positions[column] - origin
                 cloned = replace(
                     entry,
                     root_path=cloner_path.rebase(entry.root_path, source, target),

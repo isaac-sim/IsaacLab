@@ -162,7 +162,10 @@ def _replicate_newton(
     options.update(skip_mesh_approximation=not simulation, import_results_out=import_results)
     source_builders = build_source_builders(stage, source_paths, create_builder, schema_resolvers, **options)
     if simulation:
-        entries = [add_deformable_from_usd(source_builders[path], stage, root_path=path) for path in deformable_paths]
+        entries = [
+            add_deformable_from_usd(source_builders[path], stage, root_path=path, env_template=plan.env_template)
+            for path in deformable_paths
+        ]
     else:
         # Import visual meshes once into their owning prototypes, before the common native replication.
         for entry in entries:
