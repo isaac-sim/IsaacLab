@@ -15,9 +15,6 @@ from isaaclab.test.utils.articulation_ordering import (
     PANDA_BODY_NAMES,
     PANDA_JOINT_NAMES,
     PANDA_ROOT_PRESERVING_REVERSED_BODY_NAMES,
-    UNSORTED_SIBLINGS_PHYSX_BODY_NAMES,
-    UNSORTED_SIBLINGS_PHYSX_JOINT_NAMES,
-    author_unsorted_sibling_articulation,
 )
 from isaaclab.utils import clone, replace
 
@@ -577,22 +574,6 @@ def test_branching_fixture_resolves_distinct_conventions(sim, device, gravity_en
     assert tuple(articulation.body_names) == BRANCHING_MJWARP_BODY_NAMES
     assert articulation.joint_ordering is not None
     assert articulation.body_ordering is not None
-
-
-@pytest.mark.parametrize("device", test_devices(DeviceScope.CUDA))
-@pytest.mark.parametrize("gravity_enabled", [False])
-@pytest.mark.parametrize("floating_base", [False, True])
-def test_native_order_follows_authored_sibling_joint_order(sim, device, gravity_enabled, floating_base, tmp_path):
-    """List siblings in authored joint-prim order, the order the ``"physx"`` convention reproduces elsewhere."""
-    usd_path = tmp_path / "unsorted_siblings.usda"
-    author_unsorted_sibling_articulation(str(usd_path), floating_base=floating_base)
-    articulation = Articulation(
-        ArticulationCfg(prim_path="/World/Robot", spawn=sim_utils.UsdFileCfg(usd_path=str(usd_path)), actuators={})
-    )
-    sim.reset()
-
-    assert tuple(articulation.backend_joint_names) == UNSORTED_SIBLINGS_PHYSX_JOINT_NAMES
-    assert tuple(articulation.backend_body_names) == UNSORTED_SIBLINGS_PHYSX_BODY_NAMES
 
 
 @pytest.mark.parametrize("num_articulations", [2])

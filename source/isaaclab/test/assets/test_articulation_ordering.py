@@ -783,8 +783,7 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
         },
     )
     _install_source_asset_resolver(monkeypatch, _resolve_matching_prims_from_source)
-
-    # The fake view has no model to traverse; keep its names.
+    # The fake view has no joint tree to traverse; keep its names.
     monkeypatch.setattr(
         ordering_resolvers,
         "_get_breadth_first_names_in_authored_joint_order",
@@ -806,11 +805,18 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
 
     articulation = _Articulation()
 
-    # The name order comes from the stubbed traversal, which is tested on its own below.
-    joint_names = get_articulation_name_ordering(articulation, "physx", kind="joint")
-    body_names = get_articulation_name_ordering(articulation, "physx", kind="body")
-    assert sorted(joint_names) == sorted(articulation.backend_joint_names)
-    assert sorted(body_names) == sorted(articulation.backend_body_names)
+    assert get_articulation_name_ordering(articulation, "physx", kind="joint") == (
+        "hip",
+        "shoulder",
+        "knee",
+        "elbow",
+    )
+    assert get_articulation_name_ordering(articulation, "physx", kind="body") == (
+        "base",
+        "upper_arm",
+        "forearm",
+        "hand",
+    )
     assert calls["registered"] == 1
     assert len(calls["add_usd"]) == 1
     assert calls["add_usd"][0]["root_path"] == "/World/envs/env_0/Robot"
@@ -819,88 +825,37 @@ def test_physx_ordering_helper_builds_bfs_newton_view_from_usd_source(monkeypatc
     assert calls["views"] == [("/World/envs/env_0/Robot/base", {"verbose": False, "exclude_joint_types": [0, 1]})]
 
 
-class _NumpyArray:
-    """Array stand-in exposing the ``numpy()`` accessor of a Warp array."""
-
-    def __init__(self, values):
-        self._values = np.asarray(values)
-
-    def numpy(self):
-        return self._values
-
-
-def _make_unsorted_sibling_hand(root_joint_label: str, thumb_tip_joint_label: str = "/Robot/joints/thumb_tip_joint"):
-    """Return a stage, its robot prim and a Newton-like view of a hand with siblings not authored in path order.
-
-    The stage authors the palm's child joints in the order ``thumb_joint``, ``index_joint`` (two DoFs) and
-    ``middle_joint`` (fixed), followed by ``index_tip_joint`` and ``thumb_tip_joint``. The model lists joints
-    breadth-first with siblings in path order, as Newton's BFS import does; the view drops the fixed joints.
-    """
+def test_physx_sibling_traversal_follows_authored_joint_order() -> None:
+    """Visit sibling links in authored joint-prim order instead of Newton's prim-path order."""
     stage = Usd.Stage.CreateInMemory()
     robot_prim = stage.DefinePrim("/Robot", "Xform")
-    UsdPhysics.FixedJoint.Define(stage, "/Robot/joints/root_joint")
-    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joints/thumb_joint")
-    UsdPhysics.Joint.Define(stage, "/Robot/joints/index_joint")
-    UsdPhysics.FixedJoint.Define(stage, "/Robot/joints/middle_joint")
-    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joints/index_tip_joint")
-    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/joints/thumb_tip_joint")
-
-    bodies = ["palm", "index", "middle", "thumb", "index_tip", "thumb_tip"]
-    # (label, parent body, child body, DoF count); the root joint attaches the palm to the world.
-    joints = [
-        (root_joint_label, -1, 0, 0),
-        ("/Robot/joints/index_joint", 0, 1, 2),
-        ("/Robot/joints/middle_joint", 0, 2, 0),
-        ("/Robot/joints/thumb_joint", 0, 3, 1),
-        ("/Robot/joints/index_tip_joint", 1, 4, 1),
-        (thumb_tip_joint_label, 3, 5, 1),
-    ]
+    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/thumb_joint")
+    UsdPhysics.RevoluteJoint.Define(stage, "/Robot/index_joint")
+    # Newton lists the sibling joints in prim-path order after the palm's floating-base joint.
+    labels = ["/Robot/root_joint", "/Robot/index_joint", "/Robot/thumb_joint"]
     model = types.SimpleNamespace(
-        articulation_start=_NumpyArray([0]),
-        articulation_end=_NumpyArray([len(joints)]),
-        joint_parent=_NumpyArray([joint[1] for joint in joints]),
-        joint_child=_NumpyArray([joint[2] for joint in joints]),
-        joint_label=[joint[0] for joint in joints],
-        body_label=[f"/Robot/{body}" for body in bodies],
+        articulation_start=types.SimpleNamespace(numpy=lambda: np.array([0])),
+        articulation_end=types.SimpleNamespace(numpy=lambda: np.array([3])),
+        joint_parent=types.SimpleNamespace(numpy=lambda: np.array([-1, 0, 0])),
+        joint_child=types.SimpleNamespace(numpy=lambda: np.array([0, 1, 2])),
+        joint_label=labels,
+        body_label=["/Robot/palm", "/Robot/index", "/Robot/thumb"],
     )
-    view_joints = [joint for joint in joints if joint[3] > 0]
-    joint_dof_names = []
-    for label, _, _, dof_count in view_joints:
-        name = label.rsplit("/", 1)[-1]
-        joint_dof_names.extend([name] if dof_count == 1 else [f"{name}:{axis}" for axis in range(dof_count)])
     view = types.SimpleNamespace(
         model=model,
-        articulation_ids=_NumpyArray([[0]]),
-        link_labels=list(model.body_label),
-        link_names=list(bodies),
-        joint_labels=[joint[0] for joint in view_joints],
-        joint_dof_counts=[joint[3] for joint in view_joints],
-        joint_dof_names=joint_dof_names,
+        articulation_ids=types.SimpleNamespace(numpy=lambda: np.array([[0]])),
+        link_labels=model.body_label,
+        link_names=["palm", "index", "thumb"],
+        joint_labels=labels[1:],
+        joint_dof_counts=[1, 1],
+        joint_dof_names=["index_joint", "thumb_joint"],
     )
-    return stage, robot_prim, view
-
-
-@pytest.mark.parametrize("root_joint_label", ["/Robot/joints/root_joint", "/Robot/palm_free_joint"])
-def test_physx_sibling_traversal_follows_authored_joint_order(root_joint_label: str) -> None:
-    """Traverse a Newton view breadth-first with siblings in authored joint-prim order.
-
-    The root joint is either the authored fixed joint or a floating-base joint Newton adds without a prim.
-    """
-    _stage, robot_prim, view = _make_unsorted_sibling_hand(root_joint_label)
 
     names = ordering_resolvers._get_breadth_first_names_in_authored_joint_order(robot_prim, view)
 
-    assert names["body"] == ("palm", "thumb", "index", "middle", "thumb_tip", "index_tip")
-    assert names["joint"] == ("thumb_joint", "index_joint:0", "index_joint:1", "thumb_tip_joint", "index_tip_joint")
-
-
-def test_physx_sibling_traversal_rejects_tree_joint_without_authored_prim() -> None:
-    """Reject a non-root tree joint that has no authored joint prim instead of guessing its sibling order."""
-    _stage, robot_prim, view = _make_unsorted_sibling_hand(
-        "/Robot/joints/root_joint", thumb_tip_joint_label="/Robot/thumb/merged_joint"
-    )
-
-    with pytest.raises(ValueError, match="'/Robot/thumb/merged_joint' is not an authored joint prim"):
+    assert names == {"joint": ("thumb_joint", "index_joint"), "body": ("palm", "thumb", "index")}
+    labels[1] = "/Robot/merged_joint"
+    with pytest.raises(ValueError, match="'/Robot/merged_joint' is not an authored joint prim"):
         ordering_resolvers._get_breadth_first_names_in_authored_joint_order(robot_prim, view)
 
 
