@@ -517,7 +517,7 @@ jobs:
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: kit
         warp-cache: restore
         result-file: "test-standalone-demos-kit-report.xml"
@@ -548,7 +548,7 @@ jobs:
         extra-pip-packages: "${{ steps.ov_pins.outputs.ovphysx }}"
         include-files: "test_standalone_scripts.py"
         standalone-script-scope: "demos"
-        standalone-script-visualizer: "none"
+        standalone-script-visualizer: "default"
         standalone-script-runtime-group: non-kit
         warp-cache: restore
         result-file: "test-standalone-demos-non-kit-report.xml"

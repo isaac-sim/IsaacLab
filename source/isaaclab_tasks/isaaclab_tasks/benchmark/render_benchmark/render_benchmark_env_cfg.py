@@ -34,7 +34,7 @@ BenchmarkMode = Literal["render", "physics_render"]
 """Animation mode used by the render benchmark.
 
 ``"render"`` writes analytic joint poses after physics and requires ``scene.lazy_sensor_update=True``.
-Isaac RTX direct posing also requires no Kit app-pumping visualizer (for example, ``--visualizer none``).
+Isaac RTX direct posing also requires no Kit app-pumping visualizer (for example, omit ``--visualizer``).
 ``"physics_render"`` sends actuator targets before physics and renders the resulting state.
 Both modes still step physics; the renderer sweep reports physics and rendering timings separately.
 """
@@ -234,7 +234,7 @@ class RenderBenchmarkFrankaCabinetEnvCfg(DirectRLEnvCfg):
     See :data:`BenchmarkMode`. Defaults to the ``BENCHMARK_MODE`` environment variable, or
     ``None`` when it is unset. ``None`` leaves physics and camera rendering active without
     benchmark animation or scope profiling. Render mode requires ``scene.lazy_sensor_update=True``.
-    With Isaac RTX, use ``--visualizer none`` or a visualizer that does not pump the Kit app loop.
+    With Isaac RTX, run without visualizers or with ones that do not pump the Kit app loop.
     """
 
     write_image_to_file: bool = os.getenv("BENCHMARK_SAVE_IMAGE", "0") == "1"
