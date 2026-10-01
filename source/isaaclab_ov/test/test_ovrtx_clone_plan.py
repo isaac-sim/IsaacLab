@@ -34,7 +34,12 @@ pytestmark = [
 ]
 
 if not _MISSING_MODULES:
-    from isaaclab_ov.cloner import OvRenderReplicateContext, ovrtx_replicate, ovstage_replicate  # noqa: E402
+    from isaaclab_ov.cloner import (  # noqa: E402
+        OvrtxReplicateContext,
+        OvstageReplicateContext,
+        ovrtx_replicate,
+        ovstage_replicate,
+    )
     from isaaclab_ov.renderers import OVRTXRendererCfg  # noqa: E402
     from isaaclab_ov.renderers import ovrtx_renderer as ovrtx_renderer_module  # noqa: E402
     from isaaclab_ov.renderers.ovrtx_renderer import OVRTXRenderer  # noqa: E402
@@ -121,13 +126,17 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
+    from isaaclab.utils import string_to_callable
+
     cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
     if renderer._use_ovstage:
         from isaaclab_ov.stage import OvstageBackendCfg
 
         cfg = OvstageBackendCfg(consumer_cfg=cfg)
     sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
-    OvRenderReplicateContext(sim).replicate(plan, tuple(range(len(plan.asset_cfgs))) if routed is None else routed)
+    routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
+    for context in renderer.cfg.cloning_contexts:
+        string_to_callable(context)(sim).replicate(plan, routed)
 
 
 @pytest.mark.parametrize(
@@ -346,11 +355,12 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
         monkeypatch.setattr(ovstage.population, "apply_usd_changes", Mock())
-        cfg = OvstageBackendCfg(consumer_cfg=renderer.cfg)
+        cfg = OvstageBackendCfg(consumer_cfg=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
         backend = OvstageBackend(cfg)
-        OvRenderReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
+        OvstageReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
         backend.populate(renderer._exported_usd_string)
         assert imported.call_args.args == (native, renderer._exported_usd_string)
+        assert imported.call_args.kwargs["domains"] == ovstage.PopulationDomain.ALL
         native.clone.assert_called_once_with(source, [f"/World/envs/env_{i}{suffix}" for i in (1, 2)], ordinal=1)
         native.advance_write_floor.assert_called_once_with(ordinal=1)
         backend.close()
@@ -370,10 +380,10 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
 
 
 def test_native_cloners_keep_plan_interpretation_in_the_context():
-    """One context owns preparation; native execution never interprets plans or routing ids."""
+    """Contexts own preparation; consumers and native execution never reinterpret plans or routing ids."""
     from isaaclab_ov.cloner import replicate as replication
 
-    for name in ("_iter_clone_copies", "_OvRenderReplicateContext", "OvrtxReplicateContext", "OvstageReplicateContext"):
+    for name in ("_iter_clone_copies", "_OvRenderReplicateContext", "OvRenderReplicateContext"):
         assert not hasattr(replication, name)
     assert not hasattr(OVRTXRenderer, "_clone_sources")
     for name in ("_initialize_camera_render_data_from_spec", "_init_fields_legacy", "_init_fields_ovstage"):
@@ -384,6 +394,11 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
     for function in tree.body:
         if isinstance(function, ast.FunctionDef) and function.name in {"ovrtx_replicate", "ovstage_replicate"}:
             assert not any(isinstance(node, ast.Name) and node.id in {"plan", "cloner"} for node in ast.walk(function))
+        if isinstance(function, ast.ClassDef) and function.name == "OvstageReplicateContext":
+            assert not any(
+                isinstance(node, ast.ImportFrom) and node.module.startswith("isaaclab_ov.renderers")
+                for node in ast.walk(function)
+            )
 
 
 @pytest.mark.parametrize(
@@ -415,13 +430,26 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
     ids=["child covered by its parent", "independent child", "parent not routed", "nothing routed"],
 )
 def test_clone_context_omits_covered_children_and_honors_routing(child_source, routed, expected):
-    """A copy that its routed ancestor already carries is omitted, and unrouted assets are never copied."""
+    """Each context prepares only its own backend; routed parents carry their covered children."""
+    from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
+    from isaaclab_ov.stage import OvstageBackendCfg
+
     cfgs = (
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot/Camera", spawn=SpawnerCfg(spawn_path=child_source)),
         AssetBaseCfg(prim_path="/World/envs/env_[^/]+/Robot", spawn=SpawnerCfg(spawn_path="/Sources/Robot")),
     )
     plan = make_clone_plan(cfgs, ((0, 1), (0,)), 2, positions=np.zeros((2, 3), dtype=np.float32))
 
-    renderer = _make_ovrtx_renderer_without_backend()
-    _prepare_clones(renderer, plan, routed)
-    assert renderer.scene.clone_copies == expected
+    renderer_cfg = OVRTXRendererCfg()
+    configs = (
+        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
+        OvstageBackendCfg(consumer_cfg=renderer_cfg),
+        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
+    )
+    for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
+        backends = [SimpleNamespace() for _ in configs]
+        sim = SimpleNamespace(_backend_registry=list(zip(configs, backends)), physics_manager=SimpleNamespace())
+        context(sim).replicate(plan, routed)
+        assert backends[selected].clone_copies == expected
+        assert not vars(sim.physics_manager)
+        assert all(not vars(backend) for index, backend in enumerate(backends) if index != selected)

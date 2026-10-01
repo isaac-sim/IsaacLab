@@ -5,7 +5,8 @@
 
 from .replicate import (
     OvPhysxReplicateContext,
-    OvRenderReplicateContext,
+    OvrtxReplicateContext,
+    OvstageReplicateContext,
     ovphysx_replicate,
     ovrtx_replicate,
     ovstage_replicate,
@@ -13,7 +14,8 @@ from .replicate import (
 
 __all__ = [
     "OvPhysxReplicateContext",
-    "OvRenderReplicateContext",
+    "OvrtxReplicateContext",
+    "OvstageReplicateContext",
     "ovphysx_replicate",
     "ovrtx_replicate",
     "ovstage_replicate",

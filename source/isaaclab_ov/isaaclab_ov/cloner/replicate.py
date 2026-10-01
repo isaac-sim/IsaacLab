@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from isaaclab.cloner import ClonePlan
     from isaaclab.sim import SimulationContext
 
+    from isaaclab_ov.renderers.ovrtx_renderer import OVRTXBackend
+    from isaaclab_ov.stage import OvstageBackend
+
 
 def _clone_recipes(
     stage: Usd.Stage,
@@ -158,8 +161,8 @@ class OvPhysxReplicateContext:
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
-class OvRenderReplicateContext:
-    """Prepare routed copies for native OVRTX scenes and simulation-owned OVStage resources."""
+class OvrtxReplicateContext:
+    """Prepare routed copies for OVRTX engines that own their scene internally."""
 
     replicate_priority = 100
 
@@ -167,44 +170,78 @@ class OvRenderReplicateContext:
         self._sim = sim_context
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Prepare native operations before camera initialization imports the scene.
+        """Prepare copies for native OVRTX scenes; engines borrowing an OVStage do not clone.
 
-        Like OVPhysX recipes, these copies belong to the backend. Renderers must not
-        interpret topology or retain asset-id routing to reconstruct them later.
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to native OVRTX scenes.
         """
         from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg  # noqa: PLC0415
+
+        backends = [
+            backend
+            for cfg, backend in self._sim._backend_registry
+            if isinstance(cfg, OVRTXBackendCfg) and not cfg.use_ovstage
+        ]
+        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+
+
+class OvstageReplicateContext:
+    """Prepare routed copies for simulation-owned stages, independently of their consumers."""
+
+    replicate_priority = 100
+
+    def __init__(self, sim_context: SimulationContext):
+        self._sim = sim_context
+
+    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
+        """Prepare stage copies once for the consumers of each OVStage resource.
+
+        Args:
+            plan: Replication layout shared by every clone backend.
+            asset_prototype_ids: Asset definitions routed to OVStage resources.
+        """
         from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
 
-        sources = cloner.path.get_asset_prototype_paths(plan)
-        templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
-            plan, include_world_indices=True
-        )
-        assets = plan.topology.world_prototypes
-        copies = {}
-        for group in np.flatnonzero(np.diff(world_starts)):
-            targets = world_ids[world_starts[group] : world_starts[group + 1]]
-            members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
-            destinations = [templates[index] for index in members]
-            for index, parent in zip(members, cloner.path.get_parent_indices(destinations), strict=True):
-                source, template = sources[assets[index]], templates[index]
-                if parent != -1:
-                    ancestor = members[parent]
-                    suffix = cloner.path.relative_to(template, templates[ancestor])
-                    if source == sources[assets[ancestor]] + suffix:
-                        continue
-                copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
-        # Native clones cannot overwrite existing prims. Keep self-only sources for export,
-        # but omit self-copies and children already carried by the same parent copy.
-        native_copies = [
-            (source, [target for target in copies[source, template] if target != source])
-            for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
-        ]
-        env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
-        for cfg, backend in self._sim._backend_registry:
-            if isinstance(cfg, OvstageBackendCfg) or isinstance(cfg, OVRTXBackendCfg) and not cfg.use_ovstage:
-                backend.clone_copies = native_copies
-                backend.clone_env_paths = env_paths
-                backend.clone_positions = plan.positions
+        backends = [backend for cfg, backend in self._sim._backend_registry if isinstance(cfg, OvstageBackendCfg)]
+        _prepare_scene_copies(plan, asset_prototype_ids, backends)
+
+
+def _prepare_scene_copies(
+    plan: ClonePlan, asset_prototype_ids: tuple[int, ...], backends: Sequence[OVRTXBackend | OvstageBackend]
+) -> None:
+    """Store prepared subtree copies on their owners; consumers never reinterpret the clone plan."""
+    if not backends:
+        return
+    sources = cloner.path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner.path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    assets = plan.topology.world_prototypes
+    copies = {}
+    for group in np.flatnonzero(np.diff(world_starts)):
+        targets = world_ids[world_starts[group] : world_starts[group + 1]]
+        members = [index for index in range(*starts[group : group + 2]) if assets[index] in asset_prototype_ids]
+        destinations = [templates[index] for index in members]
+        for index, parent in zip(members, cloner.path.get_parent_indices(destinations), strict=True):
+            source, template = sources[assets[index]], templates[index]
+            if parent != -1:
+                ancestor = members[parent]
+                suffix = cloner.path.relative_to(template, templates[ancestor])
+                if source == sources[assets[ancestor]] + suffix:
+                    continue
+            copies.setdefault((source, template), []).extend(template.format(int(world)) for world in targets)
+    # Native clones cannot overwrite existing prims. Keep self-only sources for export,
+    # but omit self-copies and children already carried by the same parent copy.
+    native_copies = [
+        (source, [target for target in copies[source, template] if target != source])
+        for source, template in sorted(copies, key=lambda copy: copy[1].count("/"))
+    ]
+    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    for backend in backends:
+        backend.clone_copies = native_copies
+        backend.clone_env_paths = env_paths
+        backend.clone_positions = plan.positions
 
 
 def ovrtx_replicate(
