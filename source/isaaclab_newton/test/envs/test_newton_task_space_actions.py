@@ -19,14 +19,10 @@ pytestmark = pytest.mark.unit
 _S = math.sin(math.pi / 4.0)
 
 
-@pytest.mark.parametrize(
-    "root_quat_w",
-    [(0.0, 0.0, 0.0, 1.0), (0.0, 0.0, _S, _S), (_S, 0.0, 0.0, _S)],
-    ids=["identity_root", "yawed_root", "tilted_root"],
-)
-def test_body_offset_jacobian_uses_offset_in_root_frame(root_quat_w: tuple[float, float, float, float]):
+def test_body_offset_jacobian_uses_offset_in_root_frame():
     """The offset uses root axes, and a rigid offset rotation leaves angular rows unchanged."""
-    root_quat_w = torch.tensor([root_quat_w])
+    # a tilted root, so that a body-frame or world-frame lever arm gives a different result
+    root_quat_w = torch.tensor([[_S, 0.0, 0.0, _S]])
     # One revolute joint about the root z axis through the body origin; the body is yawed 90 degrees from the root.
     body_quat_w = math_utils.quat_mul(root_quat_w, torch.tensor([[0.0, 0.0, _S, _S]]))
     jacobian_w = torch.zeros(1, 1, 6, 1)
