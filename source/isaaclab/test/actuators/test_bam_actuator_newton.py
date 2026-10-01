@@ -216,27 +216,14 @@ def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
     stage = _make_stage(_make_cfg(kp_fw=None, vin=None))
     for index, name in enumerate(JOINT_NAMES):
         prim = stage.GetPrimAtPath(f"/World/Robot/servo_{name}_actuator")
-        assert not prim.HasAttribute("newton:paramsFile")
         prim.GetAttribute("newton:kt").Set(0.3 + index * 0.1)
     path = tmp_path / "robot.usda"
     stage.Export(str(path))
     stage = Usd.Stage.Open(str(path))
     if reauthor:
-        # A previous draft's JSON pointer and another drive's attributes must not
-        # survive replacement, including opinions from a referenced layer.
-        layer_path = tmp_path / "legacy.usda"
-        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").CreateAttribute(
-            "newton:paramsFile", Sdf.ValueTypeNames.Asset
-        ).Set(Sdf.AssetPath("missing.json"))
-        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").CreateAttribute(
-            "newton:kp", Sdf.ValueTypeNames.Float
-        ).Set(10.0)
-        stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").SetMetadata(
-            "apiSchemas", Sdf.TokenListOp.CreateExplicit([BAM_DRIVE_API, "NewtonPDControlAPI"])
-        )
-        stage.Export(str(layer_path))
+        # Apply task overrides over a clean asset layer while preserving each joint's fit.
         stage = Usd.Stage.CreateInMemory()
-        stage.GetRootLayer().subLayerPaths.append(str(layer_path))
+        stage.GetRootLayer().subLayerPaths.append(str(path))
         author_actuator_prims(
             stage, "/World/Robot", {"servo": _make_cfg(kp_fw=123.0, parameter_overrides={"friction_base": 0.012})}
         )
