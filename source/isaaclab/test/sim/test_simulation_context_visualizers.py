@@ -980,14 +980,12 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
     assert ctx.requires_usd_stage
 
 
-@pytest.mark.parametrize("cli_explicit", [False, True])
 @pytest.mark.parametrize("fail_construct", [False, True])
-def test_visualizer_failures_propagate_and_retain_constructed_instances(cli_explicit, fail_construct):
+def test_visualizer_failures_propagate_and_retain_constructed_instances(fail_construct):
     """Cfg-requested failures propagate naturally; completed instances stay owned until explicit teardown."""
     good_cfg = _FakeVisualizerCfg("kit")
     failing_cfg = _FakeVisualizerCfg("newton_gl", fail_construct=fail_construct, fail_init=not fail_construct)
-    settings = {}
-    ctx = _make_context_with_settings(settings, visualizer_cfgs=[good_cfg, failing_cfg])
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[good_cfg, failing_cfg])
 
     with pytest.raises(RuntimeError, match="construction failed" if fail_construct else "init failed"):
         ctx._create_visualizers()

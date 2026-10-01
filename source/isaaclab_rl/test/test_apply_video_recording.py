@@ -142,16 +142,18 @@ def test_video_source_resolves_against_the_visualizer_selection(launches, cli, e
     source, visualizers = expected
     assert [recorder.source for recorder in env_cfg.video_recorders] == [source]
     assert [(cfg.visualizer_type, getattr(cfg, "headless", None)) for cfg in env_cfg.sim.visualizer_cfgs] == visualizers
-    # a Kit visualizer, selected or added, keeps its configured camera
-    assert all(cfg is kit_cfg for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
+    # a Kit visualizer, selected or added, keeps its configured camera; an added one is a copy, so the
+    # configured visualizer stays as configured for a later launch
+    assert all(cfg.eye == kit_cfg.eye for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type == "kit")
+    assert not kit_cfg.headless
     # Kit starts only for a Kit visualizer, with cameras, windowed only when --viz selects it
     kit_args = launches.get(_KIT_LAUNCHER)
     assert (kit_args is not None) == ("kit" in dict(visualizers))
     if kit_args is not None:
         assert ("kit" in kit_args["visualizer"], kit_args["enable_cameras"]) == (not dict(visualizers)["kit"], True)
     assert (OVRTXRendererCfg.launcher_type in launches) == ("newton_rtx" in source)
-    # the SimulationContext keeps the visualizers the launch resolved
-    assert get_settings_manager().get("/isaaclab/visualizer/types") == ",".join(name for name, _ in visualizers)
+    # a launch with a SimulationCfg leaves no selection behind for configs built afterwards
+    assert get_settings_manager().get("/isaaclab/visualizer/types") == ""
 
 
 def test_apply_video_recording_noop_when_video_false():

@@ -110,8 +110,8 @@ def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, p
     )
     configured = {cfg.visualizer_type: cfg for cfg in sim_cfg.visualizer_cfgs}
     settings = get_settings_manager()
-    # an empty selection left by an earlier launch in this process
-    settings.set("/isaaclab/visualizer/types", "")
+    # a selection an earlier launch without a SimulationCfg left in this process
+    settings.set("/isaaclab/visualizer/types", "rerun")
 
     with sim_launcher.launch_simulation(_DummyEnvCfg(sim_cfg), {"visualizer": visualizer}):
         pass
@@ -120,8 +120,8 @@ def test_launch_simulation_resolves_visualizers_into_config(kit_launcher_args, p
     for cfg in sim_cfg.visualizer_cfgs:
         assert cfg is configured.get(cfg.visualizer_type) or isinstance(cfg, RerunVisualizerCfg)
     assert [args["enable_cameras"] for args in kit_launcher_args] == [True] * ("kit" in expected_types)
-    # the launch replaces the earlier selection with its visualizers, so its SimulationContext keeps them
-    assert settings.get("/isaaclab/visualizer/types") == ",".join(expected_types)
+    # the launch clears it, so a SimulationContext keeps the visualizers its config lists
+    assert settings.get("/isaaclab/visualizer/types") == ""
 
     # without a SimulationCfg to write into, the selection, possibly empty, reaches the SimulationContext
     settings.set("/isaaclab/visualizer/types", None)

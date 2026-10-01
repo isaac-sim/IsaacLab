@@ -622,13 +622,11 @@ def launch_simulation(
     launchers = [string_to_callable(launcher_type)(args) for launcher_type in dict.fromkeys(launcher_types)]
     # after the launchers, so a started Kit already backs the settings
     _resolve_device(sim_cfg, args, launchers)
-    # Every launch records its visualizers, possibly none, for the SimulationContext built afterwards: it applies
-    # the selection to a config without a SimulationCfg (e.g. a bare physics config) and is a no-op on one resolved
-    # above, whose recording-only visualizers it keeps.
-    visualizer_types = args["visualizer"] if sim_cfg is None else [c.visualizer_type for c in sim_cfg.visualizer_cfgs]
-    max_visible_envs = args.get("max_visible_envs")
+    # A launch without a SimulationCfg (e.g. a bare physics config) hands its selection to the config built
+    # afterwards; any other launch resolved it above and clears a selection an earlier launch left.
+    max_visible_envs = args.get("max_visible_envs") if sim_cfg is None else None
     settings = get_settings_manager()
-    settings.set("/isaaclab/visualizer/types", ",".join(visualizer_types))
+    settings.set("/isaaclab/visualizer/types", ",".join(args["visualizer"]) if sim_cfg is None else "")
     settings.set("/isaaclab/visualizer/max_visible_envs", -1 if max_visible_envs is None else int(max_visible_envs))
 
     exit_code = 0

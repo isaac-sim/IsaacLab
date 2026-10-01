@@ -93,8 +93,6 @@ def test_training_request_builds_complete_cli() -> None:
         "schema,summary",
         "--device",
         "cuda:1",
-        "--visualizer",
-        "none",
         "--anim_recording_enabled",
         "--anim_recording_start_time",
         "1.5",

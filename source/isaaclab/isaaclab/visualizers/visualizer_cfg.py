@@ -115,8 +115,8 @@ def resolve_visualizer_cfgs(
         configured_types = {cfg.visualizer_type for cfg in visualizer_cfgs}
         visualizer_cfgs += [_make_visualizer_cfg(name) for name in visualizers if name not in configured_types]
         for name in added:
-            # the configured visualizer of the type is otherwise unused, so it becomes the headless one
-            cfg = configured.get(name) or _make_visualizer_cfg(name)
+            # a headless copy of the configured visualizer of the type keeps its settings, e.g. the camera pose
+            cfg = configured[name].copy() if name in configured else _make_visualizer_cfg(name)
             cfg.headless = True
             visualizer_cfgs.append(cfg)
     if max_visible_envs is not None:

@@ -447,7 +447,7 @@ class KitLauncher(SimulationLauncher):
         Args:
             launcher_args: A dictionary of all input arguments passed to the class object.
         """
-        self._kit_visualizer = "kit" in launcher_args["visualizer"]
+        self._kit_visualizer = "kit" in (launcher_args.get("visualizer") or ())
         self._resolve_livestream_settings(launcher_args)
         self._resolve_xr_settings(launcher_args)
         self._resolve_headless_settings()
