@@ -2,16 +2,14 @@ Added
 ^^^^^
 
 * Added :class:`~isaaclab.actuators.BamActuatorCfg` and
-  :class:`~isaaclab.actuators.newton.ControllerBam`, a voltage-domain servo model implemented as
-  Newton Warp kernels. The controller required Newton's MJWarp solver with
+  :class:`~isaaclab.actuators.newton.DriveBam`, a voltage-domain servo model implemented as
+  Newton Warp kernels using the Newton 1.6 ``DriveBase`` API. The controller required Newton's MJWarp solver with
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` enabled. It modeled firmware control,
   current limiting, motor back-EMF, supply sag, stochastic command delay and load-dependent gearbox
   friction. On MJWarp it published dry-friction and viscous-damping values to the solver and read
   external loads from the solver's generalized forces. Other Newton solvers, PhysX, OVPhysX and
-  the Isaac Lab actuator loop rejected this configuration. **Breaking for earlier draft users:**
-  select ``MJWarpSolverCfg`` instead of relying on the removed controller-side friction fallback.
-  Migration requires removing controller ``armature`` overrides and authoring rotor inertia on
-  the joint or through :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
+  the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
+  :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
 * Stored BAM motor and friction coefficients directly in USD actuator prims, with explicit
   configuration overrides. Added an optional ``scripts/tools/import_bam_parameters.py`` utility
   to bake a JSON fit into an asset. Simulation did not require a parameter sidecar. Recorded
@@ -27,3 +25,6 @@ Added
   ``data.joint_friction`` reported the authored seed; the controller's ``friction_budget`` field
   exposed the live dry-friction budget. Inherited PD stiffness and damping were unused; the
   firmware gain was configured with :attr:`~isaaclab.actuators.BamActuatorCfg.kp_fw`.
+* Used Newton 1.6's drive API throughout native actuator construction, registration, and
+  parameter access. Exposed ``DriveBam`` and ``BAM_DRIVE_API`` (``NewtonBamDriveAPI`` in USD).
+  Group parameter helpers accepted ``"drive"``; direct Newton access used ``actuator.drive``.

@@ -28,13 +28,17 @@ from pxr import Usd
 
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import BamActuatorCfg
-from isaaclab.actuators.newton import ControllerBam, read_group_parameter, write_group_parameter
+from isaaclab.actuators.newton import DriveBam, read_group_parameter, write_group_parameter
 from isaaclab.assets import Articulation, ArticulationCfg
 from isaaclab.cloner import CloneCfg, clone_plan_from_env_0, replicate
 from isaaclab.sim import SimulationCfg, build_simulation_context
 from isaaclab.test.utils import test_devices
 
-pytestmark = [pytest.mark.integration, pytest.mark.kitless]
+pytestmark = [
+    pytest.mark.integration,
+    pytest.mark.kitless,
+    pytest.mark.filterwarnings("error:.*deprecated in Newton 1[.]6:DeprecationWarning"),
+]
 
 PENDULUM_USDA = """\
 #usda 1.0
@@ -214,7 +218,7 @@ Independently solved from ``|motor + gravity| = scale * friction`` at zero speed
 using the vendored XL330 m6 fit, 200 firmware gain, 7.4 V, and a 0.00981 N.m peak
 load. Motor torque is linear throughout these intervals (neither PWM nor current
 saturates). Scalar bisection of each boundary gives the recorded values; the
-reference is deliberately fixed rather than recomputed with the controller.
+reference is deliberately fixed rather than recomputed with the drive.
 """
 
 
@@ -327,7 +331,7 @@ def _settle_with_friction_scales(robot: Articulation, sim, load: float) -> torch
     """Write :data:`FRICTION_SCALES` per environment, settle, and assert the effect.
 
     The write goes through the group-parameter API -- the path an environment's
-    domain-randomization event uses -- and lands in the controller array the in-graph friction
+    domain-randomization event uses -- and lands in the drive array the in-graph friction
     publish reads, so this exercises the whole chain from the event down to MuJoCo's
     constraint.
 
@@ -335,8 +339,8 @@ def _settle_with_friction_scales(robot: Articulation, sim, load: float) -> torch
         The settled joint angle of each environment [rad].
     """
     expected = torch.tensor([[FRICTION_SCALES[0]], [FRICTION_SCALES[1]]], device=robot.device)
-    write_group_parameter(robot.actuators, "servo", "controller", "friction_scale", expected)
-    torch.testing.assert_close(read_group_parameter(robot.actuators, "servo", "controller", "friction_scale"), expected)
+    write_group_parameter(robot.actuators, "servo", "drive", "friction_scale", expected)
+    torch.testing.assert_close(read_group_parameter(robot.actuators, "servo", "drive", "friction_scale"), expected)
 
     _release(robot)
     rollout = _settle(robot, sim)
@@ -379,18 +383,14 @@ def _build_native_pendulum(sim, pendulum_usd: str, actuator_cfg: BamActuatorCfg 
     return robot
 
 
-def _native_controller(robot: Articulation) -> ControllerBam:
-    """Return the BAM controller the articulation's native group is executed by."""
-    controllers = [
-        actuator.controller
-        for actuator in NewtonManager._adapter.actuators
-        if isinstance(actuator.controller, ControllerBam)
-    ]
-    assert len(controllers) == 1, "the fixture has exactly one BAM actuator"
-    return controllers[0]
+def _native_drive(robot: Articulation) -> DriveBam:
+    """Return the BAM drive the articulation's native group is executed by."""
+    drives = [actuator.drive for actuator in NewtonManager._adapter.actuators if isinstance(actuator.drive, DriveBam)]
+    assert len(drives) == 1, "the fixture has exactly one BAM actuator"
+    return drives[0]
 
 
-def _assert_recorded_trajectory(robot: Articulation, sim, controller: ControllerBam) -> None:
+def _assert_recorded_trajectory(robot: Articulation, sim, drive: DriveBam) -> None:
     """Replay the pre-cleanup native trajectory, including command reversals.
 
     The fixture was recorded from isolated revision 3691a0bf04 on CUDA with the same
@@ -413,7 +413,7 @@ def _assert_recorded_trajectory(robot: Articulation, sim, controller: Controller
             traces["position"].append(robot.data.joint_pos.torch.cpu().numpy().copy())
             traces["velocity"].append(robot.data.joint_vel.torch.cpu().numpy().copy())
             traces["effort"].append(robot.actuators.applied_effort.torch.cpu().numpy().copy())
-            traces["friction_budget"].append(controller.friction_budget.numpy().copy())
+            traces["friction_budget"].append(drive.friction_budget.numpy().copy())
         for name, values in traces.items():
             # CPU and CUDA solver reductions differ slightly; preserve a tight physical tolerance.
             np.testing.assert_allclose(np.stack(values), golden[name], atol=2e-5, rtol=2e-4, err_msg=name)
@@ -424,14 +424,14 @@ def test_native_pendulum_settles_inside_the_stiction_band(native_sim, device, pe
     """Check a settled native pendulum against the recorded static-friction bounds."""
     robot = _build_native_pendulum(native_sim, pendulum_usd)
     load = _gravity_load(robot, native_sim)
-    controller = _native_controller(robot)
+    drive = _native_drive(robot)
     # Authoring seeds a positive joint friction on the driven joints. MuJoCo only assembles a
     # friction-loss constraint row where the frictionloss is positive, and it sizes its
     # constraint budget from the model as spawned, so the row has to exist before the first
     # solve; the per-step budget then overwrites the value.
     assert (NewtonManager.backend.model.joint_friction.numpy() > 0.0).all()
 
-    _assert_recorded_trajectory(robot, native_sim, controller)
+    _assert_recorded_trajectory(robot, native_sim, drive)
     _release(robot)
     rollout = _settle(robot, native_sim)
     final_angle = _assert_rest(*rollout, velocity_tolerance=NATIVE_REST_TOLERANCE)
@@ -444,20 +444,20 @@ def test_native_pendulum_settles_inside_the_stiction_band(native_sim, device, pe
     # The solver-side contract: the actuator applies the motor torque and nothing else; the
     # load is cancelled by the friction-loss constraint, which is invisible to this telemetry.
     holding_effort = robot.actuators.applied_effort.torch.reshape(NUM_ENVS)
-    motor_torque = torch.as_tensor(controller.motor_torque.numpy(), device=holding_effort.device)
+    motor_torque = torch.as_tensor(drive.motor_torque.numpy(), device=holding_effort.device)
     torch.testing.assert_close(holding_effort, motor_torque.reshape(NUM_ENVS), atol=1e-6, rtol=0.0)
     # ... and it is a real torque, not a dead actuator sitting at zero.
     assert holding_effort.abs().min() > 1e-3
 
     # The published budget is what MuJoCo is clipping with.
     frictionloss = NewtonManager._solver.mjw_model.dof_frictionloss.numpy().reshape(-1)
-    np.testing.assert_allclose(frictionloss, controller.friction_budget.numpy(), atol=1e-7, rtol=0.0)
+    np.testing.assert_allclose(frictionloss, drive.friction_budget.numpy(), atol=1e-7, rtol=0.0)
 
     # The load the gearbox works against is read from the solver rather than estimated, and at
     # rest that read is exact: it is the gravity torque to the last digit. It also proves the
     # actuator's own friction rows are stripped out of the constraint force -- leaving them in
     # would report roughly twice this value here and feed the friction back on itself.
-    external_torque = torch.as_tensor(controller.external_torque.numpy(), device=final_angle.device)
+    external_torque = torch.as_tensor(drive.external_torque.numpy(), device=final_angle.device)
     expected_load = (load * torch.cos(final_angle)).to(external_torque.dtype)
     torch.testing.assert_close(external_torque.reshape(NUM_ENVS), expected_load, atol=1e-6, rtol=0.0)
 
@@ -468,7 +468,7 @@ def test_native_friction_randomization_changes_the_hanging_error(native_sim, dev
     robot = _build_native_pendulum(native_sim, pendulum_usd)
 
     for attr in ("vin", "sag_gain", "friction_scale", "kp_scale", "kd_scale"):
-        values = read_group_parameter(robot.actuators, "servo", "controller", attr)
+        values = read_group_parameter(robot.actuators, "servo", "drive", attr)
         assert values.shape == (NUM_ENVS, robot.num_joints)
 
     _settle_with_friction_scales(robot, native_sim, _gravity_load(robot, native_sim))
@@ -491,7 +491,7 @@ def test_native_bam_actuators_are_captured_in_the_cuda_graph(native_sim, device,
 
     # A graph that baked a stale friction budget would settle both environments together, so
     # replaying it under a per-environment randomization is the real capture evidence: the
-    # in-graph publish has to read the controller array a host-side write just changed.
+    # in-graph publish has to read the drive array a host-side write just changed.
     _settle_with_friction_scales(robot, native_sim, load)
 
 
@@ -589,12 +589,10 @@ def test_two_articulations_with_matching_settings_bind_once(native_sim, device, 
     matching = BamActuatorCfg(joint_names_expr=[".*"], vin=VIN, kp_fw=KP_FW)
     robot_a, robot_b = _build_two_native_pendulums(native_sim, pendulum_usd, matching)
 
-    bam_actuators = [
-        actuator for actuator in NewtonManager._adapter.actuators if isinstance(actuator.controller, ControllerBam)
-    ]
+    bam_actuators = [actuator for actuator in NewtonManager._adapter.actuators if isinstance(actuator.drive, DriveBam)]
     assert len(bam_actuators) == 1, "the identical robots must merge into one Newton actuator"
-    controller = bam_actuators[0].controller
-    assert controller.external_torque is not None
+    drive = bam_actuators[0].drive
+    assert drive.external_torque is not None
 
     # One binding, not one per articulation: a second registration would write the same budget
     # twice per step and, worse, hide a scoping mistake. The gather hook is the countable half
@@ -612,7 +610,7 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
 
     Sampling happens while the model is being built, before
     :meth:`~isaaclab_newton.physics.NewtonManager.initialize_solver` runs, precisely so that it
-    does not depend on which solver the scene uses -- the values feed the controller's kernels,
+    does not depend on which solver the scene uses -- the values feed the drive's kernels,
     not the solver. Implementation A samples them on every backend and so must this one.
     """
     for index in range(NUM_ENVS):
@@ -638,12 +636,12 @@ def test_startup_ranges_are_sampled_per_environment(native_sim, device, pendulum
     assert robot.is_initialized
 
     for attr, (low, high) in (("vin", (6.0, 8.0)), ("friction_scale", (0.5, 1.5))):
-        values = read_group_parameter(robot.actuators, "servo", "controller", attr)
+        values = read_group_parameter(robot.actuators, "servo", "drive", attr)
         assert bool(((values >= low) & (values <= high)).all()), f"{attr} outside its configured range"
         assert len(torch.unique(values)) > 1, f"{attr} drew the same value for every environment"
     # An unset range keeps the authored nominal.
     torch.testing.assert_close(
-        read_group_parameter(robot.actuators, "servo", "controller", "sag_gain"),
+        read_group_parameter(robot.actuators, "servo", "drive", "sag_gain"),
         torch.zeros(NUM_ENVS, robot.num_joints, device=robot.device),
     )
 
@@ -667,7 +665,7 @@ def test_each_articulation_configures_only_its_own_actuator(native_sim, device, 
 
     # robot_a keeps ``_build_two_native_pendulums``'s default cfg (no start-up range, so 1.0).
     for robot, expected in ((robot_a, 1.0), (robot_b, 3.0)):
-        friction_scale = read_group_parameter(robot.actuators, "servo", "controller", "friction_scale")
+        friction_scale = read_group_parameter(robot.actuators, "servo", "drive", "friction_scale")
         torch.testing.assert_close(friction_scale, torch.full_like(friction_scale, expected), atol=1e-6, rtol=0.0)
 
 

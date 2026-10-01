@@ -28,8 +28,8 @@ from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
 from isaaclab.actuators import BamActuatorCfg, IdealPDActuatorCfg
 from isaaclab.actuators.newton import (
-    BAM_CONTROL_API,
-    ControllerBam,
+    BAM_DRIVE_API,
+    DriveBam,
     NewtonActuatorAdapter,
     PhysxActuatorWrapper,
     apply_bam_startup_sampling,
@@ -41,7 +41,7 @@ from isaaclab.sim.schemas.schemas_actuators import (
 )
 from isaaclab.test.utils import test_devices
 
-pytestmark = pytest.mark.unit
+pytestmark = [pytest.mark.unit, pytest.mark.filterwarnings("error::DeprecationWarning")]
 
 JOINT_NAMES = ["servo_0", "servo_1"]
 """Joints of the fixture articulation; two of them so the shared-supply sag is observable."""
@@ -117,8 +117,8 @@ class _Harness:
         self.adapter = _make_adapter(cfg, num_envs, device, joint_names)
         assert len(self.adapter.actuators) == 1, "the fixture's joints must merge into one actuator"
         self.actuator = self.adapter.actuators[0]
-        self.controller: ControllerBam = self.actuator.controller
-        self.controller.external_torque = wp.zeros(len(self.controller.motor_torque), dtype=wp.float32, device=device)
+        self.drive: DriveBam = self.actuator.drive
+        self.drive.external_torque = wp.zeros(len(self.drive.motor_torque), dtype=wp.float32, device=device)
         self.num_envs = num_envs
         self.device = device
         self.joint_names = joint_names
@@ -170,7 +170,7 @@ def test_bam_cfg_is_rejected_on_a_host_adapter_backend():
     The model is written in terms of solver quantities: it publishes its friction budget into
     the solver's joint dry friction and reads the external load back out of the solver's
     generalized forces. A backend that steps native actuators through the shared host adapter
-    (PhysX, OVPhysX) provides neither, so the controller would silently fall back to
+    (PhysX, OVPhysX) provides neither, so the drive would silently fall back to
     a different friction model and skip its solver bindings. Failing the gate names the fix.
     """
     with pytest.raises(ValueError, match="requires the Newton backend"):
@@ -181,17 +181,17 @@ def test_bam_cfg_is_rejected_on_a_host_adapter_backend():
     validate_newton_native_actuator_cfgs({"legs": IdealPDActuatorCfg(joint_names_expr=[".*"])}, host_adapter=True)
 
 
-def test_authored_prim_resolves_to_the_bam_controller():
-    """Authoring a BAM group must produce a parseable ``NewtonBamControlAPI`` actuator prim."""
+def test_authored_prim_resolves_to_the_bam_drive():
+    """Authoring a BAM group must produce a parseable ``NewtonBamDriveAPI`` actuator prim."""
     cfg = _make_cfg(vin_min=6.0, min_delay=1, max_delay=3, delay_hold_prob=0.25, delay_update_period=4)
     stage = _make_stage(cfg)
 
     parsed = [p for prim in Usd.PrimRange(stage.GetPrimAtPath("/World/Robot")) if (p := parse_actuator_prim(prim))]
     assert len(parsed) == len(JOINT_NAMES)
     for entry in parsed:
-        assert entry.controller_class is ControllerBam
-        assert entry.component_specs == [], "the BAM delay is controller-internal, not a Delay component"
-        resolved = ControllerBam.resolve_arguments(dict(entry.controller_kwargs))
+        assert entry.drive_class is DriveBam
+        assert entry.component_specs == [], "the BAM delay is drive-internal, not a Delay component"
+        resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
         params = _reference_params()
         # Deployment settings come from the config, identified constants from the USD.
         assert resolved["kp_fw"] == pytest.approx(KP_FW)
@@ -204,11 +204,11 @@ def test_authored_prim_resolves_to_the_bam_controller():
         assert resolved["delay_update_period"] == 4
         assert (resolved["stribeck"], resolved["load_dependent"], resolved["quadratic"]) == (1, 1, 1)
 
-    # The controller schema token is applied on the prim, not just implied by the parse.
-    # ``NewtonBamControlAPI`` has no registered USD schema definition, so the composed
+    # The drive schema token is applied on the prim, not just implied by the parse.
+    # ``NewtonBamDriveAPI`` has no registered USD schema definition, so the composed
     # ``GetAppliedSchemas`` filters it out; read the authored opinion instead.
     spec = stage.GetRootLayer().GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator")
-    assert BAM_CONTROL_API in spec.GetInfo("apiSchemas").GetAppliedItems()
+    assert BAM_DRIVE_API in spec.GetInfo("apiSchemas").GetAppliedItems()
 
 
 @pytest.mark.parametrize("reauthor", [False, True])
@@ -223,7 +223,7 @@ def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
     stage.Export(str(path))
     stage = Usd.Stage.Open(str(path))
     if reauthor:
-        # A previous draft's JSON pointer and another controller's attributes must not
+        # A previous draft's JSON pointer and another drive's attributes must not
         # survive replacement, including opinions from a referenced layer.
         layer_path = tmp_path / "legacy.usda"
         stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").CreateAttribute(
@@ -233,7 +233,7 @@ def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
             "newton:kp", Sdf.ValueTypeNames.Float
         ).Set(10.0)
         stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator").SetMetadata(
-            "apiSchemas", Sdf.TokenListOp.CreateExplicit([BAM_CONTROL_API, "NewtonPDControlAPI"])
+            "apiSchemas", Sdf.TokenListOp.CreateExplicit([BAM_DRIVE_API, "NewtonPDControlAPI"])
         )
         stage.Export(str(layer_path))
         stage = Usd.Stage.CreateInMemory()
@@ -246,34 +246,34 @@ def test_usd_coefficients_are_self_contained_and_preserved(reauthor, tmp_path):
     ]
     assert len(parsed) == 2
     for index, entry in enumerate(parsed):
-        assert entry.controller_class is ControllerBam
-        resolved = ControllerBam.resolve_arguments(dict(entry.controller_kwargs))
+        assert entry.drive_class is DriveBam
+        resolved = DriveBam.resolve_arguments(dict(entry.drive_kwargs))
         assert resolved["kt"] == pytest.approx(0.3 + index * 0.1)
         assert resolved["kp_fw"] == pytest.approx(123.0 if reauthor else 400.0)
         assert resolved["friction_base"] == pytest.approx(0.012 if reauthor else _reference_params().friction_base)
 
 
-def test_effort_limit_is_authored_on_the_controller_not_as_a_clamping_component():
+def test_effort_limit_is_authored_on_the_drive_not_as_a_clamping_component():
     """A BAM actuator prim must carry no USD-registered API schema beside the BAM token.
 
     Newton resolves an actuator prim's components from ``Usd.Prim.GetAppliedSchemas``, falling
     back to the raw ``apiSchemas`` metadata *only when that comes back empty*.
-    ``NewtonBamControlAPI`` has no registered schema definition, so USD drops it from the
+    ``NewtonBamDriveAPI`` has no registered schema definition, so USD drops it from the
     composed list; a registered sibling such as ``NewtonMaxEffortClampingAPI`` would make the
-    composed list non-empty and the BAM controller would vanish from the parse. The effort
-    limit is therefore a controller parameter, and this test is what stops it going back.
+    composed list non-empty and the BAM drive would vanish from the parse. The effort
+    limit is therefore a drive parameter, and this test is what stops it going back.
     """
     cfg = _make_cfg(actuator_effort_limit=0.05)
     stage = _make_stage(cfg)
 
     prim = stage.GetPrimAtPath(f"/World/Robot/servo_{JOINT_NAMES[0]}_actuator")
     parsed = parse_actuator_prim(prim)
-    assert parsed is not None and parsed.controller_class is ControllerBam
+    assert parsed is not None and parsed.drive_class is DriveBam
     assert parsed.component_specs == [], "a BAM prim must compose no clamping or delay component"
-    assert ControllerBam.resolve_arguments(dict(parsed.controller_kwargs))["max_effort"] == pytest.approx(0.05)
+    assert DriveBam.resolve_arguments(dict(parsed.drive_kwargs))["max_effort"] == pytest.approx(0.05)
 
     spec = stage.GetRootLayer().GetPrimAtPath(prim.GetPath())
-    assert list(spec.GetInfo("apiSchemas").GetAppliedItems()) == [BAM_CONTROL_API]
+    assert list(spec.GetInfo("apiSchemas").GetAppliedItems()) == [BAM_DRIVE_API]
 
 
 def test_driven_joints_are_seeded_with_a_positive_friction():
@@ -313,17 +313,17 @@ Kernel behaviour.
 """
 
 
-def test_controller_rejects_stepping_without_solver_load_binding():
-    """An unbound controller must fail before launching kernels with missing solver inputs."""
+def test_drive_rejects_stepping_without_solver_load_binding():
+    """An unbound drive must fail before launching kernels with missing solver inputs."""
     harness = _Harness(_make_cfg(), num_envs=1, device="cpu")
-    harness.controller.external_torque = None
+    harness.drive.external_torque = None
     zeros = np.zeros((1, len(JOINT_NAMES)), dtype=np.float32)
     with pytest.raises(RuntimeError, match="MJWarp.*bound"):
         harness.step(zeros, zeros, zeros)
 
 
 @pytest.mark.parametrize("device", test_devices())
-def test_controller_matches_upstream_motor_and_friction_goldens(device):
+def test_drive_matches_upstream_motor_and_friction_goldens(device):
     """The USD-to-Warp path preserves upstream firmware, motor and m6 friction outputs."""
     with np.load(Path(__file__).parent / "data" / "bam_xl330_m6_goldens.npz") as data:
         goldens = {key: data[key] for key in data.files}
@@ -332,7 +332,7 @@ def test_controller_matches_upstream_motor_and_friction_goldens(device):
     # The budget's prior motor load is an independent golden input, not recomputed by the port.
     state_in, state_out = harness.actuator.state(), harness.actuator.state()
     state_in.drive_state.prev_motor_torque.assign(goldens["prev_tau"].astype(np.float32))
-    harness.controller.external_torque.assign(goldens["ext_tau"].astype(np.float32))
+    harness.drive.external_torque.assign(goldens["ext_tau"].astype(np.float32))
     for array, key in ((harness.joint_pos, "q"), (harness.joint_vel, "dq"), (harness.target_pos, "q_target")):
         array.assign(goldens[key].astype(np.float32).reshape(-1, 2))
     with wp.ScopedDevice(device):
@@ -341,7 +341,7 @@ def test_controller_matches_upstream_motor_and_friction_goldens(device):
         harness.control.joint_f_2d.numpy().reshape(-1), goldens["motor_torque"], rtol=1e-5, atol=1e-6
     )
     np.testing.assert_allclose(
-        harness.controller.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6
+        harness.drive.friction_budget.numpy(), goldens["frictionloss_budget"], rtol=1e-5, atol=1e-6
     )
 
 
@@ -353,12 +353,12 @@ def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
 
     effort = harness.step(np.array([[0.3, -0.1]]), np.array([[0.5, -0.4]]), np.zeros((1, 2)))
 
-    motor = harness.controller.motor_torque.numpy()
+    motor = harness.drive.motor_torque.numpy()
     assert np.abs(motor).max() > 0.05, "the configured effort limit must bind"
     np.testing.assert_allclose(effort.reshape(-1), np.clip(motor, -0.05, 0.05), atol=0.0, rtol=0.0)
-    budget = harness.controller.friction_budget.numpy()
+    budget = harness.drive.friction_budget.numpy()
     assert (budget >= params.friction_base).all(), "the published budget must keep the Coulomb floor"
-    np.testing.assert_allclose(harness.controller.viscous_damping.numpy(), params.friction_viscous, atol=1e-9, rtol=0.0)
+    np.testing.assert_allclose(harness.drive.viscous_damping.numpy(), params.friction_viscous, atol=1e-9, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -366,7 +366,7 @@ def test_friction_scale_changes_the_published_budget(device):
     """Friction scaling changes the solver budget while preserving the motor torque.
 
     This is the parameter an environment's domain-randomization event drives; the write goes
-    through the same controller array the group-parameter API addresses.
+    through the same drive array the group-parameter API addresses.
     """
     pos, vel, target = np.array([[0.05, 0.05]]), np.array([[0.02, 0.02]]), np.zeros((1, 2))
 
@@ -374,12 +374,12 @@ def test_friction_scale_changes_the_published_budget(device):
     baseline_effort = baseline.step(pos, vel, target)
 
     scaled = _Harness(_make_cfg(), num_envs=1, device=device)
-    scaled.controller.friction_scale.fill_(4.0)
+    scaled.drive.friction_scale.fill_(4.0)
     scaled_effort = scaled.step(pos, vel, target)
 
     np.testing.assert_allclose(
-        scaled.controller.friction_budget.numpy(),
-        4.0 * baseline.controller.friction_budget.numpy(),
+        scaled.drive.friction_budget.numpy(),
+        4.0 * baseline.drive.friction_budget.numpy(),
         rtol=1e-6,
         atol=0.0,
     )
@@ -390,30 +390,30 @@ def test_friction_scale_changes_the_published_budget(device):
 def test_shared_supply_sags_with_the_group_load(device):
     """The supply drop is driven by the whole group's load, not by each joint's own.
 
-    ``env_dof_stride`` is what tells the controller which flat DOFs belong to one supply; the
+    ``env_dof_stride`` is what tells the drive which flat DOFs belong to one supply; the
     adapter declares it because it is the first object that knows the environment count.
     """
     harness = _Harness(_make_cfg(vin_drop_gain_range=None), num_envs=2, device=device)
-    assert harness.controller.env_dof_stride == len(JOINT_NAMES)
-    harness.controller.sag_gain.fill_(5.0)
+    assert harness.drive.env_dof_stride == len(JOINT_NAMES)
+    harness.drive.sag_gain.fill_(5.0)
 
     pos = np.array([[0.4, 0.4], [0.4, 0.4]])
     target = np.zeros((2, 2))
     harness.step(pos, np.zeros((2, 2)), target)
     # ``numpy()`` aliases a Warp array on the host, so the torque has to be copied out
     # before the next step overwrites it.
-    motor = harness.controller.motor_torque.numpy().copy()
+    motor = harness.drive.motor_torque.numpy().copy()
     harness.step(pos, np.zeros((2, 2)), target)
 
     expected = VIN - 5.0 * np.abs(motor.reshape(2, 2)).sum(axis=-1, keepdims=True)
     np.testing.assert_allclose(
-        harness.controller.effective_vin.numpy().reshape(2, 2), np.broadcast_to(expected, (2, 2)), rtol=1e-5, atol=0.0
+        harness.drive.effective_vin.numpy().reshape(2, 2), np.broadcast_to(expected, (2, 2)), rtol=1e-5, atol=0.0
     )
 
 
 @pytest.mark.parametrize("device", test_devices())
 def test_startup_sampling_draws_one_value_per_environment(device):
-    """The config's start-up ranges must reach the controller once the actuator exists.
+    """The config's start-up ranges must reach the drive once the actuator exists.
 
     A USD prim is shared by every clone, so the ranges cannot be authored per environment.
     They are drawn afterwards, with one value covering all of an environment's joints.
@@ -421,19 +421,19 @@ def test_startup_sampling_draws_one_value_per_environment(device):
     cfg = _make_cfg(vin_range=(6.0, 8.0), friction_scale_range=(0.5, 1.5))
     harness = _Harness(cfg, num_envs=8, device=device)
 
-    apply_bam_startup_sampling(harness.controller, cfg)
+    apply_bam_startup_sampling(harness.drive, cfg)
 
     for attr, (low, high) in (("vin", cfg.vin_range), ("friction_scale", cfg.friction_scale_range)):
-        values = getattr(harness.controller, attr).numpy().reshape(8, len(JOINT_NAMES))
+        values = getattr(harness.drive, attr).numpy().reshape(8, len(JOINT_NAMES))
         np.testing.assert_allclose(values[:, 0], values[:, 1], atol=0.0, rtol=0.0)
         assert ((values >= low) & (values <= high)).all()
         assert len(np.unique(values[:, 0])) > 1, "every environment drew the same value"
-    before_reset = {name: getattr(harness.controller, name).numpy().copy() for name in ("vin", "friction_scale")}
+    before_reset = {name: getattr(harness.drive, name).numpy().copy() for name in ("vin", "friction_scale")}
     harness.reset(torch.arange(8, device=device))
     for name, values in before_reset.items():
-        np.testing.assert_array_equal(getattr(harness.controller, name).numpy(), values)
+        np.testing.assert_array_equal(getattr(harness.drive, name).numpy(), values)
     # An unset range leaves the authored nominal in place.
-    np.testing.assert_allclose(harness.controller.sag_gain.numpy(), 0.0, atol=0.0, rtol=0.0)
+    np.testing.assert_allclose(harness.drive.sag_gain.numpy(), 0.0, atol=0.0, rtol=0.0)
 
 
 @pytest.mark.parametrize(
@@ -511,7 +511,7 @@ def test_delay_hold_and_update_period_reach_the_motor_output(hold_probability, p
 def test_reset_restores_the_first_step_behaviour(device):
     """Resetting an environment must clear its caches without touching the others."""
     harness = _Harness(_make_cfg(), num_envs=2, device=device)
-    harness.controller.sag_gain.fill_(0.5)
+    harness.drive.sag_gain.fill_(0.5)
     pos, vel, target = np.array([[0.2, 0.2], [0.2, 0.2]]), np.array([[1.0, 1.0], [1.0, 1.0]]), np.zeros((2, 2))
 
     first = harness.step(pos, vel, target)
