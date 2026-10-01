@@ -16,12 +16,129 @@ import torch
 import warp as wp
 from ovrtx import BindingFlag, DataAccess, PrimMode
 
+from pxr import Sdf, Usd, UsdGeom, UsdShade
+
+from isaaclab.cloner import ClonePlan
+from isaaclab.cloner import path as cloner_path
+from isaaclab.sim.utils import find_matching_prim_paths
+
 if TYPE_CHECKING:
+    from isaaclab.assets import VisualMaterial
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
 
     from .ovrtx_renderer import OVRTXRenderer
 
 logger = logging.getLogger(__name__)
+
+_COLOR_PRIMVAR = "isaaclab:materialColor"
+
+
+def _prepare_material_color_primvars(
+    usd_string: str, materials: tuple[VisualMaterial, ...], plan: ClonePlan
+) -> tuple[str, dict[str, str]]:
+    """Route independently owned PreviewSurface colors through a detached scene's constant primvars."""
+    material_patterns = [
+        material.cfg.prim_path for material in materials if material._input_names.get("color") == "diffuseColor"
+    ]
+    if not material_patterns:
+        return usd_string, {}
+    layer = Sdf.Layer.CreateAnonymous()
+    layer.ImportFromString(usd_string)
+    stage = Usd.Stage.Open(layer)
+    material_paths = {path for pattern in material_patterns for path in find_matching_prim_paths(pattern, stage)}
+    bindings = {path: [] for path in material_paths}
+    external_connections: set[str] = set()
+    for prim in stage.Traverse():
+        for attribute in prim.GetAttributes():
+            for target in attribute.GetConnections():
+                for ancestor in target.GetPrimPath().GetPrefixes():
+                    if str(ancestor) in material_paths and not prim.GetPath().HasPrefix(ancestor):
+                        external_connections.add(str(ancestor))
+        for relation in prim.GetRelationships():
+            if relation.GetName().startswith("material:binding"):
+                for target in relation.GetForwardedTargets():
+                    if str(target) in bindings:
+                        bindings[str(target)].append(relation)
+
+    sources = cloner_path.get_asset_prototype_paths(plan)
+    templates, starts, world_ids, world_starts = cloner_path.get_world_prototype_asset_templates(
+        plan, include_world_indices=True
+    )
+    destinations = {}
+    # Shared assets need no address expansion and do not own a replicated subtree.
+    for group in range(1, len(starts) - 1):
+        ids = world_ids[world_starts[group] : world_starts[group + 1]]
+        for index in range(starts[group], starts[group + 1]):
+            source = sources[plan.topology.world_prototypes[index]]
+            if source is not None and len(ids):
+                destinations.setdefault(source, []).append((templates[index], ids))
+    roots = sorted(destinations, key=len, reverse=True)
+    addresses = {}
+    for material_path, relations in bindings.items():
+        if material_path in external_connections or len(relations) != 1 or relations[0].GetName() != "material:binding":
+            continue
+        if relations[0].GetTargets() != [Sdf.Path(material_path)]:
+            continue
+        geometry = relations[0].GetPrim()
+        if not (geometry.IsA(UsdGeom.Cube) or geometry.IsA(UsdGeom.Mesh)) or geometry.GetChildren():
+            continue
+        if geometry.IsInstance() or geometry.IsInstanceProxy() or geometry.IsInPrototype():
+            continue
+        if any(relation.GetName().startswith("material:binding:") for relation in geometry.GetRelationships()):
+            continue
+        material = UsdShade.Material(stage.GetPrimAtPath(material_path))
+        if not material or material.GetPrim().IsInstance() or material.GetPrim().IsInstanceProxy():
+            continue
+        if any(
+            output.GetFullName() != "outputs:surface" and output.GetAttr().HasAuthoredConnections()
+            for output in material.GetSurfaceOutputs()
+        ):
+            continue
+        bound_material, bound_relation = UsdShade.MaterialBindingAPI(geometry).ComputeBoundMaterial()
+        if bound_material.GetPrim() != material.GetPrim() or bound_relation != relations[0]:
+            continue
+        connected = material.GetSurfaceOutput().GetConnectedSource()
+        if connected is None:
+            continue
+        shader = UsdShade.Shader(connected[0].GetPrim())
+        if not shader or shader.GetShaderId() != "UsdPreviewSurface":
+            continue
+        shader_path = shader.GetPath()
+        if not shader_path.HasPrefix(Sdf.Path(material_path)):
+            continue
+        diffuse = shader.GetInput("diffuseColor")
+        reader_path = Sdf.Path(material_path).AppendChild("IsaacLabColorReader")
+        primvars = UsdGeom.PrimvarsAPI(geometry)
+        if (
+            not diffuse
+            or diffuse.Get() is None
+            or diffuse.GetAttr().HasAuthoredConnections()
+            or stage.GetPrimAtPath(reader_path)
+            or primvars.FindPrimvarWithInheritance(_COLOR_PRIMVAR)
+        ):
+            continue
+        geometry_path = geometry.GetPath()
+        owner = next((root for root in roots if Sdf.Path(material_path).HasPrefix(Sdf.Path(root))), None)
+        geometry_owner = next((root for root in roots if geometry_path.HasPrefix(Sdf.Path(root))), None)
+        if owner != geometry_owner:
+            continue
+        primvars.CreatePrimvar(_COLOR_PRIMVAR, Sdf.ValueTypeNames.Color3f, UsdGeom.Tokens.constant).Set(diffuse.Get())
+        reader = UsdShade.Shader.Define(stage, reader_path)
+        reader.CreateIdAttr("UsdPrimvarReader_float3")
+        reader.CreateInput("varname", Sdf.ValueTypeNames.Token).Set(_COLOR_PRIMVAR)
+        reader.CreateInput("fallback", Sdf.ValueTypeNames.Float3).Set(diffuse.Get())
+        diffuse.ConnectToSource(reader.CreateOutput("result", Sdf.ValueTypeNames.Float3))
+        addresses[str(shader_path)] = str(geometry_path)
+        if owner is not None:
+            for template, ids in destinations[owner]:
+                addresses.update(
+                    (
+                        template.format(world) + str(shader_path)[len(owner) :],
+                        template.format(world) + str(geometry_path)[len(owner) :],
+                    )
+                    for world in ids
+                )
+    return (stage.ExportToString(), addresses) if addresses else (usd_string, {})
 
 
 class OVRTXVisualMaterialWriter:
@@ -52,12 +169,18 @@ class OVRTXVisualMaterialWriter:
             device = values.device
             self._buffers[batch.channel] = values
             start = 0
-            for input_name, input_group in itertools.groupby(batch.input_names):
-                end = start + sum(1 for _ in input_group)
+            targets = []
+            for shader_path, input_name in zip(batch.shader_paths, batch.input_names, strict=True):
+                geometry_path = renderer._visual_material_color_paths.get(shader_path)
+                if batch.channel == "color" and input_name == "diffuseColor" and geometry_path is not None:
+                    targets.append((f"primvars:{_COLOR_PRIMVAR}", geometry_path))
+                else:
+                    targets.append((f"inputs:{input_name}", shader_path))
+            for attribute_name, target_group in itertools.groupby(targets, key=lambda target: target[0]):
+                paths = [target[1] for target in target_group]
+                end = start + len(paths)
                 rows = slice(start, end)
-                groups.append(
-                    (batch.channel, f"inputs:{input_name}", list(batch.shader_paths[rows]), rows, dtype, shape)
-                )
+                groups.append((batch.channel, attribute_name, paths, rows, dtype, shape))
                 start = end
         self._device = str(device)
         self._event = wp.Event(device=self._device)

@@ -10,7 +10,7 @@ import weakref
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 import torch
 import warp as wp
@@ -77,6 +77,9 @@ class AssetBase(Asset, ABC):
 
     _check_shapes: bool = __debug__
     """Class-level default for shape validation. Overridden per-instance in ``__init__``."""
+
+    _initialization_order: ClassVar[int] = 10
+    """Physics-ready callback order; dependencies may initialize before other assets."""
 
     def __init__(self, cfg: AssetBaseCfg):
         """Initialize the asset base.
@@ -369,7 +372,7 @@ class AssetBase(Asset, ABC):
                 _invoke, "_initialize_callback", payload, physics_manager=physics_mgr_cls
             ),
             PhysicsEvent.PHYSICS_READY,
-            order=10,
+            order=self._initialization_order,
         )
         self._invalidate_initialize_handle = physics_mgr_cls.register_callback(
             lambda payload: PhysicsManager.safe_callback_invoke(
