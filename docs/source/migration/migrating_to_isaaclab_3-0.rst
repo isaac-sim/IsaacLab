@@ -2589,9 +2589,9 @@ and sets ``source="visualizer:kit"`` on the default recorder, printing:
 
 .. code-block:: text
 
-   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
-   for video recording. Pass --viz <type> to choose a different visualizer, or
-   set video_recorders in your env config to record from a scene sensor instead.
+   [INFO] --video specified without --viz: adding a headless Kit visualizer to record
+   from. Pass --viz <type> to choose a different visualizer, or set video_recorders in
+   your env config to record from a scene sensor instead.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)

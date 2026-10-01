@@ -1025,6 +1025,8 @@ jobs:
       run: |
         set -uo pipefail
         install -d -m 0777 "${GITHUB_WORKSPACE}/jit-cache/warp" "${GITHUB_WORKSPACE}/jit-cache/nv"
+        # Restored version directories and kernels must also be writable by the container user.
+        chmod -R a+rwX "${GITHUB_WORKSPACE}/jit-cache" || exit 1
 
         container=""
         cleanup_container() {
