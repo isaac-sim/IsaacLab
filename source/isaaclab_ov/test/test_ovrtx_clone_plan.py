@@ -92,7 +92,7 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     # create_render_data resolves this from the spec; tests that bypass it get the default.
     renderer._warp_device = SimpleNamespace(ordinal=0)
     renderer._camera_render_data = []
-    renderer._next_camera_id = 0
+    renderer.scene.next_camera_id = 0
     renderer._exported_usd_string = None
     renderer._initialized_scene = False
     renderer._use_ovstage = False
@@ -127,11 +127,11 @@ def _prepare_clones(renderer, plan, routed=None):
 
     from isaaclab.utils import string_to_callable
 
-    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
+    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
     if renderer._use_ovstage:
         from isaaclab_ov.stage import OvstageBackendCfg
 
-        cfg = OvstageBackendCfg(consumer_cfg=cfg)
+        cfg = OvstageBackendCfg(scene_key=cfg)
     sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
     routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
     for context in renderer.cfg.cloning_contexts:
@@ -357,7 +357,7 @@ def test_prepare_stage_exports_only_clone_sources_and_their_materials(monkeypatc
         monkeypatch.setattr(ovstage, "PathDictionary", lambda _: contextlib.nullcontext(paths))
         imported = Mock()
         monkeypatch.setattr(ovstage.population, "open_usd_from_string", imported)
-        cfg = OvstageBackendCfg(consumer_cfg=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
+        cfg = OvstageBackendCfg(scene_key=renderer.cfg, population_domains=ovstage.PopulationDomain.ALL)
         backend = OvstageBackend(cfg)
         OvstageReplicateContext(SimpleNamespace(_backend_registry=[(cfg, backend)])).replicate(plan, (0,))
         backend.populate(renderer._exported_usd_string)
@@ -455,9 +455,9 @@ def test_clone_context_omits_covered_children_and_honors_routing(child_source, r
 
     renderer_cfg = OVRTXRendererCfg()
     configs = (
-        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
-        OvstageBackendCfg(consumer_cfg=renderer_cfg),
-        OVRTXBackendCfg(renderer_cfg=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
+        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=False, read_gpu_transforms=True),
+        OvstageBackendCfg(scene_key=renderer_cfg),
+        OVRTXBackendCfg(scene_key=renderer_cfg, use_ovstage=True, read_gpu_transforms=True),
     )
     for selected, context in enumerate((OvrtxReplicateContext, OvstageReplicateContext)):
         backends = [SimpleNamespace() for _ in configs]

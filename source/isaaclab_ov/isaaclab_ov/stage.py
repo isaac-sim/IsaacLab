@@ -12,12 +12,13 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from dataclasses import MISSING
 from typing import TYPE_CHECKING
 
 import numpy as np
 import ovstage
 import warp as wp
+
+from pxr import Sdf, Usd
 
 from isaaclab.sim import BackendCfg
 from isaaclab.utils import configclass
@@ -130,8 +131,8 @@ class OvstageBackendCfg(BackendCfg):
     """Configuration of a simulation-owned stage and its populated domains."""
 
     class_type: type[OvstageBackend] | str = "{DIR}.stage:OvstageBackend"
-    consumer_cfg: BackendCfg | VisualizerCfg = MISSING
-    """Consumer settings; independent render products and write ordinals require separate stages."""
+    scene_key: BackendCfg | VisualizerCfg | None = None
+    """None selects the simulation scene; isolated consumers use their configuration as the key."""
     population_domains: ovstage.PopulationDomain = ovstage.PopulationDomain.RENDERING
     """USD domains to populate. Physics consumers require PHYSICS or ALL."""
 
@@ -142,6 +143,8 @@ class OvstageBackend:
     def __init__(self, cfg: OvstageBackendCfg):
         """Create the stage identified by its consumer configuration and population domains."""
         self.cfg = cfg
+        self.ordinal = 0
+        self.next_camera_id = 0
         self.clone_copies: list[tuple[str, list[str]]] = []
         self.clone_env_paths: list[str] = []
         self.clone_positions: np.ndarray | None = None
@@ -161,14 +164,112 @@ class OvstageBackend:
         """
         from isaaclab_ov.cloner import ovstage_replicate  # noqa: PLC0415
 
+        if self.ordinal:
+            return
+
         # Ordinal 0 is the empty state; population and cloning form the first committed write.
         ovstage.population.open_usd_from_string(self.stage, usda, ordinal=1, domains=self.cfg.population_domains)
         ovstage_replicate(
             self.stage, self.paths, self.clone_copies, self.clone_env_paths, self.clone_positions, ordinal=1
         )
-        self.stage.advance_write_floor(ordinal=1).wait()
+        self.ordinal = 1
+        self.commit()
+
+    def commit(self) -> int:
+        """Seal pending writes and return their ordinal; all consumers share the next write ordinal."""
+        ordinal = self.ordinal
+        self.stage.advance_write_floor(ordinal=ordinal).wait()
+        self.ordinal += 1
+        return ordinal
 
     def close(self) -> None:
         """Release the path dictionary and stage after their borrowers have closed."""
         self._resources.close()
         self.stage = self.paths = None
+
+
+def _collect_prims_to_deactivate(parent_prim: Usd.Prim, source_paths: frozenset[Sdf.Path]) -> list[Sdf.Path]:
+    """Collect child prims under ``parent_prim`` for deactivation.
+
+    For each child:
+
+    * If the child is a source, keep the full subtree and stop descending.
+    * If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+    * Otherwise, deactivate the child prim (including descendants).
+
+    Args:
+        parent_prim: Parent prim whose children are considered.
+        source_paths: The paths to the cloning sources.
+
+    Returns:
+        Paths of prims to deactivate on the root layer.
+    """
+    prim_paths: list[Sdf.Path] = []
+
+    for child in parent_prim.GetChildren():
+        child_path = child.GetPath()
+
+        # If the child is a source, keep it and stop walking down the tree.
+        if child_path in source_paths:
+            continue
+
+        # If the child is an ancestor of some source, recurse to deactivate non-source siblings deeper in the tree.
+        if any(source.HasPrefix(child_path) for source in source_paths):
+            prim_paths.extend(_collect_prims_to_deactivate(child, source_paths))
+            continue
+
+        # Otherwise, deactivate the child prim (including descendants).
+        if child.IsActive():
+            prim_paths.append(child_path)
+
+    return prim_paths
+
+
+def export_stage_to_string(
+    stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
+) -> str:
+    """Export routed prototypes without mutating the simulation's authored USD stage.
+
+    An anonymous session layer hides non-source subtrees. Physics population needs typed
+    environment ancestors, so keep environment roots when cloning their children; remove
+    the roots only when they are themselves clone targets.
+
+    Args:
+        stage: USD stage to export.
+        num_envs: Number of parallel environments. A single environment is exported unchanged.
+        source_paths: Prototype subtrees retained with their materials and descendants.
+        keep_env_roots: Whether to retain non-source environment roots and their transforms.
+
+    Returns:
+        USDA text containing the selected prototypes.
+    """
+    if num_envs <= 1:
+        return stage.ExportToString()
+
+    export_session = Sdf.Layer.CreateAnonymous()
+    export_session.subLayerPaths = [stage.GetSessionLayer().identifier]
+    export_stage = Usd.Stage.Open(stage.GetRootLayer(), export_session)
+    envs_path = Sdf.Path("/World/envs")
+    envs_prim = export_stage.GetPrimAtPath(envs_path)
+    if not envs_prim.IsValid():
+        raise RuntimeError(f"Failed to get prim at path: {envs_path}")
+
+    source_path_set = frozenset(map(Sdf.Path, source_paths))
+    prim_paths: list[Sdf.Path] = []
+
+    if keep_env_roots:
+        for child in envs_prim.GetChildren():
+            # Retain authored ancestor types and transforms for asset-level clones.
+            child_path = child.GetPath()
+            if child_path not in source_path_set:
+                prim_paths.extend(_collect_prims_to_deactivate(child, source_path_set))
+    else:
+        # Whole-environment copies recreate these roots.
+        prim_paths = _collect_prims_to_deactivate(envs_prim, source_path_set)
+
+    with Sdf.ChangeBlock():
+        for prim_path in prim_paths:
+            Sdf.CreatePrimInLayer(export_session, prim_path).active = False
+            logger.debug("Deactivated prim: %s", prim_path)
+    logger.info("Deactivated %d prims in total", len(prim_paths))
+    return export_stage.ExportToString()

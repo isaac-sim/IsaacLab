@@ -84,7 +84,12 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
     renderer.cfg = OVRTXRendererCfg()
     renderer.backend = OVRTXBackend.__new__(OVRTXBackend)
     renderer.scene = renderer.backend
-    cfg = OVRTXBackendCfg(renderer_cfg=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
+    from isaaclab_ov.stage import OvstageBackend
+
+    renderer.scene.commit = OvstageBackend.commit.__get__(renderer.scene)
+    renderer.scene.next_camera_id = 0
+    renderer.backend.attached = False
+    cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=False, read_gpu_transforms=True)
     renderer.scene.stage = renderer.scene.paths = None
     SimulationContext.instance()._backend_registry.append((cfg, renderer.backend))
     renderer._camera_render_data = []
@@ -97,7 +102,9 @@ def _make_ovrtx_renderer_without_backend() -> OVRTXRenderer:
 
 @pytest.fixture(autouse=True)
 def _simulation_registry(monkeypatch):
-    sim = types.SimpleNamespace(_backend_registry=[])
+    sim = types.SimpleNamespace(
+        _backend_registry=[], physics_manager=types.SimpleNamespace(clone_context_type=None, backend=None)
+    )
     sim.get_scene_data_provider = lambda: types.SimpleNamespace(
         backend=types.SimpleNamespace(transform_paths=[]), get_geometry_points=lambda: {}
     )
@@ -106,8 +113,8 @@ def _simulation_registry(monkeypatch):
     monkeypatch.setattr(SimulationContext, "_instance", sim)
 
 
-@pytest.mark.parametrize("use_ovstage", [False, True])
-def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage):
+@pytest.mark.parametrize("use_ovstage, shared_physics", [(False, False), (True, False), (False, True)])
+def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tmp_path, use_ovstage, shared_physics):
     """Equal cfgs share one native resource; closing borrowers leaves it owned by the registry."""
     config_kwargs: dict[str, object] = {}
     destroyed, redirected, stage_releases = [], [], []
@@ -140,7 +147,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     monkeypatch.setattr("isaaclab_ov.stage.create_ovstage", lambda _: stage_resource("stage"))
     monkeypatch.setattr(ovrtx_renderer_module.ovstage, "PathDictionary", lambda _: stage_resource("paths"))
 
+    if shared_physics:
+        from isaaclab_ov.cloner import OvPhysxReplicateContext
+
+        SimulationContext.instance().physics_manager.clone_context_type = OvPhysxReplicateContext
     renderer = OVRTXRenderer(OVRTXRendererCfg())
+    use_ovstage = use_ovstage or shared_physics
     shared = OVRTXRenderer(renderer.cfg)
 
     assert shared.backend is renderer.backend
@@ -152,7 +164,12 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert shared.scene is renderer.scene
     assert len(SimulationContext.instance()._backend_registry) == 1 + use_ovstage
     other = OVRTXRenderer(replace(renderer.cfg, enable_shadows=True))
-    assert other.backend is not renderer.backend
+    assert (other.backend is renderer.backend) is shared_physics
+    assert (other.scene is renderer.scene) is shared_physics
+    if shared_physics:
+        assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
+        with pytest.raises(ValueError, match="one OVRTX engine"):
+            OVRTXRenderer(replace(renderer.cfg, log_level="error"))
     renderer.close()
     renderer.close()
     assert not destroyed
@@ -160,15 +177,15 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     shared.close()
     other.close()
     assert not destroyed
-    SimulationContext.instance().close_backend(renderer.backend)
-    SimulationContext.instance().close_backend(other.backend)
-    assert len(destroyed) == 2
+    for backend in dict.fromkeys((renderer.backend, other.backend)):
+        SimulationContext.instance().close_backend(backend)
+    assert len(destroyed) == (1 if shared_physics else 2)
     assert redirected == destroyed
     assert not stage_releases
     if use_ovstage:
-        SimulationContext.instance().close_backend(renderer.scene)
-        SimulationContext.instance().close_backend(other.scene)
-        assert stage_releases == ["paths", "stage", "paths", "stage"]
+        for scene in dict.fromkeys((renderer.scene, other.scene)):
+            SimulationContext.instance().close_backend(scene)
+        assert stage_releases == ["paths", "stage"] * (1 if shared_physics else 2)
     assert not SimulationContext.instance()._backend_registry
 
 
@@ -192,7 +209,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
     renderer._use_ovstage = use_ovstage
     renderer._initialized_scene = True
     renderer._visual_material_writer_ref = None
-    renderer._current_ordinal = 7
+    renderer.scene.ordinal = 7
     cameras = [_make_ovrtx_camera_render_data() for _ in range(2 if batch else 1)]
     products = {}
     processed = []
@@ -248,7 +265,7 @@ def test_ovrtx_render_submits_every_product_and_routes_requested_outputs(
     if use_ovstage:
         assert submissions[0]["ordinal"] == 7
         assert published_ordinals == [7]
-        assert renderer._current_ordinal == 8
+        assert renderer.scene.ordinal == 8
     else:
         assert "ordinal" not in submissions[0]
         assert not published_ordinals
@@ -639,9 +656,9 @@ def test_ovrtx_process_frame_reads_authored_camera_render_vars(monkeypatch, use_
     renderer._initialized_scene = True
     renderer._device = "cpu"
     renderer._exported_usd_string = None
-    renderer._next_camera_id = 0
+    renderer.scene.next_camera_id = 0
     renderer._use_ovstage = use_ovstage
-    renderer._current_ordinal = 1
+    renderer.scene.ordinal = 1
     renderer.backend.renderer = MagicMock()
     renderer.scene.stage = MagicMock()
     renderer.scene.paths = MagicMock()
@@ -977,9 +994,9 @@ def test_intrinsic_updates_target_the_given_camera(monkeypatch, use_ovstage):
     renderer = _make_ovrtx_renderer_without_backend()
     renderer._initialized_scene = True
     renderer._device = "cpu"
-    renderer._next_camera_id = 0
+    renderer.scene.next_camera_id = 0
     renderer._use_ovstage = use_ovstage
-    renderer._current_ordinal = 1
+    renderer.scene.ordinal = 1
     renderer.backend.renderer = MagicMock()
     renderer.backend.renderer.bind_attribute.side_effect = lambda **kwargs: MagicMock()
     renderer.scene.stage = MagicMock()
@@ -1086,7 +1103,7 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
 
     renderer.scene = OvstageBackend.__new__(OvstageBackend)
     SimulationContext.instance()._backend_registry.insert(
-        0, (OvstageBackendCfg(consumer_cfg=renderer.cfg), renderer.scene)
+        0, (OvstageBackendCfg(scene_key=renderer.cfg), renderer.scene)
     )
     renderer.scene.stage = Stage()
     renderer.scene.paths = StagePaths()
@@ -1105,7 +1122,7 @@ def _make_ovstage_renderer_with_backend(events: list[str]) -> OVRTXRenderer:
     renderer.scene._resources = ExitStack()
     renderer._output_id_color_buffers = {"semantic_segmentation": object()}
     renderer._initialized_scene = True
-    renderer._current_ordinal = 7
+    renderer.scene.ordinal = 7
     return renderer
 
 

@@ -5,3 +5,6 @@
   clone copies instead of traversing the clone plan again.
 * Consolidated scene binding setup, camera pose updates, and render submission across OVRTX scene paths.
   Reused camera conversion buffers for OVStage updates and derived active products from registered cameras.
+* Shared one OVRTX engine across camera product configurations when using OVPhysX, as required by the SDK's
+  single-renderer attachment contract. Cameras must agree on native logging and transform-cache settings.
+  Removed duplicate USD scene-partition authoring; camera registration authored the runtime attributes.

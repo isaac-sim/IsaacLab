@@ -123,9 +123,12 @@ def _renderer(*, use_ovstage: bool = False):
     renderer.cfg = OVRTXRendererCfg()
     renderer._camera_render_data = []
     if use_ovstage:
+        from isaaclab_ov.stage import OvstageBackend
+
+        renderer.scene = OvstageBackend.__new__(OvstageBackend)
         renderer.scene.stage = _OvstageRecorder(events)
         renderer.scene.paths = _PathRecorder()
-        renderer._current_ordinal = 7
+        renderer.scene.ordinal = 7
     return renderer, events
 
 
