@@ -376,27 +376,29 @@ def test_friction_scale_changes_the_published_budget(device):
 
 @pytest.mark.parametrize("device", test_devices())
 def test_shared_supply_sags_with_the_group_load(device):
-    """The supply drop is driven by the whole group's load, not by each joint's own.
-
-    ``env_dof_stride`` is what tells the drive which flat DOFs belong to one supply; the
-    adapter declares it because it is the first object that knows the environment count.
-    """
-    harness = _Harness(num_envs=2, device=device)
-    assert harness.drive.env_dof_stride == len(JOINT_NAMES)
-    harness.drive.sag_gain.fill_(5.0)
-
-    pos = np.array([[0.4, 0.4], [0.4, 0.4]])
-    target = np.zeros((2, 2))
-    harness.step(pos, np.zeros((2, 2)), target)
-    # ``numpy()`` aliases a Warp array on the host, so the torque has to be copied out
-    # before the next step overwrites it.
-    motor = harness.drive.motor_torque.numpy().copy()
-    harness.step(pos, np.zeros((2, 2)), target)
-
-    expected = VIN - 5.0 * np.abs(motor.reshape(2, 2)).sum(axis=-1, keepdims=True)
-    np.testing.assert_allclose(
-        harness.drive.effective_vin.numpy().reshape(2, 2), np.broadcast_to(expected, (2, 2)), rtol=1e-5, atol=0.0
-    )
+    """Voltage and raw torque match a recording of BAM 62bd8ce's stateful compute method."""
+    with np.load(Path(__file__).parent / "data" / "bam_xl330_m6_goldens.npz") as data:
+        goldens = {key: data[key] for key in data.files if key.startswith("sag_")}
+    shape = goldens["sag_q"].shape[1:]
+    harness = _Harness(num_envs=shape[0], device=device, vin_min=float(goldens["sag_vin_min"]))
+    for field, key in (("vin", "sag_vin"), ("sag_gain", "sag_gain")):
+        getattr(harness.drive, field).assign(np.broadcast_to(goldens[key], shape).astype(np.float32).ravel())
+    for step, (pos, vel, target) in enumerate(
+        zip(goldens["sag_q"], goldens["sag_dq"], goldens["sag_target"], strict=True)
+    ):
+        harness.step(pos, vel, target)
+        np.testing.assert_allclose(
+            harness.drive.effective_vin.numpy().reshape(shape),
+            np.broadcast_to(goldens["sag_effective_vin"][step], shape),
+            rtol=1e-5,
+            atol=1e-6,
+        )
+        np.testing.assert_allclose(
+            harness.drive.motor_torque.numpy().reshape(shape),
+            goldens["sag_motor_torque"][step],
+            rtol=1e-5,
+            atol=1e-6,
+        )
 
 
 @pytest.mark.parametrize("device", test_devices())
@@ -422,6 +424,44 @@ def test_startup_sampling_draws_one_value_per_environment(device):
         np.testing.assert_array_equal(getattr(harness.drive, name).numpy(), values)
     # An unset range leaves the authored nominal in place.
     np.testing.assert_allclose(harness.drive.sag_gain.numpy(), 0.0, atol=0.0, rtol=0.0)
+
+
+@pytest.mark.parametrize("device", test_devices())
+def test_delay_matches_recorded_mjlab_sequence(device):
+    """Replay mjlab's 3--6-step lag draws through warm-up, ring wrap, and a partial reset.
+
+    Torch and Warp use different RNGs. Inject the recorded draws into native drive state
+    and hold them for each step; the independent RNG test covers sampling and episode seeds.
+    """
+    with np.load(Path(__file__).parent / "data" / "bam_xl330_m6_goldens.npz") as data:
+        goldens = {key: data[key] for key in data.files if key.startswith("delay_")}
+    shape = goldens["delay_commands"].shape[1:]
+    harness = _Harness(
+        num_envs=shape[0],
+        device=device,
+        min_delay=int(goldens["delay_min"]),
+        max_delay=int(goldens["delay_max"]),
+        delay_hold_prob=1.0,
+    )
+    state_in, state_out = harness.actuator.state(), harness.actuator.state()
+    for step, command in enumerate(goldens["delay_commands"]):
+        with wp.ScopedDevice(device):
+            if goldens["delay_resets"][step].any():
+                mask = wp.array(np.repeat(goldens["delay_resets"][step], shape[1]), dtype=wp.bool, device=device)
+                state_in.reset(mask)
+                state_out.reset(mask)
+            state_in.drive_state.delay_lag.assign(np.repeat(goldens["delay_lags"][step], shape[1]).astype(np.int32))
+            harness.target_pos.assign(command.astype(np.float32))
+            harness.control.joint_f_2d.zero_()
+            harness.actuator.step(harness.state, harness.control, state_in, state_out, dt=DT)
+            state_in, state_out = state_out, state_in
+        np.testing.assert_allclose(
+            harness.control.joint_f_2d.numpy(),
+            goldens["delay_motor_torque"][step],
+            rtol=1e-5,
+            atol=1e-6,
+            err_msg=f"step {step}",
+        )
 
 
 @pytest.mark.parametrize(
