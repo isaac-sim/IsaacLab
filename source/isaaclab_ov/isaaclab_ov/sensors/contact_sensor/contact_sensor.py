@@ -267,6 +267,9 @@ class ContactSensor(BaseContactSensor):
         binding_num_envs = self._contact_binding.sensor_count // self._num_sensors
         if binding_num_envs != self._num_envs:
             self._num_envs = binding_num_envs
+            self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
+            self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
+            self._reset_mask_torch = wp.to_torch(self._reset_mask)
             self._create_timing_buffers()
 
         # Optional: pose tracking via a RIGID_BODY_POSE tensor binding.

@@ -272,6 +272,11 @@ class SensorBase(ABC):
         else:
             env_prim_path_expr = "/".join(sim_utils.split_path_expr(self.cfg.prim_path)[:-1])
             self._num_envs = len(sim_utils.find_matching_prims(env_prim_path_expr))
+        # Create warp env mask arrays for "all envs" cases and resets.
+        # Torch views share these Warp arrays' storage; scalar indexed writes use index_fill_ to avoid a sync.
+        self._ALL_ENV_MASK = wp.ones((self._num_envs), dtype=wp.bool, device=self._device)
+        self._reset_mask = wp.zeros((self._num_envs), dtype=wp.bool, device=self._device)
+        self._reset_mask_torch = wp.to_torch(self._reset_mask)
         self._create_timing_buffers()
         self._data_dirty = True
 
@@ -421,15 +426,11 @@ class SensorBase(ABC):
     """
 
     def _create_timing_buffers(self) -> None:
-        """Allocates the per-environment masks, timestamps and outdated flags used to schedule updates.
+        """Allocates the per-environment outdated flags, timestamps and elapsed times used to schedule updates.
 
-        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again.
+        Sensors that change :attr:`_num_envs` after :meth:`_initialize_impl` must call this again, after
+        reallocating their environment masks.
         """
-        # Create warp env mask arrays for "all envs" cases and resets.
-        # Torch views share these Warp arrays' storage; scalar indexed writes use index_fill_ to avoid a sync.
-        self._ALL_ENV_MASK = wp.ones((self._num_envs,), dtype=wp.bool, device=self._device)
-        self._reset_mask = wp.zeros((self._num_envs,), dtype=wp.bool, device=self._device)
-        self._reset_mask_torch = wp.to_torch(self._reset_mask)
         # timestamp and outdated flags
         self._is_outdated = wp.ones(self._num_envs, dtype=wp.bool, device=self._device)
         self._timestamp = wp.zeros(self._num_envs, dtype=wp.float32, device=self._device)
