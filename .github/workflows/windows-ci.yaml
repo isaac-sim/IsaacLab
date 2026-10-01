@@ -1,0 +1,492 @@
+# Copyright (c) 2022-2026, The Isaac Lab Project Developers (https://github.com/isaac-sim/IsaacLab/blob/main/CONTRIBUTORS.md).
+# All rights reserved.
+#
+# SPDX-License-Identifier: BSD-3-Clause
+
+# Windows CI on self-hosted GPU runners, exercising the documented uv workflow
+# (`uv run` from the committed uv.lock) with public wheels only. Single
+# consolidated job so the autoscaler can't tear the runner between sub-jobs.
+#
+# Two lanes share one project environment, re-synced exactly between them:
+#   - kitless: `uv sync --frozen --extra ovrtx --extra test` (no Isaac Sim)
+#   - kit:     `uv sync --frozen --extra isaacsim --extra test`
+# Kit-launching steps use Start-Process + WaitForExit as an OS-level watchdog
+# (Python thread watchdogs are GIL-vulnerable).
+
+name: Windows CI
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  push:
+    branches:
+      - main
+      - develop
+      - 'release/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
+# EULA + headless env. Without these Kit bootstrap blocks on stdin
+# ("Unable to bootstrap inner kit kernel: EOF when reading a line") or
+# the global watchdog kills the headless process.
+env:
+  OMNI_KIT_ACCEPT_EULA: "yes"
+  ACCEPT_EULA: "Y"
+  ISAACSIM_ACCEPT_EULA: "YES"
+  PRIVACY_CONSENT: "Y"
+  HEADLESS: "1"
+  ISAAC_SIM_HEADLESS: "1"
+  ISAAC_SIM_LOW_MEMORY: "1"
+  WINDOWS_PLATFORM: "true"
+  OMNI_KIT_NO_WINDOW: "1"
+  OMNI_KIT_DISABLE_WATCHDOG: "1"
+  OMNI_KIT_TELEMETRY: "0"
+  CARB_LOGGING_SEVERITY: "error"
+  PYTHONUNBUFFERED: "1"
+  PYTHONIOENCODING: "utf-8"
+
+jobs:
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.detect.outputs.should_run }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          sparse-checkout: .github/actions/detect-changes
+          sparse-checkout-cone-mode: false
+      - id: detect
+        uses: ./.github/actions/detect-changes
+        with:
+          triggered-jobs-push: windows-ci
+          triggered-jobs-pr: windows-ci
+          patterns: |
+            ^source/ :: Library source code
+            ^tools/ :: Build tooling
+            ^apps/ :: Standalone apps
+            ^scripts/ :: Standalone scripts
+            (^|/)pyproject\.toml$ :: Python project metadata
+            ^uv\.lock$ :: Locked dependency graph
+            ^isaaclab\.bat$ :: Windows CLI wrapper
+            ^docker/Dockerfile\.base$ :: uv version pin
+            ^VERSION$ :: Version file
+            ^\.github/workflows/windows-ci\.yaml$ :: This workflow file
+            ^\.github/actions/windows-instance-state/ :: Windows runner action
+
+  windows-ci:
+    name: windows-ci
+    needs: [changes]
+    if: needs.changes.outputs.should_run == 'true'
+    runs-on: [self-hosted, gpu-windows]
+    timeout-minutes: 120
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+          lfs: false
+
+      - name: Report instance state (BEFORE)
+        uses: ./.github/actions/windows-instance-state
+        with: { phase: pre }
+
+      # Use the uv that regenerated uv.lock: docker/Dockerfile.base pins it (and
+      # docker/test/test_dockerfile_nonroot.py keeps every image on that pin). A
+      # different uv re-serialises the lock markers. The cache stays in uv's own
+      # Windows default so the runner's warm cache keeps being reused.
+      - name: Resolve pinned uv version
+        id: uv-pin
+        shell: powershell
+        run: |
+          $ErrorActionPreference = "Stop"
+          $match = Select-String -Path docker/Dockerfile.base -Pattern 'ghcr\.io/astral-sh/uv:([0-9][0-9.]*)@' | Select-Object -First 1
+          if (-not $match) { throw "uv pin not found in docker/Dockerfile.base" }
+          $version = $match.Matches[0].Groups[1].Value
+          Write-Host "uv pin: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "cache_dir=$env:LOCALAPPDATA\uv\cache" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e  # v6.8.0
+        with:
+          version: ${{ steps.uv-pin.outputs.version }}
+          cache-local-path: ${{ steps.uv-pin.outputs.cache_dir }}
+
+      # ===== Kit-less lane: `uv run` without Isaac Sim (Newton, OV runtimes). =====
+
+      - name: Sync kit-less environment (uv.lock + ovrtx + test)
+        id: sync-kitless
+        shell: powershell
+        timeout-minutes: 25
+        run: |
+          $ErrorActionPreference = "Stop"
+          uv sync --frozen --extra ovrtx --extra test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --no-sync python -c "import isaaclab, isaaclab_assets, isaaclab_tasks, isaaclab_newton, isaaclab_physx; print('editable imports ok')"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Force -Path "reports" | Out-Null
+
+      # ovrtx and usd-exchange ship differently built DLLs under the same names
+      # (MaterialXCore, MaterialXFormat, tbb12); on Windows whichever loads
+      # second fails (nvbug 6817794). Linux is unaffected. ovrtx loads its
+      # runtime only when a renderer is created, so every case creates one, each
+      # in a fresh interpreter. ovrtx-alone is the control; usd-first loads no
+      # MaterialX; isaaclab-render is the user-facing path.
+      # The cases that load usd-exchange are expected to fail only for the
+      # known-broken version pair below. A version bump re-arms them, and an
+      # unexpected pass fails the step so the entry gets removed.
+      - name: OV runtime coexistence (ovrtx + usd-exchange)
+        id: test-ov-coexist
+        if: always() && steps.sync-kitless.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 35
+        run: |
+          $ErrorActionPreference = "Stop"
+          $script = @'
+          import sys
+
+          import psutil
+
+
+          def load_usd_exchange_usd():
+              from pxr import Usd  # noqa: F401
+
+
+          def load_usd_exchange_materialx():
+              import usdex.core  # noqa: F401
+              from pxr import UsdMtlx  # noqa: F401
+
+
+          def create_ovrtx_renderer():
+              import ovrtx
+
+              ovrtx.Renderer()
+
+
+          def render_isaaclab_ovrtx_camera():
+              import torch
+
+              from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+              from isaaclab_tasks.utils import resolve_task_config
+
+              env_cfg, _ = resolve_task_config(
+                  "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=newton_mjwarp", "renderer=ovrtx")
+              )
+              env_cfg.scene.num_envs = 2
+              env_cfg.frame_stack = 1
+              env = CartpoleCameraEnv(cfg=env_cfg)
+              try:
+                  obs, _ = env.reset()
+                  image = obs["policy"]
+                  assert torch.isfinite(image).all(), "OVRTX camera observation contains NaN or infinity"
+                  assert image.amax() > image.amin(), "OVRTX camera observation is constant"
+              finally:
+                  env.close()
+
+
+          PROBES = {
+              "ovrtx-alone": [create_ovrtx_renderer],
+              "usd-first": [load_usd_exchange_usd, create_ovrtx_renderer],
+              "materialx-first": [load_usd_exchange_materialx, create_ovrtx_renderer],
+              "ovrtx-first": [create_ovrtx_renderer, load_usd_exchange_materialx],
+              "isaaclab-render": [render_isaaclab_ovrtx_camera],
+          }
+
+          for step in PROBES[sys.argv[1]]:
+              try:
+                  step()
+              except BaseException:
+                  keys = ("materialx", "tbb", "usd", "crender")
+                  libs = sorted({m.path for m in psutil.Process().memory_maps() if any(k in m.path.lower() for k in keys)})
+                  print("Loaded libraries at failure:", *libs, sep="\n  ", flush=True)
+                  raise
+              print(f"{step.__name__}: ok", flush=True)
+          '@
+          $script | Out-File -FilePath ov_coexist_probe.py -Encoding utf8
+          $knownBroken = @{ "usd-exchange 3.0.0 / ovrtx 0.5.0.377615" = @("usd-first", "materialx-first", "ovrtx-first", "isaaclab-render") }
+          $pair = uv run --frozen --no-sync python -c "import importlib.metadata as m; print('usd-exchange', m.version('usd-exchange'), '/ ovrtx', m.version('ovrtx'))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $pair = "$pair".Trim()
+          $expectedFailures = if ($knownBroken.ContainsKey($pair)) { $knownBroken[$pair] } else { @() }
+          Write-Host "Installed: $pair (expected failures: $($expectedFailures -join ', '))"
+          $results = [ordered]@{}
+          foreach ($case in @("ovrtx-alone", "usd-first", "materialx-first", "ovrtx-first", "isaaclab-render")) {
+            Write-Host "=== $case ==="
+            $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python ov_coexist_probe.py $case"
+            # Reading Handle keeps the process handle open so ExitCode survives the exit.
+            $null = $proc.Handle
+            if (-not $proc.WaitForExit(360000)) {
+              Write-Host "::error::$case hard timeout (6 min); killing process tree"
+              taskkill /PID $proc.Id /T /F | Out-Null
+              $results[$case] = "timeout"
+            } elseif ($proc.ExitCode -ne 0) {
+              $results[$case] = "failure"
+            } else {
+              $results[$case] = "success"
+            }
+          }
+          Write-Host "=== ovrtx coexistence cases ==="
+          $failed = @()
+          foreach ($k in $results.Keys) {
+            $expected = $expectedFailures -contains $k
+            $verdict = if ($expected -and $results[$k] -eq "failure") { "xfail" }
+                       elseif ($expected -and $results[$k] -eq "success") { "XPASS" }
+                       elseif ($results[$k] -eq "success") { "pass" }
+                       else { $results[$k] }
+            if ($verdict -notin @("pass", "xfail")) { $failed += "$k ($verdict)" }
+            "{0,-16} {1}" -f $k, $verdict
+          }
+          if ($expectedFailures.Count -gt 0) {
+            Write-Host "::warning::nvbug 6817794: ovrtx and usd-exchange cannot share a process on Windows ($pair); expected failures: $($expectedFailures -join ', ')"
+          }
+          if ($failed.Count -gt 0) {
+            $hint = if ($failed -match "XPASS") { " Remove the known-broken entry for $pair." } else { "" }
+            Write-Host "::error::ovrtx coexistence: $($failed -join ', ').$hint"
+            exit 1
+          }
+
+      - name: Unit tests (windows_ci marker)
+        id: test-unit
+        if: always() && steps.sync-kitless.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = "Stop"
+          # Explicit files only; neighbor tests import AppLauncher/argparse at
+          # module load and crash on Windows without Sim initialised.
+          uv run --frozen --no-sync python -m pytest `
+            source/isaaclab/test/utils/test_configclass.py `
+            source/isaaclab/test/utils/test_dict.py `
+            source/isaaclab/test/utils/test_episode_data.py `
+            source/isaaclab/test/utils/test_hdf5_dataset_file_handler.py `
+            -m windows_ci `
+            -v `
+            --junitxml=reports/unit.xml
+
+      # Same probes the Installation Tests and ARM CI run: Newton MJWarp state
+      # training, Newton-rendered camera observations, and camera training.
+      - name: Cartpole smoke (kit-less, Newton)
+        id: test-cartpole-kitless
+        if: always() && steps.sync-kitless.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 45
+        run: |
+          $ErrorActionPreference = "Stop"
+          uv run --frozen --no-sync python -m pytest `
+            source/isaaclab/test/install_ci/misc/cartpole_training_smoke.py `
+            -v `
+            --junitxml=reports/cartpole-kitless.xml
+
+      # ===== Kit lane: `uv run --extra isaacsim` (public Isaac Sim pin). =====
+
+      # uv sync is exact, so this swaps the kit-less extras for Isaac Sim in the
+      # same environment and reuses everything they share.
+      - name: Sync Isaac Sim environment (uv.lock + isaacsim + test)
+        id: sync-kit
+        if: always() && steps.sync-kitless.outcome == 'success'
+        shell: powershell
+        timeout-minutes: 30
+        run: |
+          $ErrorActionPreference = "Stop"
+          uv sync --frozen --extra isaacsim --extra test
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --no-sync python -c "import importlib.metadata as m; print('isaacsim', m.version('isaacsim'))"
+
+      - name: Kit headless boot smoke
+        id: test-kit-launch
+        if: always() && steps.sync-kit.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 8
+        run: |
+          $ErrorActionPreference = "Stop"
+          $script = @'
+          import sys
+          from isaaclab.app import AppLauncher
+
+          app_launcher = AppLauncher(headless=True)
+          sim = app_launcher.app
+          assert sim is not None, "AppLauncher did not return a SimulationApp"
+          sim.close()
+          sys.exit(0)
+          '@
+          $script | Out-File -FilePath kit_launch_smoke.py -Encoding utf8
+          $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python kit_launch_smoke.py"
+          # Reading Handle keeps the process handle open so ExitCode survives the exit.
+          $null = $proc.Handle
+          if (-not $proc.WaitForExit(300000)) {
+            Write-Host "::error::kit-launch hard timeout (5 min) - Kit hung; killing process tree"
+            taskkill /PID $proc.Id /T /F | Out-Null
+            exit 124
+          }
+          if ($null -eq $proc.ExitCode) { Write-Host "::error::kit-launch exit code unavailable"; exit 1 }
+          exit $proc.ExitCode
+
+      # Isaac Sim PhysX training through the documented entrypoint; mirrors
+      # install_ci/uv_run/test_uv_run_isaacsim_trains_cartpole.py (smoke size:
+      # 16 envs, 5 iterations).
+      - name: Cartpole training smoke (Isaac Sim PhysX)
+        id: test-cartpole-kit
+        if: always() && steps.sync-kit.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 30
+        run: |
+          $ErrorActionPreference = "Continue"
+          cmd /c "uv run --frozen --no-sync isaaclab train --rl_library rsl_rl --task Isaac-Cartpole-Direct --num_envs 16 --max_iterations 5 physics=isaacsim_physx 2>&1" | Tee-Object -Variable trainLog
+          $rc = $LASTEXITCODE
+          $text = $trainLog | Out-String
+          if ($rc -ne 0) { Write-Host "::error::training exited with $rc"; exit 1 }
+          if ($text -match "Traceback \(most recent call last\):") { Write-Host "::error::training printed a traceback"; exit 1 }
+          if ($text -notmatch "Training time:") { Write-Host "::error::training did not report completion"; exit 1 }
+
+      # Cartpole camera through Kit's RTX renderer (Vulkan path) on Isaac Sim
+      # PhysX: reset + one step, checking the pixels and reward are usable.
+      - name: Cartpole camera smoke (Isaac Sim RTX)
+        id: test-perception
+        if: always() && steps.sync-kit.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 10
+        run: |
+          $ErrorActionPreference = "Stop"
+          $script = @'
+          import os
+          import sys
+          import traceback
+
+          from isaaclab.test.utils import launch_test_simulation
+
+          launch_test_simulation(enable_cameras=True)
+
+          try:
+              import torch
+
+              from isaaclab_tasks.core.cartpole.cartpole_direct_camera_env import CartpoleCameraEnv
+              from isaaclab_tasks.utils import resolve_task_config
+
+              env_cfg, _ = resolve_task_config(
+                  "Isaac-Cartpole-Camera-Direct", "", overrides=("physics=isaacsim_physx", "renderer=isaacsim_rtx")
+              )
+              env_cfg.scene.num_envs = 2
+              env_cfg.frame_stack = 1
+              env = CartpoleCameraEnv(cfg=env_cfg)
+              obs, _ = env.reset()
+              image = obs["policy"]
+              assert torch.isfinite(image).all(), "Camera observation contains NaN or infinity"
+              assert image.amax() > image.amin(), "Camera observation is constant"
+              _, reward, _, _, _ = env.step(torch.zeros(env.num_envs, 1, device=env.device))
+              assert torch.isfinite(reward).all(), "Cartpole reward contains NaN or infinity"
+              env.close()
+          except BaseException:
+              # Print the real failure and skip Kit teardown: a wedged shutdown
+              # would otherwise hide the traceback behind the watchdog kill.
+              traceback.print_exc()
+              sys.stdout.flush()
+              sys.stderr.flush()
+              os._exit(1)
+          '@
+          $script | Out-File -FilePath perception_smoke.py -Encoding utf8
+          $proc = Start-Process -PassThru -NoNewWindow -FilePath uv -ArgumentList "run --frozen --no-sync python perception_smoke.py"
+          # Reading Handle keeps the process handle open so ExitCode survives the exit.
+          $null = $proc.Handle
+          if (-not $proc.WaitForExit(480000)) {
+            Write-Host "::error::perception hard timeout (8 min) - Kit/Vulkan hung; killing process tree"
+            taskkill /PID $proc.Id /T /F | Out-Null
+            exit 124
+          }
+          if ($null -eq $proc.ExitCode) { Write-Host "::error::perception exit code unavailable"; exit 1 }
+          exit $proc.ExitCode
+
+      # Last test step: replaces the editable isaaclab with the built wheel, so
+      # every test above runs against the locked editable install.
+      - name: Wheel build + reinstall + smoke import
+        id: test-wheel-build
+        if: always() && steps.sync-kit.outcome == 'success'
+        continue-on-error: true
+        shell: powershell
+        timeout-minutes: 20
+        run: |
+          $ErrorActionPreference = "Stop"
+          $gitBash = "C:\Program Files\Git\bin\bash.exe"
+          if (-not (Test-Path $gitBash)) { throw "Git Bash not found at $gitBash" }
+          # build.sh pip-installs `build` and `wheel`, so it gets its own seeded venv.
+          $buildVenv = Join-Path $env:RUNNER_TEMP "venv-wheel-build"
+          uv venv --seed --python 3.12 $buildVenv
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:PYTHON = (Join-Path $buildVenv "Scripts\python.exe") -replace '\\', '/'
+          & $gitBash tools/wheel_builder/build.sh
+          if ($LASTEXITCODE -ne 0) { throw "wheel_builder/build.sh failed with exit $LASTEXITCODE" }
+          $wheel = Get-ChildItem -Path "tools/wheel_builder/build/dist" -Filter "isaaclab-*.whl" | Select-Object -First 1
+          if (-not $wheel) { throw "no wheel found in tools/wheel_builder/build/dist" }
+          uv pip uninstall --python .venv isaaclab
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv pip install --python .venv "$($wheel.FullName)"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          uv run --frozen --no-sync python -c "import isaaclab; print('wheel install ok:', isaaclab.__file__)"
+
+      # ===== Reporting + cleanup. =====
+
+      - name: Upload all test reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: windows-ci-reports
+          path: |
+            reports/
+            ov_coexist_probe.py
+            kit_launch_smoke.py
+            perception_smoke.py
+          retention-days: 7
+          if-no-files-found: ignore
+
+      # Every active test step gates the job.
+      - name: Aggregate test results
+        if: always()
+        shell: powershell
+        run: |
+          $results = [ordered]@{
+            "sync-kitless"     = "${{ steps.sync-kitless.outcome }}"
+            "ov-coexist"       = "${{ steps.test-ov-coexist.outcome }}"
+            "unit"             = "${{ steps.test-unit.outcome }}"
+            "cartpole-kitless" = "${{ steps.test-cartpole-kitless.outcome }}"
+            "sync-kit"         = "${{ steps.sync-kit.outcome }}"
+            "kit-launch"       = "${{ steps.test-kit-launch.outcome }}"
+            "cartpole-kit"     = "${{ steps.test-cartpole-kit.outcome }}"
+            "perception"       = "${{ steps.test-perception.outcome }}"
+            "wheel-build"      = "${{ steps.test-wheel-build.outcome }}"
+          }
+          Write-Host "=== windows-ci step outcomes ==="
+          foreach ($k in $results.Keys) {
+            "{0,-18} {1}" -f $k, $results[$k]
+          }
+          $failed = @()
+          foreach ($k in $results.Keys) {
+            if ($results[$k] -ne "success") { $failed += $k }
+          }
+          if ($failed.Count -gt 0) {
+            Write-Host "::error::Failing job - these steps did not pass: $($failed -join ', ')"
+            exit 1
+          }
+          Write-Host "All gating steps passed."
+
+      - name: Report instance state + cleanup (AFTER)
+        if: always()
+        uses: ./.github/actions/windows-instance-state
+        with: { phase: post }
