@@ -1479,9 +1479,7 @@ def maybe_validate_instance_segmentation(
     )
 
 
-def maybe_step_env_for_motion(
-    env: Any, renderer: str, data_type: str, num_steps: int = 2, action_value: float = 0.0
-) -> None:
+def maybe_step_env_for_motion(env: Any, data_type: str, num_steps: int = 2, action_value: float = 0.0) -> None:
     """Step ``env`` so motion-vector AOVs have real inter-frame motion to encode.
 
     Motion vectors compare the current frame's transforms against the previous frame's; the first frame
@@ -1491,7 +1489,6 @@ def maybe_step_env_for_motion(
     Args:
         env: The environment to step. Must expose ``action_space`` and ``step`` (``DirectRLEnv`` /
             ``ManagerBasedRLEnv``).
-        renderer: The renderer under test.
         data_type: The camera data type under test.
         num_steps: Number of steps to take before capturing camera output.
         action_value: Constant value applied to every action component on every step. Defaults to
@@ -1500,10 +1497,6 @@ def maybe_step_env_for_motion(
     """
     if data_type != "motion_vectors":
         return
-
-    # Remove the extra step when NVBug 6565960 is fixed.
-    if renderer == "ovrtx_renderer":
-        num_steps += 1
 
     action = torch.full(env.action_space.shape, action_value, device=env.device)
     for _ in range(num_steps):
@@ -1594,7 +1587,7 @@ def rendering_test_shadow_hand(
 
     try:
         env = ShadowHandCameraEnv(env_cfg)
-        maybe_step_env_for_motion(env, renderer, motion_data_type)
+        maybe_step_env_for_motion(env, motion_data_type)
         maybe_save_stage("shadow_hand", physics_backend, renderer, data_types[0])
 
         validate_camera_outputs(
@@ -1706,6 +1699,7 @@ def rendering_test_cartpole(
     comparison_scores: list[dict],
     *,
     compare_golden: bool = False,
+    async_rendering: bool = False,
 ) -> None:
     for data_type in data_types:
         _skip_if_newton_motion_vectors(physics_backend, data_type)
@@ -1766,6 +1760,8 @@ def rendering_test_cartpole(
 
     env_cfg.scene.num_envs = 4
     env_cfg.scene.tiled_camera.data_types = data_types
+    if async_rendering:
+        env_cfg.scene.tiled_camera.renderer_cfg.async_rendering = True
     if getattr(env_cfg.scene.tiled_camera.renderer_cfg, "renderer_type", None) == "newton_warp":
         env_cfg.scene.tiled_camera.renderer_cfg.render_order = "pixel_priority"
 
@@ -1778,7 +1774,7 @@ def rendering_test_cartpole(
         env = make_cartpole_rendering_test_env(env_cfg)
         # Nudge the cart with a small constant force so motion vectors also capture cart translation,
         # not just pole dynamics already in flight from the randomized reset.
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         camera_outputs = env._tiled_camera.data.output
         if renderer == "ovrtx_renderer":
             # The first output access creates the selected OVRTX render-variable mapping. Give
@@ -1958,12 +1954,6 @@ def rendering_test_lift_kuka(
     if point_cloud_term is not None:
         point_cloud_term.params["visualize"] = False
 
-    # The success and failure markers are placed exactly at the same location. If both markers are
-    # visible, the rendering order will determine which one is visible in the camera output. Hide
-    # both markers to avoid this nondeterministic behavior.
-    for marker_cfg in env_cfg.commands.object_pose.success_visualizer_cfg.markers.values():
-        marker_cfg.visible = False
-
     test_name = f"lift_kuka_{'homo' if setup_homogeneous_envs else 'hetero'}"
 
     env = None
@@ -1973,7 +1963,7 @@ def rendering_test_lift_kuka(
         if motion_data_type == "motion_vectors":
             # Capture controlled joint motion instead of the first-step autoreset transient.
             env.reset(seed=42)
-        maybe_step_env_for_motion(env, renderer, motion_data_type, action_value=0.5)
+        maybe_step_env_for_motion(env, motion_data_type, action_value=0.5)
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
         validate_camera_outputs(
             test_name,
@@ -2156,28 +2146,19 @@ def _apply_franka_camera_golden_scene_overrides(env_cfg: Any, data_types: list[s
 
 
 def _configure_franka_camera_test_env_cfg(
-    env_cfg: Any,
-    data_types: list[str],
-    command_name: str = "deformable_pose",
-    reset_event_name: str = "reset_deformable",
+    env_cfg: Any, data_types: list[str], command_cfg: Any, reset_event_cfg: Any
 ) -> None:
     """Apply deterministic golden rendering test overrides to a resolved Franka camera config.
 
     Args:
         env_cfg: Resolved Franka camera environment config to mutate in place.
         data_types: Camera data types the golden capture requests.
-        command_name: Name of the pose command term whose success visualizer is disabled.
-        reset_event_name: Name of the reset event term whose position range is pinned to zero.
+        command_cfg: Pose command term whose debug visualization is disabled.
+        reset_event_cfg: Reset event term whose position range is pinned to zero.
     """
     _apply_franka_camera_golden_scene_overrides(env_cfg, data_types)
-    command_cfg = getattr(env_cfg.commands, command_name)
-    # The table spawns invisible because the success visualizer normally draws it; the goldens hide
-    # that visualizer, so paint the table itself with the marker material instead of replacing the
-    # spawn, which would drop task-specific physics overrides.
-    env_cfg.scene.table.spawn.visual_material = command_cfg.success_visualizer_cfg.markers["failure"].visual_material
-    env_cfg.scene.table.spawn.visible = True
     command_cfg.debug_vis = False
-    getattr(env_cfg.events, reset_event_name).params["position_range"] = {
+    reset_event_cfg.params["position_range"] = {
         "x": (0.0, 0.0),
         "y": (0.0, 0.0),
         "z": (0.0, 0.0),
@@ -2210,7 +2191,9 @@ def rendering_test_franka_cloth(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
     if is_newton_ovrtx_motion:
         initial_pos = env_cfg.scene.deformable.init_state.pos
         env_cfg.scene.deformable.init_state.pos = (initial_pos[0], initial_pos[1], initial_pos[2] + 0.01)
@@ -2222,16 +2205,12 @@ def rendering_test_franka_cloth(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
         # Step once so the cloth begins settling between the supports while limiting solver-dependent nodal drift.
         zero_actions = torch.zeros(env.num_envs, env.action_manager.total_action_dim, device=env.device)
         env.step(zero_actions)
-        # TODO: Remove the extra step when NVBug 6565960 is fixed.
-        if is_newton_ovrtx_motion:
-            env.step(zero_actions)
 
         camera = env.scene.sensors["base_camera"]
         camera_outputs = camera.data.output
@@ -2290,7 +2269,9 @@ def rendering_test_franka_soft(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(env_cfg, data_types)
+    _configure_franka_camera_test_env_cfg(
+        env_cfg, data_types, env_cfg.commands.deformable_pose, env_cfg.events.reset_deformable
+    )
 
     _maybe_enable_physx_determinism_for_motion(env_cfg, physics_backend, _motion_data_type(data_types))
 
@@ -2299,9 +2280,8 @@ def rendering_test_franka_soft(
 
     try:
         env = ManagerBasedRLEnv(env_cfg)
-        env.command_manager.get_term("deformable_pose").success_visualizer.set_visibility(False)
 
-        maybe_step_env_for_motion(env, renderer, _motion_data_type(data_types), action_value=0.5)
+        maybe_step_env_for_motion(env, _motion_data_type(data_types), action_value=0.5)
 
         maybe_save_stage(test_name, physics_backend, renderer, data_types[0])
 
@@ -2487,9 +2467,7 @@ def rendering_test_franka_cable(
     _skip_if_physics_preset_unsupported(env_cfg, physics_preset_name)
 
     env_cfg = _apply_overrides_to_env_cfg(env_cfg, [f"presets={physics_preset_name},{renderer}"])
-    _configure_franka_camera_test_env_cfg(
-        env_cfg, data_types, command_name="cable_pose", reset_event_name="reset_cable"
-    )
+    _configure_franka_camera_test_env_cfg(env_cfg, data_types, env_cfg.commands.cable_pose, env_cfg.events.reset_cable)
 
     # Training ramps gravity from ~0 → -9.81; without this, reset installs g≈0 and the cable floats.
     # Same as FrankaSoftEnvCfg.play_mode(): keep variable_gravity's fixed -9.81.
