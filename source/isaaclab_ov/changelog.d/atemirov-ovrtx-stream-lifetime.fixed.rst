@@ -1,3 +1,3 @@
-* Fixed asynchronous render-output reads on the default CUDA stream by translating Warp's
-  default-stream handle to OVRTX's encoding. Ordered mapped-buffer release after consuming
-  kernels to prevent reuse before extraction completed.
+* Fixed OVRTX render-output reads and attribute writes skipping synchronization on Torch's
+  legacy default CUDA stream.
+* Fixed mapped-buffer release racing asynchronous render-output extraction.

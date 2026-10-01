@@ -974,22 +974,10 @@ class OVRTXRenderer(BaseRenderer):
     def _map_render_var_to_dlpack(self, render_var: Any) -> Iterator[wp.array]:
         """Map ``render_var`` for CUDA reads and yield it as a Warp array.
 
-        The render is still in flight when the mapping returns, so reading it has to be ordered
-        against render completion. Normally that is a ``cudaStreamWaitEvent`` on the Warp stream the
-        consuming kernels run on, which is the ordering the OVRTX API is designed around.
-
-        On Linux that GPU-side wait measures substantially slower end to end, so the mapping is
-        instead requested with no GPU-side barrier and the calling thread blocks on the
-        render-completion event. Setting :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` to ``1`` puts
-        Linux back on the GPU-side wait; it is an escape hatch for platforms where that trade-off
-        no longer holds, and is worth re-measuring before being relied on.
-
-        Note that ``sync_stream=0`` is OVRTX's "no sync" sentinel, *not* the NULL CUDA stream: the
-        field encodes ``0=no sync, 1=default stream, >1=specific stream``, so omitting the argument
-        entirely means ``1``, not ``0``.
-
-        The yielded array is a zero-copy view of the mapped memory and is only valid inside the
-        ``with`` block. Release is ordered after consuming kernels on the current Warp stream.
+        Wait for rendering on the consuming stream, or on the host on Linux unless
+        :data:`_DISABLE_LINUX_CUDA_CPU_SYNC_ENV` is ``1``. Consume the zero-copy view inside the
+        context. Unmapping records the consuming stream; native release waits for its queued
+        reads and the last view to be dropped.
 
         Args:
             render_var: OVRTX ``RenderVarOutput`` to map (looked up from ``frame.render_vars``).
@@ -998,18 +986,15 @@ class OVRTXRenderer(BaseRenderer):
             The render var's contents as a Warp array, valid for the duration of the context.
         """
         gpu_side_sync = _gpu_side_render_var_sync_enabled()
-        # Warp/Torch use 0 for the default CUDA stream; OVRTX uses 1 (0 disables ordering).
-        consumer_stream = self._warp_device.stream.cuda_stream or 1
-        sync_stream = consumer_stream if gpu_side_sync else 0
-        with render_var.map(device=Device.CUDA, sync_stream=sync_stream) as mapping:
-            try:
-                if not gpu_side_sync:
-                    mapping.wait()
-                yield wp.from_dlpack(mapping)
-            finally:
-                # Extraction is asynchronous. Keep the native buffer alive until those reads finish,
-                # including when a consumer raises after queuing work. The first unmap call wins.
-                mapping.unmap(stream=consumer_stream)
+        # OVRTX uses 0 for no synchronization and 1 for Torch's legacy default stream (CUDA handle 0).
+        stream = self._warp_device.stream.cuda_stream or 1
+        mapping = render_var.map(device=Device.CUDA, sync_stream=stream if gpu_side_sync else 0)
+        try:
+            if not gpu_side_sync:
+                mapping.wait()
+            yield wp.from_dlpack(mapping)
+        finally:
+            mapping.unmap(stream=stream)
 
     def _process_id_segmentation_render_var(
         self,
@@ -1466,12 +1451,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=stream.cuda_stream or 1,
             ).wait()
         elif asynchronous:
             self._transform_writes.submit(binding, matrices, stream)
         else:
-            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(matrices, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._transforms_timestamp = timestamp
 
     def update_geometries(self) -> None:
@@ -1500,12 +1485,12 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=[points_tensor_from_warp(array) for array in points],
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.POINT,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=stream.cuda_stream or 1,
             ).wait()
         elif asynchronous:
             self._geometry_writes.submit(binding, points, stream)
         else:
-            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+            binding.write(cast(Any, points), data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._geometry_timestamp = timestamp
 
     def update_camera(
@@ -1528,7 +1513,7 @@ class OVRTXRenderer(BaseRenderer):
         errors = self.drain_pending_renders((render_data,))
         if errors:
             raise ExceptionGroup("OVRTX renders failed before calibration update", errors)
-        stream = wp.get_stream(parameters.device).cuda_stream
+        stream = wp.get_stream(parameters.device).cuda_stream or 1
         if self._use_ovstage:
             self.backend.stage.write_attributes(
                 render_data.camera_xform_query,
@@ -1819,7 +1804,7 @@ class OVRTXRenderer(BaseRenderer):
                 tensors=xform_tensor_from_warp(camera_transforms),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
-                cuda_stream=self._warp_device.stream.cuda_stream,
+                cuda_stream=self._warp_device.stream.cuda_stream or 1,
             ).wait()
 
     def _render_ovstage(self, render_data: Sequence[OVRTXCameraRenderData]) -> None:
@@ -1911,7 +1896,7 @@ class _AsyncWriteBuffers:
 
     def submit(self, binding: AttributeBinding, values: Any, stream: wp.Stream) -> Operation:
         """Submit a write and retain its inputs; a failed submission does not advance the buffers."""
-        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream)
+        operation = binding.write_async(values, data_access=DataAccess.ASYNC, cuda_stream=stream.cuda_stream or 1)
         self._writes[0] = (self._writes[0][0], operation, stream)
         self._writes.rotate(-1)
         return operation
