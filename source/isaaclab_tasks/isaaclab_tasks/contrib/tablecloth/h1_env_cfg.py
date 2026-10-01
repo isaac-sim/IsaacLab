@@ -110,7 +110,7 @@ class H1ArticulationCfg(ArticulationCfg):
 
         from isaaclab.sim.schemas import apply_namespaced  # noqa: PLC0415
         from isaaclab.sim.spawners.materials.physics_materials import (  # noqa: PLC0415
-            spawn_rigid_body_material_from_fragments,
+            spawn_physics_material_from_fragments,
         )
 
         root_path = self.spawn.spawn_path if self.spawn is not None and self.spawn.spawn_path else self.prim_path
@@ -138,7 +138,7 @@ class H1ArticulationCfg(ArticulationCfg):
 
         # The global cloth friction is low so tableware can stay put; pinching needs a strong local contact.
         grasp_material_path = f"{root_path}/GraspMaterial"
-        spawn_rigid_body_material_from_fragments(
+        spawn_physics_material_from_fragments(
             grasp_material_path,
             rigid_material(
                 density=None,

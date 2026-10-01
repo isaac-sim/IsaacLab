@@ -134,6 +134,13 @@ EXAMPLES = (
         "Compare the tablecloth trick across five pull speeds with Newton VBD.",
     ),
     ProgramSpec(
+        "tablecloth-h1",
+        "examples/tablecloth_h1.py",
+        "Run a bimanual H1 tablecloth expert on a contributed manager-based task.",
+        extras=("importers",),
+        required_modules=("isaacsim",),
+    ),
+    ProgramSpec(
         "procedural-terrain",
         "examples/procedural_terrain.py",
         "Generate procedural terrain meshes.",

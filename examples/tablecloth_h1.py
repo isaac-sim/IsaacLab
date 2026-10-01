@@ -11,11 +11,11 @@ task-space commands with a GPU-resident Warp state machine.
 
 .. code-block:: bash
 
-    uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py
-    uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py \
+    uv run --extra importers isaaclab example tablecloth-h1
+    uv run --extra importers python examples/tablecloth_h1.py \
         --visualizer none --max_steps 312
 
-    uv run --extra importers --extra isaacsim --extra video python scripts/environments/state_machine/tablecloth_h1.py \
+    uv run --extra importers --extra isaacsim --extra video python examples/tablecloth_h1.py \
         --visualizer kit --video
 
 """
@@ -43,6 +43,7 @@ import warp as wp
 
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.utils.math import subtract_frame_transforms
+from isaaclab.utils.version import standalone_importers_available
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.tablecloth.mdp._metrics import cloth_pull_distance
@@ -320,6 +321,7 @@ def _torso_pose_in_robot_frame(env) -> torch.Tensor:
 
 def main() -> None:
     """Launch the task and run its scripted expert."""
+    args_cli.require_kit = not standalone_importers_available()
     if not math.isfinite(args_cli.pull_speed) or args_cli.pull_speed <= 0.0:
         raise ValueError("--pull_speed must be finite and positive")
     if args_cli.video and "none" in (args_cli.visualizer or []):

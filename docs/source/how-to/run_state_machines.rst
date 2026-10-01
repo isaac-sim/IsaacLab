@@ -47,6 +47,8 @@ and releases it:
    uv run python scripts/environments/state_machine/open_cabinet_sm.py \
       --num_envs 32 --viz kit
 
+.. _tablecloth-h1-expert:
+
 Pull a tablecloth with H1
 -------------------------
 
@@ -55,6 +57,12 @@ This example runs a bimanual Warp state machine against the manager-based
 tableware, Newton IK for the hands, and a downloaded H1 asset. The Newton GL
 visualizer opens by default; the SimReady table and tableware require asset
 access.
+
+.. figure:: ../_static/tasks/manipulation/h1_tablecloth.jpg
+   :alt: A grounded H1 robot grasping the corners of a red cloth beside a kitchen table.
+   :width: 80%
+
+   The H1 tablecloth task with its scripted bimanual expert, rendered with Kit.
 
 The pelvis is fixed and the leg actuators hold a grounded standing pose; this
 example demonstrates manipulation, not humanoid balance. Absolute hand and
@@ -68,8 +76,14 @@ the mesh or hand asset requires revalidating acquisition and retention.
 
 .. code-block:: bash
 
-   uv run --extra importers python scripts/environments/state_machine/tablecloth_h1.py \
+   uv run --extra importers isaaclab example tablecloth-h1 \
       --max_steps 312
+
+The expert lives in ``examples/tablecloth_h1.py`` so it also ships in the
+Isaac Lab wheel. The reusable task lives in
+``source/isaaclab_tasks/isaaclab_tasks/contrib/tablecloth/`` and appears in the
+:ref:`environment browser <environment-browser>` as ``IsaacContrib-Tablecloth-H1``.
+For the five-speed standalone comparison, see :ref:`newton-using-vbd`.
 
 Start with ``lift_cube_sm.py`` for a self-contained state-machine example.
 The H1 example shows how to keep scene, observations, rewards, and terminations

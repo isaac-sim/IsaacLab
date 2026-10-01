@@ -5,14 +5,19 @@
 
 """Physical regression for the H1 tablecloth expert's stance and grasp."""
 
+from isaaclab.test.utils import launch_test_simulation
+from isaaclab.utils.version import standalone_importers_available
+
+# Keep Kit alive for the test process when its MJCF importer is needed.
+if not standalone_importers_available():
+    launch_test_simulation()
+
 import sys
 
 import gymnasium as gym
 import pytest
 import torch
 import trimesh
-
-from pxr import Gf, UsdGeom, UsdPhysics
 
 import isaaclab.sim as sim_utils
 from isaaclab.app import launch_simulation
@@ -28,7 +33,7 @@ from isaaclab_tasks.utils import parse_env_cfg
 def test_h1_stays_grounded_and_retains_cloth(device, monkeypatch):
     """The scripted trick retains both physical grips without destabilizing the robot."""
     monkeypatch.setattr(sys, "argv", ["tablecloth_h1.py"])
-    from scripts.environments.state_machine import tablecloth_h1 as expert
+    from examples import tablecloth_h1 as expert
 
     cfg = parse_env_cfg("IsaacContrib-Tablecloth-H1", device=device, num_envs=1)
     cfg.sim.visualizer_cfgs = []
@@ -37,6 +42,8 @@ def test_h1_stays_grounded_and_retains_cloth(device, monkeypatch):
     cfg.terminations.tableware_fallen = None
     cfg.rewards.success = None
     with launch_simulation(cfg=cfg):
+        from pxr import Gf, UsdGeom, UsdPhysics  # noqa: PLC0415
+
         env = gym.make("IsaacContrib-Tablecloth-H1", cfg=cfg).unwrapped
         try:
             env.reset()

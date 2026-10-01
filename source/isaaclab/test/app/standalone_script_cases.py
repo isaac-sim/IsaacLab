@@ -31,7 +31,6 @@ SCRIPT_ROOTS = (EXAMPLE_ROOT, ROOT / "scripts" / "tutorials")
 # ``scripts/tools`` is not a root because most of its scripts are not simulator launches. The asset
 # converters are: they build a SimulationContext to preview the converted asset.
 EXTRA_SCRIPTS = (
-    ROOT / "scripts" / "environments" / "state_machine" / "tablecloth_h1.py",
     ROOT / "scripts" / "tools" / "convert_urdf.py",
     ROOT / "scripts" / "tools" / "convert_mjcf.py",
 )
@@ -228,11 +227,11 @@ OVERRIDES = {
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
     ),
-    "scripts/environments/state_machine/tablecloth_h1.py": ScriptOverride(
+    "examples/tablecloth_h1.py": ScriptOverride(
         args=("--max_steps", "2"),
         fixed_physics_backend="newton_vbd",
         visualizers=("newton_gl",),
-        required_modules=("isaacsim.asset.importer.mjcf",),
+        required_modules=("isaacsim",),
     ),
     "examples/sensors/cameras.py": ScriptOverride(args=("--num_envs", "1"), startup_timeout=900.0),
     "examples/sensors/multi_mesh_raycaster.py": ScriptOverride(
