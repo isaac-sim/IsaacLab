@@ -639,8 +639,8 @@ class ManagerBasedEnv:
     def _validate_reset_request(self, reset_kind: str) -> None:
         """Validate an explicit ``reset``, ``reset_to``, or visualizer ``manual`` reset.
 
-        Evaluation environments can reject requests that would interrupt an assigned episode.
-        Automatic episode completion does not call this hook.
+        Subclasses can reject requests before recording or environment state changes.
+        Automatic episode completion does not call this method.
 
         Args:
             reset_kind: The requested reset operation.
@@ -665,8 +665,8 @@ class ManagerBasedEnv:
     def _finish_episodes(self, env_ids: torch.Tensor) -> None:
         """Collect terminal recorder data and export episodes before starting replacements.
 
-        Completion does not require a subsequent reset. Subclasses that limit episode starts
-        must restrict this operation to assigned episodes and retire them after recording.
+        Completion does not require a subsequent reset. Subclasses that track active episodes
+        must record only those episodes and mark them inactive after recording.
 
         Args:
             env_ids: Environment IDs whose episodes are ending.

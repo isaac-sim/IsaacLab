@@ -93,11 +93,11 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
 
     @property
     def active_episode_mask(self) -> torch.Tensor:
-        """Parallel environments with an assigned episode, shape ``(num_envs,)``.
+        """Parallel environments with an active episode, shape ``(num_envs,)``.
 
-        The default keeps every environment active. Evaluation subclasses can derive this mask
-        from their episode scheduler. Inactive environments produce no completion signals or
-        trajectory records, but their physics, manager computations, and clocks still advance.
+        The default keeps every environment active. Subclasses can override this property
+        to exclude inactive environments from completion signals and trajectory records.
+        Their physics, manager computations, and clocks still advance.
         """
         return torch.ones(self.num_envs, dtype=torch.bool, device=self.device)
 
@@ -212,7 +212,7 @@ class ManagerBasedRLEnv(ManagerBasedEnv, gym.Env):
         Returns:
             A tuple containing the observations, rewards, resets (terminated and truncated) and extras.
         """
-        # Recording and completion belong to the assignments at entry, before any replacements.
+        # Record and report completion for episodes active before this step starts replacements.
         active_episode_mask_at_step_start = self.active_episode_mask.clone()
         active_env_ids_at_step_start = active_episode_mask_at_step_start.nonzero(as_tuple=False).squeeze(-1).int()
 
