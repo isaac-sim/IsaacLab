@@ -17,7 +17,7 @@ Added
   Load-dependent friction used the previous clamped drive output, while supply sag retained the
   previous unclamped motor torque.
 * Added :class:`~isaaclab.actuators.BamMotorCfg` for explicit motor fits, including m1/m2/m5/m6
-  model selection and a local Rhoban JSON loader. BAM authoring replaced existing USD actuators
+  model selection and coefficients configured directly in Python. BAM authoring replaced existing USD actuators
   using the configured fit and required firmware gain and nominal voltage. It authored a positive
   joint-friction seed to allocate the solver constraint even with zero Coulomb friction. Recorded upstream
   motor and friction samples checked drive behavior without an upstream BAM installation.
