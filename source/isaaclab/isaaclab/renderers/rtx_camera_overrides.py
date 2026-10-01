@@ -3,7 +3,12 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Shared RTX camera exposure overrides for scene-linear sensor inputs."""
+"""Shared RTX camera exposure overrides for scene-linear sensor inputs.
+
+RTX has no native pre-exposure radiance output, so ``rgb_radiance`` is derived by authoring neutral
+exposure on the camera prim, which affects every output rendered from it. These overrides can be
+removed once RTX provides a native radiance output (NVBug 6858736).
+"""
 
 from __future__ import annotations
 

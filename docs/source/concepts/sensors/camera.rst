@@ -173,9 +173,17 @@ non-colorized segmentation uses one ``int32`` ID channel. Label and prim-path ma
 
 Requesting ``rgb_hdr`` alone preserves the renderer's existing camera settings. Requesting
 ``rgb_radiance`` makes the renderer prepare its source for processing before exposure and camera
-response. On Isaac RTX and OVRTX, this requires camera-wide exposure overrides, which also affect
-other outputs from that camera, including ``rgb_hdr``. If both raw names are requested, they alias
-the same active HDR source. Use separate cameras when separate exposure settings are required.
+response. If both raw names are requested, they alias the same active HDR source.
+
+.. note::
+
+   On Isaac RTX and OVRTX, ``rgb_radiance`` is not a native renderer output. These renderers derive
+   it from HDR color by authoring neutral exposure on the camera prim, so every output rendered from
+   that prim, including ``rgb``, ``rgba``, and ``rgb_hdr``, loses the authored exposure. This also
+   applies to other camera sensors that share the prim. A single render product cannot return both
+   authored-exposure color and ``rgb_radiance``; use a separate camera prim when both are required.
+   Newton Warp has no exposure model and is not affected. A native pre-exposure radiance output has
+   been requested from the RTX team (NVBug 6858736).
 
 .. figure:: https://download.isaacsim.omniverse.nvidia.com/isaaclab/images/camera-renderer-isaac-rtx.webp
    :align: center

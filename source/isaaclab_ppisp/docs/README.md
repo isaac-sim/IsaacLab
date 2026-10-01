@@ -64,11 +64,14 @@ frame reuse the processed result. The observation manager forwards partial
 resets and closes processor state with the environment. The PPISP controller
 computes parameters from the current image and has no temporal state to reset.
 
-Plain `rgb_hdr` retains the existing camera settings. Requesting `rgb_radiance`
-from Isaac RTX or OVRTX applies exposure overrides to the entire source camera,
-as the previous PPISP integration did. Its other outputs, including `rgb_hdr`,
-also reflect those settings. When both raw names are requested they alias the
-same active HDR source. Use separate cameras for separate exposure settings.
+Plain `rgb_hdr` retains the existing camera settings. On Isaac RTX and OVRTX,
+`rgb_radiance` is not a native renderer output: requesting it authors neutral
+exposure on the source camera prim, as the previous PPISP integration did. Every
+output from that prim, including `rgb`, `rgba`, and `rgb_hdr`, then loses the
+authored exposure, including outputs of other camera sensors on the same prim.
+When both raw names are requested they alias the same active HDR source. Use a
+separate camera prim when authored-exposure color is also required. Newton Warp
+is not affected.
 
 `PpispPipeline` remains available to callers that apply PPISP kernels directly.
 Calling `initialize(hdr)` preallocates its controller buffers; `apply(hdr,

@@ -5,7 +5,9 @@
 
 """
 This script demonstrates USD-authored PPISP on a Gaussian scene through an image observation term with
-the Newton Warp or Isaac RTX renderer.
+the Newton Warp or Isaac RTX renderer. The baseline image is the same camera's ``rgb`` output; on Isaac RTX
+it is rendered at neutral exposure because PPISP's ``rgb_radiance`` input neutralizes the camera prim's
+exposure.
 
 .. code-block:: bash
 
@@ -467,6 +469,8 @@ def run_simulator(env: SimpleNamespace, camera: Camera, ppisp_observation: proce
 
         if count % args_cli.save_interval == 0:
             ppisp = ppisp_observation(env, **ppisp_observation.cfg.params)
+            # The baseline shares the PPISP camera prim. On Isaac RTX, PPISP's rgb_radiance input
+            # neutralizes that prim's exposure, so this is the renderer's color at neutral exposure.
             baseline = camera.data.output["rgb"].torch[..., :3]
             diff = (ppisp.float() - baseline.float()).abs() / 255.0
             if not reported_shape:
