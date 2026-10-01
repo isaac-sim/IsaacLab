@@ -55,8 +55,8 @@ class randomize_rigid_body_material(ManagerTermBase):
         self._kamino_group_inverse: torch.Tensor | None = None
         self._kamino_num_groups = 0
 
-        self._static_friction_range = cfg.params.get("static_friction_range", (1.0, 1.0))
-        self._restitution_range = cfg.params.get("restitution_range", (0.0, 0.0))
+        self._static_friction_range = cfg.params["static_friction_range"]
+        self._restitution_range = cfg.params["restitution_range"]
 
         model = self._newton_manager.get_model()
         self._friction_binding = asset._root_view.get_attribute("shape_material_mu", model)[:, 0]  # type: ignore
