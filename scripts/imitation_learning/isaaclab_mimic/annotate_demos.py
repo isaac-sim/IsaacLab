@@ -81,6 +81,8 @@ from isaaclab.managers import RecorderTerm, RecorderTermCfg, TerminationTermCfg
 from isaaclab.utils import configclass
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
+from isaaclab_mimic.datagen.success_term import initialize_success_term, reset_success_term
+
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
 
@@ -232,6 +234,7 @@ def main():
 
     if not isinstance(env, ManagerBasedRLMimicEnv):
         raise ValueError("The environment should be derived from ManagerBasedRLMimicEnv")
+    success_term = initialize_success_term(success_term, env)
 
     if args_cli.auto:
         # check if the mimic API env.get_subtask_term_signals() is implemented
@@ -359,8 +362,11 @@ def replay_episode(
     actions = episode.data["actions"]
     env.sim.reset()
     env.recorder_manager.reset()
+    if success_term is not None:
+        reset_success_term(success_term)
     env.reset_to(initial_state, None, is_relative=True)
     first_action = True
+    success = None
     for action_index, action in enumerate(actions):
         current_action_index = action_index
         if first_action:
@@ -373,8 +379,12 @@ def replay_episode(
                 continue
         action_tensor = torch.Tensor(action).reshape([1, action.shape[0]])
         env.step(torch.Tensor(action_tensor))
+        if success_term is not None:
+            success = success_term.func(env, **success_term.params)
     if success_term is not None:
-        if not bool(success_term.func(env, **success_term.params)[0]):
+        if success is None:
+            success = success_term.func(env, **success_term.params)
+        if not bool(success[0]):
             return False
     return True
 
