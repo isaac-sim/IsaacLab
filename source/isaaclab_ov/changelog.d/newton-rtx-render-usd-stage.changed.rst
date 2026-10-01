@@ -1,3 +1,5 @@
-* Moved the clone-plan copy enumeration that the OVRTX renderer's ``_clone_sources`` ran into
-  :func:`~isaaclab_ov.renderers.ovrtx_usd.iter_clone_copies`, so the renderer and
-  :func:`~isaaclab_ov.stage.create_render_ovstage` clone the same set of prims. Cloning behavior is unchanged.
+* Moved the OVRTX renderer's ovstage clone sequence (the clone-plan copies and the environment-root
+  transform write) into :func:`~isaaclab_ov.stage.clone_plan_into_ovstage`, backed by
+  :func:`~isaaclab_ov.renderers.ovrtx_usd.iter_clone_copies` and
+  :func:`~isaaclab_ov.renderers.ovrtx_usd.env_root_transforms`, so the renderer and
+  :func:`~isaaclab_ov.stage.create_render_ovstage` share one implementation. Cloning behavior is unchanged.

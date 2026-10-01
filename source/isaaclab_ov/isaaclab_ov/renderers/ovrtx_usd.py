@@ -436,6 +436,20 @@ def iter_clone_copies(plan: ClonePlan) -> Iterator[tuple[str, list[str]]]:
             yield source, target_paths
 
 
+def env_root_transforms(plan: ClonePlan) -> np.ndarray:
+    """Return the environment-root world transforms authored by the clone plan.
+
+    Args:
+        plan: The scene's completed clone plan.
+
+    Returns:
+        Row-major ``(num_envs, 4, 4)`` float64 matrices carrying each environment's position.
+    """
+    xforms = np.tile(np.eye(4, dtype=np.float64), (len(plan.topology.world_prototype_layout), 1, 1))
+    xforms[:, 3, :3] = plan.positions
+    return xforms
+
+
 def export_stage_to_string(
     stage: Usd.Stage, num_envs: int, source_paths: tuple[str, ...], keep_env_roots: bool = True
 ) -> str:

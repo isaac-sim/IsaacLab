@@ -98,12 +98,14 @@ from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
     create_scene_partition_attributes,
+    env_root_transforms,
     export_stage_to_string,
     iter_clone_copies,
     render_var_prim_names_by_source,
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
+    clone_plan_into_ovstage,
     create_ovstage,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -639,38 +641,30 @@ class OVRTXRenderer(BaseRenderer):
     def _clone_sources(self):
         """Clone sources in OVRTX using the scene :class:`~isaaclab.cloner.ClonePlan`."""
         plan = self._clone_plan
-        num_envs = len(plan.topology.world_prototype_layout)
-        env_paths = [plan.env_template.format(world) for world in range(num_envs)]
         logger.info("Cloning sources in OVRTX...")
+
+        if self._use_ovstage:
+            num_cloned_sources = clone_plan_into_ovstage(
+                self.backend.stage, self.backend.paths, plan, self._current_ordinal
+            )
+            logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
+            return
 
         num_cloned_sources = 0
         for source, target_paths in iter_clone_copies(plan):
             logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
-            if self._use_ovstage:
-                self.backend.stage.clone(source, target_paths, ordinal=self._current_ordinal)
-            else:
-                self.backend.renderer.clone_usd(source, target_paths)
+            self.backend.renderer.clone_usd(source, target_paths)
             num_cloned_sources += 1
 
         logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
-        xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-        xforms[:, 3, :3] = plan.positions
-        if self._use_ovstage:
-            path_list = self.backend.paths.create_path_list_from_strings(env_paths)
-            with self.backend.stage.query_from_path_list(path_list) as query:
-                self.backend.stage.write_attribute(
-                    query,
-                    "omni:xform",
-                    ordinal=self._current_ordinal,
-                    tensors=xform_tensor_from_numpy(xforms),
-                    is_array=False,
-                    semantic=ovstage.AttributeSemantic.MATRIX,
-                ).wait()
-            self.backend.paths.destroy_path_list(path_list)
-        else:
-            self.backend.renderer.write_attribute(
-                env_paths, "omni:xform", xforms, semantic=Semantic.XFORM_MAT4x4, prim_mode=PrimMode.MUST_EXIST
-            )
+        env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+        self.backend.renderer.write_attribute(
+            env_paths,
+            "omni:xform",
+            env_root_transforms(plan),
+            semantic=Semantic.XFORM_MAT4x4,
+            prim_mode=PrimMode.MUST_EXIST,
+        )
 
     def _update_scene_partitions_after_clone(self, camera_paths: Sequence[str]) -> None:
         """Assign environment partitions to cloned roots and the declared camera batch."""

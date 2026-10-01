@@ -122,6 +122,43 @@ def points_tensor_from_warp(points: wp.array) -> ovstage.DLTensor:
     return ovstage.make_dltensor(points, dtype=OVSTAGE_POINT_DTYPE)
 
 
+def clone_plan_into_ovstage(stage: ovstage.Stage, paths: ovstage.PathDictionary, plan: ClonePlan, ordinal: int) -> int:
+    """Clone every planned prototype onto its environments, then place the environment roots.
+
+    Cloning recreates the environment roots, so their poses are written after the copies.
+
+    Args:
+        stage: The ovstage stage holding the exported prototypes.
+        paths: Path dictionary of ``stage``.
+        plan: The scene's completed clone plan.
+        ordinal: Write ordinal for the clones and the environment-root write.
+
+    Returns:
+        The number of prototype copies made.
+    """
+    from isaaclab_ov.renderers.ovrtx_usd import env_root_transforms, iter_clone_copies  # noqa: PLC0415
+
+    num_copies = 0
+    for source, target_paths in iter_clone_copies(plan):
+        logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
+        stage.clone(source, target_paths, ordinal=ordinal)
+        num_copies += 1
+
+    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    path_list = paths.create_path_list_from_strings(env_paths)
+    with stage.query_from_path_list(path_list) as query:
+        stage.write_attribute(
+            query,
+            "omni:xform",
+            ordinal=ordinal,
+            tensors=xform_tensor_from_numpy(env_root_transforms(plan)),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+    paths.destroy_path_list(path_list)
+    return num_copies
+
+
 def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
     """Build a populated ovstage of the scene for a consumer that draws it, such as Newton's ``ViewerRTX``.
 
@@ -148,7 +185,7 @@ def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
 
     from isaaclab.cloner import path as cloner_path  # noqa: PLC0415
 
-    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string, iter_clone_copies  # noqa: PLC0415
+    from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string  # noqa: PLC0415
 
     num_envs = len(plan.topology.world_prototype_layout)
     sources = tuple(source for source in cloner_path.get_asset_prototype_paths(plan) if source is not None)
@@ -161,24 +198,7 @@ def create_render_ovstage(stage: Usd.Stage, plan: ClonePlan) -> ovstage.Stage:
         render_stage, usda, ordinal=ordinal, domains=ovstage.PopulationDomain.RENDERING
     )
     ovstage.population.apply_usd_changes(render_stage, ordinal=ordinal)
-    for source, target_paths in iter_clone_copies(plan):
-        render_stage.clone(source, target_paths, ordinal=ordinal)
-
-    # Cloning recreates the environment roots, so their poses are written afterwards.
-    xforms = np.tile(np.eye(4, dtype=np.float64), (num_envs, 1, 1))
-    xforms[:, 3, :3] = plan.positions
-    env_paths = [plan.env_template.format(world) for world in range(num_envs)]
     with ovstage.PathDictionary(render_stage) as paths:
-        path_list = paths.create_path_list_from_strings(env_paths)
-        with render_stage.query_from_path_list(path_list) as query:
-            render_stage.write_attribute(
-                query,
-                "omni:xform",
-                ordinal=ordinal,
-                tensors=xform_tensor_from_numpy(xforms),
-                is_array=False,
-                semantic=ovstage.AttributeSemantic.MATRIX,
-            ).wait()
-        paths.destroy_path_list(path_list)
+        clone_plan_into_ovstage(render_stage, paths, plan, ordinal)
     render_stage.advance_write_floor(ordinal=ordinal).wait()
     return render_stage
