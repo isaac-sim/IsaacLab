@@ -26,6 +26,7 @@ def launch_test_simulation(cfg=None, **launcher_args) -> None:
         **launcher_args: Launcher arguments, for example ``device`` or ``enable_cameras``. ``device``
             defaults to :func:`~isaaclab.test.utils.resolve_test_sim_device`.
     """
+    # sim_launcher loads the backend configs (~1 s); keep this module cheap for tests that only use test_devices
     from isaaclab.app import launch_simulation
     from isaaclab.sim import SimulationCfg
 
