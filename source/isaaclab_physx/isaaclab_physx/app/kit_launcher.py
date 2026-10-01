@@ -31,13 +31,16 @@ except ModuleNotFoundError:
 
 SimulationApp = getattr(isaacsim, "SimulationApp", None)
 
+from isaaclab import _deprioritize_prebundle_paths
 from isaaclab.app.loading_screen import report_activity
 from isaaclab.app.logging_utils import apply_python_logging_level
 from isaaclab.app.settings_manager import get_settings_manager
-from isaaclab.app.sim_launcher import SimulationLauncher, _parse_visualizer_csv, fuse_kit_args
+from isaaclab.app.sim_launcher import SimulationLauncher, fuse_kit_args
 from isaaclab.paths import ISAACLAB_ROOT
+from isaaclab.utils import has_kit
 from isaaclab.utils.device import set_cuda_device
 from isaaclab.utils.renderers import ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+from isaaclab.visualizers.visualizer_cfg import parse_visualizer_csv
 
 # import logger
 logger = logging.getLogger(__name__)
@@ -146,8 +149,6 @@ class KitLauncher(SimulationLauncher):
 
         .. _SimulationApp: https://docs.isaacsim.omniverse.nvidia.com/latest/py/source/extensions/isaacsim.simulation_app/docs/index.html#isaacsim.simulation_app.SimulationApp
         """
-        from isaaclab.utils import has_kit
-
         self._app = None
         if has_kit():
             # a Kit app already runs in this process; it is owned (and closed) by whoever started it
@@ -208,8 +209,6 @@ class KitLauncher(SimulationLauncher):
         # additional ``pip_prebundle`` or conflicting extension directories onto
         # ``sys.path`` during startup.  A second pass ensures pip-installed
         # packages still take priority over bundled copies.
-        from isaaclab import _deprioritize_prebundle_paths
-
         _deprioritize_prebundle_paths()
 
         # Hide the stop button in the toolbar
@@ -369,7 +368,7 @@ class KitLauncher(SimulationLauncher):
         arg_group.add_argument(
             "--visualizer",
             "--viz",
-            type=_parse_visualizer_csv,
+            type=parse_visualizer_csv,
             default=None,
             help="Visualizer backends to enable as CSV (e.g., kit,newton,rerun,viser).",
         )
@@ -534,11 +533,11 @@ class KitLauncher(SimulationLauncher):
             self._xr = bool(xr_env)
 
         # Determine whether XR should auto-inject a KitVisualizer.
-        # When XR is enabled but no Kit visualizer was explicitly requested via
-        # CLI, we auto-inject one so that app.update() and forward() are pumped
+        # When XR is enabled but the run has no Kit visualizer (from the config or
+        # --viz), we auto-inject one so that app.update() and forward() are pumped
         # each frame -- the XR runtime needs both to receive updated hand/joint
         # transforms.
-        self._xr_auto_start = self._xr and "kit" not in (launcher_args.get("visualizer") or ())
+        self._xr_auto_start = self._xr and not self._kit_visualizer
 
     def _resolve_viewport_settings(self, launcher_args: dict):
         """Resolve viewport related settings."""
@@ -637,15 +636,13 @@ class KitLauncher(SimulationLauncher):
         # under certain install layouts), derive it from the installed isaacsim package.
         kit_app_exp_path = os.environ.get("EXP_PATH")
         if not kit_app_exp_path:
-            try:
-                import isaacsim as _isaacsim_for_paths
-            except ImportError as e:
+            if isaacsim is None:
                 raise RuntimeError(
                     "EXP_PATH is not set and the 'isaacsim' package is not importable."
                     " Install Isaac Sim (`pip install isaacsim` or the binary distribution)"
                     " before launching KitLauncher."
-                ) from e
-            kit_app_exp_path = os.path.join(os.path.dirname(_isaacsim_for_paths.__file__), "apps")
+                )
+            kit_app_exp_path = os.path.join(os.path.dirname(isaacsim.__file__), "apps")
             os.environ["EXP_PATH"] = kit_app_exp_path
         isaaclab_app_exp_path = str(ISAACLAB_ROOT / "apps")
 
@@ -873,7 +870,7 @@ def _share_stage_context() -> None:
         from isaacsim.core.experimental.utils import stage as sim_stage
     except ImportError:
         return
-    from isaaclab.sim.utils import stage as stage_utils
+    from isaaclab.sim.utils import stage as stage_utils  # imports pxr; must load after Kit starts
 
     # Isaac Sim stage helpers read this singleton context.
     sim_stage._context = stage_utils._context

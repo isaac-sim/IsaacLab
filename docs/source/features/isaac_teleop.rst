@@ -448,6 +448,17 @@ Prerequisites
   without calibration produces incorrect joint mappings and the follower arm will not track the
   leader.
 
+  .. figure:: ../_static/teleop/so101-leader-calibration-pose.jpg
+     :width: 60%
+     :alt: SO-101 leader arm held in the mid-range calibration pose
+
+     SO-101 leader arm in the mid-range pose used for the first calibration step.
+
+  .. tip::
+
+     In the mid-range step, also set the gripper to the midpoint of its travel, as pictured.
+     Leaving it fully open or closed can produce an incorrect gripper mapping.
+
 Run the simulation
 ^^^^^^^^^^^^^^^^^^
 
@@ -1400,15 +1411,18 @@ camera view follows robot motion:
 
 Both G1 tasks enable :attr:`~isaaclab_teleop.XrCameraFeedLayoutCfg.use_scene_partition`
 to avoid this recursion. Before environment construction, preparation temporarily disables
-per-environment partitioning on selected Isaac RTX camera renderers and sets
-``/rtx/scenePartitioning/showAllPartitionsByDefault=False``. Geometry must start as shared,
+per-environment partitioning on selected Isaac RTX camera renderers. Binding sets
+``/rtx/scenePartitioning/showAllPartitionsByDefault=False`` after renderer initialization
+and before creating panels. Geometry must start as shared,
 unpartitioned background; clearing its partition after camera initialization can hide it from XR.
 Other scene cameras must also set ``enable_scene_partitioning=False``.
 
 The SceneUI adapter assigns the XR camera and ``/ui`` to ``isaaclab_teleop_xr_camera_pip`` and
 refreshes inheritance when SceneUI children appear. Robot cameras see shared background without
 UI; XR sees both. XR/UI overrides use the session layer. Prior camera, renderer, and partition
-settings are restored after the final owner closes, unless changed externally. Prepared sessions
+settings are restored after their final owner closes, unless changed externally. Camera
+configuration is restored after the last prepared session closes; the global setting's
+bind-time value is restored after the last bound session closes. Prepared sessions
 must close even if environment construction fails; the teleoperation and recording scripts handle
 this cleanup. Panels remain
 hidden while tracking or isolation is unavailable and reappear after recovery. Other tasks retain

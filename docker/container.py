@@ -36,7 +36,7 @@ def parse_cli_args() -> argparse.Namespace:
         "profile",
         nargs="?",
         default="base",
-        help="Optional container profile specification. Examples: 'base', 'ros2', or 'kitless'.",
+        help="Optional container profile specification. Examples: 'base' or 'kitless'.",
     )
     parent_parser.add_argument(
         "--files",

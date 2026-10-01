@@ -45,6 +45,7 @@ def isolated_settings(monkeypatch):
 def test_isolated_session_restores_global_and_camera_state(monkeypatch, isolated_settings, initial):
     isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = initial
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
+    monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", lambda *args: SimpleNamespace(close=lambda: None))
     renderer = IsaacRtxRendererCfg(enable_scene_partitioning=True)
     cfg = _teleop_env_cfg(
         [XrCameraFeedCfg(camera_name="robot_pov_cam")],
@@ -54,16 +55,29 @@ def test_isolated_session_restores_global_and_camera_state(monkeypatch, isolated
     renderer = cfg.scene.robot_pov_cam.renderer_cfg
     first = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
     second = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
+    prepared = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
     try:
+        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is initial
+        first.bind(object())
+        second.bind(object())
         assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
         assert renderer.enable_scene_partitioning is False
         first.close()
         assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
         assert renderer.enable_scene_partitioning is False
+        second.close()
+        # A prepared session still owns camera configuration, but not the global setting.
+        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is initial
+        assert renderer.enable_scene_partitioning is False
+        # A later bind acquires the value left by renderer initialization after earlier owners close.
+        isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = not initial
+        prepared.bind(object())
+        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
     finally:
         first.close()
         second.close()
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is initial
+        prepared.close()
+    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is not initial
     assert renderer.enable_scene_partitioning is True
     assert renderer.global_settings.show_all_partitions_by_default is None
 
@@ -118,12 +132,45 @@ def test_isolation_accepts_effective_raw_false_and_unpartitioned_extra_camera(mo
     session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
     try:
         assert session.enabled
-        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is False
+        assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
     finally:
         session.close()
 
 
-@pytest.mark.parametrize("failure", ["environment", "bind", "override", "close"])
+@pytest.mark.parametrize("at_bind", [True, False])
+def test_isolation_acquired_only_when_binding(monkeypatch, isolated_settings, at_bind):
+    """Kit can restore its startup settings during the first simulation reset."""
+    key = ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
+    isolated_settings[key] = True
+    monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
+    cfg = _teleop_env_cfg(
+        [XrCameraFeedCfg(camera_name="robot_pov_cam")],
+        camera=_camera_cfg(IsaacRtxRendererCfg(enable_scene_partitioning=True)),
+        layout=XrCameraFeedLayoutCfg(use_scene_partition=True),
+    )
+
+    def create_manager(*args):
+        # Isolation must be acquired before any panels or image sources are created.
+        assert isolated_settings[key] is False
+        assert cfg.scene.robot_pov_cam.renderer_cfg.enable_scene_partitioning is False
+        return SimpleNamespace(close=lambda: None)
+
+    manager_factory = Mock(side_effect=create_manager)
+    monkeypatch.setattr(camera_feed, "_XrCameraFeedManager", manager_factory)
+    session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
+    try:
+        assert isolated_settings[key] is True
+        isolated_settings[key] = at_bind
+        with session.bind(object()):
+            assert session.enabled
+            manager_factory.assert_called_once()
+    finally:
+        session.close()
+    assert isolated_settings[key] is at_bind
+    assert cfg.scene.robot_pov_cam.renderer_cfg.enable_scene_partitioning is True
+
+
+@pytest.mark.parametrize("failure", ["environment", "bind", "bind_already_false", "close"])
 def test_isolation_restores_after_initialization_failure(monkeypatch, isolated_settings, failure):
     monkeypatch.setattr(camera_feed, "_load_kit_scene_ui_presenter", lambda: _FakePresenter())
     renderer = IsaacRtxRendererCfg(enable_scene_partitioning=True)
@@ -142,10 +189,10 @@ def test_isolation_restores_after_initialization_failure(monkeypatch, isolated_s
         cleanup.callback(session.close)
         if failure == "environment":
             raise RuntimeError("environment failure")
-        if failure == "override":
-            isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = True
+        if failure == "bind_already_false":
+            isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] = False
         session.bind(object())
-    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is True
+    assert isolated_settings[ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING] is (failure != "bind_already_false")
     assert renderer.enable_scene_partitioning is True
 
 
@@ -160,6 +207,7 @@ def test_isolation_preserves_external_change_and_can_rebind(monkeypatch, isolate
     key = ISAAC_RTX_SHOW_ALL_PARTITIONS_BY_DEFAULT_SETTING
     isolated_settings[key] = False
     session = XrCameraFeedSession.prepare(cfg, enabled=True, camera_rendering_enabled=True)
+    session.bind(object())
     isolated_settings[key] = True
     session.close()
     assert isolated_settings[key] is True
