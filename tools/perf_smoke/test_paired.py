@@ -17,7 +17,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from . import baseline, paired, source_revision
+from . import baseline, build_compare, paired, source_revision
 from .test_baseline import HEAD, REPO, FixtureClient, bundle, stamp
 
 RUNTIME = "source/isaaclab/isaaclab/benchmark/entrypoints/runtime.py"
@@ -354,7 +354,14 @@ class PairedTests(unittest.TestCase):
             files[f"{leg}/status"] = b"ok"
             for sample in range(1, 4):
                 path = f"{leg}/sample-{sample}/benchmark_runtime_fixture.json"
-                data = encoded(bundle(start=stamp(9, sample), end=stamp(9, sample + 1), task=leg))
+                value = bundle(start=stamp(9, sample), end=stamp(9, sample + 1), task=leg)
+                value["run"]["seed"] = 42
+                value["runtime"].update(
+                    iterations_completed=200,
+                    steps_per_iteration=512,
+                    environment_step_timing={"warmup_steps": 100, "measurement_mode": "host_return"},
+                )
+                data = encoded(value)
                 files[path] = data
                 files[f"{leg}/sample-{sample}/source-revision.json"] = encoded(
                     {
@@ -454,6 +461,56 @@ class PairedTests(unittest.TestCase):
         for name, data in files.items():
             self.assertEqual((self.output / name).read_bytes(), data)
 
+    def test_reused_legacy_identity_is_migrated_without_changing_measurement_evidence(self):
+        files = self._files()
+        context = json.loads(files["build-context.json"])
+        original_definition = {"total_fps": "source-fps-v1:legacy"}
+        context["metric_definition"] = original_definition
+        files["build-context.json"] = encoded(context)
+        artifact = self._add_baseline(files)
+        original_bytes = self.client.contents[artifact["id"]]
+        current_definition = {"total_fps": "source-fps-v2:verified", "provenance": "producer_source_ast"}
+        with patch.object(paired, "metric_definition", return_value=current_definition):
+            restored = self._restore()
+        migration = restored["baseline_metric_definition"]
+        self.assertTrue(restored["baseline_reused"])
+        self.assertEqual(migration["artifact_id"], artifact["id"])
+        self.assertEqual(migration["sha256"], hashlib.sha256(original_bytes).hexdigest())
+        self.assertEqual(migration["source_commit"], self.commit)
+        candidate = self._candidate(
+            restored["baseline_origin"], reused=True, selection=restored, definition=current_definition
+        )
+        selected = paired.select_pr_baseline(self.client, candidate)
+        self.assertEqual(selected.evidence.context["metric_definition"], original_definition)
+        self.assertEqual(selected.evidence.zip_bytes, original_bytes)
+        report_dir = self.root / "report"
+        with patch.object(build_compare.baseline_mod, "GitHubClient", return_value=self.client):
+            self.assertEqual(
+                build_compare.main(
+                    ["--repository", REPO, "--run_id", "20", "--run_attempt", "1", "--output_dir", str(report_dir)]
+                ),
+                0,
+            )
+        report = json.loads((report_dir / "build-comparison.json").read_text())
+        self.assertEqual(len(report["rows"]), 2)
+        self.assertTrue(all(row["status"] == "compared" and row["change_pct"] == 0 for row in report["rows"]))
+        self.assertTrue(all(row["formula"]["baseline"] == "source-fps-v2:verified" for row in report["rows"]))
+        self.assertEqual(self.client.contents[artifact["id"]], original_bytes)
+        self.assertIn("re-derived from its verified checkout", " ".join(report["notes"]))
+
+    def test_derived_baseline_identity_cannot_be_rebound_to_other_evidence(self):
+        artifact = self._add_baseline()
+        restored = self._restore()
+        for field, value in (("artifact_id", -1), ("sha256", "0" * 64), ("source_commit", HEAD)):
+            with self.subTest(field=field):
+                pin = json.loads(encoded(restored))
+                pin["baseline_metric_definition"][field] = value
+                candidate = self._candidate(restored["baseline_origin"], reused=True, selection=pin)
+                selected = paired.select_pr_baseline(self.client, candidate)
+                self.assertIsNone(selected.evidence)
+                self.assertEqual(selected.metadata["reason_code"], "identity_mismatch")
+                self.assertEqual(selected.metadata["unavailable_evidence"]["artifact_id"], artifact["id"])
+
     def test_restore_and_selection_use_resolved_reference_not_recorded_event_base(self):
         event_base = "f" * 40
         files = self._files()
@@ -527,10 +584,41 @@ class PairedTests(unittest.TestCase):
         context = json.loads(files["build-context.json"])
         context["source"]["benchmark_role"] = "current"
         files["build-context.json"] = encoded(context)
-        self.client.add(10, HEAD, event="pull_request", artifact=False)
-        self.client.add_artifact(10, "performance-smoke-10-1", files)
-        self.assertFalse(self._restore()["baseline_reused"])
-        self.assertEqual(self.client.downloaded, [])
+        artifact = self._add_baseline(files)
+        selection = self._restore()
+        self.assertFalse(selection["baseline_reused"])
+        self.assertEqual(self.client.downloaded, [artifact["id"]])
+        self.assertIn("does not belong to this PR and exact base commit", str(selection["issues"]))
+
+    def test_interrupted_lookup_leaves_a_persisted_fresh_selection(self):
+        self._add_baseline()
+        with patch.object(self.client, "run_attempt", side_effect=TimeoutError("lookup interrupted")):
+            with self.assertRaises(TimeoutError):
+                self._restore()
+        selection = json.loads(self.selection_path.read_text())
+        self.assertFalse(selection["baseline_reused"])
+        self.assertIsNone(selection["baseline_origin"])
+        self.assertEqual(selection["reference_commit"], self.commit)
+        self.assertFalse(self.output.exists())
+
+    def test_interrupted_restore_does_not_publish_partial_results(self):
+        self._add_baseline()
+        write_bytes = Path.write_bytes
+        restored = []
+
+        def interrupted(path, content):
+            if path.name == "benchmark_runtime_fixture.json":
+                restored.append(path)
+                if len(restored) == 2:
+                    raise OSError("artifact restoration interrupted")
+            return write_bytes(path, content)
+
+        with patch.object(Path, "write_bytes", interrupted):
+            with self.assertRaisesRegex(OSError, "restoration interrupted"):
+                self._restore()
+        self.assertEqual(len(restored), 2)
+        self.assertFalse(self.output.exists())
+        self.assertFalse(json.loads(self.selection_path.read_text())["baseline_reused"])
 
     def test_expired_baseline_requests_fresh_measurement(self):
         artifact = self._add_baseline()
@@ -594,7 +682,9 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(selection["baseline_origin"]["run_attempt"], 2)
         self.assertEqual(self.client.contents[first["id"]], first_bytes)
 
-    def _candidate(self, origin, *, reused=False, hostname="fixture-gpu-host", start=stamp(10)):
+    def _candidate(
+        self, origin, *, reused=False, hostname="fixture-gpu-host", start=stamp(10), selection=None, definition=None
+    ):
         files = self._files(run_id=20)
         manifest = json.loads(files["source-manifest.json"])
         manifest["commit"] = HEAD
@@ -602,6 +692,8 @@ class PairedTests(unittest.TestCase):
         context = json.loads(files["build-context.json"])
         context["source"].update(commit=HEAD, benchmark_role="current", commit_parents=[self.commit, HEAD])
         context["execution"].update(hostname=hostname, measurement_not_before=start)
+        if definition is not None:
+            context["metric_definition"] = definition
         files["build-context.json"] = encoded(context)
         for name in list(files):
             if name.endswith("source-revision.json"):
@@ -623,6 +715,7 @@ class PairedTests(unittest.TestCase):
                 "tested_commit": HEAD,
                 "baseline_reused": reused,
                 "baseline_origin": origin,
+                **(selection or {}),
             }
         )
         run = self.client.add(20, HEAD, event="pull_request", branch="feature", artifact=False)
@@ -671,6 +764,51 @@ class PairedTests(unittest.TestCase):
     def test_fresh_pair_reports_base_not_finished_before_current(self):
         artifact = self._add_baseline(run_id=20)
         candidate = self._candidate(self._origin(artifact), start=stamp(9))
+        selected = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNone(selected.evidence)
+        self.assertEqual(selected.metadata["reason_code"], "measurement_order")
+
+    def test_partial_fresh_baseline_preserves_healthy_workload_comparison(self):
+        files = self._files(run_id=20)
+        files["second/sample-3/benchmark_runtime_fixture.json"] = b"{invalid JSON"
+        artifact = self._add_baseline(files, run_id=20)
+        origin = self._origin(artifact)
+        self.selection_path.write_bytes(
+            encoded(
+                {
+                    "reference_commit": self.commit,
+                    "pull_request_number": 42,
+                    "requested_head_commit": HEAD,
+                    "baseline_reused": False,
+                    "baseline_origin": None,
+                    "issues": [],
+                }
+            )
+        )
+        with (
+            patch.dict(os.environ, {"GITHUB_SHA": HEAD, "GITHUB_RUN_ID": "20", "GITHUB_RUN_ATTEMPT": "1"}),
+            patch.object(paired, "datetime") as clock,
+        ):
+            clock.now.return_value.isoformat.return_value = stamp(9, 30)
+            paired.bind_baseline(self.selection_path, str(artifact["id"]), self.output, REPO)
+        pin = json.loads((self.output / "pr-comparison.json").read_text())
+        candidate = self._candidate(origin, selection=pin)
+        # GitHub's job completion covers B as well and cannot establish the end of A.
+        self.client.run_jobs[20, 1][0]["completed_at"] = stamp(12)
+        selected = paired.select_pr_baseline(self.client, candidate)
+        self.assertIsNotNone(selected.evidence)
+        report = build_compare.compare_evidence(selected.evidence, candidate)
+        by_leg = {row["legs"]["baseline"][0]: row for row in report["rows"]}
+        self.assertEqual(by_leg["first"]["status"], "compared")
+        self.assertEqual(by_leg["first"]["change_pct"], 0)
+        self.assertEqual(by_leg["second"]["status"], "partial")
+        self.assertIsNone(by_leg["second"]["change_pct"])
+
+    def test_fresh_completion_bound_cannot_hide_samples_after_pr_start(self):
+        artifact = self._add_baseline(run_id=20)
+        candidate = self._candidate(
+            self._origin(artifact), start=stamp(9), selection={"baseline_finished_before": stamp(8, 59)}
+        )
         selected = paired.select_pr_baseline(self.client, candidate)
         self.assertIsNone(selected.evidence)
         self.assertEqual(selected.metadata["reason_code"], "measurement_order")
@@ -725,6 +863,46 @@ class PairedTests(unittest.TestCase):
         self.assertEqual(selection["baseline_origin"], restored["baseline_origin"])
         self.assertEqual(selection["reason"], restored["reason"])
         self.assertEqual(selection["issues"], restored["issues"])
+
+    def test_unconfirmed_reuse_handoff_cannot_override_fresh_or_missing_upload(self):
+        self._add_baseline(run_id=10)
+        self._restore()
+        fresh = self._add_baseline(run_id=20)
+        event_path = self.root / "event.json"
+        event_path.write_bytes(encoded(self.event))
+        for uploaded in (True, False):
+            with self.subTest(fresh_upload_succeeded=uploaded):
+                with (
+                    patch.dict(
+                        os.environ,
+                        {
+                            "GITHUB_SHA": HEAD,
+                            "GITHUB_RUN_ID": "20",
+                            "GITHUB_RUN_ATTEMPT": "1",
+                            "GITHUB_REPOSITORY": REPO,
+                            "GITHUB_EVENT_PATH": str(event_path),
+                            "PERF_BASELINE_REUSED": "",
+                        },
+                    ),
+                    patch.object(paired, "datetime") as clock,
+                ):
+                    clock.now.return_value.isoformat.return_value = stamp(9, 30)
+                    arguments = ["bind", "--selection", str(self.selection_path), "--output-dir", str(self.output)]
+                    if uploaded:
+                        arguments.extend(["--artifact-id", str(fresh["id"])])
+                    self.assertEqual(paired.main(arguments), 0)
+                pin = json.loads((self.output / "pr-comparison.json").read_text())
+                candidate = self._candidate(pin["baseline_origin"], selection=pin)
+                selected = paired.select_pr_baseline(self.client, candidate)
+                if uploaded:
+                    self.assertEqual(selected.evidence.identity["artifact_id"], fresh["id"])
+                    self.assertEqual(selected.evidence.identity["run_id"], 20)
+                else:
+                    self.assertIsNone(selected.evidence)
+                    self.assertIsNone(selected.metadata["baseline_origin"])
+                    self.assertIn("artifact was not produced", selected.metadata["reason"])
+                self.assertFalse(selected.metadata["baseline_reused"])
+                self.assertNotIn("baseline_metric_definition", selected.metadata)
 
     def test_bind_cli_recovers_missing_selection_and_reports_failed_stage(self):
         event_path = self.root / "event.json"
