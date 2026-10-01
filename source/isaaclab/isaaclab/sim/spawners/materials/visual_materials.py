@@ -63,7 +63,7 @@ def spawn_preview_surface(
     shader.CreateIdAttr("UsdPreviewSurface")
     material.CreateSurfaceOutput().ConnectToSource(shader.CreateOutput("surface", Sdf.ValueTypeNames.Token))
     material.CreateDisplacementOutput().ConnectToSource(shader.CreateOutput("displacement", Sdf.ValueTypeNames.Token))
-    _author_material_inputs(shader.GetPrim(), cfg)
+    modify_visual_material(shader.GetPrim(), cfg)
     return shader.GetPrim()
 
 
@@ -114,20 +114,24 @@ def spawn_from_mdl_file(
     material.CreateSurfaceOutput("mdl").ConnectToSource(output)
     material.CreateDisplacementOutput("mdl").ConnectToSource(output)
     material.CreateVolumeOutput("mdl").ConnectToSource(output)
-    _author_material_inputs(shader.GetPrim(), cfg)
+    modify_visual_material(shader.GetPrim(), cfg)
     return shader.GetPrim()
 
 
-def _author_material_inputs(prim: Usd.Prim, cfg: visual_materials_cfg.VisualMaterialCfg) -> None:
-    """Author non-None inputs on one shader. Keep asset traversal in the file spawner.
+def modify_visual_material(prim: Usd.Prim, cfg: visual_materials_cfg.VisualMaterialCfg) -> None:
+    """Apply non-None shader inputs without replacing shader networks or material bindings.
 
-    The caller supplies a shader matching the config; its source and connections remain unchanged.
+    Args:
+        prim: Shader or declared asset prototype whose descendant shaders are modified.
+        cfg: Material inputs. Its spawner and MDL source are not applied.
     """
     ignored = ("func", "visible", "semantic_tags", "copy_from_source", "spawn_path", "mdl_path")
+    inputs = {name: value for name, value in to_dict(cfg).items() if name not in ignored and value is not None}
     camel_case = isinstance(cfg, PreviewSurfaceCfg)
-    for name, value in to_dict(cfg).items():
-        if name not in ignored and value is not None:
-            input_name = to_camel_case(name, to="cC") if camel_case else name
-            if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:
-                prim.CreateAttribute(f"inputs:{input_name}", Sdf.ValueTypeNames.Color3f)
-            safe_set_attribute_on_usd_prim(prim, f"inputs:{name}", value, camel_case=camel_case)
+    for shader in Usd.PrimRange(prim):
+        if shader.IsA(UsdShade.Shader):
+            for name, value in inputs.items():
+                input_name = to_camel_case(name, to="cC") if camel_case else name
+                if name in {"diffuse_color", "emissive_color", "diffuse_color_constant", "glass_color"}:
+                    shader.CreateAttribute(f"inputs:{input_name}", Sdf.ValueTypeNames.Color3f)
+                safe_set_attribute_on_usd_prim(shader, f"inputs:{name}", value, camel_case=camel_case)

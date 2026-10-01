@@ -313,11 +313,10 @@ Visual Materials
 ~~~~~~~~~~~~~~~~
 
 For USD assets, setting ``visual_material_path=None`` applies the supplied material inputs to
-connected surface shaders without replacing textures or bindings, with or without Kit.
-Preview configs use the universal surface output; MDL configs use the MDL output. Choose a config
-that matches the authored shader and set inputs to ``None`` to leave them unchanged. For materials
-inside instances, set ``UsdFileCfg.make_uninstanceable=True``. A named ``visual_material_path``
-creates and binds a replacement material only when Kit is available.
+authored shaders without replacing their textures or bindings. Set inputs that should remain
+unchanged, such as ``PbrMdlCfg.diffuse_color_constant``, to ``None``.
+
+.. autofunction:: modify_visual_material
 
 .. autoclass:: VisualMaterialCfg
     :members:

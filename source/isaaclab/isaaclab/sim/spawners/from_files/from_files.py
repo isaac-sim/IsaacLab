@@ -32,7 +32,7 @@ from ...utils import (
 )
 from ..materials import PreviewSurfaceCfg, SurfaceDeformableBodyMaterialBaseCfg
 from ..materials.physics_materials import spawn_physics_material
-from ..materials.visual_materials import _author_material_inputs
+from ..materials.visual_materials import modify_visual_material
 from ..utils import (
     apply_mesh_collision_props,
     apply_schema_props,
@@ -749,15 +749,9 @@ def spawn_from_usd_file(
     # apply visual material
     if cfg.visual_material is not None:
         if cfg.visual_material_path is None:
-            from pxr import Usd, UsdShade  # noqa: PLC0415
-
-            # Author existing surface inputs with or without Kit, before cloning the prototype.
-            context = "" if isinstance(cfg.visual_material, PreviewSurfaceCfg) else "mdl"
-            for prim in Usd.PrimRange(stage.GetPrimAtPath(prim_path)):
-                if prim.IsA(UsdShade.Material) and UsdShade.Material(prim).GetSurfaceOutput(context):
-                    shader, _, _ = UsdShade.Material(prim).ComputeSurfaceSource(context)
-                    if shader:
-                        _author_material_inputs(shader.GetPrim(), cfg.visual_material)
+            modify_visual_material(stage.GetPrimAtPath(prim_path), cfg.visual_material)
+        elif not has_kit():
+            logger.warning("Skipping visual material application for '%s' in kitless mode.", prim_path)
         else:
             material_path = (
                 cfg.visual_material_path

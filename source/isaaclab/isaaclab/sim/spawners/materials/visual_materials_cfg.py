@@ -94,15 +94,9 @@ class PbrMdlCfg(MdlFileCfg):
     metallic_constant: float | None = None
     """Constant metallic weight in [0, 1]. None leaves the authored value unchanged."""
     metallic_texture_influence: float | None = None
-    """Metallic texture weight in [0, 1]. Zero uses only the constant channel.
-
-    None leaves the authored value unchanged.
-    """
+    """Metallic texture weight in [0, 1]. Zero uses only the constant channel."""
     reflection_roughness_texture_influence: float | None = None
-    """Roughness texture weight in [0, 1]. Zero uses only the constant channel.
-
-    None leaves the authored value unchanged.
-    """
+    """Roughness texture weight in [0, 1]. Zero uses only the constant channel."""
 
 
 @configclass
