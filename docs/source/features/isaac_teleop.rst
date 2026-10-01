@@ -381,7 +381,7 @@ Prerequisites
      sudo apt-get install -y build-essential cmake libx11-dev clang-format-14 ccache patchelf
 
   Then clone, check out the release branch matching the ``isaacteleop`` version Isaac Lab is
-  pinned to (``isaacteleop~=1.4.0`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
+  pinned to (``isaacteleop~=1.4.145`` in the ``teleop`` extra of the root ``pyproject.toml``, so the
   plugin's wire format matches the ``isaacteleop`` package Isaac Lab installs), configure, build,
   and install. To target a specific Python version, pass
   ``-DISAAC_TELEOP_PYTHON_VERSION=3.12`` (or ``3.11``, ``3.13``) on the configure line; each
