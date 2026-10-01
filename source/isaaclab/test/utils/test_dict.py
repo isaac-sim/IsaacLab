@@ -209,7 +209,9 @@ def test_slice_round_trip_preserves_tuple_containers():
 
 
 def test_slice_conversion_leaves_tuple_subclasses_unchanged():
-    """Tuple subclasses that previously passed through should not be reconstructed through an incompatible constructor."""
+    """Tuple subclasses that previously passed through should not be reconstructed
+    through an incompatible constructor.
+    """
     Pair = namedtuple("Pair", ["selector", "label"])
     data = {"pair": Pair(slice(1, 3), "value")}
 
