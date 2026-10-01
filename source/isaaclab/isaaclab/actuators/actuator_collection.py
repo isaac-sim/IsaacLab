@@ -102,13 +102,6 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             for actuator_name in self._native_group_names:
                 self._groups[actuator_name] = self._resolve_newton_group_actuators(actuator_name)
         self._validate_coverage()
-        # Groups a masked reset converts the mask to indices for. Plain implicit groups hold no reset
-        # state, and Newton-executed groups reset through the backend.
-        self._mask_reset_actuators = tuple(
-            actuator
-            for actuator in self._groups.values()
-            if isinstance(actuator, ActuatorBase) and type(actuator) is not ImplicitActuator
-        )
         self._build_execution_plan()
         if self._debug_value_resolution:
             self._print_value_resolution_table()
@@ -190,10 +183,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
-        Isaac Lab actuator models reset by environment index, so a mask is converted to indices
-        once for all of them, and only when a model with reset state is configured; plain
-        :class:`~isaaclab.actuators.ImplicitActuator` groups are skipped. Backend-native actuator
-        state resets from the mask directly.
+        Isaac Lab actuator models receive a mask as a zero-copy boolean tensor, which
+        :meth:`~isaaclab.actuators.ActuatorBase.reset` accepts in place of indices. Backend-native
+        actuator state resets from the mask directly.
 
         .. caution::
             If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
@@ -203,18 +195,17 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
         if env_mask is not None:
-            if self._mask_reset_actuators:
-                group_env_ids = wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1)
-                for actuator in self._mask_reset_actuators:
-                    actuator.reset(group_env_ids)
-            self._control.reset_native_actuators_mask(env_mask)
-            return
-        group_env_ids = self._control._normalize_index_sequence(env_ids)
+            group_env_ids = wp.to_torch(env_mask)
+        else:
+            group_env_ids = self._control._normalize_index_sequence(env_ids)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
                 actuator.reset(group_env_ids)
-        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
+        if env_mask is not None:
+            self._control.reset_native_actuators_mask(env_mask)
+        else:
+            self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.

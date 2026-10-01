@@ -122,7 +122,7 @@ class DelayBuffer:
     Operations.
     """
 
-    def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | None = None):
+    def set_time_lag(self, time_lag: int | torch.Tensor, batch_ids: Sequence[int] | torch.Tensor | None = None):
         """Sets the time lag for the delay buffer across the provided batch indices.
 
         Args:
@@ -130,10 +130,12 @@ class DelayBuffer:
 
               * If an integer is provided, the same delay is set for the provided batch indices.
               * If a tensor is provided, the delay is set for each batch index separately. The shape of the tensor
-                should be (len(batch_ids),).
+                should be (len(batch_ids),), or (batch_size,) when ``batch_ids`` is a boolean mask.
 
-            batch_ids: The batch indices for which the time lag is set. Default is None, which sets the time lag
-                for all batch indices.
+            batch_ids: The batch indices, or a boolean mask of shape (batch_size,), for which the time lag is set.
+                Default is None, which sets the time lag for all batch indices. A mask selects the batches on the
+                device without synchronizing the host, so tensor lags are not range-checked and must lie in
+                ``[0, history_length]``.
 
         Raises:
             TypeError: If the type of the :attr:`time_lag` is not int or integer tensor.
@@ -150,6 +152,10 @@ class DelayBuffer:
             # check valid dtype for time_lag: must be int or long
             if time_lag.dtype not in [torch.int, torch.long]:
                 raise TypeError(f"Invalid dtype for time_lag: {time_lag.dtype}. Expected torch.int or torch.long.")
+            if isinstance(batch_ids, torch.Tensor) and batch_ids.dtype == torch.bool:
+                time_lag = time_lag.to(device=self.device, dtype=self._time_lags.dtype)
+                torch.where(batch_ids, time_lag, self._time_lags, out=self._time_lags)
+                return
             min_time_lag = int(time_lag.min().item()) if time_lag.numel() else 0
             max_time_lag = int(time_lag.max().item()) if time_lag.numel() else 0
         else:
@@ -165,18 +171,31 @@ class DelayBuffer:
         else:
             index_fill_(self._time_lags, batch_ids, time_lag)
 
-    def reset(self, batch_ids: Sequence[int] | None = None):
+    def reset(self, batch_ids: Sequence[int] | torch.Tensor | None = None):
         """Reset the data in the delay buffer at the specified batch indices.
 
         Automatically sampled lags are redrawn for those batches regardless of ``hold_prob``.
         Externally selected lags are preserved.
 
         Args:
-            batch_ids: Elements to reset in the batch dimension. Default is None, which resets all the batch indices.
+            batch_ids: Elements to reset in the batch dimension, as indices or a boolean mask of shape (batch_size,).
+                Default is None, which resets all the batch indices.
         """
         indices = slice(None) if batch_ids is None else batch_ids
         index_fill_(self._num_pushes, indices, 0)
-        if self._hold_prob is not None:
+        if self._hold_prob is None:
+            return
+        if isinstance(indices, torch.Tensor) and indices.dtype == torch.bool:
+            # Draw for every batch and keep the masked ones, so the selection stays on the device.
+            lags = torch.randint(
+                self._min_lag,
+                self.history_length + 1,
+                (self.batch_size,),
+                dtype=self._time_lags.dtype,
+                device=self.device,
+            )
+            torch.where(indices, lags, self._time_lags, out=self._time_lags)
+        else:
             self._time_lags[indices] = torch.randint(
                 self._min_lag,
                 self.history_length + 1,

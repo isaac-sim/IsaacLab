@@ -451,18 +451,25 @@ class DelayedPDActuator(IdealPDActuator):
 
     def __init__(self, cfg: DelayedPDActuatorCfg, *args, **kwargs):
         super().__init__(cfg, *args, **kwargs)
+        # masked resets apply the sampled delays without range-checking them on the host
+        if not 0 <= cfg.min_delay <= cfg.max_delay:
+            raise ValueError(f"Expected 0 <= min_delay <= max_delay, received {cfg.min_delay} and {cfg.max_delay}.")
         # instantiate the delay buffers
         self.positions_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.velocities_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None):
         super().reset(env_ids)
         # number of environments (since env_ids can be a slice)
         if env_ids is None:
             env_ids = slice(None)
-        num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
+        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+            # a mask samples every environment and the delay buffers keep the masked ones on the device
+            num_envs = self._num_envs
+        else:
+            num_envs = len(range(self._num_envs)[env_ids]) if isinstance(env_ids, slice) else len(env_ids)
         # set a new random delay for environments in env_ids
         time_lags = torch.randint(
             low=self.cfg.min_delay,

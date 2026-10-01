@@ -279,11 +279,15 @@ class ActuatorBase(ABC):
     """
 
     @abstractmethod
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None):
         """Reset the internals within the group.
 
+        Implementations must accept a boolean mask without synchronizing the host, as
+        :func:`~isaaclab.utils.array.index_fill_` does.
+
         Args:
-            env_ids: List of environment IDs to reset.
+            env_ids: Environment indices, a 1-D boolean mask of shape (num_envs,), or a slice selecting the
+                environments to reset. None resets all environments.
         """
         raise NotImplementedError
 
