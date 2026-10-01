@@ -91,6 +91,8 @@ def _parse_args(argv: list[str]) -> tuple[argparse.Namespace, list[str]]:
 def run(argv: list[str]) -> BenchmarkResult | None:
     """Run the runtime benchmark and write the selected formatter outputs.
 
+    Validation canary B: source revision identity only.
+
     Args:
         argv: Command-line arguments excluding the script path.
 
