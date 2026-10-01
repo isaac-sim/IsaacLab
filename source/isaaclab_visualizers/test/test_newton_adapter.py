@@ -1008,7 +1008,7 @@ def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, si
     monkeypatch.setattr(newton_visualizer_module, "NewtonViewerRTX", create_viewer)
     cfg = NewtonRTXVisualizerCfg(background_color=color)
     NewtonRTXVisualizer(cfg)._create_viewer(True, {})
-    simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(consumer_cfg=cfg))
+    simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(scene_key=cfg))
     assert kwargs["background_color"] == color
     assert kwargs["ovstage"] is backend.stage
     assert "environment" not in kwargs

@@ -2368,10 +2368,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
         self._disable_viewer_on_step_exception = True
         from isaaclab_ov.stage import OvstageBackendCfg
 
-        self._render_backend = SimulationContext.instance().get_or_create_backend(OvstageBackendCfg(consumer_cfg=cfg))
+        self._render_backend = SimulationContext.instance().get_or_create_backend(OvstageBackendCfg(scene_key=cfg))
 
     def _create_viewer(self, runtime_headless: bool, metadata: dict) -> NewtonViewerRTX:
-        from isaaclab_ov.renderers.ovrtx_usd import export_stage_to_string
+        from isaaclab_ov.stage import export_stage_to_string
 
         backend = self._render_backend
         backend.populate(
