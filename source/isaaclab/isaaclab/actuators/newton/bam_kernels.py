@@ -43,7 +43,7 @@ def _bam_motor_kernel(
     max_delay: int,
     delay_hold_prob: float,
     delay_update_period: int,
-    delay_seed: int,
+    delay_seed: wp.array[wp.int32],
     motor_torque: wp.array[float],
     effective_vin: wp.array[float],
     next_ring: wp.array2d[float],
@@ -67,7 +67,7 @@ def _bam_motor_kernel(
         should_update = True
         if delay_update_period > 0:
             should_update = ((step_count + delay_phase[i]) % delay_update_period) == 0
-        rng = wp.rand_init(delay_seed, i * _DELAY_RNG_STRIDE + step_count)
+        rng = wp.rand_init(delay_seed[i], i * _DELAY_RNG_STRIDE + step_count)
         if should_update:
             if delay_hold_prob > 0.0:
                 should_update = wp.randf(rng) >= delay_hold_prob
@@ -195,8 +195,9 @@ def _bam_state_reset_kernel(
     delay_fill: wp.array[wp.int32],
     delay_step_count: wp.array[wp.int32],
     delay_phase: wp.array[wp.int32],
+    delay_rng_seed: wp.array[wp.int32],
     delay_update_period: int,
-    phase_seed: int,
+    reset_seed: int,
 ):
     """Clear the previous-step caches and the delay state of the masked DOFs."""
     i = wp.tid()
@@ -207,9 +208,10 @@ def _bam_state_reset_kernel(
     delay_lag[i] = 0
     delay_fill[i] = 0
     delay_step_count[i] = 0
+    delay_rng_seed[i] = reset_seed
     for column in range(delay_ring.shape[1]):
         delay_ring[i, column] = 0.0
     if delay_update_period > 0:
-        delay_phase[i] = wp.randi(wp.rand_init(phase_seed, i), 0, delay_update_period)
+        delay_phase[i] = wp.randi(wp.rand_init(reset_seed, i), 0, delay_update_period)
     else:
         delay_phase[i] = 0

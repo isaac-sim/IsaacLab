@@ -19,7 +19,8 @@ Added
   Exposed ``vin``, ``sag_gain``, ``friction_scale``, ``kp_scale`` and ``kd_scale`` through
   :func:`~isaaclab.actuators.newton.read_group_parameter` and
   :func:`~isaaclab.actuators.newton.write_group_parameter` for event-driven randomization.
-  Controller resets preserved the sampled parameters.
+  Controller resets preserved the sampled parameters. Delay resets advanced the selected joints'
+  lag and phase random streams, including during CUDA graph replay, without changing untouched joints.
 * Added :attr:`~isaaclab.actuators.BamActuatorCfg.stiff_frictionloss` to reduce static-friction
   creep on MJWarp with a stiff solver reference. Documented that, on this solver,
   :attr:`~isaaclab.actuators.ActuatorCollection.applied_effort` reported motor torque only and

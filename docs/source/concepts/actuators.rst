@@ -399,7 +399,8 @@ not the live budget. Read the live budget with
 The drive owns its command-delay buffer and draws a lag per driven joint. The initial lag
 is at least ``min_delay``, including when a hold or staggered update postpones the first draw. It honors
 ``min_delay``, ``max_delay``, ``delay_hold_prob`` and ``delay_update_period`` rather than using
-Newton's fixed-delay component.
+Newton's fixed-delay component. Reset advances the lag and phase random streams only for the
+selected joints, including during CUDA graph replay. Identical seeds and reset histories remain reproducible.
 
 Randomization hooks
 ^^^^^^^^^^^^^^^^^^^

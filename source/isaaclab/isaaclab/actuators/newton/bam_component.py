@@ -139,14 +139,17 @@ class DriveBam(DriveBase):
         delay_phase: wp.array[wp.int32] | None = None
         """Per-DOF offset of the lag-resampling period, shape ``(N,)``."""
 
+        delay_rng_seed: wp.array[wp.int32] | None = None
+        """Per-DOF seed of the current episode, read during graph replay, shape ``(N,)``."""
+
         delay_update_period: int = 0
         """Update period the phase is redrawn against on reset [physics steps]."""
 
         delay_seed: int = 0
-        """Base seed of the phase draw."""
+        """Base seed of the lag and phase draws."""
 
         reset_count: int = 0
-        """Number of resets applied, which decorrelates successive phase draws."""
+        """Number of resets applied, which decorrelates successive episodes' lag and phase draws."""
 
         def assign(self, other: DriveBam.State) -> None:
             """Copy drive history and reset metadata while preserving array storage.
@@ -186,6 +189,7 @@ class DriveBam(DriveBase):
                     self.delay_fill,
                     self.delay_step_count,
                     self.delay_phase,
+                    self.delay_rng_seed,
                     self.delay_update_period,
                     self.delay_seed + self.reset_count,
                 ],
@@ -367,6 +371,7 @@ class DriveBam(DriveBase):
             delay_fill=wp.zeros(num_actuators, dtype=wp.int32, device=device),
             delay_step_count=wp.zeros(num_actuators, dtype=wp.int32, device=device),
             delay_phase=wp.zeros(num_actuators, dtype=wp.int32, device=device),
+            delay_rng_seed=wp.full(num_actuators, self.delay_seed, dtype=wp.int32, device=device),
             delay_update_period=self.delay_update_period,
             delay_seed=self.delay_seed,
         )
@@ -384,6 +389,7 @@ class DriveBam(DriveBase):
                     state.delay_fill,
                     state.delay_step_count,
                     state.delay_phase,
+                    state.delay_rng_seed,
                     self.delay_update_period,
                     self.delay_seed,
                 ],
@@ -442,7 +448,7 @@ class DriveBam(DriveBase):
                 self.max_delay,
                 self.delay_hold_prob,
                 self.delay_update_period,
-                self.delay_seed,
+                state.delay_rng_seed,
             ],
             outputs=[
                 self.motor_torque,
@@ -492,8 +498,9 @@ class DriveBam(DriveBase):
     def update_state(self, current_state: DriveBam.State, next_state: DriveBam.State) -> None:
         for name, scratch in self._next_state_arrays.items():
             wp.copy(getattr(next_state, name), scratch)
-        # The phase only changes on reset, so it is carried across rather than recomputed.
+        # The phase and seed only change on reset.
         wp.copy(next_state.delay_phase, current_state.delay_phase)
+        wp.copy(next_state.delay_rng_seed, current_state.delay_rng_seed)
 
 
 def apply_bam_startup_sampling(drive: DriveBam, cfg: Any) -> None:
