@@ -190,7 +190,7 @@ class ImplicitActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int] | None = None):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         # This is a no-op. There is no state to reset for implicit actuators.
         pass
 
@@ -313,7 +313,7 @@ class IdealPDActuator(ActuatorBase):
     Operations.
     """
 
-    def reset(self, env_ids: Sequence[int]):
+    def reset(self, env_ids: Sequence[int] | None = None, env_mask: torch.Tensor | None = None):
         pass
 
     def compute(
@@ -460,12 +460,12 @@ class DelayedPDActuator(IdealPDActuator):
         self.efforts_delay_buffer = DelayBuffer(cfg.max_delay, self._num_envs, device=self._device)
         self._delay_buffers = (self.positions_delay_buffer, self.velocities_delay_buffer, self.efforts_delay_buffer)
 
-    def reset(self, env_ids: Sequence[int] | torch.Tensor | slice | None):
-        super().reset(env_ids)
+    def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: torch.Tensor | None = None):
+        super().reset(env_ids, env_mask)
         # number of environments (since env_ids can be a slice)
         if env_ids is None:
             env_ids = slice(None)
-        if isinstance(env_ids, torch.Tensor) and env_ids.dtype == torch.bool:
+        if env_mask is not None:
             # a mask samples every environment and the delay buffers keep the masked ones on the device
             num_envs = self._num_envs
         else:
@@ -480,8 +480,8 @@ class DelayedPDActuator(IdealPDActuator):
         )
         # set delays and reset buffers
         for delay_buffer in self._delay_buffers:
-            delay_buffer.set_time_lag(time_lags, env_ids)
-            delay_buffer.reset(env_ids)
+            delay_buffer.set_time_lag(time_lags, env_ids, batch_mask=env_mask)
+            delay_buffer.reset(env_ids, batch_mask=env_mask)
 
     def compute(
         self, control_action: ArticulationActions, joint_pos: torch.Tensor, joint_vel: torch.Tensor

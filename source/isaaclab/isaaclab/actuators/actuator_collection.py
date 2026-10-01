@@ -183,9 +183,9 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
     def reset(self, env_ids: Sequence[int] | slice | None = None, env_mask: wp.array | None = None) -> None:
         """Reset all actuator group states.
 
-        Isaac Lab actuator models receive a mask as a zero-copy boolean tensor, which
-        :meth:`~isaaclab.actuators.ActuatorBase.reset` accepts in place of indices. Backend-native
-        actuator state resets from the mask directly.
+        Isaac Lab actuator models receive the mask as a zero-copy boolean tensor through the ``env_mask``
+        argument of :meth:`~isaaclab.actuators.ActuatorBase.reset`. Backend-native actuator state resets from
+        the mask directly.
 
         .. caution::
             If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
@@ -194,18 +194,13 @@ class ActuatorCollection(Mapping[str, "ActuatorBase | object"]):
             env_ids: Environment indices to reset. Defaults to all environments.
             env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
-        if env_mask is not None:
-            group_env_ids = wp.to_torch(env_mask)
-        else:
-            group_env_ids = self._control._normalize_index_sequence(env_ids)
+        group_env_ids = self._control._normalize_index_sequence(env_ids)
+        group_env_mask = None if env_mask is None else wp.to_torch(env_mask)
         for actuator in self._groups.values():
             # Newton-executed groups are reset through the backend below.
             if isinstance(actuator, ActuatorBase):
-                actuator.reset(group_env_ids)
-        if env_mask is not None:
-            self._control.reset_native_actuators_mask(env_mask)
-        else:
-            self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids)
+                actuator.reset(group_env_ids, env_mask=group_env_mask)
+        self._control.reset_native_actuators(slice(None) if group_env_ids is None else group_env_ids, env_mask)
 
     def compute(self, dt: float = 0.0) -> None:
         """Compute processed actuator commands and telemetry.

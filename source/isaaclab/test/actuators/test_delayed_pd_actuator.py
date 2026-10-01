@@ -51,7 +51,7 @@ def test_masked_reset_matches_index_reset(device):
     previous = torch.cuda.get_sync_debug_mode()
     torch.cuda.set_sync_debug_mode("error")
     try:
-        by_mask.reset(env_mask)
+        by_mask.reset(env_mask=env_mask)
     finally:
         torch.cuda.set_sync_debug_mode(previous)
 

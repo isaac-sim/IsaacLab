@@ -101,8 +101,10 @@ class NewtonActuatorAdapter:
 
         self._states_a = [act.state() for act in actuators]
         self._states_b = [act.state() for act in actuators]
-        # Per-DOF reset masks, rebuilt in full on every partial reset so masked resets do not allocate.
+        # Newton actuator states reset by a per-DOF mask, which every partial reset expands from the env mask.
+        # Allocated once and fully rewritten on each reset, so a reset does not allocate.
         self._reset_dof_masks = [wp.zeros(act.indices.shape[0], dtype=wp.bool, device=device) for act in actuators]
+        # Env masks for resolving env ids in :meth:`reset`.
         self._all_env_mask = wp.ones(num_envs, dtype=wp.bool, device=device)
         self._scratch_env_mask = wp.zeros(num_envs, dtype=wp.bool, device=device)
 

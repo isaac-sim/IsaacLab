@@ -127,10 +127,10 @@ def test_mask_selects_like_indices(device, monkeypatch):
             torch.cuda.set_sync_debug_mode(previous)
 
     by_ids.set_time_lag(masked_lags[batch_ids], batch_ids)
-    without_sync(lambda: by_mask.set_time_lag(masked_lags, mask))
+    without_sync(lambda: by_mask.set_time_lag(masked_lags, batch_mask=mask))
     torch.testing.assert_close(by_mask.time_lags, by_ids.time_lags)
     by_ids.reset(batch_ids)
-    without_sync(lambda: by_mask.reset(mask))
+    without_sync(lambda: by_mask.reset(batch_mask=mask))
     torch.testing.assert_close(by_mask.time_lags, by_ids.time_lags)
     for data in _generate_data(by_mask.batch_size, 4, device):
         torch.testing.assert_close(by_mask.compute(data), by_ids.compute(data))

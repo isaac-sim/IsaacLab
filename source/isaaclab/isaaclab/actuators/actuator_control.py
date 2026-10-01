@@ -308,24 +308,16 @@ class ActuatorControl(ABC):
         """
         raise NotImplementedError
 
-    def reset_native_actuators(self, env_ids: Sequence[int] | slice) -> None:
+    def reset_native_actuators(self, env_ids: Sequence[int] | slice, env_mask: wp.array | None = None) -> None:
         """Reset backend-native actuator state.
+
+        .. caution::
+            If both ``env_ids`` and ``env_mask`` are provided, ``env_mask`` takes precedence.
 
         Args:
             env_ids: Environments to reset.
+            env_mask: Environment mask. Shape is (num_instances,). Defaults to None.
         """
-
-    def reset_native_actuators_mask(self, env_mask: wp.array) -> None:
-        """Reset backend-native actuator state for the environments selected by a mask.
-
-        The default converts the mask to indices for :meth:`reset_native_actuators`. Backends whose
-        native state resets from a mask override it.
-
-        Args:
-            env_mask: Environments to reset. Shape is (num_instances,).
-        """
-        if self.native_actuator_path_active:
-            self.reset_native_actuators(wp.to_torch(env_mask).nonzero(as_tuple=False).squeeze(-1))
 
 
 class ArticulationActuatorControl(ActuatorControl):
