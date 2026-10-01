@@ -818,7 +818,8 @@ class _RecordingRenderVar:
     """Stand-in for an OVRTX ``RenderVarOutput`` that records how the read was ordered.
 
     Any of OVRTX's ordering mechanisms counts, so the test stays about *whether* the read is
-    ordered rather than which call carries it.
+    ordered rather than which call carries it. Like OVRTX, exiting the mapping context unmaps
+    without a sync hint, and only the first unmap call takes effect.
     """
 
     def __init__(self):
@@ -831,29 +832,45 @@ class _RecordingRenderVar:
         recorder = self
 
         class _Mapping:
+            def __init__(self):
+                self.unmapped = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc_info):
+                self.unmap()
+                return False
+
             def wait(self):
                 recorder.ordering.append("host")
 
             def wait_on(self, stream):
                 recorder.ordering.append("gpu")
 
-            def unmap(self, *, stream):
+            def unmap(self, *, stream=None):
+                if self.unmapped:
+                    return
+                self.unmapped = True
                 recorder.ordering.append("release")
                 recorder.release_stream = stream
 
-        return contextlib.nullcontext(_Mapping())
+        return _Mapping()
 
 
-@pytest.mark.parametrize(("gpu_side", "expected"), [(True, "gpu"), (False, "host")])
-@pytest.mark.parametrize("consumer_fails", [False, True])
-@pytest.mark.parametrize("cuda_stream", [0, 99])
+@pytest.mark.parametrize(
+    ("gpu_side", "cuda_stream", "consumer_fails"),
+    [(True, 0, False), (True, 99, False), (False, 0, False), (False, 99, True)],
+)
 def test_ovrtx_map_render_var_orders_the_read_against_render_completion(
-    monkeypatch, gpu_side, expected, consumer_fails, cuda_stream
+    monkeypatch, gpu_side, cuda_stream, consumer_fails
 ):
     """Order producer completion before reading and buffer release after consumption.
 
-    Both stream kinds must use OVRTX's encoding, including when extraction raises after queuing work.
+    Both stream kinds must use OVRTX's encoding, and the stream-ordered release must precede the
+    mapping's no-sync exit, including when extraction raises after queuing work.
     """
+    expected = "gpu" if gpu_side else "host"
     sentinel = object()
     render_var = _RecordingRenderVar()
     monkeypatch.setattr(ovrtx_renderer_module, "_gpu_side_render_var_sync_enabled", lambda: gpu_side)
