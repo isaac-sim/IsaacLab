@@ -501,9 +501,8 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-        # imports the environment runtime and its video recorder (moviepy, SciPy), whose OpenBLAS at-fork handlers
-        # can crash Kit's startup fork, so it must not load before the launch
-        from isaaclab.envs import multi_agent_to_single_agent  # noqa: PLC0415
+        # Import the environment runtime only after simulation launch.
+        from isaaclab.envs import multi_agent_to_single_agent
 
         env = multi_agent_to_single_agent(env)
     return env
