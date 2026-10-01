@@ -19,8 +19,12 @@ BOWL = (0.48, 0.16, 0.060, 0.057, 0.004, 0.045)
 PUNNET = (0.48, 0.0, 0.055, 0.070, 0.010, 0.001, 0.004, 0.028)
 REJECT = (0.40, -0.085, 0.028, 0.026, 0.004, 0.018)
 # The spawner replaces (rather than composes with) the asset root pose. Retain
-# its authored 55 cm translation and quarter turn; raise its -3 mm top to z=0.
-TABLE_POSITION = (0.55, 0.0, 0.003)
+# its authored 55 cm translation and quarter turn. The table's visible top lies
+# 1.42 mm above its collision box, whose authored top is at -3 mm: place the
+# visible top 0.1 mm below z=0, where the tableware stands, so that no glass or
+# plastic face is buried in or coincident with the tabletop.
+TABLE_VISIBLE_TOP = 0.00142
+TABLE_POSITION = (0.55, 0.0, 0.003 - TABLE_VISIBLE_TOP - 0.0001)
 TABLE_ROTATION = (0.0, 0.0, math.sqrt(0.5), math.sqrt(0.5))
 
 
@@ -244,6 +248,11 @@ def add_tableware_visuals(stage: Usd.Stage) -> None:
             # Only the outer foot ring touches the tabletop.
             profile[:1] = [(0, 0.0007), (outer - 0.004, 0.0007), (outer - 0.002, 0)]
         mesh = _lathe(stage, f"/World/Tableware/{name}", profile, (x, y))
+        if name == "Bowl":
+            # RTX shadow rays do not refract: solid glass would cast an opaque
+            # shadow and leave the tabletop seen through its floor black.
+            primvars = UsdGeom.PrimvarsAPI(mesh)
+            primvars.CreatePrimvar("doNotCastShadows", Sdf.ValueTypeNames.Bool).Set(True)
         material = UsdShade.Material.Define(stage, f"/World/Tableware/{name}Material")
         shader = UsdShade.Shader.Define(stage, f"{material.GetPath()}/Shader")
         if name == "Bowl":
