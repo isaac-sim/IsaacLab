@@ -91,7 +91,7 @@ Inside the container, run the logging example without a visualizer:
 
 .. code-block:: bash
 
-    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py --viz none
+    uv run isaaclab -p scripts/tutorials/00_sim/log_time.py
 
 The script writes simulation time at each step to
 ``/workspace/isaaclab/logs/docker_tutorial/log.txt``. Stop the script with ``Ctrl+C``

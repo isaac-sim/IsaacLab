@@ -252,8 +252,8 @@ def _parse_args(argv: list[str] | None, policy: PolicyName) -> argparse.Namespac
     )
     add_video_args(parser, action=f"the {policy} agent run")
     add_launcher_args(parser)
-    # let task configs select the simulation device and keep checkpoint-free agents on the kitless default path
-    parser.set_defaults(device=None, visualizer=["newton_gl"])
+    # let task configs select the simulation device
+    parser.set_defaults(device=None)
     args_cli, hydra_args = setup_preset_cli(parser, argv)
     enable_cameras_for_video(args_cli)
     sys.argv = [sys.argv[0]] + hydra_args
