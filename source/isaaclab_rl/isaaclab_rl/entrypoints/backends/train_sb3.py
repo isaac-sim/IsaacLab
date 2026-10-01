@@ -118,6 +118,8 @@ def run(argv: list[str]) -> None:
             if args_cli.max_iterations is not None:
                 agent_cfg["n_timesteps"] = args_cli.max_iterations * agent_cfg["n_steps"] * env_cfg.scene.num_envs
             env_cfg.seed = agent_cfg["seed"]
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg["device"] = env_cfg.sim.device
 
             log_root_path = os.path.abspath(os.path.join("logs", "sb3", args_cli.task))
             print(f"[INFO] Logging experiment in directory: {log_root_path}")

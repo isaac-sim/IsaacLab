@@ -140,6 +140,8 @@ def export_rsl_rl_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: R
     if args_cli.experiment_name is not None:
         agent_cfg.experiment_name = args_cli.experiment_name
     agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_version)
+    # the agent runs on the device launch_simulation resolved for the simulation
+    agent_cfg.device = env_cfg.sim.device
 
     env_cfg.scene.num_envs = 1
     # certain randomizations occur in the environment initialization so we set the seed here

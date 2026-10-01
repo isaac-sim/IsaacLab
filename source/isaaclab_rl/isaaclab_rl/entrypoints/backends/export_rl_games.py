@@ -103,6 +103,8 @@ def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg:
     from leapp import annotate
 
     params = agent_cfg["params"]
+    # the agent runs on the device launch_simulation resolved for the simulation
+    params["config"]["device"] = params["config"]["device_name"] = env_cfg.sim.device
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]
 

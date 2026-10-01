@@ -144,7 +144,7 @@ def run(argv: list[str]) -> None:
                 )
 
             print(f"Loading checkpoint from: {checkpoint_path}")
-            agent = PPO.load(checkpoint_path, env, print_system_info=True)
+            agent = PPO.load(checkpoint_path, env, device=env_cfg.sim.device, print_system_info=True)
             # configure_seed must run after PPO.load so torch determinism does not disturb SB3's initialization
             if args_cli.deterministic:
                 configure_seed(env_cfg.seed, torch_deterministic=True)

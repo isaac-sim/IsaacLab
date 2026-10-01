@@ -186,6 +186,8 @@ def run(argv: list[str]) -> BenchmarkResult:
             )
 
             # Read rl_games device / clipping config.
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg["params"]["config"]["device"] = agent_cfg["params"]["config"]["device_name"] = env_cfg.sim.device
             rl_device = agent_cfg["params"]["config"]["device"]
             clip_obs = agent_cfg["params"]["env"].get("clip_observations", math.inf)
             clip_actions = agent_cfg["params"]["env"].get("clip_actions", math.inf)

@@ -118,11 +118,11 @@ def run(argv: list[str]) -> None:
                 params["seed"] = args_cli.seed
             if args_cli.max_iterations is not None:
                 config["max_epochs"] = args_cli.max_iterations
+            # the agent runs on the device launch_simulation resolved for the simulation
+            config["device"] = config["device_name"] = env_cfg.sim.device
             rank = int(os.getenv("RANK", "0")) if args_cli.distributed else None
             if rank is not None:
                 params["seed"] += rank
-                config["device"] = env_cfg.sim.device
-                config["device_name"] = env_cfg.sim.device
                 config["multi_gpu"] = True
             env_cfg.seed = params["seed"]
 

@@ -145,6 +145,8 @@ def run(argv: list[str]) -> BenchmarkResult:
 
             installed_rsl_rl = metadata.version("rsl-rl-lib")
             agent_cfg = handle_deprecated_rsl_rl_cfg(agent_cfg, installed_rsl_rl)
+            # the agent runs on the device launch_simulation resolved for the simulation
+            agent_cfg.device = env_cfg.sim.device
 
             log_root_path = os.path.abspath(os.path.join("logs", "rsl_rl", agent_cfg.experiment_name))
             if args.checkpoint in common.CHECKPOINT_SELECTORS:
