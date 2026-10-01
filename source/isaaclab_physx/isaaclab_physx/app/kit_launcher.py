@@ -145,7 +145,7 @@ class KitLauncher(SimulationLauncher):
         elif isinstance(launcher_args, argparse.Namespace):
             launcher_args = launcher_args.__dict__
 
-        # ``launch_simulation`` applied the Python logging level; keep it for after Kit installs its logging bridge.
+        # Re-applied after Kit installs its logging bridge, which resets the Python logging level.
         self._python_logging_level = resolve_python_logging_level(launcher_args)
 
         # Define config members that are read from env-vars or keyword args

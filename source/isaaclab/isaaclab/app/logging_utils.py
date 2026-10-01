@@ -20,13 +20,6 @@ from contextlib import contextmanager
 _INFO_HANDLER_NAME = "isaaclab_info_stream"
 _FALLBACK_HANDLER_NAME = "isaaclab_fallback_stream"
 
-_requested_level: int | None = None
-"""Level last passed to :func:`ensure_console_handlers`.
-
-The root logger is lowered to INFO so that Isaac Lab INFO records are created, so its level no longer
-reflects the requested one.
-"""
-
 
 @contextmanager
 def force_log_level(level: int):
@@ -62,24 +55,23 @@ def apply_python_logging_level(level: int) -> None:
 
 
 def resolve_python_logging_level(args: dict | None = None) -> int:
-    """Return the level for ``--verbose`` / ``--info`` (also read from ``sys.argv``), else the current level.
+    """Return the level requested with ``--verbose`` / ``--info``, also read from ``sys.argv``.
+
+    The root logger's level is not used because :func:`ensure_console_handlers` lowers it to INFO.
 
     Args:
         args: Parsed launcher arguments. Defaults to None, in which case only ``sys.argv`` is inspected.
 
     Returns:
-        :data:`logging.DEBUG` for ``--verbose``, :data:`logging.INFO` for ``--info``, otherwise the level
-        requested by an earlier :func:`ensure_console_handlers` call or the root logger's level.
+        :data:`logging.DEBUG` for ``--verbose``, :data:`logging.INFO` for ``--info``, otherwise
+        :data:`logging.WARNING`.
     """
     args = {} if args is None else args
     if args.get("verbose", False) or "--verbose" in sys.argv:
         return logging.DEBUG
     if args.get("info", False) or "--info" in sys.argv:
         return logging.INFO
-    if _requested_level is not None:
-        return _requested_level
-    level = logging.getLogger().getEffectiveLevel()
-    return logging.WARNING if level == logging.NOTSET else level
+    return logging.WARNING
 
 
 def ensure_console_handlers(level: int, fallback: bool = True) -> None:
@@ -101,7 +93,6 @@ def ensure_console_handlers(level: int, fallback: bool = True) -> None:
         level: The requested Python logging level, e.g. from :func:`resolve_python_logging_level`.
         fallback: Whether to print warnings on stderr when no other handler is configured.
     """
-    global _requested_level
     root = logging.getLogger()
     handlers = {handler.name: handler for handler in root.handlers}
     if not fallback and _FALLBACK_HANDLER_NAME in handlers:
@@ -127,7 +118,6 @@ def ensure_console_handlers(level: int, fallback: bool = True) -> None:
             fallback_handler.setFormatter(logging.Formatter("[%(levelname)s]: %(message)s"))
             root.addHandler(fallback_handler)
         fallback_handler.setLevel(level)
-    _requested_level = level
     root.setLevel(min(level, logging.INFO))
 
 

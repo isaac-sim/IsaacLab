@@ -23,7 +23,6 @@ def _isolated_root(monkeypatch: pytest.MonkeyPatch):
     """
     root = logging.getLogger()
     saved_handlers, saved_level = root.handlers[:], root.level
-    monkeypatch.setattr(logging_utils, "_requested_level", None)
     monkeypatch.setattr(sys, "argv", ["prog"])
     root.handlers.clear()
     root.setLevel(logging.WARNING)
@@ -45,7 +44,7 @@ def test_console_handlers_print_isaaclab_info_and_all_warnings(monkeypatch, caps
         logging.getLogger("third_party").info("noise")
         logging.getLogger("third_party").warning("careful")
 
-        # the root is lowered to create INFO records, but the requested level is still reported
+        # the root is lowered to create INFO records, but the level still comes from the flags
         assert root.level == logging.INFO
         assert logging_utils.resolve_python_logging_level() == logging.WARNING
 
