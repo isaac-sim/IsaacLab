@@ -574,12 +574,13 @@ def _is_world_fixed_joint(prim: Usd.Prim) -> bool:
     stage = prim.GetStage()
     for rel in (joint.GetBody0Rel(), joint.GetBody1Rel()):
         targets = rel.GetTargets()
-        body = stage.GetPrimAtPath(targets[0]) if targets else None
-        while body and not body.IsPseudoRoot():
-            if body.HasAPI(UsdPhysics.RigidBodyAPI) or body.HasAPI(UsdPhysics.CollisionAPI):
-                break
-            body = body.GetParent()
-        if not body or body.IsPseudoRoot():
+        # an empty or dangling target attaches the joint to the world
+        if not targets or not stage.GetPrimAtPath(targets[0]):
+            return True
+        body = get_first_matching_ancestor_prim(
+            targets[0], lambda p: p.HasAPI(UsdPhysics.RigidBodyAPI) or p.HasAPI(UsdPhysics.CollisionAPI), stage=stage
+        )
+        if body is None:
             return True
     return False
 
