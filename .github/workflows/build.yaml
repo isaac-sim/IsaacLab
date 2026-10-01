@@ -1288,13 +1288,6 @@ jobs:
         name: performance-smoke-${{ github.run_id }}-${{ github.run_attempt }}
         path: comparisons
       continue-on-error: true
-    - name: Summarise performance comparisons
-      run: |
-        set -euo pipefail
-        uv run --no-project python -m tools.perf_smoke.cli aggregate \
-          --comparison_dir comparisons \
-          | tee -a "$GITHUB_STEP_SUMMARY"
-
     - name: Compare the current benchmark with its historical build
       if: always()
       continue-on-error: true
@@ -1312,24 +1305,36 @@ jobs:
         path: build-comparison/
         if-no-files-found: warn
 
-    - name: Show the automatic build comparison
+    - name: Summarise performance comparisons
       if: always()
-      continue-on-error: true
       env:
         COMPARISON_ARTIFACT_URL: ${{ steps.build_comparison_artifact.outputs.artifact-url }}
       run: |
-        if [ -f build-comparison/build-comparison.md ]; then
-          cat build-comparison/build-comparison.md >> "$GITHUB_STEP_SUMMARY"
-        else
-          echo '### Automatic build comparison' >> "$GITHUB_STEP_SUMMARY"
-          echo '' >> "$GITHUB_STEP_SUMMARY"
-          echo 'Comparison unavailable: report generation did not complete. See the comparison step above.' >> "$GITHUB_STEP_SUMMARY"
-        fi
-        if [ -n "$COMPARISON_ARTIFACT_URL" ]; then
-          printf '\n[Download comparison report and provenance](%s)\n' "$COMPARISON_ARTIFACT_URL" >> "$GITHUB_STEP_SUMMARY"
-        else
-          printf '\nThe comparison artifact was not uploaded; source-result links remain in the summary.\n' >> "$GITHUB_STEP_SUMMARY"
-        fi
+        set -euo pipefail
+        gate_exit=0
+        uv run --no-project python -m tools.perf_smoke.cli aggregate \
+          --comparison_dir comparisons > rolling-history.md || gate_exit=$?
+        {
+          printf '## Performance smoke\n\n'
+          if [ -s build-comparison/build-comparison.md ]; then
+            cat build-comparison/build-comparison.md
+          else
+            printf '### Automatic build comparison\n\n'
+            printf '**Build comparison: SKIPPED.** The comparison report was not produced; baseline selection and A/B results are unavailable. See the "Compare the current benchmark with its historical build" step for the error.\n\n'
+            printf '**B — current build:** [%s](%s/%s/commit/%s) · [run %s, attempt %s](%s/%s/actions/runs/%s/attempts/%s).\n\n' \
+              "$GITHUB_SHA" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
+              "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT"
+            printf '**A — baseline build:** unavailable because report generation did not complete.\n'
+          fi
+          printf '\n'
+          cat rolling-history.md
+          if [ -n "$COMPARISON_ARTIFACT_URL" ]; then
+            printf '\n[Download optional comparison evidence and provenance](%s)\n' "$COMPARISON_ARTIFACT_URL"
+          else
+            printf '\nThe optional comparison artifact was not uploaded; available source-result links are shown above.\n'
+          fi
+        } | tee -a "$GITHUB_STEP_SUMMARY"
+        exit "$gate_exit"
 
   # Publishes the shared Warp kernel cache the test jobs restore. Needed as its
   # own job because a cache written from a PR is readable only by that PR, and

@@ -14,9 +14,10 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from . import build_compare, cli
+from . import build_compare, cli, compare
 from .baseline import Evidence, workload_key
 from .build_compare import compare_evidence
+from .report import render_aggregate, render_build_comparison
 from .test_baseline import HEAD, PARENT, FixtureClient, stamp
 
 
@@ -63,6 +64,92 @@ def evidence(samples=None, *, expected=3, formula="aggregate_frames_over_measure
         zip_bytes=b"",
         run={},
     )
+
+
+class ReportRenderingTests(unittest.TestCase):
+    def test_observed_direction_is_explicit_without_a_gate_verdict(self):
+        for fps, expected in ((110, "Higher observed FPS"), (90, "Lower observed FPS"), (100, "No observed change")):
+            with self.subTest(fps=fps):
+                report = compare_evidence(evidence(), evidence({"leg": [bundle(fps)] * 3}))
+                snapshot = copy.deepcopy(report)
+                markdown = render_build_comparison(report)
+                self.assertIn(expected, markdown)
+                self.assertIn("Baseline A FPS | Current B FPS", markdown)
+                self.assertNotIn("PASS", markdown)
+                self.assertNotIn("FAIL", markdown)
+                self.assertEqual(report, snapshot)
+
+    def test_missing_partial_and_incompatible_reasons_remain_visible(self):
+        for a, b, expected, reason in (
+            (None, evidence(), "Not compared: missing data", "Baseline:"),
+            (evidence(), evidence({"leg": [bundle(100)]}), "Not compared: partial data", "Candidate:"),
+            (
+                evidence(),
+                evidence(formula="different"),
+                "Not compared: incompatible measurements",
+                "FPS formula identities differ.",
+            ),
+        ):
+            with self.subTest(expected=expected):
+                markdown = render_build_comparison(compare_evidence(a, b))
+                self.assertIn(expected, markdown)
+                self.assertIn(reason, markdown)
+                self.assertIn("**Comparison details:**", markdown)
+
+    def test_context_details_are_outside_the_numeric_table_and_shared_notes_are_collapsed(self):
+        a = evidence({"one": [bundle(100, "One")] * 3, "two": [bundle(200, "Two")] * 3})
+        b = evidence({"one": [bundle(110, "One")] * 3, "two": [bundle(210, "Two")] * 3})
+        for samples in b.samples.values():
+            for sample in samples:
+                sample["bundle"]["hardware"]["hostname"] = "worker-b"
+        markdown = render_build_comparison(compare_evidence(a, b))
+        table_lines = [line for line in markdown.splitlines() if line.startswith("|")]
+        self.assertFalse(any("hardware.hostname" in line for line in table_lines))
+        self.assertEqual(markdown.count("hardware.hostname"), 1)
+        self.assertIn("**All workloads:** hardware.hostname", markdown)
+        self.assertIn("does not isolate a commit effect", markdown)
+
+    def test_rolling_gate_exposes_recorded_skip_and_error_causes(self):
+        missing_credential = "No baseline store credential is available for this run"
+        reports = [
+            (
+                "cartpole-newton",
+                compare.Report(
+                    verdict=compare.SKIP,
+                    message=missing_credential,
+                    metrics=(compare.MetricResult("total_fps", "Total FPS", 1801565.067428147),),
+                ),
+            ),
+            (
+                "partial",
+                compare.Report(
+                    verdict=compare.SKIP,
+                    message="No gating metric could be compared",
+                    metrics=(
+                        compare.MetricResult(
+                            "total_fps",
+                            "Total FPS",
+                            100,
+                            note="insufficient independent runs for ASV significance testing",
+                        ),
+                    ),
+                ),
+            ),
+            ("failed", compare.errored("comparison artifact could not be read: invalid JSON")),
+        ]
+        snapshot = [report.as_dict() for _, report in reports]
+        markdown = render_aggregate(reports)
+        self.assertIn("### Rolling-history CI gate: 🚫 ERROR", markdown)
+        self.assertIn(missing_credential, markdown)
+        self.assertIn("Total FPS: insufficient independent runs for ASV significance testing", markdown)
+        self.assertIn("comparison artifact could not be read: invalid JSON", markdown)
+        self.assertEqual([report.as_dict() for _, report in reports], snapshot)
+
+    def test_rolling_gate_does_not_invent_an_absent_reason(self):
+        markdown = render_aggregate([("unknown", compare.Report(verdict=compare.SKIP))])
+        self.assertIn("No reason was recorded in this comparison artifact", markdown)
+        self.assertNotIn("credential", markdown)
+        self.assertIn("### Rolling-history CI gate: no results", render_aggregate([]))
 
 
 class BuildComparisonTests(unittest.TestCase):
