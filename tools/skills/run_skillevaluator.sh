@@ -4,10 +4,7 @@
 # Usage:
 #   ./tools/skills/run_skillevaluator.sh [skill_dir ...]
 #
-# With no arguments, runs against all three PR skills:
-#   isaaclab-building-environments
-#   isaaclab-converting-direct-to-manager
-#   isaaclab-migrating-from-isaac-gym
+# With no arguments, runs against every published skill under skills/user/.
 #
 # Tier 2A / 2B / 3 require NVIDIA_API_KEY to be set in the environment.
 # Tier 3 also requires Docker.
@@ -23,11 +20,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 cd "${REPO_ROOT}"
 
-DEFAULT_SKILLS=(
-  skills/user/isaaclab-building-environments
-  skills/user/isaaclab-converting-direct-to-manager
-  skills/user/isaaclab-migrating-from-isaac-gym
-)
+DEFAULT_SKILLS=()
+for skill_dir in skills/user/*/; do
+  [ -d "${skill_dir}" ] && DEFAULT_SKILLS+=("${skill_dir%/}")
+done
 
 if [ $# -gt 0 ]; then
   SKILLS=("$@")
@@ -37,7 +33,7 @@ fi
 
 if ! command -v skillevaluator &>/dev/null; then
   echo "ERROR: skillevaluator not found. Install with:"
-  echo "  pip install 'skillevaluator[tier2,security,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@v0.1.0'"
+  echo "  pip install 'skillevaluator[tier2,security,tier3] @ git+https://github.com/NVIDIA/SkillEvaluator.git@v0.3.0'"
   exit 1
 fi
 
