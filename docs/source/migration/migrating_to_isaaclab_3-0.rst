@@ -2589,9 +2589,9 @@ and sets ``source="visualizer:kit"`` on the default recorder, printing:
 
 .. code-block:: text
 
-   [INFO] --video specified without --viz: auto-creating a headless Kit visualizer
-   for video recording. Pass --viz <type> to choose a different visualizer, or
-   set video_recorders in your env config to record from a scene sensor instead.
+   [INFO] --video specified without --viz: adding a headless Kit visualizer to record
+   from. Pass --viz <type> to choose a different visualizer, or set video_recorders in
+   your env config to record from a scene sensor instead.
 
 
 .. rubric:: Viewport Camera Configuration (``ViewerCfg`` deprecated)
@@ -3302,19 +3302,19 @@ For a complete guide to multi-backend support, see the "Multi-Backend Support: P
 Pattern" section above.
 
 
-.. rubric:: XR Teleoperation: Isaac Teleop Integration
+.. rubric:: XR Teleoperation: Isaac Capture Integration
 
 The native XR teleoperation stack in ``isaaclab.devices.openxr`` has been deprecated and replaced
-by `Isaac Teleop <https://github.com/NVIDIA/IsaacTeleop>`_, integrated via the ``isaaclab_teleop``
+by `Isaac Capture <https://github.com/NVIDIA/IsaacCapture>`_, integrated via the ``isaaclab_teleop``
 extension. The ``isaac-teleop-device-plugins`` repository has also been deprecated; all device
-plugin support is now in Isaac Teleop.
+plugin support is now in Isaac Capture.
 
 For full documentation on the new stack, see :ref:`isaac-teleop-feature`.
 
 
 **Installation Requirement**
 
-Isaac Teleop must now be installed in your Isaac Lab environment:
+Isaac Capture must now be installed in your Isaac Lab environment:
 
 .. code-block:: bash
 
@@ -3340,7 +3340,7 @@ See :ref:`install-isaac-teleop` for complete installation instructions.
    * - ``from isaaclab.devices.openxr import ManusVive``
      - ``from isaaclab_teleop import IsaacTeleopDevice`` (with Manus plugin configured)
    * - ``from isaaclab.devices import RetargeterBase``
-     - Use Isaac Teleop ``BaseRetargeter`` and pipeline builder pattern
+     - Use Isaac Capture ``BaseRetargeter`` and pipeline builder pattern
    * - ``from isaaclab.devices.openxr.retargeters import Se3AbsRetargeter``
      - ``from isaacteleop.retargeters import Se3AbsRetargeter``
 
