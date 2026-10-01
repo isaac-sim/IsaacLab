@@ -59,14 +59,20 @@ def test_vendored_params_match_reference(goldens: dict[str, np.ndarray]) -> None
     assert (params["stribeck"], params["load_dependent"], params["quadratic"]) == (1, 1, 1)
 
 
-def test_json_import_bakes_coefficients_into_usd(tmp_path):
+def test_json_import_bakes_coefficients_into_usd(tmp_path, goldens):
     """The optional importer produces a portable asset, even after its input JSON is removed."""
     repo = Path(__file__).resolve().parents[4]
     source = tmp_path / "source.usda"
     output = tmp_path / "output.usda"
     fit = tmp_path / "fit.json"
     source.write_text('#usda 1.0\ndef Xform "Robot" {\n def PhysicsRevoluteJoint "servo" {}\n }\n')
-    values = json.loads((repo / "source/isaaclab/isaaclab/actuators/data/bam_xl330_m6.json").read_text())
+    metadata = {"bam_commit", "motor_name", "model_name", "seed", "num_samples", "dt"}
+    values = {
+        name.removeprefix("attr_"): value.item()
+        for name, value in goldens.items()
+        if name.startswith("attr_") and name.removeprefix("attr_") not in metadata
+    }
+    values.update(actuator="xl330", model="m6")
     fit.write_text(json.dumps(values))
     subprocess.run(
         [
