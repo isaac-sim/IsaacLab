@@ -322,6 +322,7 @@ class IsaacRtxRenderer(BaseRenderer):
             needs_color_render = any(
                 data_type in spec.cfg.data_types for data_type in ("rgb", "rgba", str(RenderBufferKind.RGB_HDR))
             )
+            self._validate_render_mode(simple_shading_mode)
             has_gui = settings.get("/isaaclab/has_gui")
             if simple_shading_mode is None and (not needs_color_render or has_gui):
                 settings.set("/rtx/sdg/force/disableColorRender", not needs_color_render and not has_gui)
@@ -336,7 +337,7 @@ class IsaacRtxRenderer(BaseRenderer):
                     " Isaac Sim versions before 6.0:"
                     f" {unsupported}."
                 )
-        self._validate_render_mode(simple_shading_mode)
+            self._validate_render_mode(simple_shading_mode)
 
         # HACK: Isaac Sim 4.5 has a bug in Camera that breaks segmentation
         # outputs for instanceable assets. Disable instancing as a workaround.
@@ -478,15 +479,10 @@ class IsaacRtxRenderer(BaseRenderer):
 
         # Annotator attachment may resynchronize process-wide RTX settings onto the product.
         render_mode = self.cfg.render_mode
-        if render_mode in RTX_PATH_TRACING_RENDER_MODES:
-            self._apply_render_mode_override(stage, rp.path, render_mode)
-        elif simple_shading_mode is not None:
-            self._apply_simple_shading_settings(
-                stage,
-                rp.path,
-                simple_shading_mode,
-                enable_minimal_render_mode=render_mode == RTX_MINIMAL_RENDER_MODE or not needs_color_render,
-            )
+        if render_mode is None and simple_shading_mode is not None and not needs_color_render:
+            render_mode = RTX_MINIMAL_RENDER_MODE
+        if simple_shading_mode is not None or render_mode is not None:
+            self._apply_simple_shading_settings(stage, rp.path, simple_shading_mode, render_mode=render_mode)
 
         ppisp_pipeline = None
         if spec.cfg.isp_cfg is not None:
@@ -518,38 +514,26 @@ class IsaacRtxRenderer(BaseRenderer):
         if simple_shading_mode is None:
             raise ValueError("Isaac RTX render mode 'Minimal' requires a simple-shading output.")
 
-    def _apply_render_mode_override(self, stage: Usd.Stage, render_product_path: str, render_mode: str) -> None:
-        """Author an explicit path-tracing render mode on one render product."""
-        rp_prim = stage.GetPrimAtPath(render_product_path)
-        if rp_prim is None or not rp_prim.IsValid():
-            logger.warning(
-                "create_render_data: render product prim at '%s' not found; render mode '%s' will not be applied.",
-                render_product_path,
-                render_mode,
-            )
-            return
-        with Usd.EditContext(stage, stage.GetSessionLayer()):
-            with Sdf.ChangeBlock():
-                rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(render_mode)
-
     def _apply_simple_shading_settings(
         self,
         stage: Usd.Stage,
         render_product_path: str,
-        shading_mode: int,
+        shading_mode: int | None,
         *,
-        enable_minimal_render_mode: bool,
+        render_mode: str | None,
     ) -> None:
-        """Configure one render product for the requested simple-shading level.
+        """Configure one render product for the requested simple-shading level and render mode.
 
         Simple shading only becomes cheaper than a full render when the render product's render
         mode is Minimal. Selecting a shading level while the product stays in
         ``RealTimePathTracing`` still pays for the path-tracing pipeline on every frame.
 
-        The shading level is always authored per render product. Minimal render mode is enabled
-        only when the product has no regular color output, preserving existing ``rgb``, ``rgba``,
-        and ``rgb_hdr`` behavior for mixed requests. These values are not written through their
-        process-wide carb settings, so color cameras, the Kit viewport, and
+        The shading level is always authored per render product, independently of the render mode.
+        By default Minimal render mode is enabled only when the product has no regular color output,
+        preserving existing ``rgb``, ``rgba``, and ``rgb_hdr`` behavior for mixed requests; an explicit
+        :attr:`~isaaclab_physx.renderers.IsaacRtxRendererCfg.render_mode` is authored as given.
+        These values are not written through their process-wide carb settings, so color cameras,
+        the Kit viewport, and
         :func:`~isaaclab_physx.renderers.isaac_rtx_renderer_utils.apply_isaac_rtx_determinism_settings`
         keep path tracing, and so cameras requesting different shading levels do not overwrite
         each other.
@@ -557,8 +541,9 @@ class IsaacRtxRenderer(BaseRenderer):
         Args:
             stage: Stage owning the render product.
             render_product_path: Prim path of the render product to configure.
-            shading_mode: Minimal shading level, one of the values in :data:`SIMPLE_SHADING_MODES`.
-            enable_minimal_render_mode: Whether to switch the render product to RTX Minimal mode.
+            shading_mode: Minimal shading level, one of the values in :data:`SIMPLE_SHADING_MODES`, or
+                ``None`` to leave it unauthored.
+            render_mode: Render mode to author on the render product, or ``None`` to leave it unauthored.
         """
         rp_prim = stage.GetPrimAtPath(render_product_path)
         if rp_prim is None or not rp_prim.IsValid():
@@ -570,9 +555,10 @@ class IsaacRtxRenderer(BaseRenderer):
             return
         with Usd.EditContext(stage, stage.GetSessionLayer()):
             with Sdf.ChangeBlock():
-                if enable_minimal_render_mode:
-                    rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(RTX_MINIMAL_RENDER_MODE)
-                rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
+                if render_mode is not None:
+                    rp_prim.CreateAttribute(RTX_RENDER_MODE_ATTR, Sdf.ValueTypeNames.Token).Set(render_mode)
+                if shading_mode is not None:
+                    rp_prim.CreateAttribute(RTX_MINIMAL_MODE_ATTR, Sdf.ValueTypeNames.Int).Set(shading_mode)
 
     def _resolve_simple_shading_mode(self, spec: CameraRenderSpec) -> int | None:
         """Resolve the requested simple shading mode from data types."""

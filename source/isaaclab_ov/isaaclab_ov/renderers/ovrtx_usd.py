@@ -235,7 +235,9 @@ def build_render_scope_usd(
     # Minimal is the only OVRTX render mode with a shadow switch, so ``enable_shadows`` is authored
     # only there. The path-traced modes always trace shadows: ``omni:rtx:shadows:enabled`` exists as
     # a setting name and authors without error, but no path-tracing backend reads it.
-    selected_render_mode = render_mode or ("Minimal" if minimal_mode is not None else "RealTimePathTracing")
+    selected_render_mode = (
+        render_mode if render_mode is not None else ("Minimal" if minimal_mode is not None else "RealTimePathTracing")
+    )
     if selected_render_mode == "Minimal":
         if minimal_mode is None:
             raise ValueError("OVRTX render mode 'Minimal' requires a simple-shading output.")

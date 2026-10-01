@@ -130,6 +130,12 @@ def test_build_render_scope_usd_rejects_minimal_without_simple_shading(camera_sp
         build_render_scope_usd(camera_spec, render_data, render_mode="Minimal")
 
 
+def test_build_render_scope_usd_rejects_empty_render_mode(camera_spec, render_data):
+    """An empty override is rejected and not treated as unset."""
+    with pytest.raises(ValueError, match="Unsupported OVRTX render mode"):
+        build_render_scope_usd(camera_spec, render_data, render_mode="")
+
+
 def test_render_product_solid_background_color(camera_spec, render_data):
     """Providing background_color emits color source type and the color attribute."""
     camera_spec.cfg.background_color = (1.0, 0.0, 0.5)

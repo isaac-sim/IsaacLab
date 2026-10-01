@@ -196,24 +196,29 @@ def test_create_render_data_uses_unique_sdf_safe_render_product_name(monkeypatch
 
 
 @pytest.mark.parametrize(
-    ("data_types", "expected_shading_mode", "expected_minimal_render_mode"),
+    ("data_types", "expected_shading_mode", "expected_render_mode", "render_mode"),
     [
-        pytest.param(["simple_shading_constant_diffuse"], 1, True, id="constant_diffuse"),
-        pytest.param(["simple_shading_diffuse_mdl"], 2, True, id="diffuse_mdl"),
-        pytest.param(["simple_shading_full_mdl"], 3, True, id="full_mdl"),
+        pytest.param(["simple_shading_constant_diffuse"], 1, "Minimal", None, id="constant_diffuse"),
+        pytest.param(["simple_shading_diffuse_mdl"], 2, "Minimal", None, id="diffuse_mdl"),
+        pytest.param(["simple_shading_full_mdl"], 3, "Minimal", None, id="full_mdl"),
         pytest.param(
             ["simple_shading_constant_diffuse", "simple_shading_full_mdl"],
             1,
-            True,
+            "Minimal",
+            None,
             id="multiple_modes_use_first",
         ),
-        pytest.param(["rgb", "simple_shading_full_mdl"], 3, False, id="rgb_keeps_path_tracing"),
-        pytest.param(["rgba", "simple_shading_full_mdl"], 3, False, id="rgba_keeps_path_tracing"),
-        pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, False, id="rgb_hdr_keeps_path_tracing"),
+        pytest.param(["rgb", "simple_shading_full_mdl"], 3, None, None, id="rgb_keeps_path_tracing"),
+        pytest.param(["rgba", "simple_shading_full_mdl"], 3, None, None, id="rgba_keeps_path_tracing"),
+        pytest.param(["rgb_hdr", "simple_shading_full_mdl"], 3, None, None, id="rgb_hdr_keeps_path_tracing"),
+        pytest.param(["rgb", "simple_shading_full_mdl"], 3, "Minimal", "Minimal", id="explicit_minimal_with_rgb"),
+        pytest.param(
+            ["simple_shading_full_mdl"], 3, "PathTracing", "PathTracing", id="explicit_path_tracing_keeps_level"
+        ),
     ],
 )
 def test_simple_shading_configures_its_render_product(
-    monkeypatch, data_types, expected_shading_mode, expected_minimal_render_mode
+    monkeypatch, data_types, expected_shading_mode, expected_render_mode, render_mode
 ):
     """Simple shading must configure its product without altering requested color output.
 
@@ -281,7 +286,7 @@ def test_simple_shading_configures_its_render_product(
         ),
     )
     renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
-    renderer.cfg = IsaacRtxRendererCfg()
+    renderer.cfg = IsaacRtxRendererCfg(render_mode=render_mode)
 
     with (
         patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
@@ -295,8 +300,8 @@ def test_simple_shading_configures_its_render_product(
         index for index, operation in enumerate(operation_order) if operation == "attach"
     )
     stage.GetSessionLayer.assert_called_once()
-    if expected_minimal_render_mode:
-        assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call("Minimal")
+    if expected_render_mode is not None:
+        assert authored_attributes["omni:rtx:rendermode"].Set.call_args == call(expected_render_mode)
         assert authored_attributes["omni:rtx:rendermode"].value_type == Sdf.ValueTypeNames.Token
     else:
         assert "omni:rtx:rendermode" not in authored_attributes
@@ -364,6 +369,30 @@ def test_depth_only_camera_color_render_setting(monkeypatch, has_gui, expected_d
         if setting_call.args[0] == "/rtx/sdg/force/disableColorRender"
     ]
     assert color_render_calls[-1] == call("/rtx/sdg/force/disableColorRender", expected_disable_color_render)
+
+
+def test_rejected_render_mode_leaves_global_settings_untouched(monkeypatch):
+    """A camera whose render mode is rejected must not change process-wide RTX settings first."""
+    _, syntheticdata_module = _install_omni_stubs(monkeypatch)
+    monkeypatch.setattr(syntheticdata_module, "SyntheticData", MagicMock(), raising=False)
+
+    import isaaclab_physx.renderers.isaac_rtx_renderer as rtx_renderer
+    from isaaclab_physx.renderers.isaac_rtx_renderer_cfg import IsaacRtxRendererCfg
+
+    settings = MagicMock()
+    settings.get.return_value = False
+    spec = SimpleNamespace(camera_prim_paths=["/World/Camera"], cfg=SimpleNamespace(data_types=["depth"]))
+    renderer = rtx_renderer.IsaacRtxRenderer.__new__(rtx_renderer.IsaacRtxRenderer)
+    renderer.cfg = IsaacRtxRendererCfg(render_mode="Minimal")
+
+    with (
+        patch.object(rtx_renderer, "get_settings_manager", return_value=settings),
+        patch.object(rtx_renderer, "get_isaac_sim_version", return_value=version.parse("6.0")),
+        pytest.raises(ValueError, match="requires a simple-shading output"),
+    ):
+        renderer.create_render_data(spec)
+
+    settings.set.assert_not_called()
 
 
 _MISSING = object()
