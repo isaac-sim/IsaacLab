@@ -24,7 +24,7 @@ import gymnasium as gym
 from rl_games.common.player import BasePlayer
 from rl_games.torch_runner import Runner
 
-from isaaclab.envs import DirectMARLEnvCfg
+from isaaclab.envs import DirectMARLEnvCfg, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.seed import configure_seed
 
@@ -101,17 +101,13 @@ def _resolve_checkpoint(args_cli: argparse.Namespace, agent_cfg: dict, env_cfg: 
 
 def export_rl_games_agent(args_cli: argparse.Namespace, env_cfg: Any, agent_cfg: dict) -> bool:
     """Export an RL-Games agent; returns whether a graph was written."""
-    # concrete environment classes and the LEAPP runtime load simulation modules, so import them
-    # only after launch_simulation has initialized the selected backend
+    # the LEAPP runtime loads simulation modules, so import it only after launch_simulation has
+    # initialized the selected backend
     from leapp import annotate
-
-    from isaaclab.envs import multi_agent_to_single_agent
 
     params = agent_cfg["params"]
     env_cfg.scene.num_envs = 1
     env_cfg.seed = params["seed"]
-    if args_cli.device is not None:
-        env_cfg.sim.device = args_cli.device
 
     log_root_path = os.path.abspath(os.path.join("logs", "rl_games", params["config"]["name"]))
     logger.info(f"Loading checkpoint search path from directory: {log_root_path}")

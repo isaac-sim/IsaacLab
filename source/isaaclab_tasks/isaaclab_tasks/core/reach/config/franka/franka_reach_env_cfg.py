@@ -28,7 +28,7 @@ from isaaclab.utils import configclass, replace
 
 from isaaclab_tasks.utils import PresetCfg, preset
 
-from isaaclab_assets import FRANKA_PANDA_CFG, FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets import FRANKA_PANDA_LEGACY_CFG, FRANKA_PANDA_MENAGERIE_CFG
 
 from ...reach_env_cfg import ReachEnvCfg
 
@@ -100,9 +100,9 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         self.scene.robot = replace(FRANKA_PANDA_MENAGERIE_CFG, prim_path="{ENV_REGEX_NS}/Robot")
         self.scene.robot.spawn.usd_path = preset(
             default=self.scene.robot.spawn.usd_path,
-            isaacsim_physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            physx=FRANKA_PANDA_CFG.spawn.usd_path,
-            ovphysx=FRANKA_PANDA_CFG.spawn.usd_path,
+            isaacsim_physx=FRANKA_PANDA_LEGACY_CFG.spawn.usd_path,
+            physx=FRANKA_PANDA_LEGACY_CFG.spawn.usd_path,
+            ovphysx=FRANKA_PANDA_LEGACY_CFG.spawn.usd_path,
         )
         # IK targets need backend-native gravity control to hold steady between commands.
         self.scene.robot.spawn.rigid_props = [

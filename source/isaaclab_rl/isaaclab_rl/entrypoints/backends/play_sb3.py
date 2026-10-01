@@ -101,9 +101,9 @@ def run(argv: list[str]) -> None:
     with startup_screen(args_cli, num_stages=3) as screen:
         env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent, play_mode=not args_cli.train_env_cfg)
         pre_launch_video_config(env_cfg, args_cli)
-        show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
         screen.stage("Launching simulation")
         with launch_simulation(env_cfg, args_cli), contextlib.ExitStack() as cleanup:
+            show_run_summary(screen, args_cli, env_cfg, library="sb3", action="play")
             apply_env_overrides(args_cli, env_cfg)
             args_cli.seed = resolve_seed(args_cli.seed)
             if args_cli.seed is not None:

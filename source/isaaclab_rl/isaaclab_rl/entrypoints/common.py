@@ -28,7 +28,7 @@ import torch
 import warp as wp
 from PIL import Image
 
-from isaaclab.app import LoadingScreen, scan
+from isaaclab.app import LoadingScreen
 from isaaclab.envs import DirectMARLEnvCfg, DirectRLEnvCfg, ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.renderers.renderer_cfg import RendererCfg
@@ -44,8 +44,8 @@ RUN_MANIFEST_VERSION = 1
 CHECKPOINT_SELECTORS = frozenset({"latest", "best"})
 
 _MISSING = object()
-_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx", "PhysxAutoCfg": "physx"}
-_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer", "auto_rtx": "rtx"}
+_PHYSICS_BACKEND_NAMES = {"PhysxCfg": "isaacsim_physx", "OvPhysxCfg": "ovphysx"}
+_RENDERER_BACKEND_NAMES = {"isaac_rtx": "isaacsim_rtx", "newton_warp": "newton_renderer"}
 # streaming visualizers do not expose a local frame-capture API
 _NO_CAPTURE_VISUALIZERS = frozenset({"rerun", "viser"})
 
@@ -185,6 +185,12 @@ def add_common_train_args(
         parser.add_argument(
             "--distributed", action="store_true", default=False, help="Run training with multiple GPUs or nodes."
         )
+        parser.add_argument(
+            "--run_timestamp",
+            type=str,
+            default=None,
+            help="Timestamp naming the run folder; train_multigpu passes one so that every rank shares the folder.",
+        )
     parser.add_argument(
         "--max_iterations", type=max_iterations_type, default=None, help="RL Policy training iterations."
     )
@@ -297,22 +303,19 @@ Environment configuration.
 """
 
 
-def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any, *, apply_device: bool = True) -> None:
+def apply_env_overrides(args_cli: argparse.Namespace, env_cfg: Any) -> None:
     """Apply the common environment overrides from the command line.
 
-    Every override is read with a default so parsers that omit an argument are supported.
+    ``--disable_fabric`` (play parsers only) and ``--export_io_descriptors`` (train parsers only) are read
+    with a default, since each parser defines only one of them. The ``--device`` override is applied by
+    :func:`~isaaclab.app.launch_simulation`.
 
     Args:
         args_cli: Parsed command-line arguments.
         env_cfg: Isaac Lab environment config.
-        apply_device: Whether to apply the ``--device`` override for non-distributed runs.
     """
-    if getattr(args_cli, "num_envs", None) is not None:
+    if args_cli.num_envs is not None:
         env_cfg.scene.num_envs = args_cli.num_envs
-    if apply_device and not getattr(args_cli, "distributed", False):
-        device = getattr(args_cli, "device", None)
-        if device is not None:
-            env_cfg.sim.device = device
     if getattr(args_cli, "disable_fabric", False):
         env_cfg.sim.use_fabric = False
     if getattr(args_cli, "export_io_descriptors", False):
@@ -371,23 +374,6 @@ def request_warp_determinism(physics_cfg: Any) -> None:
         wp.config.deterministic = mode
 
 
-def validate_distributed_device(args_cli: argparse.Namespace) -> None:
-    """Reject distributed training on a CPU device.
-
-    Args:
-        args_cli: Parsed command-line arguments.
-
-    Raises:
-        ValueError: If distributed training is requested with a CPU device.
-    """
-    device = getattr(args_cli, "device", None)
-    if getattr(args_cli, "distributed", False) and device is not None and "cpu" in device:
-        raise ValueError(
-            "Distributed training is not supported when using CPU device. "
-            "Please use GPU device (e.g., --device cuda) for distributed training."
-        )
-
-
 """
 Startup reporting.
 """
@@ -418,55 +404,33 @@ def show_run_summary(
     library: str,
     action: str,
 ) -> None:
-    """Print a summary of the backends and scale a run is about to use.
+    """Print a summary of the backends and scale a run uses.
 
-    Every row names the backend that will run. An automatic launcher choice is shown as
-    ``<automatic> (<concrete>)``.
-
-    Resolving automatic backend configurations mutates *env_cfg* in place, exactly as the following
-    :func:`~isaaclab.app.launch_simulation` call would; call this after every other pre-launch
-    config change, in particular :func:`pre_launch_video_config`.
+    Call this inside :func:`~isaaclab.app.launch_simulation`, which resolves the backends, visualizers,
+    and device into *env_cfg*.
 
     Args:
         screen: Loading screen that owns the console.
         args_cli: Parsed command-line arguments.
-        env_cfg: Concrete Isaac Lab environment config.
+        env_cfg: Isaac Lab environment config resolved by the launch.
         library: Reinforcement learning library running the workflow.
         action: Workflow name, either ``"train"`` or ``"play"``.
     """
-    device = getattr(args_cli, "device", None) or env_cfg.sim.device
-    num_envs = getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs
-
-    # read the names before the scan resolves the automatic selectors so a row can report the
-    # family the run asked for next to the backend that family resolved to
-    requested_physics = _physics_backend_name(env_cfg.sim.physics)
-    requested_renderer = _renderer_name(env_cfg)
-    scan(env_cfg, args_cli)
-    physics = _physics_backend_name(env_cfg.sim.physics)
     renderer = _renderer_name(env_cfg)
-
+    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
     screen.summary(
         f"Isaac Lab · {action}",
         {
             "Task": args_cli.task,
             "Workflow": _workflow_name(env_cfg),
             "RL library": library,
-            "Physics": _backend_label(requested_physics, physics),
-            "Renderer": (
-                "n/a (no camera sensors)"
-                if renderer is None
-                else _backend_label(requested_renderer or renderer, renderer)
-            ),
-            "Visualizer": _visualizer_name(args_cli, env_cfg),
-            "Device": str(device),
-            "Environments": str(num_envs),
+            "Physics": _physics_backend_name(env_cfg.sim.physics),
+            "Renderer": "n/a (no camera sensors)" if renderer is None else renderer,
+            "Visualizer": ", ".join(visualizers) or "none (headless)",
+            "Device": env_cfg.sim.device,
+            "Environments": str(getattr(args_cli, "num_envs", None) or env_cfg.scene.num_envs),
         },
     )
-
-
-def _backend_label(requested: str, concrete: str) -> str:
-    """Return the concrete backend name, prefixed by its automatic selector when they differ."""
-    return concrete if requested == concrete else f"{requested} ({concrete})"
 
 
 def _workflow_name(env_cfg: Any) -> str:
@@ -506,19 +470,6 @@ def _renderer_name(env_cfg: Any) -> str | None:
     return None
 
 
-def _visualizer_name(args_cli: argparse.Namespace, env_cfg: Any) -> str:
-    """Return the visualizers selected on the command line or by *env_cfg*."""
-    selected = getattr(args_cli, "visualizer", None)
-    if isinstance(selected, str):
-        selected = selected.split(",")
-    if not selected:
-        visualizer_cfgs = env_cfg.sim.visualizer_cfgs
-        if not isinstance(visualizer_cfgs, list):
-            visualizer_cfgs = [visualizer_cfgs]
-        selected = [cfg.visualizer_type for cfg in visualizer_cfgs if cfg is not None]
-    return ", ".join(str(name).strip() for name in selected) if selected else "none (headless)"
-
-
 """
 Environment creation.
 """
@@ -550,7 +501,7 @@ def create_isaaclab_env(
 
         env = WarpFrontend.build_env(env_cfg, task)
     if convert_marl_to_single_agent and isinstance(env.unwrapped.cfg, DirectMARLEnvCfg):
-        # concrete environment modules load simulation modules, so import them after the launch
+        # Import the environment runtime only after simulation launch.
         from isaaclab.envs import multi_agent_to_single_agent
 
         env = multi_agent_to_single_agent(env)
@@ -909,11 +860,12 @@ Video recording.
 
 
 def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
-    """Pre-inject a headless Kit visualizer into *env_cfg* so the launcher includes the Kit runtime.
+    """Add a headless Kit visualizer to *env_cfg* for ``--video`` to record from when it names none.
 
-    Must be called before :func:`~isaaclab.app.launch_simulation`. Only acts when ``--video`` is set
-    and neither the environment config nor the command line names a visualizer or a video recorder
-    to record from; :func:`apply_video_recording` wires the recorder itself after the launch.
+    Must be called before :func:`~isaaclab.app.launch_simulation`, so the launch includes the Kit runtime.
+    Only acts when ``--video`` is set and neither the environment config nor the command line names a
+    visualizer or a video recorder to record from; :func:`apply_video_recording` wires the recorder after
+    the launch.
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
@@ -921,16 +873,27 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     """
     if not getattr(args_cli, "video", False) or getattr(env_cfg, "video_recorders", None):
         return
-    if _cli_visualizers(args_cli):
+    # ``--viz`` (including ``--viz none``) decides the visualizers itself
+    if getattr(args_cli, "visualizer", None) is not None:
         return
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None or _configured_visualizer_cfgs(sim_cfg):
+    sim_cfg = env_cfg.sim
+    visualizer_cfgs = (
+        sim_cfg.visualizer_cfgs if isinstance(sim_cfg.visualizer_cfgs, list) else [sim_cfg.visualizer_cfgs]
+    )
+    # a base ``VisualizerCfg`` without a ``visualizer_type`` is a hint-only placeholder
+    if any(cfg.visualizer_type for cfg in visualizer_cfgs):
         return
-    if _inject_headless_kit_visualizer(sim_cfg):
-        logger.info(
-            "pre_launch_video_config: pre-injecting a headless Kit visualizer so the launcher "
-            "includes the Kit runtime. Pass --viz <type> to choose a different visualizer."
-        )
+    try:
+        from isaaclab_visualizers.kit import KitVisualizerCfg
+    except ImportError:
+        # isaaclab_visualizers is optional; apply_video_recording reports the missing visualizer
+        return
+    sim_cfg.visualizer_cfgs = [*visualizer_cfgs, KitVisualizerCfg(headless=True)]
+    logger.info(
+        "--video specified without --viz: adding a headless Kit visualizer to record from. Pass "
+        "--viz <type> to choose a different visualizer, or set video_recorders in your env config to record "
+        "from a scene sensor instead."
+    )
 
 
 def apply_video_recording(
@@ -942,6 +905,9 @@ def apply_video_recording(
     checkpoint_path: str | None = None,
 ) -> None:
     """Configure internal video recording on the environment config.
+
+    Call this inside :func:`~isaaclab.app.launch_simulation`, which resolves the visualizers to record from,
+    after :func:`pre_launch_video_config` before it.
 
     Recorders already declared by the environment config are kept, preserving user-set fields such
     as ``output_dir``, ``source`` and ``fps``; only the fields controlled by CLI flags are
@@ -979,7 +945,7 @@ def apply_video_recording(
         )
 
     if not getattr(env_cfg, "video_recorders", None):
-        source = _resolve_video_source(env_cfg, args_cli)
+        source = _resolve_video_source(env_cfg)
         env_cfg.video_recorders = [VideoRecorderCfg(source=source, video_interval=2000)]
 
     video_length = getattr(args_cli, "video_length", None)
@@ -1008,79 +974,27 @@ def apply_video_recording(
         )
 
 
-def _resolve_video_source(env_cfg: Any, args_cli: argparse.Namespace) -> str:
+def _resolve_video_source(env_cfg: Any) -> str:
     """Return the recorder source for a run that declares no video recorders.
 
-    A visualizer requested with ``--viz`` wins, then a concrete visualizer configured on the
-    environment; otherwise a headless Kit visualizer is injected so there is something to record.
+    Records from the first capture-capable visualizer of the launch-resolved
+    :attr:`~isaaclab.sim.SimulationCfg.visualizer_cfgs`.
 
     Raises:
-        ValueError: If ``--viz none`` or only streaming visualizers were requested.
+        ValueError: If the run has no visualizer (e.g. ``--viz none``) or only streaming visualizers.
     """
-    # ``--viz none`` parses to an empty list
-    if getattr(args_cli, "visualizer", None) == []:
+    visualizers = [cfg.visualizer_type for cfg in env_cfg.sim.visualizer_cfgs if cfg.visualizer_type]
+    if not visualizers:
         raise ValueError(
-            "--video is not compatible with --viz none: there is no active visualizer to record from. "
+            "--video needs a visualizer to record from, but the run has none (e.g. --viz none). "
             "Remove --viz none so that video recording can auto-create a visualizer, "
             "pass --viz kit (or another capture-capable type), "
             "or add VideoRecorderCfg(source='sensor:<name>') to your env config."
         )
-    cli_visualizers = _cli_visualizers(args_cli)
-    if cli_visualizers:
-        capture_capable = [name for name in cli_visualizers if name not in _NO_CAPTURE_VISUALIZERS]
-        if not capture_capable:
-            raise ValueError(_no_capture_visualizer_message(cli_visualizers))
-        return f"visualizer:{capture_capable[0]}"
-
-    sim_cfg = getattr(env_cfg, "sim", None)
-    if sim_cfg is None:
-        return "visualizer"
-    configured = _configured_visualizer_cfgs(sim_cfg)
-    if configured:
-        # prefer capture-capable visualizers over streaming-only ones
-        configured.sort(key=lambda cfg: cfg.visualizer_type in _NO_CAPTURE_VISUALIZERS)
-        return f"visualizer:{configured[0].visualizer_type}"
-    if _inject_headless_kit_visualizer(sim_cfg):
-        logger.info(
-            "--video specified without --viz: auto-creating a headless Kit visualizer "
-            "for video recording. Pass --viz <type> to choose a different visualizer, or "
-            "set video_recorders in your env config to record from a scene sensor instead."
-        )
-        return "visualizer:kit"
-    return "visualizer"
-
-
-def _cli_visualizers(args_cli: argparse.Namespace) -> list[str]:
-    """Return the visualizers requested with ``--viz``, ignoring ``"none"`` entries."""
-    selected = getattr(args_cli, "visualizer", None) or []
-    if isinstance(selected, str):
-        selected = [selected]
-    return [name for name in selected if name != "none"]
-
-
-def _configured_visualizer_cfgs(sim_cfg: Any) -> list[Any]:
-    """Return the concrete visualizer configs of a simulation config.
-
-    A base ``VisualizerCfg`` with ``visualizer_type=None`` is a hint-only placeholder that cannot
-    create a visualizer, so it does not count.
-    """
-    cfgs = list(getattr(sim_cfg, "visualizer_cfgs", None) or [])
-    default_cfg = getattr(sim_cfg, "default_visualizer_cfg", None)
-    if default_cfg is not None:
-        cfgs.append(default_cfg)
-    return [cfg for cfg in cfgs if getattr(cfg, "visualizer_type", None) is not None]
-
-
-def _inject_headless_kit_visualizer(sim_cfg: Any) -> bool:
-    """Append a headless Kit visualizer to *sim_cfg*; returns False when the visualizers package is missing."""
-    try:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
-    except ImportError:
-        return False
-    if not isinstance(getattr(sim_cfg, "visualizer_cfgs", None), list):
-        sim_cfg.visualizer_cfgs = []
-    sim_cfg.visualizer_cfgs.append(KitVisualizerCfg(headless=True))
-    return True
+    capture_capable = [name for name in visualizers if name not in _NO_CAPTURE_VISUALIZERS]
+    if not capture_capable:
+        raise ValueError(_no_capture_visualizer_message(visualizers))
+    return f"visualizer:{capture_capable[0]}"
 
 
 def _no_capture_visualizer_message(names: list[str]) -> str:

@@ -229,6 +229,7 @@ def run(argv: list[str]) -> BenchmarkResult:
     config_t0 = time.perf_counter_ns()
     env_cfg, agent_cfg = resolve_task_config(args_cli.task, args_cli.agent)
     config_t1 = time.perf_counter_ns()
+    common.pre_launch_video_config(env_cfg, args_cli)
 
     start_utc = capture.now_utc_iso()
     app_t0 = time.perf_counter_ns()

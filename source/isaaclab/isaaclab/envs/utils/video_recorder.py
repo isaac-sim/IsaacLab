@@ -20,7 +20,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 try:
-    from moviepy.editor import ImageSequenceClip
+    from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 except ImportError:
     ImageSequenceClip = None  # type: ignore[assignment,misc]
 

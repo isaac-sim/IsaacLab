@@ -94,6 +94,7 @@ Command Builder
                data-demo-physics="newton_vbd" data-demo-fixed-physics="true"
                data-demo-visualizers="newton_gl"
                data-demo-description="Drag a cable handle to lift a load through a 4:1 pulley system.">
+         <img src="../../_static/demos/newton_block_and_tackle.jpg" alt="Block and tackle pulleys and a red load" loading="lazy">
          <span>Newton Block and Tackle</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"
@@ -102,6 +103,7 @@ Command Builder
                data-demo-visualizers="none,kit,newton_gl,newton_rtx,rerun,viser"
                data-demo-args="--device cuda:0"
                data-demo-description="Smash rigid crates with coupled MPM snowballs.">
+         <img src="../../_static/demos/snowball_smash.jpg" alt="Snowballs striking a stack of colored crates" loading="lazy">
          <span>Snowball Smash</span>
        </button>
        <button type="button" class="demo-card" aria-pressed="false"

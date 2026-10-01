@@ -697,6 +697,7 @@ class ContactSensor(BaseContactSensor):
         # note: this invalidity happens because of isaac sim view callbacks
         if self.body_physx_view is None:
             return
+        self._update_outdated_buffers()
         # Convert warp data to torch at the boundary for visualization
         net_forces_torch = self._data.net_normal_forces_w.torch  # (N, B, 3)
         net_contact_force_w = torch.linalg.norm(net_forces_torch, dim=-1)
