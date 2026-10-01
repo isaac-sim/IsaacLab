@@ -79,6 +79,10 @@ We use `Sphinx <https://www.sphinx-doc.org/en/master/>`__ with the
 `Book Theme <https://sphinx-book-theme.readthedocs.io/en/stable/>`__
 for maintaining the documentation.
 
+API ``[source]`` links open the implementation on GitHub, using the published documentation's
+branch or tag (``develop`` for a current-checkout build by default). We do not generate local
+Python source pages; viewing the implementation requires internet access.
+
 Sending a pull request for the documentation is the same as sending a pull request for the codebase.
 Please follow the steps mentioned in the `Contributing Code`_ section.
 
@@ -95,16 +99,13 @@ the externally hosted file from the documentation.
 
 Choose documentation validation according to the changed behavior:
 
-* Skip Sphinx for code changes that do not affect rendered documentation, and for standalone
-  Markdown such as ``AGENTS.md`` and ``skills/``. Run the relevant code or skill checks instead.
-* For documentation prose, directives, links, includes, and navigation, use the incremental
-  preview below while editing. Do not run a clean build after every edit.
-* For documented API signatures or docstrings, Sphinx configuration or extensions, and themes
-  or static assets, use an HTML build to check the affected output. Python source changes are
-  not reliably detected by Sphinx's incremental cache; use the clean build for these changes.
-* Before submitting a PR that affects rendered documentation, run one clean, warning-free
-  build on the final changes. CI also runs the clean build. Repeat it only after further
-  documentation-affecting changes or to resolve a failure.
+* Skip Sphinx when rendered docs are unaffected, including standalone ``AGENTS.md`` and ``skills/``
+  edits. Run the relevant code or skill checks instead.
+* Use the incremental HTML preview while editing documentation pages.
+* Use a clean build for API signatures or docstrings, Sphinx configuration or extensions, and
+  theme changes. Sphinx's cache does not reliably detect Python source changes.
+* Run one clean, warning-free build of final documentation-affecting changes before submitting
+  a PR. Repeat it only after further relevant changes or a failure. CI also runs the clean build.
 
 For an incremental HTML preview, run this command from the repository root on Linux or Windows:
 
@@ -118,11 +119,9 @@ On systems with Make, the equivalent command is:
 
    uv run --extra dev make -C docs incremental-docs
 
-Open ``docs/_build/incremental/index.html`` to inspect the preview. The first run builds the whole
-site; later runs reuse Sphinx's parsed documents and rebuild outdated output. This still treats
-new warnings as errors, but a cached run can omit warnings from unchanged documents and leave
-HTML for deleted pages. It does not replace final clean validation. Do not run concurrent builds
-against the same output directory.
+Open ``docs/_build/incremental/index.html`` to inspect the preview. Subsequent runs reuse the cache
+and treat new warnings as errors, but can omit old warnings and retain deleted pages. Use a clean
+build for final validation, and avoid concurrent builds in the same output directory.
 
 For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
