@@ -69,10 +69,6 @@ from .newton_visualizer_cfg import NewtonGLVisualizerCfg, NewtonRTXVisualizerCfg
 
 logger = logging.getLogger(__name__)
 
-_LDR_COLOR_VAR = "LdrColor"
-_LDR_COLOR_PRIM_PATH = "/Render/Vars/LdrColor"
-"""RenderVar prim ``ViewerRTX`` authors for the color output; ovrtx 0.5 keys ``render_vars`` by this path."""
-
 
 @functools.cache
 def _ovrtx_keys_render_vars_by_prim_path() -> bool:
@@ -767,8 +763,9 @@ class NewtonViewerRTX(_NewtonViewerUIMixin, ViewerRTX):
         if products and _ovrtx_keys_render_vars_by_prim_path():
             for _, product in products.items():
                 for frame in product.frames:
-                    if _LDR_COLOR_PRIM_PATH in frame.render_vars:
-                        frame.render_vars.setdefault(_LDR_COLOR_VAR, frame.render_vars[_LDR_COLOR_PRIM_PATH])
+                    # "/Render/Vars/LdrColor" is the RenderVar prim ViewerRTX authors for the color output
+                    if "/Render/Vars/LdrColor" in frame.render_vars:
+                        frame.render_vars.setdefault("LdrColor", frame.render_vars["/Render/Vars/LdrColor"])
         self._ovrtx_render_products = products
 
     def get_frame(self) -> np.ndarray:
