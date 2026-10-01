@@ -14,12 +14,28 @@ The following classes are part of the public :mod:`isaaclab.visualizers` API.
    :nosignatures:
 
    BaseVisualizer
+   KeyEventSource
+   KeyboardCapabilities
+   KeyboardCapture
+   KeyboardSubscription
    VisualizerCfg
    PerspectiveCameraCfg
    SceneCameraCfg
 
 .. autoclass:: BaseVisualizer
    :show-inheritance:
+
+.. autoclass:: KeyEventSource
+   :members: capabilities, closed, add_key_listener, capture_keyboard, close
+
+.. autoclass:: KeyboardCapabilities
+   :members:
+
+.. autoclass:: KeyboardSubscription
+   :members: closed, close
+
+.. autoclass:: KeyboardCapture
+   :members: closed, close
 
 .. autoclass:: VisualizerCfg
    :show-inheritance:

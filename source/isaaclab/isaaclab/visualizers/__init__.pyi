@@ -5,10 +5,15 @@
 
 __all__ = [
     "BaseVisualizer",
+    "KeyEventSource",
+    "KeyboardCapabilities",
+    "KeyboardCapture",
+    "KeyboardSubscription",
     "PerspectiveCameraCfg",
     "SceneCameraCfg",
     "VisualizerCfg",
 ]
 
 from .base_visualizer import BaseVisualizer
+from .key_event_source import KeyboardCapabilities, KeyboardCapture, KeyboardSubscription, KeyEventSource
 from .visualizer_cfg import PerspectiveCameraCfg, SceneCameraCfg, VisualizerCfg
