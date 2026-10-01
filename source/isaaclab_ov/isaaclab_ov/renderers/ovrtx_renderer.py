@@ -79,6 +79,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
+from isaaclab_ov.cloner import ovstage_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -105,7 +106,6 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
-    clone_plan_into_ovstage,
     create_ovstage,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
@@ -644,9 +644,7 @@ class OVRTXRenderer(BaseRenderer):
         logger.info("Cloning sources in OVRTX...")
 
         if self._use_ovstage:
-            num_cloned_sources = clone_plan_into_ovstage(
-                self.backend.stage, self.backend.paths, plan, self._current_ordinal
-            )
+            num_cloned_sources = ovstage_replicate(self.backend.stage, self.backend.paths, plan, self._current_ordinal)
             logger.info("Cloned %d sources successfully in OVRTX", num_cloned_sources)
             return
 

@@ -7,7 +7,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Sequence
+import logging
+from collections.abc import Collection, Iterable, Sequence
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -18,6 +19,8 @@ from isaaclab import cloner
 from isaaclab.physics import PhysicsManager
 
 from isaaclab_ov._clone import CloneRecipe
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     import ovstage
@@ -197,6 +200,53 @@ class OvstageReplicateContext:
         from isaaclab_ov.stage import create_render_ovstage  # noqa: PLC0415
 
         self._render_stage = create_render_ovstage(self._sim.stage, plan, asset_prototype_ids)
+
+
+def ovstage_replicate(
+    stage: ovstage.Stage,
+    paths: ovstage.PathDictionary,
+    plan: ClonePlan,
+    ordinal: int,
+    asset_prototype_ids: Collection[int] | None = None,
+) -> int:
+    """Clone every planned prototype onto its environments in an OVStage stage, then place the environment roots.
+
+    Cloning recreates the environment roots, so their poses are written after the copies.
+
+    Args:
+        stage: The ovstage stage holding the exported prototypes.
+        paths: Path dictionary of ``stage``.
+        plan: The scene's completed clone plan.
+        ordinal: Write ordinal for the clones and the environment-root write.
+        asset_prototype_ids: Asset definitions routed to the caller. ``None`` selects every asset.
+
+    Returns:
+        The number of prototype copies made.
+    """
+    import ovstage  # noqa: PLC0415
+
+    from isaaclab_ov.renderers.ovrtx_usd import env_root_transforms, iter_clone_copies  # noqa: PLC0415
+    from isaaclab_ov.stage import xform_tensor_from_numpy  # noqa: PLC0415
+
+    num_copies = 0
+    for source, target_paths in iter_clone_copies(plan, asset_prototype_ids):
+        logger.debug("Cloning %s -> %d target(s)", source, len(target_paths))
+        stage.clone(source, target_paths, ordinal=ordinal)
+        num_copies += 1
+
+    env_paths = [plan.env_template.format(world) for world in range(len(plan.topology.world_prototype_layout))]
+    path_list = paths.create_path_list_from_strings(env_paths)
+    with stage.query_from_path_list(path_list) as query:
+        stage.write_attribute(
+            query,
+            "omni:xform",
+            ordinal=ordinal,
+            tensors=xform_tensor_from_numpy(env_root_transforms(plan)),
+            is_array=False,
+            semantic=ovstage.AttributeSemantic.MATRIX,
+        ).wait()
+    paths.destroy_path_list(path_list)
+    return num_copies
 
 
 def ovphysx_replicate(
