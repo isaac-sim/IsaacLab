@@ -25,8 +25,10 @@ inputs:
     default: '.'
     required: false
   platform:
-    description: 'Target platform for `docker buildx build --platform`.'
-    default: 'linux/amd64'
+    description: >-
+      Target platform for `docker buildx build --platform`. Empty builds for the
+      runner's own architecture (X64 -> linux/amd64, ARM64 -> linux/arm64).
+    default: ''
     required: false
   cache-from:
     description: >
@@ -67,6 +69,22 @@ runs:
       uses: ./.github/actions/_lib/setup-docker-config
       with:
         base-image-ref: ${{ inputs.isaacsim-base-image }}:${{ inputs.isaacsim-version }}
+
+    - name: Resolve target platform
+      id: platform
+      shell: bash
+      env:
+        PLATFORM_INPUT: ${{ inputs.platform }}
+      run: |
+        platform="$PLATFORM_INPUT"
+        if [ -z "$platform" ]; then
+          case "$RUNNER_ARCH" in
+            X64) platform=linux/amd64 ;;
+            ARM64) platform=linux/arm64 ;;
+            *) echo "::error::No default platform for runner architecture '$RUNNER_ARCH'; pass platform"; exit 1 ;;
+          esac
+        fi
+        echo "platform=$platform" >> "$GITHUB_OUTPUT"
 
     ##### 2: Host disk snapshot (pre) #####
 
@@ -120,7 +138,7 @@ runs:
         dockerfile-path: ${{ inputs.dockerfile-path }}
         isaacsim-base-image: ${{ inputs.isaacsim-base-image }}
         isaacsim-version: ${{ inputs.isaacsim-version }}
-        platform: ${{ inputs.platform }}
+        platform: ${{ steps.platform.outputs.platform }}
 
     - name: Check deps-tag locally
       id: local-deps
@@ -152,7 +170,7 @@ runs:
       run: |
         BUILD_ARGS=(
           --progress=plain
-          --platform "${{ inputs.platform }}"
+          --platform "${{ steps.platform.outputs.platform }}"
           -f "${{ inputs.dockerfile-path }}"
           --build-arg "ISAACSIM_BASE_IMAGE_ARG=${{ inputs.isaacsim-base-image }}"
           --build-arg "ISAACSIM_VERSION_ARG=${{ inputs.isaacsim-version }}"
@@ -192,7 +210,7 @@ runs:
         # Dockerfile on stdin (no context to stage). Quoted heredoc so the
         # shell leaves ISAACLAB_PATH and IMAGE_USER for Docker to expand; the
         # image tag is an action input, substituted before bash ever runs.
-        docker build --platform "${{ inputs.platform }}" \
+        docker build --platform "${{ steps.platform.outputs.platform }}" \
           --build-arg "IMAGE_USER=${image_user:-root}" \
           -t "${{ inputs.image-tag }}" - <<'DOCKERFILE'
         FROM ${{ inputs.image-tag }}
