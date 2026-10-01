@@ -860,12 +860,13 @@ Video recording.
 
 
 def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
-    """Add a headless Kit visualizer to *env_cfg* for ``--video`` to record from when it names none.
+    """Add a headless visualizer to *env_cfg* for ``--video`` to record from when it names none.
 
-    Must be called before :func:`~isaaclab.app.launch_simulation`, so the launch includes the Kit runtime.
-    Only acts when ``--video`` is set and neither the environment config nor the command line names a
+    Must be called before :func:`~isaaclab.app.launch_simulation`, so the launch includes the visualizer's
+    runtime. Only acts when ``--video`` is set and neither the environment config nor the command line names a
     visualizer or a video recorder to record from; :func:`apply_video_recording` wires the recorder after
-    the launch.
+    the launch. The torch frontend gets Kit. The warp frontend gets Newton GL: it always runs Newton physics
+    and is commonly run without the Isaac Sim install that Kit needs.
 
     Args:
         env_cfg: Isaac Lab environment config to modify in-place.
@@ -884,15 +885,19 @@ def pre_launch_video_config(env_cfg: Any, args_cli: argparse.Namespace) -> None:
     if any(cfg.visualizer_type for cfg in visualizer_cfgs):
         return
     try:
-        from isaaclab_visualizers.kit import KitVisualizerCfg
+        if getattr(args_cli, "frontend", "torch") == "warp":
+            from isaaclab_visualizers.newton import NewtonGLVisualizerCfg as HeadlessVisualizerCfg
+        else:
+            from isaaclab_visualizers.kit import KitVisualizerCfg as HeadlessVisualizerCfg
     except ImportError:
         # isaaclab_visualizers is optional; apply_video_recording reports the missing visualizer
         return
-    sim_cfg.visualizer_cfgs = [*visualizer_cfgs, KitVisualizerCfg(headless=True)]
+    visualizer_cfg = HeadlessVisualizerCfg(headless=True)
+    sim_cfg.visualizer_cfgs = [*visualizer_cfgs, visualizer_cfg]
     print(
-        "[INFO] --video specified without --viz: adding a headless Kit visualizer to record from. Pass "
-        "--viz <type> to choose a different visualizer, or set video_recorders in your env config to record "
-        "from a scene sensor instead."
+        f"[INFO] --video specified without --viz: adding a headless {visualizer_cfg.visualizer_type} visualizer to "
+        "record from. Pass --viz <type> to choose a different visualizer, or set video_recorders in your env "
+        "config to record from a scene sensor instead."
     )
 
 
@@ -932,17 +937,10 @@ def apply_video_recording(
             numeric id, the checkpoint stem is appended to play video names.
 
     Raises:
-        ValueError: If recording is requested with the warp frontend or without a visualizer to record from.
+        ValueError: If recording is requested without a visualizer to record from.
     """
     if not getattr(args_cli, "video", False):
         return
-    frontend = getattr(args_cli, "frontend", "torch") or "torch"
-    if frontend != "torch":
-        raise ValueError(
-            f"--video is not supported with --frontend {frontend!r}. "
-            "Video recording requires the standard torch frontend. "
-            "Remove --video or switch to --frontend torch."
-        )
 
     if not getattr(env_cfg, "video_recorders", None):
         source = _resolve_video_source(env_cfg)

@@ -836,6 +836,7 @@ def _make_context_with_settings(
     ctx._scene_data_provider = _FakeProvider()
     ctx.requires_usd_stage = False
     ctx.requires_newton_model = False
+    ctx._visual_shapes_required = False
     ctx._clone_plan = None
     ctx._viz_dt = 0.01
     ctx.get_setting = lambda name: settings.get(name)
@@ -989,6 +990,20 @@ def test_visualizer_init_keeps_requirements_published_before_reset():
 
     assert ctx.requires_newton_model
     assert ctx.requires_usd_stage
+
+
+@pytest.mark.parametrize(("visualizer_type", "expected"), [("newton_gl", True), ("kit", False)])
+def test_configured_model_visualizer_requires_visual_shapes(visualizer_type: str, expected: bool):
+    """A configured visualizer that draws the Newton model requests its visual shapes, also when headless.
+
+    A headless visualizer does not render continuously, so without the request the Newton model is
+    built without visual shapes and every captured frame is empty.
+    """
+    ctx = _make_context_with_settings({}, visualizer_cfgs=[_FakeVisualizerCfg(visualizer_type)])
+
+    ctx._create_visualizers()
+
+    assert ctx.visual_shapes_required is expected
 
 
 @pytest.mark.parametrize("cli_explicit", [False, True])

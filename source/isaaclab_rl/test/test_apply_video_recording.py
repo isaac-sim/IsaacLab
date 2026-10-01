@@ -13,6 +13,7 @@ from types import SimpleNamespace
 
 import pytest
 from isaaclab_visualizers.kit import KitVisualizerCfg
+from isaaclab_visualizers.newton import NewtonGLVisualizerCfg
 
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
@@ -71,6 +72,18 @@ def test_apply_video_recording_creates_default_recorder(
     assert recorder.output_filename_prefix == "clip"
     assert len(env_cfg.sim.visualizer_cfgs) == 1
     assert isinstance(env_cfg.sim.visualizer_cfgs[0], KitVisualizerCfg)
+    assert env_cfg.sim.visualizer_cfgs[0].headless
+
+
+def test_apply_video_recording_injects_newton_gl_visualizer_on_warp_frontend():
+    """The warp frontend records too; without ``--viz`` it gets a headless Newton GL visualizer instead of Kit."""
+    args = _args(frontend="warp")
+    env_cfg = _launched_env_cfg(args)
+    apply_video_recording(env_cfg, "/my/log", args)
+
+    assert [recorder.source for recorder in env_cfg.video_recorders] == ["visualizer:newton_gl"]
+    assert len(env_cfg.sim.visualizer_cfgs) == 1
+    assert isinstance(env_cfg.sim.visualizer_cfgs[0], NewtonGLVisualizerCfg)
     assert env_cfg.sim.visualizer_cfgs[0].headless
 
 
