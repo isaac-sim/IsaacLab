@@ -126,8 +126,12 @@ class FrankaReachEnvCfg(ReachEnvCfg):
         # Native SE(3) devices match the 6D relative differential and Newton IK actions.
         relative_ik_teleop_devices = DevicesCfg(
             devices={
-                "keyboard": Se3KeyboardCfg(gripper_term=False, sim_device=self.sim.device),
-                "gamepad": Se3GamepadCfg(gripper_term=False, sim_device=self.sim.device),
+                "keyboard": Se3KeyboardCfg(
+                    gripper_term=False, pos_sensitivity=0.5, rot_sensitivity=0.05, sim_device=self.sim.device
+                ),
+                "gamepad": Se3GamepadCfg(
+                    gripper_term=False, pos_sensitivity=1.0, rot_sensitivity=0.1, sim_device=self.sim.device
+                ),
                 "spacemouse": Se3SpaceMouseCfg(
                     gripper_term=False, pos_sensitivity=0.5, rot_sensitivity=0.05, sim_device=self.sim.device
                 ),
