@@ -93,7 +93,38 @@ the externally hosted file from the documentation.
   documentation requirements, into the repository's ``.venv``.
 
 
-To build the documentation, run the following command from the repository root. It installs
+Choose documentation validation according to the changed behavior:
+
+* Skip Sphinx for code changes that do not affect rendered documentation, and for standalone
+  Markdown such as ``AGENTS.md`` and ``skills/``. Run the relevant code or skill checks instead.
+* For documentation prose, directives, links, includes, and navigation, use the incremental
+  preview below while editing. Do not run a clean build after every edit.
+* For documented API signatures or docstrings, Sphinx configuration or extensions, and themes
+  or static assets, use an HTML build to check the affected output. Python source changes are
+  not reliably detected by Sphinx's incremental cache; use the clean build for these changes.
+* Before submitting a PR that affects rendered documentation, run one clean, warning-free
+  build on the final changes. CI also runs the clean build. Repeat it only after further
+  documentation-affecting changes or to resolve a failure.
+
+For an incremental HTML preview, run this command from the repository root on Linux or Windows:
+
+.. code:: bash
+
+   uv run --extra dev --directory docs python -m sphinx -W --keep-going -j auto . _build/incremental
+
+On systems with Make, the equivalent command is:
+
+.. code:: bash
+
+   uv run --extra dev make -C docs incremental-docs
+
+Open ``docs/_build/incremental/index.html`` to inspect the preview. The first run builds the whole
+site; later runs reuse Sphinx's parsed documents and rebuild outdated output. This still treats
+new warnings as errors, but a cached run can omit warnings from unchanged documents and leave
+HTML for deleted pages. It does not replace final clean validation. Do not run concurrent builds
+against the same output directory.
+
+For the final clean build, run the following command from the repository root. It installs
 the documentation packages and builds the current version:
 
 .. code:: bash
