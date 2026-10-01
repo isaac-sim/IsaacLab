@@ -382,7 +382,9 @@ Newton execution
 solvers reject this configuration. The solver check runs before CUDA graph capture.
 
 With MJWarp, the controller publishes the velocity-independent friction budget into MuJoCo's
-``dof_frictionloss`` and its viscous coefficient into ``dof_damping``. The solver resolves static
+``dof_frictionloss`` each physics step. The motor fit's viscous coefficient initializes Newton's
+passive joint damping once; normal joint-property synchronization carries it into MuJoCo's
+``dof_damping``. It remains visible through ``data.joint_viscous_friction_coeff``. The solver resolves static
 friction jointly with the other constraints. A configured joint ``friction`` value is a seed that
 the controller overwrites on every physics step. The external load comes from the solver's
 generalized bias and constraint forces, with the controller's own friction rows removed, and is

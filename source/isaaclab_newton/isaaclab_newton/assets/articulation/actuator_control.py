@@ -75,10 +75,19 @@ class NewtonActuatorControl(ArticulationActuatorControl):
         return native_group_names
 
     def finalize_native_actuators(self, collection: ActuatorCollection) -> NewtonActuatorSelection | None:
+        from isaaclab.actuators.actuator_bam_cfg import BamActuatorCfg  # noqa: PLC0415
+
         if not self._native_actuator_path_active:
             return None
 
         articulation = self._articulation
+        # Constant BAM damping belongs to the joint model, including later property resyncs.
+        for name, cfg in self._native_actuator_cfgs.items():
+            if isinstance(cfg, BamActuatorCfg):
+                articulation.write_joint_viscous_friction_coefficient_to_sim_index(
+                    joint_viscous_friction_coeff=cfg.motor.friction_viscous,
+                    joint_ids=collection._group_joint_indices[name],
+                )
         adapter = SimulationManager._adapter
         if adapter is not None:
             arti_start = self._joint_dof_offset()
@@ -355,9 +364,7 @@ class NewtonActuatorControl(ArticulationActuatorControl):
                 lambda bridge=bridge, out=external_torque: bridge.gather_external_torque(out)
             )
             SimulationManager.register_post_actuator_callback(
-                lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(
-                    drive.friction_budget, drive.viscous_damping
-                )
+                lambda bridge=bridge, drive=drive: bridge.publish_dof_friction(drive.friction_budget)
             )
 
     def _joint_dof_offset(self) -> int:

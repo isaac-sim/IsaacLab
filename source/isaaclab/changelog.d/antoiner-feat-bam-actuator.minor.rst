@@ -6,7 +6,8 @@ Added
   Newton Warp kernels using the Newton 1.6 ``DriveBase`` API. The controller required Newton's MJWarp solver with
   :attr:`~isaaclab.sim.SimulationCfg.use_newton_actuators` enabled. It modeled firmware control,
   current limiting, motor back-EMF, supply sag, stochastic command delay and load-dependent gearbox
-  friction. On MJWarp it published dry-friction and viscous-damping values to the solver and read
+  friction. On MJWarp it published the dry-friction budget each step, initialized passive joint
+  damping once from the motor fit, and read
   external loads from the solver's generalized forces. Other Newton solvers, PhysX, OVPhysX and
   the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.

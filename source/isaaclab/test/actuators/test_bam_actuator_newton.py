@@ -332,7 +332,6 @@ def test_solver_mode_emits_the_motor_torque_and_publishes_the_budget(device):
     np.testing.assert_allclose(effort.reshape(-1), np.clip(motor, -0.05, 0.05), atol=0.0, rtol=0.0)
     budget = harness.drive.friction_budget.numpy()
     assert (budget >= params.friction_base).all(), "the published budget must keep the Coulomb floor"
-    np.testing.assert_allclose(harness.drive.viscous_damping.numpy(), params.friction_viscous, atol=1e-9, rtol=0.0)
 
 
 @pytest.mark.parametrize("device", test_devices())

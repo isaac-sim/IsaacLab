@@ -43,7 +43,7 @@ class BamMotorCfg:
     """Coulomb friction [N.m]."""
 
     friction_viscous: float = MISSING
-    """Viscous friction coefficient [N.m.s/rad]."""
+    """Viscous friction coefficient [N.m.s/rad], used to initialize passive joint damping once."""
 
     friction_stribeck: float = 0.0
     """Additional near-rest friction [N.m]."""
