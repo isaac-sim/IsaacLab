@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from pxr import Gf, Sdf, Usd, UsdGeom
 
@@ -117,11 +118,12 @@ def test_deformable_entry_surface_without_sim_api_uses_first_mesh():
     assert entry.vis_vertex_count == 3
 
 
-def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots():
+@pytest.mark.parametrize("source_x", [0.0, 10.0])
+def test_backend_geometry_nearest_owner_partial_rows_and_shared_roots(source_x):
     """Import declared prototypes once; bind exact paths without retaining geometry on the plan."""
     stage = Usd.Stage.CreateInMemory()
     parent = UsdGeom.Xform.Define(stage, "/Lab/Cell3")
-    parent.AddTranslateOp().Set((10.0, 0.0, 0.0))
+    parent.AddTranslateOp().Set((source_x, 0.0, 0.0))
     parent.AddRotateZOp().Set(30.0)
     for path, schema in (
         ("/Lab/Cell3/Cloth", "OmniPhysicsDeformableBodyAPI"),
