@@ -2622,6 +2622,45 @@ class Articulation(BaseArticulation):
     Operations - Tendons.
     """
 
+    def _set_fixed_tendon_property_mask(
+        self,
+        data: float | torch.Tensor | wp.array,
+        buffer: wp.array,
+        fixed_tendon_mask: wp.array | torch.Tensor | None,
+        env_mask: wp.array | torch.Tensor | None,
+        name: str,
+    ) -> None:
+        """Write full (num_instances, num_fixed_tendons) data into the masked cells of a fixed tendon buffer.
+
+        Args:
+            data: Scalar or full data. A torch tensor for a ``wp.vec2f`` buffer has a trailing dimension of 2.
+            buffer: Fixed tendon staging buffer. Shape is (num_instances, num_fixed_tendons).
+            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
+            env_mask: Environment mask. If None, then all the instances are updated.
+            name: Name of the data, used in shape errors.
+        """
+        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
+        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
+        if isinstance(data, float):
+            wp.launch(
+                articulation_kernels.float_data_to_buffer_with_mask,
+                dim=buffer.shape,
+                inputs=[data, env_mask, fixed_tendon_mask],
+                outputs=[buffer],
+                device=self.device,
+            )
+            return
+        if isinstance(data, torch.Tensor):
+            data = wp.from_torch(data, dtype=buffer.dtype)
+        self.assert_shape_and_dtype(data, buffer.shape, buffer.dtype, name)
+        wp.launch(
+            articulation_kernels.copy_2d_data_with_mask,
+            dim=buffer.shape,
+            inputs=[data, env_mask, fixed_tendon_mask],
+            outputs=[buffer],
+            device=self.device,
+        )
+
     def set_fixed_tendon_stiffness_index(
         self,
         *,
@@ -2709,7 +2748,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._set_fixed_tendon_buffer_mask(
+        self._set_fixed_tendon_property_mask(
             stiffness, self.data._fixed_tendon_stiffness, fixed_tendon_mask, env_mask, "stiffness"
         )
 
@@ -2801,7 +2840,7 @@ class Articulation(BaseArticulation):
             fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
             env_mask: Environment mask. If None, then all the instances are updated. Shape is (num_instances,).
         """
-        self._set_fixed_tendon_buffer_mask(
+        self._set_fixed_tendon_property_mask(
             damping, self.data._fixed_tendon_damping, fixed_tendon_mask, env_mask, "damping"
         )
 
@@ -2916,7 +2955,7 @@ class Articulation(BaseArticulation):
         """
         if isinstance(limit, float):
             raise ValueError("Fixed tendon position limits must be a tensor or array, not a float.")
-        self._set_fixed_tendon_buffer_mask(
+        self._set_fixed_tendon_property_mask(
             limit, self.data._fixed_tendon_pos_limits, fixed_tendon_mask, env_mask, "limit"
         )
 
@@ -3809,45 +3848,6 @@ class Articulation(BaseArticulation):
     def _to_torch_ids(ids: wp.array | torch.Tensor) -> torch.Tensor:
         """View resolved indices as a torch tensor for indexing."""
         return (wp.to_torch(ids) if isinstance(ids, wp.array) else ids).long()
-
-    def _set_fixed_tendon_buffer_mask(
-        self,
-        data: float | torch.Tensor | wp.array,
-        buffer: wp.array,
-        fixed_tendon_mask: wp.array | torch.Tensor | None,
-        env_mask: wp.array | torch.Tensor | None,
-        name: str,
-    ) -> None:
-        """Write full (num_instances, num_fixed_tendons) data into the masked cells of a fixed tendon buffer.
-
-        Args:
-            data: Scalar or full data. A torch tensor for a ``wp.vec2f`` buffer has a trailing dimension of 2.
-            buffer: Fixed tendon staging buffer. Shape is (num_instances, num_fixed_tendons).
-            fixed_tendon_mask: Fixed tendon mask. If None, then all fixed tendons are used.
-            env_mask: Environment mask. If None, then all the instances are updated.
-            name: Name of the data, used in shape errors.
-        """
-        env_mask = self._resolve_mask(env_mask, self._ALL_ENV_MASK)
-        fixed_tendon_mask = self._resolve_mask(fixed_tendon_mask, self._ALL_FIXED_TENDON_MASK)
-        if isinstance(data, float):
-            wp.launch(
-                articulation_kernels.float_data_to_buffer_with_mask,
-                dim=buffer.shape,
-                inputs=[data, env_mask, fixed_tendon_mask],
-                outputs=[buffer],
-                device=self.device,
-            )
-            return
-        if isinstance(data, torch.Tensor):
-            data = wp.from_torch(data, dtype=buffer.dtype)
-        self.assert_shape_and_dtype(data, buffer.shape, buffer.dtype, name)
-        wp.launch(
-            articulation_kernels.copy_2d_data_with_mask,
-            dim=buffer.shape,
-            inputs=[data, env_mask, fixed_tendon_mask],
-            outputs=[buffer],
-            device=self.device,
-        )
 
     def _resolve_mask(self, mask: wp.array | torch.Tensor | None, full_mask: wp.array) -> wp.array:
         """Resolve a mask to a warp array.
