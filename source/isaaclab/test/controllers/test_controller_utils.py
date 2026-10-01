@@ -263,5 +263,8 @@ def test_load_torchscript_model_invalid_file(content, tmp_path):
     model_path = tmp_path / "model.pt"
     model_path.write_bytes(content)
 
-    with pytest.raises(RuntimeError, match="Failed to load TorchScript model"):
+    with pytest.raises(RuntimeError, match="Failed to load TorchScript model") as exc_info:
         load_torchscript_model(str(model_path))
+
+    assert str(model_path) in str(exc_info.value)
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
