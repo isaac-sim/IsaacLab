@@ -31,6 +31,10 @@ inputs:
     description: 'Optional pytest -m marker expression applied to every test file (e.g. arm_ci)'
     default: ''
     required: false
+  platform:
+    description: 'Target platform if the image has to be built'
+    default: 'linux/amd64'
+    required: false
   filter-pattern:
     description: >-
       Pattern to filter test files (e.g., isaaclab_tasks); test files whose path
@@ -202,6 +206,7 @@ runs:
         isaacsim-version: ${{ inputs.isaacsim-version }}
         dockerfile-path: ${{ inputs.dockerfile-path }}
         cache-tag: ${{ inputs.cache-tag }}
+        platform: ${{ inputs.platform }}
 
     - name: Report pull duration
       if: always()

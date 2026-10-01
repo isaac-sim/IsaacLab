@@ -183,6 +183,7 @@ jobs:
       uses: ./.github/actions/run-package-tests
       with:
         image-tag: ${{ needs.config.outputs.ci_image_tag }}-arm64
+        platform: linux/arm64
         isaacsim-base-image: ${{ needs.config.outputs.isaacsim_image_name }}
         isaacsim-version: ${{ needs.config.outputs.isaacsim_image_tag }}
         ci-marker: arm_ci
