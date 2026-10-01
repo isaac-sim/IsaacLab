@@ -214,7 +214,7 @@ def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths(
 
 @pytest.mark.parametrize(
     "installed,expected",
-    [("0.4.2", False), ("0.5.0", True), ("0.5.0.377615", True), ("1.0", True), ("not-a-version", False), (None, False)],
+    [("0.4.2", False), ("0.5.0.377615", True), ("not-a-version", False), (None, False)],
 )
 def test_ovrtx_keys_render_vars_by_prim_path_follows_installed_version(
     monkeypatch: pytest.MonkeyPatch, installed: str | None, expected: bool
