@@ -202,6 +202,12 @@ def test_newton_rtx_viewer_aliases_ldr_color_when_render_vars_use_prim_paths(
     assert by_path.render_vars.get("LdrColor") == ("ldr" if prim_path_keys else None)
     assert by_both.render_vars["LdrColor"] == "short"  # an existing short name is never overwritten
     assert "LdrColor" not in other.render_vars
+
+    # ovrtx hands back new frame objects every step, and ViewerRTX reassigns them each time
+    next_frame = SimpleNamespace(render_vars={"/Render/Vars/LdrColor": "next"})
+    viewer._render_products = {"/Render/Product": SimpleNamespace(frames=[next_frame])}
+    assert next_frame.render_vars.get("LdrColor") == ("next" if prim_path_keys else None)
+
     viewer._render_products = None
     assert viewer._render_products is None
 
