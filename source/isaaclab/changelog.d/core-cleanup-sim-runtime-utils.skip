@@ -1,0 +1,1 @@
+Deduplicated and simplified simulation context and USD utilities without changing behavior; kept internal helpers private and removed duplicate missing-prim color coverage.
