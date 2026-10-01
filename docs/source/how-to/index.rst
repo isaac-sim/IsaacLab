@@ -122,7 +122,7 @@ How-to Guides
 
          :doc:`Exploring MPM materials and coupling </source/how-to/mpm_tutorials>`
 
-         Run MPM study tutorials and the packaged G1 coupling example.
+         Compare material response, fluid surface reconstruction, and robot--particle coupling.
 
    .. container:: guide-group
 

@@ -24,8 +24,9 @@ if TYPE_CHECKING:
 class ParticleSurfaceRenderer:
     """Extract one particle surface and stage its latest mesh for Newton viewers.
 
-    Construct this after the Newton simulation has reset. Surface configuration
-    remains with the caller; this class owns only extraction and viewer updates.
+    Configure a Newton ``ParticleSurface`` and construct this renderer after
+    resetting the simulation. Call :meth:`update` before rendering each frame
+    to reconstruct the surface from the current particle state.
     """
 
     def __init__(

@@ -5,14 +5,15 @@
 
 """Compare MJWarp rigid bodies with shape-matched, nearly rigid MPM objects.
 
-This demo extends the rigid-ball experiment from Figure 17 of Daviet's
-mixed-MPM paper. A sphere, cube, and capsule descend matched inclined lanes:
-MJWarp rigid bodies are on the left and MPM particle discretizations are on the
-right. Corresponding objects use the same authored color and discretized mass.
+This tutorial explores how a stiff MPM material approaches rigid-body behavior.
+A sphere, cube, and capsule descend identical inclines: MJWarp rigid bodies on
+the left and MPM objects on the right. Compare their shape retention, rolling,
+and sliding. Corresponding objects share their color, outer dimensions, and
+total mass.
 
 .. code-block:: bash
 
-    uv run python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
+    uv run --extra isaacsim python scripts/tutorials/08_mpm/rigid_body_equivalence.py \
       --visualizer kit
 """
 
@@ -85,7 +86,7 @@ parser.add_argument(
     "--mpm_young_modulus",
     type=float,
     default=1.0e20,
-    help="Finite approximation of the paper's infinite MPM stiffness [Pa].",
+    help="Young's modulus for the nearly rigid MPM material [Pa].",
 )
 parser.add_argument(
     "--mpm_yield_pressure",
@@ -97,7 +98,7 @@ parser.add_argument(
     "--solver_iterations",
     type=int,
     default=240,
-    help="Maximum implicit MPM solver iterations per physics step. Defaults to the paper's rigid-ball range.",
+    help="Maximum implicit MPM solver iterations per physics step. Defaults to 240.",
 )
 parser.add_argument("--mpm_substeps", type=int, default=8, help="Implicit MPM substeps per simulation step.")
 parser.add_argument("--rigid_substeps", type=int, default=4, help="MJWarp substeps per simulation step.")

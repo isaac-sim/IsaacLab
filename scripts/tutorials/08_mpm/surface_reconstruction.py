@@ -3,19 +3,19 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Tune Newton surface reconstruction on a falling MPM water blob.
+"""Explore fluid surface reconstruction with a falling MPM water blob.
 
-This scene intentionally uses a broad basin instead of the teapot demo's small
-tabletop composition. It keeps the particle simulation identical across surface
-presets so each run isolates reconstruction choices rather than material motion.
+A water blob falls into a shallow pool. Compare reconstruction grid sizes,
+kernel shapes, and smoothing while keeping the particle simulation fixed.
+Use ``--fluid_render_mode both`` to view the surface and its source particles.
 
 .. code-block:: bash
 
     uv run python scripts/tutorials/08_mpm/surface_reconstruction.py \
-      --device cuda:0 --surface_preset coarse_grid
+      --surface_preset coarse_grid
 
     uv run --extra ovrtx python scripts/tutorials/08_mpm/surface_reconstruction.py \
-      --device cuda:0 --visualizer newton_rtx
+      --visualizer newton_rtx
 """
 
 from __future__ import annotations
@@ -495,7 +495,7 @@ def create_surface_renderer(sim) -> ParticleSurfaceRenderer:
 
 
 def fluid_metrics(scene, triangle_count: int) -> dict[str, float | int]:
-    """Return finite motion and geometry diagnostics for the encoded frame."""
+    """Return the fluid center, bounding-box extents, and surface triangle count."""
     points = scene["fluid"].data.particle_pos_w.torch[0]
     lower = points.amin(dim=0).detach().cpu().numpy()
     upper = points.amax(dim=0).detach().cpu().numpy()

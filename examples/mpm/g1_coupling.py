@@ -5,11 +5,12 @@
 
 """Compare one-way and two-way G1 coupling across three shallow MPM strips.
 
-Both variants use the published ``Isaac-Velocity-Flat-G1`` Newton-MJWarp
-checkpoint, a fixed forward command, and the same rigid runway. Three adjacent
-16 cm particle layers cover equal thirds of the course: dry sand, packed snow,
-and clay. In the one-way variant the robot moves the particles without receiving
-their reaction forces; the two-way variant returns those forces to the robot.
+Observe how particle resistance affects a policy trained for rigid terrain.
+The published ``Isaac-Velocity-Flat-G1`` policy walks along a rigid runway and
+through 16 cm layers of sand, snow, and clay. Both coupling modes let the robot
+displace particles; two-way coupling also returns their reaction forces to the
+robot. Compare its progress and balance with ``--coupling one_way`` and
+``--coupling two_way``.
 
 .. code-block:: bash
 

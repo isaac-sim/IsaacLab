@@ -230,7 +230,10 @@ Tune reconstruction independently from the simulation:
 * Anisotropic kernels preserve sheets and stretched fluid features better, but
   cost more than isotropic kernels.
 
-The demo uses a reusable helper to handle CUDA graph capture, empty surfaces,
+To render a surface in your own scene, pass the configured
+``newton.geometry.ParticleSurface`` to ``ParticleSurfaceRenderer`` after
+``sim.reset()``. Call ``update()`` before ``sim.render()`` to extract and stage
+the current mesh. The renderer handles CUDA graph capture, empty surfaces,
 inactive particles, and dynamic topology:
 
 .. dropdown:: ``ParticleSurfaceRenderer`` implementation

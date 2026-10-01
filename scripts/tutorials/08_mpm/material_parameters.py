@@ -3,18 +3,16 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-"""Compare Newton MPM material parameters in controlled scenes.
+"""Explore how Newton MPM material parameters affect impact and deformation.
 
-The comparisons borrow the visual grammar and parameter contexts of Daviet's
-mixed-MPM Figure 23: equal-volume specimens fall onto identical cylinders while
-one material field changes. Elasticity comparisons use spherical impactors on
-plates because compression and rebound read more clearly there. Every preset
-uses a 25 mm MPM grid with two particles per voxel axis; spatial resolution is
-therefore not another experimental variable.
+Compare spheres dropping onto plates or blocks dropping onto cylinders while
+varying one parameter. Each comparison uses the same geometry, initial state,
+and seeded particle layout. Add ``--press_spheres`` to a stiffness or
+compressibility comparison to observe the response to sustained compression.
 
 .. code-block:: bash
 
-    uv run python scripts/tutorials/08_mpm/material_parameters.py \
+    uv run --extra isaacsim python scripts/tutorials/08_mpm/material_parameters.py \
       --preset young_modulus --visualizer kit
 """
 
@@ -77,7 +75,7 @@ PRESETS = {
     ),
     "friction": TuningPreset(
         title="Granular friction",
-        subtitle="Internal friction μ only · cohesion unchanged · paper-inspired cylinder drop",
+        subtitle="Internal friction μ · fixed cohesion · cylinder impact",
         field="friction",
         values=(0.0, 0.68, 2.0),
         labels=("NO FRICTION · μ = 0", "DRY SAND · μ = 0.68", "HIGH-FRICTION WET SAND · μ = 2"),
@@ -152,7 +150,7 @@ PRESETS = {
     ),
     "viscosity": TuningPreset(
         title="Plastic viscosity",
-        subtitle="Viscosity η · paper-inspired granular cylinder drop",
+        subtitle="Plastic viscosity η · granular cylinder impact",
         field="viscosity",
         values=(0.0, 10.0, 500.0),
         labels=("FREE-FLOWING · 0 Pa·s", "PASTE · 10 Pa·s", "HIGH VISCOSITY · 500 Pa·s"),
@@ -288,7 +286,7 @@ def particle_jitter_fraction_for_variant(index: int) -> float:
 
 
 def material_values_for_variant(index: int) -> dict[str, float]:
-    """Return material values authored explicitly for one specimen variant."""
+    """Combine the common material settings with the selected variant's value."""
     material_values = {
         "density": DENSITY,
         "young_modulus": 1.0e7,
@@ -537,12 +535,9 @@ def create_specimen_points(geometry: str, variant_index: int) -> np.ndarray:
         raise ValueError(f"Unsupported specimen geometry: {geometry!r}.")
     if points.shape[0] == 0:
         raise RuntimeError("Specimen generation produced no particles; reduce --voxel_size.")
-    # Reuse one seeded offset field so every material variant starts from the
-    # same irregular packing and the comparison continues to isolate one field.
     jitter_fraction = particle_jitter_fraction_for_variant(variant_index)
     jitter = jitter_fraction * spacing
-    # Every material variant receives the same deterministic normalized offsets;
-    # this keeps packing noise from masquerading as a constitutive difference.
+    # Reuse the seed so packing differences do not obscure the material comparison.
     points += np.random.default_rng(args_cli.particle_seed).uniform(-jitter, jitter, points.shape)
     return points.astype(np.float32)
 
