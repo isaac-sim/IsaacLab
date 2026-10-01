@@ -228,7 +228,7 @@ class SimulationContext:
         self._is_playing = False
         self._is_stopped = True
 
-        # Monotonic physics-step counter used by camera sensors for
+        # Monotonic physics-step counter used by camera sensors for data freshness checks.
         self._physics_step_count: int = 0
         # Monotonic render-generation counter. This increments whenever render()
         # is executed and lets downstream camera freshness logic distinguish
@@ -387,7 +387,7 @@ class SimulationContext:
         class defaults. Backend-specific defaults, such as the streaming renderer,
         do not transfer between visualizer types.
         """
-        default_cfg = getattr(self.cfg, "default_visualizer_cfg", None)
+        default_cfg = self.cfg.default_visualizer_cfg
         if default_cfg is None:
             return
         source_defaults, target_defaults = type(default_cfg)(), type(cfg)()
@@ -467,6 +467,7 @@ class SimulationContext:
             self._pending_camera_view = None
 
     def get_scene_data_provider(self) -> SceneDataProvider:
+        """Return the scene data provider shared by visualizers and renderers."""
         return self._scene_data_provider
 
     def register_interactive_scene(self, scene) -> None:
@@ -540,7 +541,7 @@ class SimulationContext:
     def _requires_pre_capture_newton_init(cfg: Any) -> bool:
         """Return whether a config contributes Newton picking inputs to capture."""
         return (
-            getattr(cfg, "visualizer_type", None) in {"newton_gl", "newton_rtx"}
+            cfg.visualizer_type in {"newton_gl", "newton_rtx"}
             and bool(getattr(cfg, "enable_picking", False))
             and not bool(getattr(cfg, "headless", False))
         )
@@ -634,7 +635,7 @@ class SimulationContext:
         # consumes that state later in this method. Live-plot panels register in the same
         # registry and their flag is independent of markers, so gate on either capability.
         if any(
-            viz.supports_markers() or (viz.supports_live_plots() and getattr(viz.cfg, "enable_live_plots", True))
+            viz.supports_markers() or (viz.supports_live_plots() and viz.cfg.enable_live_plots)
             for viz in self._visualizers
         ):
             self.vis_marker_registry.dispatch_callbacks()
@@ -646,10 +647,8 @@ class SimulationContext:
                 if skip_app_pumping and viz.pumps_app_update():
                     continue
                 if viz.is_closed or not viz.is_running():
-                    if viz.is_closed:
-                        logger.info("Visualizer closed: %s", type(viz).__name__)
-                    else:
-                        logger.info("Visualizer not running: %s", type(viz).__name__)
+                    state = "closed" if viz.is_closed else "not running"
+                    logger.info("Visualizer %s: %s", state, type(viz).__name__)
                     visualizers_to_remove.append(viz)
                     continue
                 if viz.is_rendering_paused():
@@ -859,12 +858,7 @@ class SimulationContext:
             return
 
         def _predicate(prim: Usd.Prim) -> bool:
-            path = prim.GetPath().pathString
-            if path == "/World":
-                return False
-            if prim.GetTypeName() == "PhysicsScene":
-                return False
-            return True
+            return prim.GetPath().pathString != "/World" and prim.GetTypeName() != "PhysicsScene"
 
         sim_utils.clear_stage(predicate=_predicate)
 
