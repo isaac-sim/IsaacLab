@@ -19,8 +19,8 @@ from rendering_test_utils import (
     rendering_test_shadow_hand,
 )
 
-# no arm_ci marker: intermittently stalls the arm64 runner mid-file (renderer hang after a few
-# passing cases, killed at the per-file timeout); x86 kitless coverage remains in place
+pytestmark = pytest.mark.arm_ci
+
 _RENDERING_PARAMS = group_rendering_params(
     make_kitless_rendering_params(MINIMAL_KITLESS_PHYSICS_RENDERER_AOV_COMBINATIONS)
 )
