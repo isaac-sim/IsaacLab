@@ -10,9 +10,10 @@
 
 from unittest.mock import MagicMock
 
-from _iface_test_boot import simulation_app
+import _iface_test_boot  # noqa: F401  (starts the runtime)
 
 import numpy as np
+import torch
 import warp as wp
 
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
@@ -25,6 +26,7 @@ try:
     from isaaclab_physx.assets.articulation.articulation import Articulation as PhysXArticulation
     from isaaclab_physx.assets.articulation.articulation_data import ArticulationData as PhysXArticulationData
     from isaaclab_physx.physics import PhysxManager as SimulationManager
+    from isaaclab_physx.physics.physx_manager import PhysxSceneDataBackend
     from isaaclab_physx.test.fixtures.views import MockArticulationViewWarp as PhysXMockArticulationViewWarp
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["physx"] = f"{type(error).__name__}: {error}"
@@ -33,6 +35,7 @@ else:
     _mock_physics_sim_view = MagicMock()
     _mock_physics_sim_view.get_gravity.return_value = (0.0, 0.0, -9.81)
     SimulationManager.get_physics_sim_view = MagicMock(return_value=_mock_physics_sim_view)
+    SimulationManager._scene_data_backend = PhysxSceneDataBackend()
 
     BACKENDS.append("physx")
 
@@ -51,9 +54,12 @@ try:
     from isaaclab_ov.assets.articulation.articulation import Articulation as OvPhysxArticulation
     from isaaclab_ov.assets.articulation.articulation_data import ArticulationData as OvPhysxArticulationData
     from isaaclab_ov.test.fixtures.views import MockOvPhysxBindingSet
+    from isaaclab_ov.physics.ovphysx_manager import OvPhysxManager, OvPhysxSceneDataBackend
 except ImportError as error:
     BACKEND_UNAVAILABLE_REASONS["ovphysx"] = f"{type(error).__name__}: {error}"
 else:
+    # Writers bump the scene-data transform version that ``initialize()`` would normally create.
+    OvPhysxManager._scene_data_backend = OvPhysxSceneDataBackend()
     BACKENDS.append("ovphysx")
 
 
@@ -83,6 +89,8 @@ def create_physx_articulation(
         joint_ordering=joint_ordering,
         body_ordering=body_ordering,
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create PhysX mock view
     mock_view = PhysXMockArticulationViewWarp(
@@ -107,6 +115,7 @@ def create_physx_articulation(
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
+    articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
 
     # We can't call the initialize method here, because we don't have a good mock for the actuators yet.
     # We need to set the _data attribute manually.
@@ -122,8 +131,8 @@ def create_physx_articulation(
     data.spatial_tendon_names = spatial_tendon_names
 
     # Create wrench composers (pass articulation which has num_instances, num_bodies, device properties)
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
 
@@ -134,8 +143,6 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_debug_vis_handle", None)
 
     # Set up other required attributes
-    object.__setattr__(articulation, "actuators", {})
-    object.__setattr__(articulation, "_has_implicit_actuators", False)
     object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
     object.__setattr__(
         articulation, "_ALL_BODY_INDICES", wp.array(np.arange(num_bodies, dtype=np.int32), device=device)
@@ -173,18 +180,6 @@ def create_physx_articulation(
     articulation._resolve_and_install_ordering_maps()
     articulation._ordering_configure_backend_staging()
 
-    # Initialize joint targets
-    joint_target_shape = (num_instances, num_joints)
-    object.__setattr__(
-        articulation, "_joint_pos_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_vel_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-    object.__setattr__(
-        articulation, "_joint_effort_target_sim", wp.zeros(joint_target_shape, dtype=wp.float32, device=device)
-    )
-
     # Cached .view(wp.float32) wrappers
     object.__setattr__(articulation, "_root_link_pose_w_f32", None)
     object.__setattr__(articulation, "_root_com_vel_w_f32", None)
@@ -213,6 +208,8 @@ def create_physx_articulation(
     object.__setattr__(articulation, "_cpu_body_coms", wp.zeros((N, B, 7), dtype=wp.float32, device="cpu"))
     object.__setattr__(articulation, "_cpu_body_inertia", wp.zeros((N, B, 9), dtype=wp.float32, device="cpu"))
 
+    articulation._process_actuators_cfg()
+
     return articulation, mock_view
 
 
@@ -240,6 +237,8 @@ def create_ovphysx_articulation(
         joint_ordering=joint_ordering,
         body_ordering=body_ordering,
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     # Create mock binding set
     mock_bindings = MockOvPhysxBindingSet(
@@ -288,21 +287,16 @@ def create_ovphysx_articulation(
     articulation._create_buffers()
 
     # Wrench composers
-    mock_inst_wrench = WrenchComposer(articulation)
-    mock_perm_wrench = WrenchComposer(articulation)
+    mock_inst_wrench = WrenchComposer(articulation, supports_world_at_com=True)
+    mock_perm_wrench = WrenchComposer(articulation, supports_world_at_com=True)
     object.__setattr__(articulation, "_instantaneous_wrench_composer", mock_inst_wrench)
     object.__setattr__(articulation, "_permanent_wrench_composer", mock_perm_wrench)
-    object.__setattr__(articulation, "_effort_write_view", None)
-    object.__setattr__(articulation, "_pos_target_write_view", None)
-    object.__setattr__(articulation, "_vel_target_write_view", None)
-
     # Prevent __del__ / _clear_callbacks from raising
     object.__setattr__(articulation, "_initialize_handle", None)
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
-    object.__setattr__(articulation, "actuators", {})
-    object.__setattr__(articulation, "_has_implicit_actuators", False)
+    articulation._process_actuators_cfg()
 
     from isaaclab_ov import tensor_types as TT
 
@@ -353,7 +347,7 @@ def create_newton_articulation(
         dtype=wp.vec3f,
         device=device,
     )
-    # Sizes consumed by the task-space scratch buffers in NewtonArticulationData.__init__.
+    # Sizes consumed by NewtonArticulationData's lazy task-space buffers.
     # Model-wide counts equal the per-articulation counts because the mock contains only
     # this homogeneous articulation batch.
     mock_model.articulation_count = num_instances
@@ -362,6 +356,7 @@ def create_newton_articulation(
     mock_model.max_dofs_per_articulation = total_dofs
     mock_model.joint_dof_count = num_instances * total_dofs
     mock_model.body_count = num_instances * num_bodies
+    mock_view.model = mock_model
     mock_state = MagicMock()
     mock_control = MagicMock()
 
@@ -391,11 +386,16 @@ def create_newton_articulation(
         joint_ordering=joint_ordering,
         body_ordering=body_ordering,
     )
+    object.__setattr__(articulation, "_sim_cfg", None)
+    object.__setattr__(articulation, "_fixed_tendon_target_dirty", False)
 
     object.__setattr__(articulation, "_root_view", mock_view)
     object.__setattr__(articulation, "_device", device)
     object.__setattr__(articulation, "_data", data)
     object.__setattr__(articulation, "_test_simulation_manager", mock_manager)
+    articulation._clamped_default_count = wp.zeros(1, dtype=wp.int32, device=device)
+    # the solver builds this adapter; the shell has no model, so it stays absent
+    object.__setattr__(articulation, "_fixed_tendon_control", None)
 
     # Newton supports fixed tendons but not spatial tendons.
     object.__setattr__(articulation, "_fixed_tendon_names", fixed_tendon_names)
@@ -414,10 +414,6 @@ def create_newton_articulation(
     object.__setattr__(articulation, "_invalidate_initialize_handle", None)
     object.__setattr__(articulation, "_prim_deletion_handle", None)
     object.__setattr__(articulation, "_debug_vis_handle", None)
-
-    # Other required attributes
-    object.__setattr__(articulation, "actuators", {})
-    object.__setattr__(articulation, "_has_implicit_actuators", False)
 
     # Newton uses wp.array for indices (not torch)
     object.__setattr__(articulation, "_ALL_INDICES", wp.array(np.arange(num_instances, dtype=np.int32), device=device))
@@ -450,22 +446,7 @@ def create_newton_articulation(
     )
     object.__setattr__(articulation, "_ALL_SPATIAL_TENDON_MASK", wp.ones((0,), dtype=wp.bool, device=device))
 
-    # Joint targets (Newton uses warp, not torch)
-    object.__setattr__(
-        articulation,
-        "_joint_pos_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_vel_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
-    object.__setattr__(
-        articulation,
-        "_joint_effort_target_sim",
-        wp.zeros((num_instances, num_joints), dtype=wp.float32, device=device),
-    )
+    articulation._process_actuators_cfg()
 
     return articulation, mock_view
 

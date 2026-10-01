@@ -6,6 +6,7 @@
 import os
 import re
 import shutil
+import subprocess
 import sys
 from collections.abc import Iterator
 from contextlib import contextmanager
@@ -25,7 +26,21 @@ from ..utils import (
     print_warning,
     run_command,
 )
-from .misc import command_vscode_settings
+from .misc import command_editor
+
+_PACKAGE_INDEX_RETRIES = "12"
+_PACKAGE_INSTALL_RETRY_ATTEMPTS = 3
+_PACKAGE_INSTALL_RETRY_DELAY_SECONDS = 3.0
+
+
+def _run_package_install(cmd: list[str], *, check: bool = True) -> subprocess.CompletedProcess:
+    """Run a package installation with command-level retries."""
+    return run_command(
+        cmd,
+        check=check,
+        retry_attempts=_PACKAGE_INSTALL_RETRY_ATTEMPTS,
+        retry_delay_seconds=_PACKAGE_INSTALL_RETRY_DELAY_SECONDS,
+    )
 
 
 @contextmanager
@@ -60,7 +75,6 @@ def _install_system_deps() -> None:
     if is_windows():
         return
 
-    # Check if cmake is already installed.
     if shutil.which("cmake"):
         print_info("cmake is already installed.")
     else:
@@ -259,10 +273,9 @@ def _ensure_pink_ik_dependencies_installed(python_exe: str, pip_cmd: list[str], 
     )
     if probe_result.returncode == 0:
         return
-
     print_info("Pink IK dependency probe failed. Force-installing the cmeel pinocchio and DAQP stack.")
     pink_ik_stack = _pink_ik_stack()
-    install_result = run_command(
+    install_result = _run_package_install(
         pip_cmd + ["install", "--upgrade", "--force-reinstall", *pink_ik_stack],
         check=False,
     )
@@ -287,12 +300,7 @@ def _ensure_cuda_torch() -> None:
     torch_ver = _pinned_version("torch")
     tv_ver = _pinned_version("torchvision")
 
-    if is_arm():
-        cuda_ver = "130"
-    else:
-        cuda_ver = "128"
-
-    cuda_tag = f"cu{cuda_ver}"
+    cuda_tag = "cu130"
     index_url = f"{base_index}/{cuda_tag}"
 
     want_torch = f"{torch_ver}+{cuda_tag}"
@@ -319,7 +327,6 @@ def _ensure_cuda_torch() -> None:
         print_info(f"PyTorch {want_torch} already installed.")
         return
 
-    # Clean install torch.
     print_info(f"Installing torch=={torch_ver} and torchvision=={tv_ver} ({cuda_tag}) from {index_url}...")
 
     # uv pip uninstall does not accept -y
@@ -329,23 +336,25 @@ def _ensure_cuda_torch() -> None:
         check=False,
     )
 
-    run_command(pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"])
+    _run_package_install(
+        pip_cmd + ["install", "--index-url", index_url, f"torch=={torch_ver}", f"torchvision=={tv_ver}"]
+    )
 
 
 def _ensure_newton() -> None:
-    """Install the pinned Newton git build, replacing any index version.
+    """Install the pinned Newton release, replacing any other version.
 
     Isaac Sim bundles ``newton[sim]==1.2.0``, which satisfies the loose core bound in
     the root pyproject, so the centralized install would otherwise keep the older
-    Newton. Isaac Lab owns the exact commit via ``[tool.uv].override-dependencies``
+    Newton. Isaac Lab owns the exact pin via ``[tool.uv].override-dependencies``
     (``uv sync`` honors it, ``pip``/``uv pip`` installs do not), so force it in here
     from that single source.
     """
     overrides = _load_root_pyproject().get("tool", {}).get("uv", {}).get("override-dependencies", [])
     requirement = next((r for r in overrides if _requirement_name(r) == "newton"), None)
     if not requirement:
-        raise KeyError("Newton git pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
-    commit = _pinned_version("newton")
+        raise KeyError("Newton pin is missing from [tool.uv].override-dependencies in the root pyproject.toml.")
+    pin = requirement.rsplit("@", 1)[-1] if "@" in requirement else requirement.rsplit("==", 1)[-1]
     # Newton-matched schemas (isaacsim pins the older ==0.2.0); force it alongside newton.
     schemas = next((r for r in overrides if _requirement_name(r) == "newton-usd-schemas"), None)
 
@@ -353,21 +362,21 @@ def _ensure_newton() -> None:
     pip_cmd = get_pip_command(python_exe)
     using_uv = pip_cmd[0] == "uv"
 
-    # git installs record the commit in freeze output; skip if it is already present.
     frozen = run_command(pip_cmd + ["freeze"], capture_output=True, text=True, check=False)
     if frozen.returncode == 0 and any(
-        _requirement_name(line) == "newton" and commit in line for line in frozen.stdout.splitlines()
+        line.strip().lower() == f"newton=={pin}" or line.strip().lower().endswith(f"@{pin}")
+        for line in frozen.stdout.splitlines()
+        if _requirement_name(line) == "newton"
     ):
-        print_info(f"Newton git build ({commit[:10]}) already installed.")
+        print_info(f"Newton {pin} already installed.")
         return
 
-    print_info(f"Installing pinned Newton git build ({commit[:10]})...")
+    print_info(f"Installing Newton {pin}...")
     uninstall_flags = ["-y"] if not using_uv else []
     run_command(pip_cmd + ["uninstall"] + uninstall_flags + ["newton"], check=False)
-    run_command(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
+    _run_package_install(pip_cmd + ["install", requirement, *([schemas] if schemas else [])])
 
 
-# Isaac Sim install settings.
 NVIDIA_INDEX_URL = "https://pypi.nvidia.com"
 
 
@@ -476,7 +485,7 @@ def _install_root_extra(extra: str) -> None:
     python_exe = extract_python_exe()
     pip_cmd = get_pip_command(python_exe)
     print_info(f"Installing '{extra}' extra dependencies from the root pyproject...")
-    run_command(pip_cmd + ["install"] + dependencies)
+    _run_package_install(pip_cmd + ["install"] + dependencies)
 
 
 def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: list[str]) -> None:
@@ -494,7 +503,7 @@ def _install_centralized_dependencies(pip_cmd: list[str], optional_submodules: l
     core_dependencies = _root_core_dependencies()
     if core_dependencies:
         print_info("Installing core dependencies from the root pyproject...")
-        run_command(pip_cmd + ["install"] + core_dependencies)
+        _run_package_install(pip_cmd + ["install"] + core_dependencies)
     # dict preserves order while de-duplicating extras shared across submodules.
     extras: dict[str, None] = {}
     for submodule_name in optional_submodules:
@@ -588,7 +597,7 @@ def _upgrade_extension_pip_dependencies(
 
         for requirement in matching_requirements:
             print_info(f"Upgrading {dependency_name} for {distribution_name}: {requirement}")
-            run_command(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
+            _run_package_install(_get_pip_upgrade_command(pip_cmd, dependency_name, requirement))
 
 
 def _install_isaacsim() -> None:
@@ -630,7 +639,7 @@ def _install_isaacsim() -> None:
         # (isaacsim is on pypi.nvidia.com, its deps are on pypi.org).
         extra_flags = ["--index-strategy", "unsafe-best-match"]
 
-    run_command(
+    _run_package_install(
         pip_cmd
         + [
             "install",
@@ -645,17 +654,18 @@ def _install_isaacsim() -> None:
 # Source directories installed on every ./isaaclab.sh -i invocation (even "core").
 # Order must respect inter-package dependencies (topological sort):
 #   isaaclab first, then ppisp (no inter-package deps, precedes renderer backends),
-#   then contrib (needed by assets), then assets, then tasks (needed by rl),
-#   then rl. Packages with only an isaaclab dep can go anywhere after isaaclab.
+#   then contrib and the backend packages newton/physx (needed by assets), then
+#   assets, then tasks (needed by rl), then rl. Packages with only an isaaclab
+#   dep can go anywhere after isaaclab.
 CORE_ISAACLAB_SUBMODULES: list[str] = [
     "isaaclab",
     "isaaclab_ppisp",
     "isaaclab_contrib",
+    "isaaclab_newton",
+    "isaaclab_physx",
     "isaaclab_assets",
     "isaaclab_experimental",
-    "isaaclab_newton",
     "isaaclab_ov",
-    "isaaclab_physx",
     "isaaclab_tasks",
     "isaaclab_tasks_experimental",
     "isaaclab_rl",
@@ -743,7 +753,7 @@ def _install_isaaclab_submodules(isaaclab_submodules: list[str]) -> None:
             print_warning(f"Submodule directory not found or missing pyproject.toml: {item}")
             continue
         print_info(f"Installing submodule: {pkg_name}")
-        run_command(pip_cmd + ["install", "--editable", str(item)])
+        _run_package_install(pip_cmd + ["install", "--editable", str(item)])
         _upgrade_extension_pip_dependencies(
             python_exe,
             pip_cmd,
@@ -1043,10 +1053,14 @@ def _repoint_prebundle_packages() -> None:
         print_debug("No pip_prebundle directories found under Isaac Sim.")
         return
 
+    # Extras are expanded as wheel trees nested below pip_prebundle.
+    package_roots = prebundle_dirs | {
+        path for prebundle_dir in prebundle_dirs for path in prebundle_dir.glob("*[[]*[]]/*") if path.is_dir()
+    }
     repointed = 0
-    for prebundle_dir in prebundle_dirs:
+    for package_root in package_roots:
         for pkg_name in _PREBUNDLE_REPOINT_PACKAGES:
-            prebundled = prebundle_dir / pkg_name
+            prebundled = package_root / pkg_name
             venv_pkg = site_packages / pkg_name
 
             if not venv_pkg.exists():
@@ -1083,7 +1097,6 @@ def _repoint_prebundle_packages() -> None:
                 print_debug(f"Repointed {prebundled} -> {venv_pkg}")
             except OSError as exc:
                 print_warning(f"Could not repoint {prebundled}: {exc} — skipping.")
-
     if repointed:
         print_info(
             f"Repointed {repointed} prebundled package(s) in Isaac Sim to the active environment's site-packages."
@@ -1099,9 +1112,9 @@ def _repoint_prebundle_packages() -> None:
     # env package into the prebundle, which is a real directory by design.
     if use_symlinks and (site_packages / "torch").exists():
         shadowing = [
-            prebundle_dir / "torch"
-            for prebundle_dir in prebundle_dirs
-            if (prebundle_dir / "torch").is_dir() and not (prebundle_dir / "torch").is_symlink()
+            package_root / "torch"
+            for package_root in package_roots
+            if (package_root / "torch").is_dir() and not (package_root / "torch").is_symlink()
         ]
         if shadowing:
             raise RuntimeError(
@@ -1143,7 +1156,10 @@ def command_install(install_type: str = "all") -> None:
                   ./isaaclab.sh -i teleop,rl[skrl],ov[ovrtx]
     """
 
-    # Install system dependencies first.
+    # Let package managers retry failed requests without repeating complete install commands.
+    os.environ.setdefault("PIP_RETRIES", _PACKAGE_INDEX_RETRIES)
+    os.environ.setdefault("UV_HTTP_RETRIES", _PACKAGE_INDEX_RETRIES)
+
     _install_system_deps()
 
     print_info("Installing extensions inside the Isaac Lab repository...")
@@ -1259,13 +1275,10 @@ def command_install(install_type: str = "all") -> None:
             # Upgrade pip first to avoid compatibility issues (skip when using uv).
             if not using_uv:
                 print_info("Upgrading pip...")
-                run_command(pip_cmd + ["install", "--upgrade", "pip"])
-            else:
-                # Tolerate transient failures from indexes queried by ``unsafe-best-match``.
-                os.environ.setdefault("UV_HTTP_RETRIES", "6")
+                _run_package_install(pip_cmd + ["install", "--upgrade", "pip"])
 
             # Pin setuptools to avoid issues with pkg_resources removal in 82.0.0.
-            run_command(pip_cmd + ["install", "setuptools<82.0.0"])
+            _run_package_install(pip_cmd + ["install", "setuptools<82.0.0"])
 
             # Drop pip-installed torch if Isaac Sim's deprecated ML prebundle would shadow it.
             _maybe_uninstall_prebundled_torch(python_exe, pip_cmd, using_uv, probe_env=probe_env)
@@ -1274,7 +1287,7 @@ def command_install(install_type: str = "all") -> None:
             if install_isaacsim:
                 _install_isaacsim()
 
-            # Install pytorch (version based on arch).
+            # Install the pinned PyTorch CUDA build.
             _ensure_cuda_torch()
 
             # Install all submodules (core set + any explicitly requested optional ones).
@@ -1298,7 +1311,7 @@ def command_install(install_type: str = "all") -> None:
                     _install_extra_feature(feature_name, selector)
 
             # Isaac Sim's bundled newton==1.2.0 satisfies the loose core bound, so force the
-            # pinned Newton git build (the default physics engine) over it. This runs after every
+            # pinned Newton release (the default physics engine) over it. This runs after every
             # install pass because they go through pip, which does not see
             # [tool.uv].override-dependencies: isaacsim-asset-isolated's exact mujoco and
             # newton-usd-schemas pins would otherwise stand.
@@ -1332,6 +1345,6 @@ def command_install(install_type: str = "all") -> None:
             if saved_pythonpath is not None:
                 os.environ["PYTHONPATH"] = saved_pythonpath
 
-    # Install vscode update unless we're in docker.
+    # Update editor settings unless we're in Docker.
     if not (os.path.exists("/.dockerenv") or os.path.exists("/run/.containerenv")):
-        command_vscode_settings()
+        command_editor([], project_dir=ISAACLAB_ROOT)

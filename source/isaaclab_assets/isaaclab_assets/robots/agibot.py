@@ -12,6 +12,9 @@ The following configurations are available:
 
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg, PhysxRigidBodyCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -25,15 +28,13 @@ AGIBOT_A2D_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAACLAB_NUCLEUS_DIR}/Robots/Agibot/A2D/A2D_physics.usd",
         activate_contact_sensors=True,
-        rigid_props=sim_utils.RigidBodyPropertiesCfg(
-            disable_gravity=False,
-            max_depenetration_velocity=5.0,
-        ),
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
-            enabled_self_collisions=False,
-            solver_position_iteration_count=8,
-            solver_velocity_iteration_count=0,
-        ),
+        rigid_props=PhysxRigidBodyCfg(disable_gravity=False, max_depenetration_velocity=5.0),
+        articulation_props=[
+            PhysxArticulationCfg(
+                enabled_self_collisions=False, solver_position_iteration_count=8, solver_velocity_iteration_count=0
+            ),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
     ),
     init_state=ArticulationCfg.InitialStateCfg(
         joint_pos={
@@ -84,38 +85,38 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         # Body lift and torso actuators
         "body": ImplicitActuatorCfg(
             joint_names_expr=["joint_lift_body", "joint_body_pitch"],
-            effort_limit_sim=10000.0,
-            velocity_limit_sim=2.61,
+            joint_effort_limit=10000.0,
+            joint_velocity_limit=2.61,
             stiffness=10000000.0,
             damping=200.0,
         ),
         # Head actuators
         "head": ImplicitActuatorCfg(
             joint_names_expr=["joint_head_yaw", "joint_head_pitch"],
-            effort_limit_sim=50.0,
-            velocity_limit_sim=1.0,
+            joint_effort_limit=50.0,
+            joint_velocity_limit=1.0,
             stiffness=80.0,
             damping=4.0,
         ),
         # Left arm actuator
         "left_arm": ImplicitActuatorCfg(
             joint_names_expr=["left_arm_joint[1-7]"],
-            effort_limit_sim={
+            joint_effort_limit={
                 "left_arm_joint1": 2000.0,
                 "left_arm_joint[2-7]": 1000.0,
             },
-            velocity_limit_sim=1.57,
+            joint_velocity_limit=1.57,
             stiffness={"left_arm_joint1": 10000000.0, "left_arm_joint[2-7]": 20000.0},
             damping={"left_arm_joint1": 0.0, "left_arm_joint[2-7]": 0.0},
         ),
         # Right arm actuator
         "right_arm": ImplicitActuatorCfg(
             joint_names_expr=["right_arm_joint[1-7]"],
-            effort_limit_sim={
+            joint_effort_limit={
                 "right_arm_joint1": 2000.0,
                 "right_arm_joint[2-7]": 1000.0,
             },
-            velocity_limit_sim=1.57,
+            joint_velocity_limit=1.57,
             stiffness={"right_arm_joint1": 10000000.0, "right_arm_joint[2-7]": 20000.0},
             damping={"right_arm_joint1": 0.0, "right_arm_joint[2-7]": 0.0},
         ),
@@ -125,16 +126,16 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         #   set stiffness and damping to 0.0 below
         "left_gripper": ImplicitActuatorCfg(
             joint_names_expr=["left_hand_joint1", "left_.*_Support_Joint"],
-            effort_limit_sim={"left_hand_joint1": 10.0, "left_.*_Support_Joint": 1.0},
-            velocity_limit_sim=2.0,
+            joint_effort_limit={"left_hand_joint1": 10.0, "left_.*_Support_Joint": 1.0},
+            joint_velocity_limit=2.0,
             stiffness={"left_hand_joint1": 20.0, "left_.*_Support_Joint": 2.0},
             damping={"left_hand_joint1": 0.10, "left_.*_Support_Joint": 0.01},
         ),
         # set PD to zero for passive joints in close-loop gripper
         "left_gripper_passive": ImplicitActuatorCfg(
             joint_names_expr=["left_.*_(0|1)_Joint", "left_.*_RevoluteJoint"],
-            effort_limit_sim=10.0,
-            velocity_limit_sim=10.0,
+            joint_effort_limit=10.0,
+            joint_velocity_limit=10.0,
             stiffness=0.0,
             damping=0.0,
         ),
@@ -144,16 +145,16 @@ AGIBOT_A2D_CFG = ArticulationCfg(
         #   set stiffness and damping to 0.0 below
         "right_gripper": ImplicitActuatorCfg(
             joint_names_expr=["right_hand_joint1", "right_.*_Support_Joint"],
-            effort_limit_sim={"right_hand_joint1": 100.0, "right_.*_Support_Joint": 100.0},
-            velocity_limit_sim=10.0,
+            joint_effort_limit={"right_hand_joint1": 100.0, "right_.*_Support_Joint": 100.0},
+            joint_velocity_limit=10.0,
             stiffness={"right_hand_joint1": 20.0, "right_.*_Support_Joint": 2.0},
             damping={"right_hand_joint1": 0.10, "right_.*_Support_Joint": 0.01},
         ),
         # set PD to zero for passive joints in close-loop gripper
         "right_gripper_passive": ImplicitActuatorCfg(
             joint_names_expr=["right_.*_(0|1)_Joint", "right_.*_RevoluteJoint"],
-            effort_limit_sim=100.0,
-            velocity_limit_sim=10.0,
+            joint_effort_limit=100.0,
+            joint_velocity_limit=10.0,
             stiffness=0.0,
             damping=0.0,
         ),

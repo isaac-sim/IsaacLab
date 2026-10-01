@@ -25,7 +25,7 @@ from __future__ import annotations
 import argparse
 from functools import partial
 
-from isaaclab.benchmark._cli import parse_non_negative_int, parse_positive_int
+from isaaclab.benchmark.cli import parse_non_negative_int, parse_positive_int
 from isaaclab.benchmark.sensor_suites import (
     add_sensor_benchmark_args,
     create_contact_sensor_scene_cfg,
@@ -89,7 +89,7 @@ def main():
             step=lambda: sim.step(render=False),
             update=lambda: sensor.update(sim_dt),
             read=lambda: getattr(sensor, "data"),
-            count_contacts=lambda: int((sensor.data.net_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
+            count_contacts=lambda: int((sensor.data.net_normal_forces_w.torch.norm(dim=-1) > 0.1).sum().item()),
             synchronize=synchronize_device,
         )
 

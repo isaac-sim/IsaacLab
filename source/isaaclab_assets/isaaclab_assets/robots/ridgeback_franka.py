@@ -12,6 +12,9 @@ The following configurations are available:
 Reference: https://github.com/ridgeback/ridgeback_manipulation
 """
 
+from isaaclab_newton.sim.schemas import NewtonArticulationCfg
+from isaaclab_physx.sim.schemas import PhysxArticulationCfg
+
 import isaaclab.sim as sim_utils
 from isaaclab.actuators import ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
@@ -24,7 +27,10 @@ from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR
 RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
     spawn=sim_utils.UsdFileCfg(
         usd_path=f"{ISAAC_NUCLEUS_DIR}/Robots/Clearpath/RidgebackFranka/ridgeback_franka.usd",
-        articulation_props=sim_utils.ArticulationRootPropertiesCfg(enabled_self_collisions=False),
+        articulation_props=[
+            PhysxArticulationCfg(enabled_self_collisions=False),
+            NewtonArticulationCfg(self_collision_enabled=False),
+        ],
         activate_contact_sensors=False,
     ),
     init_state=ArticulationCfg.InitialStateCfg(
@@ -49,25 +55,25 @@ RIDGEBACK_FRANKA_PANDA_CFG = ArticulationCfg(
     actuators={
         "base": ImplicitActuatorCfg(
             joint_names_expr=["dummy_base_.*"],
-            effort_limit_sim=1000.0,
+            joint_effort_limit=1000.0,
             stiffness=0.0,
             damping=1e5,
         ),
         "panda_shoulder": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[1-4]"],
-            effort_limit_sim=87.0,
+            joint_effort_limit=87.0,
             stiffness=800.0,
             damping=40.0,
         ),
         "panda_forearm": ImplicitActuatorCfg(
             joint_names_expr=["panda_joint[5-7]"],
-            effort_limit_sim=12.0,
+            joint_effort_limit=12.0,
             stiffness=800.0,
             damping=40.0,
         ),
         "panda_hand": ImplicitActuatorCfg(
             joint_names_expr=["panda_finger_joint.*"],
-            effort_limit_sim=200.0,
+            joint_effort_limit=200.0,
             stiffness=1e5,
             damping=1e3,
         ),

@@ -1169,6 +1169,9 @@
     "package": "ovstage",
     "package_type": "Python",
     "license": "NVIDIA Proprietary Software",
+    "license_aliases": [
+      "LicenseRef-NvidiaProprietary"
+    ],
     "usage": "runtime_dependency",
     "interaction": "same_process_dynamic",
     "linkage": "dynamic",
@@ -1178,6 +1181,9 @@
     "package": "ovrtx",
     "package_type": "Python",
     "license": "NVIDIA Proprietary Software",
+    "license_aliases": [
+      "LicenseRef-NvidiaProprietary"
+    ],
     "usage": "runtime_dependency",
     "interaction": "same_process_dynamic",
     "linkage": "dynamic",

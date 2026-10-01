@@ -1,6 +1,6 @@
 # Newton/MJWarp Asset Migration Reference
 
-This reference follows the sections in the [asset migration guide](../../../docs/source/overview/core-concepts/physical-backends/newton/migrating-assets-from-physx-to-newton.rst).
+This reference follows the sections in the [asset migration guide](../../../docs/source/how-to/prepare_asset_for_newton.rst).
 
 ## Contents
 
@@ -58,8 +58,8 @@ Track fixed-grasp displacement, contact count, effort, penetration, success, con
 
 ## Velocity Limits Distinction
 
-- `velocity_limit` is the actuator's rated speed; MJWarp does not parse or enforce it.
-- `velocity_limit_sim` requests a solver clamp. Isaac Lab always writes it to Newton's `Model.joint_velocity_limit`; MJWarp drops the value when constructing its solver model, while Kamino honors it.
+- `actuator_velocity_limit` is the actuator's rated speed; MJWarp does not parse or enforce it.
+- `joint_velocity_limit` requests a solver clamp. Isaac Lab writes it to Newton's `Model.joint_velocity_limit`; MJWarp drops the value when constructing its solver model, while Kamino honors it.
 - Check required speed bounds in observations or terminations. Use effort limits, damping, armature, action scaling, rate limits, or controller clipping for well-behaved response.
 - PhysX can enforce its supported clamp, so a tight PhysX clamp can hide a task termination.
 
@@ -116,4 +116,4 @@ convergence work only after the model, reset, controller, contact path, and capa
 
 - Cables are authored fresh as Newton deformables (`CableCfg` + `CableMaterialCfg`, or an external USD via `UsdFileCfg`), not converted from a PhysX rigid asset, so nothing in this migration reference applies to them.
 - They are Newton + VBD only.
-- For the authoring contract, material fields, and collision behavior, see the [Using Cables guide](../../../docs/source/overview/core-concepts/physical-backends/newton/using-cables.rst).
+- For the authoring contract, material fields, and collision behavior, see the [Deformables guide](../../../docs/source/concepts/deformables.rst).

@@ -20,36 +20,32 @@
 #
 # Behavior:
 #   1. Materializes HOME + PYTHONUSERBASE dirs (tmpfs, world-writable)
-#   2. Installs pytest deps (junitparser et al.) into the shared PYTHONUSERBASE
-#   3. Derives shard count from nvidia-smi -L (authoritative; torch.cuda.device_count
+#   2. Derives shard count from nvidia-smi -L (authoritative; torch.cuda.device_count
 #      under-counts MIG-on-same-parent unless CUDA_VISIBLE_DEVICES enumerates each)
-#   4. Cross-checks torch against the nvidia-smi count and caps shards to what torch
+#   3. Cross-checks torch against the nvidia-smi count and caps shards to what torch
 #      can address (guards against CUDA_VISIBLE_DEVICES misconfig on a MIG host)
-#   5. Fans out 1 pytest subshell per non-default cuda:N with per-shard HOME +
+#   4. Fans out 1 pytest subshell per non-default cuda:N with per-shard HOME +
 #      ISAACLAB_TEST_DEVICES; each shard tees its stdout to
 #      /shard-logs/cuda-N.log for the host's grouped re-print after the run
-#   6. Waits on every shard before aggregating exit codes — a fast failure doesn't
+#   5. Waits on every shard before aggregating exit codes — a fast failure doesn't
 #      tear down still-running siblings
+#
+# The pytest deps (pytest, junitparser et al.) are baked into the image by
+# .github/actions/docker-build, so this script no longer installs them.
 
 set +e  # keep going on errors; per-shard exit codes are aggregated at the end
 cd /workspace/isaaclab
 unset DISPLAY  # clear the var that would force Kit into headed (X11) mode
 
-# Container-level HOME + PYTHONUSERBASE for pip --user installs. The image
-# runs as --user $host_uid:$host_gid with no matching /etc/passwd entry, so
-# HOME defaults to /root which the user cannot write. /tmp/* is on tmpfs
+# Container-level HOME + PYTHONUSERBASE. The image runs as
+# --user $host_uid:$host_gid with no matching /etc/passwd entry, so HOME
+# defaults to /root which the user cannot write. /tmp/* is on tmpfs
 # (1777, world-writable).
 #
-# PYTHONUSERBASE is the key for the 1-docker shape: pip --user writes to
-# ${PYTHONUSERBASE}/lib/python3.12/site-packages, and every Python invocation
-# that sees the same env var imports from there. Per-shard subshells below
-# override HOME (so .cache / .nvidia-omniverse are isolated) but inherit
-# PYTHONUSERBASE so junitparser et al. resolve everywhere.
+# Both must exist before any shard starts: per-shard subshells below override
+# HOME (so .cache / .nvidia-omniverse are isolated) but inherit
+# PYTHONUSERBASE, so anything writing to the user site shares one directory.
 mkdir -p /tmp/mgpu-base-home /tmp/mgpu-pyuserbase
-
-# Pytest deps (same as run-tests action). junitparser is imported at
-# tools/conftest.py load time, so it must be present first.
-./isaaclab.sh -p -m pip install pytest pytest-mock junitparser flaky "coverage>=7.6.1"
 
 # Shard count from nvidia-smi -L (truth; torch under-counts MIG).
 MIG_COUNT=$(nvidia-smi -L | grep -c "^  MIG ")  # grep -c = count of matching lines (MIG slices)
