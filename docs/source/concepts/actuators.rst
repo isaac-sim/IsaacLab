@@ -359,19 +359,7 @@ when set. Delay configuration and start-up randomization retain their documented
      - Quadratic load-coupling coefficients [1/(N.m)]. Required with quadratic friction.
 
 Author rotor inertia on the joint or set :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
-The BAM controller has no separate ``armature`` coefficient. The JSON importer ignores the fit's
-``armature`` field; it does not configure solver inertia.
-
-JSON import is an optional **asset authoring** step. The importer accepts the supported BAM
-``m1``, ``m2``, ``m5`` and ``m6`` fits, extended with the firmware constants that upstream keeps
-in code. It writes coefficients directly into the output USD; the JSON is unnecessary afterwards:
-
-.. code-block:: bash
-
-    uv run python scripts/tools/import_bam_parameters.py \
-        --input robot.usd --output robot_bam.usda --articulation /Robot \
-        --joint_names '.*' \
-        --params_file /path/to/servo_fit.json
+The BAM drive has no separate ``armature`` coefficient.
 
 The test USD fixture ``source/isaaclab/test/actuators/data/bam_xl330_m6.usda`` contains the
 Dynamixel XL330 ``m6`` fit from ``Rhoban/bam`` at commit ``62bd8ce`` of ``mjlab_frictionloss``.
