@@ -75,19 +75,10 @@ def resolve_python_logging_level(args: dict | None = None) -> int:
 
 
 def ensure_console_handlers(level: int, fallback: bool = True) -> None:
-    """Print Isaac Lab INFO records and warnings on the console.
+    """Print Isaac Lab INFO records on stdout and, when no other handler does, warnings on stderr.
 
-    Isaac Lab reports progress with ``logger.info`` on ``isaaclab*`` loggers. At the default WARNING level
-    these records would be dropped, so this adds a stdout handler that prints only Isaac Lab INFO records
-    and lowers the root logger to INFO so they are created. Other root handlers keep the level set by
-    :func:`apply_python_logging_level`.
-
-    Python prints warnings through its last-resort handler only while no handler is configured, which
-    stops being true once the INFO handler exists. With ``fallback`` enabled and no other root handler, a
-    stderr handler prints records at ``level`` and above instead. Pass ``fallback=False`` once another
-    handler prints warnings, such as Kit's log bridge; an existing fallback handler is then removed.
-
-    Calling this again is safe: each handler is added once.
+    Lowers the root logger to INFO so that Isaac Lab INFO records are created. Pass ``fallback=False`` once
+    another handler prints warnings, such as Kit's log bridge. Safe to call repeatedly.
 
     Args:
         level: The requested Python logging level, e.g. from :func:`resolve_python_logging_level`.
