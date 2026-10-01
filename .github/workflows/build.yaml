@@ -1160,8 +1160,9 @@ jobs:
         elif [ "$BASE_ARCHIVE" = failure ]; then
           baseline_issue="The base results could not be uploaded; baseline FPS is unavailable."
         fi
+        cd "$PERF_CONTROLLER"
         python3 -m tools.perf_smoke.paired bind \
-          --selection "$PERF_CONTROLLER/selection.json" --output-dir benchmark-output \
+          --selection "$PERF_CONTROLLER/selection.json" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --artifact-id "$BASE_ARTIFACT_ID" --baseline-issue "$baseline_issue"
 
     - name: Restore the benchmark matrix
@@ -1173,8 +1174,9 @@ jobs:
       env:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
+        cd "$PERF_CONTROLLER"
         python3 -m tools.perf_smoke.paired capture \
-          --checkout-root "$GITHUB_WORKSPACE" --output-dir benchmark-output \
+          --checkout-root "$GITHUB_WORKSPACE" --output-dir "$GITHUB_WORKSPACE/benchmark-output" \
           --image "$CI_IMAGE_TAG" --role current --legs "$PERF_CONTROLLER/benchmark-legs.tsv"
 
     - name: Run runtime benchmarks
@@ -1183,10 +1185,10 @@ jobs:
         CI_IMAGE_TAG: ${{ needs.config.outputs.ci_image_tag }}
       run: |
         CHECKOUT_ROOT="$GITHUB_WORKSPACE" BENCHMARK_OUTPUT="$GITHUB_WORKSPACE/benchmark-output" \
-        SOURCE_REVISION_LAUNCHER="$GITHUB_WORKSPACE/tools/perf_smoke/source_revision.py" \
+        SOURCE_REVISION_LAUNCHER="$PERF_CONTROLLER/tools/perf_smoke/source_revision.py" \
         SOURCE_MANIFEST="$GITHUB_WORKSPACE/benchmark-output/source-manifest.json" \
         BENCHMARK_LEGS="$PERF_CONTROLLER/benchmark-legs.tsv" JIT_CACHE_ROOT="$PERF_CONTROLLER/jit-cache" \
-        BENCHMARK_ROLE=CURRENT bash tools/perf_smoke/run_benchmarks.sh
+        BENCHMARK_ROLE=CURRENT bash "$PERF_CONTROLLER/tools/perf_smoke/run_benchmarks.sh"
 
     - name: Restore the JIT archive path
       if: always() && github.event_name == 'push' && github.ref == 'refs/heads/develop'

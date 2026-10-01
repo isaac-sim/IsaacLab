@@ -517,6 +517,43 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertIn("Comparison unavailable", markdown)
         self.assertIn("expired", markdown)
 
+    def test_known_dispatch_event_overrides_ambient_pr_event(self):
+        self.client.attempts[20, 1]["event"] = "workflow_dispatch"
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict("os.environ", {"GITHUB_EVENT_NAME": "pull_request"}),
+        ):
+            status, result, markdown = self.run_report(Path(directory))
+        self.assertEqual(status, 0)
+        self.assertEqual(result["candidate"]["event"], "workflow_dispatch")
+        self.assertEqual(result["comparison_mode"], "historical")
+        self.assertIsNone(result["candidate_kind"])
+        self.assertIn("Automatic build comparison", markdown)
+        self.assertIn("A — historical baseline", markdown)
+        self.assertNotIn("PR merge result", markdown)
+
+    def test_known_pr_event_overrides_ambient_push_event(self):
+        self.client.attempts[20, 1]["event"] = "pull_request"
+        with tempfile.TemporaryDirectory() as directory, patch.dict("os.environ", {"GITHUB_EVENT_NAME": "push"}):
+            status, result, markdown = self.run_report(Path(directory))
+        self.assertEqual(status, 0)
+        self.assertEqual(result["comparison_mode"], "paired_pr")
+        self.assertEqual(result["candidate_kind"], "merge")
+        self.assertIn("PR performance comparison", markdown)
+
+    def test_unavailable_candidate_uses_ambient_event_as_fallback(self):
+        self.client.run_artifacts[20] = []
+        with (
+            tempfile.TemporaryDirectory() as directory,
+            patch.dict("os.environ", {"GITHUB_EVENT_NAME": "pull_request"}),
+        ):
+            status, result, markdown = self.run_report(Path(directory))
+        self.assertEqual(status, 0)
+        self.assertIsNone(result["candidate"])
+        self.assertEqual(result["comparison_mode"], "paired_pr")
+        self.assertEqual(result["candidate_kind"], "merge")
+        self.assertIn("PR performance comparison", markdown)
+
     def test_new_benchmark_attempt_without_artifact_is_not_old_measurements(self):
         self.client.add(20, HEAD, attempt=2, start=stamp(13), artifact=False)
         with tempfile.TemporaryDirectory() as directory:
