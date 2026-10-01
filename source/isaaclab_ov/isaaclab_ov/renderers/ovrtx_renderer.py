@@ -77,7 +77,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.cloner import OvPhysxReplicateContext, ovrtx_replicate
+from isaaclab_ov.cloner import ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -101,7 +101,6 @@ from isaaclab_ov.renderers.ovrtx_usd import (
 )
 from isaaclab_ov.renderers.visual_materials import OVRTXVisualMaterialWriter
 from isaaclab_ov.stage import (
-    OvstageBackendCfg,
     points_tensor_from_warp,
     xform_tensor_from_numpy,
     xform_tensor_from_warp,
@@ -113,6 +112,8 @@ if TYPE_CHECKING:
 
     from isaaclab.renderers.base_renderer import VisualMaterialBatch
     from isaaclab.sensors.camera.camera_data import CameraData
+
+    from isaaclab_ov.stage import OvstageBackend
 
 from isaaclab.renderers.camera_render_spec import CameraRenderSpec
 
@@ -377,47 +378,11 @@ class OVRTXRenderer(BaseRenderer):
         self._output_id_color_buffers: dict[str, wp.array] = {}
         self._visual_material_writer_ref: weakref.ReferenceType[OVRTXVisualMaterialWriter] | None = None
 
-        # Selected once at construction so every operation below sees a stable path for the
-        # lifetime of the renderer, even if the environment variable changes mid-process.
-        sim = SimulationContext.instance()
-        self._use_ovstage = ovrtx_use_ovstage_enabled()
-        # TODO: Uncomment after requiring an OVPhysX release with batched cold binding and direct
-        # path lookups, and verifying startup parity (release version TBD; 0.6.3 is affected).
-        # self._use_ovstage |= sim.physics_manager.clone_context_type is OvPhysxReplicateContext
-        shared_physics = self._use_ovstage and sim.physics_manager.clone_context_type is OvPhysxReplicateContext
-        if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
-            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
-        if cfg.async_rendering and self._use_ovstage:
-            logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
-        backend_cfg = OVRTXBackendCfg(
-            scene_key=None if shared_physics else cfg,
-            log_file_path=cfg.log_file_path,
-            log_level=cfg.log_level,
-            use_ovstage=self._use_ovstage,
-            read_gpu_transforms=_read_gpu_transforms_enabled(),
-        )
-        if shared_physics and any(
-            isinstance(other, OVRTXBackendCfg) and other != backend_cfg for other, _ in sim._backend_registry
-        ):
-            raise ValueError(
-                "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
-            )
-        # Register the stage first so teardown destroys its borrowing engine before the stage.
-        domains = ovstage.PopulationDomain.ALL if shared_physics else ovstage.PopulationDomain.RENDERING
-        self.scene = (
-            sim.get_or_create_backend(
-                OvstageBackendCfg(
-                    scene_key=None if shared_physics else backend_cfg,
-                    population_domains=domains,
-                )
-            )
-            if self._use_ovstage
-            else None
-        )
-        self.backend: OVRTXBackend = sim.get_or_create_backend(backend_cfg)
-        """Native engine borrowed from the simulation registry."""
-        if self.scene is None:
-            self.scene = self.backend
+        # Clone preparation resolves scene ownership before acquiring native resources.
+        self._use_ovstage = False
+        self.scene: OvstageBackend | OVRTXBackend | None = None
+        self.backend: OVRTXBackend | None = None
+        """Native engine borrowed from the simulation registry after clone preparation."""
         self._object_xform_binding = self._geometry_points_binding = None
         self._object_xform_query = self._object_paths_list = None
         self._geometry_points_query = self._geometry_paths_list = None

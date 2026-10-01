@@ -10,3 +10,6 @@
   Removed duplicate USD scene-partition authoring; camera registration authored the runtime attributes.
 * Created native environment frames only in private USD exports and placed OVPhysX originals from the clone plan.
   Replaced recursive export filtering with a pruned USD traversal while retaining routed prototype selection.
+* Moved shared-stage selection from renderer construction into clone preparation. OVRTX configurations
+  requested native cloning by default; preparation replaced the physics/render routes when explicitly
+  opting into OVStage and acquired their resources only after deciding scene ownership.

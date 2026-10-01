@@ -316,7 +316,15 @@ def test_reset_initializes_visualizers_before_playing_timeline():
         def play():
             events.append("play")
 
+    class _CloneContext:
+        @staticmethod
+        def prepare(sim, routing):
+            assert sim is ctx and set(routing) == {_CloneContext}
+            events.append("prepare")
+
     class _RenderContext:
+        clone_contexts = (_CloneContext,)
+
         @staticmethod
         def finalize_consumers(visualizers, *, rebuild):
             events.append(f"finalize_consumers:{len(visualizers)}:{rebuild}")
@@ -331,7 +339,7 @@ def test_reset_initializes_visualizers_before_playing_timeline():
 
     ctx.reset()
 
-    assert events == ["reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
+    assert events == ["prepare", "reset:False", "initialize_visualizers", "finalize_consumers:1:True", "play"]
     assert ctx.is_playing()
     assert not ctx.is_stopped()
 

@@ -60,11 +60,8 @@ class OVRTXRendererCfg(RendererCfg):
     launcher_type: ClassVar[str] = "isaaclab_ov.app:OvrtxLauncher"
     """The launcher that registers the OVRTX runtime before the stage is created."""
 
-    cloning_contexts: tuple[type | str, ...] = (
-        "isaaclab_ov.cloner:OvrtxReplicateContext",
-        "isaaclab_ov.cloner:OvstageReplicateContext",
-    )
-    """Route assets to the internal OVRTX scene or its borrowed OVStage, whichever owns the scene."""
+    cloning_contexts: tuple[type | str, ...] = ("isaaclab_ov.cloner:OvrtxReplicateContext",)
+    """Request native OVRTX copies; clone preparation may select a shared OVStage instead."""
 
     async_rendering: bool = False
     """Trade one capture of camera latency for pipelined rendering. Defaults to False (synchronous).

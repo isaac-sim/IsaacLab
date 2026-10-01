@@ -127,8 +127,6 @@ def _make_camera_render_spec(num_envs: int = 1, device: str = "cpu") -> CameraRe
 def _prepare_clones(renderer, plan, routed=None):
     from isaaclab_ov.renderers.ovrtx_renderer_cfg import OVRTXBackendCfg
 
-    from isaaclab.utils import string_to_callable
-
     cfg = OVRTXBackendCfg(scene_key=renderer.cfg, use_ovstage=renderer._use_ovstage, read_gpu_transforms=True)
     if renderer._use_ovstage:
         from isaaclab_ov.stage import OvstageBackendCfg
@@ -136,8 +134,8 @@ def _prepare_clones(renderer, plan, routed=None):
         cfg = OvstageBackendCfg(scene_key=cfg)
     sim = SimpleNamespace(_backend_registry=[(cfg, renderer.scene)])
     routed = tuple(range(len(plan.asset_cfgs))) if routed is None else routed
-    for context in renderer.cfg.cloning_contexts:
-        string_to_callable(context)(sim).replicate(plan, routed)
+    context = OvstageReplicateContext if renderer._use_ovstage else OvrtxReplicateContext
+    context(sim).replicate(plan, routed)
 
 
 @pytest.mark.parametrize(
@@ -406,7 +404,13 @@ def test_native_cloners_keep_plan_interpretation_in_the_context():
     ):
         assert not hasattr(OVRTXRenderer, name)
     renderer_tree = ast.parse(Path(ovrtx_renderer_module.__file__).read_text())
-    assert not any(isinstance(node, ast.Name) and node.id == "ClonePlan" for node in ast.walk(renderer_tree))
+    assert not any(
+        isinstance(node, ast.Name)
+        and node.id in {"ClonePlan", "OvPhysxReplicateContext"}
+        or isinstance(node, ast.Attribute)
+        and node.attr == "clone_context_type"
+        for node in ast.walk(renderer_tree)
+    )
     assert not any(
         isinstance(node, ast.Attribute) and node.attr == "_render_product_paths" for node in ast.walk(renderer_tree)
     )

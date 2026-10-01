@@ -157,13 +157,21 @@ def test_dispatch_order_and_usd_scope(simulation):
         )
 
 
-def test_shared_context_replaces_native_routes_with_their_union(simulation):
+def test_shared_context_replaces_native_routes_with_their_union(simulation, monkeypatch):
     """A shared representation clones disjoint physics/render assets once and removes native dispatch."""
 
     class Shared(_Context):
-        replaces_contexts = (_Context, _RenderContext)
+        def __init__(self, sim):
+            assert not sim.calls
+            assert _Context not in sim.clone_contexts
+            super().__init__(sim)
 
-    simulation.render_context.clone_contexts.update((_RenderContext, Shared))
+    def prepare(sim, routing):
+        routing[Shared] = routing.pop(_Context) | routing.pop(_RenderContext)
+        sim.clone_contexts.pop(_Context)
+
+    monkeypatch.setattr(_RenderContext, "prepare", staticmethod(prepare), raising=False)
+    simulation.render_context.clone_contexts.add(_RenderContext)
     assets = (
         AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Body", cloning_contexts=(_Context,)),
         AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Visual", cloning_contexts=(_RenderContext,)),
