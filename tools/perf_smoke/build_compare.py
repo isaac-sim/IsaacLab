@@ -284,6 +284,31 @@ def compare_evidence(baseline: Evidence | None, candidate: Evidence) -> dict:
     }
 
 
+def _paired_failure(candidate: Evidence) -> dict | None:
+    """Recover the benchmark job's concrete failure before checking its incomplete pin."""
+    from .paired import _files, _json
+
+    files = _files(candidate.zip_bytes)
+    if "paired-failure.json" not in files:
+        return None
+    try:
+        failure = _json(files, "paired-failure.json")
+    except baseline_mod.EvidenceError as exc:
+        candidate.issues.append(f"Paired failure diagnostics are unreadable: {exc}")
+        return None
+    execution = _object(failure.get("execution"))
+    if (
+        failure.get("schema_version") != 1
+        or not isinstance(failure.get("reason"), str)
+        or not failure["reason"].strip()
+        or not isinstance(failure.get("source"), dict)
+        or any(execution.get(key) != candidate.identity[key] for key in ("run_id", "run_attempt"))
+    ):
+        candidate.issues.append("The paired failure record does not identify this producing attempt.")
+        return None
+    return failure
+
+
 def main(argv: list[str] | None = None) -> int:
     """Generate the advisory automatic report for this workflow's benchmark evidence."""
     from .report import render_build_comparison
@@ -297,7 +322,7 @@ def main(argv: list[str] | None = None) -> int:
     if not args.repository or not args.run_id or not args.run_attempt or min(args.run_id, args.run_attempt) < 1:
         parser.error("Repository, run ID and report attempt are needed to resolve current benchmark evidence")
 
-    candidate = selected = pinned = None
+    candidate = selected = pinned = paired_failure = None
     selection = {}
     try:
         client = baseline_mod.GitHubClient(args.repository)
@@ -305,6 +330,7 @@ def main(argv: list[str] | None = None) -> int:
         if candidate.identity.get("event") == "pull_request":
             from .paired import select_pr_baseline
 
+            paired_failure = _paired_failure(candidate)
             result = select_pr_baseline(client, candidate)
         else:
             pinned = baseline_mod.load_previous_selection(client, candidate)
@@ -318,6 +344,11 @@ def main(argv: list[str] | None = None) -> int:
             "unavailable_evidence": pinned or exc.identity,
             "unavailable_side": "candidate" if candidate is None else "baseline",
         }
+
+    if paired_failure:
+        selection.update(reason=paired_failure["reason"], reason_code="paired_failure", paired_failure=paired_failure)
+        if paired_failure.get("stage") in ("resolve", "capture_current"):
+            selection["unavailable_side"] = "candidate"
 
     payload = (
         compare_evidence(selected, candidate)
@@ -337,7 +368,8 @@ def main(argv: list[str] | None = None) -> int:
         report_attempt=args.run_attempt,
         selection=selection,
         comparison_mode="paired_pr" if is_pr else "historical",
-        candidate_kind="merge" if is_pr else None,
+        candidate_kind="merge" if is_pr and candidate and candidate.identity.get("tested_commit") else None,
+        source_context=_object(candidate.context.get("source")) if candidate else {},
     )
     args.output_dir.mkdir(parents=True, exist_ok=True)
     (args.output_dir / "build-comparison.json").write_text(

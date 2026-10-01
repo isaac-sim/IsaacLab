@@ -15,6 +15,7 @@ import os
 import socket
 import subprocess
 import zipfile
+from contextlib import suppress
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 
@@ -41,6 +42,39 @@ def _json(files: dict[str, bytes], name: str) -> dict:
 
 def baseline_name(pr_number: int, commit: str, attempt: int = 1) -> str:
     return f"performance-pr-baseline-{pr_number}-{commit}-{attempt}"
+
+
+def _checkout_source(root: Path) -> tuple[str, list[str]]:
+    commit = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
+    header = subprocess.check_output(["git", "-C", str(root), "cat-file", "-p", commit], text=True)
+    parents = [line.split()[1] for line in header.split("\n\n", 1)[0].splitlines() if line.startswith("parent ")]
+    return commit, parents
+
+
+def resolve_base(root: Path, event: dict) -> dict:
+    """Resolve A from the immutable tested merge, retaining the event's original base."""
+    commit, parents = _checkout_source(root)
+    tested = os.environ.get("GITHUB_SHA")
+    pr = event["pull_request"]
+    head = pr["head"]["sha"]
+    if not store._sha(tested) or commit != tested:
+        raise ValueError("Checked-out PR revision does not match the immutable tested merge GITHUB_SHA.")
+    if len(parents) != 2 or parents[1] != head:
+        raise ValueError("Tested PR merge does not have the event's head commit as its second parent.")
+    return {
+        "base_commit": parents[0],
+        "tested_commit": commit,
+        "requested_head_commit": head,
+        "event_base_commit": pr["base"]["sha"],
+    }
+
+
+def _resolved_base(commit: str | None = None) -> str:
+    commit = os.environ.get("PERF_BASE_COMMIT") if commit is None else commit
+    if not store._sha(commit):
+        detail = os.environ.get("PERF_PAIR_ERROR")
+        raise ValueError(detail or "The tested PR merge's first parent was not resolved; PERF_BASE_COMMIT is missing.")
+    return commit
 
 
 def source_issues(evidence: store.Evidence, files: dict[str, bytes], commit: str) -> list[str]:
@@ -102,7 +136,7 @@ def _read_baseline(client: store.GitHubClient, artifact: dict, pr_number: int, b
     run_id, attempt = execution.get("run_id"), execution.get("run_attempt")
     if (
         source.get("commit") != base_commit
-        or source.get("event_base_commit") != base_commit
+        or source.get("reference_commit") != base_commit
         or source.get("pull_request_number") != pr_number
         or source.get("benchmark_role") != "baseline"
         or not isinstance(run_id, int)
@@ -134,19 +168,22 @@ def restore_baseline(
     event: dict,
     run_id: int,
     run_attempt: int,
+    *,
+    base_commit: str | None = None,
 ) -> dict:
     """Restore a complete verified measurement for this PR/base, or request a fresh one."""
     pr = event["pull_request"]
-    pr_number, base_commit = pr["number"], pr["base"]["sha"]
+    pr_number, base_commit = pr["number"], _resolved_base(base_commit)
     manifest = prepare_manifest(checkout_root)
     if manifest["commit"] != base_commit:
-        raise ValueError("Baseline checkout is not the PR event's exact base commit.")
+        raise ValueError("Baseline checkout is not the tested PR merge's resolved first parent.")
     selection = {
         "schema_version": 1,
         "comparison_mode": "paired_pr",
         "pull_request_number": pr_number,
         "reference_branch": pr["base"]["ref"],
         "reference_commit": base_commit,
+        "event_base_commit": pr["base"]["sha"],
         "requested_head_commit": pr["head"]["sha"],
         "baseline_reused": False,
         "baseline_origin": None,
@@ -228,24 +265,15 @@ def restore_baseline(
 
 def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, event: dict, legs: Path) -> dict:
     """Record the selected checkout, image and runner before its measurement."""
-    commit = subprocess.check_output(["git", "-C", str(root), "rev-parse", "HEAD"], text=True).strip()
-    parents = [
-        line.split()[1]
-        for line in subprocess.check_output(
-            ["git", "-C", str(root), "cat-file", "-p", "HEAD"],
-            text=True,
-        )
-        .split("\n\n", 1)[0]
-        .splitlines()
-        if line.startswith("parent ")
-    ]
+    commit, parents = _checkout_source(root)
     pr = event.get("pull_request", {})
+    reference_commit = _resolved_base() if pr else (parents[0] if parents else None)
     if pr:
-        intended = pr["base"]["sha"] if role == "baseline" else os.environ["GITHUB_SHA"]
+        intended = reference_commit if role == "baseline" else os.environ["GITHUB_SHA"]
         if commit != intended:
             raise ValueError(f"{role} checkout does not match its intended source revision.")
-        if role == "current" and (len(parents) != 2 or parents != [pr["base"]["sha"], pr["head"]["sha"]]):
-            raise ValueError("Tested PR merge parents do not match the event's base and head commits.")
+        if role == "current" and parents != [reference_commit, pr["head"]["sha"]]:
+            raise ValueError("Tested PR merge parents do not match the resolved first parent and event head commit.")
     inspected = subprocess.run(["docker", "image", "inspect", image_ref], capture_output=True, text=True)
     image = json.loads(inspected.stdout)[0] if inspected.returncode == 0 else {}
     context = {
@@ -255,7 +283,7 @@ def capture_context(root: Path, output_dir: Path, image_ref: str, role: str, eve
             "requested_head_commit": pr.get("head", {}).get("sha") or os.environ["GITHUB_SHA"],
             "event": os.environ["GITHUB_EVENT_NAME"],
             "reference_branch": pr.get("base", {}).get("ref") or os.environ["GITHUB_REF_NAME"],
-            "reference_commit": pr.get("base", {}).get("sha") if pr else (parents[0] if parents else None),
+            "reference_commit": reference_commit,
             "commit_parents": parents,
             "event_base_commit": pr.get("base", {}).get("sha"),
             "pull_request_number": pr.get("number"),
@@ -297,6 +325,8 @@ def bind_baseline(
 ) -> None:
     """Pin the uploaded baseline before the current PR is measured."""
     selection = json.loads(selection_path.read_text())
+    if selection.get("reference_commit") != _resolved_base():
+        raise ValueError("Baseline selection does not match the tested PR merge's resolved first parent.")
     if not selection["baseline_reused"]:
         if artifact_id:
             selection["baseline_origin"] = {
@@ -335,9 +365,11 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
         selection = _json(files, "pr-comparison.json")
     except store.EvidenceError as exc:
         return store.Selection(None, {"reason": str(exc), "reason_code": exc.code})
-    base_commit, pr_number = source.get("event_base_commit"), source.get("pull_request_number")
+    base_commit, pr_number = source.get("reference_commit"), source.get("pull_request_number")
     if (
-        selection.get("reference_commit") != base_commit
+        not store._sha(base_commit)
+        or source.get("commit_parents") != [base_commit, source.get("requested_head_commit")]
+        or selection.get("reference_commit") != base_commit
         or selection.get("pull_request_number") != pr_number
         or selection.get("tested_commit") != candidate.identity["source_commit"]
         or selection.get("requested_head_commit") != source.get("requested_head_commit")
@@ -378,27 +410,14 @@ def select_pr_baseline(client: store.GitHubClient, candidate: store.Evidence) ->
         return store.Selection(None, selection)
 
 
-def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-    restore = commands.add_parser("restore")
-    restore.add_argument("--checkout-root", type=Path, required=True)
-    restore.add_argument("--output-dir", type=Path, required=True)
-    restore.add_argument("--selection", type=Path, required=True)
-    capture = commands.add_parser("capture")
-    capture.add_argument("--checkout-root", type=Path, required=True)
-    capture.add_argument("--output-dir", type=Path, required=True)
-    capture.add_argument("--image", required=True)
-    capture.add_argument("--role", choices=("baseline", "current"), required=True)
-    capture.add_argument("--legs", type=Path, required=True)
-    bind = commands.add_parser("bind")
-    bind.add_argument("--selection", type=Path, required=True)
-    bind.add_argument("--output-dir", type=Path, required=True)
-    bind.add_argument("--artifact-id")
-    bind.add_argument("--baseline-issue", default="")
-    args = parser.parse_args(argv)
-    if args.command == "restore":
-        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+def _execute(args: argparse.Namespace, event: dict) -> None:
+    if args.command == "resolve":
+        resolved = resolve_base(args.checkout_root, event)
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            for field in ("base_commit", "tested_commit", "requested_head_commit"):
+                output.write(f"{field}={resolved[field]}\n")
+        print(f"Resolved tested PR merge {resolved['tested_commit']} first parent: {resolved['base_commit']}")
+    elif args.command == "restore":
         selection = restore_baseline(
             store.GitHubClient(os.environ["GITHUB_REPOSITORY"]),
             args.checkout_root,
@@ -423,12 +442,11 @@ def main(argv: list[str] | None = None) -> int:
             args.output_dir,
             args.image,
             args.role,
-            json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text()),
+            event,
             args.legs,
         )
     else:
         if not args.selection.exists():
-            event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
             pr = event["pull_request"]
             _write(
                 args.selection,
@@ -437,7 +455,8 @@ def main(argv: list[str] | None = None) -> int:
                     "comparison_mode": "paired_pr",
                     "pull_request_number": pr["number"],
                     "reference_branch": pr["base"]["ref"],
-                    "reference_commit": pr["base"]["sha"],
+                    "reference_commit": _resolved_base(),
+                    "event_base_commit": pr["base"]["sha"],
                     "requested_head_commit": pr["head"]["sha"],
                     "baseline_reused": False,
                     "baseline_origin": None,
@@ -449,6 +468,89 @@ def main(argv: list[str] | None = None) -> int:
         bind_baseline(
             args.selection, args.artifact_id, args.output_dir, os.environ["GITHUB_REPOSITORY"], args.baseline_issue
         )
+
+
+def _record_failure(args: argparse.Namespace, event: dict, reason: str) -> None:
+    if args.command == "resolve" and os.environ.get("GITHUB_OUTPUT"):
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+            output.write(f"reason={' '.join(reason.split())}\n")
+    if not args.output_dir:
+        return
+    failure_path = args.output_dir / "paired-failure.json"
+    pr = event.get("pull_request") or {}
+    role = getattr(args, "role", None)
+    tested = os.environ.get("GITHUB_SHA")
+    reference = os.environ.get("PERF_BASE_COMMIT") or None
+    source = {
+        "commit": None,
+        "intended_commit": reference if role == "baseline" or args.command == "restore" else tested,
+        "tested_commit": tested,
+        "reference_commit": reference,
+        "event_base_commit": pr.get("base", {}).get("sha"),
+        "requested_head_commit": pr.get("head", {}).get("sha"),
+    }
+    if getattr(args, "checkout_root", None):
+        with suppress(OSError, subprocess.SubprocessError):
+            source["commit"], source["commit_parents"] = _checkout_source(args.checkout_root)
+    if failure_path.exists():
+        failure = json.loads(failure_path.read_text())
+        original = failure.setdefault("source", {})
+        if (
+            source["commit"]
+            and original.get("intended_commit") == source["intended_commit"]
+            and original.get("commit") in (None, source["commit"])
+        ):
+            original["commit"] = source["commit"]
+            original.setdefault("commit_parents", source["commit_parents"])
+            _write(failure_path, failure)
+        return
+    execution = {}
+    for field in ("run_id", "run_attempt"):
+        value = os.environ.get(f"GITHUB_{field.upper()}", "")
+        execution[field] = int(value) if value.isdecimal() else None
+    _write(
+        failure_path,
+        {
+            "schema_version": 1,
+            "stage": f"capture_{role}" if role else args.command,
+            "reason": reason,
+            "source": source,
+            "execution": execution,
+        },
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    commands = parser.add_subparsers(dest="command", required=True)
+    resolve = commands.add_parser("resolve")
+    resolve.add_argument("--checkout-root", type=Path, required=True)
+    resolve.add_argument("--output-dir", type=Path)
+    restore = commands.add_parser("restore")
+    restore.add_argument("--checkout-root", type=Path, required=True)
+    restore.add_argument("--output-dir", type=Path, required=True)
+    restore.add_argument("--selection", type=Path, required=True)
+    capture = commands.add_parser("capture")
+    capture.add_argument("--checkout-root", type=Path, required=True)
+    capture.add_argument("--output-dir", type=Path, required=True)
+    capture.add_argument("--image", required=True)
+    capture.add_argument("--role", choices=("baseline", "current"), required=True)
+    capture.add_argument("--legs", type=Path, required=True)
+    bind = commands.add_parser("bind")
+    bind.add_argument("--selection", type=Path, required=True)
+    bind.add_argument("--output-dir", type=Path, required=True)
+    bind.add_argument("--artifact-id")
+    bind.add_argument("--baseline-issue", default="")
+    args = parser.parse_args(argv)
+    event = {}
+    try:
+        event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
+        _execute(args, event)
+    except (ValueError, KeyError, OSError, subprocess.SubprocessError) as exc:
+        reason = str(exc)
+        _record_failure(args, event, reason)
+        print(f"Paired PR {args.command} failed: {reason}")
+        return 1
     return 0
 
 

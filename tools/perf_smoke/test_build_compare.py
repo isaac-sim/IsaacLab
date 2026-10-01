@@ -200,6 +200,20 @@ class ReportRenderingTests(unittest.TestCase):
                 markdown = render_build_comparison(report)
                 self.assertIn(f"Baseline measurements: {expected}", markdown)
 
+    def test_event_base_difference_is_explained_only_in_collapsed_provenance(self):
+        report = compare_evidence(evidence(), evidence())
+        report.update(
+            comparison_mode="paired_pr",
+            candidate_kind="merge",
+            source_context={"reference_commit": PARENT, "event_base_commit": HEAD},
+        )
+        primary, details = render_build_comparison(report).split("<details>", 1)
+        self.assertNotIn(PARENT, primary)
+        self.assertNotIn(HEAD, primary)
+        self.assertIn(f"Resolved PR base: `{PARENT}`", details)
+        self.assertIn(f"The PR event reported `{HEAD}`", details)
+        self.assertIn("actual first parent", details)
+
     def test_historical_dispatch_is_not_labeled_as_a_pull_request(self):
         report = compare_evidence(evidence(), evidence())
         report["candidate"]["event"] = "workflow_dispatch"
@@ -541,6 +555,85 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertEqual(result["candidate_kind"], "merge")
         self.assertIn("PR performance comparison", markdown)
 
+    def test_capture_failure_explains_missing_results_before_pin_identity_error(self):
+        self.client.attempts[20, 1]["event"] = "pull_request"
+        self.client.run_artifacts[20] = []
+        reason = "The tested merge checkout has a different first parent than the requested base."
+        failure = {
+            "schema_version": 1,
+            "stage": "capture_current",
+            "reason": reason,
+            "source": {
+                "commit": "d" * 40,
+                "intended_commit": "d" * 40,
+                "reference_commit": PARENT,
+                "event_base_commit": "c" * 40,
+                "requested_head_commit": HEAD,
+                "commit_parents": [PARENT, HEAD],
+            },
+            "execution": {"run_id": 20, "run_attempt": 1},
+        }
+        self.client.add_artifact(
+            20,
+            "performance-smoke-20-1",
+            {
+                "paired-failure.json": failure,
+                "pr-comparison.json": {"reference_commit": PARENT, "tested_commit": "d" * 40},
+                "leg/status": "error",
+            },
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            status, result, markdown = self.run_report(Path(directory))
+        primary, details = markdown.split("<details>", 1)
+        self.assertEqual(status, 0)
+        self.assertEqual(result["selection"]["reason"], reason)
+        self.assertEqual(result["selection"]["paired_failure"], failure)
+        self.assertIn(reason, primary)
+        self.assertNotIn("pinned comparison", primary)
+        self.assertNotIn("| Status |", primary)
+        self.assertNotIn("| ⚪ Not comparable |", primary)
+        self.assertEqual(primary.count(reason), 1)
+        self.assertIn("⚪ Not comparable 1", primary)
+        self.assertEqual(len(result["rows"]), 1)
+        self.assertIsNone(result["rows"][0]["change_pct"])
+        self.assertIsNone(result["candidate_kind"])
+        self.assertNotIn("PR merge result", details)
+        self.assertIn("PR revision (not verified)", details)
+        for commit in (HEAD, PARENT, "c" * 40, "d" * 40):
+            self.assertIn(commit, details)
+        self.assertIn("Actual checkout", details)
+        self.assertIn("Intended checkout", details)
+
+    def test_baseline_failure_keeps_available_current_fps_and_partial_workloads(self):
+        self.client.attempts[20, 1]["event"] = "pull_request"
+        candidate = build_compare.baseline_mod.resolve_candidate(self.client, 20, 1)
+        from .paired import _files
+
+        files = _files(candidate.zip_bytes)
+        reason = "The base dependency image could not be pulled; baseline samples were not produced."
+        files["paired-failure.json"] = json.dumps(
+            {
+                "schema_version": 1,
+                "stage": "capture_baseline",
+                "reason": reason,
+                "source": {"commit": PARENT, "intended_commit": PARENT},
+                "execution": {"run_id": 20, "run_attempt": 1},
+            }
+        ).encode()
+        files["another-workload/status"] = b"error"
+        self.client.run_artifacts[20] = []
+        self.client.add_artifact(20, "performance-smoke-20-1", files)
+        with tempfile.TemporaryDirectory() as directory:
+            status, result, markdown = self.run_report(Path(directory))
+        primary = markdown.split("<details>", 1)[0]
+        self.assertEqual(status, 0)
+        self.assertIn(reason, primary)
+        self.assertIn("| Status | Workload | Baseline FPS | PR FPS | Change % |", primary)
+        self.assertEqual(len(result["rows"]), 2)
+        self.assertEqual({row["candidate"]["median"] for row in result["rows"]}, {80, None})
+        self.assertTrue(all(row["change_pct"] is None for row in result["rows"]))
+        self.assertIn("another-workload", primary)
+
     def test_unavailable_candidate_uses_ambient_event_as_fallback(self):
         self.client.run_artifacts[20] = []
         with (
@@ -551,7 +644,7 @@ class AutomaticReportTests(unittest.TestCase):
         self.assertEqual(status, 0)
         self.assertIsNone(result["candidate"])
         self.assertEqual(result["comparison_mode"], "paired_pr")
-        self.assertEqual(result["candidate_kind"], "merge")
+        self.assertIsNone(result["candidate_kind"])
         self.assertIn("PR performance comparison", markdown)
 
     def test_new_benchmark_attempt_without_artifact_is_not_old_measurements(self):
