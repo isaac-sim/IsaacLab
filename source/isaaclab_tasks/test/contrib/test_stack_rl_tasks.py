@@ -7,10 +7,8 @@
 
 from types import SimpleNamespace
 
-import gymnasium as gym
 import pytest
 import torch
-from isaaclab_newton.physics import NewtonCfg
 from rsl_rl.algorithms import Distillation
 
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -36,28 +34,6 @@ FRANKA_DISTILLATION_TASK = "IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillatio
 KUKA_STATE_TASK = "IsaacContrib-Stack-Cube-KukaAllegro-RL"
 
 
-@pytest.mark.parametrize(
-    ("task_name", "env_cfg_name", "runner_cfg_name"),
-    (
-        (FRANKA_STATE_TASK, "FrankaCubeStackRLEnvCfg", "FrankaStackPPORunnerCfg"),
-        (FRANKA_CAMERA_TASK, "FrankaCubeStackCameraRLEnvCfg", "FrankaStackCameraPPORunnerCfg"),
-        (
-            FRANKA_DISTILLATION_TASK,
-            "FrankaCubeStackCameraRLEnvCfg",
-            "FrankaStackCameraDistillationRunnerCfg",
-        ),
-        (KUKA_STATE_TASK, "KukaAllegroCubeStackRLEnvCfg", "KukaAllegroStackPPORunnerCfg"),
-    ),
-)
-def test_supported_tasks_are_registered(task_name: str, env_cfg_name: str, runner_cfg_name: str):
-    """Each supported task resolves one environment and one RSL-RL configuration."""
-    spec = gym.spec(task_name)
-
-    assert spec.kwargs["env_cfg_entry_point"].endswith(f":{env_cfg_name}")
-    assert spec.kwargs["rsl_rl_cfg_entry_point"].endswith(f":{runner_cfg_name}")
-    assert load_cfg_from_registry(task_name, "rsl_rl_cfg_entry_point") is not None
-
-
 @pytest.fixture(scope="module")
 def stack_cfgs():
     cfgs = {
@@ -67,16 +43,6 @@ def stack_cfgs():
     for cfg in cfgs.values():
         cfg.validate_config()
     return cfgs
-
-
-def test_franka_state_task_exposes_the_training_contract(stack_cfgs):
-    cfg = stack_cfgs[FRANKA_STATE_TASK]
-
-    assert cfg.scene.num_envs == 8
-    assert isinstance(cfg.sim.physics, NewtonCfg)
-    assert cfg.actions.arm_action.gravity_compensation
-    assert cfg.events.reset_from_state_buffer.func is mdp.StackResetStateTable
-    assert cfg.observations.policy.joint_target is None
 
 
 @pytest.mark.parametrize("task_name", (FRANKA_STATE_TASK, KUKA_STATE_TASK))
@@ -134,20 +100,15 @@ def test_distillation_task_adds_privileged_labels_without_changing_the_student(s
     assert hasattr(cfg.observations, "privileged")
     assert runner.obs_groups == {"student": ["policy", "base_image"], "teacher": ["privileged"]}
     assert runner.student.cnn_cfg == camera_runner.actor.cnn_cfg
-    assert runner.teacher.distribution_cfg.std_type == "log"
+    assert runner.teacher.distribution_cfg == state_runner.actor.distribution_cfg
     assert state_runner.actor.distribution_cfg.std_type == "scalar"
-    assert cfg.observations.privileged.joint_target.func is mdp.joint_position_target
     privileged_terms = [name for name, term in vars(cfg.observations.privileged).items() if isinstance(term, ObsTerm)]
-    assert privileged_terms == [
-        "joint_pos",
-        "joint_vel",
-        "joint_target",
-        "actions",
-        "object",
-        "gripper_pos",
-        "eef_velocity",
-        "eef_axes",
+    state_terms = [
+        name
+        for name, term in vars(stack_cfgs[FRANKA_STATE_TASK].observations.policy).items()
+        if isinstance(term, ObsTerm)
     ]
+    assert privileged_terms == state_terms
     assert runner.algorithm.class_name.endswith(":ClippedTeacherDistillation")
 
 

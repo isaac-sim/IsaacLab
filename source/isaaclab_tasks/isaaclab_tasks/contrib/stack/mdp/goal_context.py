@@ -314,7 +314,7 @@ class StackResetLearningProgress(_StackSuccessContext):
         super().reset(env_ids)
         initial = role_conditioned_stack_potential(
             self._env,
-            **getattr(self, "_potential_kwargs", {}),
+            **self._potential_kwargs,
         )
         self._initial_potential[env_ids] = initial[env_ids]
         reset_state = get_stack_reset_runtime_state(self._env)

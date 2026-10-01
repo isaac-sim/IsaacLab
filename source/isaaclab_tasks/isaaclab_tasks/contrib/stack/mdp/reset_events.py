@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 import torch
 
 from isaaclab.managers import EventTermCfg, ManagerTermBase
+from isaaclab.utils.math import normalize, quat_mul
 
 from ..constants import FRANKA_STACK_ARM_WORKSPACE_LOWER, FRANKA_STACK_ARM_WORKSPACE_UPPER
 from .kuka_allegro_reset import (
@@ -221,16 +222,6 @@ def _rotation_matrix_from_rpy(
             (-sy, cy * sx, cy * cx),
         )
     )
-
-
-def _quaternion_multiply_xyzw(first: torch.Tensor, second: torch.Tensor) -> torch.Tensor:
-    """Compose scalar-last quaternions as ``first * second``."""
-    first_xyz, first_w = first[..., :3], first[..., 3:4]
-    second_xyz, second_w = second[..., :3], second[..., 3:4]
-    xyz = first_w * second_xyz + second_w * first_xyz + torch.linalg.cross(first_xyz, second_xyz, dim=-1)
-    w = first_w * second_w - torch.sum(first_xyz * second_xyz, dim=-1, keepdim=True)
-    result = torch.cat((xyz, w), dim=-1)
-    return result / torch.linalg.vector_norm(result, dim=-1, keepdim=True).clamp_min(1.0e-12)
 
 
 def _oriented_cube_pair_intersections(
@@ -446,6 +437,9 @@ class StackResetStateTable(ManagerTermBase):
             table_rows_per_layout=int(cfg.params.get("table_rows_per_layout", self._TABLE_ROWS_PER_LAYOUT)),
         )
         self._validate_table()
+        self._rows_by_recipe = tuple(
+            torch.nonzero(self._recipe_ids == int(recipe), as_tuple=False).flatten() for recipe in StackResetRecipe
+        )
         self._runtime_state = create_stack_reset_runtime_state(env)
 
     @property
@@ -503,22 +497,13 @@ class StackResetStateTable(ManagerTermBase):
             raise ValueError("table_rows_per_layout must be positive.")
         if not closed_finger_position < open_finger_position:
             raise ValueError("closed_finger_position must be less than open_finger_position.")
-        closed_hand = self._arm_anchors.new_full((self._EXPECTED_HAND_JOINTS,), closed_finger_position)
-        open_hand = self._arm_anchors.new_full((self._EXPECTED_HAND_JOINTS,), open_finger_position)
-
-        def hand_position_from_scalar(finger_position: float) -> torch.Tensor:
-            closed_fraction = (open_finger_position - finger_position) / (open_finger_position - closed_finger_position)
-            return torch.lerp(open_hand, closed_hand, closed_fraction)
-
         arm_rows: list[torch.Tensor] = []
-        finger_rows: list[float] = []
         hand_rows: list[torch.Tensor] = []
         position_rows: list[torch.Tensor] = []
         recipe_rows: list[int] = []
         progress_rows: list[float] = []
         held_role_rows: list[int] = []
         layout_rows: list[int] = []
-        current_layout_id = -1
 
         def append(
             recipe: StackResetRecipe,
@@ -528,36 +513,21 @@ class StackResetStateTable(ManagerTermBase):
             finger_position: float,
             held_role: int,
         ) -> None:
-            resolved_role_positions = role_positions.clone()
-            if held_role >= 0:
-                # A held reset is a rigid hand-object state, not two
-                # independently interpolated trajectories. Positioning the
-                # cube at the FK tool center makes every mid-air row a real
-                # force-closure grasp under ordinary gravity.
-                resolved_role_positions[held_role] = self._held_position(arm_position)
             arm_rows.append(arm_position)
-            finger_rows.append(finger_position)
-            hand_rows.append(hand_position_from_scalar(finger_position))
-            position_rows.append(resolved_role_positions)
+            hand_rows.append(self._arm_anchors.new_full((self._EXPECTED_HAND_JOINTS,), finger_position))
+            position_rows.append(role_positions)
             recipe_rows.append(int(recipe))
             progress_rows.append(progress)
             held_role_rows.append(held_role)
-            layout_rows.append(current_layout_id)
+            layout_rows.append(layout_id)
 
-        pick_progress = torch.linspace(0.0, 1.0, self._PICK_PROGRESS_BINS, device=self.device)
-        grasp_progress = torch.linspace(0.0, 1.0, self._PICK_PROGRESS_BINS, device=self.device)
-        lift_progress = torch.linspace(0.0, 1.0, self._MOTION_PROGRESS_BINS, device=self.device)
-        motion_progress = torch.linspace(0.0, 1.0, self._MOTION_PROGRESS_BINS, device=self.device)
-        bridge_progress = torch.linspace(0.0, 1.0, self._MOTION_PROGRESS_BINS, device=self.device)
-        release_progress = torch.linspace(0.0, 1.0, self._RELEASE_PROGRESS_BINS, device=self.device)
-        # Include the exact supported endpoint. Runtime validation showed that
-        # a nearly placed, unsupported cube is driven through its support while
-        # Newton settles the closed fingers. The exact-contact endpoint uses
-        # the same dynamically stable geometry as FINAL_RELEASE and provides a
-        # real open-and-retract transition from which the frontier can expand.
-        place_progress = torch.linspace(0.0, 1.0, self._MOTION_PROGRESS_BINS, device=self.device)
+        # Author scalar waypoints on the CPU; iterating GPU tensors would synchronize each row.
+        pick_progress = tuple(index / (self._PICK_PROGRESS_BINS - 1) for index in range(self._PICK_PROGRESS_BINS))
+        motion_progress = tuple(index / (self._MOTION_PROGRESS_BINS - 1) for index in range(self._MOTION_PROGRESS_BINS))
+        release_progress = tuple(
+            index / (self._RELEASE_PROGRESS_BINS - 1) for index in range(self._RELEASE_PROGRESS_BINS)
+        )
         for layout_id, (base_anchor, first_anchor, second_anchor) in enumerate(_STATE_TABLE_LAYOUTS):
-            current_layout_id = layout_id
             base_x, base_y = _STATE_TABLE_ANCHORS[base_anchor]
             first_x, first_y = _STATE_TABLE_ANCHORS[first_anchor]
             second_x, second_y = _STATE_TABLE_ANCHORS[second_anchor]
@@ -613,212 +583,101 @@ class StackResetStateTable(ManagerTermBase):
                     -1,
                 )
 
-            for progress in place_progress:
-                value = float(progress)
-                is_supported_endpoint = value == 1.0
-                second_position = torch.lerp(
-                    base_position.new_tensor((base_x, base_y, 0.17)),
-                    second_stack_position,
-                    progress,
-                )
-                append(
-                    StackResetRecipe.SECOND_PLACE,
-                    value,
-                    torch.lerp(
-                        self._arm_anchors[base_anchor, _GREEN_ALIGNED_POSE_INDEX],
-                        second_placed_arm,
-                        progress,
-                    ),
-                    torch.stack((base_position, first_stack_position, second_position)),
-                    placed_finger_position if is_supported_endpoint else closed_finger_position,
-                    -1 if is_supported_endpoint else 2,
-                )
-
-            second_pick_positions = torch.stack((base_position, first_stack_position, second_source))
-            # Cover the grasp-to-transport discontinuity explicitly.  The
-            # previous table jumped from an open pre-grasp with the cube on
-            # the table to a closed grasp already lifted 12 cm, so a policy
-            # could master horizontal transport and placement without ever
-            # learning a composable pickup.  The first half of this recipe
-            # now supplies physically held vertical-lift states.
-            for progress in lift_progress:
-                value = float(progress)
-                append(
-                    StackResetRecipe.SECOND_TRANSPORT,
-                    0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[second_anchor, _NEAR_GRASP_POSE_INDEX],
-                        self._arm_anchors[second_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
-                        progress,
-                    ),
-                    second_pick_positions,
-                    closed_finger_position,
+            # Both movable cubes follow the same place, lift, transport, and
+            # pick path. Only the support height and calibrated arm anchors differ.
+            for phase in (
+                (
                     2,
-                )
-
-            # The second half continues from the exact lifted endpoint to the
-            # aligned placement pose. Skip its duplicate first waypoint.
-            for progress in motion_progress[1:]:
-                value = float(progress)
-                second_position = torch.lerp(
-                    second_source + second_source.new_tensor((0.0, 0.0, 0.12)),
-                    base_position.new_tensor((base_x, base_y, 0.17)),
-                    progress,
-                )
-                append(
-                    StackResetRecipe.SECOND_TRANSPORT,
-                    0.5 + 0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[second_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
-                        self._arm_anchors[base_anchor, _GREEN_ALIGNED_POSE_INDEX],
-                        progress,
-                    ),
-                    torch.stack((base_position, first_stack_position, second_position)),
-                    closed_finger_position,
-                    2,
-                )
-
-            for progress in pick_progress:
-                value = float(progress)
-                append(
-                    StackResetRecipe.SECOND_PICK,
-                    0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[second_anchor, _PREGRASP_POSE_INDEX],
-                        self._arm_anchors[second_anchor, _NEAR_GRASP_POSE_INDEX],
-                        progress,
-                    ),
-                    second_pick_positions,
-                    open_finger_position,
-                    -1,
-                )
-
-            # The reset manifold is continuous through the actuator transition
-            # as well as through Cartesian motion. The
-            # former table ended at an open near-grasp and the next recipe
-            # began with a fully closed, reset-supplied grasp.  That taught
-            # transport while providing no state from which closing the
-            # gripper could receive downstream success.  Span the physical
-            # finger closure explicitly; the contact endpoint is identical to
-            # the first SECOND_TRANSPORT row and receives the ordinary
-            # reset-grasp settling guard.
-            for progress in grasp_progress[1:]:
-                value = float(progress)
-                is_contact_endpoint = value == 1.0
-                append(
-                    StackResetRecipe.SECOND_PICK,
-                    0.5 + 0.5 * value,
-                    self._arm_anchors[second_anchor, _NEAR_GRASP_POSE_INDEX],
-                    second_pick_positions,
-                    open_finger_position + value * (closed_finger_position - open_finger_position),
-                    2 if is_contact_endpoint else -1,
-                )
-
-            # Bridge the only long action-space discontinuity in the table:
-            # retracting from the released first pair and moving to the second
-            # cube. The final row intentionally coincides with SECOND_PICK's
-            # pre-grasp endpoint. Mastery can therefore expand backward from
-            # an already learned pick state through physically adjacent reset
-            # rows instead of requiring a 15 cm reach from one isolated row.
-            for progress in bridge_progress:
-                append(
-                    StackResetRecipe.PAIR_READY,
-                    float(progress),
-                    torch.lerp(
-                        self._arm_anchors[base_anchor, _GREEN_RELEASE_POSE_INDEX],
-                        self._arm_anchors[second_anchor, _PREGRASP_POSE_INDEX],
-                        progress,
-                    ),
-                    second_pick_positions,
-                    open_finger_position,
-                    -1,
-                )
-
-            for progress in place_progress:
-                value = float(progress)
-                is_supported_endpoint = value == 1.0
-                first_position = torch.lerp(
-                    base_position.new_tensor((base_x, base_y, 0.14)),
-                    first_stack_position,
-                    progress,
-                )
-                append(
-                    StackResetRecipe.FIRST_PLACE,
-                    value,
-                    torch.lerp(
-                        self._arm_anchors[base_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
-                        first_placed_arm,
-                        progress,
-                    ),
-                    torch.stack((base_position, first_position, second_source)),
-                    placed_finger_position if is_supported_endpoint else closed_finger_position,
-                    -1 if is_supported_endpoint else 1,
-                )
-
-            # Mirror the same held vertical-lift bridge for the first movable
-            # cube so the complete table policy sees one continuous reset
-            # manifold through both pickups.
-            for progress in lift_progress:
-                value = float(progress)
-                append(
-                    StackResetRecipe.FIRST_TRANSPORT,
-                    0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[first_anchor, _NEAR_GRASP_POSE_INDEX],
-                        self._arm_anchors[first_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
-                        progress,
-                    ),
-                    table_positions,
-                    closed_finger_position,
+                    second_anchor,
+                    second_placed_arm,
+                    _GREEN_ALIGNED_POSE_INDEX,
+                    (StackResetRecipe.SECOND_PLACE, StackResetRecipe.SECOND_TRANSPORT, StackResetRecipe.SECOND_PICK),
+                ),
+                (
                     1,
-                )
+                    first_anchor,
+                    first_placed_arm,
+                    _LIFTED_OR_RED_ALIGNED_POSE_INDEX,
+                    (StackResetRecipe.FIRST_PLACE, StackResetRecipe.FIRST_TRANSPORT, StackResetRecipe.FIRST_PICK),
+                ),
+            ):
+                role, source_anchor, placed_arm, aligned_pose, recipes = phase
+                place_recipe, transport_recipe, pick_recipe = recipes
+                source_positions = table_positions.clone()
+                if role == 2:
+                    source_positions[1] = first_stack_position
+                placed_positions = source_positions.clone()
+                placed_positions[role] = base_position + base_position.new_tensor((0.0, 0.0, role * self._CUBE_HEIGHT))
+                near_grasp_arm = self._arm_anchors[source_anchor, _NEAR_GRASP_POSE_INDEX]
+                pregrasp_arm = self._arm_anchors[source_anchor, _PREGRASP_POSE_INDEX]
+                lifted_arm = self._arm_anchors[source_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX]
+                aligned_arm = self._arm_anchors[base_anchor, aligned_pose]
 
-            for progress in motion_progress[1:]:
-                value = float(progress)
-                first_position = torch.lerp(
-                    first_source + first_source.new_tensor((0.0, 0.0, 0.12)),
-                    base_position.new_tensor((base_x, base_y, 0.14)),
-                    progress,
-                )
-                append(
-                    StackResetRecipe.FIRST_TRANSPORT,
-                    0.5 + 0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[first_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
-                        self._arm_anchors[base_anchor, _LIFTED_OR_RED_ALIGNED_POSE_INDEX],
+                for progress in motion_progress:
+                    supported = progress == 1.0
+                    append(
+                        place_recipe,
                         progress,
-                    ),
-                    torch.stack((base_position, first_position, second_source)),
-                    closed_finger_position,
-                    1,
-                )
+                        torch.lerp(aligned_arm, placed_arm, progress),
+                        placed_positions if supported else source_positions,
+                        placed_finger_position if supported else closed_finger_position,
+                        -1 if supported else role,
+                    )
 
-            for progress in pick_progress:
-                value = float(progress)
-                append(
-                    StackResetRecipe.FIRST_PICK,
-                    0.5 * value,
-                    torch.lerp(
-                        self._arm_anchors[first_anchor, _PREGRASP_POSE_INDEX],
-                        self._arm_anchors[first_anchor, _NEAR_GRASP_POSE_INDEX],
-                        progress,
-                    ),
-                    table_positions,
-                    open_finger_position,
-                    -1,
-                )
+                # Join the lift and transport at one shared waypoint.
+                for progress in motion_progress:
+                    append(
+                        transport_recipe,
+                        0.5 * progress,
+                        torch.lerp(near_grasp_arm, lifted_arm, progress),
+                        source_positions,
+                        closed_finger_position,
+                        role,
+                    )
+                for progress in motion_progress[1:]:
+                    append(
+                        transport_recipe,
+                        0.5 + 0.5 * progress,
+                        torch.lerp(lifted_arm, aligned_arm, progress),
+                        source_positions,
+                        closed_finger_position,
+                        role,
+                    )
 
-            for progress in grasp_progress[1:]:
-                value = float(progress)
-                is_contact_endpoint = value == 1.0
-                append(
-                    StackResetRecipe.FIRST_PICK,
-                    0.5 + 0.5 * value,
-                    self._arm_anchors[first_anchor, _NEAR_GRASP_POSE_INDEX],
-                    table_positions,
-                    open_finger_position + value * (closed_finger_position - open_finger_position),
-                    1 if is_contact_endpoint else -1,
-                )
+                # Include finger closure so the policy can learn acquisition,
+                # rather than only continuing from a reset-supplied grasp.
+                for progress in pick_progress:
+                    append(
+                        pick_recipe,
+                        0.5 * progress,
+                        torch.lerp(pregrasp_arm, near_grasp_arm, progress),
+                        source_positions,
+                        open_finger_position,
+                        -1,
+                    )
+                for progress in pick_progress[1:]:
+                    append(
+                        pick_recipe,
+                        0.5 + 0.5 * progress,
+                        near_grasp_arm,
+                        source_positions,
+                        open_finger_position + progress * (closed_finger_position - open_finger_position),
+                        role if progress == 1.0 else -1,
+                    )
+
+                if role == 2:
+                    # Connect first-cube release to second-cube acquisition.
+                    for progress in motion_progress:
+                        append(
+                            StackResetRecipe.PAIR_READY,
+                            progress,
+                            torch.lerp(
+                                self._arm_anchors[base_anchor, _GREEN_RELEASE_POSE_INDEX], pregrasp_arm, progress
+                            ),
+                            source_positions,
+                            open_finger_position,
+                            -1,
+                        )
 
             # Deployment starts independently sample all three roles over the
             # reachable rectangle. Rejection keeps enough clearance for a
@@ -877,7 +736,6 @@ class StackResetStateTable(ManagerTermBase):
                 )
 
         self._arm_positions = torch.stack(arm_rows)
-        self._finger_positions = torch.tensor(finger_rows, dtype=torch.float32, device=self.device)
         self._hand_positions = torch.stack(hand_rows)
         self._role_positions = torch.stack(position_rows)
         self._recipe_ids = torch.tensor(recipe_rows, dtype=torch.long, device=self.device)
@@ -905,6 +763,10 @@ class StackResetStateTable(ManagerTermBase):
         self._role_quaternions[..., 3] = torch.cos(half_yaw)
         held_rows = torch.nonzero(self._held_roles >= 0, as_tuple=False).flatten()
         if held_rows.numel() > 0:
+            # Held cubes follow the actual hand FK, not an independent Cartesian trajectory.
+            self._role_positions[held_rows, self._held_roles[held_rows]] = self._held_position(
+                self._arm_positions[held_rows]
+            )
             self._role_quaternions[held_rows, self._held_roles[held_rows]] = self._role_quaternions.new_tensor(
                 (0.0, 0.0, 0.0, 1.0)
             )
@@ -913,7 +775,6 @@ class StackResetStateTable(ManagerTermBase):
         """Reject non-finite, penetrating, or semantically inconsistent rows."""
         tensors = (
             self._arm_positions,
-            self._finger_positions,
             self._hand_positions,
             self._role_positions,
             self._role_quaternions,
@@ -966,7 +827,7 @@ class StackResetStateTable(ManagerTermBase):
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: torch.Tensor,
+        env_ids: Sequence[int] | torch.Tensor | slice | None,
         closed_finger_position: float = 0.020,
         placed_finger_position: float = 0.021,
         open_finger_position: float = 0.040,
@@ -985,7 +846,10 @@ class StackResetStateTable(ManagerTermBase):
             open_finger_position,
             table_rows_per_layout,
         )
-        if env_ids is None or env_ids.numel() == 0:
+        if env_ids is None or isinstance(env_ids, slice):
+            env_ids = torch.arange(env.num_envs, device=env.device)[env_ids if env_ids is not None else slice(None)]
+        env_ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
+        if env_ids.numel() == 0:
             return
         if (
             min(
@@ -1003,7 +867,7 @@ class StackResetStateTable(ManagerTermBase):
         else:
             if not 0 <= fixed_recipe < len(StackResetRecipe):
                 raise ValueError(f"fixed_recipe must be in [0, {len(StackResetRecipe) - 1}].")
-            recipe_rows = torch.nonzero(self._recipe_ids == fixed_recipe, as_tuple=False).flatten()
+            recipe_rows = self._rows_by_recipe[fixed_recipe]
             if recipe_rows.numel() == 0:
                 raise RuntimeError(f"Stack reset cache has no rows for recipe {fixed_recipe}.")
             row_ids = recipe_rows[torch.randint(recipe_rows.numel(), (env_ids.numel(),), device=self.device)]
@@ -1103,10 +967,7 @@ class StackResetStateTable(ManagerTermBase):
             yaw_quaternions = torch.zeros_like(role_quaternions[table_rows])
             yaw_quaternions[..., 2] = yaw_z
             yaw_quaternions[..., 3] = yaw_w
-            role_quaternions[table_rows] = _quaternion_multiply_xyzw(
-                yaw_quaternions,
-                role_quaternions[table_rows],
-            )
+            role_quaternions[table_rows] = normalize(quat_mul(yaw_quaternions, role_quaternions[table_rows]))
 
         # Joint perturbations must never detach a reset-authored grasp. Move
         # the held role to the perturbed FK tool center before colors are
@@ -1130,11 +991,11 @@ class StackResetStateTable(ManagerTermBase):
             role_to_cube.unsqueeze(-1).expand_as(role_quaternions),
             role_quaternions,
         )
+        root_velocity = torch.zeros((env_ids.numel(), 6), dtype=torch.float32, device=self.device)
         for cube_id, cube in enumerate(self._cubes):
             root_pose = cube.data.default_root_pose.torch[env_ids].clone()
             root_pose[:, :3] = cube_positions[:, cube_id] + env.scene.env_origins[env_ids]
             root_pose[:, 3:7] = cube_quaternions[:, cube_id]
-            root_velocity = torch.zeros((env_ids.numel(), 6), dtype=torch.float32, device=self.device)
             cube.write_root_pose_to_sim_index(root_pose=root_pose, env_ids=env_ids)
             cube.write_root_velocity_to_sim_index(root_velocity=root_velocity, env_ids=env_ids)
 
@@ -2148,7 +2009,6 @@ class KukaAllegroResetStateTable(StackResetStateTable):
         pair_rows: list[torch.Tensor] = []
         orientation_rows: list[torch.Tensor] = []
         maximum_tilt_rows: list[torch.Tensor] = []
-        closure_rows: list[torch.Tensor] = []
 
         def append_semantic(recipe: StackResetRecipe) -> None:
             local_rows = torch.arange(self._ROWS_PER_RECIPE, device=self.device)
@@ -2334,7 +2194,6 @@ class KukaAllegroResetStateTable(StackResetStateTable):
             pair_rows.append(pair_ids)
             orientation_rows.append(orientation_ids)
             maximum_tilt_rows.append(maximum_tilt)
-            closure_rows.append(closure)
 
         for recipe in StackResetRecipe:
             if recipe != StackResetRecipe.TABLE:
@@ -2388,7 +2247,6 @@ class KukaAllegroResetStateTable(StackResetStateTable):
         pair_rows.append(table_pair_ids)
         orientation_rows.append(table_orientation_ids)
         maximum_tilt_rows.append(torch.zeros_like(table_progress))
-        closure_rows.append(torch.zeros_like(table_progress))
 
         target_positions = torch.cat(arm_targets)
         self._hand_positions = torch.cat(hand_rows)
@@ -2400,7 +2258,6 @@ class KukaAllegroResetStateTable(StackResetStateTable):
         self._grasp_pair_ids = torch.cat(pair_rows)
         self._orientation_ids = torch.cat(orientation_rows)
         self._authored_orientation_ids = self._orientation_ids.clone()
-        closure = torch.cat(closure_rows)
 
         table_rows = self._recipe_ids == int(StackResetRecipe.TABLE)
         self._tilt_azimuth_ids = torch.remainder(
@@ -2580,7 +2437,6 @@ class KukaAllegroResetStateTable(StackResetStateTable):
             held_rotations = torch.matmul(actual_palm_rotations[held_rows], palm_to_cube)
             self._role_quaternions[held_rows, self._held_roles[held_rows]] = quaternion_xyzw_from_matrix(held_rotations)
 
-        self._finger_positions = open_finger_position + closure * (closed_finger_position - open_finger_position)
         self._target_potentials = torch.tensor(
             tuple(self._target_potential(StackResetRecipe(int(recipe))) for recipe in self._recipe_ids.cpu()),
             dtype=torch.float32,

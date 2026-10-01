@@ -30,13 +30,45 @@ Pretrained checkpoints for the Franka state, KUKA-Allegro state, and Franka
 camera-student tasks are available in the Isaac-dev Nucleus pretrained-checkpoints
 collection.
 
+Learning from resets
+--------------------
+
+The tasks use Isaac Lab's normal manager lifecycle, not a separate replay
+environment. The reset event builds and validates a bank once, then restores
+robot joints, cube poses, zero velocities, and matching position targets on
+each episode reset. Intermediate states span finger closure, lift, transport,
+placement, and release; held cubes follow the hand's forward kinematics rather
+than an independently interpolated cube trajectory. Cube-color permutations
+augment these physical states without changing the task.
+
+The curriculum records each completed episode before the reset event selects
+the next state. It mixes 35% randomized table starts with 65% intermediate
+states weighted toward the success monitor's target rate. Learning-progress
+success updates that sampler; full-stack success separately requires a stable,
+released tower. Play mode disables the curriculum and uses only table starts.
+
+The Franka task uses ``FRANKA_PANDA_CFG`` with the ``mujoco`` physics payload
+and the asset's authored finger mimic: the policy commands the leading finger,
+while the follower remains passive. Task-specific arm impedance gains and
+gravity compensation are retained.
+
+.. note::
+
+   The flat asset's MuJoCo payload and passive-finger control change the
+   dynamics relative to older stacking runs. Matching observation dimensions
+   alone does not make a Franka checkpoint compatible: retrain or revalidate
+   older state and camera policies before using them with this configuration.
+
+Training and playback
+---------------------
+
 Train the state task, then play a local checkpoint:
 
 .. code-block:: bash
 
    uv run isaaclab train --rl_library rsl_rl --task IsaacContrib-Stack-Cube-Franka-RL
    uv run isaaclab play --rl_library rsl_rl --task IsaacContrib-Stack-Cube-Franka-RL \
-       --checkpoint /path/to/model.pt --num_envs 1 --viz newton
+       --checkpoint /path/to/model.pt --num_envs 1 --visualizer newton_gl
 
 For RGB distillation, pass a compatible Franka state teacher checkpoint. The
 student camera needs an explicit renderer; ``isaacsim_rtx`` is the deployment
@@ -48,13 +80,13 @@ rendering choice used by this task:
        --task IsaacContrib-Stack-Cube-Franka-RL-Camera-Distillation \
        --checkpoint /path/to/teacher.pt renderer=isaacsim_rtx
 
-The camera teacher has 109 inputs (including commanded joint targets), while
-the published Franka state PPO actor has 100. Train or adapt a teacher for the
-109-input contract before starting distillation; do not pass the state PPO
-checkpoint directly to this command.
+The teacher reuses the state PPO actor's 100-input observation order and model
+configuration, so a state-task checkpoint trained on the current dynamics can
+be loaded directly. Older 109-input camera teachers are incompatible with this
+shared interface; retrain them before resuming distillation.
 
 Play uses randomized table starts with training curricula disabled. Use
-``--video --video_length 300`` with ``--viz newton`` to record six seconds
+``--video --video_length 300`` with ``--visualizer newton_gl`` to record six seconds
 at the 50 Hz policy rate, and check the success termination before sharing a
 clip. Checkpoint observation order, camera resolution,
 distribution type, and renderer must match the task configuration; a checkpoint
@@ -67,12 +99,14 @@ limits, and independent real-world validation.
 Previews
 --------
 
-These Franka and KUKA-Allegro clips were recorded with Newton physics and the
+These reference Franka and KUKA-Allegro clips were recorded with Newton physics and the
 Newton visualizer from randomized table starts. The task success termination
 fired at steps 170 and 213, respectively; each clip ends on the resulting stack.
 The tabletop is dark, and the shared ground uses the standard checker visual;
 the invisible contact surface is not rendered. The camera student is not shown
 because a successful local playback has not yet been reproduced.
+The Franka clip predates the switch to the standard flat-asset configuration
+and is not validation of an older checkpoint on the current dynamics.
 
 .. raw:: html
 

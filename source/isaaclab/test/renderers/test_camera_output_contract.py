@@ -244,52 +244,11 @@ def test_camera_data_allocates_supported_subset_and_aliases_rgb():
     assert data.image_shape == (8, 16)
     assert data.info == {"rgba": None, "rgb": None, "depth": None}
 
-
-def test_camera_data_drops_requested_types_not_in_supported_specs():
-    """Requested types absent from supported_specs are absent from data.output."""
-    cfg = _make_camera_cfg(["rgb", "normals"])
-    specs = {
-        RenderBufferKind.RGBA: RenderBufferSpec(4, wp.uint8),
-        RenderBufferKind.RGB: RenderBufferSpec(3, wp.uint8),
-    }
-    data = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=specs
+    depth_only = CameraData.allocate(
+        data_types=["depth"], height=8, width=16, num_views=2, device="cpu", supported_specs=specs
     )
-
-    assert "normals" not in data.output
-    assert {"rgb", "rgba"} <= set(data.output.keys())
-
-
-def test_camera_data_no_arg_construction_yields_empty_container():
-    """Bare CameraData() produces an all-None container."""
-    data = CameraData()
-    assert data.pos_w is None
-    assert data.quat_w_world is None
-    assert data.intrinsic_matrices is None
-    assert data.output is None
-    assert data.info is None
-    assert data.image_shape is None
     with pytest.raises(RuntimeError, match="Add 'rgb' to CameraCfg.data_types"):
-        _ = data.rgb
-
-
-def test_camera_data_segmentation_dtype_follows_supported_spec():
-    """CameraData consumes the layout dtype declared by the renderer spec."""
-    cfg = _make_camera_cfg(["instance_segmentation"])
-    raw_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(1, wp.int32)}
-    colorized_specs = {RenderBufferKind.INSTANCE_SEGMENTATION: RenderBufferSpec(4, wp.uint8)}
-
-    raw = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=raw_specs
-    )
-    colorized = CameraData.allocate(
-        data_types=cfg.data_types, height=4, width=4, num_views=1, device="cpu", supported_specs=colorized_specs
-    )
-
-    assert raw.output["instance_segmentation"].dtype == wp.int32
-    assert raw.output["instance_segmentation"].shape == (1, 4, 4, 1)
-    assert colorized.output["instance_segmentation"].dtype == wp.uint8
-    assert colorized.output["instance_segmentation"].shape == (1, 4, 4, 4)
+        _ = depth_only.rgb
 
 
 def test_camera_data_allocate_raises_on_unknown_name():

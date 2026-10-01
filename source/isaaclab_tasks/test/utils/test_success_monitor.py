@@ -10,8 +10,8 @@ import torch
 from isaaclab_tasks.utils.success_monitor import SuccessMonitor, SuccessMonitorCfg
 
 
-def test_success_monitor_state_round_trip() -> None:
-    """Rolling histories can be restored without reaching into monitor internals."""
+def test_success_monitor_resumes_rolling_outcomes_from_a_snapshot() -> None:
+    """Restoring a snapshot preserves rates and the next ring-buffer update."""
     cfg = SuccessMonitorCfg(monitored_history_len=3)
     monitor = SuccessMonitor(cfg, num_partitions=1, partition_size=3, device="cpu")
     monitor.success_update(
@@ -19,10 +19,11 @@ def test_success_monitor_state_round_trip() -> None:
         torch.tensor([True, False, True, True]),
     )
 
-    restored = SuccessMonitor(cfg, num_partitions=1, partition_size=3, device="cpu")
-    restored.set_state(monitor.get_state())
+    snapshot = monitor.get_state()
+    monitor.success_update(torch.tensor([0]), torch.tensor([False]))
 
-    torch.testing.assert_close(restored.success_buf, monitor.success_buf)
-    torch.testing.assert_close(restored.success_pointer, monitor.success_pointer)
-    torch.testing.assert_close(restored.success_size, monitor.success_size)
-    torch.testing.assert_close(restored.success_rate, monitor.success_rate)
+    restored = SuccessMonitor(cfg, num_partitions=1, partition_size=3, device="cpu")
+    restored.set_state(snapshot)
+    torch.testing.assert_close(restored.get_success_rate(), torch.tensor([2.0 / 3.0, 1.0, 0.0]))
+    restored.success_update(torch.tensor([0, 1]), torch.tensor([False, False]))
+    torch.testing.assert_close(restored.get_success_rate(), torch.tensor([1.0 / 3.0, 0.5, 0.0]))

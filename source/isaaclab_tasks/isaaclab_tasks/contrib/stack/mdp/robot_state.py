@@ -64,11 +64,6 @@ def _resolve_grasp_pair_entity_ids(
     return robot, entity_ids
 
 
-def _gather_active_pair_rows(values: torch.Tensor, pair_ids: torch.Tensor) -> torch.Tensor:
-    """Gather one configured pair row for each parallel environment."""
-    return values[pair_ids]
-
-
 def _grasp_pair_value_table(
     env: ManagerBasedRLEnv,
     name: str,
@@ -102,7 +97,7 @@ def grasp_pair_joint_positions(
     entries as the physical opposing finger changes.
     """
     robot, joint_ids_by_pair = _resolve_grasp_pair_entity_ids(env, robot_cfg, joint_names_by_pair)
-    joint_ids = _gather_active_pair_rows(joint_ids_by_pair, _active_grasp_pair_ids(env))
+    joint_ids = joint_ids_by_pair[_active_grasp_pair_ids(env)]
     return torch.gather(robot.data.joint_pos.torch, 1, joint_ids)
 
 
@@ -175,14 +170,12 @@ def grasp_pair_posture_closure(
         joint_names_by_pair=joint_names_by_pair,
     )
     pair_ids = _active_grasp_pair_ids(env)
-    open_positions = _gather_active_pair_rows(
-        _grasp_pair_value_table(env, "open_joint_positions", open_joint_positions_by_pair, joint_positions),
-        pair_ids,
-    )
-    closed_positions = _gather_active_pair_rows(
-        _grasp_pair_value_table(env, "closed_joint_positions", closed_joint_positions_by_pair, joint_positions),
-        pair_ids,
-    )
+    open_positions = _grasp_pair_value_table(
+        env, "open_joint_positions", open_joint_positions_by_pair, joint_positions
+    )[pair_ids]
+    closed_positions = _grasp_pair_value_table(
+        env, "closed_joint_positions", closed_joint_positions_by_pair, joint_positions
+    )[pair_ids]
     if len(finger_joint_counts) != 2 or any(count < 1 for count in finger_joint_counts):
         raise ValueError("finger_joint_counts must contain two positive counts.")
     if sum(finger_joint_counts) != joint_positions.shape[1]:
@@ -277,10 +270,9 @@ def grasp_pair_end_effector_pose(
     robot, body_id, _ = _end_effector_cache_entry(env, robot_cfg, body_name, (0.0, 0.0, 0.0))
     body_position = robot.data.body_pos_w.torch[:, body_id]
     body_orientation = robot.data.body_quat_w.torch[:, body_id]
-    offsets = _gather_active_pair_rows(
-        _grasp_pair_value_table(env, "tool_offsets", tool_offsets_by_pair, body_position),
-        _active_grasp_pair_ids(env),
-    )
+    offsets = _grasp_pair_value_table(env, "tool_offsets", tool_offsets_by_pair, body_position)[
+        _active_grasp_pair_ids(env)
+    ]
     tool_position = body_position + math_utils.quat_apply(body_orientation, offsets)
     return tool_position, body_orientation
 
@@ -296,10 +288,9 @@ def grasp_pair_end_effector_velocity(
     robot, body_id, _ = _end_effector_cache_entry(env, robot_cfg, body_name, (0.0, 0.0, 0.0))
     body_orientation = robot.data.body_quat_w.torch[:, body_id]
     body_velocity = robot.data.body_vel_w.torch[:, body_id]
-    offsets = _gather_active_pair_rows(
-        _grasp_pair_value_table(env, "tool_offsets", tool_offsets_by_pair, body_velocity),
-        _active_grasp_pair_ids(env),
-    )
+    offsets = _grasp_pair_value_table(env, "tool_offsets", tool_offsets_by_pair, body_velocity)[
+        _active_grasp_pair_ids(env)
+    ]
     offset_world = math_utils.quat_apply(body_orientation, offsets)
     linear_velocity = body_velocity[:, :3] + torch.linalg.cross(body_velocity[:, 3:], offset_world)
     return torch.cat((linear_velocity, body_velocity[:, 3:]), dim=1)

@@ -666,19 +666,13 @@ def test_failed_rsl_training_restores_torch_backend_state(monkeypatch) -> None:
     assert _torch_backend_state() == caller_state
 
 
-def test_rsl_distillation_runner_requires_explicit_checkpoint() -> None:
-    """Distillation cannot accidentally search the student experiment for a teacher."""
-    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _validate_checkpoint_request
+def test_rsl_distillation_runner_requires_checkpoint_with_custom_algorithm() -> None:
+    """A custom distillation algorithm still needs weights for its frozen teacher."""
+    from isaaclab_rl.entrypoints.backends.train_rsl_rl import _resolve_checkpoint
 
-    with pytest.raises(ValueError, match="explicit teacher checkpoint"):
-        _validate_checkpoint_request(None, runner_class_name="DistillationRunner", resume=False)
-    with pytest.raises(ValueError, match="cannot identify an initial distillation teacher"):
-        _validate_checkpoint_request("latest", runner_class_name="DistillationRunner", resume=False)
-
-    _validate_checkpoint_request("/path/to/teacher.pt", runner_class_name="DistillationRunner", resume=False)
-    _validate_checkpoint_request(None, runner_class_name="DistillationRunner", resume=True)
-    _validate_checkpoint_request("latest", runner_class_name="DistillationRunner", resume=True)
-    _validate_checkpoint_request(None, runner_class_name="OnPolicyRunner", resume=False)
+    cfg = SimpleNamespace(class_name="DistillationRunner", algorithm=SimpleNamespace(class_name="custom:Distillation"))
+    with pytest.raises(ValueError, match="Distillation training requires --checkpoint"):
+        _resolve_checkpoint(SimpleNamespace(checkpoint=None), cfg, "/unused")
 
 
 def test_rsl_training_registers_external_task_before_agent_discovery(monkeypatch) -> None:

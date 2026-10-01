@@ -89,40 +89,30 @@ class StackResetTableCurriculum(ManagerTermBase):
         self._full_task_attempts_by_row = torch.zeros(reset_term.row_count, dtype=torch.long, device=env.device)
         self._full_task_successes_by_row = torch.zeros_like(self._full_task_attempts_by_row)
 
-    def _sampling_distribution(self) -> tuple[torch.Tensor, torch.Tensor]:
-        """Return mixture probabilities and target-rate weights.
+    def _sampling_distribution(self) -> torch.Tensor:
+        """Return the fixed-table/adaptive-intermediate sampling mixture.
 
         Layout-balanced tasks normalize within each workspace layout. Reset
         KUKA uses one flat distribution over active rows because its reset bank
         already contains a balanced wrist/layout grid.
         """
-        target_weights = self._progress_monitor.target_weights()
-        adaptive = target_weights.clone()
+        adaptive = self._progress_monitor.target_weights()
         adaptive[self._table_rows] = 0.0
         layout_ids = self._reset_term.layout_ids
-        if self._global_sampling:
-            # Normalize one target-rate weight vector over the complete active
-            # table without layout quotas.
-            pass
-        else:
+        if not self._global_sampling:
             layout_mass = torch.zeros(self._layout_count, dtype=adaptive.dtype, device=adaptive.device)
             layout_mass.scatter_add_(0, layout_ids, adaptive)
             adaptive /= layout_mass[layout_ids].clamp_min(torch.finfo(adaptive.dtype).tiny)
-        adaptive[self._table_rows] = 0.0
         adaptive /= adaptive.sum()
         table = self._table_rows.to(dtype=adaptive.dtype)
         table /= table.sum()
         probabilities = (1.0 - self._table_sampling_probability) * adaptive + self._table_sampling_probability * table
-        return probabilities, target_weights
-
-    def _sampling_probabilities(self) -> torch.Tensor:
-        """Return the fixed-table/adaptive-intermediate sampling mixture."""
-        return self._sampling_distribution()[0]
+        return probabilities
 
     def __call__(
         self,
         env: ManagerBasedRLEnv,
-        env_ids: Sequence[int],
+        env_ids: Sequence[int] | torch.Tensor | slice | None,
         success_monitor: SuccessMonitorCfg,
         success_context_name: str = "learning_progress_context",
         final_success_context_name: str = "progress_context",
@@ -135,6 +125,8 @@ class StackResetTableCurriculum(ManagerTermBase):
             table_sampling_probability,
             global_sampling,
         )
+        if env_ids is None or isinstance(env_ids, slice):
+            env_ids = torch.arange(env.num_envs, device=env.device)[env_ids if env_ids is not None else slice(None)]
         ids = torch.as_tensor(env_ids, dtype=torch.long, device=env.device).flatten()
         batch_success_rate = torch.zeros((), device=env.device)
         batch_full_task_success_rate = torch.zeros((), device=env.device)
@@ -172,11 +164,11 @@ class StackResetTableCurriculum(ManagerTermBase):
                     torch.bincount(completed_rows[final_succeeded], minlength=self._reset_term.row_count)
                 )
 
-            probabilities, _ = self._sampling_distribution()
+            probabilities = self._sampling_distribution()
             rows = torch.multinomial(probabilities, ids.numel(), replacement=True)
             row_ids[ids] = rows
         else:
-            probabilities, _ = self._sampling_distribution()
+            probabilities = self._sampling_distribution()
 
         attempts = self._attempts
         observed = attempts > 0

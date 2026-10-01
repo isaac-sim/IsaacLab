@@ -95,7 +95,7 @@ class EpisodeCameraNoiseCfg(NoiseModelCfg):
 
 def randomize_camera_calibration(
     env: ManagerBasedEnv,
-    env_ids: Sequence[int] | torch.Tensor | None,
+    env_ids: Sequence[int] | torch.Tensor | slice | None,
     eye: tuple[float, float, float],
     lookat: tuple[float, float, float],
     eye_position_noise: tuple[float, float, float],
@@ -113,19 +113,18 @@ def randomize_camera_calibration(
         env: The stack environment containing the camera sensor.
         env_ids: Environments whose camera poses are randomized, or ``None``
             for every environment.
-        eye: Nominal camera position relative to each environment origin.
-        lookat: Nominal look-at point relative to each environment origin.
+        eye: Nominal camera position relative to each environment origin [m].
+        lookat: Nominal look-at point relative to each environment origin [m].
         eye_position_noise: Independent uniform position-noise half-widths for
-            the camera eye, in meters.
+            the camera eye [m].
         lookat_position_noise: Independent uniform position-noise half-widths
-            for the look-at point, in meters.
+            for the look-at point [m].
         sensor_cfg: Scene entity selecting the camera.
     """
     camera: Camera = env.scene.sensors[sensor_cfg.name]
-    if env_ids is None:
-        resolved_env_ids = torch.arange(env.num_envs, device=env.device, dtype=torch.long)
-    else:
-        resolved_env_ids = torch.as_tensor(env_ids, device=env.device, dtype=torch.long).reshape(-1)
+    if env_ids is None or isinstance(env_ids, slice):
+        env_ids = torch.arange(env.num_envs, device=env.device)[env_ids if env_ids is not None else slice(None)]
+    resolved_env_ids = torch.as_tensor(env_ids, device=env.device, dtype=torch.long).reshape(-1)
     if resolved_env_ids.numel() == 0:
         return
 
