@@ -85,13 +85,6 @@ RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
         libx11-dev libxcursor-dev libxi-dev libxinerama-dev libxrandr-dev; \
     fi
 
-# arm64: Isaac Sim refuses to start unless the system OpenMP runtime loads before the copy
-# bundled with torch. Preload it image-wide, like the shim above, so every entry point gets it.
-RUN if [ "$(dpkg --print-architecture)" = "arm64" ]; then \
-        test -f /lib/aarch64-linux-gnu/libgomp.so.1 && \
-        printf '\n%s\n' /lib/aarch64-linux-gnu/libgomp.so.1 >> /etc/ld.so.preload; \
-    fi
-
 # copy files necessary for installing Isaac Lab and its dependencies
 # this way we minimize the chance of cache invalidation on file edits
 COPY --from=uv /uv /uvx /usr/local/bin/
