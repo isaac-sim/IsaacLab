@@ -30,6 +30,7 @@ from pxr import Sdf, Usd, UsdPhysics
 from ...actuators.actuator_base_cfg import _is_implicit_actuator_cfg
 from ...actuators.actuator_compat import resolve_limit_aliases
 from ...utils import clone, to_dict, validate
+from ...utils.backend_utils import FactoryBase
 from ...utils.string import _resolve_matching_values_dense, resolve_matching_names, string_to_callable, to_camel_case
 from .schemas import drive_instance_name
 
@@ -190,9 +191,7 @@ def define_actuator_properties(
     sim_ctx = SimulationContext.instance()
     sim_cfg = sim_ctx.cfg if sim_ctx is not None else None
     if sim_cfg is not None and any(isinstance(cfg, BamActuatorCfg) for cfg in actuator_cfgs.values()):
-        from isaaclab_newton.physics import NewtonCfg  # noqa: PLC0415
-
-        if not sim_cfg.use_newton_actuators or not isinstance(sim_cfg.physics, NewtonCfg):
+        if not sim_cfg.use_newton_actuators or FactoryBase._get_backend() != "newton":
             raise ValueError("BAM requires use_newton_actuators=True with the Newton backend and MJWarp solver.")
     if sim_cfg is None or not sim_cfg.use_newton_actuators:
         return

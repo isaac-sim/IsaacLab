@@ -11,6 +11,7 @@ Added
   external loads from the solver's generalized forces. Other Newton solvers, PhysX, OVPhysX and
   the Isaac Lab actuator loop rejected this configuration. Rotor inertia remained owned by the joint or
   :attr:`~isaaclab.actuators.ActuatorBaseCfg.armature`.
+  Core validation used the backend-neutral dispatcher without importing the optional Newton backend package.
 * Added :class:`~isaaclab.actuators.BamMotorCfg` for explicit motor fits, including m1/m2/m5/m6
   model selection and a local Rhoban JSON loader. BAM authoring replaced existing USD actuators
   using the configured fit and required firmware gain and nominal voltage. It authored a positive
