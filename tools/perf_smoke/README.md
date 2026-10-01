@@ -18,8 +18,19 @@ exit behavior are unchanged.
 
 ## What runs
 
-The existing CI label starts the initial PR run. Subsequent pushes trigger the
-workflow through the PR's `synchronize` event.
+The existing label trigger starts the initial PR run. Subsequent pushes trigger
+GPU CI through `synchronize` after a prior human or app-token label event. Removed
+labels still count, so the existing `run-ci` command keeps working. Labels added
+by `GITHUB_TOKEN` do not count: GitHub suppresses workflows triggered by that token.
+Without activation, the required build check stops on a CPU runner and explains
+how to start CI; it does not allocate a GPU or mark unexecuted required tests as
+sufficient to merge. Updates cancel superseded running revisions.
+
+The paired job retains its existing 450-minute limit. Retrieval requests have a
+60-second timeout; baseline lookup and comparison generation each have a five-minute
+step limit. A failed reuse lookup falls back to a fresh base measurement when the
+base checkout and image are available. Comparison-generation failure leaves the
+existing rolling-history gate and its Summary available.
 
 The pair is resolved from GitHub's exact tested merge revision. Its first parent
 is the comparison base, and its second parent must match the requested PR head.
@@ -52,6 +63,11 @@ values and counts, environment differences, and links to the exact base/PR sourc
 producing workflow runs and result artifacts. A reused baseline retains its
 original run and artifact link; it is not presented as a fresh measurement on the
 current runner.
+
+When the fingerprint algorithm changes, a reused baseline's compatibility metadata
+can be re-derived from its verified source checkout. The derived identity is bound
+to the original artifact ID, checksum and commit; its measurements and original
+recorded metadata are preserved.
 
 Each sample's `source-revision.json` records loaded-source hashes and binds the
 runtime result bytes to the verified source. `source-manifest.json` describes the
