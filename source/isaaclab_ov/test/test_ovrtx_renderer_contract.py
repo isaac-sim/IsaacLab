@@ -168,13 +168,17 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     sim = SimulationContext.instance()
     if with_physics:
         sim.physics_manager.clone_context_type = OvPhysxReplicateContext
+    if use_ovstage and with_physics:
+        # An asset route alone does not configure a renderer or authorize changing physics ownership.
+        routes = {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
+        OvrtxReplicateContext.prepare(sim, routes)
+        assert routes == {OvPhysxReplicateContext: {0}, OvrtxReplicateContext: {1}}
     cfg = OVRTXRendererCfg()
     renderer = sim.get_or_create_backend(cfg)
     shared = sim.get_or_create_backend(replace(cfg))
-    other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
     assert shared is renderer
-    assert renderer.backend is other.backend is None
-    assert renderer.scene is other.scene is None
+    assert renderer.backend is None
+    assert renderer.scene is None
     assert not loaded and not redirected and not config_kwargs
     renderer.close()  # Teardown is also valid before preparation.
 
@@ -185,6 +189,9 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
         UsdGeom.Xform.Define(sim.stage, f"/World/envs/env_0/{name}")
     sim.plan = make_clone_plan(assets, (tuple(range(len(assets))),), 2, positions=np.zeros((2, 3), dtype=np.float32))
     replicate(sim.plan)
+    sim.render_context.ensure_initialize()
+    other = sim.get_or_create_backend(replace(cfg, enable_shadows=True))
+    assert other.backend is not None
     shared_physics = use_ovstage and with_physics
     assert (other.backend is renderer.backend) is shared_physics
     assert (other.scene is renderer.scene) is shared_physics
@@ -211,9 +218,13 @@ def test_ovrtx_renderer_config_enables_supported_runtime_options(monkeypatch, tm
     assert tuple(sim._backend_registry) == resources
     if shared_physics:
         assert renderer.scene.cfg.population_domains == ovrtx_renderer_module.ovstage.PopulationDomain.ALL
-        conflict = sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
         with pytest.raises(ValueError, match="one OVRTX engine"):
-            replicate(sim.plan)
+            sim.get_or_create_backend(replace(renderer.cfg, log_level="error"))
+        conflict = next(
+            resource
+            for cfg, resource in sim._backend_registry
+            if isinstance(cfg, OVRTXRendererCfg) and cfg.log_level == "error"
+        )
         sim.close_backend(conflict)
     renderer.close()
     renderer.close()
