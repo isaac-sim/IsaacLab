@@ -34,6 +34,7 @@
             ["Isaac-Open-Drawer-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/franka_open_drawer.jpg"],
             ["Isaac-Pendulum-MARL-Direct", "rl_games,skrl", "isaacsim_physx,newton_kamino,newton_mjwarp,ovphysx", "", "", "tasks/classic/cart_double_pendulum.jpg", false, {}, {"skrl": "MAPPO"}],
             ["Isaac-Reach-Franka", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", "tasks/manipulation/franka_reach.jpg", true, {"*": ["joint_pos"]}],
+            ["Isaac-Reach-Franka-Minimal", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik,diffik_abs,joint_pos,newton_ik", "tasks/manipulation/franka_reach.jpg", true, {"*": ["joint_pos"]}],
             ["Isaac-Reach-Franka-OSC", "rsl_rl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "diffik_abs", "tasks/manipulation/franka_reach.jpg", false, {"*": ["diffik_abs"]}],
             ["Isaac-Reach-UR10", "rl_games,rsl_rl,skrl", "isaacsim_physx,newton_mjwarp,ovphysx", "", "", "tasks/manipulation/ur10_reach.jpg", true],
             ["Isaac-RenderBenchmark-Franka-Cabinet", "", "isaacsim_physx,newton_mjwarp,ovphysx", "isaacsim_rtx,newton_renderer,ovrtx", "albedo,depth,rgb,simple_shading_constant_diffuse,simple_shading_diffuse_mdl,simple_shading_full_mdl", "", false, {"*": ["rgb"]}],

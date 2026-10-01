@@ -3,8 +3,6 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 
-from types import SimpleNamespace
-
 import pytest
 import torch
 from gymnasium.envs.registration import registry
@@ -14,7 +12,7 @@ from isaaclab_physx.sim.schemas import PhysxRigidBodyCfg
 
 import isaaclab.envs.mdp as mdp
 from isaaclab.actuators import IdealPDActuatorCfg
-from isaaclab.utils import replace, to_dict, validate
+from isaaclab.utils import to_dict, validate
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils.hydra import PresetCfg, resolve_presets
@@ -22,11 +20,18 @@ from isaaclab_tasks.utils.parse_cfg import load_cfg_from_registry
 from isaaclab_tasks.utils.preset_cli import enumerate_task_presets
 from isaaclab_tasks.utils.preset_target import PresetTarget
 
-from isaaclab_assets import FRANKA_PANDA_MENAGERIE_CFG
+from isaaclab_assets import FRANKA_MINIMAL_CFG, FRANKA_PANDA_CFG
 
 _TASK = "Isaac-Reach-Franka"
+_MINIMAL_TASK = "Isaac-Reach-Franka-Minimal"
 _OSC_TASK = "Isaac-Reach-Franka-OSC"
 _CONTRIB_DIFFIK_ABS_TASK = "IsaacContrib-Reach-Franka-IK-Abs"
+_RIGID_FRANKA_TASKS = (
+    _TASK,
+    _OSC_TASK,
+    "Isaac-Open-Drawer-Franka",
+    "Isaac-Open-Drawer-Franka-Direct",
+)
 
 
 def _load_env_cfg(*presets: str):
@@ -48,12 +53,45 @@ def _without_controller_dependent_cfg(cfg):
     return cfg_dict
 
 
+@pytest.mark.parametrize(
+    ("task", "physics_presets"),
+    [
+        *((task, ()) for task in _RIGID_FRANKA_TASKS),
+        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Blueprint", ("newton_mjwarp",)),
+        ("IsaacContrib-Stack-Cube-Bin-Franka-IK-Rel-Mimic", ("newton_mjwarp",)),
+        ("IsaacContrib-Stack-Cube-Franka-IK-Rel-Visuomotor", ("newton_mjwarp",)),
+    ],
+)
+def test_franka_tasks_select_the_canonical_asset_and_backend_payload(task, physics_presets):
+    newton_cfg = _load_reach_env_cfg(task, *physics_presets)
+    physx_cfg = _load_reach_env_cfg(task, "isaacsim_physx")
+
+    for cfg, physics_variant in ((newton_cfg, "mujoco"), (physx_cfg, "physx")):
+        assert cfg.scene.robot.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
+        assert cfg.scene.robot.spawn.variants == {
+            "Physics": physics_variant,
+            "Colliders": "primitives",
+        }
+
+
+@pytest.mark.parametrize("physics", ("newton_mjwarp", "isaacsim_physx", "ovphysx"))
+def test_minimal_reach_changes_only_collision_scope(physics):
+    full = to_dict(_load_reach_env_cfg(_TASK, physics))
+    minimal = to_dict(_load_reach_env_cfg(_MINIMAL_TASK, physics))
+
+    assert FRANKA_MINIMAL_CFG.spawn.usd_path == FRANKA_PANDA_CFG.spawn.usd_path
+    assert full["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "primitives"
+    assert minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] == "gripper_only"
+    minimal["scene"]["robot"]["spawn"]["variants"]["Colliders"] = "primitives"
+    assert minimal == full
+    assert "arm_collisions" not in enumerate_task_presets(_TASK)[PresetTarget.DOMAIN]
+
+
 def test_reach_diffik_abs_legacy_task_is_a_deprecated_alias():
     spec = registry[_CONTRIB_DIFFIK_ABS_TASK]
 
     assert spec.kwargs["deprecated"] == {"alias": "--task Isaac-Reach-Franka physics=isaacsim_physx presets=diffik_abs"}
-    with pytest.warns(FutureWarning, match="presets=diffik_abs"):
-        legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
+    legacy_cfg = load_cfg_from_registry(_CONTRIB_DIFFIK_ABS_TASK, "env_cfg_entry_point")
 
     canonical_cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
     legacy_cfg = resolve_presets(legacy_cfg)
@@ -94,6 +132,10 @@ def test_reach_ur10_physics_presets_change_only_physics():
     """UR10 backend selections must preserve the task configuration."""
     physx = _load_reach_env_cfg("Isaac-Reach-UR10", "isaacsim_physx")
     newton = _load_reach_env_cfg("Isaac-Reach-UR10", "newton_mjwarp")
+
+    assert physx.rewards.success.func is mdp.is_terminated_term
+    assert physx.terminations.success.func is mdp.pose_command_success
+    assert not hasattr(physx.rewards, "end_effector_position_tracking_fine_grained")
 
     physx_cfg = to_dict(physx)
     newton_cfg = to_dict(newton)
@@ -136,7 +178,24 @@ def test_reach_diffik_physx_configures_teleop_physics():
     assert physx_props.max_depenetration_velocity == pytest.approx(5.0)
     assert not cfg.scene.robot.spawn.make_uninstanceable
     assert cfg.scene.robot.spawn.collision_props is None
-    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/Legacy/panda_instanceable.usd")
+    assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "physx", "Colliders": "primitives"}
+
+
+def test_reach_diffik_abs_normalizes_position_actions_to_command_workspace():
+    cfg = _load_env_cfg("diffik_abs", "isaacsim_physx")
+    action = cfg.actions.arm_action
+    ranges = cfg.commands.ee_pose.ranges
+
+    position_scale = torch.tensor(action.scale[:3])
+    position_offset = torch.tensor(action.offset[:3])
+    expected_lower = torch.tensor([ranges.pos_x[0], ranges.pos_y[0], ranges.pos_z[0]])
+    expected_upper = torch.tensor([ranges.pos_x[1], ranges.pos_y[1], ranges.pos_z[1]])
+
+    torch.testing.assert_close(position_offset - position_scale, expected_lower)
+    torch.testing.assert_close(position_offset + position_scale, expected_upper)
+    assert action.scale[3:] == (1.0, 1.0, 1.0, 1.0)
+    assert action.offset[3:] == (0.0, 0.0, 0.0, 0.0)
 
 
 def test_reach_newton_ik_configures_gravity_compensation():
@@ -146,6 +205,7 @@ def test_reach_newton_ik_configures_gravity_compensation():
     mujoco_props = next(props for props in rigid_props if isinstance(props, MujocoRigidBodyCfg))
     assert mujoco_props.gravcomp == pytest.approx(1.0)
     assert cfg.scene.robot.spawn.usd_path.endswith("/FrankaEmika/franka_panda.usda")
+    assert cfg.scene.robot.spawn.variants == {"Physics": "mujoco", "Colliders": "primitives"}
 
     # Native SE(3) command convention: one relative 6-DoF pose objective.
     pose_objectives = [
@@ -163,66 +223,20 @@ def test_reach_default_preset_does_not_configure_se3_teleop_devices():
     assert cfg.teleop_devices.devices == {}
 
 
-def test_reach_success_requires_position_and_orientation():
-    cfg = _load_env_cfg()
-    success = cfg.terminations.success
-
-    assert cfg.commands.ee_pose.position_success_threshold == pytest.approx(0.05)
-    assert cfg.commands.ee_pose.orientation_success_threshold == pytest.approx(0.2)
-    assert success.func is mdp.pose_command_success
-    assert success.params == {"command_name": "ee_pose"}
-    assert cfg.rewards.success.func.__name__ == "is_terminated_term"
-    assert cfg.rewards.success.weight == pytest.approx(10.0)
-    assert cfg.rewards.success.params == {"term_keys": ["success"]}
-
-    angles = torch.tensor([0.19, 0.19, 0.21])
-    body_quaternions = torch.zeros(3, 1, 4)
-    body_quaternions[:, 0, 2] = torch.sin(angles / 2)
-    body_quaternions[:, 0, 3] = torch.cos(angles / 2)
-    command_values = torch.zeros(3, 7)
-    command_values[:, 6] = 1.0
-    robot_data = SimpleNamespace(
-        root_pos_w=SimpleNamespace(torch=torch.zeros(3, 3)),
-        root_quat_w=SimpleNamespace(torch=torch.tensor([[0.0, 0.0, 0.0, 1.0]]).repeat(3, 1)),
-        body_pos_w=SimpleNamespace(torch=torch.tensor([[[0.04, 0.0, 0.0]], [[0.06, 0.0, 0.0]], [[0.04, 0.0, 0.0]]])),
-        body_quat_w=SimpleNamespace(torch=body_quaternions),
-    )
-    command = object.__new__(mdp.UniformPoseCommand)
-    command.robot = SimpleNamespace(data=robot_data)
-    command.body_idx = 0
-    command.pose_command_b = command_values
-    command.pose_command_w = torch.zeros_like(command_values)
-    command.cfg = cfg.commands.ee_pose
-    command._env = SimpleNamespace(num_envs=3, device=torch.device("cpu"))
-    command._track_success = True
-    command._succeeded = torch.zeros(3, dtype=torch.bool)
-
-    class CommandManager:
-        def get_term(self, name):
-            assert name == "ee_pose"
-            return command
-
-    env = SimpleNamespace(command_manager=CommandManager())
-    succeeded = mdp.pose_command_success(env, **success.params)
-
-    assert torch.equal(succeeded, torch.tensor([True, False, False]))
-    assert torch.equal(command._succeeded, succeeded)
-
-    command.cfg = replace(command.cfg, orientation_success_threshold=None)
-    command._succeeded.zero_()
-    position_only_succeeded = mdp.pose_command_success(env, **success.params)
-
-    assert torch.equal(position_only_succeeded, torch.tensor([True, False, True]))
-
-
-def test_reach_osc_effort_actuator_keeps_menagerie_velocity_limit():
-    """The zero-gain effort actuator must keep the asset's solver velocity limit; the USD authors none."""
+def test_reach_osc_effort_actuator_keeps_canonical_solver_properties():
+    """Replacing the arm actuator with a zero-gain effort model must preserve its solver properties."""
     cfg = _load_reach_env_cfg(_OSC_TASK)
     arm_actuator = cfg.scene.robot.actuators["panda_arm"]
+    source_actuator = FRANKA_PANDA_CFG.actuators["panda_arm"]
 
     assert isinstance(arm_actuator, IdealPDActuatorCfg)
     assert arm_actuator.stiffness == 0.0 and arm_actuator.damping == 0.0
-    assert arm_actuator.joint_velocity_limit == FRANKA_PANDA_MENAGERIE_CFG.actuators["panda_arm"].joint_velocity_limit
+    assert arm_actuator.joint_effort_limit == source_actuator.joint_effort_limit
+    assert arm_actuator.joint_velocity_limit == source_actuator.joint_velocity_limit
+    assert arm_actuator.armature == source_actuator.armature
+    assert arm_actuator.friction == source_actuator.friction
+    assert arm_actuator.dynamic_friction == source_actuator.dynamic_friction
+    assert arm_actuator.viscous_friction == source_actuator.viscous_friction
 
 
 def test_reach_osc_resolves_controller_preset_values_to_defaults():

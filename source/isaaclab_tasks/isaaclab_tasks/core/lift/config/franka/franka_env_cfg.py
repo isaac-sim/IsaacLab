@@ -22,7 +22,11 @@ from isaaclab_assets.robots import FRANKA_PANDA_CFG
 from ... import lift_env_cfg as lift
 from ... import mdp
 
-# Lift uses task-specific actuators calibrated for contact-rich manipulation.
+##
+# Scene assets
+##
+
+# Lift inherits the shared asset and overrides its calibrated manipulation actuators.
 FRANKA_PANDA_LIFT_CFG = clone(FRANKA_PANDA_CFG)
 FRANKA_PANDA_LIFT_CFG.actuators = {
     # inspired by libfranka's joint_impedance_control.cpp; ``actuator_velocity_limit`` is the soft task
