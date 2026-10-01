@@ -15,9 +15,6 @@ task-space commands with a GPU-resident Warp state machine.
     uv run --extra importers python examples/tablecloth_h1.py \
         --visualizer none --max_steps 312
 
-    uv run --extra importers --extra isaacsim --extra video python examples/tablecloth_h1.py \
-        --visualizer kit --video
-
 """
 
 from __future__ import annotations
@@ -32,7 +29,6 @@ parser.add_argument("--task", type=str, default="IsaacContrib-Tablecloth-H1", he
 parser.add_argument("--num_envs", type=int, default=1, help="Number of parallel environments.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many steps; negative runs forever.")
 parser.add_argument("--pull_speed", type=float, default=2.0, help="Peak X withdrawal speed [m/s].")
-parser.add_argument("--video", action="store_true", help="Record the rollout to videos/tablecloth_h1/.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
@@ -41,7 +37,6 @@ import gymnasium as gym
 import torch
 import warp as wp
 
-from isaaclab.envs.utils.video_recorder_cfg import VideoRecorderCfg
 from isaaclab.utils.math import subtract_frame_transforms
 from isaaclab.utils.version import standalone_importers_available
 
@@ -49,8 +44,6 @@ import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.contrib.tablecloth.mdp._metrics import cloth_pull_distance
 from isaaclab_tasks.utils import parse_env_cfg
 
-FPS = 60
-VIDEO_STEPS = 312
 PULL_DISTANCE = 0.40
 ARM_ACTION_DIM = 21
 
@@ -324,28 +317,12 @@ def main() -> None:
     args_cli.require_kit = not standalone_importers_available()
     if not math.isfinite(args_cli.pull_speed) or args_cli.pull_speed <= 0.0:
         raise ValueError("--pull_speed must be finite and positive")
-    if args_cli.video and "none" in (args_cli.visualizer or []):
-        raise ValueError("--video requires a capture-capable visualizer; omit --visualizer none")
-    if args_cli.video and "kit" in (args_cli.visualizer or []):
-        args_cli.enable_cameras = True
-
-    max_steps = VIDEO_STEPS if args_cli.video and args_cli.max_steps < 0 else args_cli.max_steps
     env_cfg = parse_env_cfg(args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs)
     success_term = env_cfg.terminations.success
     # The expert rollout should remain visible after task completion rather than auto-resetting.
     env_cfg.terminations.success = None
     env_cfg.terminations.tableware_fallen = None
     env_cfg.rewards.success = None
-    if args_cli.video:
-        env_cfg.video_recorders = [
-            VideoRecorderCfg(
-                source="visualizer",
-                output_dir="videos/tablecloth_h1",
-                output_filename_prefix="tablecloth_h1",
-                fps=FPS,
-                video_length=max_steps,
-            )
-        ]
 
     with launch_simulation(cfg=env_cfg, launcher_args=args_cli):
         env = gym.make(args_cli.task, cfg=env_cfg)
@@ -359,7 +336,7 @@ def main() -> None:
             )
             print("[INFO]: Setup complete. H1 tablecloth expert is ready.", flush=True)
             step = 0
-            while env.unwrapped.sim.is_running() and (max_steps < 0 or step < max_steps):
+            while env.unwrapped.sim.is_running() and (args_cli.max_steps < 0 or step < args_cli.max_steps):
                 with torch.inference_mode():
                     _, _, terminated, truncated, _ = env.step(state_machine.compute())
                     dones = terminated | truncated

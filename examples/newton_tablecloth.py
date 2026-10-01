@@ -19,31 +19,21 @@ configuration and substep controller are Newton-specific.
     # Run the complete comparison without rendering.
     uv run python examples/newton_tablecloth.py --device cuda:0 --visualizer none --max_steps 240
 
-    # Record the complete comparison as a 60 FPS MP4 through Isaac Sim Kit.
-    uv run --extra isaacsim --extra video python examples/newton_tablecloth.py \
-        --device cuda:0 --visualizer kit --video
 """
 
 from __future__ import annotations
 
 import argparse
-import sys
-from pathlib import Path
 
 from isaaclab.app import add_launcher_args, launch_simulation
 
 parser = argparse.ArgumentParser(description="Compare five Newton VBD tablecloth pull speeds.")
 parser.add_argument("--max_steps", type=int, default=-1, help="Stop after this many frames; negative runs forever.")
-parser.add_argument("--video", action="store_true", help="Record the complete demo to videos/newton_tablecloth/.")
 add_launcher_args(parser)
 parser.set_defaults(visualizer=["newton_gl"])
 args_cli = parser.parse_args()
 
-# Packaged examples execute in-process, so expose this script's private sibling helper.
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
 import warp as wp
-from _newton_tablecloth_utils import create_video_recorder
 from isaaclab_newton.physics import (
     NewtonCfg,
     NewtonCollisionPipelineCfg,
@@ -93,9 +83,6 @@ from isaaclab_tasks.contrib.tablecloth.assets import (
 
 FPS = 60
 SUBSTEPS = 25
-VIDEO_STEPS = 240
-VIDEO_OUTPUT_DIR = "videos/newton_tablecloth"
-VIDEO_RESOLUTION = (1920, 1080)
 SETTLE_TIME = 0.5
 PULL_DISTANCE = 1.25
 PULL_RAMP_TIME = 0.40
@@ -376,12 +363,6 @@ class _TableclothPullController:
 
 def main() -> None:
     """Launch the five-speed tablecloth demo."""
-    if args_cli.video and "none" in (args_cli.visualizer or []):
-        raise ValueError("--video requires a capture-capable visualizer; omit --visualizer none")
-    if args_cli.video and "kit" in (args_cli.visualizer or []):
-        args_cli.enable_cameras = True
-    max_steps = VIDEO_STEPS if args_cli.video and args_cli.max_steps < 0 else args_cli.max_steps
-
     physics_cfg = NewtonCfg(
         num_substeps=SUBSTEPS,
         # Fast cloth can cross the contact band within one frame, so collide on every substep.
@@ -403,20 +384,11 @@ def main() -> None:
     with launch_simulation(cfg=physics_cfg, launcher_args=args_cli) as resolved_physics_cfg:
         from isaaclab.scene import InteractiveScene  # noqa: PLC0415
 
-        default_visualizer_cfg = None
-        if args_cli.video and "kit" in (args_cli.visualizer or []):
-            from isaaclab_visualizers.kit import KitVisualizerCfg  # noqa: PLC0415
-
-            default_visualizer_cfg = KitVisualizerCfg(
-                window_width=VIDEO_RESOLUTION[0], window_height=VIDEO_RESOLUTION[1]
-            )
-
         sim = sim_utils.SimulationContext(
             sim_utils.SimulationCfg(
                 dt=1.0 / FPS,
                 device=args_cli.device,
                 physics=resolved_physics_cfg,
-                default_visualizer_cfg=default_visualizer_cfg,
             )
         )
         sim.set_camera_view(eye=(3.61, -5.225, 2.8825), target=(0.0, 0.0, 0.40))
@@ -426,27 +398,12 @@ def main() -> None:
         sim.reset()
 
         sim_dt = sim.get_physics_dt()
-        video_recorder = create_video_recorder(
-            sim,
-            enabled=args_cli.video,
-            output_dir=VIDEO_OUTPUT_DIR,
-            filename_prefix="newton_tablecloth",
-            video_length=max_steps,
-            fps=FPS,
-        )
-
         print("[INFO]: Setup complete. Five side-by-side Isaac Lab tablecloth trials are ready.", flush=True)
         step = 0
-        try:
-            while sim.is_running() and (max_steps < 0 or step < max_steps):
-                sim.step()
-                scene.update(sim_dt)
-                if video_recorder is not None:
-                    video_recorder.step()
-                step += 1
-        finally:
-            if video_recorder is not None:
-                video_recorder.close()
+        while sim.is_running() and (args_cli.max_steps < 0 or step < args_cli.max_steps):
+            sim.step()
+            scene.update(sim_dt)
+            step += 1
 
 
 if __name__ == "__main__":
