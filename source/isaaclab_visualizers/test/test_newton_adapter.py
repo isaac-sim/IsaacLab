@@ -998,8 +998,10 @@ def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, si
     from isaaclab_ov.stage import OvstageBackendCfg
 
     kwargs = {}
+    backend = simulation.get_or_create_backend.return_value
+
     def create_viewer(**viewer_kwargs):
-        simulation.get_or_create_backend.return_value.populate.assert_called_once_with(simulation.stage.ExportToString())
+        backend.populate.assert_called_once_with(simulation.stage.ExportToString())
         kwargs.update(viewer_kwargs)
         return object()
 
@@ -1008,7 +1010,7 @@ def test_newton_rtx_receives_background_color_and_prepared_stage(monkeypatch, si
     NewtonRTXVisualizer(cfg)._create_viewer(True, {})
     simulation.get_or_create_backend.assert_called_once_with(OvstageBackendCfg(consumer_cfg=cfg))
     assert kwargs["background_color"] == color
-    assert kwargs["ovstage"] is simulation.get_or_create_backend.return_value.stage
+    assert kwargs["ovstage"] is backend.stage
     assert "environment" not in kwargs
 
 
