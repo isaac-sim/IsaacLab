@@ -42,7 +42,9 @@ def _make_env(outputs: dict[str, torch.Tensor], device: str = "cpu") -> SimpleNa
     camera = SimpleNamespace(
         data=SimpleNamespace(output={name: ProxyArray(wp.from_torch(buf)) for name, buf in outputs.items()})
     )
-    return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=SimpleNamespace(sensors={"tiled_camera": camera}))
+    sensors = {"tiled_camera": camera}
+    scene = SimpleNamespace(sensors=sensors, keys=sensors.keys)
+    return SimpleNamespace(num_envs=NUM_ENVS, device=device, scene=scene)
 
 
 def _make_term(term_cls, env: SimpleNamespace, **params):

@@ -64,11 +64,11 @@ class reset_accumulator(ManagerTermBase):
         self.reset_assets = sorted((set(env.scene._articulations) | set(env.scene._rigid_objects)) & set(reset_assets))
         state_dim = reset_state.get_reset_state(env, torch.tensor([0], device=env.device), self.reset_assets).shape[-1]
         self._state_target_size = int(cfg.params["state_table_size"])
-        self._state_fps_features = cfg.params.get("state_table_fps_features")
-        self._state_tag_names_bind: str | None = cfg.params.get("state_tag_names_bind")
-        self._tag_indices_bind: str | None = cfg.params.get("state_tag_indices_bind")
+        self._state_fps_features = cfg.params["state_table_fps_features"]
+        self._state_tag_names_bind: str | None = cfg.params["state_tag_names_bind"]
+        self._tag_indices_bind: str | None = cfg.params["state_tag_indices_bind"]
 
-        oversample_capacity = int(self._state_target_size * float(cfg.params.get("state_table_oversample_ratio", 1.0)))
+        oversample_capacity = int(self._state_target_size * float(cfg.params["state_table_oversample_ratio"]))
         self.sampled_slots = torch.zeros(env.num_envs, device=env.device, dtype=torch.long)
         self.precollecting_phase = True
         self._sampling_cfg: SamplerCfg = cfg.params["sampling"]
@@ -257,7 +257,7 @@ class TermChoice(ManagerTermBase):
         # Need a monitor when the sampler has any non-uniform strategy, or when the user
         # explicitly requested reporting. Decided from the strategy configs because the monitor
         # owns the rate tensor the sampler binds, so it has to exist first.
-        needs_rates = cfg.params.get("report", False) or any(
+        needs_rates = cfg.params["report"] or any(
             "Uniform" not in str(strategy.class_type) for strategy in self._sampling_cfg.strategies
         )
         if needs_rates:
