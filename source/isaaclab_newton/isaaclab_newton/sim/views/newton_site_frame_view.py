@@ -397,8 +397,7 @@ class NewtonSiteFrameView(BaseFrameView):
             else (1.0, 1.0, 1.0)
         )
 
-        # Attach to the nearest rigid-body ancestor. An ``ArticulationRootAPI`` prim that is not itself a rigid
-        # body (e.g. the asset's root Xform) is not simulated, so frames below it without a body stay static.
+        # only rigid bodies are simulated; a non-body articulation root is not a parent body
         body_prim = prim.GetParent()
         while body_prim and body_prim.IsValid():
             if body_prim.HasAPI(UsdPhysics.RigidBodyAPI):
