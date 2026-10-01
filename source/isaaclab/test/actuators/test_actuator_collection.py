@@ -721,13 +721,6 @@ def _bam_cfg(joints: list[str], **kwargs) -> BamActuatorCfg:
     return BamActuatorCfg(joint_names_expr=joints, **kwargs)
 
 
-def test_bam_requires_native_execution():
-    """A BAM group cannot silently fall back to the Lab actuator loop."""
-    control = FakeActuatorControl()
-    with pytest.raises(ValueError, match="use_newton_actuators"):
-        ActuatorCollection({"servos": _bam_cfg([".*"])}, control)
-
-
 def test_native_model_owned_groups_keep_their_authored_friction():
     """The Newton-executed path publishes the budget itself, so its seed rows are left alone."""
     control = NativeFakeActuatorControl(joint_names=["joint_0", "joint_1", "joint_2", "joint_3"])

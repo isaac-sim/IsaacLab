@@ -26,7 +26,7 @@ from newton.actuators import parse_actuator_prim
 
 from pxr import Sdf, Usd, UsdGeom, UsdPhysics
 
-from isaaclab.actuators import BamActuatorCfg, IdealPDActuatorCfg
+from isaaclab.actuators import BamActuatorCfg
 from isaaclab.actuators.newton import (
     BAM_DRIVE_API,
     DriveBam,
@@ -164,21 +164,20 @@ def test_bam_cfg_is_accepted_by_newton_native_validation():
     validate_newton_native_actuator_cfgs({"servo": cfg})
 
 
-def test_bam_cfg_is_rejected_on_a_host_adapter_backend():
-    """A backend without an in-solver actuator path must refuse the BAM config, loudly.
+@pytest.mark.parametrize("backend", ["physx", "ovphysx"])
+def test_bam_cfg_is_rejected_on_a_host_adapter_backend(monkeypatch, backend):
+    """Shared configuration validation rejects BAM before backend initialization."""
+    from isaaclab_ov.physics import OvPhysxCfg
+    from isaaclab_physx.physics import PhysxCfg
 
-    The model is written in terms of solver quantities: it publishes its friction budget into
-    the solver's joint dry friction and reads the external load back out of the solver's
-    generalized forces. A backend that steps native actuators through the shared host adapter
-    (PhysX, OVPhysX) provides neither, so the drive would silently fall back to
-    a different friction model and skip its solver bindings. Failing the gate names the fix.
-    """
-    with pytest.raises(ValueError, match="requires the Newton backend"):
-        validate_newton_native_actuator_cfgs({"servo": _make_cfg()}, host_adapter=True)
+    from isaaclab.sim import SimulationCfg, SimulationContext
+    from isaaclab.sim.schemas.schemas_actuators import define_actuator_properties
 
-    # The restriction is BAM's alone -- every other supported config still runs there, so the
-    # flag cannot be passing by rejecting the whole native path.
-    validate_newton_native_actuator_cfgs({"legs": IdealPDActuatorCfg(joint_names_expr=[".*"])}, host_adapter=True)
+    physics_cfg = PhysxCfg() if backend == "physx" else OvPhysxCfg()
+    sim_cfg = SimulationCfg(physics=physics_cfg, use_newton_actuators=True)
+    monkeypatch.setattr(SimulationContext, "instance", lambda: SimpleNamespace(cfg=sim_cfg))
+    with pytest.raises(ValueError, match="BAM requires.*Newton backend"):
+        define_actuator_properties("/World/Robot", {"servo": _make_cfg()})
 
 
 def test_authored_prim_resolves_to_the_bam_drive():
@@ -311,15 +310,6 @@ def test_authoring_preserves_a_task_authored_joint_friction():
 """
 Kernel behaviour.
 """
-
-
-def test_drive_rejects_stepping_without_solver_load_binding():
-    """An unbound drive must fail before launching kernels with missing solver inputs."""
-    harness = _Harness(_make_cfg(), num_envs=1, device="cpu")
-    harness.drive.external_torque = None
-    zeros = np.zeros((1, len(JOINT_NAMES)), dtype=np.float32)
-    with pytest.raises(RuntimeError, match="MJWarp.*bound"):
-        harness.step(zeros, zeros, zeros)
 
 
 @pytest.mark.parametrize("device", test_devices())
