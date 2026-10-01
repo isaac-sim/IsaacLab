@@ -26,7 +26,6 @@ if not _MISSING_MODULES:
     from isaaclab_ov.renderers.ovrtx_usd import (  # noqa: E402
         build_render_product_as_string,
         build_render_scope_usd,
-        create_scene_partition_attributes,
         export_stage_to_string,
         get_render_var_config,
         get_render_var_configs,
@@ -44,7 +43,6 @@ else:
     UsdGeom = None
     build_render_product_as_string = None
     build_render_scope_usd = None
-    create_scene_partition_attributes = None
     export_stage_to_string = None
     get_render_var_config = None
     get_render_var_configs = None
@@ -498,24 +496,3 @@ def test_export_stage_restores_active_state():
         env_path = f"/World/envs/env_{env_idx}"
         assert stage.GetPrimAtPath(env_path).IsActive()
         assert stage.GetPrimAtPath(f"{env_path}/Object_env{env_idx}_only").IsActive()
-
-
-def test_create_scene_partition_attributes_all_envs():
-    """Scene partition attributes are authored on every env root and camera."""
-    num_envs = 4
-    stage = _make_multi_env_stage(num_envs)
-
-    create_scene_partition_attributes(stage, num_envs)
-
-    root_layer = stage.GetRootLayer()
-    for env_idx in range(num_envs):
-        env_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}").AppendProperty("primvars:omni:scenePartition")
-        )
-        camera_partition_attr = root_layer.GetAttributeAtPath(
-            Sdf.Path(f"/World/envs/env_{env_idx}/Camera").AppendProperty("omni:scenePartition")
-        )
-        assert env_partition_attr is not None
-        assert env_partition_attr.default == f"env_{env_idx}"
-        assert camera_partition_attr is not None
-        assert camera_partition_attr.default == f"env_{env_idx}"

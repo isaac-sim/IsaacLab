@@ -77,7 +77,7 @@ from isaaclab.sim import SimulationContext
 from isaaclab.utils.warp import ProxyArray
 from isaaclab.utils.warp.warp_math import convert_camera_frame_orientation_convention_wp
 
-from isaaclab_ov.cloner import ovrtx_replicate
+from isaaclab_ov.cloner import OvPhysxReplicateContext, ovrtx_replicate
 from isaaclab_ov.renderers.ovrtx_annotator_utils import (
     build_instance_id_to_labels_and_semantics,
     build_semantic_id_to_labels,
@@ -96,7 +96,6 @@ from isaaclab_ov.renderers.ovrtx_shader_cache import redirect_shader_cache
 from isaaclab_ov.renderers.ovrtx_usd import (
     _RTX_MINIMAL_MODES,
     build_render_product_as_string,
-    create_scene_partition_attributes,
     export_stage_to_string,
     render_var_prim_names_by_source,
 )
@@ -167,8 +166,8 @@ _DISABLE_LINUX_CUDA_CPU_SYNC_ENV = "ISAAC_LAB_OVRTX_DISABLE_LINUX_CUDA_CPU_SYNC"
 def ovrtx_use_ovstage_enabled() -> bool:
     """Return whether the ovstage scene-ownership path should be used.
 
-    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1``. Defaults to ``0`` so existing deployments are
-    unaffected until ovstage is explicitly opted into.
+    Enabled by ``ISAAC_LAB_OVRTX_USE_OVSTAGE=1`` for independent rendering. OVPhysX + OVRTX
+    selects a shared OVStage automatically, regardless of this optional override.
 
     Raises:
         ValueError: If the environment variable is set to anything other than ``0`` or ``1``.
@@ -247,8 +246,8 @@ class OVRTXBackend:
             with contextlib.suppress(OSError):
                 ctypes.CDLL(str(dependency))
         native_cfg = RendererConfig(
-            log_file_path=cfg.renderer_cfg.log_file_path,
-            log_level=cfg.renderer_cfg.log_level,
+            log_file_path=cfg.log_file_path,
+            log_level=cfg.log_level,
             read_gpu_transforms=cfg.read_gpu_transforms,
             keep_system_alive=True,
             suppress_deprecation_warnings=True,
@@ -256,6 +255,8 @@ class OVRTXBackend:
         )
         # Redirection may initialize the native library and must use the same settings.
         redirect_shader_cache(native_cfg)
+        self.next_camera_id = 0
+        self.attached = False
         if not cfg.use_ovstage:
             # Prepared by clone dispatch, consumed after camera overrides are authored.
             self.clone_copies: list[tuple[str, list[str]]] = []
@@ -361,7 +362,6 @@ class OVRTXRenderer(BaseRenderer):
         # derives from this one cached device so a bare "cuda" cannot be re-interpreted per call site.
         self._warp_device: wp.Device | None = None
         self._camera_render_data: list[OVRTXCameraRenderData] = []
-        self._next_camera_id = 0
         self._sdp = SimulationContext.instance().get_scene_data_provider()
         self._transforms_timestamp = -1
         self._transform_writes = _AsyncWriteBuffers(SceneDataFormat.TransposedMatrix44d() for _ in range(2))
@@ -378,16 +378,37 @@ class OVRTXRenderer(BaseRenderer):
 
         # Selected once at construction so every operation below sees a stable path for the
         # lifetime of the renderer, even if the environment variable changes mid-process.
-        self._use_ovstage = ovrtx_use_ovstage_enabled()
+        sim = SimulationContext.instance()
+        shared_physics = sim.physics_manager.clone_context_type is OvPhysxReplicateContext
+        if shared_physics and sim.physics_manager.backend is not None and sim.physics_manager.backend.scene is None:
+            raise RuntimeError("Configure OVRTX cameras before the first OVPhysX reset to share its OVStage.")
+        self._use_ovstage = shared_physics or ovrtx_use_ovstage_enabled()
         if cfg.async_rendering and self._use_ovstage:
             logger.warning("Asynchronous OVRTX rendering is unsupported with ovstage; rendering synchronously.")
-        sim = SimulationContext.instance()
         backend_cfg = OVRTXBackendCfg(
-            renderer_cfg=cfg, use_ovstage=self._use_ovstage, read_gpu_transforms=_read_gpu_transforms_enabled()
+            scene_key=None if shared_physics else cfg,
+            log_file_path=cfg.log_file_path,
+            log_level=cfg.log_level,
+            use_ovstage=self._use_ovstage,
+            read_gpu_transforms=_read_gpu_transforms_enabled(),
         )
+        if shared_physics and any(
+            isinstance(other, OVRTXBackendCfg) and other != backend_cfg for other, _ in sim._backend_registry
+        ):
+            raise ValueError(
+                "A shared OVStage requires one OVRTX engine; use the same native logging/transform settings."
+            )
         # Register the stage first so teardown destroys its borrowing engine before the stage.
+        domains = ovstage.PopulationDomain.ALL if shared_physics else ovstage.PopulationDomain.RENDERING
         self.scene = (
-            sim.get_or_create_backend(OvstageBackendCfg(consumer_cfg=backend_cfg)) if self._use_ovstage else None
+            sim.get_or_create_backend(
+                OvstageBackendCfg(
+                    scene_key=None if shared_physics else backend_cfg,
+                    population_domains=domains,
+                )
+            )
+            if self._use_ovstage
+            else None
         )
         self.backend: OVRTXBackend = sim.get_or_create_backend(backend_cfg)
         """Native engine borrowed from the simulation registry."""
@@ -396,7 +417,6 @@ class OVRTXRenderer(BaseRenderer):
         self._object_xform_binding = self._geometry_points_binding = None
         self._object_xform_query = self._object_paths_list = None
         self._geometry_points_query = self._geometry_paths_list = None
-        self._current_ordinal = 0
 
     def visual_material_writer(self, batches: tuple[VisualMaterialBatch, ...]) -> OVRTXVisualMaterialWriter:
         """Create the detached-scene material writer after scene population."""
@@ -432,8 +452,7 @@ class OVRTXRenderer(BaseRenderer):
     def prepare_stage(self, stage: Any, num_envs: int) -> None:
         """Prepare the USD stage for OVRTX before :meth:`create_render_data`.
 
-        Adds scene partition attributes and exports the stage to a string held on the renderer until
-        :meth:`create_render_data` is called.
+        Capture composed scales and export unpopulated scenes for :meth:`create_render_data`.
         """
         if stage is None:
             return
@@ -443,7 +462,6 @@ class OVRTXRenderer(BaseRenderer):
             _write_file(Path(self.cfg.temp_usd_dir), "pre_ovrtx_renderer_stage.usda", stage.ExportToString())
 
         logger.info("Preparing stage (%d envs)...", num_envs)
-        create_scene_partition_attributes(stage, num_envs)
 
         # Composed scales must be read while the full stage is still live, before export trims it.
         self._capture_object_scales(stage)
@@ -455,9 +473,10 @@ class OVRTXRenderer(BaseRenderer):
         keep_env_roots = not self._use_ovstage and all(
             env_paths.isdisjoint(targets) for _, targets in self.scene.clone_copies
         )
-        self._exported_usd_string = export_stage_to_string(
-            stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
-        )
+        if not self._use_ovstage or not self.scene.ordinal or self.cfg.temp_usd_dir is not None:
+            self._exported_usd_string = export_stage_to_string(
+                stage, num_envs, source_paths=sources, keep_env_roots=keep_env_roots
+            )
 
     def _capture_object_scales(self, stage: Any) -> None:
         """Record composed world scales beneath the routed sources and their prepared destinations.
@@ -500,7 +519,7 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 self._object_xform_query,
                 "omni:resetXformStack",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=reset_xforms,
                 is_array=False,
             ).wait()
@@ -538,14 +557,14 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 self._geometry_points_query,
                 "omni:resetXformStack",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=reset_xforms,
                 is_array=False,
             ).wait()
             self.scene.stage.write_attribute(
                 self._geometry_points_query,
                 "omni:xform",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=xform_tensor_from_numpy(identity_xforms),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
@@ -601,18 +620,18 @@ class OVRTXRenderer(BaseRenderer):
         self._warp_device = warp_device
         self._device = str(warp_device)
         render_data = OVRTXCameraRenderData(
-            spec, self._device, render_scope_name=f"RenderCamera_{self._next_camera_id}"
+            spec, self._device, render_scope_name=f"RenderCamera_{self.scene.next_camera_id}"
         )
         try:
             first_camera = not self._initialized_scene
             if first_camera:
-                if self._exported_usd_string is None:
+                if self._exported_usd_string is None and not (self._use_ovstage and self.scene.ordinal):
                     raise RuntimeError("Expected an exported USD string from stage")
                 env_paths = self.scene.clone_env_paths
                 tokens = [f"env_{i}" for i in range(len(env_paths))]
                 if self._use_ovstage:
-                    self.scene.populate(self._exported_usd_string)
-                    self._current_ordinal = 2
+                    if not self.scene.ordinal:
+                        self.scene.populate(self._exported_usd_string)
                     if env_paths:
                         paths = self.scene.paths.create_path_list_from_strings(env_paths)
                         try:
@@ -620,7 +639,7 @@ class OVRTXRenderer(BaseRenderer):
                                 self.scene.stage.write_attribute(
                                     query,
                                     "primvars:omni:scenePartition",
-                                    ordinal=self._current_ordinal,
+                                    ordinal=self.scene.ordinal,
                                     tensors=np.array(
                                         [self.scene.paths.intern_token(t) for t in tokens], dtype=np.uint64
                                     ),
@@ -646,9 +665,10 @@ class OVRTXRenderer(BaseRenderer):
             self._register_camera(spec, render_data, camera_paths)
             if first_camera:
                 if self._use_ovstage:
-                    self.scene.stage.advance_write_floor(ordinal=self._current_ordinal).wait()
-                    self.backend.renderer.attach_ovstage(self.scene.stage)
-                    self._current_ordinal += 1
+                    self.scene.commit()
+                    if not self.backend.attached:
+                        self.backend.renderer.attach_ovstage(self.scene.stage)
+                        self.backend.attached = True
                 self._exported_usd_string = None
                 self._initialized_scene = True
             render_data.camera_writes = _AsyncWriteBuffers(
@@ -669,7 +689,7 @@ class OVRTXRenderer(BaseRenderer):
         except Exception:
             render_data.cleanup()
             raise
-        self._next_camera_id += 1
+        self.scene.next_camera_id += 1
         self._camera_render_data.append(render_data)
         return render_data
 
@@ -695,7 +715,7 @@ class OVRTXRenderer(BaseRenderer):
         if self._use_ovstage:
             reference = ovstage.population.add_usd_reference_from_string(self.scene.stage, usd, f"/{scope}")
             render_data.resources.callback(self._remove_camera_reference, reference)
-            ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self._current_ordinal)
+            ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
             product_paths = self.scene.paths.create_path_list_from_strings([product_path])
             try:
                 with self.scene.stage.query_from_path_list(product_paths) as query:
@@ -703,7 +723,7 @@ class OVRTXRenderer(BaseRenderer):
                     self.scene.stage.write_attribute(
                         query,
                         "camera",
-                        ordinal=self._current_ordinal,
+                        ordinal=self.scene.ordinal,
                         tensors=np.array([self.scene.paths.intern_path(p) for p in camera_paths], dtype=np.uint64),
                         is_array=True,
                         semantic=ovstage.AttributeSemantic.RELATIONSHIP_PATH_ID,
@@ -718,14 +738,14 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 render_data.camera_xform_query,
                 "omni:resetXformStack",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=np.full(spec.num_instances, True, dtype=np.bool_),
                 is_array=False,
             ).wait()
             self.scene.stage.write_attribute(
                 render_data.camera_xform_query,
                 "omni:scenePartition",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=np.array(
                     [self.scene.paths.intern_token(f"env_{i}") for i in range(spec.num_instances)], dtype=np.uint64
                 ),
@@ -1239,7 +1259,7 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 binding,
                 "omni:xform",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
@@ -1273,7 +1293,7 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 binding,
                 "points",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=[points_tensor_from_warp(array) for array in points],
                 is_array=True,
                 semantic=ovstage.AttributeSemantic.POINT,
@@ -1306,7 +1326,7 @@ class OVRTXRenderer(BaseRenderer):
             self.scene.stage.write_attribute(
                 binding,
                 "omni:xform",
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
                 tensors=xform_tensor_from_warp(matrices),
                 is_array=False,
                 semantic=ovstage.AttributeSemantic.MATRIX,
@@ -1332,7 +1352,7 @@ class OVRTXRenderer(BaseRenderer):
                     ovstage.WriteDesc(attribute=name, tensors=parameters[row], is_array=False, cuda_stream=stream)
                     for row, name in enumerate(_CAMERA_INTRINSIC_ATTRIBUTES)
                 ],
-                ordinal=self._current_ordinal,
+                ordinal=self.scene.ordinal,
             ).wait()
         else:
             operations = []
@@ -1376,7 +1396,7 @@ class OVRTXRenderer(BaseRenderer):
             if material_writer is not None:
                 material_writer.publish()
             if self._use_ovstage:
-                self.scene.stage.advance_write_floor(ordinal=self._current_ordinal).wait()
+                ordinal = self.scene.commit()
             elif self.cfg.async_rendering:
                 unread = {data.ready[0] for data in render_data if data.ready is not None}
                 operation = self.backend.renderer.step_async(render_products=products, delta_time=_RENDER_DELTA_TIME)
@@ -1406,9 +1426,8 @@ class OVRTXRenderer(BaseRenderer):
             # Stage writes and material reads finish before rendering. Consume only after advancing
             # the ordinal so a failed readback cannot leave later writes at the sealed floor.
             result = self.backend.renderer.step(
-                render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=self._current_ordinal
+                render_products=products, delta_time=_RENDER_DELTA_TIME, ordinal=ordinal
             )
-            self._current_ordinal += 1
             self._process_render_products(render_data, result)
 
     def cleanup(self, render_data: OVRTXCameraRenderData | None) -> None:
@@ -1431,7 +1450,7 @@ class OVRTXRenderer(BaseRenderer):
     def _remove_camera_reference(self, reference: int) -> None:
         """Publish removal of a camera's USD reference at the shared stage's current ordinal."""
         ovstage.population.remove_usd(self.scene.stage, reference)
-        ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self._current_ordinal)
+        ovstage.population.apply_usd_changes(self.scene.stage, ordinal=self.scene.ordinal)
 
     def close(self) -> None:
         """Complete borrowed-buffer reads and release bindings; the registry owns the native engine."""
@@ -1502,7 +1521,6 @@ class OVRTXRenderer(BaseRenderer):
 
         self._object_scales = None
         self._object_scales_by_path = {}
-        self._current_ordinal = 0
 
 
 class _AsyncWriteBuffers:

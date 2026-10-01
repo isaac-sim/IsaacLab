@@ -157,6 +157,23 @@ def test_dispatch_order_and_usd_scope(simulation):
         )
 
 
+def test_shared_context_replaces_native_routes_with_their_union(simulation):
+    """A shared representation clones disjoint physics/render assets once and removes native dispatch."""
+
+    class Shared(_Context):
+        replaces_contexts = (_Context, _RenderContext)
+
+    simulation.render_context.clone_contexts.update((_RenderContext, Shared))
+    assets = (
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Body", cloning_contexts=(_Context,)),
+        AssetBaseCfg(prim_path="{ENV_REGEX_NS}/Visual", cloning_contexts=(_RenderContext,)),
+    )
+    with ReplicateSession(assets, 2, 1.0) as session:
+        pass
+    assert simulation.calls == [(Shared, session.plan, (0, 1))]
+    assert set(simulation.clone_contexts) == {Shared}
+
+
 def test_grid_transforms_centers_a_float32_grid():
     positions, orientations = grid_transforms(3, np.float64(2.0))
     assert positions.dtype == orientations.dtype == np.float32

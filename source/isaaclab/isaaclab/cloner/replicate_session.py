@@ -79,6 +79,9 @@ def make_valid_clone_combinations(
 def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     """Execute one topology through its declared clone contexts.
 
+    A context may declare ``replaces_contexts`` to consume the union of other contexts' routes.
+    Replaced contexts are removed before dispatch, so shared representations clone once.
+
     Args:
         plan: The active simulation's topology.
         replicate_physics: Whether the active physics context performs native replication.
@@ -126,6 +129,13 @@ def replicate(plan: ClonePlan, *, replicate_physics: bool = True) -> None:
     for context in routing:
         if context not in sim.clone_contexts:
             sim.clone_contexts[context] = context(sim)
+    # A shared representation consumes the union of the routes it replaces, exactly once.
+    for context in tuple(routing):
+        if context not in routing:
+            continue
+        for replaced in getattr(sim.clone_contexts[context], "replaces_contexts", ()):
+            routing[context].update(routing.pop(replaced, ()))
+            sim.clone_contexts.pop(replaced, None)
     for context in sorted(routing, key=lambda context: context.replicate_priority):
         if replicate_physics or context is not physics_context:
             sim.clone_contexts[context].replicate(plan, tuple(sorted(routing[context])))

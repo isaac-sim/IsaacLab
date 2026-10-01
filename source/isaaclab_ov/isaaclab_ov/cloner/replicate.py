@@ -193,6 +193,15 @@ class OvstageReplicateContext:
 
     def __init__(self, sim_context: SimulationContext):
         self._sim = sim_context
+        from isaaclab_ov.stage import OvstageBackendCfg  # noqa: PLC0415
+
+        self.replaces_contexts = (
+            (OvPhysxReplicateContext, OvrtxReplicateContext)
+            if any(
+                isinstance(cfg, OvstageBackendCfg) and cfg.scene_key is None for cfg, _ in sim_context._backend_registry
+            )
+            else ()
+        )
 
     def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
         """Prepare stage copies once for the consumers of each OVStage resource.

@@ -42,7 +42,7 @@ from isaaclab_ov._runtime import import_ovphysx
 from isaaclab_ov.cloner import OvPhysxReplicateContext
 from isaaclab_ov.cloner.replicate import _serialize_stage
 from isaaclab_ov.sim.views.ovphysx_view import OvPhysxView
-from isaaclab_ov.stage import create_ovstage
+from isaaclab_ov.stage import OvstageBackendCfg, create_ovstage, export_stage_to_string
 
 from .ovphysx_compat import OVPHYSX_LIFECYCLE_ENTRY_POINTS
 from .ovphysx_manager_cfg import DEFAULT_COOKED_COLLIDER_CACHE_DIR, OvPhysxBackendCfg
@@ -302,6 +302,7 @@ class OvPhysxBackend:
             ),
             active_cuda_gpus=cfg.device.removeprefix("cuda:") if is_gpu else None,
         )
+        self.scene = SimulationContext.instance().get_or_create_backend(cfg.stage_cfg) if cfg.stage_cfg else None
         self.stage: Any = None
         self.rigid_body_view: Any = None
 
@@ -310,7 +311,8 @@ class OvPhysxBackend:
         physx = self.physx
         if physx is None:
             if self.stage is not None:
-                self.stage.destroy()
+                if self.scene is None:
+                    self.stage.destroy()
                 self.stage = None
             return
 
@@ -350,7 +352,8 @@ class OvPhysxBackend:
             if release_owners:
                 self.physx = None
                 if self.stage is not None:
-                    self.stage.destroy()
+                    if self.scene is None:
+                        self.stage.destroy()
                     self.stage = None
 
 
@@ -596,6 +599,12 @@ class OvPhysxManager(PhysicsManager):
         """Populate an OVStage from USDA text and attach it to the runtime."""
         import ovstage  # noqa: PLC0415
 
+        if cls.backend.scene is not None:
+            cls.backend.scene.populate(stage_usda)
+            cls.backend.stage = cls.backend.scene.stage
+            cls.backend.physx.attach_ovstage(cls.backend.stage, read_ordinal=cls.backend.scene.commit())
+            return
+
         stage = create_ovstage("isaaclab")
         try:
             ovstage.population.open_usd_from_string(
@@ -630,7 +639,8 @@ class OvPhysxManager(PhysicsManager):
         OvPhysxView._close_all_for(physx)
         physx.wait_op(physx.reset_stage())
         if cls.backend.stage is not None:
-            cls.backend.stage.destroy()
+            if cls.backend.scene is None:
+                cls.backend.stage.destroy()
             cls.backend.stage = None
         cls._next_control_ordinal = 2
 
@@ -684,8 +694,14 @@ class OvPhysxManager(PhysicsManager):
             direction = np.array([[0.0, 0.0, -1.0]], dtype=np.float32)
         else:
             direction = (gravity_array / magnitude).reshape(1, 3)
-        ordinal = cls._next_control_ordinal
-        cls._next_control_ordinal += 1
+        scene = cls.backend.scene
+        if scene is not None:
+            # Seal rendering/output writes separately; physics must consume only this control edit.
+            scene.commit()
+            ordinal = scene.ordinal
+        else:
+            ordinal = cls._next_control_ordinal
+            cls._next_control_ordinal += 1
 
         import ovstage  # noqa: PLC0415
 
@@ -699,7 +715,10 @@ class OvPhysxManager(PhysicsManager):
             stage.write_attribute(
                 query, "physics:gravityMagnitude", ordinal, np.array([magnitude], dtype=np.float32), is_array=False
             ).wait()
-            stage.advance_write_floor(ordinal=ordinal).wait()
+            if scene is None:
+                stage.advance_write_floor(ordinal=ordinal).wait()
+            else:
+                scene.commit()
             cls.backend.physx.update_from_ovstage(ordinal, ordinal)
 
         # Only publish once the ordinal has been applied, so a failed write leaves
@@ -767,8 +786,26 @@ class OvPhysxManager(PhysicsManager):
                 scene_prim.CreateAttribute("physxScene:envIdInBoundsBitCount", Sdf.ValueTypeNames.Int).Set(4)
             cls._configure_physx_scene_prim(scene_prim, PhysicsManager._cfg, ovphysx_device)
 
-        full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
-        stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage, plan)
+        shared_scene = next(
+            (
+                backend
+                for cfg, backend in sim._backend_registry
+                if isinstance(cfg, OvstageBackendCfg) and cfg.scene_key is None
+            ),
+            None,
+        )
+        if shared_scene is not None:
+            env_paths = set(shared_scene.clone_env_paths)
+            stage_usda = export_stage_to_string(
+                sim.stage,
+                len(shared_scene.clone_env_paths),
+                source_paths=tuple(source for source, _ in shared_scene.clone_copies),
+                keep_env_roots=all(env_paths.isdisjoint(targets) for _, targets in shared_scene.clone_copies),
+            )
+            native_clones = ()
+        else:
+            full_stage = cls._requires_full_stage or ovphysx_device == "cpu"
+            stage_usda, native_clones = _serialize_stage(sim.stage, cls._clone_recipes, full_stage, plan)
         cls._stage_usda = stage_usda
 
         previous_backend = cls.backend
@@ -776,6 +813,7 @@ class OvPhysxManager(PhysicsManager):
             OvPhysxBackendCfg(
                 device=PhysicsManager._device,
                 cooked_collider_cache_dir=sim.cfg.physics.cooked_collider_cache_dir,
+                stage_cfg=shared_scene.cfg if shared_scene is not None else None,
             )
         )
         cls._locked_device = ovphysx_device

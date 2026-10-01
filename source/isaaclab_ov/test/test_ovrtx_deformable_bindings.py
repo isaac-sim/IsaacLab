@@ -85,7 +85,7 @@ def test_geometry_bindings_follow_mixed_sdp_points_and_pointer_swaps(mode):
     renderer._sdp = SceneDataProvider(publication)
     if use_ovstage:
         renderer._object_xform_query = renderer._geometry_points_query = None
-        renderer._current_ordinal = 7
+        renderer.scene.ordinal = 7
         renderer.scene.paths = SimpleNamespace(create_path_list_from_strings=lambda paths: paths)
         renderer.scene.stage = MagicMock()
         renderer.scene.stage.query_from_path_list.side_effect = lambda paths: paths
@@ -186,7 +186,7 @@ def test_update_transforms_consumes_sdp_matrices_once_per_publication(monkeypatc
     renderer._object_scales_by_path = {paths[0]: (2, 3, 4)}
     renderer._warp_device = SimpleNamespace(stream=SimpleNamespace(cuda_stream=99))
     renderer._use_ovstage = use_ovstage
-    renderer._current_ordinal = 5
+    renderer.scene.ordinal = 5
     writes = []
 
     if use_ovstage:

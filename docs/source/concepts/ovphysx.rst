@@ -94,8 +94,9 @@ table and object able to contact one another without destination placeholders.
 Only declared asset subtrees are copied; unrelated authored assets are retained.
 
 Keep :attr:`~isaaclab.scene.InteractiveSceneCfg.filter_collisions` enabled to
-isolate original worlds with USD collision groups. GPU copies additionally use
-native environment-ID filtering. CPU has no native environment-ID filtering
+isolate original worlds with USD collision groups. Standalone GPU physics copies additionally use
+native environment-ID filtering. With OVRTX cameras, both backends automatically attach to one
+OVStage and clone it once; these copies use the authored USD collision groups. CPU has no native environment-ID filtering
 in OvPhysX 0.6.3, so it imports all declared USD copies and uses collision groups.
 Large overlapping original layouts can still exhaust broadphase pair capacity;
 use spatially separated environments.
