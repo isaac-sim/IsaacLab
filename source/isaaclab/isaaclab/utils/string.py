@@ -140,9 +140,24 @@ def callable_to_string(value: Callable, separator: str = ":") -> str:
         # Extract the lambda expression from its enclosing source statement. Parsing the
         # source avoids treating commas inside the lambda body as statement delimiters.
         source = textwrap.dedent(inspect.getsource(value))
-        tree = ast.parse(source)
+        parsed_source = source
+        try:
+            tree = ast.parse(parsed_source)
+        except SyntaxError:
+            # inspect.getsource can return a source fragment rather than a
+            # complete statement, for example a lambda-valued dictionary entry.
+            # Retry from the lambda token as an expression so surrounding mapping
+            # syntax does not make an otherwise valid lambda unserializable.
+            lambda_start = source.find("lambda")
+            if lambda_start < 0:
+                raise ValueError(f"Could not resolve source for lambda callable: {value}.")
+            parsed_source = source[lambda_start:].strip()
+            try:
+                tree = ast.parse(parsed_source, mode="eval")
+            except SyntaxError as exc:
+                raise ValueError(f"Could not resolve source for lambda callable: {value}.") from exc
         lambda_node = next((node for node in ast.walk(tree) if isinstance(node, ast.Lambda)), None)
-        lambda_source = ast.get_source_segment(source, lambda_node) if lambda_node is not None else None
+        lambda_source = ast.get_source_segment(parsed_source, lambda_node) if lambda_node is not None else None
         if lambda_source is None:
             raise ValueError(f"Could not resolve source for lambda callable: {value}.")
         return lambda_source
