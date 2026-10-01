@@ -186,7 +186,7 @@ autodoc_default_options = {
 
 # generate links to the documentation of objects in external projects
 intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
+    "python": ("https://docs.python.org/3.12", None),
     "numpy": ("https://numpy.org/doc/stable/", None),
     "trimesh": ("https://trimesh.org/", None),
     # pinned to the release version because /docs/stable/objects.inv currently 404s
