@@ -236,12 +236,18 @@ def test_native_pendulum_matches_recorded_trajectory(native_sim, device, pendulu
     """
     robot = _build_native_pendulum(native_sim, pendulum_usd)
     drive = _native_drive(robot)
+    np.testing.assert_allclose(
+        robot.data.joint_viscous_friction_coeff.torch.cpu().numpy(), _make_cfg().motor.friction_viscous, rtol=1e-6
+    )
     NewtonManager.set_decimation(decimation)
     _release(robot)
     with np.load(Path(__file__).parent / "data" / "bam_pendulum_trajectory.npz") as golden:
         assert native_sim.get_physics_dt() == float(golden["dt"])
         traces = {name: [] for name in ("position", "velocity", "effort", "friction_budget")}
         for index in range(0, len(golden["target"]), decimation):
+            if index == 16:
+                # A joint-property resync must preserve the initialized passive damping.
+                robot.write_joint_armature_to_sim_index(armature=robot.data.joint_armature.torch.clone())
             target = float(golden["target"][index])
             robot.actuators.target_command.set_position_index(value=torch.full_like(robot.data.joint_pos.torch, target))
             write_group_parameter(

@@ -125,7 +125,6 @@ def _bam_friction_kernel(
     external_torque_in: wp.array[float],
     friction_scale: wp.array[float],
     friction_base: wp.array[float],
-    friction_viscous: wp.array[float],
     friction_stribeck: wp.array[float],
     dtheta_stribeck: wp.array[float],
     alpha: wp.array[float],
@@ -142,7 +141,6 @@ def _bam_friction_kernel(
     quadratic: int,
     forces: wp.array[float],
     friction_budget: wp.array[float],
-    viscous_damping: wp.array[float],
     next_prev_motor: wp.array[float],
 ):
     """Publish the friction budget for MJWarp and emit the clamped motor torque."""
@@ -177,7 +175,6 @@ def _bam_friction_kernel(
     budget *= friction_scale[i]
 
     friction_budget[i] = budget
-    viscous_damping[i] = friction_viscous[i]
 
     # BAM owns its effort clamp so a registered clamping schema cannot hide its
     # unregistered controller token from Newton's USD component discovery.

@@ -3,14 +3,15 @@ Added
 
 * Added :class:`~isaaclab_newton.physics.MjWarpActuatorBridge`, the single place Isaac Lab
   touches MuJoCo Warp's device model on behalf of a Newton actuator component. It publishes a
-  component's per-step dry-friction budget and viscous damping into ``dof_frictionloss`` /
-  ``dof_damping``, reads back the true external load on the driven DOFs
+  component's per-step dry-friction budget into ``dof_frictionloss``, reads back the true external load on the driven DOFs
   (``-qfrc_bias + qfrc_constraint`` with the component's own friction rows removed), and can
   stiffen the friction constraint's solver reference. The Newton articulation binds it to every
   :class:`~isaaclab.actuators.BamActuatorCfg` group through Newton 1.6's ``actuator.drive`` API and rejected
   other solvers before graph capture. Writes
   go straight into the MuJoCo Warp model and are therefore not visible through Isaac Lab's
   joint-friction property; the module documents the resulting ordering contract.
+  BAM viscous damping was initialized once through the articulation's joint-property setter,
+  preserving it across solver property resynchronization without per-step publication.
 * Added :meth:`~isaaclab_newton.physics.NewtonManager.register_pre_actuator_callback`, an
   in-graph hook that runs immediately before the actuator step so a component can consume
   solver quantities on the same decimation iteration, and

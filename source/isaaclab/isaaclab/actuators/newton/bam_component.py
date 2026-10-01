@@ -81,9 +81,6 @@ class DriveBam(DriveBase):
     friction_budget: wp.array[float] | None
     """Velocity-independent friction budget of the last step [N.m], shape ``(N,)``."""
 
-    viscous_damping: wp.array[float] | None
-    """Viscous friction coefficient published alongside the budget [N.m.s/rad], shape ``(N,)``."""
-
     effective_vin: wp.array[float] | None
     """Supply voltage after the load-induced sag of the last step [V], shape ``(N,)``."""
 
@@ -103,7 +100,6 @@ class DriveBam(DriveBase):
         "max_pwm",
         "max_current",
         "friction_base",
-        "friction_viscous",
         "friction_stribeck",
         "dtheta_stribeck",
         "alpha",
@@ -220,7 +216,6 @@ class DriveBam(DriveBase):
             "kp_fw",
             "vin",
             "friction_base",
-            "friction_viscous",
         }
         if args.get("stribeck", 0):
             required.update(("friction_stribeck", "dtheta_stribeck", "alpha"))
@@ -324,7 +319,6 @@ class DriveBam(DriveBase):
         self.external_torque = None
         self.env_dof_stride = 1
         self.friction_budget = None
-        self.viscous_damping = None
         self.effective_vin = None
         self.motor_torque = None
         self._next_state_arrays: dict[str, wp.array] = {}
@@ -335,7 +329,6 @@ class DriveBam(DriveBase):
 
     def finalize(self, device: wp.Device, num_actuators: int) -> None:
         self.friction_budget = wp.zeros(num_actuators, dtype=wp.float32, device=device)
-        self.viscous_damping = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.effective_vin = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self.motor_torque = wp.zeros(num_actuators, dtype=wp.float32, device=device)
         self._next_state_arrays = {
@@ -470,7 +463,6 @@ class DriveBam(DriveBase):
                 self.external_torque,
                 self.friction_scale,
                 self.friction_base,
-                self.friction_viscous,
                 self.friction_stribeck,
                 self.dtheta_stribeck,
                 self.alpha,
@@ -489,7 +481,6 @@ class DriveBam(DriveBase):
             outputs=[
                 forces,
                 self.friction_budget,
-                self.viscous_damping,
                 scratch["prev_motor_torque"],
             ],
             device=device,
