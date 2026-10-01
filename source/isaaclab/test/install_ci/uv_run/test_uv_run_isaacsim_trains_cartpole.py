@@ -15,7 +15,6 @@ Tests:
 
 from __future__ import annotations
 
-import platform
 import shutil
 
 import pytest
@@ -52,13 +51,6 @@ class Test_Uv_Run_Isaacsim_Trains_Cartpole:
     def setup_class(cls):
         if not shutil.which("uv"):
             pytest.skip("uv is not available")
-        # PhysX training currently fails at env creation on aarch64 (DGX Spark):
-        # "[omni.physx.tensors.plugin] Simulation view object is invalidated and cannot
-        # be used again to call updateArticulationsKinematic". The environment itself
-        # installs fine from the lock; this matches the x86-only scope of the workflow
-        # this test replaces. Re-enable once PhysX training works on aarch64.
-        if platform.machine().lower() in ("aarch64", "arm64"):
-            pytest.skip("PhysX training is not functional on aarch64 yet")
 
     @pytest.mark.docker
     @pytest.mark.smoke
