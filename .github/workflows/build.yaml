@@ -1111,6 +1111,12 @@ jobs:
           # Dependency-cache hits can reuse an image with older source. Overlay this
           # checkout at its editable-install paths, then verify the measured process.
           timeout "${bench_timeout_s}" docker run --name "$container" --gpus all --network=host --ipc=host \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp/isaaclab-ci-home \
+            -e XDG_CACHE_HOME=/tmp/isaaclab-ci-home/.cache \
+            -e XDG_DATA_HOME=/tmp/isaaclab-ci-home/.local/share \
+            -e UV_CACHE_DIR=/tmp/isaaclab-ci-home/.cache/uv \
+            -e "USER=$(id -un)" -e "LOGNAME=$(id -un)" \
             -e WARP_CACHE_PATH=/tmp/jit-cache/warp \
             -e CUDA_CACHE_PATH=/tmp/jit-cache/nv \
             -v "${GITHUB_WORKSPACE}/jit-cache:/tmp/jit-cache" \
@@ -1119,9 +1125,11 @@ jobs:
             -v "${GITHUB_WORKSPACE}/apps:/workspace/isaaclab/apps:ro" \
             -v "${GITHUB_WORKSPACE}/tools/perf_smoke/source_revision.py:/tmp/source_revision.py:ro" \
             -v "${GITHUB_WORKSPACE}/benchmark-output/source-manifest.json:/tmp/source-manifest.json:ro" \
-            --entrypoint bash "$CI_IMAGE_TAG" -lc \
+            --entrypoint bash "$CI_IMAGE_TAG" -c \
             "set -euo pipefail
-            mkdir -p /tmp/benchmark-output
+            mkdir -p /tmp/benchmark-output /tmp/isaaclab-ci-home/.cache /tmp/isaaclab-ci-home/.local/share
+            id
+            stat -c 'Source owner: %u:%g; permissions: %a' /workspace/isaaclab/source
             uv run --no-sync python /tmp/source_revision.py run \
               --manifest /tmp/source-manifest.json \
               --checkout-root /workspace/isaaclab \
