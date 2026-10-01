@@ -90,7 +90,7 @@ import isaaclab.utils.math as math_utils  # noqa: E402
 import isaaclab.utils.string as string_utils  # noqa: E402
 from isaaclab.actuators import DelayedPDActuatorCfg, IdealPDActuatorCfg, ImplicitActuatorCfg  # noqa: E402
 from isaaclab.assets import ArticulationCfg, get_articulation_name_ordering  # noqa: E402
-from isaaclab.managers import SceneEntityCfg  # noqa: E402
+from isaaclab.managers import EventTermCfg, SceneEntityCfg  # noqa: E402
 from isaaclab.scene import InteractiveScene, InteractiveSceneCfg  # noqa: E402
 from isaaclab.sim import SimulationCfg, build_simulation_context  # noqa: E402
 from isaaclab.utils.assets import ISAAC_NUCLEUS_DIR  # noqa: E402
@@ -2959,13 +2959,14 @@ def test_set_material_properties(sim, num_articulations, device, add_ground_plan
         "dynamic_friction_range": dynamic_range,
         "restitution_range": restitution_range,
         "num_buckets": 16,
+        "asset_cfg": SceneEntityCfg("robot"),
     }
-    asset_cfg = SimpleNamespace(name="robot", body_ids=slice(None))
     env = SimpleNamespace(scene={"robot": articulation}, sim=sim)
-    randomize = randomize_rigid_body_material(SimpleNamespace(params={**params, "asset_cfg": asset_cfg}), env)
+    cfg = EventTermCfg(func=randomize_rigid_body_material, mode="reset", params=params)
+    randomize = randomize_rigid_body_material(cfg, env)
 
     # Randomize only the last environment; the others keep their materials.
-    randomize(env, torch.tensor([num_articulations - 1], device=device), *params.values(), asset_cfg)
+    randomize(env, torch.tensor([num_articulations - 1], device=device), **cfg.params)
     sim.step()
     articulation.update(sim.cfg.dt)
 
