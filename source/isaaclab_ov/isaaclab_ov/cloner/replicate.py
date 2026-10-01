@@ -160,48 +160,6 @@ class OvPhysxReplicateContext:
         self._sim.physics_manager._clone_recipes.extend(recipes)
 
 
-class OvstageReplicateContext:
-    """Build an OVStage stage of the scene from the sources routed to it in a clone plan.
-
-    A consumer that draws the scene itself, such as Newton's ``ViewerRTX``, declares this context in its
-    ``cloning_contexts`` and reads :attr:`render_stage` once replication has finished.
-    """
-
-    # The stage is built from authored prims, so it runs after native physics has consumed them.
-    replicate_priority = 100
-
-    def __init__(self, sim_context: SimulationContext):
-        """Initialize the context.
-
-        Args:
-            sim_context: Simulation context that owns this clone backend.
-        """
-        self._sim = sim_context
-        self._render_stage: ovstage.Stage | None = None
-
-    @property
-    def render_stage(self) -> ovstage.Stage:
-        """The populated stage, available after :meth:`replicate`.
-
-        Raises:
-            RuntimeError: If the clone plan has not been replicated yet.
-        """
-        if self._render_stage is None:
-            raise RuntimeError("The OVStage render stage is unavailable before clone replication completes.")
-        return self._render_stage
-
-    def replicate(self, plan: ClonePlan, asset_prototype_ids: tuple[int, ...]) -> None:
-        """Build the stage from this context's source declarations.
-
-        Args:
-            plan: Replication layout shared by every clone backend.
-            asset_prototype_ids: Asset definitions routed to this context.
-        """
-        from isaaclab_ov.stage import create_render_ovstage  # noqa: PLC0415
-
-        self._render_stage = create_render_ovstage(self._sim.stage, plan, asset_prototype_ids)
-
-
 def ovstage_replicate(
     stage: ovstage.Stage,
     paths: ovstage.PathDictionary,

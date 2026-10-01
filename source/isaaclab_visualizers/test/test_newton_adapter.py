@@ -1004,29 +1004,24 @@ def _patch_rtx_viewer(monkeypatch: pytest.MonkeyPatch, *, accepts_ovstage: bool)
 
 
 def test_newton_rtx_borrows_the_usd_stage_only_when_requested(monkeypatch: pytest.MonkeyPatch) -> None:
-    from isaaclab_ov.cloner import OvstageReplicateContext
-
+    pytest.importorskip("isaaclab_ov.stage")
     kwargs = _patch_rtx_viewer(monkeypatch, accepts_ovstage=True)
-    context = SimpleNamespace(render_stage="render-stage")
+    stage, plan = object(), object()
     monkeypatch.setattr(
         newton_visualizer_module.SimulationContext,
         "instance",
-        staticmethod(lambda: SimpleNamespace(clone_contexts={OvstageReplicateContext: context})),
+        staticmethod(lambda: SimpleNamespace(stage=stage, get_clone_plan=lambda: plan)),
     )
+    built = []
+    monkeypatch.setattr("isaaclab_ov.stage.create_render_ovstage", lambda *args: built.append(args) or "render-stage")
 
     NewtonRTXVisualizer(NewtonRTXVisualizerCfg())._create_viewer(False, {})
     assert "ovstage" not in kwargs
+    assert not built
 
     NewtonRTXVisualizer(NewtonRTXVisualizerCfg(render_usd_stage=True))._create_viewer(False, {})
     assert kwargs["ovstage"] == "render-stage"
-
-
-@pytest.mark.parametrize("render_usd_stage", [False, True])
-def test_newton_rtx_declares_the_ovstage_clone_context_only_for_usd_stage_rendering(render_usd_stage: bool) -> None:
-    contexts = NewtonRTXVisualizerCfg(render_usd_stage=render_usd_stage).cloning_contexts
-
-    assert ("isaaclab_ov.cloner:OvstageReplicateContext" in contexts) is render_usd_stage
-    assert "isaaclab_newton.cloner:NewtonReplicateContext" in contexts
+    assert built == [(stage, plan)]
 
 
 def test_newton_rtx_usd_stage_requires_a_viewer_that_accepts_ovstage(monkeypatch: pytest.MonkeyPatch) -> None:

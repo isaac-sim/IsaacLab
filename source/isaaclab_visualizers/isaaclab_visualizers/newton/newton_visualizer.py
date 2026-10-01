@@ -2378,10 +2378,10 @@ class NewtonRTXVisualizer(NewtonVisualizer):
                 raise RuntimeError(
                     "NewtonRTXVisualizerCfg.render_usd_stage needs a Newton release whose ViewerRTX accepts ovstage=."
                 )
-            from isaaclab_ov.cloner import OvstageReplicateContext
+            from isaaclab_ov.stage import create_render_ovstage
 
-            # The context was declared through the cfg's cloning_contexts, so replication already built it.
-            self._render_stage = SimulationContext.instance().clone_contexts[OvstageReplicateContext].render_stage
+            sim = SimulationContext.instance()
+            self._render_stage = create_render_ovstage(sim.stage, sim.get_clone_plan())
             viewer_kwargs["ovstage"] = self._render_stage
         if not runtime_headless:
             # pyglet sets WM_CLASS from the window caption "Newton RTX Viewer".
