@@ -148,7 +148,11 @@ def test_camera_normalization_is_stationary(data_type: str) -> None:
 
 
 def _make_pose_command(
-    monkeypatch: pytest.MonkeyPatch, num_envs: int, success_asset: object
+    monkeypatch: pytest.MonkeyPatch,
+    num_envs: int,
+    success_asset: object,
+    *,
+    command_cfg: mdp.ObjectUniformPoseCommandCfg | None = None,
 ) -> tuple[ObjectUniformPoseCommand, torch.Tensor, list[torch.Tensor]]:
     """Build a pose command around fake assets and spies; returns it, the root positions, and material colors."""
     environment_ids = torch.arange(num_envs)
@@ -174,7 +178,7 @@ def _make_pose_command(
     material = SimpleNamespace(is_per_env=True)
     scene = _FakeScene(environment_ids, robot=robot, object=object_asset, table=success_asset, table_material=material)
     env = SimpleNamespace(num_envs=num_envs, device="cpu", scene=scene)
-    cfg = SimpleNamespace(
+    cfg = command_cfg or SimpleNamespace(
         asset_name="robot",
         object_name="object",
         success_vis_asset_name="table",
@@ -200,6 +204,31 @@ def _make_pose_command(
         pose_commands.VisualMaterial, "write_channels", lambda _, channels: colors.append(channels["color"])
     )
     return ObjectUniformPoseCommand(cfg, env), root_pos_w, colors
+
+
+def test_lift_table_colors_update_only_in_play(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Training keeps the table visible and command metrics active without publishing success colors."""
+    from isaaclab_tasks.core.lift.config.kuka_allegro.kuka_allegro_camera_env_cfg import KukaAllegroLiftCameraEnvCfg
+
+    cfg = resolve_presets(KukaAllegroLiftCameraEnvCfg())
+    assert cfg.scene.table.spawn.visible
+    assert cfg.scene.table.spawn.visual_material is not None
+    assert cfg.scene.table_material is not None
+    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=cfg.commands.object_pose)
+    assert colors == []
+    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0])
+    command._update_metrics()
+    torch.testing.assert_close(command.metrics["position_error"], torch.tensor([1.0, 0.0]))
+    assert colors == []
+
+    cfg.play_mode()
+    command, _, colors = _make_pose_command(monkeypatch, 2, None, command_cfg=cfg.commands.object_pose)
+    assert len(colors) == 1
+    command.pose_command_b[:, 0] = torch.tensor([1.0, 0.0])
+    command._update_metrics()
+    failure, success = cfg.commands.object_pose.success_vis_colors
+    assert len(colors) == 2
+    torch.testing.assert_close(colors[-1], torch.tensor([[failure, success]]))
 
 
 @pytest.mark.parametrize("static", [False, True])
